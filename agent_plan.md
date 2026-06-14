@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-14 20:36 GMT
+Last updated: 2026-06-14 21:57 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -13,8 +13,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 
 ## Current Work
 
-- No active feature is in progress after the business auth and tenant onboarding foundation slice.
-- Next recommended feature: complete the marketing website shell as its own committed slice, then connect its signup call-to-action to the business registration API.
+- No active marketing feature is in progress after the public marketing website polish slice.
+- Next recommended feature: review and finish the separate auth-session refresh/logout/middleware work that is currently open in the worktree, then commit it as its own API slice.
 - Push of local commits is pending until the project owner adds a Git remote.
 
 ## Completed
@@ -53,6 +53,15 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Added API tests for registration/login use cases, HTTP auth handlers, request decoding, and JWT claims.
 - Added a bounded API race coverage command with `-timeout=45s` so CI and local quality gates fail loudly instead of hanging.
 - Verified `pnpm check` and `pnpm test` pass locally after the auth slice.
+- Completed the public marketing website shell with React Router SSR, MUI theme, navigation, footer, SEO metadata, sitemap, favicon, and Vercel-ready build scripts.
+- Added a polished image-led home hero using the Xtiitch brand palette and a generated Ghanaian fashion atelier asset saved under `apps/marketing/public/images`.
+- Added marketing pages for Home, Features, How it works, Pricing, For customers, Security, FAQ, Contact, Privacy, and Terms.
+- Added a product-preview band showing the storefront/dashboard/order workflow without claiming unsupported features beyond the v1 scope.
+- Added waitlist lead capture with server-side Zod validation, consent checkbox, anti-spam honeypot, webhook or Resend delivery support, and honest no-sink error behavior.
+- Added marketing waitlist tests with Node test runner through `tsx`.
+- Fixed marketing SSR so responses emit a single `<!DOCTYPE html>`.
+- Verified the marketing route returns `200`, waitlist no-sink behavior is explicit, and desktop screenshot captures show the first viewport and next band.
+- Verified `pnpm check`, `pnpm test`, and `pnpm --filter @xtiitch/marketing build` pass locally after the marketing slice.
 
 ## Opened / Pending
 
@@ -65,8 +74,10 @@ The PDFs are the product and technical source of truth. This plan records implem
 - SonarQube scan is configured but not executed locally because `SONAR_HOST_URL` and `SONAR_TOKEN` are not configured yet.
 - Non-API app tests are placeholder scripts until their app shells and first real flows are implemented.
 - Add Postgres integration tests for auth repositories, migrations, and RLS tenant isolation before auth is considered production-ready.
-- Implement refresh-token rotation, logout/session revocation, authenticated request middleware, and role-based authorization.
-- Marketing website implementation remains pending. A partial React Router/MUI SSR setup is open in the worktree and should be completed and committed as its own feature slice.
+- Configure either `MARKETING_WAITLIST_WEBHOOK_URL` or `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `MARKETING_WAITLIST_EMAIL_TO` before public waitlist launch.
+- Final privacy, terms, refund, cancellation, subscription renewal, and chargeback language must receive legal review before public launch.
+- React Router build emits v8 future-flag warnings. Keep visible until the team deliberately opts into the v8 behavior changes.
+- Auth-session refresh/logout/middleware changes are open in the worktree and should be reviewed, documented, and committed separately from the marketing slice.
 
 ## Product Boundary
 

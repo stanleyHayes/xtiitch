@@ -11,8 +11,11 @@ export default [
       "**/coverage/**",
       "**/.expo/**",
       "**/.turbo/**",
+      "**/.react-router/**",
       "apps/api/**",
     ],
+  },
+  {
     linterOptions: {
       noInlineConfig: true,
       reportUnusedDisableDirectives: "error",
