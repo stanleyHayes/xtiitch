@@ -8,6 +8,6 @@
     "migrate:down": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" down",
     "migrate:status": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" status",
     "migrate:up": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" up",
-    "test": "go test -race -coverprofile=coverage.out ./..."
+    "test": "go test -race -coverprofile=coverage.out -timeout=45s ./..."
   }
 }

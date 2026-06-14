@@ -12,6 +12,49 @@ type BusinessRepository interface {
 	GetByID(ctx context.Context, scope common.TenantScope, id common.ID) (business.Business, error)
 }
 
+type BusinessIdentityRepository interface {
+	CreateBusinessWithOwner(ctx context.Context, input CreateBusinessWithOwnerInput) (BusinessOwnerIdentity, error)
+	FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (BusinessUserCredentials, error)
+}
+
+type CreateBusinessWithOwnerInput struct {
+	BusinessID       common.ID
+	BusinessName     string
+	BusinessHandle   string
+	OwnerUserID      common.ID
+	OwnerDisplayName string
+	OwnerEmail       string
+	OwnerPassword    string
+}
+
+type BusinessOwnerIdentity struct {
+	BusinessID     common.ID
+	BusinessUserID common.ID
+	Role           business.UserRole
+}
+
+type BusinessUserCredentials struct {
+	BusinessID   common.ID
+	UserID       common.ID
+	PasswordHash string
+	Role         business.UserRole
+	IsActive     bool
+}
+
+type AuthSessionRepository interface {
+	Create(ctx context.Context, input CreateAuthSessionInput) error
+}
+
+type CreateAuthSessionInput struct {
+	SessionID        common.ID
+	BusinessID       common.ID
+	BusinessUserID   common.ID
+	RefreshTokenHash string
+	UserAgent        string
+	IPAddress        string
+	ExpiresAt        time.Time
+}
+
 type TransactionManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
@@ -30,7 +73,20 @@ type PasswordHasher interface {
 }
 
 type TokenIssuer interface {
-	IssueAccessToken(ctx context.Context, subject common.ID, scope common.TenantScope) (string, error)
+	IssueAccessToken(ctx context.Context, input AccessTokenInput) (string, error)
+}
+
+type AccessTokenInput struct {
+	Subject    common.ID
+	BusinessID common.ID
+	Role       business.UserRole
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+}
+
+type RefreshTokenIssuer interface {
+	NewRefreshToken() (string, error)
+	HashRefreshToken(token string) string
 }
 
 type PaymentProvider interface {

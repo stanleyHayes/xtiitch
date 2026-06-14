@@ -3,12 +3,17 @@ package business
 import "github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 
 type VerificationStatus string
+type UserRole string
 
 const (
 	VerificationStatusUnverified VerificationStatus = "unverified"
 	VerificationStatusPending    VerificationStatus = "pending"
 	VerificationStatusVerified   VerificationStatus = "verified"
 	VerificationStatusRejected   VerificationStatus = "rejected"
+
+	UserRoleOwner UserRole = "owner"
+	UserRoleAdmin UserRole = "admin"
+	UserRoleStaff UserRole = "staff"
 )
 
 type Business struct {
@@ -18,4 +23,14 @@ type Business struct {
 	PlanID             common.ID
 	VerificationStatus VerificationStatus
 	DefaultDeposit     common.Money
+}
+
+type User struct {
+	ID           common.ID
+	BusinessID   common.ID
+	Email        string
+	DisplayName  string
+	PasswordHash string
+	Role         UserRole
+	IsActive     bool
 }

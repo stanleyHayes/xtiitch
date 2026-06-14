@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-14 20:11 GMT
+Last updated: 2026-06-14 20:36 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -13,7 +13,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 
 ## Current Work
 
-- No implementation feature is active.
+- No active feature is in progress after the business auth and tenant onboarding foundation slice.
+- Next recommended feature: complete the marketing website shell as its own committed slice, then connect its signup call-to-action to the business registration API.
 - Push of local commits is pending until the project owner adds a Git remote.
 
 ## Completed
@@ -43,6 +44,15 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Added GitHub Actions check workflow with conditional SonarQube scan.
 - Verified `pnpm check`, `pnpm test`, and direct Go coverage tests pass locally.
 - Created local foundation commit: `chore: initialize xtiitch monorepo foundation`.
+- Added business auth and tenant onboarding application service with constructor-injected ports.
+- Added bcrypt password hashing, HS256 custom JWT issuing, random refresh-token generation, and hashed refresh-session persistence.
+- Added business owner registration and business login HTTP endpoints under `/v1/auth/business`.
+- Added tenant-aware Postgres repositories for business identity creation, credential lookup, and auth-session storage.
+- Added `auth_sessions` migration with tenant RLS policy and indexes.
+- Added Auth API documentation and auth-boundary notes in the tenant isolation guide.
+- Added API tests for registration/login use cases, HTTP auth handlers, request decoding, and JWT claims.
+- Added a bounded API race coverage command with `-timeout=45s` so CI and local quality gates fail loudly instead of hanging.
+- Verified `pnpm check` and `pnpm test` pass locally after the auth slice.
 
 ## Opened / Pending
 
@@ -54,6 +64,9 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Current latest Expo package graph has a peer warning: Expo 56 expects `react-native-worklets` `^0.7.4 || ^0.8.0`, while latest Reanimated pulls the 0.9 line. Keep visible until Expo or Reanimated aligns, or deliberately switch to Expo-compatible package versions.
 - SonarQube scan is configured but not executed locally because `SONAR_HOST_URL` and `SONAR_TOKEN` are not configured yet.
 - Non-API app tests are placeholder scripts until their app shells and first real flows are implemented.
+- Add Postgres integration tests for auth repositories, migrations, and RLS tenant isolation before auth is considered production-ready.
+- Implement refresh-token rotation, logout/session revocation, authenticated request middleware, and role-based authorization.
+- Marketing website implementation remains pending. A partial React Router/MUI SSR setup is open in the worktree and should be completed and committed as its own feature slice.
 
 ## Product Boundary
 

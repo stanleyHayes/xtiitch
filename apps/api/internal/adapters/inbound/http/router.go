@@ -1,6 +1,7 @@
 package httpadapter
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -15,7 +16,11 @@ type healthResponse struct {
 	Time   string `json:"time"`
 }
 
-func NewRouter(logger *slog.Logger) http.Handler {
+type RouteRegistrar interface {
+	Register(router chi.Router)
+}
+
+func NewRouter(logger *slog.Logger, ready func(context.Context) error, registrars ...RouteRegistrar) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
@@ -29,6 +34,16 @@ func NewRouter(logger *slog.Logger) http.Handler {
 	})
 
 	router.Get("/readyz", func(w http.ResponseWriter, r *http.Request) {
+		if ready != nil {
+			if err := ready(r.Context()); err != nil {
+				writeJSON(w, http.StatusServiceUnavailable, healthResponse{
+					Status: "not_ready",
+					Time:   time.Now().UTC().Format(time.RFC3339),
+				})
+				return
+			}
+		}
+
 		writeJSON(w, http.StatusOK, healthResponse{
 			Status: "ready",
 			Time:   time.Now().UTC().Format(time.RFC3339),
@@ -42,6 +57,10 @@ func NewRouter(logger *slog.Logger) http.Handler {
 				"version": "0.0.0",
 			})
 		})
+
+		for _, registrar := range registrars {
+			registrar.Register(v1)
+		}
 	})
 
 	logger.Info("http router initialized")

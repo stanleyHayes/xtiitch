@@ -8,6 +8,8 @@ type Config struct {
 	Environment        string
 	ExpoAccessToken    string
 	HTTPAddr           string
+	JWTAudience        string
+	JWTIssuer          string
 	JWTSigningKey      string
 	PaystackSecretKey  string
 	PaystackWebhookKey string
@@ -24,6 +26,8 @@ func Load() Config {
 		Environment:        getenv("APP_ENV", "development"),
 		ExpoAccessToken:    getenv("EXPO_ACCESS_TOKEN", ""),
 		HTTPAddr:           getenv("API_HTTP_ADDR", ":8080"),
+		JWTAudience:        getenv("JWT_AUDIENCE", "xtiitch-clients"),
+		JWTIssuer:          getenv("JWT_ISSUER", "xtiitch-api"),
 		JWTSigningKey:      getenv("JWT_SIGNING_KEY", "change-me-for-local-development"),
 		PaystackSecretKey:  getenv("PAYSTACK_SECRET_KEY", ""),
 		PaystackWebhookKey: getenv("PAYSTACK_WEBHOOK_SECRET", ""),

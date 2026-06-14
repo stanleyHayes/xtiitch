@@ -22,7 +22,12 @@ func main() {
 	cfg := config.Load()
 	logger := loggerpkg.New(cfg.Environment)
 
-	app := bootstrap.New(cfg, logger)
+	app, err := bootstrap.New(ctx, cfg, logger)
+	if err != nil {
+		logger.Error("api bootstrap failed", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+	defer app.Close()
 	server := app.HTTPServer()
 
 	errs := make(chan error, 1)
