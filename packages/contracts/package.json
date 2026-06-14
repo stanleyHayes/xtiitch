@@ -1,0 +1,11 @@
+{
+  "name": "@xtiitch/contracts",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "echo \"contract generation not scaffolded yet\"",
+    "test": "echo \"contract tests not scaffolded yet\""
+  }
+}
+

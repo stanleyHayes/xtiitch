@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-14 19:47 GMT
+Last updated: 2026-06-14 20:11 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -13,8 +13,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 
 ## Current Work
 
-- No implementation feature is active yet.
-- Push of the initial planning commit is pending until the project owner adds a Git remote.
+- No implementation feature is active.
+- Push of local commits is pending until the project owner adds a Git remote.
 
 ## Completed
 
@@ -29,6 +29,20 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Captured the selected stack, architecture, dependency-injection strategy, milestone sequence, and agent workflow.
 - Initialized Git in the project folder.
 - Created the first local commit: `docs: add xtiitch agent build plan`.
+- Added the requirement for a public marketing website as a first-class app.
+- Added design, quality, compliance, scalability, and marketing planning docs.
+- Added strict linting and SonarQube quality-gate planning.
+- Scaffolded the pnpm monorepo with `apps/api`, `apps/marketing`, `apps/web`, `apps/mobile`, `apps/worker`, and shared packages.
+- Added exact current npm package versions for the scaffolded JavaScript/TypeScript packages.
+- Added Go API shell using Chi, hexagonal folders, constructor DI, health routes, config, logging, domain primitives, and application ports.
+- Added SQL migration baseline for plans, businesses, store settings, business users, global customers, tenant-scoped customer relationships, indexes, and RLS policies.
+- Chose Goose for SQL migrations through `go run github.com/pressly/goose/v3/cmd/goose@latest`.
+- Added Docker Compose for local PostgreSQL and Redis.
+- Added design tokens package with the Xtiitch color palette and starter scale.
+- Added BullMQ worker shell.
+- Added GitHub Actions check workflow with conditional SonarQube scan.
+- Verified `pnpm check`, `pnpm test`, and direct Go coverage tests pass locally.
+- Created local foundation commit: `chore: initialize xtiitch monorepo foundation`.
 
 ## Opened / Pending
 
@@ -37,11 +51,15 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Decide exact subscription-billing mechanics in Paystack: recurring authorization, invoice/payment-link billing, manual fallback, or a combination.
 - Define refund and cancellation policy before live payments.
 - Confirm whether GraphQL is required for v1 client screens or should start as a documented/read-model surface after REST is stable.
+- Current latest Expo package graph has a peer warning: Expo 56 expects `react-native-worklets` `^0.7.4 || ^0.8.0`, while latest Reanimated pulls the 0.9 line. Keep visible until Expo or Reanimated aligns, or deliberately switch to Expo-compatible package versions.
+- SonarQube scan is configured but not executed locally because `SONAR_HOST_URL` and `SONAR_TOKEN` are not configured yet.
+- Non-API app tests are placeholder scripts until their app shells and first real flows are implemented.
 
 ## Product Boundary
 
 Build version one only:
 
+- Public marketing website for acquisition, pricing, product education, trust, and business signup/waitlist conversion.
 - Per-business online storefront.
 - Business dashboard.
 - Global customer identity with tenant-scoped relationships and orders.
@@ -63,11 +81,13 @@ Do not build in v1:
 
 - Package manager: `pnpm`.
 - Monorepo tooling: Turborepo or plain `pnpm` workspaces at first; add Turborepo once multiple apps need cached pipelines.
+- Package version policy: use exact latest stable package versions when added. If latest creates a known peer/platform conflict, prefer the latest compatible stable version and record the exception here.
 - Suggested root layout:
 
 ```text
 apps/
   api/                 Go backend
+  marketing/           Public acquisition site with React Router and MUI
   web/                 React Router framework app with MUI
   mobile/              Expo + React Native + Expo Router
   worker/              Node.js BullMQ workers
@@ -85,6 +105,11 @@ infra/
 docs/
   adr/                 Architecture decision records
   api/                 Contract docs
+  architecture/        Scalability and system design guidance
+  compliance/          Ghana legal/compliance engineering checklist
+  design/              Style and design guide
+  marketing/           Public website plan and messaging strategy
+  quality/             SonarQube and quality-gate guidance
   runbooks/            Operational docs
   security/            Threat model, tenant isolation notes
 scripts/
@@ -92,7 +117,8 @@ scripts/
 
 ### Frontend
 
-- Web: React Router framework mode, MUI, React Hook Form, Zod.
+- Marketing web: React Router framework mode, MUI, shared design tokens, Vercel deployment.
+- Product web: React Router framework mode, MUI, React Hook Form, Zod.
 - Mobile: Expo, React Native, Expo Router, Expo Notifications.
 - Shared: API clients, Zod schemas where practical, design tokens, constants, feature copy, validation rules that are safe to share.
 - Important: all business rules still live behind the backend contract. Clients validate for user experience only.
@@ -106,6 +132,7 @@ scripts/
 - gRPC: internal service contract for background services and future service extraction. Start with protobuf contracts in `packages/contracts/proto`; expose gRPC only where it creates real value.
 - Database: PostgreSQL.
 - SQL: direct SQL using SQL migrations plus `pgx`/`pgxpool`; use `sqlc` for type-safe generated Go access while keeping SQL files explicit and reviewable.
+- Migrations: Goose via `go run github.com/pressly/goose/v3/cmd/goose@latest`.
 - Auth: custom JWT with refresh-token/session records.
 - Dependency injection: constructor injection by default; use Google Wire if wiring grows large enough to justify compile-time generation. Avoid hidden service locators.
 - Background jobs: BullMQ + Redis in a Node worker app. The Go API should publish jobs through a narrow queue port/adapter or an internal worker bridge.
@@ -304,6 +331,7 @@ Minimum practical test stack:
 - Frontend component/form tests for critical flows.
 - Playwright smoke tests for web once screens exist.
 - Expo/manual smoke checklist for mobile until automated mobile E2E is added.
+- Marketing pages must include responsive checks, accessibility checks, SEO metadata checks, and claim/compliance review before launch.
 
 ## Milestone Plan
 
@@ -315,12 +343,36 @@ Done when:
 - Git is initialized.
 - Root README, agent plan, editor config, formatting, linting, basic CI scripts, Docker Compose, and environment templates exist.
 - Design tokens package contains the Xtiitch palette.
-- Architecture docs and ADR template exist.
+- Architecture, quality, design, compliance, marketing, and ADR docs exist.
 
 Suggested commit:
 
 ```text
 chore: initialize xtiitch monorepo foundation
+```
+
+### Milestone 0.5: Marketing Website
+
+Scope:
+
+- Public marketing app in `apps/marketing`.
+- Home, features, how it works, pricing, customer education, trust/security, FAQ, and contact/waitlist pages.
+- Messaging grounded in the product docs and Ghanaian fashion-business reality.
+- SEO metadata and Open Graph basics.
+- Lead capture path that can later connect to onboarding.
+- Clear compliance-safe claims about payments, privacy, refunds, and subscriptions.
+
+Done when:
+
+- A fashion business owner can understand the product and join/request access from the first visit.
+- Customers can understand why an Xtiitch tracking/payment link is trustworthy.
+- Pricing and package information are clear.
+- The site passes responsive, accessibility, lint, test, and SonarQube checks.
+
+Suggested commit:
+
+```text
+feat(marketing): add public acquisition website
 ```
 
 ### Milestone 1: Backend Foundation And Money Rails
@@ -609,11 +661,12 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 
 1. Add `.gitignore`, `README.md`, `.editorconfig`, package manager files, and workspace layout.
 2. Add `docker-compose.yml` for local Postgres and Redis.
-3. Scaffold `apps/api` as a Go service with hexagonal folders and constructor DI.
-4. Add SQL migration tooling and a first migration for global plans and businesses.
-5. Add `packages/design-tokens` with Xtiitch colors.
-6. Add architecture docs and ADR template.
-7. Add initial CI/check scripts.
+3. Add `apps/marketing`, `apps/web`, `apps/mobile`, and `apps/worker` package scaffolds.
+4. Scaffold `apps/api` as a Go service with hexagonal folders and constructor DI.
+5. Add SQL migration tooling and a first migration for global plans and businesses.
+6. Add `packages/design-tokens` with Xtiitch colors.
+7. Add architecture, design, compliance, marketing, quality, and ADR docs.
+8. Add initial CI/check scripts.
 
 ## Commands Log
 
@@ -624,3 +677,12 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `git remote -v` failed because Git is not initialized.
 - `git init`
 - `git add agent_plan.md && git commit -m "docs: add xtiitch agent build plan"`
+- `npm view ... version` for current package versions.
+- `pnpm install`
+- `go get github.com/go-chi/chi/v5@latest && go mod tidy`
+- `go get github.com/pressly/goose/v3/cmd/goose@latest && go mod tidy` exposed a local Go toolchain coverage mismatch, so Goose was moved out of the API module and into `go run ...@latest` migration scripts.
+- `pnpm check` passed.
+- `pnpm test` passed.
+- `go test -coverprofile=coverage.out ./...` passed from `apps/api`.
+- `git commit -m "chore: initialize xtiitch monorepo foundation"`
+- Web research for Ghana e-commerce, data protection, payments, cybersecurity, tax, and marketing context.

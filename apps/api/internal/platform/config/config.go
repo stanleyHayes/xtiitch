@@ -1,0 +1,43 @@
+package config
+
+import "os"
+
+type Config struct {
+	CloudinaryURL      string
+	DatabaseURL        string
+	Environment        string
+	ExpoAccessToken    string
+	HTTPAddr           string
+	JWTSigningKey      string
+	PaystackSecretKey  string
+	PaystackWebhookKey string
+	RedisURL           string
+	ResendAPIKey       string
+	SonarHostURL       string
+	WorkerQueueName    string
+}
+
+func Load() Config {
+	return Config{
+		CloudinaryURL:      getenv("CLOUDINARY_URL", ""),
+		DatabaseURL:        getenv("DATABASE_URL", "postgres://xtiitch:xtiitch@localhost:5432/xtiitch?sslmode=disable"),
+		Environment:        getenv("APP_ENV", "development"),
+		ExpoAccessToken:    getenv("EXPO_ACCESS_TOKEN", ""),
+		HTTPAddr:           getenv("API_HTTP_ADDR", ":8080"),
+		JWTSigningKey:      getenv("JWT_SIGNING_KEY", "change-me-for-local-development"),
+		PaystackSecretKey:  getenv("PAYSTACK_SECRET_KEY", ""),
+		PaystackWebhookKey: getenv("PAYSTACK_WEBHOOK_SECRET", ""),
+		RedisURL:           getenv("REDIS_URL", "redis://localhost:6379/0"),
+		ResendAPIKey:       getenv("RESEND_API_KEY", ""),
+		SonarHostURL:       getenv("SONAR_HOST_URL", ""),
+		WorkerQueueName:    getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
+	}
+}
+
+func getenv(key string, fallback string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+
+	return fallback
+}

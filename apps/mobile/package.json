@@ -1,0 +1,25 @@
+{
+  "name": "@xtiitch/mobile",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "android": "expo start --android",
+    "check": "echo \"mobile scaffold ready\"",
+    "ios": "expo start --ios",
+    "start": "expo start",
+    "test": "echo \"mobile tests not scaffolded yet\"",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "expo": "56.0.11",
+    "expo-notifications": "56.0.17",
+    "expo-router": "56.2.10",
+    "react": "19.2.7",
+    "react-native": "0.86.0",
+    "react-native-web": "0.21.2"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.17"
+  }
+}
+

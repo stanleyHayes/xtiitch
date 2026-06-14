@@ -1,0 +1,13 @@
+{
+  "name": "@xtiitch/api",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "check": "gofmt -w . && go vet ./... && go test ./...",
+    "dev": "go run ./cmd/api",
+    "migrate:down": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" down",
+    "migrate:status": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" status",
+    "migrate:up": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" up",
+    "test": "go test -race -coverprofile=coverage.out ./..."
+  }
+}
