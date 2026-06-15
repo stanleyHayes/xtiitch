@@ -12,6 +12,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -119,10 +121,145 @@ func TestLoginBusinessRejectsTrailingJSON(t *testing.T) {
 	}
 }
 
+func TestRegisterBusinessReturnsConflictWhenHandleTaken(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{err: business.ErrHandleTaken}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/register", bytes.NewReader([]byte(`{
+		"business_name": "Ama Stitch House",
+		"business_handle": "ama-stitch",
+		"owner_display_name": "Ama",
+		"owner_email": "ama@example.com",
+		"owner_password": "strong-password"
+	}`)))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected status %d, got %d", http.StatusConflict, response.Code)
+	}
+
+	var body errorResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Error != "handle_taken" {
+		t.Fatalf("expected handle_taken error code, got %q", body.Error)
+	}
+}
+
+func TestMeReturnsPrincipalForValidToken(t *testing.T) {
+	t.Parallel()
+
+	verifier := fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    common.ID("user-1"),
+		BusinessID: common.ID("business-1"),
+		Role:       business.UserRoleOwner,
+	}}
+	router := newTestRouterWithVerifier(&fakeAuthService{}, verifier)
+
+	request := httptest.NewRequest(http.MethodGet, "/auth/business/me", nil)
+	request.Header.Set("Authorization", "Bearer any-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	var body meResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.BusinessID != "business-1" || body.UserID != "user-1" || body.Role != "owner" {
+		t.Fatalf("unexpected principal: %+v", body)
+	}
+}
+
+func TestMeRejectsMissingToken(t *testing.T) {
+	t.Parallel()
+
+	router := newTestRouterWithVerifier(&fakeAuthService{}, fakeTokenVerifier{err: errors.New("no token")})
+	request := httptest.NewRequest(http.MethodGet, "/auth/business/me", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestMeRejectsInvalidToken(t *testing.T) {
+	t.Parallel()
+
+	router := newTestRouterWithVerifier(&fakeAuthService{}, fakeTokenVerifier{err: errors.New("bad token")})
+	request := httptest.NewRequest(http.MethodGet, "/auth/business/me", nil)
+	request.Header.Set("Authorization", "Bearer rubbish")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, response.Code)
+	}
+}
+
+func TestRefreshSessionReturnsTokens(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{result: authapp.AuthResult{AccessToken: "access-token", RefreshToken: "refresh-token"}}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/refresh", bytes.NewReader([]byte(`{"refresh_token":"old-token"}`)))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+	if !service.refreshCalled {
+		t.Fatal("expected refresh service to be called")
+	}
+}
+
+func TestLogoutReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/logout", bytes.NewReader([]byte(`{"refresh_token":"old-token"}`)))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, response.Code)
+	}
+	if !service.logoutCalled {
+		t.Fatal("expected logout service to be called")
+	}
+}
+
 func newTestRouter(service *fakeAuthService) http.Handler {
+	return newTestRouterWithVerifier(service, fakeTokenVerifier{err: errors.New("no verifier")})
+}
+
+func newTestRouterWithVerifier(service *fakeAuthService, verifier ports.TokenVerifier) http.Handler {
 	router := chi.NewRouter()
-	NewHandler(service).Register(router)
+	NewHandler(service, NewAuthenticator(verifier)).Register(router)
 	return router
+}
+
+type fakeTokenVerifier struct {
+	verified ports.VerifiedAccessToken
+	err      error
+}
+
+func (v fakeTokenVerifier) VerifyAccessToken(_ context.Context, _ string) (ports.VerifiedAccessToken, error) {
+	return v.verified, v.err
 }
 
 type fakeAuthService struct {
@@ -132,6 +269,8 @@ type fakeAuthService struct {
 	registerCommand authapp.RegisterBusinessCommand
 	loginCalled     bool
 	loginCommand    authapp.LoginBusinessCommand
+	refreshCalled   bool
+	logoutCalled    bool
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -156,4 +295,18 @@ func (service *fakeAuthService) LoginBusiness(_ context.Context, command authapp
 	}
 
 	return service.result, nil
+}
+
+func (service *fakeAuthService) RefreshSession(_ context.Context, _ authapp.RefreshSessionCommand) (authapp.AuthResult, error) {
+	service.refreshCalled = true
+	if service.err != nil {
+		return authapp.AuthResult{}, service.err
+	}
+
+	return service.result, nil
+}
+
+func (service *fakeAuthService) Logout(_ context.Context, _ authapp.LogoutCommand) error {
+	service.logoutCalled = true
+	return service.err
 }

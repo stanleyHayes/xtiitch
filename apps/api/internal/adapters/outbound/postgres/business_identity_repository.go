@@ -5,12 +5,19 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 )
 
-var ErrNotFound = errors.New("record not found")
+// ErrNotFound aliases the port-level not-found sentinel so handlers can map it
+// to a 404 without importing this adapter.
+var ErrNotFound = ports.ErrNotFound
+
+// pgUniqueViolation is the SQLSTATE code Postgres returns for a unique
+// constraint violation (e.g. a store handle that is already taken).
+const pgUniqueViolation = "23505"
 
 type BusinessIdentityRepository struct {
 	pool *pgxpool.Pool
@@ -38,6 +45,12 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		where code = 'free' and is_active = true
 	`, input.BusinessID.String(), input.BusinessName, input.BusinessHandle)
 	if err != nil {
+		// The store handle is globally unique; surface a clash as a domain
+		// conflict so callers can return 409 rather than an opaque 500.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return ports.BusinessOwnerIdentity{}, business.ErrHandleTaken
+		}
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
@@ -72,7 +85,21 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 }
 
 func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {
-	row := repo.pool.QueryRow(ctx, `
+	// Login resolves a tenant from a handle, so it is inherently cross-tenant:
+	// it runs with the RLS bypass under a transaction.
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
+
+	var credentials ports.BusinessUserCredentials
+	var role string
+	if err := tx.QueryRow(ctx, `
 		select
 			b.business_id,
 			u.business_user_id,
@@ -84,11 +111,7 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 		where lower(b.handle) = lower($1)
 			and lower(u.email) = lower($2)
 		limit 1
-	`, handle, email)
-
-	var credentials ports.BusinessUserCredentials
-	var role string
-	if err := row.Scan(
+	`, handle, email).Scan(
 		&credentials.BusinessID,
 		&credentials.UserID,
 		&credentials.PasswordHash,
@@ -101,6 +124,10 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 		return ports.BusinessUserCredentials{}, err
 	}
 	credentials.Role = business.UserRole(role)
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
 
 	return credentials, nil
 }

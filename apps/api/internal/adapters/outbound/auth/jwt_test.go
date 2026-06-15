@@ -83,3 +83,126 @@ func TestNewJWTIssuerRequiresSigningKey(t *testing.T) {
 		t.Fatalf("expected missing signing key error, got %v", err)
 	}
 }
+
+func issueTestToken(t *testing.T, issuer JWTIssuer, expiresAt time.Time) string {
+	t.Helper()
+
+	token, err := issuer.IssueAccessToken(context.Background(), ports.AccessTokenInput{
+		Subject:    common.ID("user-1"),
+		BusinessID: common.ID("business-1"),
+		Role:       business.UserRoleOwner,
+		IssuedAt:   expiresAt.Add(-15 * time.Minute),
+		ExpiresAt:  expiresAt,
+	})
+	if err != nil {
+		t.Fatalf("issue access token: %v", err)
+	}
+
+	return token
+}
+
+func TestVerifyAccessTokenAcceptsValidToken(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	token := issueTestToken(t, issuer, time.Now().Add(15*time.Minute))
+
+	verified, err := issuer.VerifyAccessToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("verify access token: %v", err)
+	}
+	if verified.Subject != common.ID("user-1") {
+		t.Fatalf("unexpected subject %q", verified.Subject)
+	}
+	if verified.BusinessID != common.ID("business-1") {
+		t.Fatalf("unexpected business id %q", verified.BusinessID)
+	}
+	if verified.Role != business.UserRoleOwner {
+		t.Fatalf("unexpected role %q", verified.Role)
+	}
+}
+
+func TestVerifyAccessTokenRejectsExpiredToken(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	token := issueTestToken(t, issuer, time.Now().Add(-time.Minute))
+
+	if _, err := issuer.VerifyAccessToken(context.Background(), token); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected invalid token for expired access token, got %v", err)
+	}
+}
+
+func TestVerifyAccessTokenRejectsWrongSignature(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+	attacker, err := NewJWTIssuer("other-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	token := issueTestToken(t, issuer, time.Now().Add(15*time.Minute))
+
+	if _, err := attacker.VerifyAccessToken(context.Background(), token); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected invalid token for wrong signing key, got %v", err)
+	}
+}
+
+func TestVerifyAccessTokenRejectsWrongIssuerOrAudience(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+	mismatch, err := NewJWTIssuer("test-secret", "other-api", "other-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	token := issueTestToken(t, issuer, time.Now().Add(15*time.Minute))
+
+	if _, err := mismatch.VerifyAccessToken(context.Background(), token); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected invalid token for issuer/audience mismatch, got %v", err)
+	}
+}
+
+func TestVerifyAccessTokenRejectsNonAccessType(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	claims := jwt.MapClaims{
+		"aud":         "xtiitch-clients",
+		"business_id": "business-1",
+		"exp":         time.Now().Add(time.Hour).Unix(),
+		"iat":         time.Now().Unix(),
+		"iss":         "xtiitch-api",
+		"role":        "owner",
+		"sub":         "user-1",
+		"typ":         "refresh",
+	}
+	signed, err := jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte("test-secret"))
+	if err != nil {
+		t.Fatalf("sign token: %v", err)
+	}
+
+	if _, err := issuer.VerifyAccessToken(context.Background(), signed); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected invalid token for non-access type, got %v", err)
+	}
+}

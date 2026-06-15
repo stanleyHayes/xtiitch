@@ -16,6 +16,9 @@ import (
 
 const (
 	minPasswordLength = 8
+	// bcrypt silently truncates input beyond 72 bytes, so reject longer
+	// passwords rather than hashing a quietly-truncated value.
+	maxPasswordLength = 72
 	accessTokenTTL    = 15 * time.Minute
 	refreshTokenTTL   = 30 * 24 * time.Hour
 )
@@ -122,10 +125,10 @@ func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (A
 	}
 
 	credentials, err := s.businesses.FindBusinessUserByHandleAndEmail(ctx, handle, email)
-	if err != nil {
-		return AuthResult{}, authdomain.ErrInvalidCredentials
-	}
-	if !credentials.IsActive {
+	if err != nil || !credentials.IsActive {
+		// Equalise timing against account enumeration: do equivalent password
+		// work even when no active user matches, then fail identically.
+		_, _ = s.passwords.Hash(cmd.OwnerPassword)
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
 	if err := s.passwords.Compare(credentials.PasswordHash, cmd.OwnerPassword); err != nil {
@@ -139,6 +142,62 @@ func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (A
 		UserAgent:      cmd.UserAgent,
 		IPAddress:      cmd.IPAddress,
 	})
+}
+
+type RefreshSessionCommand struct {
+	RefreshToken string
+	UserAgent    string
+	IPAddress    string
+}
+
+// RefreshSession validates a refresh token and rotates it: the presented
+// session is revoked and a fresh access/refresh pair is issued. Rotation means
+// a stolen-then-used refresh token is single-use and the theft is contained.
+func (s Service) RefreshSession(ctx context.Context, cmd RefreshSessionCommand) (AuthResult, error) {
+	token := strings.TrimSpace(cmd.RefreshToken)
+	if token == "" {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	session, err := s.sessions.FindByRefreshTokenHash(ctx, s.refreshTokens.HashRefreshToken(token))
+	if err != nil {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+	if session.Revoked || !session.UserIsActive || !s.clock.Now().Before(session.ExpiresAt) {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	if err := s.sessions.Revoke(ctx, session.BusinessID, session.SessionID); err != nil {
+		return AuthResult{}, err
+	}
+
+	return s.issueSession(ctx, issueSessionInput{
+		BusinessID:     session.BusinessID,
+		BusinessUserID: session.BusinessUserID,
+		Role:           session.Role,
+		UserAgent:      cmd.UserAgent,
+		IPAddress:      cmd.IPAddress,
+	})
+}
+
+type LogoutCommand struct {
+	RefreshToken string
+}
+
+// Logout revokes the session behind a refresh token. It is idempotent and never
+// reveals whether the token existed.
+func (s Service) Logout(ctx context.Context, cmd LogoutCommand) error {
+	token := strings.TrimSpace(cmd.RefreshToken)
+	if token == "" {
+		return nil
+	}
+
+	session, err := s.sessions.FindByRefreshTokenHash(ctx, s.refreshTokens.HashRefreshToken(token))
+	if err != nil {
+		return nil
+	}
+
+	return s.sessions.Revoke(ctx, session.BusinessID, session.SessionID)
 }
 
 type normalizedRegistration struct {
@@ -160,7 +219,7 @@ func normalizeRegistration(cmd RegisterBusinessCommand) (normalizedRegistration,
 	if businessName == "" || ownerName == "" || handle == "" || !handlePattern.MatchString(handle) {
 		return normalizedRegistration{}, authdomain.ErrInvalidInput
 	}
-	if len(cmd.OwnerPassword) < minPasswordLength {
+	if len(cmd.OwnerPassword) < minPasswordLength || len(cmd.OwnerPassword) > maxPasswordLength {
 		return normalizedRegistration{}, authdomain.ErrInvalidInput
 	}
 

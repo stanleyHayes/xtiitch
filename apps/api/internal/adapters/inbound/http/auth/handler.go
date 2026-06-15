@@ -13,24 +13,35 @@ import (
 	"github.com/go-chi/chi/v5"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 )
 
 type Service interface {
 	RegisterBusiness(ctx context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error)
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
+	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
+	Logout(ctx context.Context, command authapp.LogoutCommand) error
 }
 
 type Handler struct {
-	service Service
+	service       Service
+	authenticator Authenticator
 }
 
-func NewHandler(service Service) Handler {
-	return Handler{service: service}
+func NewHandler(service Service, authenticator Authenticator) Handler {
+	return Handler{service: service, authenticator: authenticator}
 }
 
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/auth/business/register", handler.registerBusiness)
 	router.Post("/auth/business/login", handler.loginBusiness)
+	router.Post("/auth/business/refresh", handler.refreshSession)
+	router.Post("/auth/business/logout", handler.logout)
+
+	router.Group(func(protected chi.Router) {
+		protected.Use(handler.authenticator.Middleware)
+		protected.Get("/auth/business/me", handler.me)
+	})
 }
 
 type registerBusinessRequest struct {
@@ -45,6 +56,20 @@ type loginBusinessRequest struct {
 	BusinessHandle string `json:"business_handle"`
 	OwnerEmail     string `json:"owner_email"`
 	OwnerPassword  string `json:"owner_password"`
+}
+
+type refreshRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type logoutRequest struct {
+	RefreshToken string `json:"refresh_token"`
+}
+
+type meResponse struct {
+	BusinessID string `json:"business_id"`
+	UserID     string `json:"user_id"`
+	Role       string `json:"role"`
 }
 
 type authResponse struct {
@@ -108,6 +133,56 @@ func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, newAuthResponse(result))
 }
 
+func (handler Handler) refreshSession(w http.ResponseWriter, r *http.Request) {
+	var request refreshRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	result, err := handler.service.RefreshSession(r.Context(), authapp.RefreshSessionCommand{
+		RefreshToken: request.RefreshToken,
+		UserAgent:    r.UserAgent(),
+		IPAddress:    requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAuthResponse(result))
+}
+
+func (handler Handler) logout(w http.ResponseWriter, r *http.Request) {
+	var request logoutRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	if err := handler.service.Logout(r.Context(), authapp.LogoutCommand{RefreshToken: request.RefreshToken}); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, meResponse{
+		BusinessID: principal.BusinessID.String(),
+		UserID:     principal.UserID.String(),
+		Role:       string(principal.Role),
+	})
+}
+
 func decodeJSON(r *http.Request, value any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -140,6 +215,8 @@ func authError(err error) (int, string) {
 		return http.StatusBadRequest, "invalid_input"
 	case errors.Is(err, authdomain.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid_credentials"
+	case errors.Is(err, business.ErrHandleTaken):
+		return http.StatusConflict, "handle_taken"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

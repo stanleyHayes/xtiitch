@@ -43,6 +43,12 @@ type BusinessUserCredentials struct {
 
 type AuthSessionRepository interface {
 	Create(ctx context.Context, input CreateAuthSessionInput) error
+	// FindByRefreshTokenHash looks a session up by the credential itself (the
+	// hash is globally unique), so it carries no tenant scope, like login. The
+	// caller validates expiry/revocation/active-user against its own clock.
+	FindByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (AuthSessionWithUser, error)
+	// Revoke marks a session revoked within its tenant scope.
+	Revoke(ctx context.Context, businessID common.ID, sessionID common.ID) error
 }
 
 type CreateAuthSessionInput struct {
@@ -53,6 +59,16 @@ type CreateAuthSessionInput struct {
 	UserAgent        string
 	IPAddress        string
 	ExpiresAt        time.Time
+}
+
+type AuthSessionWithUser struct {
+	SessionID      common.ID
+	BusinessID     common.ID
+	BusinessUserID common.ID
+	Role           business.UserRole
+	UserIsActive   bool
+	Revoked        bool
+	ExpiresAt      time.Time
 }
 
 type TransactionManager interface {
@@ -76,6 +92,16 @@ type TokenIssuer interface {
 	IssueAccessToken(ctx context.Context, input AccessTokenInput) (string, error)
 }
 
+type TokenVerifier interface {
+	VerifyAccessToken(ctx context.Context, token string) (VerifiedAccessToken, error)
+}
+
+type VerifiedAccessToken struct {
+	Subject    common.ID
+	BusinessID common.ID
+	Role       business.UserRole
+}
+
 type AccessTokenInput struct {
 	Subject    common.ID
 	BusinessID common.ID
@@ -91,15 +117,105 @@ type RefreshTokenIssuer interface {
 
 type PaymentProvider interface {
 	CreateBusinessSubaccount(ctx context.Context, input CreateBusinessSubaccountInput) (CreateBusinessSubaccountResult, error)
+	InitializeTransaction(ctx context.Context, input InitializeTransactionInput) (InitializeTransactionResult, error)
+	// VerifyWebhookSignature checks a raw webhook body against its signature
+	// header. It operates on bytes, never a decoded value, so the signature is
+	// verified over exactly what the provider signed.
+	VerifyWebhookSignature(payload []byte, signature string) bool
+	ParseChargeEvent(payload []byte) (ProviderChargeEvent, error)
 }
 
 type CreateBusinessSubaccountInput struct {
 	BusinessID        common.ID
+	BusinessName      string
 	SettlementAccount string
 }
 
 type CreateBusinessSubaccountResult struct {
 	ProviderReference string
+}
+
+type InitializeTransactionInput struct {
+	BusinessID      common.ID
+	SubaccountRef   string
+	CustomerEmail   string
+	AmountMinor     int64
+	CommissionMinor int64
+	Currency        string
+	Reference       string
+}
+
+type InitializeTransactionResult struct {
+	AuthorizationURL  string
+	AccessCode        string
+	ProviderReference string
+}
+
+type ProviderChargeEvent struct {
+	EventType         string
+	ProviderReference string
+	Succeeded         bool
+	AmountMinor       int64
+	// Signature is the idempotency key for this event (provider + reference +
+	// type), used to make a re-delivered confirmation a no-op.
+	Signature string
+}
+
+type PaymentRepository interface {
+	Create(ctx context.Context, input CreatePaymentInput) error
+	// ConfirmFromProvider records the provider event and advances the matching
+	// payment in a single transaction, so a re-delivered event is a no-op.
+	ConfirmFromProvider(ctx context.Context, input ConfirmPaymentInput) (ConfirmPaymentResult, error)
+	ListByBusiness(ctx context.Context, scope common.TenantScope) ([]PaymentRecord, error)
+}
+
+type CreatePaymentInput struct {
+	PaymentID         common.ID
+	BusinessID        common.ID
+	Purpose           string
+	AmountMinor       int64
+	Currency          string
+	Method            string
+	ProviderReference string
+	CommissionMinor   int64
+}
+
+type ConfirmPaymentInput struct {
+	EventSignature    string
+	EventType         string
+	ProviderReference string
+	Succeeded         bool
+}
+
+type ConfirmPaymentResult struct {
+	AlreadyProcessed bool
+	PaymentFound     bool
+	BusinessID       common.ID
+}
+
+type PaymentRecord struct {
+	PaymentID         common.ID
+	BusinessID        common.ID
+	Purpose           string
+	AmountMinor       int64
+	Currency          string
+	Method            string
+	ProviderReference string
+	Status            string
+	CommissionMinor   int64
+}
+
+type BusinessChargeRepository interface {
+	GetChargeContext(ctx context.Context, scope common.TenantScope) (BusinessChargeContext, error)
+	ProvisionSubaccount(ctx context.Context, businessID common.ID, subaccountRef string, settlementAccount string) error
+}
+
+type BusinessChargeContext struct {
+	BusinessID    common.ID
+	Name          string
+	Verified      bool
+	SubaccountRef string
+	CommissionBps int
 }
 
 type MediaStore interface {

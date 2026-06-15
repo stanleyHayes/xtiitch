@@ -21,8 +21,10 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		CloudinaryURL:      getenv("CLOUDINARY_URL", ""),
-		DatabaseURL:        getenv("DATABASE_URL", "postgres://xtiitch:xtiitch@localhost:5432/xtiitch?sslmode=disable"),
+		CloudinaryURL: getenv("CLOUDINARY_URL", ""),
+		// The API connects as the non-superuser application role so row-level
+		// security is enforced. Migrations run separately as the owner.
+		DatabaseURL:        getenv("DATABASE_URL", "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable"),
 		Environment:        getenv("APP_ENV", "development"),
 		ExpoAccessToken:    getenv("EXPO_ACCESS_TOKEN", ""),
 		HTTPAddr:           getenv("API_HTTP_ADDR", ":8080"),

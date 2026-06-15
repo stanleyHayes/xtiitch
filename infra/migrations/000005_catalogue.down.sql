@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS design_prices;
+DROP TABLE IF EXISTS size_bands;
+DROP TABLE IF EXISTS designs;
+DROP TABLE IF EXISTS collections;

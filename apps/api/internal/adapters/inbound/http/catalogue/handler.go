@@ -1,0 +1,481 @@
+package cataloguehttp
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+)
+
+const maxBodyBytes = 1 << 20
+
+type Handler struct {
+	service       catalogueapp.Service
+	authenticator authhttp.Authenticator
+}
+
+func NewHandler(service catalogueapp.Service, authenticator authhttp.Authenticator) Handler {
+	return Handler{service: service, authenticator: authenticator}
+}
+
+func (handler Handler) Register(router chi.Router) {
+	// Public storefront — no account required.
+	router.Get("/public/stores/{handle}", handler.publicStore)
+	router.Get("/public/stores/{handle}/search", handler.publicSearch)
+	router.Get("/public/designs/{handle}", handler.publicDesign)
+	router.Get("/public/collections/{handle}", handler.publicCollection)
+
+	// Dashboard — owner-scoped catalogue management.
+	router.Group(func(protected chi.Router) {
+		protected.Use(handler.authenticator.Middleware)
+
+		protected.Get("/store-settings", handler.getSettings)
+		protected.Patch("/store-settings", handler.updateSettings)
+
+		protected.Post("/collections", handler.createCollection)
+		protected.Get("/collections", handler.listCollections)
+		protected.Post("/collections/{id}/retire", handler.collectionAction(catalogueapp.Service.RetireCollection))
+		protected.Post("/collections/{id}/restore", handler.collectionAction(catalogueapp.Service.RestoreCollection))
+		protected.Delete("/collections/{id}", handler.collectionAction(catalogueapp.Service.DeleteCollection))
+
+		protected.Post("/designs", handler.createDesign)
+		protected.Get("/designs", handler.listDesigns)
+		protected.Get("/designs/{id}", handler.getDesign)
+		protected.Patch("/designs/{id}", handler.updateDesign)
+		protected.Post("/designs/{id}/retire", handler.designAction(catalogueapp.Service.RetireDesign))
+		protected.Post("/designs/{id}/restore", handler.designAction(catalogueapp.Service.RestoreDesign))
+		protected.Delete("/designs/{id}", handler.designAction(catalogueapp.Service.DeleteDesign))
+		protected.Put("/designs/{id}/prices/{bandId}", handler.setPrice)
+		protected.Get("/designs/{id}/prices", handler.listPrices)
+
+		protected.Post("/size-bands", handler.createSizeBand)
+		protected.Get("/size-bands", handler.listSizeBands)
+	})
+}
+
+// --- store settings ---
+
+type settingsBody struct {
+	BespokeEnabled       bool   `json:"bespoke_enabled"`
+	MeasurementsEnabled  bool   `json:"measurements_enabled"`
+	CustomisationEnabled bool   `json:"customisation_enabled"`
+	CollectionsEnabled   bool   `json:"collections_enabled"`
+	DeliveryEnabled      bool   `json:"delivery_enabled"`
+	DispatchEnabled      bool   `json:"dispatch_enabled"`
+	BrandColor           string `json:"brand_color"`
+}
+
+func (handler Handler) getSettings(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	settings, err := handler.service.GetSettings(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toSettingsBody(settings))
+}
+
+func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body settingsBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateSettings(r.Context(), scope, ports.StoreSettings{
+		BespokeEnabled:       body.BespokeEnabled,
+		MeasurementsEnabled:  body.MeasurementsEnabled,
+		CustomisationEnabled: body.CustomisationEnabled,
+		CollectionsEnabled:   body.CollectionsEnabled,
+		DeliveryEnabled:      body.DeliveryEnabled,
+		DispatchEnabled:      body.DispatchEnabled,
+		BrandColor:           body.BrandColor,
+	}); err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// --- collections ---
+
+type createCollectionBody struct {
+	Name     string `json:"name"`
+	Theme    string `json:"theme"`
+	Sequence int    `json:"sequence"`
+}
+
+func (handler Handler) createCollection(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body createCollectionBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	id, err := handler.service.CreateCollection(r.Context(), catalogueapp.CreateCollectionCommand{
+		Scope: scope, Name: body.Name, Theme: body.Theme, Sequence: body.Sequence,
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"collection_id": id.String()})
+}
+
+func (handler Handler) listCollections(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	collections, err := handler.service.ListCollections(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]collectionResponse, 0, len(collections))
+	for _, c := range collections {
+		out = append(out, toCollectionResponse(c))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"collections": out})
+}
+
+func (handler Handler) collectionAction(action func(catalogueapp.Service, context.Context, common.TenantScope, common.ID) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := tenantScope(w, r)
+		if !ok {
+			return
+		}
+		if err := action(handler.service, r.Context(), scope, common.ID(chi.URLParam(r, "id"))); err != nil {
+			writeRepoError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// --- designs ---
+
+type designBody struct {
+	CollectionID         *string  `json:"collection_id"`
+	Title                string   `json:"title"`
+	Description          string   `json:"description"`
+	Images               []string `json:"images"`
+	CustomisationAllowed bool     `json:"customisation_allowed"`
+	DepositOverrideMinor *int64   `json:"deposit_override_minor"`
+	Sequence             int      `json:"sequence"`
+}
+
+func (body designBody) toCommand(scope common.TenantScope, designID common.ID) catalogueapp.DesignCommand {
+	cmd := catalogueapp.DesignCommand{
+		Scope:                scope,
+		DesignID:             designID,
+		Title:                body.Title,
+		Description:          body.Description,
+		Images:               body.Images,
+		CustomisationAllowed: body.CustomisationAllowed,
+		DepositOverrideMinor: body.DepositOverrideMinor,
+		Sequence:             body.Sequence,
+	}
+	if body.CollectionID != nil && *body.CollectionID != "" {
+		id := common.ID(*body.CollectionID)
+		cmd.CollectionID = &id
+	}
+	return cmd
+}
+
+func (handler Handler) createDesign(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body designBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	id, err := handler.service.CreateDesign(r.Context(), body.toCommand(scope, ""))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"design_id": id.String()})
+}
+
+func (handler Handler) updateDesign(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body designBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateDesign(r.Context(), body.toCommand(scope, common.ID(chi.URLParam(r, "id")))); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) listDesigns(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	designs, err := handler.service.ListDesigns(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]designResponse, 0, len(designs))
+	for _, d := range designs {
+		out = append(out, toDesignResponse(d, nil))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"designs": out})
+}
+
+func (handler Handler) getDesign(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	design, err := handler.service.GetDesign(r.Context(), scope, common.ID(chi.URLParam(r, "id")))
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	prices, err := handler.service.ListDesignPrices(r.Context(), scope, design.ID)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toDesignResponse(design, prices))
+}
+
+func (handler Handler) designAction(action func(catalogueapp.Service, context.Context, common.TenantScope, common.ID) error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := tenantScope(w, r)
+		if !ok {
+			return
+		}
+		if err := action(handler.service, r.Context(), scope, common.ID(chi.URLParam(r, "id"))); err != nil {
+			writeRepoError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// --- size bands & prices ---
+
+func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		Label    string `json:"label"`
+		Sequence int    `json:"sequence"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	id, err := handler.service.CreateSizeBand(r.Context(), catalogueapp.CreateSizeBandCommand{Scope: scope, Label: body.Label, Sequence: body.Sequence})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"size_band_id": id.String()})
+}
+
+func (handler Handler) listSizeBands(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	bands, err := handler.service.ListSizeBands(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(bands))
+	for _, b := range bands {
+		out = append(out, map[string]any{"size_band_id": b.ID.String(), "label": b.Label, "sequence": b.Sequence})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"size_bands": out})
+}
+
+func (handler Handler) setPrice(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body struct {
+		PriceMinor int64 `json:"price_minor"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.SetDesignPrice(r.Context(), scope, common.ID(chi.URLParam(r, "id")), common.ID(chi.URLParam(r, "bandId")), body.PriceMinor); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) listPrices(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	prices, err := handler.service.ListDesignPrices(r.Context(), scope, common.ID(chi.URLParam(r, "id")))
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"prices": toPrices(prices)})
+}
+
+// --- shared response shapes & helpers ---
+
+type collectionResponse struct {
+	CollectionID string `json:"collection_id"`
+	Name         string `json:"name"`
+	Theme        string `json:"theme"`
+	Handle       string `json:"handle"`
+	Status       string `json:"status"`
+	Sequence     int    `json:"sequence"`
+}
+
+type designResponse struct {
+	DesignID             string          `json:"design_id"`
+	CollectionID         *string         `json:"collection_id"`
+	Title                string          `json:"title"`
+	Description          string          `json:"description"`
+	Images               []string        `json:"images"`
+	CustomisationAllowed bool            `json:"customisation_allowed"`
+	DepositOverrideMinor *int64          `json:"deposit_override_minor"`
+	Handle               string          `json:"handle"`
+	Status               string          `json:"status"`
+	Sequence             int             `json:"sequence"`
+	Prices               []priceResponse `json:"prices"`
+}
+
+type priceResponse struct {
+	SizeBandID string `json:"size_band_id"`
+	Label      string `json:"label"`
+	PriceMinor int64  `json:"price_minor"`
+}
+
+func toSettingsBody(s ports.StoreSettings) settingsBody {
+	return settingsBody{
+		BespokeEnabled:       s.BespokeEnabled,
+		MeasurementsEnabled:  s.MeasurementsEnabled,
+		CustomisationEnabled: s.CustomisationEnabled,
+		CollectionsEnabled:   s.CollectionsEnabled,
+		DeliveryEnabled:      s.DeliveryEnabled,
+		DispatchEnabled:      s.DispatchEnabled,
+		BrandColor:           s.BrandColor,
+	}
+}
+
+func toCollectionResponse(c catalogue.Collection) collectionResponse {
+	return collectionResponse{
+		CollectionID: c.ID.String(), Name: c.Name, Theme: c.Theme,
+		Handle: c.Handle, Status: string(c.Status), Sequence: c.Sequence,
+	}
+}
+
+func toDesignResponse(d catalogue.Design, prices []catalogue.BandPrice) designResponse {
+	images := d.Images
+	if images == nil {
+		images = []string{}
+	}
+	resp := designResponse{
+		DesignID: d.ID.String(), Title: d.Title, Description: d.Description,
+		Images: images, CustomisationAllowed: d.CustomisationAllowed,
+		DepositOverrideMinor: d.DepositOverrideMinor, Handle: d.Handle,
+		Status: string(d.Status), Sequence: d.Sequence, Prices: toPrices(prices),
+	}
+	if d.CollectionID != nil {
+		value := d.CollectionID.String()
+		resp.CollectionID = &value
+	}
+	return resp
+}
+
+func toPrices(prices []catalogue.BandPrice) []priceResponse {
+	out := make([]priceResponse, 0, len(prices))
+	for _, p := range prices {
+		out = append(out, priceResponse{SizeBandID: p.SizeBandID.String(), Label: p.Label, PriceMinor: p.PriceMinor})
+	}
+	return out
+}
+
+func tenantScope(w http.ResponseWriter, r *http.Request) (common.TenantScope, bool) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return common.TenantScope{}, false
+	}
+	return principal.TenantScope(), true
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+	if errors.Is(err, catalogueapp.ErrInvalidInput) {
+		writeError(w, http.StatusBadRequest, "invalid_input")
+		return
+	}
+	writeRepoError(w, err)
+}
+
+func writeRepoError(w http.ResponseWriter, err error) {
+	if errors.Is(err, ports.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+	writeError(w, http.StatusInternalServerError, "internal_error")
+}
+
+func decodeJSON(r *http.Request, value any) error {
+	decoder := json.NewDecoder(io.LimitReader(r.Body, maxBodyBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(value); err != nil {
+		return err
+	}
+	var trailing struct{}
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return errors.New("request body must contain a single JSON object")
+	}
+	return nil
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func writeError(w http.ResponseWriter, status int, code string) {
+	writeJSON(w, status, map[string]string{"error": code})
+}
