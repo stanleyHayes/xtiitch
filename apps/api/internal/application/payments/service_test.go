@@ -56,7 +56,8 @@ func TestInitiateChargeRejectsUnverifiedBusiness(t *testing.T) {
 	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
 
 	_, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Purpose: money.PaymentPurposeStandardFull, AmountMinor: 20000, CustomerEmail: "buyer@example.com",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Purpose: money.PaymentPurposeStandardFull, AmountMinor: 20000,
+		Method: money.PaymentMethodMomo, CustomerEmail: "buyer@example.com",
 	})
 	if !errors.Is(err, ErrBusinessNotVerified) {
 		t.Fatalf("expected business-not-verified, got %v", err)

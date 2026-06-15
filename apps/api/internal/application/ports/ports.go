@@ -172,6 +172,7 @@ type PaymentRepository interface {
 type CreatePaymentInput struct {
 	PaymentID         common.ID
 	BusinessID        common.ID
+	OrderID           *common.ID
 	Purpose           string
 	AmountMinor       int64
 	Currency          string

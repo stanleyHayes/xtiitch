@@ -105,6 +105,7 @@ type Storefront struct {
 type StorefrontDesign struct {
 	Design catalogue.Design
 	Prices []catalogue.BandPrice
+	Store  Storefront
 }
 
 type StorefrontCollection struct {

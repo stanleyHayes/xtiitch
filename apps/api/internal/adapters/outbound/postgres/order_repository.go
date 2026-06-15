@@ -72,6 +72,68 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 	return tx.Commit(ctx)
 }
 
+func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.TenantScope, input ports.CreateOnlineOrderInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, display_name, phone, email)
+		values ($1, $2, $3, $4)
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+		return err
+	}
+
+	// Draft: no stage yet. The payment webhook confirms it at the first stage.
+	if _, err := tx.Exec(ctx, `
+		insert into orders (
+			order_id, business_id, customer_id, design_id, size_band_id,
+			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status
+		)
+		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft')
+	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
+		nullableIDArg(input.SizeBandID), input.AgreedTotalMinor); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo OrderRepository) DiscardDraftOrder(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Only ever remove a still-draft order of this tenant; a confirmed order (or
+	// one in another tenant, walled off by RLS) is left untouched. The customer
+	// row was created solely for this order, so it goes too — deleting the order
+	// first satisfies the orders -> customers foreign key.
+	if _, err := tx.Exec(ctx, `
+		delete from orders where order_id = $1 and business_id = $2 and status = 'draft'
+	`, orderID.String(), scope.BusinessID.String()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		delete from customers where customer_id = $1
+	`, customerID.String()); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

@@ -36,6 +36,15 @@ const (
 	PaymentMethodCard PaymentMethod = "card"
 )
 
+func (m PaymentMethod) Valid() bool {
+	switch m {
+	case PaymentMethodMomo, PaymentMethodCard:
+		return true
+	default:
+		return false
+	}
+}
+
 type Payment struct {
 	ID                common.ID
 	BusinessID        common.ID

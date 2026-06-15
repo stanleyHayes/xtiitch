@@ -36,3 +36,7 @@ data/
 .DS_Store
 .idea/
 .vscode/
+
+# Confidential source documents (Strictly Confidential — Internal Use Only)
+Xtiitch-Product-Definition.pdf
+Xtiitch-Technical-Specification.pdf

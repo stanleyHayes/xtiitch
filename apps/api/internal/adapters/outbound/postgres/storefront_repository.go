@@ -41,24 +41,13 @@ func (repo StorefrontRepository) inBypassTx(ctx context.Context, fn func(tx pgx.
 func (repo StorefrontRepository) ResolveStore(ctx context.Context, handle string) (ports.Storefront, error) {
 	var store ports.Storefront
 	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
-			select b.business_id, b.name, b.handle,
-				ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
-				ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled
-			from businesses b
-			join store_settings ss on ss.business_id = b.business_id
-			where lower(b.handle) = lower($1)
-		`, handle).Scan(
-			&store.BusinessID, &store.Name, &store.Handle,
-			&store.BrandColor, &store.Settings.BespokeEnabled, &store.Settings.MeasurementsEnabled,
-			&store.Settings.CustomisationEnabled, &store.Settings.CollectionsEnabled,
-			&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
-		)
+		var err error
+		store, err = loadStore(ctx, tx, `lower(b.handle) = lower($1)`, handle)
+		return err
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ports.Storefront{}, ErrNotFound
 	}
-	store.Settings.BrandColor = store.BrandColor
 	return store, err
 }
 
@@ -103,9 +92,32 @@ func (repo StorefrontRepository) GetActiveDesignByHandle(ctx context.Context, ha
 			return err
 		}
 		result = withPrices[0]
+		store, err := loadStore(ctx, tx, `b.business_id = $1`, result.Design.BusinessID.String())
+		if err != nil {
+			return err
+		}
+		result.Store = store
 		return nil
 	})
 	return result, err
+}
+
+func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports.Storefront, error) {
+	var store ports.Storefront
+	err := tx.QueryRow(ctx, `
+		select b.business_id, b.name, b.handle,
+			ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
+			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled
+		from businesses b
+		join store_settings ss on ss.business_id = b.business_id
+		where `+where, args...).Scan(
+		&store.BusinessID, &store.Name, &store.Handle,
+		&store.BrandColor, &store.Settings.BespokeEnabled, &store.Settings.MeasurementsEnabled,
+		&store.Settings.CustomisationEnabled, &store.Settings.CollectionsEnabled,
+		&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
+	)
+	store.Settings.BrandColor = store.BrandColor
+	return store, err
 }
 
 func (repo StorefrontRepository) ListActiveCollections(ctx context.Context, businessID common.ID) ([]catalogue.Collection, error) {

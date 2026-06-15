@@ -68,7 +68,10 @@ func (handler Handler) publicDesign(w http.ResponseWriter, r *http.Request) {
 		writeRepoError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, toDesignResponse(design.Design, design.Prices))
+	writeJSON(w, http.StatusOK, publicDesignResponse{
+		designResponse: toDesignResponse(design.Design, design.Prices),
+		Store:          toStoreSummary(design.Store),
+	})
 }
 
 func (handler Handler) publicCollection(w http.ResponseWriter, r *http.Request) {
@@ -81,4 +84,9 @@ func (handler Handler) publicCollection(w http.ResponseWriter, r *http.Request) 
 		"collection": toCollectionResponse(collection.Collection),
 		"designs":    toStorefrontDesigns(collection.Designs),
 	})
+}
+
+type publicDesignResponse struct {
+	designResponse
+	Store storeSummary `json:"store"`
 }

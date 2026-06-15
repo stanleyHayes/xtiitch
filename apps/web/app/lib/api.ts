@@ -38,6 +38,7 @@ export type Design = {
   status: string;
   sequence: number;
   prices: BandPrice[];
+  store?: StoreSummary;
 };
 
 export type Collection = {
@@ -78,6 +79,39 @@ async function getJSON<T>(path: string): Promise<T | null> {
 
 const enc = encodeURIComponent;
 
+export type PlaceOrderInput = {
+  design_handle: string;
+  size_band_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  method: "momo" | "card";
+};
+
+export type PlaceOrderResult = {
+  order_id: string;
+  reference: string;
+  authorization_url: string;
+  amount_minor: number;
+};
+
+export type PlaceOrderResponse =
+  | { ok: true; result: PlaceOrderResult }
+  | { ok: false; status: number; error: string };
+
+async function postJSON<T>(path: string, body: unknown): Promise<{ ok: true; result: T } | { ok: false; status: number; error: string }> {
+  const response = await fetch(`${API_BASE}/v1${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+    return { ok: false, status: response.status, error: payload?.error ?? "upstream_error" };
+  }
+  return { ok: true, result: (await response.json()) as T };
+}
+
 export type TrackingStage = {
   name: string;
   colour: string;
@@ -103,4 +137,6 @@ export const api = {
     getJSON<SearchPage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`),
   design: (handle: string) => getJSON<Design>(`/public/designs/${enc(handle)}`),
   collection: (handle: string) => getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
+  placeOrder: (storeHandle: string, input: PlaceOrderInput) =>
+    postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/orders`, input),
 };

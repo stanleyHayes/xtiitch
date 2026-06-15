@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { Form, Link as RouterLink, redirect, useNavigation } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -8,6 +8,8 @@ import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Alert from "@mui/material/Alert";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import type { Route } from "./+types/design";
 import { api, type Design } from "../lib/api";
@@ -27,6 +29,51 @@ export function meta({ data }: Route.MetaArgs) {
     { title: `${title} · Xtiitch` },
     { name: "description", content: data?.design.description || `View ${title} on Xtiitch.` },
   ];
+}
+
+export async function action({ request, params }: Route.ActionArgs) {
+  const form = await request.formData();
+  const storeHandle = String(form.get("store_handle") ?? "").trim();
+  const sizeBandId = String(form.get("size_band_id") ?? "").trim();
+  const customerName = String(form.get("customer_name") ?? "").trim();
+  const customerPhone = String(form.get("customer_phone") ?? "").trim();
+  const customerEmail = String(form.get("customer_email") ?? "").trim();
+  const method = String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
+
+  if (!storeHandle || !sizeBandId || !customerName || !customerEmail) {
+    return { error: "Add your name, email, and size before checkout." };
+  }
+
+  const response = await api.placeOrder(storeHandle, {
+    design_handle: params.handle,
+    size_band_id: sizeBandId,
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
+    method,
+  });
+
+  if (!response.ok) {
+    return { error: checkoutMessage(response.error) };
+  }
+
+  if (response.result.authorization_url) {
+    return redirect(response.result.authorization_url);
+  }
+  return redirect(`/track/${response.result.order_id}`);
+}
+
+function checkoutMessage(code: string): string {
+  switch (code) {
+    case "store_not_verified":
+      return "This store needs to finish payment verification before it can take online orders.";
+    case "invalid_order":
+      return "Check the selected size and contact details, then try again.";
+    case "not_found":
+      return "This design is not available for ordering right now.";
+    default:
+      return "Checkout could not start. Please try again shortly.";
+  }
 }
 
 function Gallery({ design }: { design: Design }) {
@@ -75,8 +122,12 @@ function Gallery({ design }: { design: Design }) {
   );
 }
 
-export default function DesignPage({ loaderData }: Route.ComponentProps) {
+export default function DesignPage({ loaderData, actionData }: Route.ComponentProps) {
   const { design } = loaderData;
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
+  const store = design.store;
+  const canOrder = design.prices.length > 0 && Boolean(store?.handle);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -139,12 +190,61 @@ export default function DesignPage({ loaderData }: Route.ComponentProps) {
               </Box>
             ) : null}
 
-            <Button variant="contained" size="large" sx={{ mt: 4 }} disabled>
-              Place an order
-            </Button>
-            <Alert severity="info" sx={{ mt: 2 }}>
-              Online ordering and the “where is my cloth?” tracking view are coming to this store.
-            </Alert>
+            <Box
+              sx={{
+                mt: 4,
+                p: { xs: 2, sm: 3 },
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 3,
+                bgcolor: "background.paper",
+              }}
+            >
+              <Typography variant="h6">Place an order</Typography>
+              <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                Pay securely, then track the order as the studio moves it through red, yellow, and green stages.
+              </Typography>
+              {actionData?.error ? (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {actionData.error}
+                </Alert>
+              ) : null}
+              {!canOrder ? (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  This design needs a listed size and store connection before it can be ordered online.
+                </Alert>
+              ) : (
+                <Form method="post">
+                  <input type="hidden" name="store_handle" value={store?.handle ?? ""} />
+                  <Stack spacing={2} sx={{ mt: 2 }}>
+                    <TextField
+                      select
+                      name="size_band_id"
+                      label="Size"
+                      defaultValue={design.prices[0]?.size_band_id ?? ""}
+                      required
+                      fullWidth
+                    >
+                      {design.prices.map((price) => (
+                        <MenuItem key={price.size_band_id} value={price.size_band_id}>
+                          {price.label} · {formatGHS(price.price_minor)}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField name="customer_name" label="Full name" required fullWidth autoComplete="name" />
+                    <TextField name="customer_phone" label="Phone" fullWidth autoComplete="tel" />
+                    <TextField name="customer_email" label="Email" type="email" required fullWidth autoComplete="email" />
+                    <TextField select name="method" label="Payment method" defaultValue="momo" required fullWidth>
+                      <MenuItem value="momo">Mobile money</MenuItem>
+                      <MenuItem value="card">Card</MenuItem>
+                    </TextField>
+                    <Button type="submit" variant="contained" size="large" disabled={isSubmitting}>
+                      {isSubmitting ? "Opening checkout..." : "Pay and place order"}
+                    </Button>
+                  </Stack>
+                </Form>
+              )}
+            </Box>
           </Box>
         </Box>
       </Container>

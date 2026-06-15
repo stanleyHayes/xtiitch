@@ -61,6 +61,14 @@ func (r *fakeOrderRepo) CreateWalkInOrder(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (r *fakeOrderRepo) CreateOnlineOrder(_ context.Context, _ common.TenantScope, _ ports.CreateOnlineOrderInput) error {
+	return nil
+}
+
+func (r *fakeOrderRepo) DiscardDraftOrder(_ context.Context, _ common.TenantScope, _, _ common.ID) error {
+	return nil
+}
+
 func (r *fakeOrderRepo) ListOrders(_ context.Context, _ common.TenantScope) ([]ports.OrderSummary, error) {
 	return nil, nil
 }

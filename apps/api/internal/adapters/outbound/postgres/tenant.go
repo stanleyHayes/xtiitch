@@ -27,3 +27,13 @@ func setTenantBypass(ctx context.Context, tx pgx.Tx) error {
 	_, err := tx.Exec(ctx, `select set_config('xtiitch.bypass', 'on', true)`)
 	return err
 }
+
+// clearTenantBypass turns the bypass back off within the same transaction. A
+// cross-tenant lookup must narrow to a single tenant the moment it learns which
+// one it is, so that the writes that follow run under real row-level security
+// (the policy is `bypass = 'on' OR business_id = …`, so leaving bypass on would
+// let those writes touch any tenant's rows). Pair it with setTenantScope.
+func clearTenantBypass(ctx context.Context, tx pgx.Tx) error {
+	_, err := tx.Exec(ctx, `select set_config('xtiitch.bypass', 'off', true)`)
+	return err
+}

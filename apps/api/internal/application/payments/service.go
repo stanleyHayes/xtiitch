@@ -75,6 +75,7 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 
 type InitiateChargeCommand struct {
 	Scope         common.TenantScope
+	OrderID       *common.ID
 	Purpose       money.PaymentPurpose
 	AmountMinor   int64
 	Method        money.PaymentMethod
@@ -92,7 +93,7 @@ type ChargeResult struct {
 // provider transaction. The payment is recorded as initiated; it is advanced to
 // succeeded only by a confirmed webhook (HandleProviderEvent).
 func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) (ChargeResult, error) {
-	if cmd.AmountMinor <= 0 || !cmd.Purpose.Valid() || cmd.CustomerEmail == "" {
+	if cmd.AmountMinor <= 0 || !cmd.Purpose.Valid() || !cmd.Method.Valid() || cmd.CustomerEmail == "" {
 		return ChargeResult{}, ErrInvalidCharge
 	}
 
@@ -128,6 +129,7 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 	if err := s.payments.Create(ctx, ports.CreatePaymentInput{
 		PaymentID:         s.ids.NewID(),
 		BusinessID:        info.BusinessID,
+		OrderID:           cmd.OrderID,
 		Purpose:           string(cmd.Purpose),
 		AmountMinor:       cmd.AmountMinor,
 		Currency:          common.CurrencyGHS,
