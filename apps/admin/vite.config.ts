@@ -29,10 +29,15 @@ const muiComponents = [
 
 const muiIcons = [
   "AdminPanelSettingsRounded",
+  "AccountBalanceRounded",
   "ArrowForwardRounded",
+  "AssignmentTurnedInRounded",
+  "BlockRounded",
   "CancelRounded",
   "CheckCircleRounded",
+  "HistoryRounded",
   "LogoutRounded",
+  "NotesRounded",
   "PaymentsRounded",
   "PersonSearchRounded",
   "ReceiptLongRounded",
@@ -40,6 +45,7 @@ const muiIcons = [
   "ShieldRounded",
   "StorefrontRounded",
   "SupportAgentRounded",
+  "SyncRounded",
   "TrendingUpRounded",
   "VerifiedUserRounded",
   "WarningAmberRounded",
