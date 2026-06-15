@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 10:34 GMT
+Last updated: 2026-06-15 11:03 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -89,6 +89,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the shared page-hero refinement with a desktop Chrome screenshot, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
 - Replaced the slanted marketing background language: alternate sections now use a straight stitch-grid/dot texture, the home proof-strip cards use straight textile patches instead of oversized angled watermark silhouettes, and the How-it-works hero watermark changed from a slanted chart to a checklist icon.
 - Verified the replacement background direction with desktop Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
+- Added the first marketing animation layer without adding dependencies: global keyframes, reduced-motion safeguards, shared button/card/link motion, home hero entrance, subtle textile drift, proof-strip staging, reusable grid/list/card lift effects, page-hero watermark float, tracking-status pulse, and footer/header micro-interactions.
+- Verified the animation pass with `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, and a `200 OK` smoke check on the running marketing home route.
 
 ## Opened / Pending
 
@@ -765,3 +767,8 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing build` passed after replacing slanted marketing backgrounds.
 - `pnpm --filter @xtiitch/marketing test` passed after replacing slanted marketing backgrounds.
 - `pnpm lint` passed after replacing slanted marketing backgrounds.
+- `pnpm --filter @xtiitch/marketing check` passed after adding the first marketing animation layer.
+- `pnpm --filter @xtiitch/marketing build` passed after adding the first marketing animation layer.
+- `pnpm --filter @xtiitch/marketing test` passed after adding the first marketing animation layer.
+- `pnpm lint` passed after adding the first marketing animation layer.
+- `curl -I -s http://localhost:3005/` returned `200 OK` after adding the first marketing animation layer.

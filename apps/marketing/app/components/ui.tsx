@@ -59,6 +59,20 @@ const featureAccent: Record<Feature["icon"], string> = {
   tracking: "#b87914",
 };
 
+const riseInSx = (delayMs = 0) => ({
+  animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
+  "@media (prefers-reduced-motion: reduce)": {
+    animation: "none",
+  },
+});
+
+const fadeInSx = (delayMs = 0) => ({
+  animation: `xtiitch-fade-in 520ms ease ${delayMs}ms backwards`,
+  "@media (prefers-reduced-motion: reduce)": {
+    animation: "none",
+  },
+});
+
 export function Eyebrow({
   children,
   tone = "brand",
@@ -126,7 +140,11 @@ export function Section({
                 "radial-gradient(circle, rgba(128,0,32,0.09) 1px, transparent 1.5px)",
               ].join(", "),
               backgroundSize: "42px 42px, 42px 42px, 14px 14px",
+              animation: "xtiitch-thread-drift 24s linear infinite",
               pointerEvents: "none",
+              "@media (prefers-reduced-motion: reduce)": {
+                animation: "none",
+              },
             }
           : undefined,
         ...sx,
@@ -156,6 +174,7 @@ export function SectionHeading({
         mx: isCenter ? "auto" : 0,
         textAlign: align,
         mb: { xs: 4, md: 6 },
+        ...riseInSx(40),
       }}
     >
       {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
@@ -253,7 +272,7 @@ export function PageHero({
             alignItems: "center",
           }}
         >
-          <Box sx={{ maxWidth: 820 }}>
+          <Box sx={{ maxWidth: 820, ...riseInSx(40) }}>
             <Eyebrow>{eyebrow}</Eyebrow>
             <Typography
               variant="h1"
@@ -293,6 +312,10 @@ export function PageHero({
                 bottom: { sm: -44, md: -56 },
                 fontSize: { sm: 230, md: 320 },
                 color: "rgba(21,17,26,0.14)",
+                animation: "xtiitch-float-mark 8s ease-in-out infinite",
+                "@media (prefers-reduced-motion: reduce)": {
+                  animation: "none",
+                },
               }}
               aria-hidden
             />
@@ -314,6 +337,9 @@ export function PageHero({
                   height: 3,
                   borderRadius: 1,
                   bgcolor: "primary.main",
+                  transformOrigin: "left center",
+                  animation:
+                    "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 180ms both",
                 }}
               />
               <Box
@@ -326,6 +352,9 @@ export function PageHero({
                   height: 3,
                   borderRadius: 1,
                   bgcolor: "rgba(21,17,26,0.32)",
+                  transformOrigin: "left center",
+                  animation:
+                    "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 260ms both",
                 }}
               />
             </Stack>
@@ -345,7 +374,7 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
       }}
     >
-      {items.map((feature) => (
+      {items.map((feature, index) => (
         <Card
           key={feature.title}
           sx={{
@@ -354,6 +383,7 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
             overflow: "hidden",
             bgcolor: "background.paper",
             transition: "transform 180ms ease, box-shadow 180ms ease",
+            ...riseInSx(80 + index * 70),
             "&:hover": {
               transform: "translateY(-4px)",
               boxShadow: "0 30px 70px -44px rgba(21,17,26,0.62)",
@@ -382,6 +412,11 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
               borderRadius: "50%",
               border: `1px solid ${featureAccent[feature.icon]}`,
               opacity: 0.12,
+              transition: "transform 220ms ease, opacity 220ms ease",
+              ".MuiCard-root:hover &": {
+                transform: "scale(1.08)",
+                opacity: 0.18,
+              },
             }}
           />
           <CardContent sx={{ p: 3.25, position: "relative" }}>
@@ -422,7 +457,7 @@ export function StepList({ items }: { items: Step[] }) {
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
       }}
     >
-      {items.map((step) => (
+      {items.map((step, index) => (
         <Box
           key={step.number}
           sx={{
@@ -435,6 +470,14 @@ export function StepList({ items }: { items: Step[] }) {
             borderRadius: 1,
             bgcolor: "background.paper",
             minHeight: 168,
+            transition:
+              "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+            ...riseInSx(80 + index * 70),
+            "&:hover": {
+              transform: "translateY(-3px)",
+              borderColor: "rgba(128,0,32,0.2)",
+              boxShadow: "0 26px 60px -48px rgba(21,17,26,0.55)",
+            },
           }}
         >
           <Box
@@ -514,6 +557,7 @@ export function ProductPreview() {
           overflow: "hidden",
           bgcolor: "background.paper",
           boxShadow: "0 34px 80px -48px rgba(21,17,26,0.62)",
+          ...riseInSx(80),
         }}
       >
         <Box
@@ -529,6 +573,10 @@ export function ProductPreview() {
             height: "100%",
             objectFit: "cover",
             objectPosition: "center",
+            animation: "xtiitch-hero-zoom 1200ms ease-out both",
+            "@media (prefers-reduced-motion: reduce)": {
+              animation: "none",
+            },
           }}
         />
         <Box
@@ -579,6 +627,14 @@ export function ProductPreview() {
               boxShadow:
                 index === 0 ? "0 24px 60px -48px rgba(128,0,32,0.78)" : "none",
               backdropFilter: "blur(10px)",
+              transition:
+                "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+              ...riseInSx(150 + index * 80),
+              "&:hover": {
+                transform: "translateY(-3px)",
+                borderColor: "rgba(128,0,32,0.22)",
+                boxShadow: "0 26px 64px -50px rgba(128,0,32,0.65)",
+              },
             }}
           >
             <Box
@@ -635,6 +691,11 @@ export function ProductPreview() {
                 bgcolor: "rgba(243,229,223,0.58)",
                 p: 2,
                 minHeight: 106,
+                transition: "transform 180ms ease, border-color 180ms ease",
+                "&:hover": {
+                  transform: "translateY(-2px)",
+                  borderColor: "rgba(128,0,32,0.18)",
+                },
               }}
             >
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -695,7 +756,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
         alignItems: "stretch",
       }}
     >
-      {items.map((plan) => (
+      {items.map((plan, index) => (
         <Card
           key={plan.name}
           sx={{
@@ -714,6 +775,15 @@ export function PlanCards({ items }: { items: Plan[] }) {
             boxShadow: plan.highlight
               ? "0 34px 86px -52px rgba(128,0,32,0.76)"
               : undefined,
+            ...fadeInSx(80 + index * 80),
+            "&:hover": {
+              transform: plan.highlight
+                ? { xs: "translateY(-4px)", md: "translateY(-14px)" }
+                : "translateY(-4px)",
+              boxShadow: plan.highlight
+                ? "0 38px 92px -50px rgba(128,0,32,0.82)"
+                : "0 30px 70px -50px rgba(21,17,26,0.55)",
+            },
           }}
         >
           <Box
@@ -832,6 +902,14 @@ export function FaqList({ items }: { items: Faq[] }) {
             "&:before": { display: "none" },
             bgcolor: "rgba(255,255,255,0.88)",
             overflow: "hidden",
+            transition:
+              "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
+            ...riseInSx(60 + index * 45),
+            "&:hover": {
+              transform: "translateY(-2px)",
+              borderColor: "rgba(128,0,32,0.18)",
+              boxShadow: "0 24px 60px -52px rgba(21,17,26,0.56)",
+            },
           }}
         >
           <AccordionSummary
@@ -884,7 +962,7 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
       }}
     >
-      {items.map((point) => (
+      {items.map((point, index) => (
         <Box
           key={point.title}
           sx={{
@@ -895,6 +973,14 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
             borderColor: "divider",
             bgcolor: "background.paper",
             overflow: "hidden",
+            transition:
+              "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
+            ...riseInSx(80 + index * 70),
+            "&:hover": {
+              transform: "translateY(-3px)",
+              borderColor: "rgba(128,0,32,0.18)",
+              boxShadow: "0 26px 62px -50px rgba(21,17,26,0.58)",
+            },
             "&:before": {
               content: '""',
               position: "absolute",
@@ -940,6 +1026,12 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
           height: "100%",
           objectFit: "cover",
           opacity: 0.18,
+          transform: "scale(1.03)",
+          animation: "xtiitch-hero-zoom 1200ms ease-out both",
+          "@media (prefers-reduced-motion: reduce)": {
+            animation: "none",
+            transform: "none",
+          },
         }}
       />
       <Box
@@ -960,7 +1052,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
             alignItems: "center",
           }}
         >
-          <Box>
+          <Box sx={riseInSx(40)}>
             <Typography variant="h2" component="h2" sx={{ maxWidth: 760 }}>
               {title}
             </Typography>
@@ -971,7 +1063,10 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
           <Stack
             direction={{ xs: "column", sm: "row", md: "column" }}
             spacing={2}
-            sx={{ alignItems: { xs: "stretch", md: "flex-start" } }}
+            sx={{
+              alignItems: { xs: "stretch", md: "flex-start" },
+              ...riseInSx(140),
+            }}
           >
             <Button
               component={RouterLink}
@@ -1027,6 +1122,7 @@ export function TrackingPreview() {
         overflow: "hidden",
         maxWidth: 420,
         mx: "auto",
+        ...riseInSx(80),
       }}
     >
       <Box
@@ -1052,6 +1148,20 @@ export function TrackingPreview() {
           }}
         >
           <CircleIcon sx={{ color: "warning.main" }} aria-hidden />
+          <Box
+            aria-hidden
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              bgcolor: "warning.main",
+              ml: -2.5,
+              animation: "xtiitch-status-pulse 1800ms ease-in-out infinite",
+              "@media (prefers-reduced-motion: reduce)": {
+                animation: "none",
+              },
+            }}
+          />
           <Box>
             <Typography sx={{ fontWeight: 700 }}>
               Your outfit is being made

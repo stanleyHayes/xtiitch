@@ -25,6 +25,13 @@ import {
 } from "../components/ui";
 import { features, plans, site, steps, trustPoints } from "../content";
 
+const homeRiseSx = (delayMs = 0) => ({
+  animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
+  "@media (prefers-reduced-motion: reduce)": {
+    animation: "none",
+  },
+});
+
 export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Xtiitch — The operating system for fashion",
@@ -61,6 +68,12 @@ function Hero() {
           height: "100%",
           objectFit: "cover",
           objectPosition: { xs: "62% center", md: "center" },
+          transform: "scale(1.035)",
+          animation: "xtiitch-hero-zoom 1400ms ease-out both",
+          "@media (prefers-reduced-motion: reduce)": {
+            animation: "none",
+            transform: "none",
+          },
         }}
       />
       <Box
@@ -81,6 +94,10 @@ function Hero() {
             "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)",
           backgroundSize: "44px 44px",
           opacity: 0.18,
+          animation: "xtiitch-thread-drift 30s linear infinite",
+          "@media (prefers-reduced-motion: reduce)": {
+            animation: "none",
+          },
         }}
       />
       <Container sx={{ position: "relative", py: { xs: 5, md: 8 } }}>
@@ -93,6 +110,7 @@ function Hero() {
               color: "common.white",
               borderColor: "rgba(255,255,255,0.6)",
               bgcolor: "rgba(255,255,255,0.08)",
+              ...homeRiseSx(80),
             }}
             variant="outlined"
           />
@@ -104,6 +122,7 @@ function Hero() {
               lineHeight: 0.98,
               maxWidth: "100%",
               overflowWrap: "break-word",
+              ...homeRiseSx(160),
             }}
           >
             <Box
@@ -128,6 +147,7 @@ function Hero() {
               fontSize: { xs: 17, md: 20 },
               color: "rgba(255,255,255,0.82)",
               maxWidth: 620,
+              ...homeRiseSx(240),
             }}
           >
             {site.promise}
@@ -135,7 +155,11 @@ function Hero() {
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={2}
-            sx={{ mt: 4, alignItems: { xs: "stretch", sm: "center" } }}
+            sx={{
+              mt: 4,
+              alignItems: { xs: "stretch", sm: "center" },
+              ...homeRiseSx(320),
+            }}
           >
             <Button
               component={RouterLink}
@@ -169,7 +193,11 @@ function Hero() {
           </Stack>
           <Typography
             variant="body2"
-            sx={{ mt: 2.5, color: "rgba(255,255,255,0.76)" }}
+            sx={{
+              mt: 2.5,
+              color: "rgba(255,255,255,0.76)",
+              ...homeRiseSx(400),
+            }}
           >
             Start free. Take mobile money and cards through Paystack. Keep your
             own money.
@@ -257,6 +285,7 @@ export default function Home() {
               borderRadius: 1,
               overflow: "hidden",
               boxShadow: "0 30px 80px -54px rgba(21,17,26,0.72)",
+              ...homeRiseSx(240),
               "&:before": {
                 content: '""',
                 position: "absolute",
@@ -292,6 +321,17 @@ export default function Home() {
                   overflow: "hidden",
                   bgcolor:
                     index === 1 ? "rgba(250,246,242,0.68)" : "background.paper",
+                  transition:
+                    "transform 200ms ease, background-color 200ms ease, box-shadow 200ms ease",
+                  ...homeRiseSx(300 + index * 80),
+                  "&:hover": {
+                    transform: "translateY(-3px)",
+                    bgcolor:
+                      index === 1
+                        ? "rgba(250,246,242,0.84)"
+                        : "rgba(255,255,255,0.92)",
+                    boxShadow: "0 24px 60px -52px rgba(21,17,26,0.56)",
+                  },
                 }}
               >
                 <Box
@@ -310,10 +350,14 @@ export default function Home() {
                       `radial-gradient(circle, ${stat.accent}24 1px, transparent 1.5px)`,
                     ].join(", "),
                     backgroundSize: "18px 18px, 18px 18px, 9px 9px",
+                    animation: "xtiitch-thread-drift 22s linear infinite",
                     maskImage:
                       "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
                     WebkitMaskImage:
                       "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
+                    "@media (prefers-reduced-motion: reduce)": {
+                      animation: "none",
+                    },
                   }}
                 />
                 <Stack

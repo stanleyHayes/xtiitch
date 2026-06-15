@@ -114,6 +114,38 @@ export const theme: Theme = createTheme({
             "linear-gradient(90deg, rgba(128,0,32,0.025) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.018) 1px, transparent 1px)",
           backgroundSize: "34px 34px",
         },
+        "@keyframes xtiitch-rise-in": {
+          "0%": { opacity: 0, transform: "translate3d(0, 18px, 0)" },
+          "100%": { opacity: 1, transform: "translate3d(0, 0, 0)" },
+        },
+        "@keyframes xtiitch-fade-in": {
+          "0%": { opacity: 0 },
+          "100%": { opacity: 1 },
+        },
+        "@keyframes xtiitch-thread-drift": {
+          "0%": { backgroundPosition: "0 0, 0 0, 0 0" },
+          "100%": { backgroundPosition: "42px 0, 0 42px, 14px 14px" },
+        },
+        "@keyframes xtiitch-hero-zoom": {
+          "0%": { transform: "scale(1.035)" },
+          "100%": { transform: "scale(1)" },
+        },
+        "@keyframes xtiitch-float-mark": {
+          "0%, 100%": { transform: "translate3d(0, 0, 0)" },
+          "50%": { transform: "translate3d(0, -10px, 0)" },
+        },
+        "@keyframes xtiitch-status-pulse": {
+          "0%, 100%": { boxShadow: "0 0 0 0 rgba(184,121,20,0.2)" },
+          "50%": { boxShadow: "0 0 0 9px rgba(184,121,20,0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "0.001ms !important",
+            animationIterationCount: "1 !important",
+            scrollBehavior: "auto !important",
+            transitionDuration: "0.001ms !important",
+          },
+        },
         "::selection": {
           backgroundColor: tokens.burgundy,
           color: tokens.white,
@@ -128,6 +160,14 @@ export const theme: Theme = createTheme({
           paddingInline: 20,
           minHeight: 44,
           boxShadow: "none",
+          transition:
+            "transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease",
+          "&:not(.Mui-disabled):hover": {
+            transform: "translateY(-1px)",
+          },
+          "&.Mui-focusVisible": {
+            boxShadow: `0 0 0 3px ${tokens.burgundy}24`,
+          },
         },
         sizeLarge: { minHeight: 52, fontSize: "1rem", paddingInline: 28 },
       },
@@ -142,6 +182,8 @@ export const theme: Theme = createTheme({
           border: `1px solid ${tokens.softBorder}`,
           borderRadius: 8,
           boxShadow: "0 22px 60px -42px rgba(21,17,26,0.42)",
+          transition:
+            "transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease",
         },
       },
     },
@@ -150,6 +192,11 @@ export const theme: Theme = createTheme({
     },
     MuiLink: {
       defaultProps: { underline: "hover" },
+      styleOverrides: {
+        root: {
+          transition: "color 180ms ease, background-color 180ms ease",
+        },
+      },
     },
     MuiTextField: {
       defaultProps: { fullWidth: true },

@@ -39,6 +39,10 @@ export function Logo({
         gap: 1,
         textDecoration: "none",
         color: isLight ? "common.white" : "text.primary",
+        transition: "transform 180ms ease, color 180ms ease",
+        "&:hover": {
+          transform: "translateY(-1px)",
+        },
       }}
     >
       <Box
@@ -54,6 +58,13 @@ export function Logo({
           fontWeight: 800,
           fontSize: 20,
           lineHeight: 1,
+          transition: "transform 220ms ease, box-shadow 220ms ease",
+          ".MuiBox-root:hover > &": {
+            transform: "rotate(-3deg) scale(1.04)",
+            boxShadow: isLight
+              ? "0 16px 34px -24px rgba(255,255,255,0.72)"
+              : "0 16px 34px -24px rgba(128,0,32,0.82)",
+          },
         }}
       >
         X
@@ -103,7 +114,10 @@ function NavItems({
               border: "1px solid",
               borderColor: isActive ? "rgba(128,0,32,0.14)" : "transparent",
               whiteSpace: "nowrap",
+              transition:
+                "transform 180ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease",
               "&:hover": {
+                transform: "translateY(-1px)",
                 color: "primary.main",
                 bgcolor: "rgba(128,0,32,0.06)",
                 borderColor: "rgba(128,0,32,0.12)",
@@ -139,6 +153,10 @@ export function Header() {
         backdropFilter: "saturate(180%) blur(14px)",
         backgroundColor: "rgba(250, 246, 242, 0.78)",
         borderBottom: "1px solid rgba(233,222,214,0.72)",
+        animation: "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1)",
+        "@media (prefers-reduced-motion: reduce)": {
+          animation: "none",
+        },
       }}
     >
       <Container>
@@ -392,6 +410,13 @@ export function Footer() {
                     bgcolor: "rgba(255,255,255,0.06)",
                     border: "1px solid rgba(255,255,255,0.12)",
                     "& svg": { fontSize: 18, color: "rgba(255,255,255,0.74)" },
+                    transition:
+                      "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                    "&:hover": {
+                      transform: "translateY(-2px)",
+                      bgcolor: "rgba(255,255,255,0.1)",
+                      borderColor: "rgba(255,255,255,0.2)",
+                    },
                   }}
                 >
                   {item.icon}
@@ -412,6 +437,11 @@ export function Footer() {
               borderRadius: 1,
               bgcolor: "rgba(255,255,255,0.06)",
               border: "1px solid rgba(255,255,255,0.12)",
+              animation:
+                "xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) 120ms backwards",
+              "@media (prefers-reduced-motion: reduce)": {
+                animation: "none",
+              },
             }}
           >
             <Box>
