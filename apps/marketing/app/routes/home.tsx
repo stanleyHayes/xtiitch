@@ -294,15 +294,26 @@ export default function Home() {
                     index === 1 ? "rgba(250,246,242,0.68)" : "background.paper",
                 }}
               >
-                <stat.Icon
+                <Box
                   aria-hidden
                   sx={{
                     position: "absolute",
-                    right: -24,
-                    bottom: -28,
-                    fontSize: { xs: 126, md: 150 },
-                    color: stat.accent,
-                    opacity: 0.055,
+                    right: { xs: 14, md: 20 },
+                    bottom: { xs: 14, md: 18 },
+                    width: { xs: 112, md: 142 },
+                    height: { xs: 72, md: 86 },
+                    borderRadius: 1,
+                    opacity: 0.74,
+                    background: [
+                      `linear-gradient(90deg, ${stat.accent}18 1px, transparent 1px)`,
+                      `linear-gradient(180deg, ${stat.accent}14 1px, transparent 1px)`,
+                      `radial-gradient(circle, ${stat.accent}24 1px, transparent 1.5px)`,
+                    ].join(", "),
+                    backgroundSize: "18px 18px, 18px 18px, 9px 9px",
+                    maskImage:
+                      "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
+                    WebkitMaskImage:
+                      "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
                   }}
                 />
                 <Stack

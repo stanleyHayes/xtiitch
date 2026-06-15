@@ -18,6 +18,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CircleIcon from "@mui/icons-material/Circle";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
@@ -25,7 +26,6 @@ import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
-import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import { FeatureGlyph } from "./icons";
 import {
   bespokeStages,
@@ -41,7 +41,7 @@ const pageHeroIcons: Record<string, SvgIconComponent> = {
   FAQ: HelpRoundedIcon,
   Features: Inventory2RoundedIcon,
   "For customers": GroupsRoundedIcon,
-  "How it works": TimelineRoundedIcon,
+  "How it works": ChecklistRoundedIcon,
   Pricing: PaymentsRoundedIcon,
   Privacy: SecurityRoundedIcon,
   "Security and trust": SecurityRoundedIcon,
@@ -119,10 +119,13 @@ export function Section({
               content: '""',
               position: "absolute",
               inset: 0,
-              opacity: 0.42,
-              background:
-                "linear-gradient(135deg, rgba(128,0,32,0.035) 25%, transparent 25%, transparent 50%, rgba(128,0,32,0.035) 50%, rgba(128,0,32,0.035) 75%, transparent 75%)",
-              backgroundSize: "28px 28px",
+              opacity: 0.72,
+              background: [
+                "linear-gradient(90deg, rgba(128,0,32,0.035) 1px, transparent 1px)",
+                "linear-gradient(180deg, rgba(21,17,26,0.026) 1px, transparent 1px)",
+                "radial-gradient(circle, rgba(128,0,32,0.09) 1px, transparent 1.5px)",
+              ].join(", "),
+              backgroundSize: "42px 42px, 42px 42px, 14px 14px",
               pointerEvents: "none",
             }
           : undefined,

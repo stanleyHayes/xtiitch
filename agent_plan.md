@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 10:25 GMT
+Last updated: 2026-06-15 10:34 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -87,6 +87,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the proof-strip redesign with desktop Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
 - Refined the shared marketing page hero artwork by removing the black illustrative card, placing the page-specific icon watermark directly on the cream grid, slightly darkening the icon, and keeping only the small brand stitch marks.
 - Verified the shared page-hero refinement with a desktop Chrome screenshot, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
+- Replaced the slanted marketing background language: alternate sections now use a straight stitch-grid/dot texture, the home proof-strip cards use straight textile patches instead of oversized angled watermark silhouettes, and the How-it-works hero watermark changed from a slanted chart to a checklist icon.
+- Verified the replacement background direction with desktop Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
 
 ## Opened / Pending
 
@@ -759,3 +761,7 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing build` passed after removing the black shared page-hero card.
 - `pnpm --filter @xtiitch/marketing test` passed after removing the black shared page-hero card.
 - `pnpm lint` passed after removing the black shared page-hero card.
+- `pnpm --filter @xtiitch/marketing check` passed after replacing slanted marketing backgrounds.
+- `pnpm --filter @xtiitch/marketing build` passed after replacing slanted marketing backgrounds.
+- `pnpm --filter @xtiitch/marketing test` passed after replacing slanted marketing backgrounds.
+- `pnpm lint` passed after replacing slanted marketing backgrounds.
