@@ -37,6 +37,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 
+		protected.Get("/businesses/me", handler.getProfile)
 		protected.Get("/store-settings", handler.getSettings)
 		protected.Patch("/store-settings", handler.updateSettings)
 
@@ -71,6 +72,24 @@ type settingsBody struct {
 	DeliveryEnabled      bool   `json:"delivery_enabled"`
 	DispatchEnabled      bool   `json:"dispatch_enabled"`
 	BrandColor           string `json:"brand_color"`
+}
+
+func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	profile, err := handler.service.GetStoreProfile(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"name":                profile.Name,
+		"handle":              profile.Handle,
+		"verification_status": profile.VerificationStatus,
+		"plan":                profile.PlanCode,
+	})
 }
 
 func (handler Handler) getSettings(w http.ResponseWriter, r *http.Request) {

@@ -50,6 +50,10 @@ func (s Service) UpdateSettings(ctx context.Context, scope common.TenantScope, s
 	return s.settings.Update(ctx, scope, settings)
 }
 
+func (s Service) GetStoreProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {
+	return s.settings.GetProfile(ctx, scope)
+}
+
 // --- Collections ---
 
 type CreateCollectionCommand struct {

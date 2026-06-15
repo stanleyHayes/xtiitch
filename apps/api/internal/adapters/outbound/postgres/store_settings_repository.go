@@ -57,6 +57,37 @@ func (repo StoreSettingsRepository) Get(ctx context.Context, scope common.Tenant
 	return settings, nil
 }
 
+func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.StoreProfile{}, err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.StoreProfile{}, err
+	}
+
+	var profile ports.StoreProfile
+	if err := tx.QueryRow(ctx, `
+		select b.name, b.handle, b.verification_status, p.code
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1
+	`, scope.BusinessID.String()).Scan(&profile.Name, &profile.Handle, &profile.VerificationStatus, &profile.PlanCode); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.StoreProfile{}, ErrNotFound
+		}
+		return ports.StoreProfile{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.StoreProfile{}, err
+	}
+
+	return profile, nil
+}
+
 func (repo StoreSettingsRepository) Update(ctx context.Context, scope common.TenantScope, settings ports.StoreSettings) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

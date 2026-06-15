@@ -22,6 +22,15 @@ type StoreSettings struct {
 type StoreSettingsRepository interface {
 	Get(ctx context.Context, scope common.TenantScope) (StoreSettings, error)
 	Update(ctx context.Context, scope common.TenantScope, settings StoreSettings) error
+	GetProfile(ctx context.Context, scope common.TenantScope) (StoreProfile, error)
+}
+
+// StoreProfile is the authenticated business's own profile, for the dashboard.
+type StoreProfile struct {
+	Name               string
+	Handle             string
+	VerificationStatus string
+	PlanCode           string
 }
 
 // CatalogueRepository is the dashboard-facing, tenant-scoped catalogue store.
