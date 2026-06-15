@@ -10,8 +10,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
+	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -22,6 +24,8 @@ type Service interface {
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error)
 	AdvanceStage(ctx context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error)
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
+	SetAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error
+	CollectBalance(ctx context.Context, scope common.TenantScope, orderID common.ID, method money.PaymentMethod) (orderapp.CollectBalanceResult, error)
 }
 
 type Handler struct {
@@ -41,6 +45,8 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/orders", handler.createWalkIn)
 		protected.Get("/orders", handler.listOrders)
 		protected.Post("/orders/{id}/advance", handler.advance)
+		protected.Post("/orders/{id}/agreed-total", handler.setAgreedTotal)
+		protected.Post("/orders/{id}/balance", handler.collectBalance)
 	})
 }
 
@@ -145,6 +151,55 @@ func (handler Handler) tracking(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toTrackingResponse(tracking))
 }
 
+type agreedTotalBody struct {
+	AgreedTotalMinor int64 `json:"agreed_total_minor"`
+}
+
+func (handler Handler) setAgreedTotal(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var body agreedTotalBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.SetAgreedTotal(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), body.AgreedTotalMinor); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"agreed_total_minor": body.AgreedTotalMinor})
+}
+
+type collectBalanceBody struct {
+	Method string `json:"method"`
+}
+
+func (handler Handler) collectBalance(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var body collectBalanceBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.CollectBalance(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), money.PaymentMethod(body.Method))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"reference":         result.Reference,
+		"authorization_url": result.AuthorizationURL,
+		"amount_minor":      result.AmountMinor,
+	})
+}
+
 func toTrackingResponse(tracking order.Tracking) map[string]any {
 	stages := make([]map[string]any, 0, len(tracking.Stages))
 	for _, stage := range tracking.Stages {
@@ -169,10 +224,16 @@ func toTrackingResponse(tracking order.Tracking) map[string]any {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
-	case errors.Is(err, orderapp.ErrInvalidInput):
+	case errors.Is(err, orderapp.ErrInvalidInput), errors.Is(err, paymentsapp.ErrInvalidCharge):
 		writeError(w, http.StatusBadRequest, "invalid_input")
 	case errors.Is(err, ports.ErrInvalidOrderState):
 		writeError(w, http.StatusConflict, "order_not_advanceable")
+	case errors.Is(err, orderapp.ErrBalanceNotDue):
+		writeError(w, http.StatusConflict, "balance_not_due")
+	case errors.Is(err, orderapp.ErrBalanceInProgress):
+		writeError(w, http.StatusConflict, "balance_in_progress")
+	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):
+		writeError(w, http.StatusConflict, "store_not_verified")
 	case errors.Is(err, ports.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found")
 	default:

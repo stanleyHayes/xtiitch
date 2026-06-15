@@ -14,6 +14,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -137,4 +138,12 @@ func (s *fakeOrderService) AdvanceStage(context.Context, common.TenantScope, com
 
 func (s *fakeOrderService) GetTracking(context.Context, common.ID) (order.Tracking, error) {
 	return order.Tracking{}, nil
+}
+
+func (s *fakeOrderService) SetAgreedTotal(context.Context, common.TenantScope, common.ID, int64) error {
+	return nil
+}
+
+func (s *fakeOrderService) CollectBalance(context.Context, common.TenantScope, common.ID, money.PaymentMethod) (orderapp.CollectBalanceResult, error) {
+	return orderapp.CollectBalanceResult{}, nil
 }

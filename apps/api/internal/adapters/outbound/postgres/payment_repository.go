@@ -6,6 +6,7 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
@@ -42,6 +43,13 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 		)
 		values ($1, $2, $3, $4, $5, $6, $7, $8, 'initiated', true, $9)
 	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor); err != nil {
+		// A second in-flight balance charge for the same order is rejected by the
+		// partial unique index; surface it as the dedicated sentinel so callers
+		// can refuse cleanly rather than double-charging the customer.
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "payments_one_open_balance_idx" {
+			return ports.ErrPaymentInFlight
+		}
 		return err
 	}
 
@@ -93,6 +101,7 @@ type scopedPayment struct {
 	businessID  string
 	orderID     sql.NullString
 	amountMinor int64
+	purpose     string
 }
 
 // recordProviderEvent writes the idempotency row and reports whether this was a
@@ -114,9 +123,9 @@ func recordProviderEvent(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaym
 func lookupPaymentByReference(ctx context.Context, tx pgx.Tx, providerReference string) (scopedPayment, bool, error) {
 	var payment scopedPayment
 	err := tx.QueryRow(ctx, `
-		select business_id::text, order_id::text, amount_minor
+		select business_id::text, order_id::text, amount_minor, purpose
 		from payments where provider_reference = $1
-	`, providerReference).Scan(&payment.businessID, &payment.orderID, &payment.amountMinor)
+	`, providerReference).Scan(&payment.businessID, &payment.orderID, &payment.amountMinor, &payment.purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return scopedPayment{}, false, nil
 	}
@@ -157,9 +166,27 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 	// charge.success that arrives after a charge.failed settle the order while
 	// the payment stays failed.
 	if input.Succeeded && tag.RowsAffected() == 1 && payment.orderID.Valid {
+		if payment.purpose == "balance" {
+			return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+		}
 		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
 	}
 	return nil
+}
+
+// creditOrderBalance applies a balance payment to an already-confirmed order:
+// it credits the settled amount without touching the production stage. Every
+// statement is scoped to the payment's own business, so a stray cross-tenant
+// order_id credits nothing. settled_minor is capped at the agreed total, so even
+// a duplicated balance charge can never settle more than is owed.
+func creditOrderBalance(ctx context.Context, tx pgx.Tx, businessID, orderID string, amountMinor int64) error {
+	_, err := tx.Exec(ctx, `
+		update orders
+		set settled_minor = least(settled_minor + $3, agreed_total_minor), updated_at = now()
+		where order_id = $1 and business_id = $2
+			and status in ('confirmed', 'fulfilled') and agreed_total_minor is not null
+	`, orderID, businessID, amountMinor)
+	return err
 }
 
 // commitConfirm commits the confirmation transaction and yields its result.

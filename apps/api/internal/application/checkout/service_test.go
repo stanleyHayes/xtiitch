@@ -467,6 +467,14 @@ func (f *fakeOrders) GetTracking(context.Context, common.ID) (order.Tracking, er
 	return order.Tracking{}, nil
 }
 
+func (f *fakeOrders) SetAgreedTotal(context.Context, common.TenantScope, common.ID, int64) error {
+	return nil
+}
+
+func (f *fakeOrders) GetOrderBilling(context.Context, common.TenantScope, common.ID) (ports.OrderBilling, error) {
+	return ports.OrderBilling{}, nil
+}
+
 type fakePayments struct {
 	result  paymentsapp.ChargeResult
 	err     error

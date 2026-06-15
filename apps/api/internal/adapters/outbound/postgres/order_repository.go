@@ -327,6 +327,86 @@ func (repo OrderRepository) DiscardCustomDraftOrder(ctx context.Context, scope c
 	return tx.Commit(ctx)
 }
 
+func (repo OrderRepository) SetAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Only a confirmed custom order can have its negotiated total set, and never
+	// below what the customer has already settled (which would imply a refund).
+	// Refuse to re-price while a balance charge is in flight: the in-flight
+	// charge was snapshotted against the current agreed total, so changing it now
+	// would let the cap swallow (or inflate) the customer's payment.
+	tag, err := tx.Exec(ctx, `
+		update orders
+		set agreed_total_minor = $3, updated_at = now()
+		where order_id = $1 and business_id = $2
+			and order_type = 'custom' and status = 'confirmed'
+			and $3 >= settled_minor
+			and not exists(
+				select 1 from payments p
+				where p.order_id = orders.order_id and p.business_id = orders.business_id
+					and p.purpose = 'balance' and p.status = 'initiated'
+			)
+	`, orderID.String(), scope.BusinessID.String(), agreedTotalMinor)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrInvalidOrderState
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo OrderRepository) GetOrderBilling(ctx context.Context, scope common.TenantScope, orderID common.ID) (ports.OrderBilling, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.OrderBilling{}, err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.OrderBilling{}, err
+	}
+
+	var billing ports.OrderBilling
+	var agreed sql.NullInt64
+	if err := tx.QueryRow(ctx, `
+		select o.order_type, o.status, o.agreed_total_minor, o.settled_minor, coalesce(c.email, ''),
+			exists(
+				select 1 from payments p
+				where p.order_id = o.order_id and p.business_id = o.business_id
+					and p.purpose = 'balance' and p.status = 'initiated'
+			)
+		from orders o
+		left join customers c on c.customer_id = o.customer_id
+		where o.order_id = $1 and o.business_id = $2
+	`, orderID.String(), scope.BusinessID.String()).Scan(
+		&billing.OrderType, &billing.Status, &agreed, &billing.SettledMinor, &billing.CustomerEmail, &billing.BalanceInFlight,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.OrderBilling{}, ErrNotFound
+		}
+		return ports.OrderBilling{}, err
+	}
+	if agreed.Valid {
+		value := agreed.Int64
+		billing.AgreedTotalMinor = &value
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.OrderBilling{}, err
+	}
+	return billing, nil
+}
+
 func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

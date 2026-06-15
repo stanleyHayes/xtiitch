@@ -16,3 +16,9 @@ var ErrUnknownMeasurementField = errors.New("unknown measurement field")
 // ErrInvalidOrderState is returned when a state transition would violate the
 // order lifecycle, such as advancing a draft or already fulfilled order.
 var ErrInvalidOrderState = errors.New("invalid order state")
+
+// ErrPaymentInFlight is returned when a charge cannot be raised because an
+// equivalent one is already pending — e.g. a second balance charge for an order
+// that already has an initiated balance payment. It is the database-enforced
+// backstop against double-charging a customer.
+var ErrPaymentInFlight = errors.New("an equivalent payment is already in flight")

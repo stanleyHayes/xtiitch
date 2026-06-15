@@ -103,8 +103,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	mediaService := mediaapp.NewService(mediaStore)
 
 	orderService := orderapp.NewService(orderapp.Dependencies{
-		Orders: postgres.NewOrderRepository(db),
-		IDs:    ids.UUIDGenerator{},
+		Orders:   postgres.NewOrderRepository(db),
+		Payments: paymentService,
+		IDs:      ids.UUIDGenerator{},
 	})
 
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{

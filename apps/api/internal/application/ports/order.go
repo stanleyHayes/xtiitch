@@ -41,6 +41,26 @@ type OrderRepository interface {
 	// GetTracking is the public, account-free "where is my cloth?" read, keyed
 	// by the unguessable order reference (cross-tenant by credential).
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
+	// SetAgreedTotal records the negotiated total for a confirmed custom order so
+	// its balance can be collected. The total must be at least what has already
+	// been settled; an order that is not a confirmed custom order, or a total
+	// below the settled amount, returns ErrInvalidOrderState.
+	SetAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error
+	// GetOrderBilling reads the financial state a balance charge needs for one
+	// order (type, status, agreed total, settled, customer email), tenant-scoped.
+	GetOrderBilling(ctx context.Context, scope common.TenantScope, orderID common.ID) (OrderBilling, error)
+}
+
+// OrderBilling is the slice of an order a balance charge reasons about.
+type OrderBilling struct {
+	OrderType        string
+	Status           string
+	AgreedTotalMinor *int64
+	SettledMinor     int64
+	CustomerEmail    string
+	// BalanceInFlight is true when an initiated balance payment already exists
+	// for the order, so a second balance charge must be refused.
+	BalanceInFlight bool
 }
 
 type CreateWalkInOrderInput struct {
