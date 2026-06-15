@@ -1,9 +1,12 @@
 import type { MetaDescriptor } from "react-router";
-import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import { pageMeta } from "../components/seo";
-import { PageHero, Section, SectionHeading } from "../components/ui";
+import {
+  PageHero,
+  PolicySectionList,
+  Section,
+  SectionHeading,
+} from "../components/ui";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
@@ -64,44 +67,7 @@ export default function Terms() {
           Final terms, refund rules and subscription terms must be approved
           before public launch.
         </Alert>
-        <Box sx={{ display: "grid", gap: 2 }}>
-          {termSections.map((section, index) => (
-            <Box
-              key={section.title}
-              sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "auto 1fr" },
-                gap: { xs: 1.5, sm: 2.5 },
-                p: { xs: 2.5, md: 3 },
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                bgcolor: "rgba(255,255,255,0.86)",
-              }}
-            >
-              <Typography
-                aria-hidden
-                sx={{
-                  color: "primary.main",
-                  fontWeight: 800,
-                  minWidth: 44,
-                }}
-              >
-                {String(index + 1).padStart(2, "0")}
-              </Typography>
-              <Box>
-                <Typography variant="h5" component="h2">
-                  {section.title}
-                </Typography>
-                <Typography
-                  sx={{ mt: 1, color: "text.secondary", maxWidth: 860 }}
-                >
-                  {section.body}
-                </Typography>
-              </Box>
-            </Box>
-          ))}
-        </Box>
+        <PolicySectionList items={termSections} />
       </Section>
 
       <Section alt>

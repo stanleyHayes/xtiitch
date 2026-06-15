@@ -50,6 +50,8 @@ const reassurance: string[] = [
   "Your details are only used to set up and reach you.",
 ];
 
+const launchSteps = ["Request", "Guided setup", "Store live"] as const;
+
 export default function Contact() {
   return (
     <Box
@@ -58,9 +60,19 @@ export default function Contact() {
         overflow: "hidden",
         bgcolor: "background.default",
         py: { xs: 6, md: 9 },
+        "&:before": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          opacity: 0.65,
+          background:
+            "linear-gradient(90deg, rgba(128,0,32,0.035) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.026) 1px, transparent 1px)",
+          backgroundSize: "42px 42px",
+          pointerEvents: "none",
+        },
       }}
     >
-      <Container>
+      <Container sx={{ position: "relative" }}>
         <Box
           sx={{
             display: "grid",
@@ -161,6 +173,51 @@ export default function Contact() {
                   </Box>
                 ))}
               </Stack>
+              <Box
+                sx={{
+                  mt: 3,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  borderRadius: 1,
+                  overflow: "hidden",
+                  border: "1px solid rgba(255,255,255,0.14)",
+                  bgcolor: "rgba(21,17,26,0.36)",
+                }}
+              >
+                {launchSteps.map((step, index) => (
+                  <Box
+                    key={step}
+                    sx={{
+                      p: { xs: 1.25, md: 1.5 },
+                      borderRight:
+                        index === launchSteps.length - 1
+                          ? "none"
+                          : "1px solid rgba(255,255,255,0.14)",
+                    }}
+                  >
+                    <Typography
+                      component="p"
+                      sx={{
+                        color: "rgba(255,255,255,0.52)",
+                        fontSize: 11,
+                        fontWeight: 800,
+                      }}
+                    >
+                      {String(index + 1).padStart(2, "0")}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        mt: 0.5,
+                        color: "rgba(255,255,255,0.86)",
+                        fontWeight: 800,
+                      }}
+                    >
+                      {step}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           </Box>
 
@@ -173,6 +230,8 @@ export default function Contact() {
               borderRadius: 1,
               bgcolor: "rgba(255,255,255,0.9)",
               boxShadow: "0 28px 80px -58px rgba(21,17,26,0.64)",
+              position: { md: "sticky" },
+              top: { md: 110 },
             }}
           >
             <WaitlistForm />
