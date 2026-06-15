@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
@@ -96,8 +97,18 @@ type OrderSummary struct {
 	OrderID          common.ID
 	DesignTitle      string
 	CustomerName     string
+	CustomerPhone    string
+	CustomerEmail    string
 	Status           string
+	OrderType        string
+	SizeMode         string
+	Channel          string
 	StageName        string
 	Colour           string
 	AgreedTotalMinor *int64
+	SettledMinor     int64
+	PaymentStatus    string
+	PaymentPurpose   string
+	PaymentAmount    *int64
+	CreatedAt        time.Time
 }

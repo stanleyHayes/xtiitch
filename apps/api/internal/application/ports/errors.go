@@ -12,3 +12,7 @@ var ErrNotFound = errors.New("not found")
 // validates submitted keys against the tenant's own measurement fields, so the
 // check is authoritative and fails closed; services map it to a 400.
 var ErrUnknownMeasurementField = errors.New("unknown measurement field")
+
+// ErrInvalidOrderState is returned when a state transition would violate the
+// order lifecycle, such as advancing a draft or already fulfilled order.
+var ErrInvalidOrderState = errors.New("invalid order state")

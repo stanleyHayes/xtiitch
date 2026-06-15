@@ -100,13 +100,23 @@ func (handler Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 	out := make([]map[string]any, 0, len(orders))
 	for _, o := range orders {
 		out = append(out, map[string]any{
-			"order_id":           o.OrderID.String(),
-			"design_title":       o.DesignTitle,
-			"customer_name":      o.CustomerName,
-			"status":             o.Status,
-			"stage_name":         o.StageName,
-			"colour":             o.Colour,
-			"agreed_total_minor": o.AgreedTotalMinor,
+			"order_id":             o.OrderID.String(),
+			"design_title":         o.DesignTitle,
+			"customer_name":        o.CustomerName,
+			"customer_phone":       o.CustomerPhone,
+			"customer_email":       o.CustomerEmail,
+			"status":               o.Status,
+			"order_type":           o.OrderType,
+			"size_mode":            o.SizeMode,
+			"channel":              o.Channel,
+			"stage_name":           o.StageName,
+			"colour":               o.Colour,
+			"agreed_total_minor":   o.AgreedTotalMinor,
+			"settled_minor":        o.SettledMinor,
+			"payment_status":       o.PaymentStatus,
+			"payment_purpose":      o.PaymentPurpose,
+			"payment_amount_minor": o.PaymentAmount,
+			"created_at":           o.CreatedAt,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"orders": out})
@@ -161,6 +171,8 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, orderapp.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, "invalid_input")
+	case errors.Is(err, ports.ErrInvalidOrderState):
+		writeError(w, http.StatusConflict, "order_not_advanceable")
 	case errors.Is(err, ports.ErrNotFound):
 		writeError(w, http.StatusNotFound, "not_found")
 	default:

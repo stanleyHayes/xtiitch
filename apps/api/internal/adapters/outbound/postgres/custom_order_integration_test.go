@@ -177,6 +177,41 @@ func TestCreateCustomOrderConfirmedComeToShop(t *testing.T) {
 	}
 }
 
+func TestListOrdersIncludesDashboardContext(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedCustomFixtures(t, pool)
+	defer cleanupCustomFixtures(t, pool)
+
+	orders := NewOrderRepository(pool)
+	orderID, customerID := newCustomOrderID(t)
+	if err := orders.CreateCustomOrder(context.Background(), coScope(), ports.CreateCustomOrderInput{
+		OrderID: orderID, BusinessID: coScopeBusiness, CustomerID: customerID, DesignID: coDesign,
+		SizeMode: "home_visit", CustomerName: "IT Bespoke Customer", CustomerPhone: "+233200000000", CustomerEmail: "co@example.com",
+	}); err != nil {
+		t.Fatalf("create custom order: %v", err)
+	}
+	insertDepositPayment(t, pool, orderID, "xt_co_list", 15000)
+
+	summaries, err := orders.ListOrders(context.Background(), coScope())
+	if err != nil {
+		t.Fatalf("list orders: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("expected one summary, got %+v", summaries)
+	}
+	got := summaries[0]
+	if got.OrderID != orderID || got.OrderType != "custom" || got.SizeMode != "home_visit" || got.Channel != "online" {
+		t.Fatalf("unexpected order route fields: %+v", got)
+	}
+	if got.CustomerPhone != "+233200000000" || got.CustomerEmail != "co@example.com" {
+		t.Fatalf("expected contact context, got phone=%q email=%q", got.CustomerPhone, got.CustomerEmail)
+	}
+	if got.PaymentStatus != "initiated" || got.PaymentPurpose != "deposit" || got.PaymentAmount == nil || *got.PaymentAmount != 15000 {
+		t.Fatalf("expected deposit payment context, got %+v", got)
+	}
+}
+
 func TestCreateCustomOrderFailsWithoutBespokeStages(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()

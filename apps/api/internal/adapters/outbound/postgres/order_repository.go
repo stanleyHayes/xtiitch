@@ -339,12 +339,22 @@ func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantS
 	}
 
 	rows, err := tx.Query(ctx, `
-		select o.order_id, d.title, coalesce(c.display_name, ''), o.status,
-			coalesce(st.name, ''), coalesce(st.colour, 'red'), o.agreed_total_minor
+		select o.order_id, d.title, coalesce(c.display_name, ''),
+			coalesce(c.phone, ''), coalesce(c.email, ''), o.status, o.order_type,
+			o.size_mode, o.channel, coalesce(st.name, ''), coalesce(st.colour, 'red'),
+			o.agreed_total_minor, o.settled_minor, coalesce(p.status, 'none'),
+			coalesce(p.purpose, ''), p.amount_minor, o.created_at
 		from orders o
 		join designs d on d.design_id = o.design_id
 		left join customers c on c.customer_id = o.customer_id
 		left join stage_templates st on st.stage_id = o.current_stage_id
+		left join lateral (
+			select status, purpose, amount_minor
+			from payments p
+			where p.business_id = o.business_id and p.order_id = o.order_id
+			order by p.created_at desc
+			limit 1
+		) p on true
 		where o.business_id = $1
 		order by o.created_at desc
 	`, scope.BusinessID.String())
@@ -356,14 +366,21 @@ func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantS
 	var summaries []ports.OrderSummary
 	for rows.Next() {
 		var summary ports.OrderSummary
-		var total sql.NullInt64
+		var total, paymentAmount sql.NullInt64
 		if err := rows.Scan(&summary.OrderID, &summary.DesignTitle, &summary.CustomerName,
-			&summary.Status, &summary.StageName, &summary.Colour, &total); err != nil {
+			&summary.CustomerPhone, &summary.CustomerEmail, &summary.Status, &summary.OrderType,
+			&summary.SizeMode, &summary.Channel, &summary.StageName, &summary.Colour, &total,
+			&summary.SettledMinor, &summary.PaymentStatus, &summary.PaymentPurpose, &paymentAmount,
+			&summary.CreatedAt); err != nil {
 			return nil, err
 		}
 		if total.Valid {
 			value := total.Int64
 			summary.AgreedTotalMinor = &value
+		}
+		if paymentAmount.Valid {
+			value := paymentAmount.Int64
+			summary.PaymentAmount = &value
 		}
 		summaries = append(summaries, summary)
 	}
@@ -387,18 +404,21 @@ func (repo OrderRepository) AdvanceStage(ctx context.Context, scope common.Tenan
 		return order.Tracking{}, err
 	}
 
-	var businessID, flow string
+	var businessID, flow, status string
 	var currentSeq sql.NullInt32
 	if err := tx.QueryRow(ctx, `
-		select o.business_id, o.flow, st.sequence
+		select o.business_id, o.flow, o.status, st.sequence
 		from orders o
 		left join stage_templates st on st.stage_id = o.current_stage_id
 		where o.order_id = $1
-	`, orderID.String()).Scan(&businessID, &flow, &currentSeq); err != nil {
+	`, orderID.String()).Scan(&businessID, &flow, &status, &currentSeq); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return order.Tracking{}, ErrNotFound
 		}
 		return order.Tracking{}, err
+	}
+	if status != string(order.StatusConfirmed) || !currentSeq.Valid {
+		return order.Tracking{}, ports.ErrInvalidOrderState
 	}
 
 	// Find the next stage in this flow; if there is none, the order is at its
