@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 18:18 GMT
+Last updated: 2026-06-15 18:20 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -24,7 +24,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - The remaining marketing pages have also been polished: the waitlist/contact flow now has a richer guided form and launch-step panel, FAQ opens with quick-answer proof cards, the security money-flow section uses an image-led explainer, and Privacy/Terms use a shared legal-review card system instead of flat text rows.
 - The custom (bespoke) order backend is built and security-reviewed (see Completed): all three measurement routes (self-measure, home-visit, come-to-shop), deposit checkout over the existing money rails, self-measure measurement capture, and confirmation at the first bespoke stage via the deposit webhook. The storefront custom-order form is left to the frontend contributor (the API contract is in place).
 - The dashboard orders board is built and verified (see Completed): the API now returns dashboard-ready order summaries with contact, route, channel, payment, settlement, stage, and created-at context; the web dashboard filters standard/custom/draft/confirmed/fulfilled orders and advances only confirmed orders.
-- Next recommended feature: bookings/home-visit scheduling and delivery/dispatch, balance collection (payment links for the custom-order balance), measurement-field management, then the storefront custom-order form that consumes the already-built custom-order API. Size-band charts and visit/shop measurement entry come with those.
+- Platform architecture decided 2026-06-15 (see the new Platform Architecture section): the front-ends are separated by audience over the shared API. Immediate next, re-prioritised ahead of the remaining order features: split `apps/web` into `apps/storefront` (customer) and `apps/dashboard` (business); then resolve stores by `<handle>.xtiitch.com` subdomain (replacing `/store/:handle`) and reserve `www`/`app`/`admin`/`api`; then scaffold the `apps/admin` operator surface (admin auth + business approval/verification). Two mobile apps (customer + business) follow.
+- Next recommended feature (after the app separation): bookings/home-visit scheduling and delivery/dispatch, balance collection (payment links for the custom-order balance), measurement-field management, then the storefront custom-order form that consumes the already-built custom-order API. Size-band charts and visit/shop measurement entry come with those.
 - The backend slices (auth completion, money rails, RLS hardening, catalogue/storefront, Cloudinary), the web storefront, the dashboard, the orders/tracking view, online checkout, the custom-order backend, and the dashboard orders board are committed locally. The two source PDFs are intentionally left untracked (Strictly Confidential).
 - Push of local commits is pending until the project owner adds a Git remote.
 
@@ -149,6 +150,24 @@ Do not build in v1:
 - Full accounting, invoicing, expenses, or profit-and-loss.
 - Lending, insights products, or group services.
 - Cross-tenant browse/search except the explicitly deferred phase-two read path.
+
+## Platform Architecture
+
+Decided 2026-06-15 with the project owner. Xtiitch is delivered as separate, independently deployable front-ends over one shared Go API and worker — four web apps and two mobile apps, each scoped to a single audience so concerns never mix.
+
+| Audience | Web app | Mobile app | Domain |
+| --- | --- | --- | --- |
+| Marketing (pre-signup) | `apps/marketing` (built) | — | `xtiitch.com`, `www.xtiitch.com` |
+| Customer (shopper) | `apps/storefront` (split out of `apps/web`) | `apps/mobile-customer` (later) | `<handle>.xtiitch.com` |
+| Business (tailor/seamstress) | `apps/dashboard` (split out of `apps/web`) | `apps/mobile-business` (later) | `app.xtiitch.com` |
+| Admin (platform operator) | `apps/admin` (new) | — | `admin.xtiitch.com` |
+| Backend | `apps/api` (Go) + `apps/worker` (built) | — | `api.xtiitch.com` |
+
+- **App separation.** `apps/web` currently serves both the customer storefront and the business dashboard; it is split into `apps/storefront` and `apps/dashboard`. Each deploys independently to its own domain. The admin surface is a new `apps/admin`. `apps/marketing` stays the public `xtiitch.com` site.
+- **Per-business subdomains.** A business is reached at `<handle>.xtiitch.com` (e.g. a business with handle `neurodynecorp` is served at `https://neurodynecorp.xtiitch.com`). Wildcard DNS `*.xtiitch.com` points at the storefront app, which reads the `Host` header, takes the subdomain label as the business handle, and resolves the store — replacing today's `/store/:handle` path. Reserved labels `www`, `app`, `admin`, and `api` route to their own apps and must be refused as business handles at registration. In development this is `<handle>.localhost:<port>` (browsers resolve `*.localhost` to 127.0.0.1). A business mapping its OWN custom domain (e.g. `neurodynecorp.com`) is a later phase via a verified `domains` table.
+- **Admin app.** The platform operator gets its own front-end and auth (admin users, not business users): approve/verify businesses for payments (KYC/compliance for Ghana — verification becomes admin-gated `pending → verified/rejected` rather than business self-serve), platform metrics (GMV, commission, active businesses), suspend/manage businesses, and support tooling.
+- **Mobile.** Two React Native / Expo apps mirroring the web split — a customer app and a business app — sharing one typed API client. `apps/mobile` is currently an empty stub.
+- **Invariant preserved.** This is presentation-layer separation only. Tenant isolation, the money rails, and "Xtiitch never holds funds" are unchanged; every front-end goes through the same hardened, RLS-enforced API.
 
 ## Selected Stack
 
