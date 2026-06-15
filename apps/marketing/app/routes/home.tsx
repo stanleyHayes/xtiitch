@@ -32,6 +32,38 @@ const homeRiseSx = (delayMs = 0) => ({
   },
 });
 
+const tickerItems = [
+  "Branded storefront",
+  "Orders",
+  "Payments",
+  "Walk-in takings",
+  "Fittings",
+  "Customer tracking",
+  "Mobile money",
+  "Studio workflow",
+];
+
+const imageStories = [
+  {
+    title: "Design review",
+    body: "Show the customer the finished piece, keep the order record behind it.",
+    image: "/images/atelier-review.webp",
+    alt: "Fashion designer and customer reviewing a burgundy kente-trim garment in an atelier",
+  },
+  {
+    title: "Payment handoff",
+    body: "Package the garment, collect payment, and keep the sale tied to the customer.",
+    image: "/images/payment-handoff.webp",
+    alt: "Fashion business owner handing a packaged garment to a customer beside a phone storefront",
+  },
+  {
+    title: "Fitting progress",
+    body: "Move the garment through stages while the customer sees a calm progress view.",
+    image: "/images/tracking-fitting.webp",
+    alt: "Tailor fitting a burgundy dress while another team member checks a tablet tracking view",
+  },
+];
+
 export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Xtiitch — The operating system for fashion",
@@ -80,7 +112,25 @@ function Hero() {
         aria-hidden
         sx={{
           position: "absolute",
+          inset: { xs: "-12% -38% 12% -28%", md: "-18% -24% 8% -18%" },
+          zIndex: 1,
+          opacity: 0.74,
+          filter: "blur(6px)",
+          background:
+            "radial-gradient(circle at 18% 68%, rgba(128,0,32,0.48), transparent 36%), radial-gradient(circle at 74% 22%, rgba(184,121,20,0.34), transparent 30%), radial-gradient(circle at 56% 78%, rgba(250,246,242,0.16), transparent 28%)",
+          animation: "xtiitch-spotlight-drift 16s ease-in-out infinite",
+          pointerEvents: "none",
+          "@media (prefers-reduced-motion: reduce)": {
+            animation: "none",
+          },
+        }}
+      />
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
           inset: 0,
+          zIndex: 2,
           background:
             "linear-gradient(90deg, rgba(21,17,26,0.9) 0%, rgba(21,17,26,0.66) 44%, rgba(21,17,26,0.2) 78%), linear-gradient(180deg, rgba(128,0,32,0.22), rgba(21,17,26,0.58))",
         }}
@@ -90,17 +140,18 @@ function Hero() {
         sx={{
           position: "absolute",
           inset: 0,
+          zIndex: 3,
           background:
-            "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)",
-          backgroundSize: "44px 44px",
-          opacity: 0.18,
+            "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
+          backgroundSize: "44px 44px, 44px 44px",
+          opacity: 0.16,
           animation: "xtiitch-thread-drift 30s linear infinite",
           "@media (prefers-reduced-motion: reduce)": {
             animation: "none",
           },
         }}
       />
-      <Container sx={{ position: "relative", py: { xs: 5, md: 8 } }}>
+      <Container sx={{ position: "relative", zIndex: 4, py: { xs: 5, md: 8 } }}>
         <Box sx={{ maxWidth: 720, color: "common.white" }}>
           <Chip
             label="Built for Ghanaian fashion businesses"
@@ -244,10 +295,143 @@ const stats: {
   },
 ];
 
+function ProofTicker() {
+  const items = [...tickerItems, ...tickerItems];
+  return (
+    <Box
+      aria-label="Xtiitch product areas"
+      sx={{
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        bgcolor: "primary.main",
+        color: "primary.contrastText",
+        borderBottom: "1px solid",
+        borderColor: "rgba(21,17,26,0.12)",
+      }}
+    >
+      <Box
+        sx={{
+          display: "inline-flex",
+          minWidth: "max-content",
+          animation: "xtiitch-ticker 34s linear infinite",
+          "@media (prefers-reduced-motion: reduce)": {
+            animation: "none",
+          },
+        }}
+      >
+        {items.map((item, index) => (
+          <Typography
+            key={`${item}-${index}`}
+            component="span"
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              minHeight: 44,
+              px: { xs: 2.5, md: 4 },
+              fontSize: 11,
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: 0,
+              color: "rgba(255,255,255,0.9)",
+              "&:after": {
+                content: '"•"',
+                ml: { xs: 2.5, md: 4 },
+                color: "rgba(255,255,255,0.42)",
+              },
+            }}
+          >
+            {item}
+          </Typography>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+function AtelierImageStrip() {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "1fr", md: "1.15fr 0.85fr" },
+        gap: { xs: 2.5, md: 3 },
+        mt: { xs: 4, md: 6 },
+      }}
+    >
+      {imageStories.map((story, index) => (
+        <Box
+          key={story.title}
+          sx={{
+            position: "relative",
+            minHeight:
+              index === 0 ? { xs: 320, md: 500 } : { xs: 260, md: 240 },
+            gridRow: index === 0 ? { md: "span 2" } : undefined,
+            borderRadius: 1,
+            overflow: "hidden",
+            border: "1px solid",
+            borderColor: "divider",
+            boxShadow: "0 30px 76px -54px rgba(21,17,26,0.62)",
+            ...homeRiseSx(120 + index * 90),
+          }}
+        >
+          <Box
+            component="img"
+            src={story.image}
+            alt={story.alt}
+            loading="lazy"
+            decoding="async"
+            sx={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              transition: "transform 700ms ease",
+              ".MuiBox-root:hover > &": {
+                transform: "scale(1.035)",
+              },
+            }}
+          />
+          <Box
+            aria-hidden
+            sx={{
+              position: "absolute",
+              inset: 0,
+              background:
+                "linear-gradient(180deg, rgba(21,17,26,0.02) 24%, rgba(21,17,26,0.7) 100%)",
+            }}
+          />
+          <Box
+            sx={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              p: { xs: 2.5, md: 3 },
+              color: "common.white",
+            }}
+          >
+            <Typography variant={index === 0 ? "h3" : "h5"} component="h3">
+              {story.title}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ mt: 1, maxWidth: 520, color: "rgba(255,255,255,0.78)" }}
+            >
+              {story.body}
+            </Typography>
+          </Box>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 export default function Home() {
   return (
     <>
       <Hero />
+      <ProofTicker />
 
       <Box
         sx={{
@@ -461,6 +645,7 @@ export default function Home() {
           subtitle="Xtiitch gives customers a clean storefront while the business keeps orders, payments, stages and progress updates moving behind the scenes."
         />
         <ProductPreview />
+        <AtelierImageStrip />
       </Section>
 
       <Section>

@@ -22,7 +22,7 @@ export const tokens = {
 } as const;
 
 const bodyFontStack = [
-  "Manrope",
+  "Instrument Sans",
   "Roboto",
   "system-ui",
   "-apple-system",
@@ -33,7 +33,7 @@ const bodyFontStack = [
 ].join(", ");
 
 const displayFontStack = [
-  "Fraunces",
+  "DM Serif Display",
   "Georgia",
   "Times New Roman",
   "serif",
@@ -137,6 +137,14 @@ export const theme: Theme = createTheme({
         "@keyframes xtiitch-status-pulse": {
           "0%, 100%": { boxShadow: "0 0 0 0 rgba(184,121,20,0.2)" },
           "50%": { boxShadow: "0 0 0 9px rgba(184,121,20,0)" },
+        },
+        "@keyframes xtiitch-spotlight-drift": {
+          "0%, 100%": { transform: "translate3d(-8%, 3%, 0) scale(1)" },
+          "50%": { transform: "translate3d(8%, -4%, 0) scale(1.08)" },
+        },
+        "@keyframes xtiitch-ticker": {
+          "0%": { transform: "translate3d(0, 0, 0)" },
+          "100%": { transform: "translate3d(-50%, 0, 0)" },
         },
         "@media (prefers-reduced-motion: reduce)": {
           "*, *::before, *::after": {

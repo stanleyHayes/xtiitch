@@ -562,8 +562,8 @@ export function ProductPreview() {
       >
         <Box
           component="img"
-          src="/images/atelier-hero.webp"
-          alt="Fashion atelier with garments, burgundy fabric and a tablet near a sewing machine"
+          src="/images/atelier-review.webp"
+          alt="Fashion designer and customer reviewing a burgundy kente-trim garment in an atelier"
           loading="lazy"
           decoding="async"
           sx={{
@@ -1014,7 +1014,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
     >
       <Box
         component="img"
-        src="/images/atelier-hero.webp"
+        src="/images/payment-handoff.webp"
         alt=""
         aria-hidden
         loading="lazy"

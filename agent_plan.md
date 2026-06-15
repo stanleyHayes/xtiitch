@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 11:27 GMT
+Last updated: 2026-06-15 11:48 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -95,6 +95,9 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the animation pass with `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, and a `200 OK` smoke check on the running marketing home route.
 - Polished the marketing footer by adding icon-led footer group headings, icon-backed footer links, and removing the footer top margin so it connects directly to the red CTA band above it.
 - Verified the footer icon/gap fix with `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, and a `200 OK` smoke check on the running marketing home route.
+- Updated the marketing typography to Instrument Sans for body/UI and DM Serif Display for titles, inspired by the American Tractor Company reference while preserving Xtiitch's brand palette and no-negative-letter-spacing rule.
+- Added reference-inspired marketing motion and richer imagery: a moving proof ticker under the hero, a soft animated hero spotlight background, a three-image editorial atelier strip, and new compressed WebP assets for design review, payment handoff, and fitting progress.
+- Verified the typography/reference/image pass with `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, and a `200 OK` smoke check on the running marketing home route.
 
 ## Opened / Pending
 
@@ -781,3 +784,10 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing test` passed after adding footer icons and removing the footer CTA gap.
 - `pnpm lint` passed after adding footer icons and removing the footer CTA gap.
 - `curl -I -s http://localhost:3005/` returned `200 OK` after adding footer icons and removing the footer CTA gap.
+- `curl -L -s https://www.americantractorcompany.com/` was used as reference inspection for typography, ticker, hero overlay, and animation cues.
+- Built-in image generation produced three project-bound editorial fashion images, then `cwebp -q 82` compressed them into `apps/marketing/public/images/atelier-review.webp`, `payment-handoff.webp`, and `tracking-fitting.webp`.
+- `pnpm --filter @xtiitch/marketing check` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
+- `pnpm --filter @xtiitch/marketing build` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
+- `pnpm --filter @xtiitch/marketing test` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
+- `pnpm lint` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
+- `curl -I -s http://localhost:3005/` returned `200 OK` after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
