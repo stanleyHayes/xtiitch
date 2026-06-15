@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 08:16 GMT
+Last updated: 2026-06-15 08:33 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -64,6 +64,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified `pnpm check`, `pnpm test`, and `pnpm --filter @xtiitch/marketing build` pass locally after the marketing slice.
 - Redesigned the home page `What businesses get` section so it no longer squeezes a dashboard mock into the layout; it now presents an editorial atelier image, business workflow steps, storefront/order/customer signals, and customer-facing status chips.
 - Verified the redesigned marketing section in desktop and mobile Chrome screenshots.
+- Redesigned the shared marketing navbar and footer with stronger brand presence, active navigation states, a polished mobile drawer, footer proof points, route groups, and a footer CTA panel.
+- Verified the redesigned navbar, mobile drawer, desktop footer, and mobile footer in Chrome screenshots.
 
 ## Opened / Pending
 
@@ -716,3 +718,7 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing build` passed after redesigning the home business workflow section.
 - `pnpm --filter @xtiitch/marketing test` passed after redesigning the home business workflow section.
 - `pnpm lint` passed after redesigning the home business workflow section.
+- `pnpm --filter @xtiitch/marketing check` passed after redesigning the shared marketing navbar and footer.
+- `pnpm --filter @xtiitch/marketing build` passed after redesigning the shared marketing navbar and footer.
+- `pnpm --filter @xtiitch/marketing test` passed after redesigning the shared marketing navbar and footer.
+- `pnpm check` passed after redesigning the shared marketing navbar and footer.
