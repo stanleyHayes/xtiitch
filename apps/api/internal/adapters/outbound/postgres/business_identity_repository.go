@@ -73,6 +73,22 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
+	// Seed the default production stages for both flows (Spec 8.4.1). Each is
+	// tied to one of the three customer-facing colours.
+	if _, err := tx.Exec(ctx, `
+		insert into stage_templates (stage_id, business_id, name, colour, flow, sequence)
+		values
+			(gen_random_uuid(), $1, 'Order placed', 'red', 'ready_made', 1),
+			(gen_random_uuid(), $1, 'Preparing', 'yellow', 'ready_made', 2),
+			(gen_random_uuid(), $1, 'Ready / delivered', 'green', 'ready_made', 3),
+			(gen_random_uuid(), $1, 'Order received', 'red', 'bespoke', 1),
+			(gen_random_uuid(), $1, 'Being made', 'yellow', 'bespoke', 2),
+			(gen_random_uuid(), $1, 'Ready for fitting', 'yellow', 'bespoke', 3),
+			(gen_random_uuid(), $1, 'Ready / delivered', 'green', 'bespoke', 4)
+	`, input.BusinessID.String()); err != nil {
+		return ports.BusinessOwnerIdentity{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}

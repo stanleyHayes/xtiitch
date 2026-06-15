@@ -33,6 +33,9 @@ const muiComponents = [
 const muiIcons = [
   "ArrowBackRounded",
   "ArrowForwardRounded",
+  "CheckCircleRounded",
+  "Circle",
+  "RadioButtonUncheckedRounded",
   "SearchRounded",
   "StorefrontOutlined",
   "VerifiedRounded",

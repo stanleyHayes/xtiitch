@@ -10,6 +10,7 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
+	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
@@ -18,6 +19,7 @@ import (
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
+	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
@@ -98,11 +100,17 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 	mediaService := mediaapp.NewService(mediaStore)
 
+	orderService := orderapp.NewService(orderapp.Dependencies{
+		Orders: postgres.NewOrderRepository(db),
+		IDs:    ids.UUIDGenerator{},
+	})
+
 	router := httpadapter.NewRouter(logger, db.Ping,
 		authhttp.NewHandler(authService, authenticator),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
+		orderhttp.NewHandler(orderService, authenticator),
 	)
 
 	return App{

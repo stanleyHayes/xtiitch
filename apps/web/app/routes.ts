@@ -7,5 +7,6 @@ export default [
   route("store/:handle", "routes/store.tsx"),
   route("d/:handle", "routes/design.tsx"),
   route("c/:handle", "routes/collection.tsx"),
+  route("track/:orderId", "routes/track.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

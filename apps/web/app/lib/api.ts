@@ -78,8 +78,27 @@ async function getJSON<T>(path: string): Promise<T | null> {
 
 const enc = encodeURIComponent;
 
+export type TrackingStage = {
+  name: string;
+  colour: string;
+  sequence: number;
+  is_current: boolean;
+  is_complete: boolean;
+};
+
+export type Tracking = {
+  order_id: string;
+  design_title: string;
+  store_name: string;
+  status: string;
+  stage_name: string;
+  colour: string;
+  stages: TrackingStage[];
+};
+
 export const api = {
   store: (handle: string) => getJSON<StorePage>(`/public/stores/${enc(handle)}`),
+  tracking: (orderId: string) => getJSON<Tracking>(`/public/orders/${enc(orderId)}`),
   search: (handle: string, query: string) =>
     getJSON<SearchPage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`),
   design: (handle: string) => getJSON<Design>(`/public/designs/${enc(handle)}`),
