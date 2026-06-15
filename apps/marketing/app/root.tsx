@@ -33,7 +33,7 @@ export const links: LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,650;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap",
   },
 ];
 
@@ -87,24 +87,42 @@ export function ErrorBoundary({ error }: { error: unknown }) {
 
   return (
     <Box
-      sx={{ minHeight: "70vh", display: "grid", placeItems: "center", py: 10 }}
+      sx={{
+        minHeight: "70vh",
+        display: "grid",
+        placeItems: "center",
+        py: 10,
+        bgcolor: "background.default",
+      }}
     >
-      <Container sx={{ textAlign: "center", maxWidth: 560 }}>
-        <Typography
-          variant="overline"
-          sx={{ color: "primary.main", fontWeight: 700 }}
+      <Container sx={{ maxWidth: 760 }}>
+        <Box
+          sx={{
+            textAlign: "center",
+            p: { xs: 3, md: 5 },
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1,
+            bgcolor: "rgba(255,255,255,0.86)",
+            boxShadow: "0 28px 80px -58px rgba(21,17,26,0.62)",
+          }}
         >
-          {is404 ? "404" : "Error"}
-        </Typography>
-        <Typography variant="h3" component="h1" sx={{ mt: 1 }}>
-          {title}
-        </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>
-          {message}
-        </Typography>
-        <Button href="/" variant="contained" size="large" sx={{ mt: 4 }}>
-          Back to home
-        </Button>
+          <Typography
+            variant="overline"
+            sx={{ color: "primary.main", fontWeight: 800 }}
+          >
+            {is404 ? "404" : "Error"}
+          </Typography>
+          <Typography variant="h3" component="h1" sx={{ mt: 1 }}>
+            {title}
+          </Typography>
+          <Typography sx={{ mt: 2, color: "text.secondary" }}>
+            {message}
+          </Typography>
+          <Button href="/" variant="contained" size="large" sx={{ mt: 4 }}>
+            Back to home
+          </Button>
+        </Box>
       </Container>
     </Box>
   );

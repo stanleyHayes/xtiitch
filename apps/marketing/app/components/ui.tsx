@@ -13,10 +13,19 @@ import Accordion from "@mui/material/Accordion";
 import AccordionSummary from "@mui/material/AccordionSummary";
 import AccordionDetails from "@mui/material/AccordionDetails";
 import type { SxProps, Theme } from "@mui/material/styles";
+import type { SvgIconComponent } from "@mui/icons-material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CircleIcon from "@mui/icons-material/Circle";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
+import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
+import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
+import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
+import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import { FeatureGlyph } from "./icons";
 import {
   bespokeStages,
@@ -28,17 +37,56 @@ import {
   type TrustPoint,
 } from "../content";
 
-export function Eyebrow({ children }: { children: ReactNode }) {
+const pageHeroIcons: Record<string, SvgIconComponent> = {
+  FAQ: HelpRoundedIcon,
+  Features: Inventory2RoundedIcon,
+  "For customers": GroupsRoundedIcon,
+  "How it works": TimelineRoundedIcon,
+  Pricing: PaymentsRoundedIcon,
+  Privacy: SecurityRoundedIcon,
+  "Security and trust": SecurityRoundedIcon,
+  Terms: ReceiptLongRoundedIcon,
+};
+
+const featureAccent: Record<Feature["icon"], string> = {
+  bookings: "#315f8f",
+  catalogue: "#b87914",
+  money: "#2f6b4f",
+  notifications: "#5c0017",
+  orders: "#800020",
+  payments: "#237a4b",
+  store: "#800020",
+  tracking: "#b87914",
+};
+
+export function Eyebrow({
+  children,
+  tone = "brand",
+}: {
+  children: ReactNode;
+  tone?: "brand" | "light";
+}) {
+  const isLight = tone === "light";
   return (
     <Typography
       component="p"
       sx={{
         textTransform: "uppercase",
         letterSpacing: 0,
-        fontSize: 12,
-        fontWeight: 700,
-        color: "primary.main",
+        fontSize: 11,
+        fontWeight: 800,
+        color: isLight ? "common.white" : "primary.main",
         mb: 1.5,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 1,
+        "&:before": {
+          content: '""',
+          width: 28,
+          height: 2,
+          borderRadius: 1,
+          bgcolor: isLight ? "common.white" : "primary.main",
+        },
       }}
     >
       {children}
@@ -59,15 +107,29 @@ export function Section({
     <Box
       component="section"
       sx={{
+        position: "relative",
         py: { xs: 6, md: 10 },
+        overflow: "hidden",
         bgcolor: alt ? "background.paper" : "background.default",
         borderTop: alt ? "1px solid" : "none",
         borderBottom: alt ? "1px solid" : "none",
         borderColor: "divider",
+        "&:before": alt
+          ? {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              opacity: 0.42,
+              background:
+                "linear-gradient(135deg, rgba(128,0,32,0.035) 25%, transparent 25%, transparent 50%, rgba(128,0,32,0.035) 50%, rgba(128,0,32,0.035) 75%, transparent 75%)",
+              backgroundSize: "28px 28px",
+              pointerEvents: "none",
+            }
+          : undefined,
         ...sx,
       }}
     >
-      <Container>{children}</Container>
+      <Container sx={{ position: "relative" }}>{children}</Container>
     </Box>
   );
 }
@@ -87,7 +149,7 @@ export function SectionHeading({
   return (
     <Box
       sx={{
-        maxWidth: 760,
+        maxWidth: 820,
         mx: isCenter ? "auto" : 0,
         textAlign: align,
         mb: { xs: 4, md: 6 },
@@ -99,7 +161,13 @@ export function SectionHeading({
       </Typography>
       {subtitle ? (
         <Typography
-          sx={{ mt: 2, color: "text.secondary", fontSize: { xs: 16, md: 18 } }}
+          sx={{
+            mt: 2,
+            color: "text.secondary",
+            fontSize: { xs: 16, md: 18 },
+            maxWidth: 700,
+            mx: isCenter ? "auto" : 0,
+          }}
         >
           {subtitle}
         </Typography>
@@ -152,33 +220,128 @@ export function PageHero({
   title: string;
   subtitle: string;
 }) {
+  const Icon = pageHeroIcons[eyebrow] ?? StorefrontRoundedIcon;
   return (
     <Box
       sx={{
+        position: "relative",
+        overflow: "hidden",
         bgcolor: "background.paper",
         borderBottom: "1px solid",
         borderColor: "divider",
       }}
     >
-      <Container sx={{ py: { xs: 6, md: 9 } }}>
-        <Box sx={{ maxWidth: 780 }}>
-          <Eyebrow>{eyebrow}</Eyebrow>
-          <Typography
-            variant="h1"
-            component="h1"
-            sx={{ fontSize: { xs: 32, md: 44 } }}
-          >
-            {title}
-          </Typography>
-          <Typography
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, rgba(128,0,32,0.06) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.04) 1px, transparent 1px)",
+          backgroundSize: "38px 38px",
+        }}
+      />
+      <Container sx={{ position: "relative", py: { xs: 6, md: 10 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: { xs: 4, md: 6 },
+            gridTemplateColumns: { xs: "1fr", md: "1.12fr 0.88fr" },
+            alignItems: "center",
+          }}
+        >
+          <Box sx={{ maxWidth: 820 }}>
+            <Eyebrow>{eyebrow}</Eyebrow>
+            <Typography
+              variant="h1"
+              component="h1"
+              sx={{
+                fontSize: { xs: 38, sm: 48, md: 64 },
+                maxWidth: "100%",
+                overflowWrap: "break-word",
+              }}
+            >
+              {title}
+            </Typography>
+            <Typography
+              sx={{
+                mt: 2.5,
+                color: "text.secondary",
+                fontSize: { xs: 17, md: 20 },
+                maxWidth: 680,
+              }}
+            >
+              {subtitle}
+            </Typography>
+          </Box>
+
+          <Box
             sx={{
-              mt: 2.5,
-              color: "text.secondary",
-              fontSize: { xs: 17, md: 19 },
+              position: "relative",
+              minHeight: { xs: 180, md: 260 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              bgcolor: "secondary.main",
+              color: "common.white",
+              overflow: "hidden",
+              boxShadow: "0 26px 70px -44px rgba(21,17,26,0.62)",
+              display: { xs: "none", sm: "block" },
             }}
           >
-            {subtitle}
-          </Typography>
+            <Icon
+              sx={{
+                position: "absolute",
+                right: { sm: -30, md: -22 },
+                bottom: { sm: -38, md: -34 },
+                fontSize: { sm: 210, md: 260 },
+                color: "rgba(255,255,255,0.08)",
+              }}
+              aria-hidden
+            />
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 18,
+                border: "1px solid rgba(255,255,255,0.14)",
+                borderRadius: 1,
+              }}
+              aria-hidden
+            />
+            <Stack
+              sx={{
+                position: "relative",
+                p: { sm: 3, md: 4 },
+                height: "100%",
+                minHeight: { sm: 180, md: 260 },
+              }}
+            >
+              <Box
+                aria-hidden
+                sx={{
+                  position: "absolute",
+                  left: { sm: 28, md: 34 },
+                  top: { sm: 28, md: 34 },
+                  width: 76,
+                  height: 3,
+                  borderRadius: 1,
+                  bgcolor: "primary.main",
+                }}
+              />
+              <Box
+                aria-hidden
+                sx={{
+                  position: "absolute",
+                  left: { sm: 28, md: 34 },
+                  top: { sm: 42, md: 50 },
+                  width: 42,
+                  height: 3,
+                  borderRadius: 1,
+                  bgcolor: "rgba(255,255,255,0.26)",
+                }}
+              />
+            </Stack>
+          </Box>
         </Box>
       </Container>
     </Box>
@@ -195,16 +358,53 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
       }}
     >
       {items.map((feature) => (
-        <Card key={feature.title} sx={{ height: "100%" }}>
-          <CardContent sx={{ p: 3 }}>
+        <Card
+          key={feature.title}
+          sx={{
+            height: "100%",
+            position: "relative",
+            overflow: "hidden",
+            bgcolor: "background.paper",
+            transition: "transform 180ms ease, box-shadow 180ms ease",
+            "&:hover": {
+              transform: "translateY(-4px)",
+              boxShadow: "0 30px 70px -44px rgba(21,17,26,0.62)",
+            },
+          }}
+        >
+          <Box
+            aria-hidden
+            sx={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 4,
+              bgcolor: featureAccent[feature.icon],
+            }}
+          />
+          <Box
+            aria-hidden
+            sx={{
+              position: "absolute",
+              right: -24,
+              bottom: -24,
+              width: 120,
+              height: 120,
+              borderRadius: "50%",
+              border: `1px solid ${featureAccent[feature.icon]}`,
+              opacity: 0.12,
+            }}
+          />
+          <CardContent sx={{ p: 3.25, position: "relative" }}>
             <Box
               aria-hidden
               sx={{
                 width: 48,
                 height: 48,
                 borderRadius: 1,
-                bgcolor: "rgba(128,0,32,0.08)",
-                color: "primary.main",
+                bgcolor: `${featureAccent[feature.icon]}14`,
+                color: featureAccent[feature.icon],
                 display: "grid",
                 placeItems: "center",
                 mb: 2,
@@ -230,24 +430,38 @@ export function StepList({ items }: { items: Step[] }) {
     <Box
       sx={{
         display: "grid",
-        gap: 3,
+        gap: { xs: 2, md: 3 },
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
       }}
     >
       {items.map((step) => (
-        <Box key={step.number} sx={{ display: "flex", gap: 2 }}>
+        <Box
+          key={step.number}
+          sx={{
+            position: "relative",
+            display: "flex",
+            gap: 2,
+            p: 2.5,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1,
+            bgcolor: "background.paper",
+            minHeight: 168,
+          }}
+        >
           <Box
             aria-hidden
             sx={{
               flexShrink: 0,
-              width: 40,
-              height: 40,
-              borderRadius: "50%",
+              width: 44,
+              height: 44,
+              borderRadius: 1,
               bgcolor: "primary.main",
               color: "primary.contrastText",
               display: "grid",
               placeItems: "center",
               fontWeight: 800,
+              boxShadow: "0 12px 30px -18px rgba(128,0,32,0.9)",
             }}
           >
             {step.number}
@@ -307,11 +521,11 @@ export function ProductPreview() {
           position: "relative",
           minHeight: { xs: 360, md: 560 },
           border: "1px solid",
-          borderColor: "divider",
+          borderColor: "rgba(255,255,255,0.36)",
           borderRadius: 1,
           overflow: "hidden",
           bgcolor: "background.paper",
-          boxShadow: "0 24px 60px -38px rgba(21,17,26,0.42)",
+          boxShadow: "0 34px 80px -48px rgba(21,17,26,0.62)",
         }}
       >
         <Box
@@ -335,7 +549,7 @@ export function ProductPreview() {
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(180deg, rgba(21,17,26,0.04) 22%, rgba(21,17,26,0.78) 100%)",
+              "linear-gradient(180deg, rgba(21,17,26,0.02) 15%, rgba(21,17,26,0.72) 100%), linear-gradient(90deg, rgba(128,0,32,0.18), rgba(21,17,26,0.05))",
           }}
         />
         <Box
@@ -373,7 +587,10 @@ export function ProductPreview() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              bgcolor: "background.paper",
+              bgcolor: "rgba(255,255,255,0.84)",
+              boxShadow:
+                index === 0 ? "0 24px 60px -48px rgba(128,0,32,0.78)" : "none",
+              backdropFilter: "blur(10px)",
             }}
           >
             <Box
@@ -381,7 +598,7 @@ export function ProductPreview() {
               sx={{
                 width: 38,
                 height: 38,
-                borderRadius: "50%",
+                borderRadius: 1,
                 bgcolor: index === 0 ? "primary.main" : "background.default",
                 color: index === 0 ? "primary.contrastText" : "primary.main",
                 border: "1px solid",
@@ -427,7 +644,7 @@ export function ProductPreview() {
                 border: "1px solid",
                 borderColor: "divider",
                 borderRadius: 1,
-                bgcolor: "background.default",
+                bgcolor: "rgba(243,229,223,0.58)",
                 p: 2,
                 minHeight: 106,
               }}
@@ -458,6 +675,7 @@ export function ProductPreview() {
             borderRadius: 1,
             bgcolor: "secondary.main",
             color: "common.white",
+            boxShadow: "0 26px 60px -48px rgba(21,17,26,0.7)",
           }}
         >
           <Typography sx={{ fontWeight: 700, mr: 1 }}>
@@ -497,14 +715,29 @@ export function PlanCards({ items }: { items: Plan[] }) {
             display: "flex",
             flexDirection: "column",
             position: "relative",
+            overflow: "hidden",
             borderColor: plan.highlight ? "primary.main" : "divider",
             borderWidth: plan.highlight ? 2 : 1,
             opacity: plan.available ? 1 : 0.92,
+            bgcolor: plan.highlight
+              ? "rgba(255,255,255,0.98)"
+              : "background.paper",
+            transform: plan.highlight ? { md: "translateY(-10px)" } : "none",
+            boxShadow: plan.highlight
+              ? "0 34px 86px -52px rgba(128,0,32,0.76)"
+              : undefined,
           }}
         >
+          <Box
+            aria-hidden
+            sx={{
+              height: 8,
+              bgcolor: plan.highlight ? "primary.main" : "rgba(128,0,32,0.12)",
+            }}
+          />
           <CardContent
             sx={{
-              p: 3,
+              p: { xs: 3, md: 3.25 },
               display: "flex",
               flexDirection: "column",
               height: "100%",
@@ -531,9 +764,18 @@ export function PlanCards({ items }: { items: Plan[] }) {
               ) : null}
             </Box>
             <Box
-              sx={{ display: "flex", alignItems: "baseline", gap: 1, mt: 1 }}
+              sx={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: 1,
+                mt: 1.5,
+              }}
             >
-              <Typography variant="h3" component="p">
+              <Typography
+                variant="h3"
+                component="p"
+                sx={{ color: "primary.main" }}
+              >
                 {plan.price}
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -544,7 +786,11 @@ export function PlanCards({ items }: { items: Plan[] }) {
               size="small"
               variant="outlined"
               label={`${plan.feeLabel}: ${plan.feeValue}`}
-              sx={{ mt: 1.5, alignSelf: "flex-start" }}
+              sx={{
+                mt: 1.5,
+                alignSelf: "flex-start",
+                bgcolor: plan.highlight ? "rgba(128,0,32,0.06)" : undefined,
+              }}
             />
             <Typography variant="body2" sx={{ mt: 2, color: "text.secondary" }}>
               {plan.summary}
@@ -584,8 +830,8 @@ export function PlanCards({ items }: { items: Plan[] }) {
 
 export function FaqList({ items }: { items: Faq[] }) {
   return (
-    <Box sx={{ maxWidth: 820, mx: "auto" }}>
-      {items.map((faq) => (
+    <Box sx={{ maxWidth: 920, mx: "auto" }}>
+      {items.map((faq, index) => (
         <Accordion
           key={faq.question}
           disableGutters
@@ -596,13 +842,41 @@ export function FaqList({ items }: { items: Faq[] }) {
             borderRadius: 1,
             mb: 1.5,
             "&:before": { display: "none" },
-            bgcolor: "background.paper",
+            bgcolor: "rgba(255,255,255,0.88)",
+            overflow: "hidden",
           }}
         >
-          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography sx={{ fontWeight: 600 }}>{faq.question}</Typography>
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            sx={{
+              minHeight: 68,
+              "& .MuiAccordionSummary-content": {
+                alignItems: "center",
+                gap: 2,
+              },
+            }}
+          >
+            <Box
+              component="span"
+              aria-hidden
+              sx={{
+                flexShrink: 0,
+                width: 30,
+                height: 30,
+                borderRadius: 1,
+                bgcolor: "rgba(128,0,32,0.08)",
+                color: "primary.main",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 800,
+                fontSize: 13,
+              }}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </Box>
+            <Typography sx={{ fontWeight: 800 }}>{faq.question}</Typography>
           </AccordionSummary>
-          <AccordionDetails>
+          <AccordionDetails sx={{ pt: 0, pl: { xs: 2, sm: 8 } }}>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               {faq.answer}
             </Typography>
@@ -626,17 +900,26 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
         <Box
           key={point.title}
           sx={{
+            position: "relative",
             p: 3,
             borderRadius: 1,
             border: "1px solid",
             borderColor: "divider",
             bgcolor: "background.paper",
+            overflow: "hidden",
+            "&:before": {
+              content: '""',
+              position: "absolute",
+              inset: "0 auto 0 0",
+              width: 5,
+              bgcolor: "primary.main",
+            },
           }}
         >
-          <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
+          <Typography variant="h6" component="h3" sx={{ mb: 1, pl: 1 }}>
             {point.title}
           </Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          <Typography variant="body2" sx={{ color: "text.secondary", pl: 1 }}>
             {point.body}
           </Typography>
         </Box>
@@ -647,52 +930,89 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
 
 export function CtaBand({ title, body }: { title: string; body: string }) {
   return (
-    <Box sx={{ bgcolor: "primary.main", color: "primary.contrastText" }}>
-      <Container sx={{ py: { xs: 6, md: 9 }, textAlign: "center" }}>
-        <Typography
-          variant="h2"
-          component="h2"
-          sx={{ maxWidth: 720, mx: "auto" }}
+    <Box
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        bgcolor: "primary.main",
+        color: "primary.contrastText",
+      }}
+    >
+      <Box
+        component="img"
+        src="/images/atelier-hero.webp"
+        alt=""
+        aria-hidden
+        loading="lazy"
+        decoding="async"
+        sx={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          opacity: 0.18,
+        }}
+      />
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, rgba(128,0,32,0.95), rgba(21,17,26,0.84))",
+        }}
+      />
+      <Container sx={{ position: "relative", py: { xs: 6, md: 9 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: { xs: 3, md: 5 },
+            gridTemplateColumns: { xs: "1fr", md: "1fr auto" },
+            alignItems: "center",
+          }}
         >
-          {title}
-        </Typography>
-        <Typography
-          sx={{ mt: 2, mb: 4, maxWidth: 620, mx: "auto", opacity: 0.9 }}
-        >
-          {body}
-        </Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={2}
-          sx={{ justifyContent: "center" }}
-        >
-          <Button
-            component={RouterLink}
-            to={site.primaryCta.href}
-            size="large"
-            sx={{
-              bgcolor: "common.white",
-              color: "primary.main",
-              "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
-            }}
-            endIcon={<ArrowForwardRoundedIcon />}
+          <Box>
+            <Typography variant="h2" component="h2" sx={{ maxWidth: 760 }}>
+              {title}
+            </Typography>
+            <Typography sx={{ mt: 2, maxWidth: 620, opacity: 0.9 }}>
+              {body}
+            </Typography>
+          </Box>
+          <Stack
+            direction={{ xs: "column", sm: "row", md: "column" }}
+            spacing={2}
+            sx={{ alignItems: { xs: "stretch", md: "flex-start" } }}
           >
-            {site.primaryCta.label}
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/pricing"
-            size="large"
-            variant="outlined"
-            sx={{
-              borderColor: "rgba(255,255,255,0.6)",
-              color: "common.white",
-              "&:hover": { borderColor: "common.white" },
-            }}
-          >
-            See pricing
-          </Button>
-        </Stack>
+            <Button
+              component={RouterLink}
+              to={site.primaryCta.href}
+              size="large"
+              sx={{
+                bgcolor: "common.white",
+                color: "primary.main",
+                "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
+              }}
+              endIcon={<ArrowForwardRoundedIcon />}
+            >
+              {site.primaryCta.label}
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/pricing"
+              size="large"
+              variant="outlined"
+              sx={{
+                borderColor: "rgba(255,255,255,0.6)",
+                color: "common.white",
+                "&:hover": { borderColor: "common.white" },
+              }}
+            >
+              See pricing
+            </Button>
+          </Stack>
+        </Box>
       </Container>
     </Box>
   );

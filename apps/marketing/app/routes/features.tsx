@@ -55,28 +55,41 @@ export default function Features() {
             <Box
               key={route.title}
               sx={{
+                position: "relative",
                 p: 3,
                 borderRadius: 1,
                 border: "1px solid",
                 borderColor: "divider",
-                bgcolor: "background.default",
+                bgcolor: "rgba(255,255,255,0.82)",
+                overflow: "hidden",
+                minHeight: 238,
+                boxShadow: "0 22px 60px -46px rgba(21,17,26,0.42)",
+                "&:before": {
+                  content: '""',
+                  position: "absolute",
+                  inset: "0 0 auto 0",
+                  height: 5,
+                  bgcolor: "primary.main",
+                },
               }}
             >
-              <Typography variant="h6" component="h3">
-                {route.title}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ mt: 1, color: "text.secondary" }}
-              >
-                {route.body}
-              </Typography>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={route.deposit}
-                sx={{ mt: 2 }}
-              />
+              <Box sx={{ position: "relative" }}>
+                <Typography variant="h6" component="h3">
+                  {route.title}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ mt: 1, color: "text.secondary" }}
+                >
+                  {route.body}
+                </Typography>
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={route.deposit}
+                  sx={{ mt: 2, bgcolor: "background.paper" }}
+                />
+              </Box>
             </Box>
           ))}
         </Box>

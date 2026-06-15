@@ -41,11 +41,21 @@ export default function Pricing() {
           title="How the fee actually works"
           align="left"
         />
-        <Stack spacing={2} sx={{ maxWidth: 820 }}>
+        <Stack spacing={1.5} sx={{ maxWidth: 900 }}>
           {pricingNotes.map((note) => (
             <Box
               key={note}
-              sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: 1.5,
+                alignItems: "flex-start",
+                p: 2,
+                borderRadius: 1,
+                border: "1px solid",
+                borderColor: "divider",
+                bgcolor: "rgba(255,255,255,0.78)",
+              }}
             >
               <InfoOutlinedIcon
                 sx={{ color: "info.main", mt: "2px" }}

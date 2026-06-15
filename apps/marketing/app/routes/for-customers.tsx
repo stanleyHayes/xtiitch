@@ -47,7 +47,15 @@ export default function ForCustomers() {
               subtitle="After you order, a simple view shows where your garment is — received, being made, or ready — with a rough timeframe. The colour is the headline, so it’s clear at a glance."
             />
           </Box>
-          <Box>
+          <Box
+            sx={{
+              p: { xs: 2, md: 3 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              bgcolor: "rgba(255,255,255,0.72)",
+            }}
+          >
             <TrackingPreview />
           </Box>
         </Box>
@@ -66,17 +74,26 @@ export default function ForCustomers() {
             },
           }}
         >
-          {customerPoints.map((point) => (
+          {customerPoints.map((point, index) => (
             <Box
               key={point.title}
               sx={{
+                position: "relative",
                 p: 3,
                 borderRadius: 1,
                 border: "1px solid",
                 borderColor: "divider",
-                bgcolor: "background.default",
+                bgcolor: "rgba(255,255,255,0.82)",
+                minHeight: 210,
+                overflow: "hidden",
               }}
             >
+              <Typography
+                variant="body2"
+                sx={{ color: "primary.main", fontWeight: 800, mb: 1 }}
+              >
+                {String(index + 1).padStart(2, "0")}
+              </Typography>
               <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
                 {point.title}
               </Typography>
@@ -114,6 +131,8 @@ export default function ForCustomers() {
                 border: "1px solid",
                 borderColor: "divider",
                 bgcolor: "background.paper",
+                minHeight: 238,
+                boxShadow: "0 20px 56px -46px rgba(21,17,26,0.5)",
               }}
             >
               <Typography variant="h6" component="h3">

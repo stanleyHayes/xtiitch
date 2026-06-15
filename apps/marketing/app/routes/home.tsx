@@ -65,7 +65,18 @@ function Hero() {
           position: "absolute",
           inset: 0,
           background:
-            "linear-gradient(90deg, rgba(21,17,26,0.86) 0%, rgba(21,17,26,0.66) 43%, rgba(21,17,26,0.22) 78%), linear-gradient(180deg, rgba(21,17,26,0.2), rgba(21,17,26,0.54))",
+            "linear-gradient(90deg, rgba(21,17,26,0.9) 0%, rgba(21,17,26,0.66) 44%, rgba(21,17,26,0.2) 78%), linear-gradient(180deg, rgba(128,0,32,0.22), rgba(21,17,26,0.58))",
+        }}
+      />
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          background:
+            "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px)",
+          backgroundSize: "44px 44px",
+          opacity: 0.18,
         }}
       />
       <Container sx={{ position: "relative", py: { xs: 5, md: 8 } }}>
@@ -85,8 +96,8 @@ function Hero() {
             variant="h1"
             component="h1"
             sx={{
-              fontSize: { xs: 30, sm: 40, md: 52 },
-              lineHeight: 1.06,
+              fontSize: { xs: 40, sm: 52, md: 72 },
+              lineHeight: 0.98,
               maxWidth: "100%",
               overflowWrap: "break-word",
             }}
@@ -178,7 +189,7 @@ export default function Home() {
 
       <Box
         sx={{
-          bgcolor: "background.default",
+          bgcolor: "background.paper",
           borderBottom: "1px solid",
           borderColor: "divider",
         }}
@@ -193,11 +204,20 @@ export default function Home() {
             }}
           >
             {stats.map((stat) => (
-              <Box key={stat.label}>
+              <Box
+                key={stat.label}
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 1,
+                  bgcolor: "background.default",
+                }}
+              >
                 <Typography
                   variant="h4"
                   component="p"
-                  sx={{ color: "primary.main" }}
+                  sx={{ color: "primary.main", fontWeight: 800 }}
                 >
                   {stat.value}
                 </Typography>

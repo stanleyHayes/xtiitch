@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 08:33 GMT
+Last updated: 2026-06-15 09:12 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -66,6 +66,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the redesigned marketing section in desktop and mobile Chrome screenshots.
 - Redesigned the shared marketing navbar and footer with stronger brand presence, active navigation states, a polished mobile drawer, footer proof points, route groups, and a footer CTA panel.
 - Verified the redesigned navbar, mobile drawer, desktop footer, and mobile footer in Chrome screenshots.
+- Redesigned and polished the full public marketing surface while preserving the approved content: Fraunces display headings, Manrope UI/body typography, richer shared section primitives, page-specific hero icon watermarks, polished feature/pricing/customer/security/legal/contact pages, and a simplified hero panel with no squeezed fake dashboard rows.
+- Verified the full marketing redesign with Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm check`, and `pnpm test`.
 
 ## Opened / Pending
 
@@ -75,7 +77,7 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Define refund and cancellation policy before live payments.
 - Confirm whether GraphQL is required for v1 client screens or should start as a documented/read-model surface after REST is stable.
 - Current latest Expo package graph has a peer warning: Expo 56 expects `react-native-worklets` `^0.7.4 || ^0.8.0`, while latest Reanimated pulls the 0.9 line. Keep visible until Expo or Reanimated aligns, or deliberately switch to Expo-compatible package versions.
-- SonarQube scan is configured but not executed locally because `SONAR_HOST_URL` and `SONAR_TOKEN` are not configured yet.
+- SonarQube scan is configured and was attempted locally. The scanner reached SonarCloud, then stopped before analysis because `sonar.organization` is not configured for project key `xtiitch`. Add the organization plus the required host/token environment and rerun `pnpm sonar`.
 - Non-API app tests are placeholder scripts until their app shells and first real flows are implemented.
 - Add Postgres integration tests for auth repositories, migrations, and RLS tenant isolation before auth is considered production-ready.
 - Configure either `MARKETING_WAITLIST_WEBHOOK_URL` or `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `MARKETING_WAITLIST_EMAIL_TO` before public waitlist launch.
@@ -722,3 +724,9 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing build` passed after redesigning the shared marketing navbar and footer.
 - `pnpm --filter @xtiitch/marketing test` passed after redesigning the shared marketing navbar and footer.
 - `pnpm check` passed after redesigning the shared marketing navbar and footer.
+- `pnpm --filter @xtiitch/marketing check` passed after the full marketing redesign polish.
+- `pnpm --filter @xtiitch/marketing build` passed after the full marketing redesign polish.
+- `pnpm --filter @xtiitch/marketing test` passed after the full marketing redesign polish.
+- `pnpm check` passed after the full marketing redesign polish.
+- `pnpm test` passed after the full marketing redesign polish.
+- `pnpm sonar` was attempted after the full marketing redesign polish and failed before analysis because `sonar.organization` is missing.

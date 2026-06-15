@@ -59,17 +59,39 @@ export default function Security() {
           title="Where your money goes, step by step"
           subtitle="Because we never take custody of anyone’s funds, Xtiitch stays clean and scalable — and you stay in control of your earnings."
         />
-        <Box sx={{ maxWidth: 820, mx: "auto" }}>
-          <Stack spacing={2.5}>
+        <Box sx={{ maxWidth: 940, mx: "auto" }}>
+          <Stack spacing={0}>
             {moneyFlow.map((item, index) => (
-              <Box key={item.step} sx={{ display: "flex", gap: 2 }}>
+              <Box
+                key={item.step}
+                sx={{
+                  position: "relative",
+                  display: "grid",
+                  gridTemplateColumns: "auto 1fr",
+                  gap: 2,
+                  p: { xs: 2, md: 2.5 },
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderBottomWidth: index === moneyFlow.length - 1 ? 1 : 0,
+                  bgcolor:
+                    index % 2 === 0 ? "background.paper" : "background.default",
+                  "&:first-of-type": {
+                    borderTopLeftRadius: 8,
+                    borderTopRightRadius: 8,
+                  },
+                  "&:last-of-type": {
+                    borderBottomLeftRadius: 8,
+                    borderBottomRightRadius: 8,
+                  },
+                }}
+              >
                 <Box
                   aria-hidden
                   sx={{
                     flexShrink: 0,
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
+                    width: 42,
+                    height: 42,
+                    borderRadius: 1,
                     bgcolor: "primary.main",
                     color: "primary.contrastText",
                     display: "grid",
@@ -80,7 +102,7 @@ export default function Security() {
                   {index + 1}
                 </Box>
                 <Box>
-                  <Typography sx={{ fontWeight: 700 }}>{item.step}</Typography>
+                  <Typography sx={{ fontWeight: 800 }}>{item.step}</Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
                     {item.body}
                   </Typography>

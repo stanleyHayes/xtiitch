@@ -50,15 +50,38 @@ export default function HowItWorks() {
           subtitle="The rule that keeps custom work honest without Xtiitch ever holding your money."
           align="left"
         />
-        <Stack spacing={2} sx={{ maxWidth: 820 }}>
-          {depositRules.map((rule) => (
-            <Box key={rule} sx={{ display: "flex", gap: 1.5 }}>
+        <Stack spacing={1.5} sx={{ maxWidth: 900 }}>
+          {depositRules.map((rule, index) => (
+            <Box
+              key={rule}
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "auto 1fr",
+                gap: 1.5,
+                p: 2,
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "rgba(255,255,255,0.78)",
+              }}
+            >
               <Box
                 component="span"
                 aria-hidden
-                sx={{ color: "primary.main", fontWeight: 800 }}
+                sx={{
+                  width: 30,
+                  height: 30,
+                  borderRadius: 1,
+                  bgcolor: index === 0 ? "primary.main" : "background.default",
+                  color: index === 0 ? "primary.contrastText" : "primary.main",
+                  border: "1px solid",
+                  borderColor: index === 0 ? "primary.main" : "divider",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 800,
+                }}
               >
-                →
+                {index + 1}
               </Box>
               <Typography sx={{ color: "text.secondary" }}>{rule}</Typography>
             </Box>
@@ -89,7 +112,15 @@ export default function HowItWorks() {
               subtitle="Behind the scenes you can add, rename or reorder your production stages. The customer always sees the same plain red, yellow or green."
             />
           </Box>
-          <Box>
+          <Box
+            sx={{
+              p: { xs: 2, md: 3 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              bgcolor: "rgba(255,255,255,0.72)",
+            }}
+          >
             <TrackingPreview />
           </Box>
         </Box>

@@ -52,51 +52,116 @@ const reassurance: string[] = [
 
 export default function Contact() {
   return (
-    <Box sx={{ bgcolor: "background.default", py: { xs: 6, md: 9 } }}>
+    <Box
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        bgcolor: "background.default",
+        py: { xs: 6, md: 9 },
+      }}
+    >
       <Container>
         <Box
           sx={{
             display: "grid",
             gap: { xs: 4, md: 6 },
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gridTemplateColumns: { xs: "1fr", md: "0.95fr 1.05fr" },
             alignItems: "start",
           }}
         >
-          <Box>
-            <Eyebrow>Join the waitlist</Eyebrow>
-            <Typography
-              variant="h1"
-              component="h1"
-              sx={{ fontSize: { xs: 32, md: 42 } }}
-            >
-              Get your fashion business online
-            </Typography>
-            <Typography
+          <Box
+            sx={{
+              position: "relative",
+              overflow: "hidden",
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: "divider",
+              minHeight: { xs: 560, md: 720 },
+              bgcolor: "secondary.main",
+              color: "common.white",
+              boxShadow: "0 34px 90px -58px rgba(21,17,26,0.74)",
+            }}
+          >
+            <Box
+              component="img"
+              src="/images/atelier-hero.webp"
+              alt="Fashion atelier with burgundy garments and a sewing machine"
+              loading="lazy"
+              decoding="async"
               sx={{
-                mt: 2.5,
-                color: "text.secondary",
-                fontSize: { xs: 17, md: 19 },
+                position: "absolute",
+                inset: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+              }}
+            />
+            <Box
+              aria-hidden
+              sx={{
+                position: "absolute",
+                inset: 0,
+                background:
+                  "linear-gradient(180deg, rgba(21,17,26,0.22), rgba(21,17,26,0.88)), linear-gradient(90deg, rgba(128,0,32,0.34), rgba(21,17,26,0.12))",
+              }}
+            />
+            <Box
+              sx={{
+                position: "relative",
+                minHeight: { xs: 560, md: 720 },
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                p: { xs: 3, md: 4 },
               }}
             >
-              Leave your details and we’ll help you set up a real store, take
-              payment, and give your customers a clear view of their orders.
-            </Typography>
-            <Stack spacing={1.5} sx={{ mt: 4 }}>
-              {reassurance.map((line) => (
-                <Box
-                  key={line}
-                  sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}
+              <Box>
+                <Eyebrow tone="light">Join the waitlist</Eyebrow>
+                <Typography
+                  variant="h1"
+                  component="h1"
+                  sx={{ fontSize: { xs: 42, md: 60 }, maxWidth: 560 }}
                 >
-                  <CheckCircleRoundedIcon
-                    sx={{ color: "success.main", mt: "2px" }}
-                    aria-hidden
-                  />
-                  <Typography sx={{ color: "text.secondary" }}>
-                    {line}
-                  </Typography>
-                </Box>
-              ))}
-            </Stack>
+                  Get your fashion business online
+                </Typography>
+                <Typography
+                  sx={{
+                    mt: 2.5,
+                    color: "rgba(255,255,255,0.78)",
+                    fontSize: { xs: 17, md: 19 },
+                    maxWidth: 560,
+                  }}
+                >
+                  Leave your details and we’ll help you set up a real store,
+                  take payment, and give your customers a clear view of their
+                  orders.
+                </Typography>
+              </Box>
+              <Stack spacing={1.25} sx={{ mt: 4 }}>
+                {reassurance.map((line) => (
+                  <Box
+                    key={line}
+                    sx={{
+                      display: "flex",
+                      gap: 1.5,
+                      alignItems: "flex-start",
+                      p: 1.5,
+                      borderRadius: 1,
+                      bgcolor: "rgba(255,255,255,0.08)",
+                      border: "1px solid rgba(255,255,255,0.14)",
+                    }}
+                  >
+                    <CheckCircleRoundedIcon
+                      sx={{ color: "success.light", mt: "2px" }}
+                      aria-hidden
+                    />
+                    <Typography sx={{ color: "rgba(255,255,255,0.84)" }}>
+                      {line}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
           </Box>
 
           <Paper
@@ -106,6 +171,8 @@ export default function Contact() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
+              bgcolor: "rgba(255,255,255,0.9)",
+              boxShadow: "0 28px 80px -58px rgba(21,17,26,0.64)",
             }}
           >
             <WaitlistForm />

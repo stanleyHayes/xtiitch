@@ -11,14 +11,18 @@ export const tokens = {
   white: "#ffffff",
   softBorder: "#e9ded6",
   mutedText: "#6f6672",
+  blush: "#f3e5df",
+  cocoa: "#35242d",
+  brass: "#b87914",
+  leaf: "#2f6b4f",
   success: "#237a4b",
   warning: "#b87914",
   danger: "#a92727",
   info: "#315f8f",
 } as const;
 
-const fontStack = [
-  "Inter",
+const bodyFontStack = [
+  "Manrope",
   "Roboto",
   "system-ui",
   "-apple-system",
@@ -26,6 +30,13 @@ const fontStack = [
   "Helvetica",
   "Arial",
   "sans-serif",
+].join(", ");
+
+const displayFontStack = [
+  "Fraunces",
+  "Georgia",
+  "Times New Roman",
+  "serif",
 ].join(", ");
 
 export const theme: Theme = createTheme({
@@ -48,24 +59,27 @@ export const theme: Theme = createTheme({
   },
   shape: { borderRadius: 8 },
   typography: {
-    fontFamily: fontStack,
+    fontFamily: bodyFontStack,
     // The style guide forbids negative letter spacing and viewport-scaled type.
     h1: {
-      fontWeight: 800,
-      fontSize: "2.5rem",
-      lineHeight: 1.1,
+      fontFamily: displayFontStack,
+      fontWeight: 700,
+      fontSize: "3rem",
+      lineHeight: 1,
       letterSpacing: 0,
     },
     h2: {
+      fontFamily: displayFontStack,
       fontWeight: 700,
-      fontSize: "2rem",
-      lineHeight: 1.15,
+      fontSize: "2.35rem",
+      lineHeight: 1.05,
       letterSpacing: 0,
     },
     h3: {
+      fontFamily: displayFontStack,
       fontWeight: 700,
-      fontSize: "1.5rem",
-      lineHeight: 1.2,
+      fontSize: "1.8rem",
+      lineHeight: 1.08,
       letterSpacing: 0,
     },
     h4: {
@@ -86,21 +100,35 @@ export const theme: Theme = createTheme({
       lineHeight: 1.3,
       letterSpacing: 0,
     },
-    body1: { fontSize: "1rem", lineHeight: 1.6 },
-    body2: { fontSize: "0.95rem", lineHeight: 1.6 },
-    button: { textTransform: "none", fontWeight: 600 },
+    body1: { fontSize: "1rem", lineHeight: 1.7 },
+    body2: { fontSize: "0.95rem", lineHeight: 1.65 },
+    button: { textTransform: "none", fontWeight: 800, letterSpacing: 0 },
   },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
         html: { overflowX: "hidden" },
-        body: { overflowX: "hidden" },
+        body: {
+          overflowX: "hidden",
+          background:
+            "linear-gradient(90deg, rgba(128,0,32,0.025) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.018) 1px, transparent 1px)",
+          backgroundSize: "34px 34px",
+        },
+        "::selection": {
+          backgroundColor: tokens.burgundy,
+          color: tokens.white,
+        },
       },
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: {
-        root: { borderRadius: 8, paddingInline: 20, minHeight: 44 },
+        root: {
+          borderRadius: 8,
+          paddingInline: 20,
+          minHeight: 44,
+          boxShadow: "none",
+        },
         sizeLarge: { minHeight: 52, fontSize: "1rem", paddingInline: 28 },
       },
     },
@@ -110,17 +138,29 @@ export const theme: Theme = createTheme({
     MuiCard: {
       defaultProps: { elevation: 0 },
       styleOverrides: {
-        root: { border: `1px solid ${tokens.softBorder}`, borderRadius: 8 },
+        root: {
+          border: `1px solid ${tokens.softBorder}`,
+          borderRadius: 8,
+          boxShadow: "0 22px 60px -42px rgba(21,17,26,0.42)",
+        },
       },
     },
     MuiChip: {
-      styleOverrides: { root: { fontWeight: 600 } },
+      styleOverrides: { root: { fontWeight: 800, borderRadius: 8 } },
     },
     MuiLink: {
       defaultProps: { underline: "hover" },
     },
     MuiTextField: {
       defaultProps: { fullWidth: true },
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: 8,
+            backgroundColor: tokens.white,
+          },
+        },
+      },
     },
   },
 });

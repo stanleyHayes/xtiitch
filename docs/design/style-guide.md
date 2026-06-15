@@ -18,33 +18,34 @@ The main product promise is simple: a business can run its fashion work, and a c
 
 Use these tokens from the first commit onward:
 
-| Token | Hex | Use |
-| --- | --- | --- |
+| Token    | Hex       | Use                                                                           |
+| -------- | --------- | ----------------------------------------------------------------------------- |
 | Burgundy | `#800020` | Primary actions, active navigation, key status accents, important brand marks |
-| Ink | `#15111a` | Primary text, strong icons, high-emphasis UI |
-| Cream | `#faf6f2` | App background, storefront background, calm surfaces |
+| Ink      | `#15111a` | Primary text, strong icons, high-emphasis UI                                  |
+| Cream    | `#faf6f2` | App background, storefront background, calm surfaces                          |
 
 Recommended supporting tokens:
 
-| Token | Hex | Use |
-| --- | --- | --- |
-| White | `#ffffff` | Cards, menus, inputs, modal surfaces |
-| Soft border | `#e9ded6` | Borders on cream backgrounds |
-| Muted text | `#6f6672` | Secondary text |
-| Success | `#237a4b` | Ready, delivered, paid success states |
-| Warning | `#b87914` | In progress, pending, needs attention |
-| Danger | `#a92727` | Cancelled, failed, destructive actions |
-| Info | `#315f8f` | Neutral system information |
+| Token       | Hex       | Use                                    |
+| ----------- | --------- | -------------------------------------- |
+| White       | `#ffffff` | Cards, menus, inputs, modal surfaces   |
+| Soft border | `#e9ded6` | Borders on cream backgrounds           |
+| Muted text  | `#6f6672` | Secondary text                         |
+| Success     | `#237a4b` | Ready, delivered, paid success states  |
+| Warning     | `#b87914` | In progress, pending, needs attention  |
+| Danger      | `#a92727` | Cancelled, failed, destructive actions |
+| Info        | `#315f8f` | Neutral system information             |
 
 Do not let the app become one-note burgundy. Burgundy is the signature, not the whole painting.
 
 ## Typography
 
-Use a practical sans-serif system until a paid brand typeface is chosen:
+Use typography to separate public storytelling from operational work:
 
-- Web: `Inter`, `Roboto`, or system UI, depending on what MUI setup uses first.
-- Mobile: platform system font through React Native.
-- Avoid narrow, fragile, or high-fashion display fonts in operational UI.
+- Marketing web: use `Fraunces` for large page and section headings, and `Manrope` for body copy, navigation, cards, forms, buttons, and metadata.
+- Product web: use `Manrope` or the shared sans-serif stack. Avoid display type inside dense dashboards unless a specific brand surface calls for it.
+- Mobile: use the platform system font through React Native until a native-safe brand type plan is chosen.
+- Avoid narrow, fragile, or overly decorative fashion fonts in operational UI.
 - Headings should be confident but compact.
 - Body copy should be plain and direct.
 - Do not use negative letter spacing.
@@ -52,14 +53,16 @@ Use a practical sans-serif system until a paid brand typeface is chosen:
 
 Suggested scale:
 
-| Role | Desktop | Mobile |
-| --- | --- | --- |
-| Page title | 32 | 26 |
-| Section title | 22 | 20 |
-| Panel title | 18 | 17 |
-| Body | 16 | 16 |
-| Supporting text | 14 | 14 |
-| Metadata | 12 | 12 |
+| Role                    | Desktop | Mobile |
+| ----------------------- | ------- | ------ |
+| Marketing page title    | 56-72   | 38-44  |
+| Product page title      | 32      | 26     |
+| Marketing section title | 36-48   | 30-36  |
+| Product section title   | 22      | 20     |
+| Panel title             | 18      | 17     |
+| Body                    | 16      | 16     |
+| Supporting text         | 14      | 14     |
+| Metadata                | 12      | 12     |
 
 ## Layout
 
@@ -79,6 +82,14 @@ Storefront surfaces should prioritize browsing:
 - Store branding can vary per business, but the Xtiitch base should remain trustworthy.
 - Collection pages need clear filtering/search, not decorative clutter.
 - Shareable design pages should load fast and make the order path obvious.
+
+Marketing pages should feel specific to fashion operators:
+
+- Keep the page content from the approved marketing plan, but present it with editorial rhythm, generous whitespace, and clear conversion paths.
+- Page heroes should use the cream grid, large `Fraunces` title, and a dark brand panel with a page-specific icon watermark.
+- Do not squeeze fake dashboard screens into hero panels. Use real product screenshots only when the dashboard exists and can be shown accurately.
+- Use page-specific icon watermarks as quiet background identity, not as generic decoration.
+- Contact, pricing, security, customer, legal, and feature pages should all feel like parts of one system, not unrelated templates.
 
 ## Components
 
@@ -100,11 +111,11 @@ Use MUI components on web. For mobile, create native equivalents that honor the 
 
 Customer-facing order status must stay simple:
 
-| State | Color | Meaning |
-| --- | --- | --- |
-| Red | Danger | Received or not started |
-| Yellow | Warning | Being made |
-| Green | Success | Ready or delivered |
+| State  | Color   | Meaning                 |
+| ------ | ------- | ----------------------- |
+| Red    | Danger  | Received or not started |
+| Yellow | Warning | Being made              |
+| Green  | Success | Ready or delivered      |
 
 Business-facing stages may be more detailed, but the customer view maps them back to the simple red/yellow/green model.
 
@@ -208,4 +219,3 @@ Before an agent marks a UI feature complete:
 ## Agent Rule
 
 If a UI decision is not covered here, choose the option that makes a Ghanaian fashion business owner faster and a customer less anxious.
-
