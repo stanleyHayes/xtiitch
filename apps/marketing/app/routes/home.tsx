@@ -9,6 +9,7 @@ import Stack from "@mui/material/Stack";
 import type { SvgIconComponent } from "@mui/icons-material";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import { pageMeta } from "../components/seo";
@@ -63,6 +64,12 @@ const imageStories = [
     alt: "Tailor fitting a burgundy dress while another team member checks a tablet tracking view",
   },
 ];
+
+const heroSignals = [
+  { label: "Store link opened", detail: "Design viewed", color: "#faf6f2" },
+  { label: "Order paid", detail: "Paystack checkout", color: "#b87914" },
+  { label: "Tracking shared", detail: "Yellow: being made", color: "#237a4b" },
+] as const;
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
@@ -152,107 +159,214 @@ function Hero() {
         }}
       />
       <Container sx={{ position: "relative", zIndex: 4, py: { xs: 5, md: 8 } }}>
-        <Box sx={{ maxWidth: 720, color: "common.white" }}>
-          <Chip
-            label="Built for Ghanaian fashion businesses"
-            sx={{
-              mb: 3,
-              fontWeight: 700,
-              color: "common.white",
-              borderColor: "rgba(255,255,255,0.6)",
-              bgcolor: "rgba(255,255,255,0.08)",
-              ...homeRiseSx(80),
-            }}
-            variant="outlined"
-          />
-          <Typography
-            variant="h1"
-            component="h1"
-            sx={{
-              fontSize: { xs: 40, sm: 52, md: 72 },
-              lineHeight: 0.98,
-              maxWidth: "100%",
-              overflowWrap: "break-word",
-              ...homeRiseSx(160),
-            }}
-          >
-            <Box
-              component="span"
-              sx={{ display: { xs: "inline", sm: "none" } }}
-            >
-              A real shop for fashion businesses.
-            </Box>{" "}
-            <Box
-              component="span"
-              sx={{ display: { xs: "none", sm: "inline" } }}
-            >
-              A real shop, run simply — and an answer to{" "}
-              <Box component="span" sx={{ color: "rgba(255,255,255,0.86)" }}>
-                “where is my cloth?”
-              </Box>
-            </Box>
-          </Typography>
-          <Typography
-            sx={{
-              mt: 3,
-              fontSize: { xs: 17, md: 20 },
-              color: "rgba(255,255,255,0.82)",
-              maxWidth: 620,
-              ...homeRiseSx(240),
-            }}
-          >
-            {site.promise}
-          </Typography>
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={2}
-            sx={{
-              mt: 4,
-              alignItems: { xs: "stretch", sm: "center" },
-              ...homeRiseSx(320),
-            }}
-          >
-            <Button
-              component={RouterLink}
-              to={site.primaryCta.href}
-              size="large"
-              endIcon={<ArrowForwardRoundedIcon />}
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 720px) 360px" },
+            gap: { xs: 4, lg: 7 },
+            alignItems: "end",
+          }}
+        >
+          <Box sx={{ maxWidth: 720, color: "common.white" }}>
+            <Chip
+              label="Built for Ghanaian fashion businesses"
               sx={{
-                bgcolor: "common.white",
-                color: "primary.main",
-                "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
-              }}
-            >
-              {site.primaryCta.label}
-            </Button>
-            <Button
-              component={RouterLink}
-              to={site.secondaryCta.href}
-              size="large"
-              variant="outlined"
-              sx={{
+                mb: 3,
+                fontWeight: 700,
                 color: "common.white",
-                borderColor: "rgba(255,255,255,0.62)",
-                "&:hover": {
-                  borderColor: "common.white",
-                  bgcolor: "rgba(255,255,255,0.08)",
-                },
+                borderColor: "rgba(255,255,255,0.6)",
+                bgcolor: "rgba(255,255,255,0.08)",
+                ...homeRiseSx(80),
+              }}
+              variant="outlined"
+            />
+            <Typography
+              variant="h1"
+              component="h1"
+              sx={{
+                fontSize: { xs: 40, sm: 52, md: 72 },
+                lineHeight: 0.98,
+                maxWidth: "100%",
+                overflowWrap: "break-word",
+                ...homeRiseSx(160),
               }}
             >
-              {site.secondaryCta.label}
-            </Button>
-          </Stack>
-          <Typography
-            variant="body2"
+              <Box
+                component="span"
+                sx={{ display: { xs: "inline", sm: "none" } }}
+              >
+                A real shop for fashion businesses.
+              </Box>{" "}
+              <Box
+                component="span"
+                sx={{ display: { xs: "none", sm: "inline" } }}
+              >
+                A real shop, run simply — and an answer to{" "}
+                <Box component="span" sx={{ color: "rgba(255,255,255,0.86)" }}>
+                  “where is my cloth?”
+                </Box>
+              </Box>
+            </Typography>
+            <Typography
+              sx={{
+                mt: 3,
+                fontSize: { xs: 17, md: 20 },
+                color: "rgba(255,255,255,0.82)",
+                maxWidth: 620,
+                ...homeRiseSx(240),
+              }}
+            >
+              {site.promise}
+            </Typography>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={2}
+              sx={{
+                mt: 4,
+                alignItems: { xs: "stretch", sm: "center" },
+                ...homeRiseSx(320),
+              }}
+            >
+              <Button
+                component={RouterLink}
+                to={site.primaryCta.href}
+                size="large"
+                endIcon={<ArrowForwardRoundedIcon />}
+                sx={{
+                  bgcolor: "common.white",
+                  color: "primary.main",
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
+                }}
+              >
+                {site.primaryCta.label}
+              </Button>
+              <Button
+                component={RouterLink}
+                to={site.secondaryCta.href}
+                size="large"
+                variant="outlined"
+                sx={{
+                  color: "common.white",
+                  borderColor: "rgba(255,255,255,0.62)",
+                  "&:hover": {
+                    borderColor: "common.white",
+                    bgcolor: "rgba(255,255,255,0.08)",
+                  },
+                }}
+              >
+                {site.secondaryCta.label}
+              </Button>
+            </Stack>
+            <Typography
+              variant="body2"
+              sx={{
+                mt: 2.5,
+                color: "rgba(255,255,255,0.76)",
+                ...homeRiseSx(400),
+              }}
+            >
+              Start free. Take mobile money and cards through Paystack. Keep
+              your own money.
+            </Typography>
+          </Box>
+          <Box
+            aria-label="Example order flow"
             sx={{
-              mt: 2.5,
-              color: "rgba(255,255,255,0.76)",
-              ...homeRiseSx(400),
+              display: { xs: "none", lg: "block" },
+              position: "relative",
+              p: 2,
+              border: "1px solid rgba(255,255,255,0.22)",
+              borderRadius: 1,
+              bgcolor: "rgba(21,17,26,0.48)",
+              color: "common.white",
+              backdropFilter: "blur(16px)",
+              boxShadow: "0 36px 86px -54px rgba(0,0,0,0.8)",
+              ...homeRiseSx(420),
+              "&:before": {
+                content: '""',
+                position: "absolute",
+                inset: 10,
+                borderRadius: 1,
+                border: "1px solid rgba(255,255,255,0.12)",
+                pointerEvents: "none",
+              },
             }}
           >
-            Start free. Take mobile money and cards through Paystack. Keep your
-            own money.
-          </Typography>
+            <Typography
+              component="p"
+              sx={{
+                position: "relative",
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 0,
+                color: "rgba(255,255,255,0.64)",
+              }}
+            >
+              Live order path
+            </Typography>
+            <Stack spacing={1.25} sx={{ position: "relative", mt: 2 }}>
+              {heroSignals.map((signal, index) => (
+                <Box
+                  key={signal.label}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "auto 1fr",
+                    gap: 1.25,
+                    alignItems: "center",
+                    p: 1.5,
+                    borderRadius: 1,
+                    bgcolor:
+                      index === 1
+                        ? "rgba(255,255,255,0.14)"
+                        : "rgba(255,255,255,0.08)",
+                    border: "1px solid rgba(255,255,255,0.12)",
+                  }}
+                >
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: `${signal.color}24`,
+                      color: signal.color,
+                    }}
+                  >
+                    <CheckCircleRoundedIcon fontSize="small" />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800, lineHeight: 1.25 }}>
+                      {signal.label}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "rgba(255,255,255,0.68)" }}
+                    >
+                      {signal.detail}
+                    </Typography>
+                  </Box>
+                </Box>
+              ))}
+            </Stack>
+            <Box
+              sx={{
+                position: "relative",
+                mt: 1.5,
+                px: 1.5,
+                py: 1.25,
+                borderRadius: 1,
+                bgcolor: "rgba(128,0,32,0.58)",
+                border: "1px solid rgba(255,255,255,0.16)",
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                Customer asks less. Studio answers faster.
+              </Typography>
+            </Box>
+          </Box>
         </Box>
       </Container>
     </Box>

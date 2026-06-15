@@ -1,10 +1,10 @@
 import type { MetaDescriptor } from "react-router";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
 import { pageMeta } from "../components/seo";
 import {
   CtaBand,
+  MeasurementRouteGrid,
   PageHero,
   Section,
   SectionHeading,
@@ -111,48 +111,7 @@ export default function ForCustomers() {
           title="Pick a size, or get measured"
           subtitle="If you fit one of the shop’s sizes, order in one step. If not, choose the way that suits you."
         />
-        <Box
-          sx={{
-            display: "grid",
-            gap: 3,
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1fr 1fr",
-              lg: "repeat(4, 1fr)",
-            },
-          }}
-        >
-          {measurementRoutes.map((route) => (
-            <Box
-              key={route.title}
-              sx={{
-                p: 3,
-                borderRadius: 1,
-                border: "1px solid",
-                borderColor: "divider",
-                bgcolor: "background.paper",
-                minHeight: 238,
-                boxShadow: "0 20px 56px -46px rgba(21,17,26,0.5)",
-              }}
-            >
-              <Typography variant="h6" component="h3">
-                {route.title}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ mt: 1, color: "text.secondary" }}
-              >
-                {route.body}
-              </Typography>
-              <Chip
-                size="small"
-                variant="outlined"
-                label={route.deposit}
-                sx={{ mt: 2 }}
-              />
-            </Box>
-          ))}
-        </Box>
+        <MeasurementRouteGrid items={measurementRoutes} />
       </Section>
 
       <CtaBand

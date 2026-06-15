@@ -370,7 +370,7 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
     <Box
       sx={{
         display: "grid",
-        gap: 3,
+        gap: { xs: 2.5, md: 3 },
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
       }}
     >
@@ -382,10 +382,14 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
             position: "relative",
             overflow: "hidden",
             bgcolor: "background.paper",
-            transition: "transform 180ms ease, box-shadow 180ms ease",
+            minHeight: 268,
+            borderColor: index % 3 === 1 ? "rgba(128,0,32,0.16)" : "divider",
+            transition:
+              "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
             ...riseInSx(80 + index * 70),
             "&:hover": {
               transform: "translateY(-4px)",
+              borderColor: `${featureAccent[feature.icon]}55`,
               boxShadow: "0 30px 70px -44px rgba(21,17,26,0.62)",
             },
           }}
@@ -419,7 +423,32 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
               },
             }}
           />
-          <CardContent sx={{ p: 3.25, position: "relative" }}>
+          <FeatureGlyph
+            icon={feature.icon}
+            aria-hidden
+            sx={{
+              position: "absolute",
+              right: -12,
+              bottom: -18,
+              fontSize: 124,
+              color: `${featureAccent[feature.icon]}14`,
+              transform: "rotate(-6deg)",
+              transition: "transform 220ms ease, color 220ms ease",
+              ".MuiCard-root:hover &": {
+                color: `${featureAccent[feature.icon]}1f`,
+                transform: "rotate(-3deg) scale(1.04)",
+              },
+            }}
+          />
+          <CardContent
+            sx={{
+              p: 3.25,
+              position: "relative",
+              minHeight: "100%",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             <Box
               aria-hidden
               sx={{
@@ -431,10 +460,24 @@ export function FeatureGrid({ items }: { items: Feature[] }) {
                 display: "grid",
                 placeItems: "center",
                 mb: 2,
+                boxShadow: `0 18px 34px -28px ${featureAccent[feature.icon]}`,
               }}
             >
               <FeatureGlyph icon={feature.icon} />
             </Box>
+            <Typography
+              component="p"
+              sx={{
+                mb: 1.25,
+                color: featureAccent[feature.icon],
+                fontSize: 11,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: 0,
+              }}
+            >
+              {String(index + 1).padStart(2, "0")}
+            </Typography>
             <Typography variant="h5" component="h3" sx={{ mb: 1 }}>
               {feature.title}
             </Typography>
@@ -452,9 +495,20 @@ export function StepList({ items }: { items: Step[] }) {
   return (
     <Box
       sx={{
+        position: "relative",
         display: "grid",
         gap: { xs: 2, md: 3 },
         gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr 1fr 1fr" },
+        "&:before": {
+          content: { xs: "none", lg: '""' },
+          position: "absolute",
+          left: "8%",
+          right: "8%",
+          top: 32,
+          height: 2,
+          background:
+            "linear-gradient(90deg, rgba(128,0,32,0.2), rgba(184,121,20,0.26), rgba(35,122,75,0.22))",
+        },
       }}
     >
       {items.map((step, index) => (
@@ -466,10 +520,13 @@ export function StepList({ items }: { items: Step[] }) {
             gap: 2,
             p: 2.5,
             border: "1px solid",
-            borderColor: "divider",
+            borderColor: index === 0 ? "rgba(128,0,32,0.26)" : "divider",
             borderRadius: 1,
-            bgcolor: "background.paper",
+            bgcolor:
+              index === 0 ? "rgba(255,255,255,0.94)" : "background.paper",
             minHeight: 168,
+            boxShadow:
+              index === 0 ? "0 28px 68px -54px rgba(128,0,32,0.72)" : "none",
             transition:
               "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
             ...riseInSx(80 + index * 70),
@@ -487,12 +544,15 @@ export function StepList({ items }: { items: Step[] }) {
               width: 44,
               height: 44,
               borderRadius: 1,
-              bgcolor: "primary.main",
-              color: "primary.contrastText",
+              bgcolor: index === 0 ? "primary.main" : "background.default",
+              color: index === 0 ? "primary.contrastText" : "primary.main",
+              border: "1px solid",
+              borderColor: index === 0 ? "primary.main" : "rgba(128,0,32,0.18)",
               display: "grid",
               placeItems: "center",
               fontWeight: 800,
-              boxShadow: "0 12px 30px -18px rgba(128,0,32,0.9)",
+              boxShadow:
+                index === 0 ? "0 12px 30px -18px rgba(128,0,32,0.9)" : "none",
             }}
           >
             {step.number}
@@ -510,6 +570,135 @@ export function StepList({ items }: { items: Step[] }) {
           </Box>
         </Box>
       ))}
+    </Box>
+  );
+}
+
+const measurementIcons = [
+  ChecklistRoundedIcon,
+  GroupsRoundedIcon,
+  StorefrontRoundedIcon,
+  PaymentsRoundedIcon,
+] as const;
+
+const measurementAccents = [
+  "#800020",
+  "#315f8f",
+  "#b87914",
+  "#237a4b",
+] as const;
+
+export function MeasurementRouteGrid({
+  items,
+}: {
+  items: { title: string; body: string; deposit: string }[];
+}) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 3,
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: "1fr 1fr",
+          lg: "repeat(4, 1fr)",
+        },
+      }}
+    >
+      {items.map((route, index) => {
+        const Icon = measurementIcons[index] ?? ChecklistRoundedIcon;
+        const accent = measurementAccents[index] ?? "#800020";
+        return (
+          <Box
+            key={route.title}
+            sx={{
+              position: "relative",
+              p: 3,
+              borderRadius: 1,
+              border: "1px solid",
+              borderColor: index === 0 ? `${accent}55` : "divider",
+              bgcolor: "rgba(255,255,255,0.86)",
+              overflow: "hidden",
+              minHeight: 254,
+              boxShadow:
+                index === 0
+                  ? "0 28px 70px -54px rgba(128,0,32,0.7)"
+                  : "0 22px 60px -50px rgba(21,17,26,0.42)",
+              transition:
+                "transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease",
+              ...riseInSx(90 + index * 65),
+              "&:hover": {
+                transform: "translateY(-3px)",
+                borderColor: `${accent}66`,
+                boxShadow: "0 30px 72px -52px rgba(21,17,26,0.58)",
+              },
+              "&:before": {
+                content: '""',
+                position: "absolute",
+                inset: "0 0 auto 0",
+                height: 5,
+                bgcolor: accent,
+              },
+            }}
+          >
+            <Icon
+              aria-hidden
+              sx={{
+                position: "absolute",
+                right: -18,
+                bottom: -18,
+                fontSize: 112,
+                color: `${accent}14`,
+                transform: "rotate(-7deg)",
+              }}
+            />
+            <Box sx={{ position: "relative" }}>
+              <Box
+                aria-hidden
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 1,
+                  mb: 2,
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: `${accent}12`,
+                  color: accent,
+                  border: "1px solid",
+                  borderColor: `${accent}24`,
+                }}
+              >
+                <Icon fontSize="small" />
+              </Box>
+              <Typography variant="h6" component="h3">
+                {route.title}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ mt: 1, color: "text.secondary" }}
+              >
+                {route.body}
+              </Typography>
+              <Chip
+                size="small"
+                variant="outlined"
+                label={route.deposit}
+                sx={{
+                  mt: 2,
+                  bgcolor: "background.paper",
+                  borderColor: `${accent}40`,
+                  color: accent,
+                  maxWidth: "100%",
+                  "& .MuiChip-label": {
+                    whiteSpace: "normal",
+                    py: 0.4,
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+        );
+      })}
     </Box>
   );
 }
@@ -954,6 +1143,14 @@ export function FaqList({ items }: { items: Faq[] }) {
 }
 
 export function TrustGrid({ items }: { items: TrustPoint[] }) {
+  const accents = [
+    "#800020",
+    "#2f6b4f",
+    "#315f8f",
+    "#b87914",
+    "#5c0017",
+    "#237a4b",
+  ];
   return (
     <Box
       sx={{
@@ -970,9 +1167,10 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
             p: 3,
             borderRadius: 1,
             border: "1px solid",
-            borderColor: "divider",
+            borderColor: index === 0 ? "rgba(128,0,32,0.24)" : "divider",
             bgcolor: "background.paper",
             overflow: "hidden",
+            minHeight: 232,
             transition:
               "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
             ...riseInSx(80 + index * 70),
@@ -984,18 +1182,52 @@ export function TrustGrid({ items }: { items: TrustPoint[] }) {
             "&:before": {
               content: '""',
               position: "absolute",
-              inset: "0 auto 0 0",
-              width: 5,
-              bgcolor: "primary.main",
+              inset: "0 0 auto 0",
+              height: 5,
+              bgcolor: accents[index % accents.length],
             },
           }}
         >
-          <Typography variant="h6" component="h3" sx={{ mb: 1, pl: 1 }}>
-            {point.title}
+          <Typography
+            aria-hidden
+            component="p"
+            sx={{
+              position: "absolute",
+              right: 18,
+              top: 10,
+              fontFamily: "DM Serif Display, Georgia, serif",
+              fontSize: 74,
+              lineHeight: 1,
+              color: `${accents[index % accents.length]}12`,
+            }}
+          >
+            {String(index + 1).padStart(2, "0")}
           </Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary", pl: 1 }}>
-            {point.body}
-          </Typography>
+          <Box
+            aria-hidden
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: 1,
+              mb: 2,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: `${accents[index % accents.length]}12`,
+              color: accents[index % accents.length],
+              border: "1px solid",
+              borderColor: `${accents[index % accents.length]}24`,
+            }}
+          >
+            <SecurityRoundedIcon fontSize="small" />
+          </Box>
+          <Box sx={{ position: "relative" }}>
+            <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
+              {point.title}
+            </Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {point.body}
+            </Typography>
+          </Box>
         </Box>
       ))}
     </Box>

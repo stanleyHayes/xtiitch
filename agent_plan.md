@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 12:17 GMT
+Last updated: 2026-06-15 13:28 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -20,6 +20,7 @@ The PDFs are the product and technical source of truth. This plan records implem
 - The `apps/web` business dashboard is built and verified in the browser: login over the auth API stores tokens in an httpOnly signed cookie session; a protected `/dashboard` shows the store profile (name, handle, plan, verification) and lets the owner list, create, and retire/restore designs; logout clears the session. A new protected `GET /v1/businesses/me` backs the profile.
 - Milestone 3 (Ordering, Stages, and Tracking) is started: the production-stage model, the walk-in order path, and the red/yellow/green "where is my cloth?" customer tracking view are built and verified in the browser (an order goes red → yellow → green → fulfilled as the business advances stages). Default stages are seeded per business at registration.
 - The online order checkout path is built and security-hardened (see Completed): a customer places a standard order from the storefront, pays the full price over the existing money rails, and the webhook confirmation advances the order to confirmed at its first stage. The storefront design page now contains the live order form and redirects to the provider checkout URL.
+- The public marketing UI has received a second polish pass over already-finished surfaces: the home hero now has a live order-path proof panel, shared feature cards are more crafted and less generic, the how-it-works steps read as a connected timeline, sizing/measurement routes use a shared richer component, and trust cards now carry stronger security/numbering treatment.
 - Next recommended feature: custom-order paths (three measurement routes + deposit rules), then the dashboard orders board, bookings/delivery, and notifications. Measurement fields and size-band charts come with custom-order measurement capture.
 - The backend slices (auth completion, money rails, RLS hardening, catalogue/storefront, Cloudinary), the web storefront, the dashboard, the orders/tracking view, and online checkout are committed locally. The two source PDFs are intentionally left untracked (Strictly Confidential).
 - Push of local commits is pending until the project owner adds a Git remote.
@@ -101,6 +102,7 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Updated the marketing typography to Instrument Sans for body/UI and DM Serif Display for titles, inspired by the American Tractor Company reference while preserving Xtiitch's brand palette and no-negative-letter-spacing rule.
 - Added reference-inspired marketing motion and richer imagery: a moving proof ticker under the hero, a soft animated hero spotlight background, a three-image editorial atelier strip, and new compressed WebP assets for design review, payment handoff, and fitting progress.
 - Verified the typography/reference/image pass with `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, and a `200 OK` smoke check on the running marketing home route.
+- Continued polishing the already-finished public marketing UI without changing approved copy: added the home hero live-order proof panel, upgraded shared feature cards with numbered accents and icon watermarks, made the steps section feel connected, replaced duplicated measurement-card layouts on Features and For customers with a single richer `MeasurementRouteGrid`, and strengthened the trust cards with numbered security treatment. Verified with Prettier, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm lint`, `pnpm check`, and route smoke checks returning `200` for `/`, `/features`, `/for-customers`, `/how-it-works`, and `/pricing`.
 
 ## Opened / Pending
 
