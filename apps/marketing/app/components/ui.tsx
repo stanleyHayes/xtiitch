@@ -308,9 +308,9 @@ export function PageHero({
             <Icon
               sx={{
                 position: "absolute",
-                right: { sm: -32, md: -44 },
-                bottom: { sm: -44, md: -56 },
-                fontSize: { sm: 230, md: 320 },
+                right: { sm: 10, md: 20 },
+                bottom: { sm: 10, md: 8 },
+                fontSize: { sm: 190, md: 248 },
                 color: "rgba(21,17,26,0.14)",
                 animation: "xtiitch-float-mark 8s ease-in-out infinite",
                 "@media (prefers-reduced-motion: reduce)": {
