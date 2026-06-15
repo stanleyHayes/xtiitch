@@ -9,12 +9,15 @@ import (
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
+	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
+	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
@@ -81,10 +84,25 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:        ids.UUIDGenerator{},
 	})
 
+	var mediaStore ports.MediaStore
+	if cfg.CloudinaryURL != "" {
+		client, mediaErr := cloudinary.NewClientFromURL(cfg.CloudinaryURL)
+		if mediaErr != nil {
+			db.Close()
+			return App{}, mediaErr
+		}
+		mediaStore = client
+	} else {
+		logger.Warn("cloudinary url not set; using dev media store")
+		mediaStore = cloudinary.NewDevMediaStore()
+	}
+	mediaService := mediaapp.NewService(mediaStore)
+
 	router := httpadapter.NewRouter(logger, db.Ping,
 		authhttp.NewHandler(authService, authenticator),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
+		mediahttp.NewHandler(mediaService, authenticator),
 	)
 
 	return App{
