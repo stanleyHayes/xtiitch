@@ -86,6 +86,37 @@ func TestRegisterBusinessRejectsWeakPassword(t *testing.T) {
 	}
 }
 
+func TestRegisterBusinessRejectsReservedHandle(t *testing.T) {
+	t.Parallel()
+
+	for _, handle := range []string{"app", "admin", "api", "www", "App", " ADMIN "} {
+		businesses := &fakeBusinessIdentityRepository{}
+		service := NewService(Dependencies{
+			Businesses:    businesses,
+			Sessions:      &fakeSessionRepository{},
+			Passwords:     fakePasswordHasher{},
+			AccessTokens:  fakeTokenIssuer{},
+			RefreshTokens: fakeRefreshTokens{},
+			IDs:           &sequenceIDs{ids: []common.ID{"business-1", "user-1", "session-1"}},
+			Clock:         fixedClock{now: time.Now()},
+		})
+
+		_, err := service.RegisterBusiness(context.Background(), RegisterBusinessCommand{
+			BusinessName:     "Reserved Co",
+			BusinessHandle:   handle,
+			OwnerDisplayName: "Ama",
+			OwnerEmail:       "ama@example.com",
+			OwnerPassword:    "DemoPass12345",
+		})
+		if !errors.Is(err, authdomain.ErrInvalidInput) {
+			t.Fatalf("handle %q: expected reserved handle rejected, got %v", handle, err)
+		}
+		if businesses.created.BusinessHandle != "" {
+			t.Fatalf("handle %q: a reserved handle must create nothing", handle)
+		}
+	}
+}
+
 func TestLoginBusinessIssuesSessionForValidCredentials(t *testing.T) {
 	t.Parallel()
 

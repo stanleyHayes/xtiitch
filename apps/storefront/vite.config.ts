@@ -45,6 +45,9 @@ export default defineConfig({
   plugins: [reactRouter()],
   server: {
     port: 3100,
+    // A business store is served at <handle>.xtiitch.com; in development that is
+    // <handle>.localhost:3100, so the dev server must accept those hosts.
+    allowedHosts: [".localhost", ".xtiitch.com"],
   },
   resolve: {
     dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled", "@emotion/cache"],

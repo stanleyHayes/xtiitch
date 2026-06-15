@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Link as RouterLink } from "react-router";
+import { Form, Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -9,6 +9,9 @@ import CardContent from "@mui/material/CardContent";
 import CardMedia from "@mui/material/CardMedia";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import SearchRounded from "@mui/icons-material/SearchRounded";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import type { Design, StoreSummary } from "../lib/api";
 import { priceLabel } from "../lib/format";
@@ -39,9 +42,66 @@ export function StoreHeader({ store, children }: { store: StoreSummary; children
           <VerifiedRounded sx={{ opacity: 0.85 }} titleAccess="Verified Xtiitch store" />
         </Stack>
         <Typography sx={{ opacity: 0.85 }}>
-          xtiitch.com/store/{store.handle}
+          {store.handle}.xtiitch.com
         </Typography>
         {children}
+      </Container>
+    </Box>
+  );
+}
+
+// StoreView is the full storefront page — header, in-store search, and the
+// design grid. It is rendered both at <handle>.xtiitch.com (the home route
+// resolving the store from the subdomain) and at the legacy /store/:handle path.
+export function StoreView({
+  store,
+  designs,
+  query,
+}: {
+  store: StoreSummary;
+  designs: Design[];
+  query: string;
+}) {
+  return (
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <StoreHeader store={store}>
+        <Box sx={{ mt: 3, maxWidth: 460 }}>
+          <Form method="get" role="search">
+            <TextField
+              name="q"
+              defaultValue={query}
+              placeholder="Search this store"
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{ bgcolor: "background.paper", borderRadius: 1 }}
+            />
+          </Form>
+        </Box>
+      </StoreHeader>
+
+      <Container sx={{ py: { xs: 4, md: 6 } }}>
+        {query ? (
+          <Stack direction="row" spacing={1} sx={{ mb: 3, alignItems: "center" }}>
+            <Typography variant="h6" component="h2">
+              Results for “{query}”
+            </Typography>
+            <Chip size="small" label={`${designs.length}`} />
+          </Stack>
+        ) : (
+          <Typography variant="h6" component="h2" sx={{ mb: 3 }}>
+            All designs
+          </Typography>
+        )}
+        <DesignGrid designs={designs} />
       </Container>
     </Box>
   );

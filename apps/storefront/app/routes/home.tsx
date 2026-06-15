@@ -1,11 +1,36 @@
-import type { MetaDescriptor } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
+import type { Route } from "./+types/home";
+import { api } from "../lib/api";
+import { storeHandleFromHost } from "../lib/tenant";
+import { StoreView } from "../components/storefront";
 
-export function meta(): MetaDescriptor[] {
+// The storefront root. On a business subdomain (<handle>.xtiitch.com) it
+// resolves and renders that store; on the apex/www it shows the generic landing.
+export async function loader({ request }: Route.LoaderArgs) {
+  const handle = storeHandleFromHost(request.headers.get("host"));
+  if (!handle) {
+    return { mode: "landing" as const };
+  }
+
+  const query = (new URL(request.url).searchParams.get("q") ?? "").trim();
+  const page = query ? await api.search(handle, query) : await api.store(handle);
+  if (!page) {
+    throw new Response("Store not found", { status: 404 });
+  }
+  return { mode: "store" as const, store: page.store, designs: page.designs, query };
+}
+
+export function meta({ data }: Route.MetaArgs) {
+  if (data?.mode === "store") {
+    return [
+      { title: `${data.store.name} · Xtiitch` },
+      { name: "description", content: `Browse and order from ${data.store.name} on Xtiitch.` },
+    ];
+  }
   return [
     { title: "Xtiitch Storefronts" },
     { name: "description", content: "Open a fashion business's Xtiitch store to browse and order." },
@@ -13,7 +38,14 @@ export function meta(): MetaDescriptor[] {
   ];
 }
 
-export default function Home() {
+export default function Home({ loaderData }: Route.ComponentProps) {
+  if (loaderData.mode === "store") {
+    return <StoreView store={loaderData.store} designs={loaderData.designs} query={loaderData.query} />;
+  }
+  return <Landing />;
+}
+
+function Landing() {
   return (
     <Box sx={{ minHeight: "100vh", display: "grid", placeItems: "center", bgcolor: "background.default" }}>
       <Container sx={{ textAlign: "center", maxWidth: 560, py: 8 }}>

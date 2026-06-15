@@ -25,6 +25,18 @@ const (
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
 
+// reservedHandles are platform subdomains and system words that must never be a
+// business store handle, since each business is reached at <handle>.xtiitch.com
+// and these labels route to their own surfaces. Kept in sync with the
+// storefront's RESERVED_SUBDOMAINS.
+var reservedHandles = map[string]bool{
+	"www": true, "app": true, "admin": true, "api": true,
+	"store": true, "stores": true, "dashboard": true,
+	"mail": true, "static": true, "assets": true, "cdn": true,
+	"help": true, "support": true, "status": true, "blog": true,
+	"xtiitch": true,
+}
+
 type Service struct {
 	businesses    ports.BusinessIdentityRepository
 	sessions      ports.AuthSessionRepository
@@ -217,6 +229,9 @@ func normalizeRegistration(cmd RegisterBusinessCommand) (normalizedRegistration,
 		return normalizedRegistration{}, errors.Join(authdomain.ErrInvalidInput, err)
 	}
 	if businessName == "" || ownerName == "" || handle == "" || !handlePattern.MatchString(handle) {
+		return normalizedRegistration{}, authdomain.ErrInvalidInput
+	}
+	if reservedHandles[handle] {
 		return normalizedRegistration{}, authdomain.ErrInvalidInput
 	}
 	if len(cmd.OwnerPassword) < minPasswordLength || len(cmd.OwnerPassword) > maxPasswordLength {
