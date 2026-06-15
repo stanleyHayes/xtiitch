@@ -69,6 +69,18 @@ func (r *fakeOrderRepo) DiscardDraftOrder(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (r *fakeOrderRepo) CreateCustomOrder(_ context.Context, _ common.TenantScope, _ ports.CreateCustomOrderInput) error {
+	return nil
+}
+
+func (r *fakeOrderRepo) CreateCustomOrderConfirmed(_ context.Context, _ common.TenantScope, _ ports.CreateCustomOrderConfirmedInput) error {
+	return nil
+}
+
+func (r *fakeOrderRepo) DiscardCustomDraftOrder(_ context.Context, _ common.TenantScope, _, _ common.ID) error {
+	return nil
+}
+
 func (r *fakeOrderRepo) ListOrders(_ context.Context, _ common.TenantScope) ([]ports.OrderSummary, error) {
 	return nil, nil
 }

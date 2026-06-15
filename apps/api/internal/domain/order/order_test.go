@@ -33,3 +33,35 @@ func TestTypeFlow(t *testing.T) {
 		t.Fatal("custom orders run the bespoke flow")
 	}
 }
+
+func TestSizeModeHelpers(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		mode            SizeMode
+		valid           bool
+		custom          bool
+		takesDeposit    bool
+		capturesMeasure bool
+	}{
+		{SizeModeBand, true, false, false, false},
+		{SizeModeSelfMeasure, true, true, true, true},
+		{SizeModeHomeVisit, true, true, true, false},
+		{SizeModeComeToShop, true, true, false, false},
+		{SizeMode("nonsense"), false, false, false, false},
+	}
+	for _, tc := range cases {
+		if got := tc.mode.Valid(); got != tc.valid {
+			t.Fatalf("%q.Valid() = %v, want %v", tc.mode, got, tc.valid)
+		}
+		if got := tc.mode.IsCustomRoute(); got != tc.custom {
+			t.Fatalf("%q.IsCustomRoute() = %v, want %v", tc.mode, got, tc.custom)
+		}
+		if got := RouteTakesDeposit(tc.mode); got != tc.takesDeposit {
+			t.Fatalf("RouteTakesDeposit(%q) = %v, want %v", tc.mode, got, tc.takesDeposit)
+		}
+		if got := RouteCapturesMeasurement(tc.mode); got != tc.capturesMeasure {
+			t.Fatalf("RouteCapturesMeasurement(%q) = %v, want %v", tc.mode, got, tc.capturesMeasure)
+		}
+	}
+}

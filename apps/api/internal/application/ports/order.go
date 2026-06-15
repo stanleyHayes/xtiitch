@@ -19,6 +19,20 @@ type OrderRepository interface {
 	// created with it, scoped to the tenant. It compensates a checkout whose
 	// payment could not be raised, so no un-payable draft is left behind.
 	DiscardDraftOrder(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) error
+	// CreateCustomOrder records an online custom (bespoke) order as draft and, for
+	// the self-measure route, stores the customer's measurements against it in the
+	// same transaction. Confirmation happens via the deposit payment webhook. It
+	// fails closed if the business has no bespoke stages or if a measurement key is
+	// not one of the business's measurement fields (ErrUnknownMeasurementField).
+	CreateCustomOrder(ctx context.Context, scope common.TenantScope, input CreateCustomOrderInput) error
+	// CreateCustomOrderConfirmed records a come-to-shop custom order already
+	// confirmed at the first bespoke stage, with no online payment (everything is
+	// arranged in person).
+	CreateCustomOrderConfirmed(ctx context.Context, scope common.TenantScope, input CreateCustomOrderConfirmedInput) error
+	// DiscardCustomDraftOrder compensates a custom-order checkout whose deposit
+	// could not be raised: it removes the measurement, the still-draft order, and
+	// the customer, scoped to the tenant.
+	DiscardCustomDraftOrder(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) error
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]OrderSummary, error)
 	// AdvanceStage moves an order to the next stage in its flow, marking it
 	// fulfilled when it reaches the last stage.
@@ -50,6 +64,32 @@ type CreateOnlineOrderInput struct {
 	CustomerPhone    string
 	CustomerEmail    string
 	AgreedTotalMinor int64
+}
+
+type CreateCustomOrderInput struct {
+	OrderID       common.ID
+	BusinessID    common.ID
+	CustomerID    common.ID
+	DesignID      common.ID
+	SizeMode      string
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+	// MeasurementID and Measurements are set only for the self-measure route;
+	// Measurements maps the business's measurement field ids to entered values.
+	MeasurementID common.ID
+	Measurements  map[string]string
+}
+
+type CreateCustomOrderConfirmedInput struct {
+	OrderID       common.ID
+	BusinessID    common.ID
+	CustomerID    common.ID
+	DesignID      common.ID
+	SizeMode      string
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
 }
 
 type OrderSummary struct {

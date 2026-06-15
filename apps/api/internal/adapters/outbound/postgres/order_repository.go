@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -120,6 +121,198 @@ func (repo OrderRepository) DiscardDraftOrder(ctx context.Context, scope common.
 	// one in another tenant, walled off by RLS) is left untouched. The customer
 	// row was created solely for this order, so it goes too — deleting the order
 	// first satisfies the orders -> customers foreign key.
+	if _, err := tx.Exec(ctx, `
+		delete from orders where order_id = $1 and business_id = $2 and status = 'draft'
+	`, orderID.String(), scope.BusinessID.String()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		delete from customers where customer_id = $1
+	`, customerID.String()); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.TenantScope, input ports.CreateCustomOrderInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Fail fast if the business has no bespoke stages: otherwise the deposit
+	// could succeed while the webhook is unable to confirm the order (it would
+	// find no first stage), stranding paid money against a stuck draft.
+	if err := assertBespokeStageExists(ctx, tx, scope.BusinessID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, display_name, phone, email)
+		values ($1, $2, $3, $4)
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+		return err
+	}
+
+	// Draft custom order: no stage yet, no agreed total yet (bespoke pricing is
+	// settled later). The deposit webhook confirms it at the first bespoke stage.
+	if _, err := tx.Exec(ctx, `
+		insert into orders (
+			order_id, business_id, customer_id, design_id, size_band_id,
+			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status
+		)
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', null, 0, 'draft')
+	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
+		input.DesignID.String(), input.SizeMode); err != nil {
+		return err
+	}
+
+	if input.MeasurementID != "" {
+		if err := insertOrderMeasurement(ctx, tx, scope, input); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// insertOrderMeasurement validates the submitted keys against the business's own
+// measurement fields (fail closed on any stray key) and records the self-measure
+// values for the order.
+func insertOrderMeasurement(ctx context.Context, tx pgx.Tx, scope common.TenantScope, input ports.CreateCustomOrderInput) error {
+	known, err := businessMeasurementFields(ctx, tx, scope.BusinessID)
+	if err != nil {
+		return err
+	}
+	for field := range input.Measurements {
+		if !known[field] {
+			return ports.ErrUnknownMeasurementField
+		}
+	}
+
+	values, err := json.Marshal(input.Measurements)
+	if err != nil {
+		return err
+	}
+
+	_, err = tx.Exec(ctx, `
+		insert into order_measurements (measurement_id, business_id, order_id, customer_id, source, values)
+		values ($1, $2, $3, $4, 'self', $5::jsonb)
+	`, input.MeasurementID.String(), input.BusinessID.String(), input.OrderID.String(),
+		input.CustomerID.String(), string(values))
+	return err
+}
+
+func businessMeasurementFields(ctx context.Context, tx pgx.Tx, businessID common.ID) (map[string]bool, error) {
+	rows, err := tx.Query(ctx, `select field_id::text from measurement_fields where business_id = $1`, businessID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	known := make(map[string]bool)
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		known[id] = true
+	}
+	return known, rows.Err()
+}
+
+func assertBespokeStageExists(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	var exists bool
+	if err := tx.QueryRow(ctx, `
+		select exists(select 1 from stage_templates where business_id = $1 and flow = 'bespoke')
+	`, businessID.String()).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return errors.New("no bespoke stages configured for business")
+	}
+	return nil
+}
+
+func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scope common.TenantScope, input ports.CreateCustomOrderConfirmedInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	var stageID string
+	if err := tx.QueryRow(ctx, `
+		select stage_id from stage_templates
+		where business_id = $1 and flow = 'bespoke'
+		order by sequence limit 1
+	`, scope.BusinessID.String()).Scan(&stageID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errors.New("no bespoke stages configured for business")
+		}
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, display_name, phone, email)
+		values ($1, $2, $3, $4)
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+		return err
+	}
+
+	// Come-to-shop: nothing is paid online, so the order is confirmed at its
+	// first bespoke stage immediately (mirrors the walk-in writer, bespoke flow).
+	if _, err := tx.Exec(ctx, `
+		insert into orders (
+			order_id, business_id, customer_id, design_id, size_band_id,
+			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor,
+			status, current_stage_id
+		)
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', null, 0, 'confirmed', $6)
+	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
+		input.DesignID.String(), input.SizeMode, stageID); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into stage_events (event_id, business_id, order_id, stage_id)
+		values (gen_random_uuid(), $1, $2, $3)
+	`, input.BusinessID.String(), input.OrderID.String(), stageID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo OrderRepository) DiscardCustomDraftOrder(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Remove the measurement first (it references the order), then the still-draft
+	// order, then the customer created with it. All tenant-scoped; a confirmed
+	// order is never touched.
+	if _, err := tx.Exec(ctx, `
+		delete from order_measurements where order_id = $1 and business_id = $2
+	`, orderID.String(), scope.BusinessID.String()); err != nil {
+		return err
+	}
 	if _, err := tx.Exec(ctx, `
 		delete from orders where order_id = $1 and business_id = $2 and status = 'draft'
 	`, orderID.String(), scope.BusinessID.String()); err != nil {

@@ -99,7 +99,11 @@ type Storefront struct {
 	Name       string
 	Handle     string
 	BrandColor string
-	Settings   StoreSettings
+	// DefaultDepositMinor is the business's store-default custom-order deposit in
+	// GHS pesewas (always >= the platform floor). It feeds deposit resolution and
+	// is never surfaced in any public storefront response.
+	DefaultDepositMinor int64
+	Settings            StoreSettings
 }
 
 type StorefrontDesign struct {

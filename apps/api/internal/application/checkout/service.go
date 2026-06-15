@@ -11,14 +11,19 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
 var (
-	ErrInvalidInput      = errors.New("invalid checkout input")
-	ErrStoreNotFound     = errors.New("store not found")
-	ErrDesignUnavailable = errors.New("design unavailable")
-	ErrBandUnavailable   = errors.New("size band not available for this design")
-	ErrNotVerified       = errors.New("store cannot take payments yet")
+	ErrInvalidInput         = errors.New("invalid checkout input")
+	ErrStoreNotFound        = errors.New("store not found")
+	ErrDesignUnavailable    = errors.New("design unavailable")
+	ErrBandUnavailable      = errors.New("size band not available for this design")
+	ErrNotVerified          = errors.New("store cannot take payments yet")
+	ErrInvalidSizeMode      = errors.New("invalid size mode for a custom order")
+	ErrBespokeDisabled      = errors.New("bespoke orders are not enabled for this store")
+	ErrMeasurementsDisabled = errors.New("self-measurement is not enabled for this store")
+	ErrInvalidMeasurements  = errors.New("invalid or missing measurements")
 )
 
 // Payments is the slice of the payments use case the checkout needs.
@@ -196,4 +201,208 @@ func priceForBand(prices []catalogue.BandPrice, bandID common.ID) (int64, bool) 
 		}
 	}
 	return 0, false
+}
+
+type PlaceCustomOrderCommand struct {
+	StoreHandle   string
+	DesignHandle  string
+	SizeMode      string
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+	Method        money.PaymentMethod
+	// Measurements maps the business's measurement field ids to entered values;
+	// only used (and required) for the self-measure route.
+	Measurements map[string]string
+}
+
+type PlaceCustomOrderResult struct {
+	OrderID          common.ID
+	Reference        string
+	AuthorizationURL string
+	AmountMinor      int64
+}
+
+type customerDetails struct {
+	name  string
+	phone string
+	email string
+}
+
+// PlaceCustomOrder records a custom (bespoke) order through one of the three
+// measurement routes. Self-measure and home-visit raise a deposit over the money
+// rails and stay draft until the deposit webhook confirms them at the first
+// bespoke stage; come-to-shop is arranged in person and is confirmed at once
+// with no online payment. The account-free customer tracks it by the returned id.
+func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderCommand) (PlaceCustomOrderResult, error) {
+	customer := customerDetails{
+		name:  strings.TrimSpace(cmd.CustomerName),
+		phone: strings.TrimSpace(cmd.CustomerPhone),
+		email: strings.TrimSpace(cmd.CustomerEmail),
+	}
+	if customer.name == "" || customer.email == "" {
+		return PlaceCustomOrderResult{}, ErrInvalidInput
+	}
+	mode := order.SizeMode(cmd.SizeMode)
+	if !mode.IsCustomRoute() {
+		return PlaceCustomOrderResult{}, ErrInvalidSizeMode
+	}
+	if cmd.Method != "" && !cmd.Method.Valid() {
+		return PlaceCustomOrderResult{}, ErrInvalidInput
+	}
+
+	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(cmd.StoreHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return PlaceCustomOrderResult{}, ErrStoreNotFound
+		}
+		return PlaceCustomOrderResult{}, err
+	}
+	scope := common.TenantScope{BusinessID: store.BusinessID}
+
+	design, err := s.resolveCustomDesign(ctx, store, cmd.DesignHandle, mode)
+	if err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
+
+	if mode == order.SizeModeComeToShop {
+		return s.placeComeToShop(ctx, scope, store.BusinessID, design.ID, customer)
+	}
+	return s.placeDepositCustomOrder(ctx, scope, store, design, mode, customer, cmd)
+}
+
+// resolveCustomDesign loads an active design for a custom order, gating on the
+// store's bespoke (and, for self-measure, measurements) switch, and never letting
+// an unguessable handle span tenants.
+func (s Service) resolveCustomDesign(ctx context.Context, store ports.Storefront, designHandle string, mode order.SizeMode) (catalogue.Design, error) {
+	if !store.Settings.BespokeEnabled {
+		return catalogue.Design{}, ErrBespokeDisabled
+	}
+	if mode == order.SizeModeSelfMeasure && !store.Settings.MeasurementsEnabled {
+		return catalogue.Design{}, ErrMeasurementsDisabled
+	}
+	design, err := s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(designHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return catalogue.Design{}, ErrDesignUnavailable
+		}
+		return catalogue.Design{}, err
+	}
+	if design.Design.BusinessID != store.BusinessID {
+		return catalogue.Design{}, ErrDesignUnavailable
+	}
+	return design.Design, nil
+}
+
+func (s Service) placeComeToShop(ctx context.Context, scope common.TenantScope, businessID, designID common.ID, customer customerDetails) (PlaceCustomOrderResult, error) {
+	orderID := s.ids.NewID()
+	if err := s.orders.CreateCustomOrderConfirmed(ctx, scope, ports.CreateCustomOrderConfirmedInput{
+		OrderID:       orderID,
+		BusinessID:    businessID,
+		CustomerID:    s.ids.NewID(),
+		DesignID:      designID,
+		SizeMode:      string(order.SizeModeComeToShop),
+		CustomerName:  customer.name,
+		CustomerPhone: customer.phone,
+		CustomerEmail: customer.email,
+	}); err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
+	return PlaceCustomOrderResult{OrderID: orderID}, nil
+}
+
+func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.TenantScope, store ports.Storefront, design catalogue.Design, mode order.SizeMode, customer customerDetails, cmd PlaceCustomOrderCommand) (PlaceCustomOrderResult, error) {
+	var measurements map[string]string
+	if mode == order.SizeModeSelfMeasure {
+		cleaned, err := cleanMeasurements(cmd.Measurements)
+		if err != nil {
+			return PlaceCustomOrderResult{}, err
+		}
+		measurements = cleaned
+	}
+
+	charge, err := s.businesses.GetChargeContext(ctx, scope)
+	if err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
+	if !charge.Verified || charge.SubaccountRef == "" {
+		return PlaceCustomOrderResult{}, ErrNotVerified
+	}
+
+	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
+
+	orderID := s.ids.NewID()
+	customerID := s.ids.NewID()
+	input := ports.CreateCustomOrderInput{
+		OrderID:       orderID,
+		BusinessID:    store.BusinessID,
+		CustomerID:    customerID,
+		DesignID:      design.ID,
+		SizeMode:      string(mode),
+		CustomerName:  customer.name,
+		CustomerPhone: customer.phone,
+		CustomerEmail: customer.email,
+	}
+	if mode == order.SizeModeSelfMeasure {
+		input.MeasurementID = s.ids.NewID()
+		input.Measurements = measurements
+	}
+	if err := s.orders.CreateCustomOrder(ctx, scope, input); err != nil {
+		if errors.Is(err, ports.ErrUnknownMeasurementField) {
+			return PlaceCustomOrderResult{}, ErrInvalidMeasurements
+		}
+		return PlaceCustomOrderResult{}, err
+	}
+
+	method := cmd.Method
+	if method == "" {
+		method = money.PaymentMethodMomo
+	}
+	chargeResult, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
+		Scope:         scope,
+		OrderID:       &orderID,
+		Purpose:       money.PaymentPurposeDeposit,
+		AmountMinor:   deposit,
+		Method:        method,
+		CustomerEmail: customer.email,
+	})
+	if err != nil {
+		// No deposit could be raised, so the draft custom order could never be
+		// confirmed: compensate it (and its measurement + customer) away.
+		s.discardCustomDraft(ctx, scope, orderID, customerID)
+		return PlaceCustomOrderResult{}, err
+	}
+
+	return PlaceCustomOrderResult{
+		OrderID:          orderID,
+		Reference:        chargeResult.Reference,
+		AuthorizationURL: chargeResult.AuthorizationURL,
+		AmountMinor:      deposit,
+	}, nil
+}
+
+func (s Service) discardCustomDraft(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) {
+	if err := s.orders.DiscardCustomDraftOrder(ctx, scope, orderID, customerID); err != nil {
+		s.logger.ErrorContext(ctx, "checkout: failed to discard orphaned custom draft order after charge failure",
+			"business_id", scope.BusinessID.String(), "order_id", orderID.String(), "error", err)
+	}
+}
+
+// cleanMeasurements trims self-measure values and rejects the set unless every
+// field carries a non-blank value. The self-measure route exists to capture
+// usable measurements, so a present-but-empty value is no better than a missing
+// one; the trimmed values are what get stored.
+func cleanMeasurements(raw map[string]string) (map[string]string, error) {
+	if len(raw) == 0 {
+		return nil, ErrInvalidMeasurements
+	}
+	cleaned := make(map[string]string, len(raw))
+	for field, value := range raw {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return nil, ErrInvalidMeasurements
+		}
+		cleaned[field] = trimmed
+	}
+	return cleaned, nil
 }

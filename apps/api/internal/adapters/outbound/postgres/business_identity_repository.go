@@ -89,6 +89,23 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
+	// Seed a sensible default set of bespoke measurement fields so the
+	// self-measure route works out of the box; the business can curate them later.
+	if _, err := tx.Exec(ctx, `
+		insert into measurement_fields (field_id, business_id, label, unit, sequence)
+		values
+			(gen_random_uuid(), $1, 'Chest / Bust', 'in', 1),
+			(gen_random_uuid(), $1, 'Waist', 'in', 2),
+			(gen_random_uuid(), $1, 'Hips', 'in', 3),
+			(gen_random_uuid(), $1, 'Shoulder', 'in', 4),
+			(gen_random_uuid(), $1, 'Sleeve length', 'in', 5),
+			(gen_random_uuid(), $1, 'Top length', 'in', 6),
+			(gen_random_uuid(), $1, 'Trouser length', 'in', 7),
+			(gen_random_uuid(), $1, 'Neck', 'in', 8)
+	`, input.BusinessID.String()); err != nil {
+		return ports.BusinessOwnerIdentity{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}

@@ -28,6 +28,41 @@ const (
 	SizeModeComeToShop  SizeMode = "come_to_shop"
 )
 
+// Valid reports whether the size mode is one the system knows.
+func (m SizeMode) Valid() bool {
+	switch m {
+	case SizeModeBand, SizeModeSelfMeasure, SizeModeHomeVisit, SizeModeComeToShop:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsCustomRoute reports whether the size mode is one of the three custom-order
+// measurement routes (i.e. anything other than fitting a listed band).
+func (m SizeMode) IsCustomRoute() bool {
+	switch m {
+	case SizeModeSelfMeasure, SizeModeHomeVisit, SizeModeComeToShop:
+		return true
+	default:
+		return false
+	}
+}
+
+// RouteTakesDeposit reports whether placing a custom order through this route
+// raises a deposit online. Self-measure and home-visit do; come-to-shop arranges
+// everything in person and takes no online payment (Spec 8.1, 8.3).
+func RouteTakesDeposit(m SizeMode) bool {
+	return m == SizeModeSelfMeasure || m == SizeModeHomeVisit
+}
+
+// RouteCapturesMeasurement reports whether the customer supplies measurements at
+// checkout. Only self-measure does; the other routes capture them later, in
+// person.
+func RouteCapturesMeasurement(m SizeMode) bool {
+	return m == SizeModeSelfMeasure
+}
+
 type Flow string
 
 const (

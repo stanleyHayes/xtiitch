@@ -105,13 +105,13 @@ func (repo StorefrontRepository) GetActiveDesignByHandle(ctx context.Context, ha
 func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports.Storefront, error) {
 	var store ports.Storefront
 	err := tx.QueryRow(ctx, `
-		select b.business_id, b.name, b.handle,
+		select b.business_id, b.name, b.handle, b.default_deposit_minor,
 			ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
 			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
 		where `+where, args...).Scan(
-		&store.BusinessID, &store.Name, &store.Handle,
+		&store.BusinessID, &store.Name, &store.Handle, &store.DefaultDepositMinor,
 		&store.BrandColor, &store.Settings.BespokeEnabled, &store.Settings.MeasurementsEnabled,
 		&store.Settings.CustomisationEnabled, &store.Settings.CollectionsEnabled,
 		&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
