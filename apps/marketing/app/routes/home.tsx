@@ -211,22 +211,13 @@ export default function Home() {
       </Box>
 
       <Section>
-        <Box
-          sx={{
-            display: "grid",
-            gap: { xs: 3, md: 5 },
-            gridTemplateColumns: { xs: "1fr", md: "0.72fr 1.28fr" },
-            alignItems: "start",
-          }}
-        >
-          <SectionHeading
-            align="left"
-            eyebrow="What businesses get"
-            title="A store on the outside, a studio dashboard inside"
-            subtitle="Xtiitch is not just a pretty link. It gives the business an operating surface for orders, payments, stages and takings, while customers see a simple progress view."
-          />
-          <ProductPreview />
-        </Box>
+        <SectionHeading
+          align="left"
+          eyebrow="What businesses get"
+          title="A public store, with the workflow behind it"
+          subtitle="Xtiitch gives customers a clean storefront while the business keeps orders, payments, stages and progress updates moving behind the scenes."
+        />
+        <ProductPreview />
       </Section>
 
       <Section>

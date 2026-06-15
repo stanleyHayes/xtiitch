@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-14 21:57 GMT
+Last updated: 2026-06-15 08:16 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -13,7 +13,7 @@ The PDFs are the product and technical source of truth. This plan records implem
 
 ## Current Work
 
-- No active marketing feature is in progress after the public marketing website polish slice.
+- No active marketing feature is in progress after the business workflow section redesign.
 - Next recommended feature: review and finish the separate auth-session refresh/logout/middleware work that is currently open in the worktree, then commit it as its own API slice.
 - Push of local commits is pending until the project owner adds a Git remote.
 
@@ -62,6 +62,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Fixed marketing SSR so responses emit a single `<!DOCTYPE html>`.
 - Verified the marketing route returns `200`, waitlist no-sink behavior is explicit, and desktop screenshot captures show the first viewport and next band.
 - Verified `pnpm check`, `pnpm test`, and `pnpm --filter @xtiitch/marketing build` pass locally after the marketing slice.
+- Redesigned the home page `What businesses get` section so it no longer squeezes a dashboard mock into the layout; it now presents an editorial atelier image, business workflow steps, storefront/order/customer signals, and customer-facing status chips.
+- Verified the redesigned marketing section in desktop and mobile Chrome screenshots.
 
 ## Opened / Pending
 
@@ -710,3 +712,7 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `go test -coverprofile=coverage.out ./...` passed from `apps/api`.
 - `git commit -m "chore: initialize xtiitch monorepo foundation"`
 - Web research for Ghana e-commerce, data protection, payments, cybersecurity, tax, and marketing context.
+- `pnpm --filter @xtiitch/marketing check` passed after redesigning the home business workflow section.
+- `pnpm --filter @xtiitch/marketing build` passed after redesigning the home business workflow section.
+- `pnpm --filter @xtiitch/marketing test` passed after redesigning the home business workflow section.
+- `pnpm lint` passed after redesigning the home business workflow section.

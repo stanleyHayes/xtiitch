@@ -270,147 +270,48 @@ export function StepList({ items }: { items: Step[] }) {
 }
 
 export function ProductPreview() {
-  const queue = [
+  const workflow = [
     {
-      name: "Kente-trim wrap dress",
-      customer: "Ama Boakye",
-      state: "Being made",
-      tone: "warning",
+      label: "Share the store",
+      title: "A link customers can trust",
+      body: "Every design or collection can be sent to WhatsApp, Instagram, Facebook or a customer directly.",
     },
     {
-      name: "Two-piece linen set",
-      customer: "Nana Mensah",
-      state: "Awaiting deposit",
-      tone: "info",
+      label: "Collect the order",
+      title: "Choices, measurements and payment together",
+      body: "Standard orders, custom requests, bookings and deposits arrive as complete records.",
     },
     {
-      name: "Bridal fitting",
-      customer: "Esi Arthur",
-      state: "Ready for fitting",
-      tone: "success",
+      label: "Move the work",
+      title: "Customers see progress without chasing",
+      body: "As the business updates stages, the customer gets a simple red, yellow or green tracking view.",
     },
   ] as const;
-  const metrics = [
-    { label: "Orders this week", value: "18" },
-    { label: "Through-Xtiitch sales", value: "GHS 4.8k" },
-    { label: "Offline takings logged", value: "GHS 1.1k" },
+  const signals = [
+    { label: "Public storefront", value: "Browse" },
+    { label: "Order record", value: "Confirm" },
+    { label: "Customer tracking", value: "Follow" },
   ];
 
   return (
     <Box
       sx={{
         display: "grid",
-        gap: 3,
-        gridTemplateColumns: { xs: "1fr", lg: "1.15fr 0.85fr" },
-        alignItems: "stretch",
+        gap: { xs: 3, md: 4 },
+        gridTemplateColumns: { xs: "1fr", lg: "1.08fr 0.92fr" },
+        alignItems: "start",
       }}
     >
       <Box
         sx={{
-          bgcolor: "background.paper",
+          position: "relative",
+          minHeight: { xs: 360, md: 560 },
           border: "1px solid",
           borderColor: "divider",
           borderRadius: 1,
           overflow: "hidden",
+          bgcolor: "background.paper",
           boxShadow: "0 24px 60px -38px rgba(21,17,26,0.42)",
-        }}
-      >
-        <Box
-          sx={{
-            px: { xs: 2.5, md: 3 },
-            py: 2.5,
-            bgcolor: "secondary.main",
-            color: "common.white",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 2,
-          }}
-        >
-          <Box>
-            <Typography sx={{ fontWeight: 800 }}>Studio dashboard</Typography>
-            <Typography
-              variant="body2"
-              sx={{ color: "rgba(255,255,255,0.68)" }}
-            >
-              Akosua’s Atelier
-            </Typography>
-          </Box>
-          <Chip
-            label="Live orders"
-            color="primary"
-            sx={{ bgcolor: "primary.main", color: "common.white" }}
-          />
-        </Box>
-
-        <Box sx={{ p: { xs: 2.5, md: 3 } }}>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-              mb: 3,
-            }}
-          >
-            {metrics.map((metric) => (
-              <Box
-                key={metric.label}
-                sx={{
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  p: 2,
-                  minHeight: 104,
-                  bgcolor: "background.default",
-                }}
-              >
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {metric.label}
-                </Typography>
-                <Typography variant="h4" component="p" sx={{ mt: 1 }}>
-                  {metric.value}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-
-          <Stack spacing={1.5}>
-            {queue.map((item) => (
-              <Box
-                key={item.name}
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", sm: "1fr auto" },
-                  gap: 1.5,
-                  alignItems: "center",
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 1,
-                  p: 2,
-                }}
-              >
-                <Box>
-                  <Typography sx={{ fontWeight: 700 }}>{item.name}</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {item.customer}
-                  </Typography>
-                </Box>
-                <Chip label={item.state} color={item.tone} variant="outlined" />
-              </Box>
-            ))}
-          </Stack>
-        </Box>
-      </Box>
-
-      <Box
-        sx={{
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 1,
-          overflow: "hidden",
-          bgcolor: "background.paper",
-          display: "grid",
-          gridTemplateRows: "minmax(220px, 1fr) auto",
         }}
       >
         <Box
@@ -420,20 +321,158 @@ export function ProductPreview() {
           loading="lazy"
           decoding="async"
           sx={{
+            position: "absolute",
+            inset: 0,
             width: "100%",
             height: "100%",
             objectFit: "cover",
-            minHeight: 220,
+            objectPosition: "center",
           }}
         />
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h5" component="h3">
-            Storefront and studio stay connected
+        <Box
+          aria-hidden
+          sx={{
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(180deg, rgba(21,17,26,0.04) 22%, rgba(21,17,26,0.78) 100%)",
+          }}
+        />
+        <Box
+          sx={{
+            position: "relative",
+            zIndex: 1,
+            minHeight: { xs: 360, md: 560 },
+            display: "flex",
+            alignItems: "flex-end",
+            p: { xs: 2.5, md: 4 },
+            color: "common.white",
+          }}
+        >
+          <Box sx={{ maxWidth: 520 }}>
+            <Typography variant="h3" component="h3">
+              The public store is only the front door.
+            </Typography>
+            <Typography sx={{ mt: 1.5, color: "rgba(255,255,255,0.78)" }}>
+              Behind every link is the work itself: measurements, deposits,
+              fittings, delivery choices, and the customer’s progress view.
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        {workflow.map((item, index) => (
+          <Box
+            key={item.label}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "auto 1fr",
+              gap: 2,
+              p: { xs: 2.5, md: 3 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              bgcolor: "background.paper",
+            }}
+          >
+            <Box
+              aria-hidden
+              sx={{
+                width: 38,
+                height: 38,
+                borderRadius: "50%",
+                bgcolor: index === 0 ? "primary.main" : "background.default",
+                color: index === 0 ? "primary.contrastText" : "primary.main",
+                border: "1px solid",
+                borderColor: index === 0 ? "primary.main" : "divider",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 800,
+              }}
+            >
+              {index + 1}
+            </Box>
+            <Box>
+              <Typography
+                variant="body2"
+                sx={{ color: "primary.main", fontWeight: 700, mb: 0.5 }}
+              >
+                {item.label}
+              </Typography>
+              <Typography variant="h5" component="h3">
+                {item.title}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", mt: 1 }}
+              >
+                {item.body}
+              </Typography>
+            </Box>
+          </Box>
+        ))}
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+            gap: 1.5,
+          }}
+        >
+          {signals.map((signal) => (
+            <Box
+              key={signal.label}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "background.default",
+                p: 2,
+                minHeight: 106,
+              }}
+            >
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {signal.label}
+              </Typography>
+              <Typography
+                variant="h5"
+                component="p"
+                sx={{ mt: 1, color: "primary.main" }}
+              >
+                {signal.value}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
+        <Box
+          sx={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 1,
+            alignItems: "center",
+            p: 2.5,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 1,
+            bgcolor: "secondary.main",
+            color: "common.white",
+          }}
+        >
+          <Typography sx={{ fontWeight: 700, mr: 1 }}>
+            Customer view:
           </Typography>
-          <Typography variant="body2" sx={{ color: "text.secondary", mt: 1 }}>
-            Share a design link, collect the order, move the garment through
-            stages, and keep the customer’s progress view in sync.
-          </Typography>
+          {bespokeStages.slice(0, 3).map((stage, index) => (
+            <Chip
+              key={stage.label}
+              size="small"
+              color={statusColour[stage.colour]}
+              label={stage.customerText}
+              icon={index < 2 ? <CircleIcon /> : undefined}
+              sx={{ fontWeight: 700 }}
+            />
+          ))}
         </Box>
       </Box>
     </Box>
