@@ -1,5 +1,5 @@
 {
-  "name": "@xtiitch/web",
+  "name": "@xtiitch/dashboard",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     "build": "react-router build",
     "check": "react-router typegen && tsc --noEmit",
     "dev": "react-router dev",
-    "test": "echo \"web tests not scaffolded yet\""
+    "test": "echo \"dashboard tests not scaffolded yet\""
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
