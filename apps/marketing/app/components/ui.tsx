@@ -279,32 +279,17 @@ export function PageHero({
             sx={{
               position: "relative",
               minHeight: { xs: 180, md: 260 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "secondary.main",
-              color: "common.white",
               overflow: "hidden",
-              boxShadow: "0 26px 70px -44px rgba(21,17,26,0.62)",
               display: { xs: "none", sm: "block" },
             }}
           >
             <Icon
               sx={{
                 position: "absolute",
-                right: { sm: -30, md: -22 },
-                bottom: { sm: -38, md: -34 },
-                fontSize: { sm: 210, md: 260 },
-                color: "rgba(255,255,255,0.08)",
-              }}
-              aria-hidden
-            />
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 18,
-                border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: 1,
+                right: { sm: -32, md: -44 },
+                bottom: { sm: -44, md: -56 },
+                fontSize: { sm: 230, md: 320 },
+                color: "rgba(21,17,26,0.14)",
               }}
               aria-hidden
             />
@@ -322,7 +307,7 @@ export function PageHero({
                   position: "absolute",
                   left: { sm: 28, md: 34 },
                   top: { sm: 28, md: 34 },
-                  width: 76,
+                  width: 88,
                   height: 3,
                   borderRadius: 1,
                   bgcolor: "primary.main",
@@ -337,7 +322,7 @@ export function PageHero({
                   width: 42,
                   height: 3,
                   borderRadius: 1,
-                  bgcolor: "rgba(255,255,255,0.26)",
+                  bgcolor: "rgba(21,17,26,0.32)",
                 }}
               />
             </Stack>

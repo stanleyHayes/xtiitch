@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 09:17 GMT
+Last updated: 2026-06-15 10:25 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -83,6 +83,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the full marketing redesign with Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm check`, and `pnpm test`.
 - Redesigned the home hero proof strip from three quiet stat boxes into a connected proof rail with icons, a brand gradient rule, light background texture, stronger hierarchy, and red/yellow/green status chips while preserving the original proof copy.
 - Verified the proof-strip redesign with desktop Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
+- Refined the shared marketing page hero artwork by removing the black illustrative card, placing the page-specific icon watermark directly on the cream grid, slightly darkening the icon, and keeping only the small brand stitch marks.
+- Verified the shared page-hero refinement with a desktop Chrome screenshot, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
 
 ## Opened / Pending
 
@@ -751,3 +753,7 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing test` passed after the home proof-strip redesign.
 - `pnpm lint` passed after the home proof-strip redesign.
 - `pnpm check` was attempted after the home proof-strip redesign and failed in unrelated `apps/web` scaffold work because `react-router typegen` could not find `apps/web/app/routes.ts`.
+- `pnpm --filter @xtiitch/marketing check` passed after removing the black shared page-hero card.
+- `pnpm --filter @xtiitch/marketing build` passed after removing the black shared page-hero card.
+- `pnpm --filter @xtiitch/marketing test` passed after removing the black shared page-hero card.
+- `pnpm lint` passed after removing the black shared page-hero card.
