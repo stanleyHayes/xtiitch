@@ -14,7 +14,16 @@ import Divider from "@mui/material/Divider";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded";
+import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
+import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
+import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
+import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
+import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
+import MailRoundedIcon from "@mui/icons-material/MailRounded";
 import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
+import PrivacyTipRoundedIcon from "@mui/icons-material/PrivacyTipRounded";
+import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import { navLinks, site } from "../content";
@@ -305,35 +314,52 @@ export function Header() {
 
 const footerGroups: {
   heading: string;
-  links: { label: string; href: string }[];
+  icon: ReactNode;
+  links: { label: string; href: string; icon: ReactNode }[];
 }[] = [
   {
     heading: "Product",
+    icon: <StorefrontRoundedIcon />,
     links: [
-      { label: "Features", href: "/features" },
-      { label: "How it works", href: "/how-it-works" },
-      { label: "Pricing", href: "/pricing" },
+      { label: "Features", href: "/features", icon: <Inventory2RoundedIcon /> },
+      {
+        label: "How it works",
+        href: "/how-it-works",
+        icon: <ChecklistRoundedIcon />,
+      },
+      { label: "Pricing", href: "/pricing", icon: <LocalOfferRoundedIcon /> },
     ],
   },
   {
     heading: "For people",
+    icon: <GroupsRoundedIcon />,
     links: [
-      { label: "For customers", href: "/for-customers" },
-      { label: "FAQ", href: "/faq" },
+      {
+        label: "For customers",
+        href: "/for-customers",
+        icon: <GroupsRoundedIcon />,
+      },
+      { label: "FAQ", href: "/faq", icon: <HelpRoundedIcon /> },
     ],
   },
   {
     heading: "Trust",
+    icon: <SecurityRoundedIcon />,
     links: [
-      { label: "Security", href: "/security" },
-      { label: "Join the waitlist", href: "/contact" },
+      { label: "Security", href: "/security", icon: <SecurityRoundedIcon /> },
+      {
+        label: "Join the waitlist",
+        href: "/contact",
+        icon: <MailRoundedIcon />,
+      },
     ],
   },
   {
     heading: "Legal",
+    icon: <ArticleRoundedIcon />,
     links: [
-      { label: "Privacy", href: "/privacy" },
-      { label: "Terms", href: "/terms" },
+      { label: "Privacy", href: "/privacy", icon: <PrivacyTipRoundedIcon /> },
+      { label: "Terms", href: "/terms", icon: <ArticleRoundedIcon /> },
     ],
   },
 ];
@@ -352,7 +378,7 @@ export function Footer() {
       sx={{
         bgcolor: "secondary.main",
         color: "common.white",
-        mt: 8,
+        mt: 0,
         borderTop: "1px solid rgba(255,255,255,0.08)",
       }}
     >
@@ -521,29 +547,93 @@ export function Footer() {
         >
           {footerGroups.map((group) => (
             <Box key={group.heading}>
-              <Typography
-                variant="subtitle2"
+              <Box
                 sx={{
-                  fontWeight: 800,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 1,
                   mb: 1.5,
-                  color: "rgba(255,255,255,0.96)",
+                  color: "common.white",
+                  "& svg": {
+                    fontSize: 18,
+                  },
                 }}
               >
-                {group.heading}
-              </Typography>
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 1,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "common.white",
+                    bgcolor: "rgba(128,0,32,0.46)",
+                    border: "1px solid rgba(255,255,255,0.14)",
+                    boxShadow: "0 16px 34px -28px rgba(128,0,32,0.9)",
+                  }}
+                >
+                  {group.icon}
+                </Box>
+                <Typography
+                  variant="subtitle2"
+                  sx={{
+                    fontWeight: 800,
+                    color: "rgba(255,255,255,0.96)",
+                  }}
+                >
+                  {group.heading}
+                </Typography>
+              </Box>
               <Stack spacing={1}>
                 {group.links.map((link) => (
                   <Link
                     key={link.href}
                     component={RouterLink}
                     to={link.href}
-                    underline="hover"
+                    underline="none"
                     sx={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                      width: "fit-content",
+                      minHeight: 34,
+                      pr: 1,
                       color: "rgba(255,255,255,0.72)",
                       fontWeight: 600,
-                      "&:hover": { color: "common.white" },
+                      "& svg": {
+                        fontSize: 17,
+                      },
+                      "& .footer-link-icon": {
+                        color: "rgba(255,255,255,0.62)",
+                        transition:
+                          "transform 180ms ease, color 180ms ease, background-color 180ms ease",
+                      },
+                      "&:hover": {
+                        color: "common.white",
+                        "& .footer-link-icon": {
+                          transform: "translateX(2px)",
+                          color: "common.white",
+                          bgcolor: "rgba(255,255,255,0.12)",
+                        },
+                      },
                     }}
                   >
+                    <Box
+                      component="span"
+                      className="footer-link-icon"
+                      aria-hidden
+                      sx={{
+                        width: 26,
+                        height: 26,
+                        borderRadius: 1,
+                        display: "grid",
+                        placeItems: "center",
+                        bgcolor: "rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      {link.icon}
+                    </Box>
                     {link.label}
                   </Link>
                 ))}
