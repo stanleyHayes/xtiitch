@@ -722,9 +722,24 @@ export function ProductPreview() {
     },
   ] as const;
   const signals = [
-    { label: "Public storefront", value: "Browse" },
-    { label: "Order record", value: "Confirm" },
-    { label: "Customer tracking", value: "Follow" },
+    {
+      label: "Public storefront",
+      value: "Browse",
+      Icon: StorefrontRoundedIcon,
+      accent: "#800020",
+    },
+    {
+      label: "Order record",
+      value: "Confirm",
+      Icon: ReceiptLongRoundedIcon,
+      accent: "#b87914",
+    },
+    {
+      label: "Customer tracking",
+      value: "Follow",
+      Icon: ChecklistRoundedIcon,
+      accent: "#237a4b",
+    },
   ];
 
   return (
@@ -864,41 +879,137 @@ export function ProductPreview() {
         ))}
 
         <Box
+          aria-label="Storefront to tracking workflow"
           sx={{
+            position: "relative",
             display: "grid",
             gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-            gap: 1.5,
+            gap: { xs: 1.25, sm: 0 },
+            p: { xs: 1, sm: 1.25 },
+            border: "1px solid",
+            borderColor: "rgba(128,0,32,0.14)",
+            borderRadius: 1,
+            bgcolor: "rgba(255,255,255,0.72)",
+            boxShadow: "0 22px 60px -48px rgba(21,17,26,0.62)",
+            overflow: "hidden",
+            "&:before": {
+              content: '""',
+              position: "absolute",
+              left: { xs: 25, sm: 32 },
+              right: { xs: "auto", sm: 32 },
+              top: { xs: 30, sm: "50%" },
+              bottom: { xs: 30, sm: "auto" },
+              width: { xs: 2, sm: "auto" },
+              height: { xs: "auto", sm: 2 },
+              transform: { xs: "none", sm: "translateY(-50%)" },
+              borderRadius: 1,
+              background:
+                "linear-gradient(180deg, rgba(128,0,32,0.26), rgba(184,121,20,0.34), rgba(35,122,75,0.3))",
+              "@media (min-width: 600px)": {
+                background:
+                  "linear-gradient(90deg, rgba(128,0,32,0.26), rgba(184,121,20,0.34), rgba(35,122,75,0.3))",
+              },
+            },
           }}
         >
-          {signals.map((signal) => (
-            <Box
-              key={signal.label}
-              sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 1,
-                bgcolor: "rgba(243,229,223,0.58)",
-                p: 2,
-                minHeight: 106,
-                transition: "transform 180ms ease, border-color 180ms ease",
-                "&:hover": {
-                  transform: "translateY(-2px)",
-                  borderColor: "rgba(128,0,32,0.18)",
-                },
-              }}
-            >
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {signal.label}
-              </Typography>
-              <Typography
-                variant="h5"
-                component="p"
-                sx={{ mt: 1, color: "primary.main" }}
+          {signals.map((signal, index) => {
+            const Icon = signal.Icon;
+            return (
+              <Box
+                key={signal.label}
+                sx={{
+                  position: "relative",
+                  zIndex: 1,
+                  display: "grid",
+                  gridTemplateColumns: { xs: "auto 1fr", sm: "1fr" },
+                  alignItems: { xs: "center", sm: "stretch" },
+                  gap: { xs: 1.5, sm: 1.75 },
+                  minHeight: { xs: 96, sm: 152 },
+                  p: { xs: 1.75, sm: 2 },
+                  borderRadius: 1,
+                  bgcolor:
+                    index === 1
+                      ? "rgba(250,246,242,0.96)"
+                      : "rgba(255,255,255,0.9)",
+                  border: "1px solid",
+                  borderColor:
+                    index === 1 ? "rgba(128,0,32,0.18)" : "transparent",
+                  boxShadow:
+                    index === 1
+                      ? "0 20px 52px -44px rgba(128,0,32,0.62)"
+                      : "none",
+                  transition:
+                    "transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease",
+                  ...riseInSx(260 + index * 80),
+                  "&:hover": {
+                    transform: "translateY(-3px)",
+                    borderColor: `${signal.accent}2e`,
+                    boxShadow: `0 24px 56px -48px ${signal.accent}`,
+                  },
+                }}
               >
-                {signal.value}
-              </Typography>
-            </Box>
-          ))}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: { xs: "flex-start", sm: "space-between" },
+                    alignItems: "center",
+                    gap: 1.25,
+                  }}
+                >
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: 1,
+                      display: "grid",
+                      placeItems: "center",
+                      color: signal.accent,
+                      bgcolor: `${signal.accent}12`,
+                      border: "1px solid",
+                      borderColor: `${signal.accent}24`,
+                    }}
+                  >
+                    <Icon fontSize="small" />
+                  </Box>
+                  <Typography
+                    aria-hidden
+                    sx={{
+                      display: { xs: "none", sm: "block" },
+                      fontSize: 12,
+                      fontWeight: 900,
+                      color: "text.secondary",
+                    }}
+                  >
+                    0{index + 1}
+                  </Typography>
+                </Box>
+                <Box sx={{ alignSelf: "end", minWidth: 0 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      fontWeight: 700,
+                      maxWidth: 150,
+                    }}
+                  >
+                    {signal.label}
+                  </Typography>
+                  <Typography
+                    variant="h4"
+                    component="p"
+                    sx={{
+                      mt: 0.25,
+                      color: "primary.main",
+                      lineHeight: 1.1,
+                    }}
+                  >
+                    {signal.value}
+                  </Typography>
+                </Box>
+              </Box>
+            );
+          })}
         </Box>
 
         <Box
@@ -1381,41 +1492,112 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
               {body}
             </Typography>
           </Box>
-          <Stack
-            direction={{ xs: "column", sm: "row", md: "column" }}
-            spacing={2}
+          <Box
             sx={{
-              alignItems: { xs: "stretch", md: "flex-start" },
+              width: { xs: "100%", md: 360 },
+              p: { xs: 1.5, sm: 2 },
+              border: "1px solid",
+              borderColor: "rgba(255,255,255,0.24)",
+              borderRadius: 1,
+              bgcolor: "rgba(255,255,255,0.08)",
+              backdropFilter: "blur(14px)",
+              boxShadow: "0 28px 80px -56px rgba(0,0,0,0.78)",
               ...riseInSx(140),
             }}
           >
+            <Chip
+              size="small"
+              icon={<CheckCircleRoundedIcon />}
+              label="Free to start"
+              sx={{
+                mb: 1.5,
+                color: "common.white",
+                bgcolor: "rgba(255,255,255,0.12)",
+                border: "1px solid rgba(255,255,255,0.22)",
+                "& .MuiChip-icon": { color: "common.white" },
+              }}
+            />
             <Button
               component={RouterLink}
               to={site.primaryCta.href}
               size="large"
+              fullWidth
               sx={{
+                justifyContent: "space-between",
                 bgcolor: "common.white",
                 color: "primary.main",
+                minHeight: 58,
+                px: 2.5,
                 "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
               }}
               endIcon={<ArrowForwardRoundedIcon />}
             >
               {site.primaryCta.label}
             </Button>
-            <Button
-              component={RouterLink}
-              to="/pricing"
-              size="large"
-              variant="outlined"
+            <Box
               sx={{
-                borderColor: "rgba(255,255,255,0.6)",
-                color: "common.white",
-                "&:hover": { borderColor: "common.white" },
+                mt: 1.25,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1.5,
+                px: 0.5,
               }}
             >
-              See pricing
-            </Button>
-          </Stack>
+              <Box>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  Plans and fees
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "rgba(255,255,255,0.68)" }}
+                >
+                  Free plan available
+                </Typography>
+              </Box>
+              <Button
+                component={RouterLink}
+                to="/pricing"
+                size="small"
+                sx={{
+                  color: "common.white",
+                  minHeight: 36,
+                  px: 1,
+                  "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+                }}
+                endIcon={<ArrowForwardRoundedIcon />}
+              >
+                See pricing
+              </Button>
+            </Box>
+            <Divider sx={{ my: 1.75, borderColor: "rgba(255,255,255,0.18)" }} />
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", md: "1fr" },
+                gap: 1,
+              }}
+            >
+              {["No monthly cost to start", "Your money stays yours"].map(
+                (line) => (
+                  <Stack
+                    key={line}
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      alignItems: "center",
+                      color: "rgba(255,255,255,0.82)",
+                    }}
+                  >
+                    <CheckCircleRoundedIcon sx={{ fontSize: 17 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {line}
+                    </Typography>
+                  </Stack>
+                ),
+              )}
+            </Box>
+          </Box>
         </Box>
       </Container>
     </Box>
