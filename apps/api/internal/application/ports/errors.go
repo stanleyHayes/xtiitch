@@ -22,3 +22,12 @@ var ErrInvalidOrderState = errors.New("invalid order state")
 // that already has an initiated balance payment. It is the database-enforced
 // backstop against double-charging a customer.
 var ErrPaymentInFlight = errors.New("an equivalent payment is already in flight")
+
+// ErrSlotTaken is returned when a home-visit slot cannot be held because it is
+// already held/booked, or is not an offerable open slot. The partial unique
+// index on bookings makes this race-proof.
+var ErrSlotTaken = errors.New("that visit slot is no longer available")
+
+// ErrNoAvailability is returned when a business has published no home-visit
+// availability that covers the requested time.
+var ErrNoAvailability = errors.New("the business has no home-visit availability then")

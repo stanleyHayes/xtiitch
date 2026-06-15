@@ -38,11 +38,11 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 
 	if _, err := tx.Exec(ctx, `
 		insert into payments (
-			payment_id, business_id, order_id, purpose, amount_minor, currency, method,
+			payment_id, business_id, order_id, booking_id, purpose, amount_minor, currency, method,
 			provider_reference, status, through_platform, commission_minor
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, 'initiated', true, $9)
-	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor); err != nil {
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10)
+	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), nullableIDArg(input.BookingID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor); err != nil {
 		// A second in-flight balance charge for the same order is rejected by the
 		// partial unique index; surface it as the dedicated sentinel so callers
 		// can refuse cleanly rather than double-charging the customer.
@@ -98,8 +98,10 @@ func (repo PaymentRepository) ConfirmFromProvider(ctx context.Context, input por
 
 // scopedPayment is the slice of the payment a webhook needs to settle it.
 type scopedPayment struct {
+	paymentID   string
 	businessID  string
 	orderID     sql.NullString
+	bookingID   sql.NullString
 	amountMinor int64
 	purpose     string
 }
@@ -123,9 +125,9 @@ func recordProviderEvent(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaym
 func lookupPaymentByReference(ctx context.Context, tx pgx.Tx, providerReference string) (scopedPayment, bool, error) {
 	var payment scopedPayment
 	err := tx.QueryRow(ctx, `
-		select business_id::text, order_id::text, amount_minor, purpose
+		select payment_id::text, business_id::text, order_id::text, booking_id::text, amount_minor, purpose
 		from payments where provider_reference = $1
-	`, providerReference).Scan(&payment.businessID, &payment.orderID, &payment.amountMinor, &payment.purpose)
+	`, providerReference).Scan(&payment.paymentID, &payment.businessID, &payment.orderID, &payment.bookingID, &payment.amountMinor, &payment.purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return scopedPayment{}, false, nil
 	}
@@ -160,18 +162,82 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 		return err
 	}
 
-	// The payment row is the single source of truth for settlement: confirm the
-	// order only when this very event moved the payment initiated -> succeeded
+	// The payment row is the single source of truth for settlement: act only when
+	// this very event moved the payment initiated -> (succeeded|failed)
 	// (RowsAffected == 1). Gating on the inbound flag instead would let a
 	// charge.success that arrives after a charge.failed settle the order while
 	// the payment stays failed.
-	if input.Succeeded && tag.RowsAffected() == 1 && payment.orderID.Valid {
-		if payment.purpose == "balance" {
-			return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
-		}
+	if tag.RowsAffected() != 1 || !payment.orderID.Valid {
+		return nil
+	}
+	if input.Succeeded {
+		return applyPaymentSuccess(ctx, tx, payment)
+	}
+	return applyPaymentFailure(ctx, tx, payment)
+}
+
+// applyPaymentSuccess routes a genuine payment success to the right settlement
+// by purpose: a booking deposit confirms the visit + its order, a balance credits
+// the confirmed order, and everything else confirms a draft order at its first stage.
+func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) error {
+	switch payment.purpose {
+	case "booking_deposit":
+		return confirmBookingOnPayment(ctx, tx, payment)
+	case "balance":
+		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+	default:
 		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
 	}
+}
+
+// applyPaymentFailure releases a held home-visit slot when its booking deposit
+// fails, so the slot returns to availability. Other purposes leave the order as
+// is (a draft stays recoverable; a confirmed order keeps its balance owed).
+func applyPaymentFailure(ctx context.Context, tx pgx.Tx, payment scopedPayment) error {
+	if payment.purpose == "booking_deposit" && payment.bookingID.Valid {
+		return releaseBooking(ctx, tx, payment.businessID, payment.bookingID.String, payment.orderID.String)
+	}
 	return nil
+}
+
+// confirmBookingOnPayment moves a held home-visit slot to booked (recording the
+// deposit payment) and confirms its draft order at the first bespoke stage. The
+// held-only guard makes a re-delivered event a no-op.
+func confirmBookingOnPayment(ctx context.Context, tx pgx.Tx, payment scopedPayment) error {
+	if !payment.bookingID.Valid {
+		return nil
+	}
+	tag, err := tx.Exec(ctx, `
+		update bookings set status = 'booked', deposit_payment_id = $3, updated_at = now()
+		where booking_id = $1 and business_id = $2 and status = 'held'
+	`, payment.bookingID.String, payment.businessID, payment.paymentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+	return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+}
+
+// releaseBooking cancels a held booking and its draft order, freeing the slot.
+// The held/draft guards keep it idempotent and prevent touching a confirmed visit.
+func releaseBooking(ctx context.Context, tx pgx.Tx, businessID, bookingID, orderID string) error {
+	tag, err := tx.Exec(ctx, `
+		update bookings set status = 'cancelled', updated_at = now()
+		where booking_id = $1 and business_id = $2 and status = 'held'
+	`, bookingID, businessID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+	_, err = tx.Exec(ctx, `
+		update orders set status = 'cancelled', updated_at = now()
+		where order_id = $1 and business_id = $2 and status = 'draft'
+	`, orderID, businessID)
+	return err
 }
 
 // creditOrderBalance applies a balance payment to an already-confirmed order:

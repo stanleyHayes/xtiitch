@@ -76,6 +76,7 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 type InitiateChargeCommand struct {
 	Scope         common.TenantScope
 	OrderID       *common.ID
+	BookingID     *common.ID
 	Purpose       money.PaymentPurpose
 	AmountMinor   int64
 	Method        money.PaymentMethod
@@ -130,6 +131,7 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		PaymentID:         s.ids.NewID(),
 		BusinessID:        info.BusinessID,
 		OrderID:           cmd.OrderID,
+		BookingID:         cmd.BookingID,
 		Purpose:           string(cmd.Purpose),
 		AmountMinor:       cmd.AmountMinor,
 		Currency:          common.CurrencyGHS,

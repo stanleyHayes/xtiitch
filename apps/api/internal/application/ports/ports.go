@@ -173,6 +173,7 @@ type CreatePaymentInput struct {
 	PaymentID         common.ID
 	BusinessID        common.ID
 	OrderID           *common.ID
+	BookingID         *common.ID
 	Purpose           string
 	AmountMinor       int64
 	Currency          string

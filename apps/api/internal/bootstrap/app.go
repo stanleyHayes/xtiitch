@@ -8,6 +8,7 @@ import (
 
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
@@ -18,6 +19,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
+	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
@@ -108,13 +110,21 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:      ids.UUIDGenerator{},
 	})
 
+	availabilityService := availabilityapp.NewService(availabilityapp.Dependencies{
+		Availability: postgres.NewAvailabilityRepository(db),
+		Storefront:   postgres.NewStorefrontRepository(db),
+		IDs:          ids.UUIDGenerator{},
+	})
+
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
-		Storefront: postgres.NewStorefrontRepository(db),
-		Businesses: postgres.NewBusinessChargeRepository(db),
-		Orders:     postgres.NewOrderRepository(db),
-		Payments:   paymentService,
-		IDs:        ids.UUIDGenerator{},
-		Logger:     logger,
+		Storefront:   postgres.NewStorefrontRepository(db),
+		Businesses:   postgres.NewBusinessChargeRepository(db),
+		Orders:       postgres.NewOrderRepository(db),
+		Bookings:     postgres.NewBookingRepository(db),
+		Availability: availabilityService,
+		Payments:     paymentService,
+		IDs:          ids.UUIDGenerator{},
+		Logger:       logger,
 	})
 
 	router := httpadapter.NewRouter(logger, db.Ping,
@@ -124,6 +134,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		mediahttp.NewHandler(mediaService, authenticator),
 		orderhttp.NewHandler(orderService, authenticator),
 		checkouthttp.NewHandler(checkoutService),
+		availabilityhttp.NewHandler(availabilityService, authenticator),
 	)
 
 	return App{

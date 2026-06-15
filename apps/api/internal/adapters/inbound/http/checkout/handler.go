@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
@@ -18,6 +20,7 @@ const maxBodyBytes = 1 << 20
 type Service interface {
 	PlaceStandardOrder(ctx context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
 	PlaceCustomOrder(ctx context.Context, command checkoutapp.PlaceCustomOrderCommand) (checkoutapp.PlaceCustomOrderResult, error)
+	PlaceHomeVisitBooking(ctx context.Context, command checkoutapp.PlaceHomeVisitBookingCommand) (checkoutapp.PlaceHomeVisitBookingResult, error)
 }
 
 type Handler struct {
@@ -31,6 +34,7 @@ func NewHandler(service Service) Handler {
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/public/stores/{handle}/orders", handler.placeOrder)
 	router.Post("/public/stores/{handle}/custom-orders", handler.placeCustomOrder)
+	router.Post("/public/stores/{handle}/bookings", handler.placeBooking)
 }
 
 type placeOrderBody struct {
@@ -103,6 +107,47 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor)
 }
 
+type placeBookingBody struct {
+	DesignHandle  string `json:"design_handle"`
+	CustomerName  string `json:"customer_name"`
+	CustomerPhone string `json:"customer_phone"`
+	CustomerEmail string `json:"customer_email"`
+	Method        string `json:"method"`
+	SlotStart     string `json:"slot_start"`
+	Address       string `json:"address"`
+}
+
+func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
+	var body placeBookingBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	slotStart, err := time.Parse(time.RFC3339, body.SlotStart)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	result, err := handler.service.PlaceHomeVisitBooking(r.Context(), checkoutapp.PlaceHomeVisitBookingCommand{
+		StoreHandle:   chi.URLParam(r, "handle"),
+		DesignHandle:  body.DesignHandle,
+		CustomerName:  body.CustomerName,
+		CustomerPhone: body.CustomerPhone,
+		CustomerEmail: body.CustomerEmail,
+		Method:        money.PaymentMethod(body.Method),
+		SlotStart:     slotStart,
+		Address:       body.Address,
+	})
+	if err != nil {
+		status, code := checkoutError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor)
+}
+
 func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64) {
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"order_id":          orderID,
@@ -123,6 +168,8 @@ func checkoutError(err error) (int, string) {
 		return http.StatusConflict, "store_not_verified"
 	case errors.Is(err, checkoutapp.ErrBespokeDisabled), errors.Is(err, checkoutapp.ErrMeasurementsDisabled):
 		return http.StatusConflict, "store_cannot_take_order"
+	case errors.Is(err, ports.ErrSlotTaken), errors.Is(err, ports.ErrNoAvailability):
+		return http.StatusConflict, "slot_unavailable"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}
