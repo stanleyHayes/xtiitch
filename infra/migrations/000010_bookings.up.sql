@@ -6,8 +6,10 @@
 -- links to the existing draft home_visit order and is confirmed, with that
 -- order, by a single booking-deposit payment (Technical Specification 4.12).
 
+-- A business opts into home visits by publishing availability windows (no
+-- windows means no bookable slots), so no separate enabled flag is needed; only
+-- the timezone for rendering and slot enumeration is stored here.
 ALTER TABLE store_settings
-  ADD COLUMN home_visit_enabled boolean NOT NULL DEFAULT false,
   ADD COLUMN business_timezone text NOT NULL DEFAULT 'Africa/Accra';
 
 CREATE TABLE availability_windows (

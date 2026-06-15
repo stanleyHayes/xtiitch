@@ -100,11 +100,15 @@ func (repo AvailabilityRepository) ListTakenSlots(ctx context.Context, scope com
 		return nil, err
 	}
 
+	// A booked slot is always taken; a held slot only counts while its hold is
+	// still fresh, so an abandoned (never-paid) hold past its TTL returns to
+	// availability instead of blocking the slot forever.
 	rows, err := tx.Query(ctx, `
 		select slot_start from bookings
-		where business_id = $1 and status in ('held', 'booked')
-			and slot_start >= $2 and slot_start < $3
-	`, scope.BusinessID.String(), from, to)
+		where business_id = $1 and slot_start >= $2 and slot_start < $3
+			and (status = 'booked'
+				or (status = 'held' and created_at > now() - make_interval(mins => $4)))
+	`, scope.BusinessID.String(), from, to, booking.HoldTTLMinutes)
 	if err != nil {
 		return nil, err
 	}

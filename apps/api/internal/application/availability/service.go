@@ -5,6 +5,7 @@ package availabilityapp
 import (
 	"context"
 	"errors"
+	"sort"
 	"strings"
 	"time"
 
@@ -47,15 +48,23 @@ type WindowInput struct {
 	SlotMinutes int
 }
 
-// DefineAvailability replaces the business's weekly home-visit windows.
+// DefineAvailability replaces the business's weekly home-visit windows. Windows
+// are validated and may not overlap on the same weekday, so a slot start is
+// always defined by exactly one window (no duplicate or ambiguous slots).
 func (s Service) DefineAvailability(ctx context.Context, scope common.TenantScope, windows []WindowInput) error {
-	out := make([]ports.AvailabilityWindow, 0, len(windows))
 	for _, w := range windows {
 		if w.Weekday < 0 || w.Weekday > 6 ||
 			w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
 			w.SlotMinutes < 15 || w.SlotMinutes > 480 {
 			return ErrInvalidInput
 		}
+	}
+	if windowsOverlap(windows) {
+		return ErrInvalidInput
+	}
+
+	out := make([]ports.AvailabilityWindow, 0, len(windows))
+	for _, w := range windows {
 		out = append(out, ports.AvailabilityWindow{
 			WindowID:    s.ids.NewID(),
 			Weekday:     w.Weekday,
@@ -65,6 +74,22 @@ func (s Service) DefineAvailability(ctx context.Context, scope common.TenantScop
 		})
 	}
 	return s.availability.ReplaceWindows(ctx, scope, out)
+}
+
+func windowsOverlap(windows []WindowInput) bool {
+	sorted := append([]WindowInput(nil), windows...)
+	sort.Slice(sorted, func(i, j int) bool {
+		if sorted[i].Weekday != sorted[j].Weekday {
+			return sorted[i].Weekday < sorted[j].Weekday
+		}
+		return sorted[i].StartMinute < sorted[j].StartMinute
+	})
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i].Weekday == sorted[i-1].Weekday && sorted[i].StartMinute < sorted[i-1].EndMinute {
+			return true
+		}
+	}
+	return false
 }
 
 // ListWindows returns the business's configured windows for its own dashboard.

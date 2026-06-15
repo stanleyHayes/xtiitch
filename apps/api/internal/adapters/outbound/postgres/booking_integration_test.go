@@ -303,6 +303,64 @@ func TestBookingCrossTenantOrderRejected(t *testing.T) {
 	}
 }
 
+// TestStaleHoldIsReclaimable: an abandoned hold past its TTL is ignored by
+// availability and reclaimed (cancelled with its order) by the next hold, so the
+// slot is never permanently dead.
+func TestStaleHoldIsReclaimable(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedBookingBase(t, pool)
+	defer cleanupBookingFixtures(t, pool)
+
+	ctx := context.Background()
+	slot := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+	staleOrder := uuidN("aaaaaaaa-0000-0000-0000-", 500)
+	staleCustomer := uuidN("cccccccc-0000-0000-0000-", 500)
+	staleBooking := uuidN("bbbbbbbb-0000-0000-0000-", 500)
+
+	seedDraftHomeVisitOrder(t, pool, bkBiz, staleOrder, staleCustomer)
+	// Insert a held booking created over an hour ago (past the 30-minute TTL).
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into bookings (booking_id, business_id, customer_id, order_id, slot_start, slot_end, status, created_at)
+			values ($1, $2, $3, $4, $5, $6, 'held', now() - interval '1 hour')
+		`, staleBooking, bkBiz, staleCustomer, staleOrder, slot, slot.Add(time.Hour))
+	})
+
+	// Availability ignores the stale hold (the slot is offerable again).
+	taken, err := NewAvailabilityRepository(pool).ListTakenSlots(ctx, bkScope(), slot.Add(-time.Hour), slot.Add(time.Hour))
+	if err != nil {
+		t.Fatalf("list taken: %v", err)
+	}
+	for _, s := range taken {
+		if s.Equal(slot) {
+			t.Fatal("a stale held slot must not count as taken")
+		}
+	}
+
+	// A new hold reclaims the stale one (cancels it + its order) and succeeds.
+	freshOrder := uuidN("aaaaaaaa-0000-0000-0000-", 501)
+	freshCustomer := uuidN("cccccccc-0000-0000-0000-", 501)
+	seedDraftHomeVisitOrder(t, pool, bkBiz, freshOrder, freshCustomer)
+	if err := NewBookingRepository(pool).HoldSlot(ctx, bkScope(), ports.HoldSlotInput{
+		BookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 501)), BusinessID: common.ID(bkBiz),
+		CustomerID: common.ID(freshCustomer), OrderID: common.ID(freshOrder),
+		SlotStart: slot, SlotEnd: slot.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("a stale-held slot should be re-holdable, got %v", err)
+	}
+
+	if status, _ := bkReadBooking(t, pool, staleBooking); status != "cancelled" {
+		t.Fatalf("stale booking should be reclaimed (cancelled), got %q", status)
+	}
+	if !orderExists(t, pool, common.ID(staleOrder)) {
+		t.Fatal("stale order row should still exist (cancelled, not deleted)")
+	}
+	if bkActiveCountForSlot(t, pool, slot) != 1 {
+		t.Fatal("exactly the new booking should be active for the slot")
+	}
+}
+
 func insertBookingDeposit(t *testing.T, pool *pgxpool.Pool, orderID, bookingID, reference string, amount int64) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
