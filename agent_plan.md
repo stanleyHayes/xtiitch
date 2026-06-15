@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 09:12 GMT
+Last updated: 2026-06-15 09:17 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -68,6 +68,8 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Verified the redesigned navbar, mobile drawer, desktop footer, and mobile footer in Chrome screenshots.
 - Redesigned and polished the full public marketing surface while preserving the approved content: Fraunces display headings, Manrope UI/body typography, richer shared section primitives, page-specific hero icon watermarks, polished feature/pricing/customer/security/legal/contact pages, and a simplified hero panel with no squeezed fake dashboard rows.
 - Verified the full marketing redesign with Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, `pnpm check`, and `pnpm test`.
+- Redesigned the home hero proof strip from three quiet stat boxes into a connected proof rail with icons, a brand gradient rule, light background texture, stronger hierarchy, and red/yellow/green status chips while preserving the original proof copy.
+- Verified the proof-strip redesign with desktop Chrome screenshots, `pnpm --filter @xtiitch/marketing check`, `pnpm --filter @xtiitch/marketing build`, `pnpm --filter @xtiitch/marketing test`, and `pnpm lint`.
 
 ## Opened / Pending
 
@@ -84,6 +86,7 @@ The PDFs are the product and technical source of truth. This plan records implem
 - Final privacy, terms, refund, cancellation, subscription renewal, and chargeback language must receive legal review before public launch.
 - React Router build emits v8 future-flag warnings. Keep visible until the team deliberately opts into the v8 behavior changes.
 - Auth-session refresh/logout/middleware changes are open in the worktree and should be reviewed, documented, and committed separately from the marketing slice.
+- Root `pnpm check` is currently blocked by separate uncommitted `apps/web` scaffold work: `@xtiitch/web` now runs `react-router typegen`, but no `apps/web/app/routes.ts` exists yet. Marketing-specific checks still pass.
 
 ## Product Boundary
 
@@ -730,3 +733,8 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm check` passed after the full marketing redesign polish.
 - `pnpm test` passed after the full marketing redesign polish.
 - `pnpm sonar` was attempted after the full marketing redesign polish and failed before analysis because `sonar.organization` is missing.
+- `pnpm --filter @xtiitch/marketing check` passed after the home proof-strip redesign.
+- `pnpm --filter @xtiitch/marketing build` passed after the home proof-strip redesign.
+- `pnpm --filter @xtiitch/marketing test` passed after the home proof-strip redesign.
+- `pnpm lint` passed after the home proof-strip redesign.
+- `pnpm check` was attempted after the home proof-strip redesign and failed in unrelated `apps/web` scaffold work because `react-router typegen` could not find `apps/web/app/routes.ts`.

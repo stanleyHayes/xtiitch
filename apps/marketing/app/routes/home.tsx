@@ -6,7 +6,11 @@ import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import type { SvgIconComponent } from "@mui/icons-material";
+import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
+import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import { pageMeta } from "../components/seo";
 import {
   CtaBand,
@@ -176,10 +180,40 @@ function Hero() {
   );
 }
 
-const stats: { value: string; label: string }[] = [
-  { value: "GHS 0", label: "to start on the Free plan" },
-  { value: "Red · Yellow · Green", label: "order status anyone can read" },
-  { value: "0", label: "of your money we ever hold" },
+const stats: {
+  eyebrow: string;
+  value: string;
+  label: string;
+  accent: string;
+  Icon: SvgIconComponent;
+  statuses?: { label: string; color: string }[];
+}[] = [
+  {
+    eyebrow: "Start without pressure",
+    value: "GHS 0",
+    label: "to start on the Free plan",
+    accent: "#800020",
+    Icon: LocalOfferRoundedIcon,
+  },
+  {
+    eyebrow: "Tracking customers understand",
+    value: "Red · Yellow · Green",
+    label: "order status anyone can read",
+    accent: "#b87914",
+    Icon: TimelineRoundedIcon,
+    statuses: [
+      { label: "Red", color: "#a92727" },
+      { label: "Yellow", color: "#b87914" },
+      { label: "Green", color: "#237a4b" },
+    ],
+  },
+  {
+    eyebrow: "Your money stays yours",
+    value: "0",
+    label: "of your money we ever hold",
+    accent: "#237a4b",
+    Icon: AccountBalanceWalletRoundedIcon,
+  },
 ];
 
 export default function Home() {
@@ -189,41 +223,175 @@ export default function Home() {
 
       <Box
         sx={{
-          bgcolor: "background.paper",
+          position: "relative",
+          bgcolor: "background.default",
           borderBottom: "1px solid",
           borderColor: "divider",
+          "&:before": {
+            content: '""',
+            position: "absolute",
+            inset: 0,
+            background:
+              "linear-gradient(90deg, rgba(128,0,32,0.04) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.035) 1px, transparent 1px)",
+            backgroundSize: "38px 38px",
+            pointerEvents: "none",
+          },
         }}
       >
-        <Container sx={{ py: { xs: 4, md: 5 } }}>
+        <Container
+          sx={{
+            position: "relative",
+            py: { xs: 0, md: 0 },
+          }}
+        >
           <Box
             sx={{
+              position: "relative",
               display: "grid",
-              gap: 3,
               gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-              textAlign: { xs: "left", sm: "center" },
+              mt: { xs: -3, md: -5 },
+              mb: { xs: 4, md: 5 },
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              overflow: "hidden",
+              boxShadow: "0 30px 80px -54px rgba(21,17,26,0.72)",
+              "&:before": {
+                content: '""',
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background:
+                  "linear-gradient(90deg, #800020 0%, #b87914 50%, #237a4b 100%)",
+              },
             }}
           >
-            {stats.map((stat) => (
+            {stats.map((stat, index) => (
               <Box
                 key={stat.label}
                 sx={{
-                  p: { xs: 2, md: 2.5 },
-                  border: "1px solid",
+                  position: "relative",
+                  minHeight: { xs: 156, md: 190 },
+                  p: { xs: 2.5, md: 3.25 },
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  gap: 2.5,
+                  borderRight: {
+                    xs: "none",
+                    sm: index === stats.length - 1 ? "none" : "1px solid",
+                  },
+                  borderBottom: {
+                    xs: index === stats.length - 1 ? "none" : "1px solid",
+                    sm: "none",
+                  },
                   borderColor: "divider",
-                  borderRadius: 1,
-                  bgcolor: "background.default",
+                  overflow: "hidden",
+                  bgcolor:
+                    index === 1 ? "rgba(250,246,242,0.68)" : "background.paper",
                 }}
               >
-                <Typography
-                  variant="h4"
-                  component="p"
-                  sx={{ color: "primary.main", fontWeight: 800 }}
+                <stat.Icon
+                  aria-hidden
+                  sx={{
+                    position: "absolute",
+                    right: -24,
+                    bottom: -28,
+                    fontSize: { xs: 126, md: 150 },
+                    color: stat.accent,
+                    opacity: 0.055,
+                  }}
+                />
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ position: "relative", alignItems: "center" }}
                 >
-                  {stat.value}
-                </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {stat.label}
-                </Typography>
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 1,
+                      display: "grid",
+                      placeItems: "center",
+                      color: stat.accent,
+                      bgcolor: `${stat.accent}12`,
+                    }}
+                  >
+                    <stat.Icon sx={{ fontSize: 22 }} />
+                  </Box>
+                  <Typography
+                    component="p"
+                    sx={{
+                      color: "text.secondary",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: 0,
+                    }}
+                  >
+                    {stat.eyebrow}
+                  </Typography>
+                </Stack>
+
+                <Box sx={{ position: "relative" }}>
+                  {stat.statuses ? (
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      aria-label={stat.value}
+                      sx={{
+                        mb: 1.25,
+                        flexWrap: "wrap",
+                        rowGap: 1,
+                      }}
+                    >
+                      {stat.statuses.map((status) => (
+                        <Chip
+                          key={status.label}
+                          label={status.label}
+                          size="small"
+                          sx={{
+                            minHeight: 34,
+                            borderRadius: 1,
+                            bgcolor: `${status.color}14`,
+                            color: status.color,
+                            border: "1px solid",
+                            borderColor: `${status.color}55`,
+                            fontWeight: 800,
+                          }}
+                        />
+                      ))}
+                    </Stack>
+                  ) : (
+                    <Typography
+                      variant="h3"
+                      component="p"
+                      sx={{
+                        color: stat.accent,
+                        fontWeight: 800,
+                        lineHeight: 1,
+                        mb: 1,
+                      }}
+                    >
+                      {stat.value}
+                    </Typography>
+                  )}
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      color: "text.secondary",
+                      maxWidth: 250,
+                      fontSize: { xs: 15, md: 16 },
+                    }}
+                  >
+                    {stat.label}
+                  </Typography>
+                </Box>
               </Box>
             ))}
           </Box>
