@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-15 19:30 GMT
+Last updated: 2026-06-16 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -10,6 +10,35 @@ This document is the build guide and living work ledger for Xtiitch. Every agent
 - `Xtiitch-Technical-Specification.pdf`
 
 The PDFs are the product and technical source of truth. This plan records implementation decisions, working conventions, and progress. If this plan conflicts with the PDFs, stop and reconcile the conflict before coding.
+
+## Handoff — 2026-06-16 (read this first if you are picking up)
+
+State of the backend (`apps/api`, Go, hexagonal: domain → application+ports → adapters inbound-http/outbound-postgres; chi, pgx; money in integer pesewas; **Xtiitch never holds funds**). Latest commit on `main`: `1e17a13`. Recently shipped this session, each as one verified+committed slice:
+
+- Money tracker (`bd025f3`): manual takings + income summary.
+- Home-visit bookings (`20116f9`/`10c8178`) + booking management `GET/POST /v1/bookings…` cancel/reschedule (`92af171`).
+- Fulfilment handovers — pickup/delivery, advance, cancel — `…/v1/handovers…`, migration `000011` (`50bf4cb`).
+- Transactional notification outbox — `order_confirmed`/`order_fulfilled` enqueued in-tx; `GET /v1/notifications`; migration `000012` (`3190b8a`).
+
+How to run + verify (dev):
+
+- Demo Postgres runs in docker container `xtiitch-demo-pg` on `localhost:5450` (db/owner `xtiitch`/`xtiitch`, app role `xtiitch_app`). Migrations `000001`–`000012` are applied.
+- Integration tests need `XTIITCH_TEST_DATABASE_URL=postgres://xtiitch_app:xtiitch_app@localhost:5450/xtiitch?sslmode=disable`; without it they skip. Run from `apps/api`: `go build ./... && go vet ./... && go test ./...` (currently 23 packages green).
+- New migrations: the goose split-file tooling panics on the `.up.sql`/`.down.sql` convention, so apply by hand as the owner: `docker exec -i xtiitch-demo-pg psql -U xtiitch -d xtiitch -v ON_ERROR_STOP=1 < infra/migrations/0000NN_x.up.sql`.
+
+Working conventions (must follow):
+
+- A concurrent contributor owns the storefront catalogue lane. Do **not** stage their in-flight files: `apps/api/internal/adapters/inbound/http/catalogue/public.go` (+`public_test.go`), `apps/api/internal/adapters/outbound/postgres/storefront_repository.go`, `apps/api/internal/application/ports/catalogue.go`, `apps/storefront/app/lib/api.ts`, `apps/storefront/app/routes/design.tsx`. Stage your own files **explicitly** (never `git add -A`).
+- Before each commit: confirm no PDF is tracked (`git ls-files | grep -i '\.pdf$'` is empty), and isolation-build the staged tree (`git checkout-index -a --prefix=/tmp/x/ && (cd /tmp/x/apps/api && go build ./... && go vet ./...)`) so the slice is standalone-clean.
+- Commit trailer `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`; push with `GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes" git push origin main` (remote `git@github.com:stanleyHayes/xtiitch.git`). Log every shipped slice in the Completed list below and push the docs commit.
+- Hard constraints: the two source PDFs are Strictly Confidential — never commit them (gitignored). Never build money-holding/escrow/wallet. Tenant isolation (RLS as `xtiitch_app`) is release-blocking — every new tenant table uses the hardened policy shape + `FORCE ROW LEVEL SECURITY` and is proven cross-tenant in an integration test.
+
+Recommended next slices (additive, low-collision with the contributor):
+
+1. More notification producers/kinds: `booking_confirmed` (booking-deposit webhook), `handover_dispatched`/`handover_completed` (delivery `SetHandoverStatus`), `balance_paid` (balance credit) — enqueue via the same in-tx outbox helper so every milestone notifies.
+2. Subscriptions — the platform's own plan billing for businesses (plans exist in `000001`).
+3. The worker-side outbox drain/send (TS + BullMQ in `apps/worker`, different stack) — consumes `outbound_messages`.
+4. Admin operator backend (admin auth + operator APIs; the `apps/admin` UI is currently mock-backed).
 
 ## Current Work
 
