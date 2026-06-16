@@ -361,6 +361,180 @@ func TestStaleHoldIsReclaimable(t *testing.T) {
 	}
 }
 
+// seedBookedBooking inserts a customer, a draft order, and a booked booking at
+// the slot, so cancel/reschedule can act on a real reserved visit.
+func seedBookedBooking(t *testing.T, pool *pgxpool.Pool, orderID, customerID, bookingID string, slot time.Time, depositPaymentID string) {
+	t.Helper()
+	seedDraftHomeVisitOrder(t, pool, bkBiz, orderID, customerID)
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into bookings (booking_id, business_id, customer_id, order_id, slot_start, slot_end, status, deposit_payment_id)
+			values ($1, $2, $3, $4, $5, $6, 'booked', $7)
+		`, bookingID, bkBiz, customerID, orderID, slot, slot.Add(time.Hour), depositPaymentID)
+	})
+}
+
+func bkStatus(t *testing.T, pool *pgxpool.Pool, bookingID string) string {
+	t.Helper()
+	var status string
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(context.Background(), `select status from bookings where booking_id = $1`, bookingID).Scan(&status); err != nil {
+			t.Fatalf("read status: %v", err)
+		}
+	})
+	return status
+}
+
+func TestCancelBookingFreesSlot(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedBookingBase(t, pool)
+	defer cleanupBookingFixtures(t, pool)
+
+	ctx := context.Background()
+	repo := NewBookingRepository(pool)
+	orderID := uuidN("aaaaaaaa-0000-0000-0000-", 500)
+	customerID := uuidN("cccccccc-0000-0000-0000-", 500)
+	bookingID := uuidN("bbbbbbbb-0000-0000-0000-", 500)
+	slot := time.Date(2026, 7, 6, 10, 0, 0, 0, time.UTC)
+	seedBookedBooking(t, pool, orderID, customerID, bookingID, slot, uuidN("eeeeeeee-0000-0000-0000-", 500))
+
+	if err := repo.CancelBooking(ctx, bkScope(), common.ID(bookingID)); err != nil {
+		t.Fatalf("cancel: %v", err)
+	}
+	if s := bkStatus(t, pool, bookingID); s != "cancelled" {
+		t.Fatalf("expected cancelled, got %q", s)
+	}
+	if bkActiveCountForSlot(t, pool, slot) != 0 {
+		t.Fatal("slot should be free after cancel")
+	}
+	// The freed slot can be held again.
+	seedDraftHomeVisitOrder(t, pool, bkBiz, uuidN("aaaaaaaa-0000-0000-0000-", 501), uuidN("cccccccc-0000-0000-0000-", 501))
+	if err := repo.HoldSlot(ctx, bkScope(), ports.HoldSlotInput{
+		BookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 501)), BusinessID: common.ID(bkBiz),
+		CustomerID: common.ID(uuidN("cccccccc-0000-0000-0000-", 501)), OrderID: common.ID(uuidN("aaaaaaaa-0000-0000-0000-", 501)),
+		SlotStart: slot, SlotEnd: slot.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("expected the freed slot to be re-holdable, got %v", err)
+	}
+
+	// Cancelling a non-existent booking is a clean not-found.
+	if err := repo.CancelBooking(ctx, bkScope(), common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 999))); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound cancelling a missing booking, got %v", err)
+	}
+}
+
+func TestRescheduleBookingMovesAtomically(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedBookingBase(t, pool)
+	defer cleanupBookingFixtures(t, pool)
+
+	ctx := context.Background()
+	repo := NewBookingRepository(pool)
+	orderID := uuidN("aaaaaaaa-0000-0000-0000-", 600)
+	customerID := uuidN("cccccccc-0000-0000-0000-", 600)
+	bookingID := uuidN("bbbbbbbb-0000-0000-0000-", 600)
+	deposit := uuidN("eeeeeeee-0000-0000-0000-", 600)
+	slotA := time.Date(2026, 7, 7, 10, 0, 0, 0, time.UTC)
+	slotB := time.Date(2026, 7, 7, 14, 0, 0, 0, time.UTC)
+	seedBookedBooking(t, pool, orderID, customerID, bookingID, slotA, deposit)
+
+	newID := uuidN("bbbbbbbb-0000-0000-0000-", 601)
+	if err := repo.RescheduleBooking(ctx, bkScope(), ports.RescheduleBookingInput{
+		OldBookingID: common.ID(bookingID), NewBookingID: common.ID(newID), SlotStart: slotB, SlotEnd: slotB.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("reschedule: %v", err)
+	}
+	if s := bkStatus(t, pool, bookingID); s != "rescheduled" {
+		t.Fatalf("old booking should be rescheduled, got %q", s)
+	}
+	if bkActiveCountForSlot(t, pool, slotA) != 0 {
+		t.Fatal("old slot should be free")
+	}
+	if bkActiveCountForSlot(t, pool, slotB) != 1 {
+		t.Fatal("new slot should hold the moved booking")
+	}
+	// The new booking carries the order, customer, and deposit.
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var gotOrder, gotCustomer, gotDeposit, gotStatus string
+		if err := tx.QueryRow(context.Background(),
+			`select order_id::text, customer_id::text, coalesce(deposit_payment_id::text,''), status from bookings where booking_id = $1`,
+			newID).Scan(&gotOrder, &gotCustomer, &gotDeposit, &gotStatus); err != nil {
+			t.Fatalf("read new booking: %v", err)
+		}
+		if gotOrder != orderID || gotCustomer != customerID || gotDeposit != deposit || gotStatus != "booked" {
+			t.Fatalf("new booking did not carry context: order=%q customer=%q deposit=%q status=%q", gotOrder, gotCustomer, gotDeposit, gotStatus)
+		}
+	})
+
+	// Rescheduling onto a slot already taken by another booking is rejected, and
+	// the source booking is left intact.
+	otherOrder := uuidN("aaaaaaaa-0000-0000-0000-", 602)
+	otherBooking := uuidN("bbbbbbbb-0000-0000-0000-", 602)
+	taken := time.Date(2026, 7, 8, 9, 0, 0, 0, time.UTC)
+	seedBookedBooking(t, pool, otherOrder, uuidN("cccccccc-0000-0000-0000-", 602), otherBooking, taken, uuidN("eeeeeeee-0000-0000-0000-", 602))
+	if err := repo.RescheduleBooking(ctx, bkScope(), ports.RescheduleBookingInput{
+		OldBookingID: common.ID(newID), NewBookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 603)), SlotStart: taken, SlotEnd: taken.Add(time.Hour),
+	}); !errors.Is(err, ports.ErrSlotTaken) {
+		t.Fatalf("expected ErrSlotTaken rescheduling onto a taken slot, got %v", err)
+	}
+	if s := bkStatus(t, pool, newID); s != "booked" {
+		t.Fatalf("a failed reschedule must leave the booking booked, got %q", s)
+	}
+}
+
+func TestRescheduleRejectsNonBooked(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedBookingBase(t, pool)
+	defer cleanupBookingFixtures(t, pool)
+
+	ctx := context.Background()
+	repo := NewBookingRepository(pool)
+	orderID := uuidN("aaaaaaaa-0000-0000-0000-", 700)
+	customerID := uuidN("cccccccc-0000-0000-0000-", 700)
+	bookingID := uuidN("bbbbbbbb-0000-0000-0000-", 700)
+	slot := time.Date(2026, 7, 9, 10, 0, 0, 0, time.UTC)
+	// A held (not booked) booking cannot be rescheduled.
+	seedDraftHomeVisitOrder(t, pool, bkBiz, orderID, customerID)
+	if err := repo.HoldSlot(ctx, bkScope(), ports.HoldSlotInput{
+		BookingID: common.ID(bookingID), BusinessID: common.ID(bkBiz), CustomerID: common.ID(customerID),
+		OrderID: common.ID(orderID), SlotStart: slot, SlotEnd: slot.Add(time.Hour),
+	}); err != nil {
+		t.Fatalf("hold: %v", err)
+	}
+	if err := repo.RescheduleBooking(ctx, bkScope(), ports.RescheduleBookingInput{
+		OldBookingID: common.ID(bookingID), NewBookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 701)),
+		SlotStart: slot.Add(48 * time.Hour), SlotEnd: slot.Add(49 * time.Hour),
+	}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound rescheduling a non-booked booking, got %v", err)
+	}
+}
+
+func TestListBookingsReturnsTenantQueue(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedBookingBase(t, pool)
+	defer cleanupBookingFixtures(t, pool)
+
+	ctx := context.Background()
+	repo := NewBookingRepository(pool)
+	seedBookedBooking(t, pool, uuidN("aaaaaaaa-0000-0000-0000-", 800), uuidN("cccccccc-0000-0000-0000-", 800),
+		uuidN("bbbbbbbb-0000-0000-0000-", 800), time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC), uuidN("eeeeeeee-0000-0000-0000-", 800))
+
+	bookings, err := repo.ListBookings(ctx, bkScope())
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(bookings) != 1 {
+		t.Fatalf("expected 1 booking, got %d", len(bookings))
+	}
+	if bookings[0].CustomerName != "IT Visit Customer" || bookings[0].Status != "booked" || bookings[0].DesignTitle != "IT Visit Design" {
+		t.Fatalf("unexpected booking summary: %+v", bookings[0])
+	}
+}
+
 func insertBookingDeposit(t *testing.T, pool *pgxpool.Pool, orderID, bookingID, reference string, amount int64) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {

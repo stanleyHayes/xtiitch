@@ -9,6 +9,7 @@ import (
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
+	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
@@ -20,6 +21,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
+	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
@@ -116,6 +118,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:          ids.UUIDGenerator{},
 	})
 
+	bookingService := bookingapp.NewService(bookingapp.Dependencies{
+		Bookings:     postgres.NewBookingRepository(db),
+		Availability: availabilityService,
+		IDs:          ids.UUIDGenerator{},
+	})
+
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
 		Storefront:   postgres.NewStorefrontRepository(db),
 		Businesses:   postgres.NewBusinessChargeRepository(db),
@@ -135,6 +143,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		orderhttp.NewHandler(orderService, authenticator),
 		checkouthttp.NewHandler(checkoutService),
 		availabilityhttp.NewHandler(availabilityService, authenticator),
+		bookinghttp.NewHandler(bookingService, authenticator),
 	)
 
 	return App{

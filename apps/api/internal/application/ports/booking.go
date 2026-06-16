@@ -38,6 +38,18 @@ type BookingRepository interface {
 	// DiscardHeldBooking compensates a booking checkout whose deposit could not be
 	// raised: it removes the held booking, the still-draft order, and the customer.
 	DiscardHeldBooking(ctx context.Context, scope common.TenantScope, bookingID, orderID, customerID common.ID) error
+	// ListBookings returns the business's visit queue (held/booked first), with the
+	// customer and order context the dashboard renders.
+	ListBookings(ctx context.Context, scope common.TenantScope) ([]BookingSummary, error)
+	// CancelBooking cancels a held or booked visit, freeing its slot. It returns
+	// ErrNotFound when there is no such cancellable booking for the tenant.
+	CancelBooking(ctx context.Context, scope common.TenantScope, bookingID common.ID) error
+	// RescheduleBooking moves a booked visit to a new slot in one transaction:
+	// the old booking becomes 'rescheduled' and a new 'booked' row (carrying the
+	// same order, customer, and deposit) is inserted at the new slot. It returns
+	// ErrSlotTaken if the target slot is taken and ErrNotFound if the booking is
+	// not a booked visit of this tenant.
+	RescheduleBooking(ctx context.Context, scope common.TenantScope, input RescheduleBookingInput) error
 }
 
 type HoldSlotInput struct {
@@ -48,4 +60,24 @@ type HoldSlotInput struct {
 	SlotStart  time.Time
 	SlotEnd    time.Time
 	Address    string
+}
+
+type RescheduleBookingInput struct {
+	OldBookingID common.ID
+	NewBookingID common.ID
+	SlotStart    time.Time
+	SlotEnd      time.Time
+}
+
+// BookingSummary is the dashboard view of one visit booking.
+type BookingSummary struct {
+	BookingID     common.ID
+	OrderID       common.ID
+	CustomerName  string
+	CustomerPhone string
+	DesignTitle   string
+	SlotStart     time.Time
+	SlotEnd       time.Time
+	Status        string
+	Address       string
 }

@@ -388,6 +388,18 @@ func (f *fakeBookings) DiscardHeldBooking(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (f *fakeBookings) ListBookings(_ context.Context, _ common.TenantScope) ([]ports.BookingSummary, error) {
+	return nil, nil
+}
+
+func (f *fakeBookings) CancelBooking(_ context.Context, _ common.TenantScope, _ common.ID) error {
+	return nil
+}
+
+func (f *fakeBookings) RescheduleBooking(_ context.Context, _ common.TenantScope, _ ports.RescheduleBookingInput) error {
+	return nil
+}
+
 type fakeAvailability struct {
 	slot booking.Slot
 	err  error
