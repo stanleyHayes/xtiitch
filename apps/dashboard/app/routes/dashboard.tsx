@@ -17,19 +17,23 @@ import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { alpha, type SxProps, type Theme } from "@mui/material/styles";
+import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
-import Inventory2Rounded from "@mui/icons-material/Inventory2Rounded";
+import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PhoneRounded from "@mui/icons-material/PhoneRounded";
-import RadioButtonUncheckedRounded from "@mui/icons-material/RadioButtonUncheckedRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SaveRounded from "@mui/icons-material/SaveRounded";
+import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
@@ -79,6 +83,66 @@ type MeasurementField = {
   updated_at: string;
 };
 
+type MoneySummary = {
+  through_platform_minor: number;
+  commission_minor: number;
+  manual_takings_minor: number;
+  net_income_minor: number;
+};
+
+type ManualTaking = {
+  taking_id: string;
+  amount_minor: number;
+  method: string;
+  what_for: string;
+  taken_at: string;
+};
+
+type BookingSummary = {
+  booking_id: string;
+  order_id: string;
+  customer_name: string;
+  customer_phone: string;
+  design_title: string;
+  slot_start: string;
+  slot_end: string;
+  status: string;
+  address: string;
+};
+
+type HandoverSummary = {
+  handover_id: string;
+  order_id: string;
+  customer_name: string;
+  customer_phone: string;
+  design_title: string;
+  method: "pickup" | "delivery" | string;
+  status: string;
+  recipient_name: string;
+  recipient_phone: string;
+  address: string;
+  courier: string;
+  note: string;
+  created_at: string;
+};
+
+type NotificationSummary = {
+  message_id: string;
+  channel: string;
+  kind: string;
+  recipient: string;
+  status: string;
+  attempts: number;
+  created_at: string;
+};
+
+type AvailabilityWindow = {
+  weekday: number;
+  start_minute: number;
+  end_minute: number;
+  slot_minutes: number;
+};
+
 type OrderFilter =
   | "all"
   | "standard"
@@ -92,6 +156,10 @@ type DashboardActionData = {
   designError?: string;
   fieldError?: string;
   measurementError?: string;
+  moneyError?: string;
+  bookingError?: string;
+  handoverError?: string;
+  availabilityError?: string;
 };
 
 const orderFilters: { value: OrderFilter; label: string }[] = [
@@ -105,13 +173,39 @@ const orderFilters: { value: OrderFilter; label: string }[] = [
 
 const workspaceNav: { href: string; label: string; icon: ReactNode }[] = [
   { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
+  { href: "#money", label: "Money", icon: <AccountBalanceWalletRounded /> },
+  { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
+  { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
   { href: "#catalogue", label: "Catalogue", icon: <DesignServicesRounded /> },
   { href: "#measurements", label: "Measurements", icon: <StraightenRounded /> },
+  { href: "#availability", label: "Availability", icon: <ScheduleRounded /> },
+  { href: "#messages", label: "Messages", icon: <NotificationsRounded /> },
 ];
 
 const fieldUnits = [
   { value: "in", label: "in" },
   { value: "cm", label: "cm" },
+];
+
+const manualTakingMethods = [
+  { value: "cash", label: "Cash" },
+  { value: "momo", label: "Mobile money" },
+  { value: "other", label: "Other" },
+];
+
+const handoverMethods = [
+  { value: "pickup", label: "Pickup" },
+  { value: "delivery", label: "Delivery" },
+];
+
+const weekdays = [
+  { value: 0, label: "Sunday" },
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+  { value: 6, label: "Saturday" },
 ];
 
 export function meta(): Route.MetaDescriptors {
@@ -124,13 +218,29 @@ export function meta(): Route.MetaDescriptors {
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
-  const [profileResponse, designsResponse, ordersResponse, fieldsResponse] =
-    await Promise.all([
-      apiFetch(request, "/businesses/me"),
-      apiFetch(request, "/designs"),
-      apiFetch(request, "/orders"),
-      apiFetch(request, "/measurement-fields"),
-    ]);
+  const [
+    profileResponse,
+    designsResponse,
+    ordersResponse,
+    fieldsResponse,
+    moneySummaryResponse,
+    takingsResponse,
+    bookingsResponse,
+    handoversResponse,
+    notificationsResponse,
+    availabilityResponse,
+  ] = await Promise.all([
+    apiFetch(request, "/businesses/me"),
+    apiFetch(request, "/designs"),
+    apiFetch(request, "/orders"),
+    apiFetch(request, "/measurement-fields"),
+    apiFetch(request, "/money/summary"),
+    apiFetch(request, "/money/takings"),
+    apiFetch(request, "/bookings"),
+    apiFetch(request, "/handovers"),
+    apiFetch(request, "/notifications"),
+    apiFetch(request, "/availability"),
+  ]);
   const profile = (await profileResponse.json()) as Profile;
   const designsData = (await designsResponse.json()) as { designs: Design[] };
   const ordersData = (await ordersResponse.json()) as {
@@ -139,11 +249,38 @@ export async function loader({ request }: Route.LoaderArgs) {
   const fieldsData = (await fieldsResponse.json()) as {
     fields: MeasurementField[];
   };
+  const moneySummary = (await moneySummaryResponse.json()) as MoneySummary;
+  const takingsData = (await takingsResponse.json()) as {
+    takings: ManualTaking[];
+  };
+  const bookingsData = (await bookingsResponse.json()) as {
+    bookings: BookingSummary[];
+  };
+  const handoversData = (await handoversResponse.json()) as {
+    handovers: HandoverSummary[];
+  };
+  const notificationsData = (await notificationsResponse.json()) as {
+    notifications: NotificationSummary[];
+  };
+  const availabilityData = (await availabilityResponse.json()) as {
+    windows: AvailabilityWindow[];
+  };
   return {
     profile,
     designs: designsData.designs ?? [],
     orders: ordersData.orders ?? [],
     measurementFields: fieldsData.fields ?? [],
+    moneySummary: {
+      through_platform_minor: moneySummary.through_platform_minor ?? 0,
+      commission_minor: moneySummary.commission_minor ?? 0,
+      manual_takings_minor: moneySummary.manual_takings_minor ?? 0,
+      net_income_minor: moneySummary.net_income_minor ?? 0,
+    },
+    manualTakings: takingsData.takings ?? [],
+    bookings: bookingsData.bookings ?? [],
+    handovers: handoversData.handovers ?? [],
+    notifications: notificationsData.notifications ?? [],
+    availabilityWindows: availabilityData.windows ?? [],
     orderFilter,
   };
 }
@@ -199,6 +336,176 @@ export async function action({ request }: Route.ActionArgs) {
       };
     }
     return redirect(returnTo);
+  }
+
+  if (intent === "log_taking") {
+    const amountMinor = parseMoneyMinor(form.get("amount_ghs"));
+    const orderID = String(form.get("order_id") ?? "").trim();
+    const method = String(form.get("method") ?? "").trim();
+    const whatFor = String(form.get("what_for") ?? "").trim();
+    if (amountMinor === null || !method || !whatFor) {
+      return {
+        moneyError:
+          "Add an amount, method, and short reason before logging a taking.",
+      };
+    }
+    const response = await apiFetch(request, "/money/takings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: orderID,
+        amount_minor: amountMinor,
+        method,
+        what_for: whatFor,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        moneyError:
+          "Could not log that taking. Check the amount, method, and order link.",
+      };
+    }
+    return redirect("/dashboard#money");
+  }
+
+  if (intent === "cancel_booking") {
+    const bookingID = String(form.get("booking_id") ?? "").trim();
+    if (!bookingID) {
+      return { bookingError: "That booking could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/bookings/${encodeURIComponent(bookingID)}/cancel`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      return {
+        bookingError:
+          "Could not cancel that booking. It may already be closed.",
+      };
+    }
+    return redirect("/dashboard#visits");
+  }
+
+  if (intent === "reschedule_booking") {
+    const bookingID = String(form.get("booking_id") ?? "").trim();
+    const slotStart = datetimeLocalToRFC3339(
+      String(form.get("slot_start") ?? ""),
+    );
+    if (!bookingID || !slotStart) {
+      return { bookingError: "Pick a valid new visit time." };
+    }
+    const response = await apiFetch(
+      request,
+      `/bookings/${encodeURIComponent(bookingID)}/reschedule`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slot_start: slotStart }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        bookingError:
+          "Could not reschedule that visit. The slot may be unavailable.",
+      };
+    }
+    return redirect("/dashboard#visits");
+  }
+
+  if (intent === "arrange_handover") {
+    const orderID = String(form.get("order_id") ?? "").trim();
+    const method = String(form.get("method") ?? "").trim();
+    if (!orderID || !method) {
+      return { handoverError: "Select a fulfilled order and handover method." };
+    }
+    const response = await apiFetch(request, "/handovers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        order_id: orderID,
+        method,
+        recipient_name: String(form.get("recipient_name") ?? "").trim(),
+        recipient_phone: String(form.get("recipient_phone") ?? "").trim(),
+        address: String(form.get("address") ?? "").trim(),
+        courier: String(form.get("courier") ?? "").trim(),
+        note: String(form.get("note") ?? "").trim(),
+      }),
+    });
+    if (!response.ok) {
+      return {
+        handoverError:
+          "Could not arrange that handover. The order may not be fulfilled yet.",
+      };
+    }
+    return redirect("/dashboard#handovers");
+  }
+
+  if (intent === "advance_handover") {
+    const handoverID = String(form.get("handover_id") ?? "").trim();
+    if (!handoverID) {
+      return { handoverError: "That handover could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/handovers/${encodeURIComponent(handoverID)}/advance`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courier: String(form.get("courier") ?? "").trim(),
+          note: String(form.get("note") ?? "").trim(),
+        }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        handoverError:
+          "Could not move that handover. It may already be closed.",
+      };
+    }
+    return redirect("/dashboard#handovers");
+  }
+
+  if (intent === "cancel_handover") {
+    const handoverID = String(form.get("handover_id") ?? "").trim();
+    if (!handoverID) {
+      return { handoverError: "That handover could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/handovers/${encodeURIComponent(handoverID)}/cancel`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      return {
+        handoverError:
+          "Could not cancel that handover. It may already be closed.",
+      };
+    }
+    return redirect("/dashboard#handovers");
+  }
+
+  if (intent === "save_availability") {
+    const windows = parseAvailabilityWindows(form);
+    if (windows === null) {
+      return {
+        availabilityError:
+          "Check the weekday, start time, end time, and slot length for each row.",
+      };
+    }
+    const response = await apiFetch(request, "/availability/windows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ windows }),
+    });
+    if (!response.ok) {
+      return {
+        availabilityError:
+          "Could not save those hours. Avoid overlapping windows and use valid times.",
+      };
+    }
+    return redirect("/dashboard#availability");
   }
 
   if (intent === "create_measurement_field") {
@@ -323,6 +630,92 @@ function parseSequence(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(sequence) && sequence >= 0 ? sequence : null;
 }
 
+function parseMoneyMinor(value: FormDataEntryValue | null): number | null {
+  const entered = String(value ?? "")
+    .replaceAll(",", "")
+    .trim();
+  if (!entered) {
+    return null;
+  }
+  const amount = Number.parseFloat(entered);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return null;
+  }
+  return Math.round(amount * 100);
+}
+
+function datetimeLocalToRFC3339(value: string): string | null {
+  const entered = value.trim();
+  if (!entered) {
+    return null;
+  }
+  const withSeconds = entered.length === 16 ? `${entered}:00` : entered;
+  const parsed = new Date(`${withSeconds}Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function parseTimeToMinutes(value: string): number | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number.parseInt(match[1] ?? "", 10);
+  const minutes = Number.parseInt(match[2] ?? "", 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
+  const weekdays = form.getAll("weekday");
+  const starts = form.getAll("start");
+  const ends = form.getAll("end");
+  const slots = form.getAll("slot_minutes");
+  const rows = Math.max(
+    weekdays.length,
+    starts.length,
+    ends.length,
+    slots.length,
+  );
+  const windows: AvailabilityWindow[] = [];
+
+  for (let index = 0; index < rows; index += 1) {
+    const weekdayValue = String(weekdays[index] ?? "").trim();
+    const startValue = String(starts[index] ?? "").trim();
+    const endValue = String(ends[index] ?? "").trim();
+    const slotValue = String(slots[index] ?? "").trim();
+    if (!startValue && !endValue) {
+      continue;
+    }
+    const weekday = Number.parseInt(weekdayValue, 10);
+    const startMinute = parseTimeToMinutes(startValue);
+    const endMinute = parseTimeToMinutes(endValue);
+    const slotMinutes = Number.parseInt(slotValue, 10);
+    if (
+      !Number.isInteger(weekday) ||
+      weekday < 0 ||
+      weekday > 6 ||
+      startMinute === null ||
+      endMinute === null ||
+      endMinute <= startMinute ||
+      !Number.isInteger(slotMinutes) ||
+      slotMinutes < 15 ||
+      slotMinutes > 480
+    ) {
+      return null;
+    }
+    windows.push({
+      weekday,
+      start_minute: startMinute,
+      end_minute: endMinute,
+      slot_minutes: slotMinutes,
+    });
+  }
+
+  return windows;
+}
+
 function extractMeasurementValues(form: FormData): Record<string, string> {
   const values: Record<string, string> = {};
   for (const [key, value] of form.entries()) {
@@ -353,6 +746,21 @@ function filterOrders(
 
 function countOrders(orders: OrderSummary[], filter: OrderFilter): number {
   return filterOrders(orders, filter).length;
+}
+
+function fulfilledOrdersWithoutOpenHandover(
+  orders: OrderSummary[],
+  handovers: HandoverSummary[],
+): OrderSummary[] {
+  const openOrderIDs = new Set(
+    handovers
+      .filter((handover) => ["pending", "dispatched"].includes(handover.status))
+      .map((handover) => handover.order_id),
+  );
+  return orders.filter(
+    (order) =>
+      order.status === "fulfilled" && !openOrderIDs.has(order.order_id),
+  );
 }
 
 function stageColor(colour: string): string {
@@ -441,6 +849,51 @@ function paymentTone(order: OrderSummary): string {
   }
 }
 
+function bookingTone(status: string): string {
+  switch (status) {
+    case "booked":
+      return tokens.success;
+    case "held":
+      return tokens.warning;
+    case "cancelled":
+      return tokens.danger;
+    case "rescheduled":
+      return tokens.info;
+    default:
+      return tokens.mutedText;
+  }
+}
+
+function handoverTone(status: string): string {
+  switch (status) {
+    case "pending":
+      return tokens.warning;
+    case "dispatched":
+      return tokens.info;
+    case "completed":
+      return tokens.success;
+    case "cancelled":
+      return tokens.danger;
+    default:
+      return tokens.mutedText;
+  }
+}
+
+function notificationTone(status: string): string {
+  switch (status) {
+    case "sent":
+      return tokens.success;
+    case "sending":
+      return tokens.info;
+    case "dead":
+      return tokens.danger;
+    case "pending":
+      return tokens.warning;
+    default:
+      return tokens.mutedText;
+  }
+}
+
 function moneyProgress(order: OrderSummary): string {
   const target = order.agreed_total_minor ?? order.payment_amount_minor;
   if (!target) {
@@ -459,6 +912,75 @@ function shortDate(value: string): string {
     month: "short",
     day: "numeric",
   }).format(new Date(value));
+}
+
+function shortDateTime(value: string): string {
+  if (!value) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("en-GH", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
+
+function datetimeLocalValue(value: string): string {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime())
+    ? ""
+    : parsed.toISOString().slice(0, 16);
+}
+
+function minutesToTime(value: number): string {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function formatMethod(value: string): string {
+  switch (value) {
+    case "momo":
+      return "Mobile money";
+    case "cash":
+      return "Cash";
+    case "other":
+      return "Other";
+    case "pickup":
+      return "Pickup";
+    case "delivery":
+      return "Delivery";
+    default:
+      return value;
+  }
+}
+
+function messageKindLabel(kind: string): string {
+  return kind
+    .split("_")
+    .filter(Boolean)
+    .map((word) => `${word[0]?.toUpperCase() ?? ""}${word.slice(1)}`)
+    .join(" ");
+}
+
+function handoverActionLabel(handover: HandoverSummary): string {
+  if (handover.method === "delivery" && handover.status === "pending") {
+    return "Mark dispatched";
+  }
+  return "Mark completed";
+}
+
+function canManageBooking(status: string): boolean {
+  return status === "held" || status === "booked";
+}
+
+function canAdvanceHandover(status: string): boolean {
+  return status === "pending" || status === "dispatched";
 }
 
 function orderInitials(order: OrderSummary): string {
@@ -1100,12 +1622,881 @@ function MeasurementFieldRow({ field }: { field: MeasurementField }) {
   );
 }
 
+function MiniStat({
+  icon,
+  label,
+  value,
+  helper,
+  tone = tokens.burgundy,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  helper?: string;
+  tone?: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        border: "1px solid",
+        borderColor: alpha(tone, 0.18),
+        borderRadius: 2,
+        bgcolor: alpha(tone, 0.055),
+        minWidth: 0,
+      }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+        <Box sx={{ color: tone, display: "grid" }}>{icon}</Box>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", fontWeight: 900 }}
+        >
+          {label}
+        </Typography>
+      </Stack>
+      <Typography sx={{ mt: 0.75, fontWeight: 900, overflowWrap: "anywhere" }}>
+        {value}
+      </Typography>
+      {helper ? (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {helper}
+        </Typography>
+      ) : null}
+    </Box>
+  );
+}
+
+function InlineEmptyState({
+  icon,
+  title,
+  helper,
+}: {
+  icon: ReactNode;
+  title: string;
+  helper: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 2.5,
+        border: "1px dashed",
+        borderColor: "divider",
+        borderRadius: 2,
+        textAlign: "center",
+        bgcolor: alpha(tokens.ink, 0.02),
+      }}
+    >
+      <Box sx={{ color: "primary.main", mb: 0.75 }}>{icon}</Box>
+      <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
+      <Typography
+        variant="body2"
+        sx={{ color: "text.secondary", maxWidth: 380, mx: "auto", mt: 0.5 }}
+      >
+        {helper}
+      </Typography>
+    </Box>
+  );
+}
+
+function MoneyPanel({
+  summary,
+  takings,
+  orders,
+  error,
+}: {
+  summary: MoneySummary;
+  takings: ManualTaking[];
+  orders: OrderSummary[];
+  error?: string;
+}) {
+  const linkableOrders = orders.filter((order) => order.status !== "cancelled");
+
+  return (
+    <Panel id="money">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            alignItems: { xs: "stretch", md: "flex-start" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <AccountBalanceWalletRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Money desk</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Track Paystack money and off-platform cash or momo takings.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={`${takings.length} manual entries`}
+            tone={tokens.info}
+          />
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+          }}
+        >
+          <MiniStat
+            icon={<PaymentsRounded fontSize="small" />}
+            label="Platform"
+            value={formatGHS(summary.through_platform_minor)}
+            helper="Paid through checkout"
+            tone={tokens.success}
+          />
+          <MiniStat
+            icon={<AccountBalanceWalletRounded fontSize="small" />}
+            label="Manual"
+            value={formatGHS(summary.manual_takings_minor)}
+            helper="Logged cash or momo"
+            tone={tokens.info}
+          />
+          <MiniStat
+            icon={<ReceiptLongRounded fontSize="small" />}
+            label="Commission"
+            value={formatGHS(summary.commission_minor)}
+            helper="Xtiitch platform fee"
+            tone={tokens.warning}
+          />
+          <MiniStat
+            icon={<CheckCircleRounded fontSize="small" />}
+            label="Net income"
+            value={formatGHS(summary.net_income_minor)}
+            helper="Platform plus manual less fee"
+            tone={tokens.burgundy}
+          />
+        </Box>
+
+        <Divider sx={{ my: 2.25 }} />
+
+        <Form method="post">
+          <input type="hidden" name="intent" value="log_taking" />
+          <Stack spacing={1.5}>
+            {error ? <Alert severity="warning">{error}</Alert> : null}
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "minmax(120px, 0.22fr) minmax(140px, 0.22fr) minmax(0, 0.28fr) minmax(0, 0.28fr)",
+                },
+              }}
+            >
+              <TextField
+                name="amount_ghs"
+                label="Amount"
+                size="small"
+                required
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { inputMode: "decimal" },
+                }}
+              />
+              <TextField
+                name="method"
+                label="Method"
+                select
+                defaultValue="cash"
+                size="small"
+              >
+                {manualTakingMethods.map((method) => (
+                  <MenuItem key={method.value} value={method.value}>
+                    {method.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                name="order_id"
+                label="Order link"
+                select
+                defaultValue=""
+                size="small"
+              >
+                <MenuItem value="">No order link</MenuItem>
+                {linkableOrders.map((order) => (
+                  <MenuItem key={order.order_id} value={order.order_id}>
+                    {order.design_title} · {order.customer_name || "Customer"}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                name="what_for"
+                label="What for"
+                size="small"
+                placeholder="Balance, walk-in, alteration"
+                required
+              />
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<AddRounded />}
+              sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+            >
+              Log taking
+            </Button>
+          </Stack>
+        </Form>
+      </Box>
+
+      <Box sx={{ borderTop: "1px solid", borderColor: "divider" }}>
+        {takings.length === 0 ? (
+          <Box sx={{ p: 2.5 }}>
+            <InlineEmptyState
+              icon={<AccountBalanceWalletRounded sx={{ fontSize: 38 }} />}
+              title="No manual takings yet"
+              helper="Cash, mobile money, and other off-platform income will appear here after staff log it."
+            />
+          </Box>
+        ) : (
+          takings.slice(0, 6).map((taking) => (
+            <Box
+              key={taking.taking_id}
+              sx={{
+                px: { xs: 2, md: 2.5 },
+                py: 1.4,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "minmax(0, 1fr) auto",
+                },
+                alignItems: "center",
+              }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 900 }} noWrap>
+                  {taking.what_for}
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {formatMethod(taking.method)} ·{" "}
+                  {shortDateTime(taking.taken_at)}
+                </Typography>
+              </Box>
+              <Typography sx={{ fontWeight: 900 }}>
+                {formatGHS(taking.amount_minor)}
+              </Typography>
+            </Box>
+          ))
+        )}
+      </Box>
+    </Panel>
+  );
+}
+
+function BookingQueuePanel({
+  bookings,
+  error,
+}: {
+  bookings: BookingSummary[];
+  error?: string;
+}) {
+  return (
+    <Panel id="visits">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <CalendarMonthRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Visit queue</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Home-visit bookings, reschedule controls, and cancellations.
+            </Typography>
+          </Box>
+        </Stack>
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+      </Box>
+
+      {bookings.length === 0 ? (
+        <Box sx={{ px: 2.5, pb: 2.5 }}>
+          <InlineEmptyState
+            icon={<EventAvailableRounded sx={{ fontSize: 38 }} />}
+            title="No booked visits"
+            helper="Customer home-visit bookings will appear here after checkout confirms the deposit."
+          />
+        </Box>
+      ) : (
+        bookings.map((booking) => {
+          const manage = canManageBooking(booking.status);
+          const canReschedule = booking.status === "booked";
+          return (
+            <Box
+              key={booking.booking_id}
+              sx={{
+                px: { xs: 2, md: 2.5 },
+                py: 1.75,
+                borderTop: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Stack spacing={1.5}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{
+                    alignItems: { xs: "flex-start", sm: "center" },
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {booking.customer_name || "Customer"} ·{" "}
+                      {booking.design_title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {shortDateTime(booking.slot_start)} to{" "}
+                      {shortDateTime(booking.slot_end)}
+                    </Typography>
+                  </Box>
+                  <ToneChip
+                    label={booking.status}
+                    tone={bookingTone(booking.status)}
+                  />
+                </Stack>
+                <InfoStrip
+                  icon={<PhoneRounded />}
+                  tone={tokens.info}
+                  title={booking.customer_phone || "No phone captured"}
+                  helper={booking.address || "No address captured"}
+                />
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1}
+                  sx={{ alignItems: { xs: "stretch", md: "center" } }}
+                >
+                  <Form method="post" style={{ flex: 1 }}>
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="reschedule_booking"
+                    />
+                    <input
+                      type="hidden"
+                      name="booking_id"
+                      value={booking.booking_id}
+                    />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        name="slot_start"
+                        label="New slot"
+                        type="datetime-local"
+                        size="small"
+                        defaultValue={datetimeLocalValue(booking.slot_start)}
+                        disabled={!canReschedule}
+                        slotProps={{ inputLabel: { shrink: true } }}
+                        fullWidth
+                      />
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        disabled={!canReschedule}
+                      >
+                        Reschedule
+                      </Button>
+                    </Stack>
+                  </Form>
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="cancel_booking" />
+                    <input
+                      type="hidden"
+                      name="booking_id"
+                      value={booking.booking_id}
+                    />
+                    <Button
+                      type="submit"
+                      color="error"
+                      variant="outlined"
+                      disabled={!manage}
+                      fullWidth
+                    >
+                      Cancel
+                    </Button>
+                  </Form>
+                </Stack>
+              </Stack>
+            </Box>
+          );
+        })
+      )}
+    </Panel>
+  );
+}
+
+function HandoverPanel({
+  handovers,
+  orders,
+  error,
+}: {
+  handovers: HandoverSummary[];
+  orders: OrderSummary[];
+  error?: string;
+}) {
+  const handoverOrders = fulfilledOrdersWithoutOpenHandover(orders, handovers);
+
+  return (
+    <Panel id="handovers">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <LocalShippingRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Handover desk</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Arrange pickup or delivery once an order is fulfilled.
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Form method="post">
+          <input type="hidden" name="intent" value="arrange_handover" />
+          <Stack spacing={1.5} sx={{ mt: 2 }}>
+            {error ? <Alert severity="warning">{error}</Alert> : null}
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "minmax(0, 1.2fr) minmax(130px, 0.5fr)",
+                },
+              }}
+            >
+              <TextField
+                name="order_id"
+                label="Fulfilled order"
+                select
+                size="small"
+                defaultValue={handoverOrders[0]?.order_id ?? ""}
+                disabled={handoverOrders.length === 0}
+                required
+              >
+                {handoverOrders.length === 0 ? (
+                  <MenuItem value="">No fulfilled orders ready</MenuItem>
+                ) : null}
+                {handoverOrders.map((order) => (
+                  <MenuItem key={order.order_id} value={order.order_id}>
+                    {order.design_title} · {order.customer_name || "Customer"}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                name="method"
+                label="Method"
+                select
+                defaultValue="pickup"
+                size="small"
+              >
+                {handoverMethods.map((method) => (
+                  <MenuItem key={method.value} value={method.value}>
+                    {method.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+              }}
+            >
+              <TextField name="recipient_name" label="Recipient" size="small" />
+              <TextField
+                name="recipient_phone"
+                label="Recipient phone"
+                size="small"
+              />
+              <TextField name="courier" label="Courier or rider" size="small" />
+              <TextField name="note" label="Note" size="small" />
+            </Box>
+            <TextField
+              name="address"
+              label="Delivery address"
+              size="small"
+              fullWidth
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<AddRounded />}
+              disabled={handoverOrders.length === 0}
+              sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+            >
+              Arrange handover
+            </Button>
+          </Stack>
+        </Form>
+      </Box>
+
+      {handovers.length === 0 ? (
+        <Box sx={{ px: 2.5, pb: 2.5 }}>
+          <InlineEmptyState
+            icon={<LocalShippingRounded sx={{ fontSize: 38 }} />}
+            title="No handovers yet"
+            helper="Fulfilled orders can be turned into pickup or delivery handovers from this desk."
+          />
+        </Box>
+      ) : (
+        handovers.map((handover) => {
+          const active = canAdvanceHandover(handover.status);
+          return (
+            <Box
+              key={handover.handover_id}
+              sx={{
+                px: { xs: 2, md: 2.5 },
+                py: 1.75,
+                borderTop: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Stack spacing={1.5}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{
+                    alignItems: { xs: "flex-start", sm: "center" },
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {handover.customer_name || "Customer"} ·{" "}
+                      {handover.design_title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {formatMethod(handover.method)} ·{" "}
+                      {shortDateTime(handover.created_at)}
+                    </Typography>
+                  </Box>
+                  <ToneChip
+                    label={handover.status}
+                    tone={handoverTone(handover.status)}
+                  />
+                </Stack>
+                <InfoStrip
+                  icon={<PhoneRounded />}
+                  tone={tokens.info}
+                  title={
+                    handover.recipient_phone ||
+                    handover.customer_phone ||
+                    "No phone captured"
+                  }
+                  helper={
+                    handover.address ||
+                    handover.recipient_name ||
+                    handover.note ||
+                    "Pickup from shop"
+                  }
+                />
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1}
+                  sx={{ alignItems: { xs: "stretch", md: "center" } }}
+                >
+                  <Form method="post" style={{ flex: 1 }}>
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="advance_handover"
+                    />
+                    <input
+                      type="hidden"
+                      name="handover_id"
+                      value={handover.handover_id}
+                    />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        name="courier"
+                        label="Courier"
+                        size="small"
+                        defaultValue={handover.courier}
+                        disabled={!active}
+                        fullWidth
+                      />
+                      <TextField
+                        name="note"
+                        label="Note"
+                        size="small"
+                        defaultValue={handover.note}
+                        disabled={!active}
+                        fullWidth
+                      />
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        disabled={!active}
+                        sx={{ minWidth: 150 }}
+                      >
+                        {handoverActionLabel(handover)}
+                      </Button>
+                    </Stack>
+                  </Form>
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="cancel_handover"
+                    />
+                    <input
+                      type="hidden"
+                      name="handover_id"
+                      value={handover.handover_id}
+                    />
+                    <Button
+                      type="submit"
+                      variant="outlined"
+                      color="error"
+                      disabled={!active}
+                      fullWidth
+                    >
+                      Cancel
+                    </Button>
+                  </Form>
+                </Stack>
+              </Stack>
+            </Box>
+          );
+        })
+      )}
+    </Panel>
+  );
+}
+
+function AvailabilityPanel({
+  windows,
+  error,
+}: {
+  windows: AvailabilityWindow[];
+  error?: string;
+}) {
+  const sortedWindows = [...windows].sort(
+    (a, b) => a.weekday - b.weekday || a.start_minute - b.start_minute,
+  );
+
+  return (
+    <Panel id="availability">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <ScheduleRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Visit hours</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Weekly windows that produce customer home-visit slots.
+            </Typography>
+          </Box>
+        </Stack>
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+        <Form method="post">
+          <input type="hidden" name="intent" value="save_availability" />
+          <Stack spacing={1.25} sx={{ mt: 2 }}>
+            {sortedWindows.map((window, index) => (
+              <AvailabilityWindowFields
+                key={`${window.weekday}-${window.start_minute}-${index}`}
+                window={window}
+              />
+            ))}
+            <AvailabilityWindowFields />
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<SaveRounded />}
+              sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+            >
+              Save hours
+            </Button>
+          </Stack>
+        </Form>
+      </Box>
+    </Panel>
+  );
+}
+
+function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 1,
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: "minmax(0, 1fr) 105px 105px 110px",
+        },
+      }}
+    >
+      <TextField
+        name="weekday"
+        label="Day"
+        select
+        size="small"
+        defaultValue={window?.weekday ?? 1}
+      >
+        {weekdays.map((weekday) => (
+          <MenuItem key={weekday.value} value={weekday.value}>
+            {weekday.label}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        name="start"
+        label="Start"
+        type="time"
+        size="small"
+        defaultValue={window ? minutesToTime(window.start_minute) : ""}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
+      <TextField
+        name="end"
+        label="End"
+        type="time"
+        size="small"
+        defaultValue={window ? minutesToTime(window.end_minute) : ""}
+        slotProps={{ inputLabel: { shrink: true } }}
+      />
+      <TextField
+        name="slot_minutes"
+        label="Slot"
+        type="number"
+        size="small"
+        defaultValue={window?.slot_minutes ?? 60}
+        slotProps={{ htmlInput: { min: 15, max: 480, step: 15 } }}
+      />
+    </Box>
+  );
+}
+
+function NotificationPanel({
+  notifications,
+}: {
+  notifications: NotificationSummary[];
+}) {
+  return (
+    <Panel id="messages">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <NotificationsRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Message log</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Outbound WhatsApp/SMS intents created by order events.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={`${notifications.length} total`}
+            tone={tokens.burgundy}
+          />
+        </Stack>
+      </Box>
+
+      {notifications.length === 0 ? (
+        <Box sx={{ px: 2.5, pb: 2.5 }}>
+          <InlineEmptyState
+            icon={<NotificationsRounded sx={{ fontSize: 38 }} />}
+            title="No messages yet"
+            helper="Order, booking, payment, and handover events will create entries in this outbox log."
+          />
+        </Box>
+      ) : (
+        notifications.slice(0, 8).map((message) => (
+          <Box
+            key={message.message_id}
+            sx={{
+              px: { xs: 2, md: 2.5 },
+              py: 1.4,
+              borderTop: "1px solid",
+              borderColor: "divider",
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+              alignItems: "center",
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {messageKindLabel(message.kind)}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+              >
+                {message.channel.toUpperCase()} to {message.recipient} ·{" "}
+                {shortDateTime(message.created_at)}
+              </Typography>
+            </Box>
+            <ToneChip
+              label={`${message.status} · ${message.attempts}`}
+              tone={notificationTone(message.status)}
+            />
+          </Box>
+        ))
+      )}
+    </Panel>
+  );
+}
+
 export default function Dashboard({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { profile, designs, orders, measurementFields, orderFilter } =
-    loaderData;
+  const {
+    profile,
+    designs,
+    orders,
+    measurementFields,
+    moneySummary,
+    manualTakings,
+    bookings,
+    handovers,
+    notifications,
+    availabilityWindows,
+    orderFilter,
+  } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
   const verified = profile.verification_status === "verified";
   const filteredOrders = filterOrders(orders, orderFilter);
@@ -1113,13 +2504,22 @@ export default function Dashboard({
   const liveOrders = orders.filter(
     (order) => order.status !== "fulfilled" && order.status !== "cancelled",
   );
-  const paidMinor = orders.reduce((sum, order) => sum + order.settled_minor, 0);
-  const customCount = orders.filter(
-    (order) => order.order_type === "custom",
-  ).length;
   const pendingPayments = countOrders(orders, "draft");
   const needsMeasurements = orders.filter((order) =>
     Boolean(measurementSourceFor(order)),
+  ).length;
+  const activeBookings = bookings.filter((booking) =>
+    canManageBooking(booking.status),
+  ).length;
+  const openHandovers = handovers.filter((handover) =>
+    canAdvanceHandover(handover.status),
+  ).length;
+  const pendingMessages = notifications.filter((notification) =>
+    ["pending", "sending"].includes(notification.status),
+  ).length;
+  const readyForHandover = fulfilledOrdersWithoutOpenHandover(
+    orders,
+    handovers,
   ).length;
   const storefrontURL = `https://${profile.handle}.xtiitch.com`;
   const nextFieldSequence =
@@ -1278,22 +2678,22 @@ export default function Dashboard({
                     maxWidth: 680,
                   }}
                 >
-                  Orders, payments, customer contact, catalogue work, and
-                  measurement setup now sit in one practical workspace.
+                  Orders, payments, visit slots, customer messages, and final
+                  pickup or delivery work now sit in one practical workspace.
                 </Typography>
               </Box>
               <Stack spacing={1} sx={{ minWidth: { md: 260 } }}>
                 <InfoStrip
-                  icon={<ReceiptLongRounded />}
+                  icon={<AccountBalanceWalletRounded />}
                   tone={tokens.gold}
-                  title={`${liveOrders.length} live orders`}
-                  helper={`${pendingPayments} awaiting payment`}
+                  title={formatGHS(moneySummary.net_income_minor)}
+                  helper="Net tracked income"
                 />
                 <InfoStrip
-                  icon={<StraightenRounded />}
+                  icon={<EventAvailableRounded />}
                   tone={tokens.info}
-                  title={`${needsMeasurements} need fitting data`}
-                  helper={`${measurementFields.length} fields configured`}
+                  title={`${activeBookings} active visits`}
+                  helper={`${availabilityWindows.length} availability windows`}
                 />
               </Stack>
             </Stack>
@@ -1314,28 +2714,28 @@ export default function Dashboard({
               icon={<ReceiptLongRounded />}
               label="Live orders"
               value={String(liveOrders.length)}
-              helper="Confirmed or awaiting work"
+              helper={`${pendingPayments} awaiting payment`}
             />
             <MetricCard
-              icon={<RadioButtonUncheckedRounded />}
-              label="Awaiting payment"
-              value={String(pendingPayments)}
-              helper="Needs checkout completion"
-              tone={tokens.warning}
-            />
-            <MetricCard
-              icon={<PaymentsRounded />}
-              label="Settled through Xtiitch"
-              value={formatGHS(paidMinor)}
-              helper="Tracked via Paystack rails"
+              icon={<AccountBalanceWalletRounded />}
+              label="Net income"
+              value={formatGHS(moneySummary.net_income_minor)}
+              helper="Platform and manual takings"
               tone={tokens.success}
             />
             <MetricCard
-              icon={<Inventory2Rounded />}
-              label="Custom orders"
-              value={String(customCount)}
-              helper="Bespoke route volume"
+              icon={<CalendarMonthRounded />}
+              label="Visit queue"
+              value={String(activeBookings)}
+              helper="Held or booked home visits"
               tone={tokens.info}
+            />
+            <MetricCard
+              icon={<LocalShippingRounded />}
+              label="Open handovers"
+              value={String(openHandovers)}
+              helper={`${readyForHandover} fulfilled orders ready`}
+              tone={tokens.warning}
             />
           </Box>
 
@@ -1353,6 +2753,18 @@ export default function Dashboard({
           >
             <Box sx={{ minWidth: 0 }}>
               <Stack spacing={2.5}>
+                <MoneyPanel
+                  summary={moneySummary}
+                  takings={manualTakings}
+                  orders={orders}
+                  error={action.moneyError}
+                />
+
+                <BookingQueuePanel
+                  bookings={bookings}
+                  error={action.bookingError}
+                />
+
                 <Box id="orders">
                   <SectionHeader
                     eyebrow="Orders"
@@ -1410,6 +2822,12 @@ export default function Dashboard({
                     )}
                   </Stack>
                 </Box>
+
+                <HandoverPanel
+                  handovers={handovers}
+                  orders={orders}
+                  error={action.handoverError}
+                />
 
                 <Box id="catalogue">
                   <SectionHeader
@@ -1646,6 +3064,13 @@ export default function Dashboard({
                 )}
               </Panel>
 
+              <AvailabilityPanel
+                windows={availabilityWindows}
+                error={action.availabilityError}
+              />
+
+              <NotificationPanel notifications={notifications} />
+
               <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
                 <Stack
                   direction="row"
@@ -1663,9 +3088,9 @@ export default function Dashboard({
                       variant="body2"
                       sx={{ mt: 0.75, color: "text.secondary" }}
                     >
-                      Clear drafts first, then record measurements for confirmed
-                      visit/shop custom orders. Xtiitch records payment state
-                      but never holds funds.
+                      Clear drafts first, capture visit/shop measurements, then
+                      close finished garments with pickup or delivery handovers.
+                      Xtiitch records payment state but never holds funds.
                     </Typography>
                     <Stack
                       direction="row"
@@ -1679,6 +3104,14 @@ export default function Dashboard({
                       <ToneChip
                         label={`${needsMeasurements} measurement captures`}
                         tone={tokens.info}
+                      />
+                      <ToneChip
+                        label={`${openHandovers} active handovers`}
+                        tone={tokens.warning}
+                      />
+                      <ToneChip
+                        label={`${pendingMessages} messages pending`}
+                        tone={tokens.burgundy}
                       />
                     </Stack>
                   </Box>
