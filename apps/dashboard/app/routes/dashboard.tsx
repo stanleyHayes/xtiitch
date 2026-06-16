@@ -1694,10 +1694,13 @@ function Panel({
       elevation={0}
       sx={{
         border: "1px solid",
-        borderColor: "divider",
+        borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: "background.paper",
+        bgcolor: alpha(tokens.white, 0.96),
+        backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.78)}, ${alpha(tokens.panel, 0.5)})`,
+        boxShadow: `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
         overflow: "hidden",
+        backdropFilter: "blur(10px)",
         ...sx,
       }}
     >
@@ -1764,7 +1767,8 @@ function MetricCard({
         p: 2.25,
         minHeight: 142,
         position: "relative",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 42%)`,
+        overflow: "hidden",
+        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.12)}, transparent 46%), linear-gradient(180deg, ${alpha(tokens.white, 0.9)}, ${alpha(tokens.panel, 0.58)})`,
         "&::before": {
           content: '""',
           position: "absolute",
@@ -1773,11 +1777,34 @@ function MetricCard({
           height: 3,
           bgcolor: tone,
         },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          right: -34,
+          bottom: -42,
+          width: 110,
+          height: 110,
+          borderRadius: "50%",
+          border: `1px solid ${alpha(tone, 0.18)}`,
+          bgcolor: alpha(tone, 0.035),
+        },
+        "&:hover": {
+          borderColor: alpha(tone, 0.25),
+          transform: "translateY(-2px)",
+          boxShadow: `0 22px 64px ${alpha(tokens.ink, 0.09)}`,
+        },
+        transition:
+          "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
       }}
     >
       <Stack
         spacing={2}
-        sx={{ height: "100%", justifyContent: "space-between" }}
+        sx={{
+          height: "100%",
+          justifyContent: "space-between",
+          position: "relative",
+          zIndex: 1,
+        }}
       >
         <Stack
           direction="row"
@@ -1799,6 +1826,9 @@ function MetricCard({
               placeItems: "center",
               bgcolor: alpha(tone, 0.1),
               color: tone,
+              border: "1px solid",
+              borderColor: alpha(tone, 0.16),
+              boxShadow: `0 12px 28px ${alpha(tone, 0.08)}`,
             }}
           >
             {icon}
@@ -2347,7 +2377,12 @@ function HeaderSignal({
 
 function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
   return (
-    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.065)}, transparent 44%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.7)})`,
+      }}
+    >
       <SectionHeader
         eyebrow="Overview"
         title="Choose the right workspace"
@@ -2368,19 +2403,41 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
           <Box
             key={room.href}
             sx={{
-              p: 1.6,
+              p: 1.65,
               border: "1px solid",
               borderColor: alpha(room.tone, 0.2),
               borderRadius: 2,
-              bgcolor: alpha(room.tone, 0.045),
+              bgcolor: alpha(tokens.white, 0.78),
+              backgroundImage: `linear-gradient(135deg, ${alpha(room.tone, 0.08)}, transparent 48%)`,
               minWidth: 0,
               display: "grid",
               gap: 1.25,
+              position: "relative",
+              overflow: "hidden",
+              boxShadow: `0 14px 34px ${alpha(tokens.ink, 0.045)}`,
+              transition:
+                "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
+              "&::after": {
+                content: '""',
+                position: "absolute",
+                right: -28,
+                bottom: -34,
+                width: 94,
+                height: 94,
+                borderRadius: "50%",
+                bgcolor: alpha(room.tone, 0.055),
+                border: `1px solid ${alpha(room.tone, 0.12)}`,
+              },
+              "&:hover": {
+                transform: "translateY(-2px)",
+                borderColor: alpha(room.tone, 0.34),
+                boxShadow: `0 22px 50px ${alpha(tokens.ink, 0.075)}`,
+              },
             }}
           >
             <Stack
               direction="row"
-              spacing={1.25}
+              spacing={1.35}
               sx={{ alignItems: "flex-start", minWidth: 0 }}
             >
               <Box
@@ -2392,6 +2449,9 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
                   placeItems: "center",
                   color: room.tone,
                   bgcolor: alpha(room.tone, 0.1),
+                  border: "1px solid",
+                  borderColor: alpha(room.tone, 0.18),
+                  boxShadow: `0 12px 26px ${alpha(room.tone, 0.08)}`,
                   flexShrink: 0,
                 }}
               >
@@ -2421,7 +2481,17 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
                 component={RouterLink}
                 to={room.href}
                 size="small"
+                variant="outlined"
                 endIcon={<ArrowForwardRounded />}
+                sx={{
+                  bgcolor: alpha(tokens.white, 0.72),
+                  borderColor: alpha(room.tone, 0.2),
+                  color: room.tone,
+                  "&:hover": {
+                    bgcolor: alpha(room.tone, 0.08),
+                    borderColor: alpha(room.tone, 0.3),
+                  },
+                }}
               >
                 {room.actionLabel}
               </Button>
@@ -2445,7 +2515,20 @@ function TodayFocusPanel({
   pendingMessages: number;
 }) {
   return (
-    <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        bgcolor: tokens.charcoal,
+        color: tokens.white,
+        position: "relative",
+        backgroundImage: `
+          linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px),
+          linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px),
+          linear-gradient(145deg, ${alpha(tokens.burgundy, 0.42)}, transparent 54%)
+        `,
+        backgroundSize: "34px 34px, 34px 34px, auto",
+      }}
+    >
       <Stack spacing={1.75}>
         <Stack direction="row" spacing={1.25} sx={{ alignItems: "flex-start" }}>
           <Box
@@ -2455,8 +2538,10 @@ function TodayFocusPanel({
               borderRadius: 1.5,
               display: "grid",
               placeItems: "center",
-              color: "primary.main",
-              bgcolor: alpha(tokens.burgundy, 0.1),
+              color: tokens.white,
+              bgcolor: alpha(tokens.burgundy, 0.58),
+              border: "1px solid",
+              borderColor: alpha(tokens.white, 0.16),
               flexShrink: 0,
             }}
           >
@@ -2466,7 +2551,7 @@ function TodayFocusPanel({
             <Typography sx={{ fontWeight: 900 }}>Today's focus</Typography>
             <Typography
               variant="body2"
-              sx={{ mt: 0.75, color: "text.secondary" }}
+              sx={{ mt: 0.75, color: alpha(tokens.white, 0.7) }}
             >
               Clear drafts first, capture visit/shop measurements, then close
               finished garments with pickup or delivery handovers. Xtiitch
@@ -2497,7 +2582,8 @@ function TodayFocusPanel({
             component={RouterLink}
             to="/dashboard/orders?orders=draft"
             size="small"
-            variant="outlined"
+            variant="contained"
+            sx={{ bgcolor: tokens.white, color: tokens.ink }}
           >
             Drafts
           </Button>
@@ -2506,6 +2592,11 @@ function TodayFocusPanel({
             to="/dashboard/visits"
             size="small"
             variant="outlined"
+            sx={{
+              color: tokens.white,
+              borderColor: alpha(tokens.white, 0.22),
+              "&:hover": { borderColor: alpha(tokens.white, 0.34) },
+            }}
           >
             Visits
           </Button>
@@ -2514,6 +2605,11 @@ function TodayFocusPanel({
             to="/dashboard/handovers"
             size="small"
             variant="outlined"
+            sx={{
+              color: tokens.white,
+              borderColor: alpha(tokens.white, 0.22),
+              "&:hover": { borderColor: alpha(tokens.white, 0.34) },
+            }}
           >
             Handovers
           </Button>
@@ -2534,9 +2630,32 @@ function EmptyState({
 }) {
   return (
     <Panel
-      sx={{ p: { xs: 3, md: 5 }, textAlign: "center", borderStyle: "dashed" }}
+      sx={{
+        p: { xs: 3, md: 5 },
+        textAlign: "center",
+        borderStyle: "dashed",
+        borderColor: alpha(tokens.burgundy, 0.25),
+        bgcolor: alpha(tokens.white, 0.72),
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.05)}, transparent 48%)`,
+      }}
     >
-      <Box sx={{ color: "primary.main", mb: 1 }}>{icon}</Box>
+      <Box
+        sx={{
+          color: "primary.main",
+          mb: 1.25,
+          width: 58,
+          height: 58,
+          mx: "auto",
+          borderRadius: 2,
+          display: "grid",
+          placeItems: "center",
+          bgcolor: alpha(tokens.burgundy, 0.08),
+          border: "1px solid",
+          borderColor: alpha(tokens.burgundy, 0.16),
+        }}
+      >
+        {icon}
+      </Box>
       <Typography sx={{ fontWeight: 800 }}>{title}</Typography>
       <Typography
         variant="body2"
@@ -2822,11 +2941,28 @@ function InfoStrip({
         borderRadius: 2,
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
-        bgcolor: alpha(tone, 0.055),
+        bgcolor: alpha(tokens.white, 0.72),
+        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 52%)`,
         minWidth: 0,
+        boxShadow: `0 10px 26px ${alpha(tokens.ink, 0.04)}`,
       }}
     >
-      <Box sx={{ color: tone, pt: 0.15 }}>{icon}</Box>
+      <Box
+        sx={{
+          color: tone,
+          width: 34,
+          height: 34,
+          borderRadius: 1.25,
+          display: "grid",
+          placeItems: "center",
+          bgcolor: alpha(tone, 0.1),
+          border: "1px solid",
+          borderColor: alpha(tone, 0.16),
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </Box>
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontWeight: 800, overflowWrap: "anywhere" }}>
           {title}
@@ -3028,12 +3164,49 @@ function MiniStat({
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
         borderRadius: 2,
-        bgcolor: alpha(tone, 0.055),
+        bgcolor: alpha(tokens.white, 0.78),
+        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 48%)`,
         minWidth: 0,
+        position: "relative",
+        overflow: "hidden",
+        transition:
+          "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          right: -26,
+          bottom: -32,
+          width: 78,
+          height: 78,
+          borderRadius: "50%",
+          bgcolor: alpha(tone, 0.05),
+          border: `1px solid ${alpha(tone, 0.12)}`,
+        },
+        "&:hover": {
+          transform: "translateY(-2px)",
+          borderColor: alpha(tone, 0.3),
+          boxShadow: `0 18px 42px ${alpha(tokens.ink, 0.065)}`,
+        },
       }}
     >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-        <Box sx={{ color: tone, display: "grid" }}>{icon}</Box>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", position: "relative", zIndex: 1 }}
+      >
+        <Box
+          sx={{
+            color: tone,
+            display: "grid",
+            width: 28,
+            height: 28,
+            borderRadius: 1,
+            placeItems: "center",
+            bgcolor: alpha(tone, 0.1),
+          }}
+        >
+          {icon}
+        </Box>
         <Typography
           variant="caption"
           sx={{ color: "text.secondary", fontWeight: 900 }}
@@ -3041,11 +3214,22 @@ function MiniStat({
           {label}
         </Typography>
       </Stack>
-      <Typography sx={{ mt: 0.75, fontWeight: 900, overflowWrap: "anywhere" }}>
+      <Typography
+        sx={{
+          mt: 0.75,
+          fontWeight: 900,
+          overflowWrap: "anywhere",
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
         {value}
       </Typography>
       {helper ? (
-        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", position: "relative", zIndex: 1 }}
+        >
           {helper}
         </Typography>
       ) : null}
@@ -3067,13 +3251,30 @@ function InlineEmptyState({
       sx={{
         p: 2.5,
         border: "1px dashed",
-        borderColor: "divider",
+        borderColor: alpha(tokens.burgundy, 0.25),
         borderRadius: 2,
         textAlign: "center",
-        bgcolor: alpha(tokens.ink, 0.02),
+        bgcolor: alpha(tokens.white, 0.7),
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.045)}, transparent 48%)`,
       }}
     >
-      <Box sx={{ color: "primary.main", mb: 0.75 }}>{icon}</Box>
+      <Box
+        sx={{
+          color: "primary.main",
+          mb: 0.85,
+          mx: "auto",
+          width: 52,
+          height: 52,
+          borderRadius: 2,
+          display: "grid",
+          placeItems: "center",
+          bgcolor: alpha(tokens.burgundy, 0.08),
+          border: "1px solid",
+          borderColor: alpha(tokens.burgundy, 0.16),
+        }}
+      >
+        {icon}
+      </Box>
       <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
       <Typography
         variant="body2"
