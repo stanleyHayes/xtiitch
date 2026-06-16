@@ -25,14 +25,19 @@ func (c Channel) Valid() bool {
 type Kind string
 
 const (
-	KindOrderConfirmed Kind = "order_confirmed"
-	KindOrderFulfilled Kind = "order_fulfilled"
+	KindOrderConfirmed     Kind = "order_confirmed"
+	KindOrderFulfilled     Kind = "order_fulfilled"
+	KindBookingConfirmed   Kind = "booking_confirmed"
+	KindBalancePaid        Kind = "balance_paid"
+	KindHandoverDispatched Kind = "handover_dispatched"
+	KindHandoverCompleted  Kind = "handover_completed"
 )
 
 // Valid reports whether the kind is one the system knows.
 func (k Kind) Valid() bool {
 	switch k {
-	case KindOrderConfirmed, KindOrderFulfilled:
+	case KindOrderConfirmed, KindOrderFulfilled, KindBookingConfirmed, KindBalancePaid,
+		KindHandoverDispatched, KindHandoverCompleted:
 		return true
 	default:
 		return false

@@ -10,6 +10,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/delivery"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -169,6 +170,22 @@ func (repo DeliveryRepository) SetHandoverStatus(ctx context.Context, scope comm
 	if tag.RowsAffected() == 0 {
 		return ports.ErrNotFound
 	}
+	if kind, ok := handoverNotificationKind(input.To); ok {
+		if err := enqueueHandoverNotification(ctx, tx, scope.BusinessID.String(), input.HandoverID.String(), kind); err != nil {
+			return err
+		}
+	}
 
 	return tx.Commit(ctx)
+}
+
+func handoverNotificationKind(status delivery.Status) (notification.Kind, bool) {
+	switch status {
+	case delivery.StatusDispatched:
+		return notification.KindHandoverDispatched, true
+	case delivery.StatusCompleted:
+		return notification.KindHandoverCompleted, true
+	default:
+		return "", false
+	}
 }

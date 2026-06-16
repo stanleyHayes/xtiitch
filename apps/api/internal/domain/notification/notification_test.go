@@ -10,7 +10,7 @@ func TestChannelValid(t *testing.T) {
 			t.Fatalf("%q should be valid", c)
 		}
 	}
-	if Channel("carrier-pigeon").Valid() {
+	if Channel("fax").Valid() {
 		t.Fatal("an unknown channel must be invalid")
 	}
 }
@@ -18,7 +18,14 @@ func TestChannelValid(t *testing.T) {
 func TestKindValid(t *testing.T) {
 	t.Parallel()
 
-	for _, k := range []Kind{KindOrderConfirmed, KindOrderFulfilled} {
+	for _, k := range []Kind{
+		KindOrderConfirmed,
+		KindOrderFulfilled,
+		KindBookingConfirmed,
+		KindBalancePaid,
+		KindHandoverDispatched,
+		KindHandoverCompleted,
+	} {
 		if !k.Valid() {
 			t.Fatalf("%q should be valid", k)
 		}

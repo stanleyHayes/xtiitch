@@ -185,7 +185,7 @@ func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 	case "booking_deposit":
 		return confirmBookingOnPayment(ctx, tx, payment)
 	case "balance":
-		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.paymentID, payment.amountMinor)
 	default:
 		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
 	}
@@ -218,7 +218,10 @@ func confirmBookingOnPayment(ctx context.Context, tx pgx.Tx, payment scopedPayme
 	if tag.RowsAffected() == 0 {
 		return nil
 	}
-	return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+	if err := confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor); err != nil {
+		return err
+	}
+	return enqueueBookingNotification(ctx, tx, payment.businessID, payment.bookingID.String, notification.KindBookingConfirmed)
 }
 
 // releaseBooking cancels a held booking and its draft order, freeing the slot.
@@ -246,14 +249,20 @@ func releaseBooking(ctx context.Context, tx pgx.Tx, businessID, bookingID, order
 // statement is scoped to the payment's own business, so a stray cross-tenant
 // order_id credits nothing. settled_minor is capped at the agreed total, so even
 // a duplicated balance charge can never settle more than is owed.
-func creditOrderBalance(ctx context.Context, tx pgx.Tx, businessID, orderID string, amountMinor int64) error {
-	_, err := tx.Exec(ctx, `
+func creditOrderBalance(ctx context.Context, tx pgx.Tx, businessID, orderID, paymentID string, amountMinor int64) error {
+	tag, err := tx.Exec(ctx, `
 		update orders
 		set settled_minor = least(settled_minor + $3, agreed_total_minor), updated_at = now()
 		where order_id = $1 and business_id = $2
 			and status in ('confirmed', 'fulfilled') and agreed_total_minor is not null
 	`, orderID, businessID, amountMinor)
-	return err
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+	return enqueueBalancePaymentNotification(ctx, tx, businessID, orderID, paymentID, amountMinor)
 }
 
 // commitConfirm commits the confirmation transaction and yields its result.
