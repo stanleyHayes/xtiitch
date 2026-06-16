@@ -236,6 +236,8 @@ type OverviewRoom = {
   icon: ReactNode;
 };
 
+const dashboardRailWidth = 270;
+
 const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "standard", label: "Standard" },
@@ -1842,14 +1844,28 @@ function WorkspaceRail({
     <Panel
       sx={{
         p: 1.5,
-        position: { lg: "sticky" },
-        top: { lg: 24 },
+        position: { xs: "sticky", lg: "fixed" },
+        top: { xs: 0, lg: 24 },
+        left: {
+          lg: "max(24px, calc((100vw - 1500px) / 2 + 24px))",
+        },
+        width: { lg: dashboardRailWidth },
         alignSelf: "start",
-        minHeight: { lg: "calc(100vh - 48px)" },
+        minHeight: { lg: "auto" },
+        height: { lg: "calc(100vh - 48px)" },
+        zIndex: 8,
+        overflowY: { lg: "auto" },
         display: "flex",
         flexDirection: "column",
         bgcolor: alpha(tokens.white, 0.94),
         backdropFilter: "blur(14px)",
+        boxShadow: { lg: `0 22px 70px ${alpha(tokens.ink, 0.12)}` },
+        "@media (prefers-reduced-motion: no-preference)": {
+          animation: {
+            xs: "dashboardRailDrop 360ms ease both",
+            lg: "dashboardRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
+          },
+        },
       }}
     >
       <Stack spacing={2} sx={{ flexGrow: 1 }}>
@@ -1957,8 +1973,11 @@ function WorkspaceRail({
                       bgcolor: alpha(tokens.burgundy, 0.08),
                       borderColor: alpha(tokens.burgundy, 0.16),
                       color: "primary.main",
+                      transform: "translateX(2px)",
                       "& .MuiButton-startIcon": { color: "primary.main" },
                     },
+                    transition:
+                      "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
                   }}
                 >
                   {item.label}
@@ -4538,6 +4557,24 @@ export default function Dashboard({
         bgcolor: "background.default",
         backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
         backgroundSize: "36px 36px",
+        "@keyframes dashboardRailSlide": {
+          from: { opacity: 0, transform: "translateX(-16px)" },
+          to: { opacity: 1, transform: "translateX(0)" },
+        },
+        "@keyframes dashboardRailDrop": {
+          from: { opacity: 0, transform: "translateY(-10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@keyframes dashboardSurfaceIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "1ms !important",
+            transitionDuration: "1ms !important",
+          },
+        },
       }}
     >
       <Box
@@ -4560,7 +4597,14 @@ export default function Dashboard({
           storefrontURL={storefrontURL}
         />
 
-        <Box sx={{ minWidth: 0 }}>
+        <Box
+          sx={{
+            minWidth: 0,
+            "@media (prefers-reduced-motion: no-preference)": {
+              animation: "dashboardSurfaceIn 500ms ease both",
+            },
+          }}
+        >
           <WorkspaceHeader
             meta={pageMeta}
             canManage={canManage}

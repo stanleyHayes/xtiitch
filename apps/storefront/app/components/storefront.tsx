@@ -1,6 +1,7 @@
 import { type ReactNode } from "react";
 import { Form, Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Card from "@mui/material/Card";
@@ -8,13 +9,18 @@ import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import CardMedia from "@mui/material/CardMedia";
 import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
+import { alpha } from "@mui/material/styles";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import type { Design, StoreSummary } from "../lib/api";
 import { priceLabel } from "../lib/format";
+import { tokens } from "../theme";
 
 // Readable text colour for an arbitrary brand background.
 function contrastText(hex: string): string {
@@ -29,23 +35,221 @@ function contrastText(hex: string): string {
   return luminance > 0.6 ? "#15111a" : "#ffffff";
 }
 
-export function StoreHeader({ store, children }: { store: StoreSummary; children?: ReactNode }) {
+export function StoreHeader({
+  store,
+  children,
+}: {
+  store: StoreSummary;
+  children?: ReactNode;
+}) {
   const brand = store.brand_color || "#800020";
   const onBrand = contrastText(brand);
   return (
-    <Box component="header" sx={{ bgcolor: brand, color: onBrand }}>
+    <Box
+      component="header"
+      sx={{
+        bgcolor: brand,
+        color: onBrand,
+        position: "relative",
+        overflow: "hidden",
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          inset: "auto -15% -70% auto",
+          width: 360,
+          height: 360,
+          borderRadius: "50%",
+          border: `1px solid ${alpha(onBrand, 0.18)}`,
+        },
+      }}
+    >
       <Container sx={{ py: { xs: 4, md: 6 } }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "center", mb: 1 }}
+        >
           <Typography variant="h3" component="h1">
             {store.name}
           </Typography>
-          <VerifiedRounded sx={{ opacity: 0.85 }} titleAccess="Verified Xtiitch store" />
+          <VerifiedRounded
+            sx={{ opacity: 0.85 }}
+            titleAccess="Verified Xtiitch store"
+          />
         </Stack>
         <Typography sx={{ opacity: 0.85 }}>
           {store.handle}.xtiitch.com
         </Typography>
         {children}
       </Container>
+    </Box>
+  );
+}
+
+function StoreBrowseRail({
+  store,
+  designs,
+  query,
+}: {
+  store: StoreSummary;
+  designs: Design[];
+  query: string;
+}) {
+  const brand = store.brand_color || tokens.burgundy;
+  const onBrand = contrastText(brand);
+  const customisableCount = designs.filter(
+    (design) => design.customisation_allowed,
+  ).length;
+  const pricedCount = designs.filter(
+    (design) => design.prices.length > 0,
+  ).length;
+
+  return (
+    <Box
+      component="aside"
+      sx={{
+        position: { xs: "sticky", lg: "fixed" },
+        top: { xs: 0, lg: 24 },
+        left: { lg: 24 },
+        zIndex: 10,
+        width: { lg: 280 },
+        maxHeight: { lg: "calc(100vh - 48px)" },
+        overflowX: { xs: "auto", lg: "hidden" },
+        overflowY: { lg: "auto" },
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: { xs: 0, lg: "8px" },
+        bgcolor: alpha(tokens.white, 0.96),
+        backdropFilter: "blur(14px)",
+        boxShadow: { lg: `0 22px 70px ${alpha(tokens.ink, 0.12)}` },
+        "@media (prefers-reduced-motion: no-preference)": {
+          animation: {
+            xs: "storeRailDrop 320ms ease both",
+            lg: "storeRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
+          },
+        },
+      }}
+    >
+      <Stack
+        spacing={{ xs: 1, lg: 1.5 }}
+        sx={{
+          p: { xs: 1.25, lg: 1.5 },
+          minWidth: { xs: 720, lg: "auto" },
+        }}
+      >
+        <Box
+          sx={{
+            p: 1.25,
+            borderRadius: "8px",
+            bgcolor: brand,
+            color: onBrand,
+            position: "relative",
+            overflow: "hidden",
+          }}
+        >
+          <Box
+            aria-hidden
+            sx={{
+              position: "absolute",
+              right: -16,
+              top: -22,
+              color: alpha(onBrand, 0.12),
+              transform: "rotate(-8deg)",
+              "& .MuiSvgIcon-root": { fontSize: 118 },
+            }}
+          >
+            <StorefrontOutlined />
+          </Box>
+          <Stack
+            direction="row"
+            spacing={1.1}
+            sx={{ position: "relative", alignItems: "center" }}
+          >
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: "8px",
+                display: "grid",
+                placeItems: "center",
+                bgcolor: alpha(onBrand, 0.14),
+                border: "1px solid",
+                borderColor: alpha(onBrand, 0.18),
+                flexShrink: 0,
+              }}
+            >
+              <StorefrontOutlined />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {store.name}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ opacity: 0.76, fontWeight: 800 }}
+                noWrap
+              >
+                {store.handle}.xtiitch.com
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        <Form method="get" role="search">
+          <TextField
+            name="q"
+            defaultValue={query}
+            placeholder="Search designs"
+            size="small"
+            fullWidth
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+        </Form>
+
+        <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
+          <Chip
+            size="small"
+            label={`${designs.length} pieces`}
+            sx={{ bgcolor: alpha(brand, 0.1), color: brand }}
+          />
+          <Chip
+            size="small"
+            label={`${pricedCount} priced`}
+            variant="outlined"
+          />
+          {customisableCount > 0 ? (
+            <Chip
+              size="small"
+              label={`${customisableCount} custom`}
+              variant="outlined"
+            />
+          ) : null}
+        </Stack>
+
+        <Divider sx={{ display: { xs: "none", lg: "block" } }} />
+
+        <Stack direction={{ xs: "row", lg: "column" }} spacing={0.75}>
+          <Button
+            href="#designs"
+            variant="contained"
+            endIcon={<ArrowForwardRounded />}
+            sx={{ bgcolor: brand, color: onBrand }}
+          >
+            Browse designs
+          </Button>
+          <Button href="https://xtiitch.com" variant="outlined">
+            About Xtiitch
+          </Button>
+        </Stack>
+      </Stack>
     </Box>
   );
 }
@@ -63,46 +267,62 @@ export function StoreView({
   query: string;
 }) {
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <StoreHeader store={store}>
-        <Box sx={{ mt: 3, maxWidth: 460 }}>
-          <Form method="get" role="search">
-            <TextField
-              name="q"
-              defaultValue={query}
-              placeholder="Search this store"
-              size="small"
-              fullWidth
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRounded fontSize="small" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-              sx={{ bgcolor: "background.paper", borderRadius: 1 }}
-            />
-          </Form>
-        </Box>
-      </StoreHeader>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        "@keyframes storeRailSlide": {
+          from: { opacity: 0, transform: "translateX(-16px)" },
+          to: { opacity: 1, transform: "translateX(0)" },
+        },
+        "@keyframes storeRailDrop": {
+          from: { opacity: 0, transform: "translateY(-10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@keyframes storeSurfaceIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "1ms !important",
+            transitionDuration: "1ms !important",
+          },
+        },
+      }}
+    >
+      <StoreBrowseRail store={store} designs={designs} query={query} />
+      <Box
+        sx={{
+          ml: { lg: "304px" },
+          minWidth: 0,
+          "@media (prefers-reduced-motion: no-preference)": {
+            animation: "storeSurfaceIn 500ms ease both",
+          },
+        }}
+      >
+        <StoreHeader store={store} />
 
-      <Container sx={{ py: { xs: 4, md: 6 } }}>
-        {query ? (
-          <Stack direction="row" spacing={1} sx={{ mb: 3, alignItems: "center" }}>
-            <Typography variant="h6" component="h2">
-              Results for “{query}”
+        <Container id="designs" sx={{ py: { xs: 4, md: 6 } }}>
+          {query ? (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ mb: 3, alignItems: "center" }}
+            >
+              <Typography variant="h6" component="h2">
+                Results for “{query}”
+              </Typography>
+              <Chip size="small" label={`${designs.length}`} />
+            </Stack>
+          ) : (
+            <Typography variant="h6" component="h2" sx={{ mb: 3 }}>
+              All designs
             </Typography>
-            <Chip size="small" label={`${designs.length}`} />
-          </Stack>
-        ) : (
-          <Typography variant="h6" component="h2" sx={{ mb: 3 }}>
-            All designs
-          </Typography>
-        )}
-        <DesignGrid designs={designs} />
-      </Container>
+          )}
+          <DesignGrid designs={designs} />
+        </Container>
+      </Box>
     </Box>
   );
 }
@@ -137,17 +357,52 @@ function DesignImage({ design }: { design: Design }) {
   );
 }
 
-export function DesignCard({ design }: { design: Design }) {
+export function DesignCard({
+  design,
+  index = 0,
+}: {
+  design: Design;
+  index?: number;
+}) {
   return (
-    <Card sx={{ height: "100%", overflow: "hidden" }}>
-      <CardActionArea component={RouterLink} to={`/d/${design.handle}`} sx={{ height: "100%" }}>
+    <Card
+      sx={{
+        height: "100%",
+        overflow: "hidden",
+        transition:
+          "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
+        "@media (prefers-reduced-motion: no-preference)": {
+          animation: "storeSurfaceIn 420ms ease both",
+          animationDelay: `${Math.min(index, 8) * 40}ms`,
+        },
+        "&:hover": {
+          transform: "translateY(-4px)",
+          boxShadow: `0 18px 45px ${alpha(tokens.ink, 0.1)}`,
+          borderColor: alpha(tokens.burgundy, 0.22),
+        },
+      }}
+    >
+      <CardActionArea
+        component={RouterLink}
+        to={`/d/${design.handle}`}
+        sx={{ height: "100%" }}
+      >
         <DesignImage design={design} />
         <CardContent>
           <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
             {design.title}
           </Typography>
-          <Stack direction="row" spacing={1} sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}>
-            <Chip size="small" color="primary" variant="outlined" label={priceLabel(design.prices)} />
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <Chip
+              size="small"
+              color="primary"
+              variant="outlined"
+              label={priceLabel(design.prices)}
+            />
             {design.customisation_allowed ? (
               <Chip size="small" variant="outlined" label="Customisable" />
             ) : null}
@@ -180,8 +435,8 @@ export function DesignGrid({ designs }: { designs: Design[] }) {
         },
       }}
     >
-      {designs.map((design) => (
-        <DesignCard key={design.design_id} design={design} />
+      {designs.map((design, index) => (
+        <DesignCard key={design.design_id} design={design} index={index} />
       ))}
     </Box>
   );
