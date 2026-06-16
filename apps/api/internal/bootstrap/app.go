@@ -12,6 +12,7 @@ import (
 	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
+	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
@@ -24,6 +25,7 @@ import (
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
+	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
@@ -124,6 +126,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:          ids.UUIDGenerator{},
 	})
 
+	deliveryService := deliveryapp.NewService(deliveryapp.Dependencies{
+		Handovers: postgres.NewDeliveryRepository(db),
+		IDs:       ids.UUIDGenerator{},
+	})
+
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
 		Storefront:   postgres.NewStorefrontRepository(db),
 		Businesses:   postgres.NewBusinessChargeRepository(db),
@@ -144,6 +151,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		checkouthttp.NewHandler(checkoutService),
 		availabilityhttp.NewHandler(availabilityService, authenticator),
 		bookinghttp.NewHandler(bookingService, authenticator),
+		deliveryhttp.NewHandler(deliveryService, authenticator),
 	)
 
 	return App{

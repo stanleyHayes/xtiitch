@@ -31,3 +31,14 @@ var ErrSlotTaken = errors.New("that visit slot is no longer available")
 // ErrNoAvailability is returned when a business has published no home-visit
 // availability that covers the requested time.
 var ErrNoAvailability = errors.New("the business has no home-visit availability then")
+
+// ErrHandoverInProgress is returned when a fulfilment handover cannot be
+// arranged because the order already has an open (pending/dispatched) one. The
+// partial unique index on handovers makes this race-proof — an order is out for
+// fulfilment at most once at a time.
+var ErrHandoverInProgress = errors.New("the order already has a handover in progress")
+
+// ErrInvalidHandoverState is returned when a handover transition is not allowed
+// from its current state — advancing or cancelling one that is already completed
+// or cancelled, or a move the method does not permit.
+var ErrInvalidHandoverState = errors.New("invalid handover state")
