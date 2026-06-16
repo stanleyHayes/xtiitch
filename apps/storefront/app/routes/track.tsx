@@ -1,14 +1,22 @@
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
 import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import LinearProgress from "@mui/material/LinearProgress";
+import { alpha } from "@mui/material/styles";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CircleIcon from "@mui/icons-material/Circle";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import RadioButtonUncheckedRounded from "@mui/icons-material/RadioButtonUncheckedRounded";
+import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import type { Route } from "./+types/track";
 import { api, type Tracking, type TrackingStage } from "../lib/api";
+import { tokens } from "../theme";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const tracking = await api.tracking(params.orderId);
@@ -52,36 +60,62 @@ function StageRow({ stage }: { stage: TrackingStage }) {
   const palette = paletteFor(stage.colour);
   const active = stage.is_current || stage.is_complete;
   return (
-    <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-      {stage.is_complete ? (
-        <CheckCircleRounded sx={{ color: palette.main }} aria-hidden />
-      ) : stage.is_current ? (
-        <CircleIcon sx={{ color: palette.main }} aria-hidden />
-      ) : (
-        <RadioButtonUncheckedRounded sx={{ color: "divider" }} aria-hidden />
-      )}
-      <Typography
-        sx={{ fontWeight: stage.is_current ? 700 : 500, color: active ? "text.primary" : "text.secondary" }}
-      >
-        {stage.name}
-      </Typography>
-      {stage.is_current ? (
+    <Box
+      sx={{
+        p: 1.25,
+        borderRadius: "8px",
+        border: "1px solid",
+        borderColor: active ? alpha(palette.main, 0.22) : "divider",
+        bgcolor: active ? palette.soft : alpha(tokens.white, 0.7),
+      }}
+    >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
         <Box
+          aria-hidden
           sx={{
-            ml: "auto",
-            px: 1,
-            py: 0.25,
-            borderRadius: 1,
-            fontSize: 12,
-            fontWeight: 700,
-            bgcolor: palette.soft,
-            color: palette.main,
+            width: 34,
+            height: 34,
+            borderRadius: "8px",
+            display: "grid",
+            placeItems: "center",
+            bgcolor: active ? alpha(palette.main, 0.12) : "background.default",
+            flexShrink: 0,
           }}
         >
-          Now
+          {stage.is_complete ? (
+            <CheckCircleRounded sx={{ color: palette.main }} />
+          ) : stage.is_current ? (
+            <CircleIcon sx={{ color: palette.main, fontSize: 18 }} />
+          ) : (
+            <RadioButtonUncheckedRounded sx={{ color: "text.disabled" }} />
+          )}
         </Box>
-      ) : null}
-    </Stack>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Typography
+            sx={{
+              fontWeight: stage.is_current ? 900 : 700,
+              color: active ? "text.primary" : "text.secondary",
+            }}
+          >
+            {stage.name}
+          </Typography>
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {stage.is_complete
+              ? "Completed"
+              : stage.is_current
+                ? "In progress"
+                : "Up next"}
+          </Typography>
+        </Box>
+        {stage.is_current ? (
+          <Chip
+            size="small"
+            label="Now"
+            sx={{ bgcolor: palette.main, color: "#fff", fontWeight: 900 }}
+          />
+        ) : null}
+      </Stack>
+    </Box>
   );
 }
 
@@ -90,48 +124,265 @@ export default function Track({ loaderData }: Route.ComponentProps) {
   const fulfilled = tracking.status === "fulfilled";
   const colour = fulfilled ? "green" : tracking.colour;
   const palette = paletteFor(colour);
-  const title = fulfilled ? "Ready" : headline[colour] ?? tracking.stage_name;
+  const title = fulfilled ? "Ready" : (headline[colour] ?? tracking.stage_name);
+  const completedCount = tracking.stages.filter(
+    (stage) => stage.is_complete,
+  ).length;
+  const currentStage = tracking.stages.find((stage) => stage.is_current);
+  const progressValue = fulfilled
+    ? 100
+    : tracking.stages.length
+      ? Math.min(
+          100,
+          Math.round(
+            ((completedCount + (currentStage ? 0.5 : 0)) /
+              tracking.stages.length) *
+              100,
+          ),
+        )
+      : 0;
 
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: 560 }}>
-        <Typography variant="overline" sx={{ color: "text.secondary" }}>
-          {tracking.store_name} · Order #{tracking.order_id.slice(0, 5).toUpperCase()}
-        </Typography>
-        <Typography variant="h5" component="h1" sx={{ mb: 3 }}>
-          {tracking.design_title}
-        </Typography>
-
-        <Card sx={{ borderRadius: 4, overflow: "hidden", border: "none", boxShadow: "0 18px 50px -28px rgba(21,17,26,0.45)" }}>
-          <Box sx={{ bgcolor: palette.soft, px: 3, py: 4, display: "flex", alignItems: "center", gap: 2 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
+        backgroundSize: "34px 34px",
+        "@keyframes trackingSurfaceIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "1ms !important",
+            transitionDuration: "1ms !important",
+          },
+        },
+      }}
+    >
+      <Container sx={{ py: { xs: 4, md: 6 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: { xs: 2, lg: 3 },
+            gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 0.95fr) 1fr" },
+            alignItems: "stretch",
+            "@media (prefers-reduced-motion: no-preference)": {
+              animation: "trackingSurfaceIn 460ms ease both",
+            },
+          }}
+        >
+          <Card
+            sx={{
+              p: { xs: 2.25, md: 3 },
+              bgcolor: tokens.charcoal,
+              color: tokens.white,
+              overflow: "hidden",
+              position: "relative",
+              minHeight: { lg: 520 },
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              borderColor: alpha(tokens.ink, 0.1),
+              backgroundImage: `linear-gradient(135deg, ${alpha(palette.main, 0.42)}, transparent 48%), linear-gradient(${alpha(tokens.white, 0.05)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.05)} 1px, transparent 1px)`,
+              backgroundSize: "auto, 34px 34px, 34px 34px",
+            }}
+          >
             <Box
               aria-hidden
-              sx={{ width: 56, height: 56, borderRadius: "50%", bgcolor: palette.main, display: "grid", placeItems: "center" }}
+              sx={{
+                position: "absolute",
+                right: -34,
+                bottom: -42,
+                color: alpha(tokens.white, 0.08),
+                "& .MuiSvgIcon-root": { fontSize: 230 },
+              }}
             >
-              <CircleIcon sx={{ color: "#fff" }} />
+              <ContentCutRounded />
             </Box>
-            <Box>
-              <Typography variant="h4" component="p" sx={{ color: palette.main, fontWeight: 800 }}>
-                {title}
+            <Box sx={{ position: "relative" }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ alignItems: "center", flexWrap: "wrap" }}
+              >
+                <Chip
+                  size="small"
+                  icon={<StorefrontRounded />}
+                  label={tracking.store_name}
+                  sx={{
+                    color: tokens.white,
+                    bgcolor: alpha(tokens.white, 0.12),
+                    border: "1px solid",
+                    borderColor: alpha(tokens.white, 0.16),
+                    "& .MuiChip-icon": { color: alpha(tokens.white, 0.76) },
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha(tokens.white, 0.62), fontWeight: 900 }}
+                >
+                  Order #{tracking.order_id.slice(0, 5).toUpperCase()}
+                </Typography>
+              </Stack>
+              <Typography
+                variant="h3"
+                component="h1"
+                sx={{ mt: { xs: 3.5, md: 6 }, maxWidth: 560 }}
+              >
+                {tracking.design_title}
               </Typography>
-              <Typography sx={{ color: "text.secondary" }}>
-                {fulfilled ? "Your order is ready — come and collect it." : tracking.stage_name}
+              <Typography
+                sx={{
+                  mt: 1.5,
+                  color: alpha(tokens.white, 0.72),
+                  maxWidth: 500,
+                  fontSize: { xs: 16, md: 18 },
+                }}
+              >
+                {fulfilled
+                  ? "Your piece is ready. Coordinate pickup or delivery with the store."
+                  : "Follow the production stage as the store moves your order forward."}
               </Typography>
             </Box>
-          </Box>
 
-          <CardContent sx={{ p: 3 }}>
-            <Stack spacing={1.75}>
-              {tracking.stages.map((stage) => (
-                <StageRow key={`${stage.sequence}-${stage.name}`} stage={stage} />
-              ))}
+            <Box sx={{ position: "relative", mt: { xs: 4, md: 6 } }}>
+              <Typography
+                variant="caption"
+                sx={{ color: alpha(tokens.white, 0.62), fontWeight: 900 }}
+              >
+                Current status
+              </Typography>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                sx={{ mt: 1, alignItems: { sm: "center" } }}
+              >
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 58,
+                    height: 58,
+                    borderRadius: "8px",
+                    bgcolor: palette.main,
+                    display: "grid",
+                    placeItems: "center",
+                    boxShadow: `0 18px 46px ${alpha(palette.main, 0.34)}`,
+                    flexShrink: 0,
+                  }}
+                >
+                  <CircleIcon sx={{ color: "#fff" }} />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="h4"
+                    component="p"
+                    sx={{ color: tokens.white, fontWeight: 950 }}
+                  >
+                    {title}
+                  </Typography>
+                  <Typography sx={{ color: alpha(tokens.white, 0.66) }}>
+                    {fulfilled ? "Ready for handover" : tracking.stage_name}
+                  </Typography>
+                </Box>
+              </Stack>
+            </Box>
+          </Card>
+
+          <Card
+            sx={{ p: { xs: 2, md: 3 }, bgcolor: alpha(tokens.white, 0.96) }}
+          >
+            <Stack spacing={2.25}>
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                    fontWeight: 900,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Order progress
+                </Typography>
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ mt: 0.5, alignItems: "center" }}
+                >
+                  <Typography variant="h5" component="h2">
+                    {progressValue}% complete
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={fulfilled ? "Ready" : "Active"}
+                    sx={{
+                      ml: "auto",
+                      bgcolor: palette.soft,
+                      color: palette.main,
+                      fontWeight: 900,
+                    }}
+                  />
+                </Stack>
+                <LinearProgress
+                  variant="determinate"
+                  value={progressValue}
+                  sx={{
+                    mt: 1.5,
+                    height: 8,
+                    borderRadius: 999,
+                    bgcolor: alpha(palette.main, 0.12),
+                    "& .MuiLinearProgress-bar": {
+                      bgcolor: palette.main,
+                      borderRadius: 999,
+                    },
+                  }}
+                />
+              </Box>
+
+              <Divider />
+
+              <Stack spacing={1}>
+                {tracking.stages.map((stage) => (
+                  <StageRow
+                    key={`${stage.sequence}-${stage.name}`}
+                    stage={stage}
+                  />
+                ))}
+              </Stack>
+
+              <Box
+                sx={{
+                  p: 1.5,
+                  borderRadius: "8px",
+                  bgcolor: alpha(tokens.burgundy, 0.06),
+                  border: "1px solid",
+                  borderColor: alpha(tokens.burgundy, 0.12),
+                }}
+              >
+                <Typography sx={{ fontWeight: 900 }}>
+                  Updates come from {tracking.store_name}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary", mt: 0.5 }}
+                >
+                  Refresh this link whenever you need the latest production
+                  state for your order.
+                </Typography>
+              </Box>
+
+              <Button
+                href="https://xtiitch.com"
+                variant="outlined"
+                endIcon={<ArrowForwardRounded />}
+                sx={{ alignSelf: "flex-start" }}
+              >
+                About Xtiitch
+              </Button>
             </Stack>
-          </CardContent>
-        </Card>
-
-        <Typography variant="body2" sx={{ mt: 3, color: "text.secondary", textAlign: "center" }}>
-          This page updates as {tracking.store_name} moves your order forward.
-        </Typography>
+          </Card>
+        </Box>
       </Container>
     </Box>
   );

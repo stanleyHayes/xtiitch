@@ -13,6 +13,7 @@ export const tokens = {
   warning: "#b87914",
   danger: "#a92727",
   info: "#315f8f",
+  charcoal: "#201923",
 } as const;
 
 const fontStack = [
@@ -58,7 +59,9 @@ export const theme: Theme = createTheme({
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
-      styleOverrides: { root: { border: `1px solid ${tokens.softBorder}`, borderRadius: 12 } },
+      styleOverrides: {
+        root: { border: `1px solid ${tokens.softBorder}`, borderRadius: 12 },
+      },
     },
     MuiContainer: { defaultProps: { maxWidth: "lg" } },
   },

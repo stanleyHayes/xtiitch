@@ -52,6 +52,14 @@ export function StoreHeader({
         color: onBrand,
         position: "relative",
         overflow: "hidden",
+        borderBottom: "1px solid",
+        borderColor: alpha(onBrand, 0.14),
+        backgroundImage: `
+          linear-gradient(${alpha(onBrand, 0.07)} 1px, transparent 1px),
+          linear-gradient(90deg, ${alpha(onBrand, 0.07)} 1px, transparent 1px),
+          linear-gradient(135deg, ${alpha("#000000", 0.18)}, transparent 46%)
+        `,
+        backgroundSize: "36px 36px, 36px 36px, auto",
         "&::after": {
           content: '""',
           position: "absolute",
@@ -63,23 +71,47 @@ export function StoreHeader({
         },
       }}
     >
-      <Container sx={{ py: { xs: 4, md: 6 } }}>
-        <Stack
-          direction="row"
-          spacing={1.5}
-          sx={{ alignItems: "center", mb: 1 }}
-        >
+      <Container sx={{ py: { xs: 4.5, md: 6.5 }, position: "relative" }}>
+        <Box sx={{ maxWidth: 760 }}>
+          <Stack
+            direction="row"
+            spacing={1.2}
+            sx={{ alignItems: "center", mb: 1.25, flexWrap: "wrap" }}
+          >
+            <Chip
+              size="small"
+              icon={<VerifiedRounded />}
+              label="Verified Xtiitch store"
+              sx={{
+                color: onBrand,
+                bgcolor: alpha(onBrand, 0.12),
+                border: "1px solid",
+                borderColor: alpha(onBrand, 0.18),
+                "& .MuiChip-icon": { color: alpha(onBrand, 0.78) },
+              }}
+            />
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.75, fontWeight: 900 }}
+            >
+              {store.handle}.xtiitch.com
+            </Typography>
+          </Stack>
           <Typography variant="h3" component="h1">
             {store.name}
           </Typography>
-          <VerifiedRounded
-            sx={{ opacity: 0.85 }}
-            titleAccess="Verified Xtiitch store"
-          />
-        </Stack>
-        <Typography sx={{ opacity: 0.85 }}>
-          {store.handle}.xtiitch.com
-        </Typography>
+          <Typography
+            sx={{
+              mt: 1.5,
+              opacity: 0.78,
+              maxWidth: 620,
+              fontSize: { xs: 16, md: 18 },
+            }}
+          >
+            Browse pieces, check services, and start from the design that fits
+            the occasion.
+          </Typography>
+        </Box>
         {children}
       </Container>
     </Box>
@@ -455,6 +487,21 @@ export function StoreView({
   designs: Design[];
   query: string;
 }) {
+  const brand = store.brand_color || tokens.burgundy;
+  const onBrand = contrastText(brand);
+  const customisableCount = designs.filter(
+    (design) => design.customisation_allowed,
+  ).length;
+  const pricedCount = designs.filter(
+    (design) => design.prices.length > 0,
+  ).length;
+  const servicesAvailable = [
+    store.settings.bespoke_enabled,
+    store.settings.measurements_enabled,
+    store.settings.delivery_enabled || store.settings.dispatch_enabled,
+    store.settings.collections_enabled,
+  ].filter(Boolean).length;
+
   return (
     <Box
       sx={{
@@ -490,25 +537,88 @@ export function StoreView({
           },
         }}
       >
-        <StoreHeader store={store} />
+        <StoreHeader store={store}>
+          <Box
+            sx={{
+              mt: { xs: 3, md: 4 },
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, minmax(0, 1fr))",
+              },
+              maxWidth: 820,
+            }}
+          >
+            {[
+              { label: "Priced pieces", value: String(pricedCount) },
+              { label: "Custom options", value: String(customisableCount) },
+              { label: "Services active", value: `${servicesAvailable}/4` },
+            ].map((signal) => (
+              <Box
+                key={signal.label}
+                sx={{
+                  p: 1.25,
+                  borderRadius: "8px",
+                  bgcolor: alpha(onBrand, 0.11),
+                  border: "1px solid",
+                  borderColor: alpha(onBrand, 0.16),
+                  backdropFilter: "blur(10px)",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", opacity: 0.7, fontWeight: 900 }}
+                >
+                  {signal.label}
+                </Typography>
+                <Typography sx={{ fontWeight: 950, fontSize: 22 }}>
+                  {signal.value}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </StoreHeader>
 
         <Container id="designs" sx={{ py: { xs: 4, md: 6 } }}>
-          {query ? (
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ mb: 3, alignItems: "center" }}
-            >
-              <Typography variant="h6" component="h2">
-                Results for “{query}”
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={2}
+            sx={{
+              mb: 3,
+              alignItems: { xs: "flex-start", sm: "flex-end" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                }}
+              >
+                {query ? "Search results" : "Store catalogue"}
               </Typography>
-              <Chip size="small" label={`${designs.length}`} />
-            </Stack>
-          ) : (
-            <Typography variant="h6" component="h2" sx={{ mb: 3 }}>
-              All designs
-            </Typography>
-          )}
+              <Typography variant="h5" component="h2">
+                {query ? `Results for "${query}"` : "Shop the latest pieces"}
+              </Typography>
+              <Typography sx={{ color: "text.secondary", maxWidth: 620 }}>
+                {query
+                  ? "Matched designs from this store, with pricing and custom options kept close at hand."
+                  : "Every card opens the live order flow for that design, with the store's services visible while you browse."}
+              </Typography>
+            </Box>
+            <Chip
+              label={`${designs.length} ${designs.length === 1 ? "piece" : "pieces"}`}
+              sx={{
+                bgcolor: alpha(brand, 0.1),
+                color: brand,
+                fontWeight: 900,
+              }}
+            />
+          </Stack>
           <DesignGrid designs={designs} />
         </Container>
       </Box>
@@ -560,6 +670,7 @@ export function DesignCard({
         overflow: "hidden",
         transition:
           "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
+        bgcolor: alpha(tokens.white, 0.98),
         "@media (prefers-reduced-motion: no-preference)": {
           animation: "storeSurfaceIn 420ms ease both",
           animationDelay: `${Math.min(index, 8) * 40}ms`,
@@ -574,28 +685,66 @@ export function DesignCard({
       <CardActionArea
         component={RouterLink}
         to={`/d/${design.handle}`}
-        sx={{ height: "100%" }}
+        sx={{ height: "100%", display: "flex", flexDirection: "column" }}
       >
-        <DesignImage design={design} />
-        <CardContent>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600 }} noWrap>
-            {design.title}
-          </Typography>
+        <Box sx={{ position: "relative", width: "100%" }}>
+          <DesignImage design={design} />
           <Stack
             direction="row"
-            spacing={1}
-            sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}
+            spacing={0.75}
+            sx={{
+              position: "absolute",
+              left: 10,
+              right: 10,
+              bottom: 10,
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
           >
             <Chip
               size="small"
               color="primary"
-              variant="outlined"
               label={priceLabel(design.prices)}
+              sx={{
+                bgcolor: alpha(tokens.white, 0.92),
+                color: tokens.burgundy,
+                fontWeight: 900,
+                backdropFilter: "blur(10px)",
+              }}
             />
             {design.customisation_allowed ? (
-              <Chip size="small" variant="outlined" label="Customisable" />
+              <Chip
+                size="small"
+                label="Custom"
+                sx={{
+                  bgcolor: alpha(tokens.ink, 0.72),
+                  color: tokens.white,
+                  fontWeight: 900,
+                  backdropFilter: "blur(10px)",
+                }}
+              />
             ) : null}
           </Stack>
+        </Box>
+        <CardContent sx={{ width: "100%", flex: 1 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 800 }} noWrap>
+            {design.title}
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              mt: 0.75,
+              color: "text.secondary",
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              minHeight: 40,
+            }}
+          >
+            {design.description ||
+              "A store-ready piece with order details handled on Xtiitch."}
+          </Typography>
         </CardContent>
       </CardActionArea>
     </Card>
@@ -605,9 +754,21 @@ export function DesignCard({
 export function DesignGrid({ designs }: { designs: Design[] }) {
   if (designs.length === 0) {
     return (
-      <Box sx={{ py: 8, textAlign: "center" }}>
-        <Typography variant="h6" sx={{ color: "text.secondary" }}>
-          Nothing to show here yet.
+      <Box
+        sx={{
+          py: 8,
+          px: 2,
+          textAlign: "center",
+          border: "1px dashed",
+          borderColor: alpha(tokens.burgundy, 0.28),
+          borderRadius: "8px",
+          bgcolor: alpha(tokens.white, 0.58),
+        }}
+      >
+        <Typography variant="h6">No designs matched</Typography>
+        <Typography sx={{ color: "text.secondary", mt: 0.75 }}>
+          Try a different search, or check back when the store publishes more
+          pieces.
         </Typography>
       </Box>
     );

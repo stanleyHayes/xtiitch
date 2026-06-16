@@ -1,9 +1,16 @@
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
+import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
 import type { Route } from "./+types/collection";
 import { api } from "../lib/api";
 import { DesignGrid } from "../components/storefront";
+import { tokens } from "../theme";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const page = await api.collection(params.handle);
@@ -17,30 +24,195 @@ export function meta({ data }: Route.MetaArgs) {
   const name = data?.collection.name ?? "Collection";
   return [
     { title: `${name} · Xtiitch` },
-    { name: "description", content: data?.collection.theme || `Browse the ${name} collection on Xtiitch.` },
+    {
+      name: "description",
+      content:
+        data?.collection.theme || `Browse the ${name} collection on Xtiitch.`,
+    },
   ];
 }
 
 export default function CollectionPage({ loaderData }: Route.ComponentProps) {
   const { collection, designs } = loaderData;
 
+  const customisableCount = designs.filter(
+    (design) => design.customisation_allowed,
+  ).length;
+  const pricedCount = designs.filter(
+    (design) => design.prices.length > 0,
+  ).length;
+
   return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <Box sx={{ bgcolor: "secondary.main", color: "common.white" }}>
-        <Container sx={{ py: { xs: 4, md: 6 } }}>
-          <Typography variant="overline" sx={{ opacity: 0.7 }}>
-            Collection
-          </Typography>
-          <Typography variant="h3" component="h1">
-            {collection.name}
-          </Typography>
-          {collection.theme ? (
-            <Typography sx={{ mt: 1, opacity: 0.85, maxWidth: 560 }}>{collection.theme}</Typography>
-          ) : null}
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        "@keyframes storeSurfaceIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "1ms !important",
+            transitionDuration: "1ms !important",
+          },
+        },
+      }}
+    >
+      <Box
+        sx={{
+          bgcolor: tokens.charcoal,
+          color: "common.white",
+          position: "relative",
+          overflow: "hidden",
+          backgroundImage: `
+            linear-gradient(${alpha(tokens.white, 0.06)} 1px, transparent 1px),
+            linear-gradient(90deg, ${alpha(tokens.white, 0.06)} 1px, transparent 1px),
+            linear-gradient(135deg, ${alpha(tokens.burgundy, 0.42)}, transparent 54%)
+          `,
+          backgroundSize: "36px 36px, 36px 36px, auto",
+        }}
+      >
+        <Box
+          aria-hidden
+          sx={{
+            position: "absolute",
+            right: { xs: -38, md: 64 },
+            bottom: -52,
+            color: alpha(tokens.white, 0.08),
+            "& .MuiSvgIcon-root": { fontSize: { xs: 180, md: 260 } },
+          }}
+        >
+          <CollectionsBookmarkRounded />
+        </Box>
+        <Container sx={{ py: { xs: 4.5, md: 7 }, position: "relative" }}>
+          <Stack spacing={2.5} sx={{ maxWidth: 860 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap" }}
+            >
+              <Chip
+                size="small"
+                label="Collection"
+                sx={{
+                  color: tokens.white,
+                  bgcolor: alpha(tokens.white, 0.12),
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.16),
+                  fontWeight: 900,
+                }}
+              />
+              <Typography
+                variant="caption"
+                sx={{ color: alpha(tokens.white, 0.64), fontWeight: 900 }}
+              >
+                {designs.length} {designs.length === 1 ? "piece" : "pieces"}
+              </Typography>
+            </Stack>
+            <Box>
+              <Typography variant="h3" component="h1">
+                {collection.name}
+              </Typography>
+              {collection.theme ? (
+                <Typography
+                  sx={{
+                    mt: 1.5,
+                    color: alpha(tokens.white, 0.74),
+                    maxWidth: 640,
+                    fontSize: { xs: 16, md: 18 },
+                  }}
+                >
+                  {collection.theme}
+                </Typography>
+              ) : null}
+            </Box>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{ alignItems: { xs: "stretch", sm: "center" } }}
+            >
+              {[
+                { label: "Priced", value: String(pricedCount) },
+                { label: "Custom", value: String(customisableCount) },
+              ].map((signal) => (
+                <Box
+                  key={signal.label}
+                  sx={{
+                    minWidth: 128,
+                    p: 1.25,
+                    borderRadius: "8px",
+                    bgcolor: alpha(tokens.white, 0.09),
+                    border: "1px solid",
+                    borderColor: alpha(tokens.white, 0.14),
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{ color: alpha(tokens.white, 0.64), fontWeight: 900 }}
+                  >
+                    {signal.label}
+                  </Typography>
+                  <Typography sx={{ fontWeight: 950, fontSize: 22 }}>
+                    {signal.value}
+                  </Typography>
+                </Box>
+              ))}
+              <Button
+                href="#collection-designs"
+                variant="contained"
+                endIcon={<ArrowForwardRounded />}
+                sx={{
+                  bgcolor: tokens.white,
+                  color: tokens.ink,
+                  ml: { sm: 1 },
+                  "&:hover": { bgcolor: alpha(tokens.white, 0.86) },
+                }}
+              >
+                Browse pieces
+              </Button>
+            </Stack>
+          </Stack>
         </Container>
       </Box>
 
-      <Container sx={{ py: { xs: 4, md: 6 } }}>
+      <Container id="collection-designs" sx={{ py: { xs: 4, md: 6 } }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={2}
+          sx={{
+            mb: 3,
+            alignItems: { xs: "flex-start", sm: "flex-end" },
+            justifyContent: "space-between",
+            "@media (prefers-reduced-motion: no-preference)": {
+              animation: "storeSurfaceIn 420ms ease both",
+            },
+          }}
+        >
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              Designs in this collection
+            </Typography>
+            <Typography variant="h5" component="h2">
+              Choose a piece to order
+            </Typography>
+          </Box>
+          <Chip
+            label={`${designs.length} ${designs.length === 1 ? "piece" : "pieces"}`}
+            sx={{
+              bgcolor: alpha(tokens.burgundy, 0.1),
+              color: tokens.burgundy,
+              fontWeight: 900,
+            }}
+          />
+        </Stack>
         <DesignGrid designs={designs} />
       </Container>
     </Box>
