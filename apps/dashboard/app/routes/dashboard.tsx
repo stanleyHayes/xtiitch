@@ -178,6 +178,19 @@ type FollowUpItem = {
   href: string;
 };
 
+type DashboardSection =
+  | "overview"
+  | "tasks"
+  | "reports"
+  | "orders"
+  | "money"
+  | "visits"
+  | "handovers"
+  | "catalogue"
+  | "measurements"
+  | "availability"
+  | "messages";
+
 type OrderFilter =
   | "all"
   | "standard"
@@ -209,26 +222,108 @@ const orderFilters: { value: OrderFilter; label: string }[] = [
 
 const managementWorkspaceNav: {
   href: string;
+  section: DashboardSection;
   label: string;
   icon: ReactNode;
 }[] = [
-  { href: "#reports", label: "Reports", icon: <QueryStatsRounded /> },
-  { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
-  { href: "#money", label: "Money", icon: <AccountBalanceWalletRounded /> },
-  { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
-  { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
-  { href: "#catalogue", label: "Catalogue", icon: <DesignServicesRounded /> },
-  { href: "#measurements", label: "Measurements", icon: <StraightenRounded /> },
-  { href: "#availability", label: "Availability", icon: <ScheduleRounded /> },
-  { href: "#messages", label: "Messages", icon: <NotificationsRounded /> },
+  {
+    href: "/dashboard",
+    section: "overview",
+    label: "Overview",
+    icon: <TuneRounded />,
+  },
+  {
+    href: "/dashboard/reports",
+    section: "reports",
+    label: "Reports",
+    icon: <QueryStatsRounded />,
+  },
+  {
+    href: "/dashboard/orders",
+    section: "orders",
+    label: "Orders",
+    icon: <TimelineRounded />,
+  },
+  {
+    href: "/dashboard/money",
+    section: "money",
+    label: "Money",
+    icon: <AccountBalanceWalletRounded />,
+  },
+  {
+    href: "/dashboard/visits",
+    section: "visits",
+    label: "Visits",
+    icon: <CalendarMonthRounded />,
+  },
+  {
+    href: "/dashboard/handovers",
+    section: "handovers",
+    label: "Handovers",
+    icon: <LocalShippingRounded />,
+  },
+  {
+    href: "/dashboard/catalogue",
+    section: "catalogue",
+    label: "Catalogue",
+    icon: <DesignServicesRounded />,
+  },
+  {
+    href: "/dashboard/measurements",
+    section: "measurements",
+    label: "Measurements",
+    icon: <StraightenRounded />,
+  },
+  {
+    href: "/dashboard/availability",
+    section: "availability",
+    label: "Availability",
+    icon: <ScheduleRounded />,
+  },
+  {
+    href: "/dashboard/messages",
+    section: "messages",
+    label: "Messages",
+    icon: <NotificationsRounded />,
+  },
 ];
 
-const staffWorkspaceNav: { href: string; label: string; icon: ReactNode }[] = [
-  { href: "#tasks", label: "Tasks", icon: <TuneRounded /> },
-  { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
-  { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
-  { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
-  { href: "#messages", label: "Messages", icon: <NotificationsRounded /> },
+const staffWorkspaceNav: {
+  href: string;
+  section: DashboardSection;
+  label: string;
+  icon: ReactNode;
+}[] = [
+  {
+    href: "/dashboard",
+    section: "tasks",
+    label: "Tasks",
+    icon: <TuneRounded />,
+  },
+  {
+    href: "/dashboard/orders",
+    section: "orders",
+    label: "Orders",
+    icon: <TimelineRounded />,
+  },
+  {
+    href: "/dashboard/visits",
+    section: "visits",
+    label: "Visits",
+    icon: <CalendarMonthRounded />,
+  },
+  {
+    href: "/dashboard/handovers",
+    section: "handovers",
+    label: "Handovers",
+    icon: <LocalShippingRounded />,
+  },
+  {
+    href: "/dashboard/messages",
+    section: "messages",
+    label: "Messages",
+    icon: <NotificationsRounded />,
+  },
 ];
 
 const staffAllowedIntents = new Set([
@@ -294,7 +389,7 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, params }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
   const [profileResponse, currentUserResponse] = await Promise.all([
@@ -304,6 +399,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   const profile = (await profileResponse.json()) as Profile;
   const currentUser = (await currentUserResponse.json()) as CurrentUser;
   const canManage = canManageDashboard(currentUser.role);
+  const section = parseDashboardSection(params.section, canManage);
 
   const [
     ordersResponse,
@@ -392,6 +488,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
     availabilityWindows,
+    section,
     orderFilter,
   };
 }
@@ -485,7 +582,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not log that taking. Check the amount, method, and order link.",
       };
     }
-    return redirect("/dashboard#money");
+    return redirect("/dashboard/money");
   }
 
   if (intent === "cancel_booking") {
@@ -504,7 +601,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not cancel that booking. It may already be closed.",
       };
     }
-    return redirect("/dashboard#visits");
+    return redirect("/dashboard/visits");
   }
 
   if (intent === "reschedule_booking") {
@@ -530,7 +627,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not reschedule that visit. The slot may be unavailable.",
       };
     }
-    return redirect("/dashboard#visits");
+    return redirect("/dashboard/visits");
   }
 
   if (intent === "arrange_handover") {
@@ -558,7 +655,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not arrange that handover. The order may not be fulfilled yet.",
       };
     }
-    return redirect("/dashboard#handovers");
+    return redirect("/dashboard/handovers");
   }
 
   if (intent === "advance_handover") {
@@ -584,7 +681,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not move that handover. It may already be closed.",
       };
     }
-    return redirect("/dashboard#handovers");
+    return redirect("/dashboard/handovers");
   }
 
   if (intent === "cancel_handover") {
@@ -603,7 +700,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not cancel that handover. It may already be closed.",
       };
     }
-    return redirect("/dashboard#handovers");
+    return redirect("/dashboard/handovers");
   }
 
   if (intent === "save_availability") {
@@ -625,7 +722,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not save those hours. Avoid overlapping windows and use valid times.",
       };
     }
-    return redirect("/dashboard#availability");
+    return redirect("/dashboard/availability");
   }
 
   if (intent === "create_measurement_field") {
@@ -650,7 +747,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not add the field. Check the label and display order.",
       };
     }
-    return redirect("/dashboard#measurements");
+    return redirect("/dashboard/measurements");
   }
 
   if (intent === "update_measurement_field") {
@@ -680,7 +777,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not update that field. Another field may already use that order.",
       };
     }
-    return redirect("/dashboard#measurements");
+    return redirect("/dashboard/measurements");
   }
 
   if (intent === "delete_measurement_field") {
@@ -696,7 +793,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!response.ok) {
       return { fieldError: "Could not delete that field." };
     }
-    return redirect("/dashboard#measurements");
+    return redirect("/dashboard/measurements");
   }
 
   if (intent === "create") {
@@ -716,7 +813,7 @@ export async function action({ request }: Route.ActionArgs) {
         designError: "Could not create the design. A title is required.",
       };
     }
-    return redirect("/dashboard#catalogue");
+    return redirect("/dashboard/catalogue");
   }
 
   if (intent === "retire" || intent === "restore") {
@@ -725,7 +822,7 @@ export async function action({ request }: Route.ActionArgs) {
       `/designs/${String(form.get("id") ?? "")}/${intent}`,
       { method: "POST" },
     );
-    return redirect("/dashboard#catalogue");
+    return redirect("/dashboard/catalogue");
   }
 
   return null;
@@ -735,6 +832,44 @@ function parseOrderFilter(value: string | null): OrderFilter {
   return orderFilters.some((filter) => filter.value === value)
     ? (value as OrderFilter)
     : "all";
+}
+
+function parseDashboardSection(
+  value: string | undefined,
+  canManage: boolean,
+): DashboardSection {
+  if (!value) {
+    return canManage ? "overview" : "tasks";
+  }
+
+  if (canManage && isManagementSection(value)) {
+    return value;
+  }
+
+  if (!canManage && isStaffSection(value)) {
+    return value;
+  }
+
+  throw redirect("/dashboard");
+}
+
+function isManagementSection(value: string): value is DashboardSection {
+  return [
+    "overview",
+    "reports",
+    "orders",
+    "money",
+    "visits",
+    "handovers",
+    "catalogue",
+    "measurements",
+    "availability",
+    "messages",
+  ].includes(value);
+}
+
+function isStaffSection(value: string): value is DashboardSection {
+  return ["tasks", "orders", "visits", "handovers", "messages"].includes(value);
 }
 
 async function loadCurrentUser(request: Request): Promise<CurrentUser> {
@@ -799,11 +934,19 @@ function rolePermissionMessage(role: string): string {
 }
 
 function safeDashboardReturn(value: string): string {
-  return value === "/dashboard" ||
-    value.startsWith("/dashboard?") ||
-    value.startsWith("/dashboard#")
-    ? value
-    : "/dashboard?orders=all#orders";
+  if (value === "/dashboard" || value.startsWith("/dashboard?")) {
+    return value;
+  }
+
+  if (value.startsWith("/dashboard/")) {
+    const path = value.split(/[?#]/)[0] ?? "";
+    const section = path.slice("/dashboard/".length);
+    if (isManagementSection(section) || isStaffSection(section)) {
+      return value;
+    }
+  }
+
+  return "/dashboard/orders?orders=all";
 }
 
 function parseSequence(value: FormDataEntryValue | null): number | null {
@@ -1099,7 +1242,7 @@ function buildFollowUps({
           helper: `Home visit for ${booking.design_title}`,
           meta: `${ageLabel(booking.slot_start, now)} overdue`,
           tone: tokens.danger,
-          href: "#visits",
+          href: "/dashboard/visits",
         });
       }
     });
@@ -1116,7 +1259,7 @@ function buildFollowUps({
         helper: `${order.design_title} needs pickup or delivery`,
         meta: `${ageLabel(order.created_at, now)} since order`,
         tone: tokens.warning,
-        href: "#handovers",
+        href: "/dashboard/handovers",
       });
     });
 
@@ -1130,7 +1273,7 @@ function buildFollowUps({
         helper: `${formatMethod(handover.method)} for ${handover.design_title}`,
         meta: `${handover.status} · ${days}`,
         tone: handover.status === "dispatched" ? tokens.info : tokens.warning,
-        href: "#handovers",
+        href: "/dashboard/handovers",
       });
     });
 
@@ -1143,7 +1286,7 @@ function buildFollowUps({
         helper: `${message.channel.toUpperCase()} to ${message.recipient}`,
         meta: `${message.status} · ${message.attempts} attempts`,
         tone: notificationTone(message.status),
-        href: "#messages",
+        href: "/dashboard/messages",
       });
     });
 
@@ -1761,7 +1904,7 @@ function OrderCard({
                 <input
                   type="hidden"
                   name="return_to"
-                  value={`/dashboard?orders=${order.order_type}#order-${order.order_id}`}
+                  value={`/dashboard/orders?orders=${order.order_type}`}
                 />
                 <Stack spacing={1.5}>
                   <Stack
@@ -2543,13 +2686,13 @@ function StaffTaskPanel({
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            <Button href="#orders" size="small" variant="contained">
+            <Button href="/dashboard/orders" size="small" variant="contained">
               Orders
             </Button>
-            <Button href="#visits" size="small" variant="outlined">
+            <Button href="/dashboard/visits" size="small" variant="outlined">
               Visits
             </Button>
-            <Button href="#handovers" size="small" variant="outlined">
+            <Button href="/dashboard/handovers" size="small" variant="outlined">
               Handovers
             </Button>
           </Stack>
@@ -3564,6 +3707,7 @@ export default function Dashboard({
     handovers,
     notifications,
     availabilityWindows,
+    section,
     orderFilter,
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
@@ -3571,7 +3715,7 @@ export default function Dashboard({
   const canManage = canManageDashboard(currentUser.role);
   const workspaceItems = canManage ? managementWorkspaceNav : staffWorkspaceNav;
   const filteredOrders = filterOrders(orders, orderFilter);
-  const returnTo = `/dashboard?orders=${orderFilter}#orders`;
+  const returnTo = `/dashboard/orders?orders=${orderFilter}`;
   const liveOrders = orders.filter(
     (order) => order.status !== "fulfilled" && order.status !== "cancelled",
   );
@@ -3705,12 +3849,25 @@ export default function Dashboard({
               {workspaceItems.map((item) => (
                 <Button
                   key={item.href}
-                  href={item.href}
+                  component={RouterLink}
+                  to={item.href}
                   startIcon={item.icon}
+                  aria-current={item.section === section ? "page" : undefined}
                   sx={{
                     justifyContent: "flex-start",
-                    color: "text.primary",
-                    bgcolor: alpha(tokens.ink, 0.035),
+                    color:
+                      item.section === section
+                        ? "primary.main"
+                        : "text.primary",
+                    bgcolor:
+                      item.section === section
+                        ? alpha(tokens.burgundy, 0.1)
+                        : alpha(tokens.ink, 0.035),
+                    border: "1px solid",
+                    borderColor:
+                      item.section === section
+                        ? alpha(tokens.burgundy, 0.18)
+                        : "transparent",
                     "&:hover": {
                       bgcolor: alpha(tokens.burgundy, 0.08),
                       color: "primary.main",
@@ -3877,7 +4034,7 @@ export default function Dashboard({
           </Box>
 
           <Box sx={{ mt: 2.5 }}>
-            {canManage ? (
+            {canManage && section === "reports" ? (
               <ReportsPanel
                 revenueBuckets={revenueBuckets}
                 stageMetrics={stageMetrics}
@@ -3886,7 +4043,8 @@ export default function Dashboard({
                 completionRate={completionRate}
                 collectionRate={collectionRate}
               />
-            ) : (
+            ) : null}
+            {!canManage && section === "tasks" ? (
               <StaffTaskPanel
                 orders={orders}
                 bookings={bookings}
@@ -3898,7 +4056,7 @@ export default function Dashboard({
                 readyForHandover={readyForHandover}
                 pendingMessages={pendingMessages}
               />
-            )}
+            ) : null}
           </Box>
 
           <Box
@@ -3908,14 +4066,14 @@ export default function Dashboard({
               gap: { xs: 2.5, xl: 3 },
               gridTemplateColumns: {
                 xs: "1fr",
-                xl: "minmax(0, 1.35fr) minmax(360px, 0.65fr)",
+                xl: "1fr",
               },
               alignItems: "start",
             }}
           >
             <Box sx={{ minWidth: 0 }}>
               <Stack spacing={2.5}>
-                {canManage ? (
+                {canManage && section === "money" ? (
                   <MoneyPanel
                     summary={moneySummary}
                     takings={manualTakings}
@@ -3924,77 +4082,84 @@ export default function Dashboard({
                   />
                 ) : null}
 
-                <BookingQueuePanel
-                  bookings={bookings}
-                  error={action.bookingError}
-                />
-
-                <Box id="orders">
-                  <SectionHeader
-                    eyebrow="Orders"
-                    title="Production board"
-                    helper={`${filteredOrders.length} of ${orders.length} orders in this view. Advance only confirmed orders; drafts wait for payment.`}
-                    action={
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ flexWrap: "wrap" }}
-                      >
-                        {orderFilters.map((filter) => (
-                          <Button
-                            key={filter.value}
-                            component={RouterLink}
-                            to={`/dashboard?orders=${filter.value}#orders`}
-                            size="small"
-                            variant={
-                              orderFilter === filter.value
-                                ? "contained"
-                                : "outlined"
-                            }
-                          >
-                            {filter.label} ({countOrders(orders, filter.value)})
-                          </Button>
-                        ))}
-                      </Stack>
-                    }
+                {section === "visits" ? (
+                  <BookingQueuePanel
+                    bookings={bookings}
+                    error={action.bookingError}
                   />
+                ) : null}
 
-                  <Stack spacing={1.5} sx={{ mt: 2 }}>
-                    {action.orderError ? (
-                      <Alert severity="warning">{action.orderError}</Alert>
-                    ) : null}
-                    {action.measurementError ? (
-                      <Alert severity="warning">
-                        {action.measurementError}
-                      </Alert>
-                    ) : null}
-                    {filteredOrders.length === 0 ? (
-                      <EmptyState
-                        icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
-                        title="No orders in this view"
-                        helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
-                      />
-                    ) : (
-                      filteredOrders.map((order) => (
-                        <OrderCard
-                          key={order.order_id}
-                          order={order}
-                          returnTo={returnTo}
-                          measurementFields={measurementFields}
-                          showMoneyDetails={canManage}
+                {section === "orders" ? (
+                  <Box id="orders">
+                    <SectionHeader
+                      eyebrow="Orders"
+                      title="Production board"
+                      helper={`${filteredOrders.length} of ${orders.length} orders in this view. Advance only confirmed orders; drafts wait for payment.`}
+                      action={
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ flexWrap: "wrap" }}
+                        >
+                          {orderFilters.map((filter) => (
+                            <Button
+                              key={filter.value}
+                              component={RouterLink}
+                              to={`/dashboard/orders?orders=${filter.value}`}
+                              size="small"
+                              variant={
+                                orderFilter === filter.value
+                                  ? "contained"
+                                  : "outlined"
+                              }
+                            >
+                              {filter.label} (
+                              {countOrders(orders, filter.value)})
+                            </Button>
+                          ))}
+                        </Stack>
+                      }
+                    />
+
+                    <Stack spacing={1.5} sx={{ mt: 2 }}>
+                      {action.orderError ? (
+                        <Alert severity="warning">{action.orderError}</Alert>
+                      ) : null}
+                      {action.measurementError ? (
+                        <Alert severity="warning">
+                          {action.measurementError}
+                        </Alert>
+                      ) : null}
+                      {filteredOrders.length === 0 ? (
+                        <EmptyState
+                          icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
+                          title="No orders in this view"
+                          helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
                         />
-                      ))
-                    )}
-                  </Stack>
-                </Box>
+                      ) : (
+                        filteredOrders.map((order) => (
+                          <OrderCard
+                            key={order.order_id}
+                            order={order}
+                            returnTo={returnTo}
+                            measurementFields={measurementFields}
+                            showMoneyDetails={canManage}
+                          />
+                        ))
+                      )}
+                    </Stack>
+                  </Box>
+                ) : null}
 
-                <HandoverPanel
-                  handovers={handovers}
-                  orders={orders}
-                  error={action.handoverError}
-                />
+                {section === "handovers" ? (
+                  <HandoverPanel
+                    handovers={handovers}
+                    orders={orders}
+                    error={action.handoverError}
+                  />
+                ) : null}
 
-                {canManage ? (
+                {canManage && section === "catalogue" ? (
                   <Box id="catalogue">
                     <SectionHeader
                       eyebrow="Catalogue"
@@ -4132,7 +4297,7 @@ export default function Dashboard({
             </Box>
 
             <Stack spacing={2.5} sx={{ minWidth: 0 }}>
-              {canManage ? (
+              {canManage && section === "measurements" ? (
                 <Panel id="measurements">
                   <Box sx={{ p: { xs: 2, md: 2.5 } }}>
                     <Stack
@@ -4235,63 +4400,67 @@ export default function Dashboard({
                 </Panel>
               ) : null}
 
-              {canManage ? (
+              {canManage && section === "availability" ? (
                 <AvailabilityPanel
                   windows={availabilityWindows}
                   error={action.availabilityError}
                 />
               ) : null}
 
-              <NotificationPanel notifications={notifications} />
+              {section === "messages" ? (
+                <NotificationPanel notifications={notifications} />
+              ) : null}
 
-              <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
-                <Stack
-                  direction="row"
-                  spacing={1.25}
-                  sx={{ alignItems: "flex-start" }}
-                >
-                  <Box sx={{ color: "primary.main", pt: 0.4 }}>
-                    <TuneRounded />
-                  </Box>
-                  <Box>
-                    <Typography sx={{ fontWeight: 900 }}>
-                      Today’s focus
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 0.75, color: "text.secondary" }}
-                    >
-                      {canManage
-                        ? "Clear drafts first, capture visit/shop measurements, then close finished garments with pickup or delivery handovers. Xtiitch records payment state but never holds funds."
-                        : "Start with measurement captures, keep visit slots current, and close pickup or delivery handovers when garments are ready."}
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{ mt: 1.5, flexWrap: "wrap" }}
-                    >
-                      {canManage ? (
+              {canManage && section === "overview" ? (
+                <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
+                  <Stack
+                    direction="row"
+                    spacing={1.25}
+                    sx={{ alignItems: "flex-start" }}
+                  >
+                    <Box sx={{ color: "primary.main", pt: 0.4 }}>
+                      <TuneRounded />
+                    </Box>
+                    <Box>
+                      <Typography sx={{ fontWeight: 900 }}>
+                        Today’s focus
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.75, color: "text.secondary" }}
+                      >
+                        {canManage
+                          ? "Clear drafts first, capture visit/shop measurements, then close finished garments with pickup or delivery handovers. Xtiitch records payment state but never holds funds."
+                          : "Start with measurement captures, keep visit slots current, and close pickup or delivery handovers when garments are ready."}
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ mt: 1.5, flexWrap: "wrap" }}
+                      >
+                        {canManage ? (
+                          <ToneChip
+                            label={`${pendingPayments} payment follow-ups`}
+                            tone={tokens.warning}
+                          />
+                        ) : null}
                         <ToneChip
-                          label={`${pendingPayments} payment follow-ups`}
+                          label={`${needsMeasurements} measurement captures`}
+                          tone={tokens.info}
+                        />
+                        <ToneChip
+                          label={`${openHandovers} active handovers`}
                           tone={tokens.warning}
                         />
-                      ) : null}
-                      <ToneChip
-                        label={`${needsMeasurements} measurement captures`}
-                        tone={tokens.info}
-                      />
-                      <ToneChip
-                        label={`${openHandovers} active handovers`}
-                        tone={tokens.warning}
-                      />
-                      <ToneChip
-                        label={`${pendingMessages} messages pending`}
-                        tone={tokens.burgundy}
-                      />
-                    </Stack>
-                  </Box>
-                </Stack>
-              </Panel>
+                        <ToneChip
+                          label={`${pendingMessages} messages pending`}
+                          tone={tokens.burgundy}
+                        />
+                      </Stack>
+                    </Box>
+                  </Stack>
+                </Panel>
+              ) : null}
             </Stack>
           </Box>
         </Box>
