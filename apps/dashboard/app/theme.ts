@@ -13,10 +13,13 @@ export const tokens = {
   warning: "#b87914",
   danger: "#a92727",
   info: "#315f8f",
+  panel: "#fffaf7",
+  charcoal: "#201923",
+  gold: "#c58b2c",
 } as const;
 
 const fontStack = [
-  "Inter",
+  "Manrope",
   "Roboto",
   "system-ui",
   "-apple-system",
@@ -44,21 +47,38 @@ export const theme: Theme = createTheme({
   typography: {
     fontFamily: fontStack,
     h1: { fontWeight: 800, letterSpacing: 0 },
-    h2: { fontWeight: 700, letterSpacing: 0 },
-    h3: { fontWeight: 700, letterSpacing: 0 },
-    h4: { fontWeight: 700, letterSpacing: 0 },
-    h5: { fontWeight: 600, letterSpacing: 0 },
-    h6: { fontWeight: 600, letterSpacing: 0 },
-    button: { textTransform: "none", fontWeight: 600 },
+    h2: { fontWeight: 800, letterSpacing: 0 },
+    h3: { fontWeight: 780, letterSpacing: 0 },
+    h4: { fontWeight: 760, letterSpacing: 0 },
+    h5: { fontWeight: 740, letterSpacing: 0 },
+    h6: { fontWeight: 720, letterSpacing: 0 },
+    button: { textTransform: "none", fontWeight: 760 },
   },
   components: {
     MuiButton: {
       defaultProps: { disableElevation: true },
-      styleOverrides: { root: { borderRadius: 8, minHeight: 44 } },
+      styleOverrides: { root: { borderRadius: 8, minHeight: 42 } },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },
-      styleOverrides: { root: { border: `1px solid ${tokens.softBorder}`, borderRadius: 12 } },
+      styleOverrides: {
+        root: { border: `1px solid ${tokens.softBorder}`, borderRadius: 8 },
+      },
+    },
+    MuiPaper: {
+      defaultProps: { elevation: 0 },
+      styleOverrides: { root: { backgroundImage: "none" } },
+    },
+    MuiChip: {
+      styleOverrides: { root: { borderRadius: 8, fontWeight: 760 } },
+    },
+    MuiTextField: {
+      defaultProps: { variant: "outlined" },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: { borderRadius: 8, backgroundColor: tokens.white },
+      },
     },
     MuiContainer: { defaultProps: { maxWidth: "lg" } },
   },

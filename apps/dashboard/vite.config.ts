@@ -20,25 +20,45 @@ const muiComponents = [
   "CssBaseline",
   "Divider",
   "FormControlLabel",
+  "IconButton",
   "InputAdornment",
   "Link",
+  "MenuItem",
   "Paper",
   "Skeleton",
   "Stack",
   "TextField",
   "Toolbar",
+  "Tooltip",
   "Typography",
 ].map((name) => `@mui/material/${name}`);
 
 const muiIcons = [
+  "AddRounded",
   "ArrowBackRounded",
   "ArrowForwardRounded",
   "CheckCircleRounded",
   "Circle",
+  "ContentCutRounded",
+  "DeleteOutlineRounded",
+  "DesignServicesRounded",
+  "Inventory2Rounded",
+  "LogoutRounded",
+  "PaymentsRounded",
+  "PhoneRounded",
   "RadioButtonUncheckedRounded",
+  "ReceiptLongRounded",
+  "SaveRounded",
   "SearchRounded",
   "StorefrontOutlined",
+  "StorefrontRounded",
+  "StraightenRounded",
+  "TimelineRounded",
+  "TuneRounded",
+  "VerifiedUserRounded",
   "VerifiedRounded",
+  "VisibilityRounded",
+  "WarningAmberRounded",
 ].map((name) => `@mui/icons-material/${name}`);
 
 export default defineConfig({
@@ -47,7 +67,13 @@ export default defineConfig({
     port: 3100,
   },
   resolve: {
-    dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled", "@emotion/cache"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "@emotion/react",
+      "@emotion/styled",
+      "@emotion/cache",
+    ],
   },
   optimizeDeps: {
     include: [

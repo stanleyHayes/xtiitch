@@ -16,7 +16,8 @@ export default function handleRequest(
   return new Promise((resolve, reject) => {
     let status = responseStatusCode;
     const cache = createEmotionCache();
-    const { extractCriticalToChunks, constructStyleTagsFromChunks } = createEmotionServer(cache);
+    const { extractCriticalToChunks, constructStyleTagsFromChunks } =
+      createEmotionServer(cache);
 
     const { pipe, abort } = renderToPipeableStream(
       <CacheProvider value={cache}>
@@ -41,7 +42,7 @@ export default function handleRequest(
 
             responseHeaders.set("Content-Type", "text/html; charset=utf-8");
             resolve(
-              new Response(`<!DOCTYPE html>${withStyles}`, {
+              new Response(withStyles, {
                 headers: responseHeaders,
                 status,
               }),

@@ -18,10 +18,14 @@ import { theme, tokens } from "./theme";
 
 export const links: LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+  {
+    rel: "preconnect",
+    href: "https://fonts.gstatic.com",
+    crossOrigin: "anonymous",
+  },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
+    href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
   },
 ];
 
@@ -60,17 +64,34 @@ export function ErrorBoundary({ error }: { error: unknown }) {
     : "We hit an unexpected error. Please try again in a moment.";
 
   return (
-    <Box sx={{ minHeight: "80vh", display: "grid", placeItems: "center", bgcolor: "background.default" }}>
+    <Box
+      sx={{
+        minHeight: "80vh",
+        display: "grid",
+        placeItems: "center",
+        bgcolor: "background.default",
+      }}
+    >
       <Container sx={{ textAlign: "center", maxWidth: 520 }}>
-        <Typography variant="overline" sx={{ color: "primary.main", fontWeight: 700 }}>
+        <Typography
+          variant="overline"
+          sx={{ color: "primary.main", fontWeight: 700 }}
+        >
           {is404 ? "404" : "Error"}
         </Typography>
         <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
           {title}
         </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>{message}</Typography>
-        <Button href="/" variant="contained" size="large" sx={{ mt: 4 }}>
-          Go home
+        <Typography sx={{ mt: 2, color: "text.secondary" }}>
+          {message}
+        </Typography>
+        <Button
+          href="/dashboard"
+          variant="contained"
+          size="large"
+          sx={{ mt: 4 }}
+        >
+          Return to dashboard
         </Button>
       </Container>
     </Box>
