@@ -31,12 +31,14 @@ import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PhoneRounded from "@mui/icons-material/PhoneRounded";
+import QueryStatsRounded from "@mui/icons-material/QueryStatsRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SaveRounded from "@mui/icons-material/SaveRounded";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
+import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import TuneRounded from "@mui/icons-material/TuneRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
@@ -143,6 +145,31 @@ type AvailabilityWindow = {
   slot_minutes: number;
 };
 
+type RevenueBucket = {
+  key: string;
+  label: string;
+  platform_minor: number;
+  manual_minor: number;
+  total_minor: number;
+  entries: number;
+};
+
+type StageMetric = {
+  label: string;
+  helper: string;
+  count: number;
+  tone: string;
+};
+
+type FollowUpItem = {
+  id: string;
+  title: string;
+  helper: string;
+  meta: string;
+  tone: string;
+  href: string;
+};
+
 type OrderFilter =
   | "all"
   | "standard"
@@ -174,6 +201,7 @@ const orderFilters: { value: OrderFilter; label: string }[] = [
 const workspaceNav: { href: string; label: string; icon: ReactNode }[] = [
   { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
   { href: "#money", label: "Money", icon: <AccountBalanceWalletRounded /> },
+  { href: "#reports", label: "Reports", icon: <QueryStatsRounded /> },
   { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
   { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
   { href: "#catalogue", label: "Catalogue", icon: <DesignServicesRounded /> },
@@ -207,6 +235,8 @@ const weekdays = [
   { value: 5, label: "Friday" },
   { value: 6, label: "Saturday" },
 ];
+
+const dayMs = 24 * 60 * 60 * 1000;
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -746,6 +776,227 @@ function filterOrders(
 
 function countOrders(orders: OrderSummary[], filter: OrderFilter): number {
   return filterOrders(orders, filter).length;
+}
+
+function dayKey(value: Date): string {
+  return value.toISOString().slice(0, 10);
+}
+
+function startOfLocalDay(value: Date): Date {
+  return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+}
+
+function parseDate(value: string): Date | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function buildRevenueBuckets(
+  orders: OrderSummary[],
+  takings: ManualTaking[],
+  now = new Date(),
+): RevenueBucket[] {
+  const today = startOfLocalDay(now);
+  const buckets = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today.getTime() - (6 - index) * dayMs);
+    return {
+      key: dayKey(date),
+      label: new Intl.DateTimeFormat("en-GH", {
+        weekday: "short",
+        day: "numeric",
+      }).format(date),
+      platform_minor: 0,
+      manual_minor: 0,
+      total_minor: 0,
+      entries: 0,
+    };
+  });
+  const bucketByKey = new Map(buckets.map((bucket) => [bucket.key, bucket]));
+
+  orders.forEach((order) => {
+    if (order.settled_minor <= 0) {
+      return;
+    }
+    const date = parseDate(order.created_at);
+    if (!date) {
+      return;
+    }
+    const bucket = bucketByKey.get(dayKey(startOfLocalDay(date)));
+    if (!bucket) {
+      return;
+    }
+    bucket.platform_minor += order.settled_minor;
+    bucket.total_minor += order.settled_minor;
+    bucket.entries += 1;
+  });
+
+  takings.forEach((taking) => {
+    const date = parseDate(taking.taken_at);
+    if (!date) {
+      return;
+    }
+    const bucket = bucketByKey.get(dayKey(startOfLocalDay(date)));
+    if (!bucket) {
+      return;
+    }
+    bucket.manual_minor += taking.amount_minor;
+    bucket.total_minor += taking.amount_minor;
+    bucket.entries += 1;
+  });
+
+  return buckets;
+}
+
+function buildStageMetrics(
+  orders: OrderSummary[],
+  readyForHandover: number,
+): StageMetric[] {
+  return [
+    {
+      label: "Awaiting payment",
+      helper: "Draft orders needing checkout or staff follow-up",
+      count: countOrders(orders, "draft"),
+      tone: tokens.warning,
+    },
+    {
+      label: "In studio",
+      helper: "Confirmed garments moving through production",
+      count: countOrders(orders, "confirmed"),
+      tone: tokens.info,
+    },
+    {
+      label: "Ready to hand over",
+      helper: "Fulfilled orders without an open pickup or delivery",
+      count: readyForHandover,
+      tone: tokens.burgundy,
+    },
+    {
+      label: "Fulfilled",
+      helper: "Orders that completed the production stage flow",
+      count: countOrders(orders, "fulfilled"),
+      tone: tokens.success,
+    },
+  ];
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(Math.max(0, Math.min(100, value)))}%`;
+}
+
+function percentage(value: number, total: number): number {
+  if (total <= 0) {
+    return 0;
+  }
+  return (value / total) * 100;
+}
+
+function daysBetween(start: Date, end: Date): number {
+  const startDay = startOfLocalDay(start);
+  const endDay = startOfLocalDay(end);
+  return Math.max(
+    0,
+    Math.floor((endDay.getTime() - startDay.getTime()) / dayMs),
+  );
+}
+
+function ageLabel(value: string, now = new Date()): string {
+  const date = parseDate(value);
+  if (!date) {
+    return "Date missing";
+  }
+  const days = daysBetween(date, now);
+  if (days === 0) {
+    return "Today";
+  }
+  if (days === 1) {
+    return "1 day";
+  }
+  return `${days} days`;
+}
+
+function buildFollowUps({
+  orders,
+  bookings,
+  handovers,
+  notifications,
+  now = new Date(),
+}: {
+  orders: OrderSummary[];
+  bookings: BookingSummary[];
+  handovers: HandoverSummary[];
+  notifications: NotificationSummary[];
+  now?: Date;
+}): FollowUpItem[] {
+  const followUps: FollowUpItem[] = [];
+  const openOrderIDs = new Set(
+    handovers
+      .filter((handover) => canAdvanceHandover(handover.status))
+      .map((handover) => handover.order_id),
+  );
+
+  bookings
+    .filter((booking) => canManageBooking(booking.status))
+    .forEach((booking) => {
+      const slotStart = parseDate(booking.slot_start);
+      if (slotStart && slotStart.getTime() < now.getTime()) {
+        followUps.push({
+          id: `booking-${booking.booking_id}`,
+          title: booking.customer_name || "Visit customer",
+          helper: `Home visit for ${booking.design_title}`,
+          meta: `${ageLabel(booking.slot_start, now)} overdue`,
+          tone: tokens.danger,
+          href: "#visits",
+        });
+      }
+    });
+
+  orders
+    .filter(
+      (order) =>
+        order.status === "fulfilled" && !openOrderIDs.has(order.order_id),
+    )
+    .forEach((order) => {
+      followUps.push({
+        id: `handover-ready-${order.order_id}`,
+        title: order.customer_name || "Fulfilled order",
+        helper: `${order.design_title} needs pickup or delivery`,
+        meta: `${ageLabel(order.created_at, now)} since order`,
+        tone: tokens.warning,
+        href: "#handovers",
+      });
+    });
+
+  handovers
+    .filter((handover) => canAdvanceHandover(handover.status))
+    .forEach((handover) => {
+      const days = ageLabel(handover.created_at, now);
+      followUps.push({
+        id: `handover-${handover.handover_id}`,
+        title: handover.customer_name || "Open handover",
+        helper: `${formatMethod(handover.method)} for ${handover.design_title}`,
+        meta: `${handover.status} · ${days}`,
+        tone: handover.status === "dispatched" ? tokens.info : tokens.warning,
+        href: "#handovers",
+      });
+    });
+
+  notifications
+    .filter((message) => ["pending", "dead"].includes(message.status))
+    .forEach((message) => {
+      followUps.push({
+        id: `message-${message.message_id}`,
+        title: messageKindLabel(message.kind),
+        helper: `${message.channel.toUpperCase()} to ${message.recipient}`,
+        meta: `${message.status} · ${message.attempts} attempts`,
+        tone: notificationTone(message.status),
+        href: "#messages",
+      });
+    });
+
+  return followUps.slice(0, 8);
 }
 
 function fulfilledOrdersWithoutOpenHandover(
@@ -1699,6 +1950,384 @@ function InlineEmptyState({
   );
 }
 
+function ReportsPanel({
+  revenueBuckets,
+  stageMetrics,
+  followUps,
+  totalRevenueMinor,
+  completionRate,
+  collectionRate,
+}: {
+  revenueBuckets: RevenueBucket[];
+  stageMetrics: StageMetric[];
+  followUps: FollowUpItem[];
+  totalRevenueMinor: number;
+  completionRate: number;
+  collectionRate: number;
+}) {
+  const peakRevenue = Math.max(
+    1,
+    ...revenueBuckets.map((bucket) => bucket.total_minor),
+  );
+  const totalStageCount = stageMetrics.reduce(
+    (sum, metric) => sum + metric.count,
+    0,
+  );
+
+  return (
+    <Panel id="reports">
+      <Box sx={{ p: { xs: 2, md: 2.75 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { xs: "stretch", md: "flex-start" },
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <QueryStatsRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Reports snapshot</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Recorded revenue, stage flow, and work that needs a follow-up.
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+            <ToneChip
+              label={`${formatPercent(collectionRate)} collected`}
+              tone={tokens.success}
+            />
+            <ToneChip
+              label={`${formatPercent(completionRate)} fulfilled`}
+              tone={tokens.info}
+            />
+          </Stack>
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "minmax(0, 1.25fr) minmax(340px, 0.75fr)",
+            },
+          }}
+        >
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              p: { xs: 1.5, md: 2 },
+              bgcolor: alpha(tokens.ink, 0.018),
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.25}
+              sx={{
+                alignItems: { xs: "flex-start", sm: "center" },
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>
+                  Seven-day recorded income
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Checkout settlement plus manual takings.
+                </Typography>
+              </Box>
+              <Typography variant="h5" sx={{ lineHeight: 1 }}>
+                {formatGHS(totalRevenueMinor)}
+              </Typography>
+            </Stack>
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: {
+                  xs: "repeat(7, minmax(34px, 1fr))",
+                  md: "repeat(7, minmax(54px, 1fr))",
+                },
+                alignItems: "end",
+                minHeight: 188,
+              }}
+            >
+              {revenueBuckets.map((bucket) => {
+                const height = Math.max(
+                  14,
+                  Math.round((bucket.total_minor / peakRevenue) * 120),
+                );
+                return (
+                  <Stack
+                    key={bucket.key}
+                    spacing={0.75}
+                    sx={{
+                      minWidth: 0,
+                      alignItems: "stretch",
+                      justifyContent: "flex-end",
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        textAlign: "center",
+                        minHeight: 32,
+                        display: "grid",
+                        alignItems: "end",
+                      }}
+                    >
+                      {bucket.total_minor > 0
+                        ? formatGHS(bucket.total_minor)
+                        : "GHS 0"}
+                    </Typography>
+                    <Box
+                      sx={{
+                        height,
+                        borderRadius: 1.25,
+                        bgcolor:
+                          bucket.total_minor > 0
+                            ? tokens.burgundy
+                            : alpha(tokens.ink, 0.08),
+                        border: "1px solid",
+                        borderColor:
+                          bucket.total_minor > 0
+                            ? alpha(tokens.burgundy, 0.3)
+                            : "divider",
+                        transition: "height 180ms ease",
+                      }}
+                    />
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        fontWeight: 800,
+                        textAlign: "center",
+                        whiteSpace: "normal",
+                      }}
+                    >
+                      {bucket.label}
+                    </Typography>
+                  </Stack>
+                );
+              })}
+            </Box>
+          </Box>
+
+          <Stack spacing={1.25}>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+              }}
+            >
+              <MiniStat
+                icon={<TrendingUpRounded fontSize="small" />}
+                label="Completion"
+                value={formatPercent(completionRate)}
+                helper="Fulfilled share of all orders"
+                tone={tokens.success}
+              />
+              <MiniStat
+                icon={<PaymentsRounded fontSize="small" />}
+                label="Collection"
+                value={formatPercent(collectionRate)}
+                helper="Settled against known order totals"
+                tone={tokens.info}
+              />
+            </Box>
+
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                overflow: "hidden",
+              }}
+            >
+              <Box sx={{ px: 1.75, py: 1.5, bgcolor: tokens.panel }}>
+                <Typography sx={{ fontWeight: 900 }}>
+                  Stage throughput
+                </Typography>
+              </Box>
+              {stageMetrics.map((metric) => {
+                const width = formatPercent(
+                  percentage(metric.count, totalStageCount),
+                );
+                return (
+                  <Box
+                    key={metric.label}
+                    sx={{
+                      px: 1.75,
+                      py: 1.35,
+                      borderTop: "1px solid",
+                      borderColor: "divider",
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {metric.label}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {metric.helper}
+                        </Typography>
+                      </Box>
+                      <Typography sx={{ fontWeight: 900 }}>
+                        {metric.count}
+                      </Typography>
+                    </Stack>
+                    <Box
+                      sx={{
+                        mt: 1,
+                        height: 8,
+                        borderRadius: 999,
+                        bgcolor: alpha(metric.tone, 0.12),
+                        overflow: "hidden",
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width,
+                          height: "100%",
+                          bgcolor: metric.tone,
+                          borderRadius: 999,
+                        }}
+                      />
+                    </Box>
+                  </Box>
+                );
+              })}
+            </Box>
+          </Stack>
+        </Box>
+      </Box>
+
+      <Box
+        sx={{
+          px: { xs: 2, md: 2.75 },
+          pb: { xs: 2, md: 2.75 },
+        }}
+      >
+        <Box
+          sx={{
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            overflow: "hidden",
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{
+              px: 1.75,
+              py: 1.5,
+              bgcolor: tokens.panel,
+              justifyContent: "space-between",
+              alignItems: { xs: "flex-start", sm: "center" },
+            }}
+          >
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Follow-up radar</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Overdue visits, open handovers, failed messages, and fulfilled
+                orders waiting for pickup or delivery.
+              </Typography>
+            </Box>
+            <ToneChip
+              label={`${followUps.length} signals`}
+              tone={followUps.length > 0 ? tokens.warning : tokens.success}
+            />
+          </Stack>
+
+          {followUps.length === 0 ? (
+            <Box sx={{ p: 2 }}>
+              <InlineEmptyState
+                icon={<CheckCircleRounded sx={{ fontSize: 38 }} />}
+                title="No risky follow-ups"
+                helper="The dashboard will surface overdue visits, open handovers, and message problems here."
+              />
+            </Box>
+          ) : (
+            followUps.map((item) => (
+              <Box
+                key={item.id}
+                sx={{
+                  px: 1.75,
+                  py: 1.35,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "minmax(0, 1fr) auto",
+                  },
+                  alignItems: "center",
+                }}
+              >
+                <Stack direction="row" spacing={1.25} sx={{ minWidth: 0 }}>
+                  <Box
+                    sx={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: "50%",
+                      mt: 0.75,
+                      bgcolor: item.tone,
+                      flexShrink: 0,
+                    }}
+                  />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {item.title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+                    >
+                      {item.helper}
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Button
+                  href={item.href}
+                  size="small"
+                  variant="outlined"
+                  endIcon={<ArrowForwardRounded />}
+                >
+                  {item.meta}
+                </Button>
+              </Box>
+            ))
+          )}
+        </Box>
+      </Box>
+    </Panel>
+  );
+}
+
 function MoneyPanel({
   summary,
   takings,
@@ -2521,6 +3150,34 @@ export default function Dashboard({
     orders,
     handovers,
   ).length;
+  const revenueBuckets = buildRevenueBuckets(orders, manualTakings);
+  const sevenDayRevenueMinor = revenueBuckets.reduce(
+    (sum, bucket) => sum + bucket.total_minor,
+    0,
+  );
+  const knownOrderValueMinor = orders.reduce((sum, order) => {
+    const target = order.agreed_total_minor ?? order.payment_amount_minor ?? 0;
+    return sum + target;
+  }, 0);
+  const settledOrderValueMinor = orders.reduce(
+    (sum, order) => sum + order.settled_minor,
+    0,
+  );
+  const completionRate = percentage(
+    countOrders(orders, "fulfilled"),
+    orders.length,
+  );
+  const collectionRate = percentage(
+    settledOrderValueMinor,
+    knownOrderValueMinor,
+  );
+  const stageMetrics = buildStageMetrics(orders, readyForHandover);
+  const followUps = buildFollowUps({
+    orders,
+    bookings,
+    handovers,
+    notifications,
+  });
   const storefrontURL = `https://${profile.handle}.xtiitch.com`;
   const nextFieldSequence =
     measurementFields.length === 0
@@ -2736,6 +3393,17 @@ export default function Dashboard({
               value={String(openHandovers)}
               helper={`${readyForHandover} fulfilled orders ready`}
               tone={tokens.warning}
+            />
+          </Box>
+
+          <Box sx={{ mt: 2.5 }}>
+            <ReportsPanel
+              revenueBuckets={revenueBuckets}
+              stageMetrics={stageMetrics}
+              followUps={followUps}
+              totalRevenueMinor={sevenDayRevenueMinor}
+              completionRate={completionRate}
+              collectionRate={collectionRate}
             />
           </Box>
 
