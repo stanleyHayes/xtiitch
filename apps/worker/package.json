@@ -6,14 +6,16 @@
   "scripts": {
     "check": "tsc --noEmit",
     "dev": "tsx watch src/index.ts",
-    "test": "echo \"worker tests not scaffolded yet\""
+    "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "bullmq": "5.78.1",
-    "dotenv": "17.4.2"
+    "dotenv": "17.4.2",
+    "pg": "8.21.0"
   },
   "devDependencies": {
     "@types/node": "25.9.3",
+    "@types/pg": "8.20.0",
     "tsx": "4.22.4",
     "typescript": "6.0.3"
   }
