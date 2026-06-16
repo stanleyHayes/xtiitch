@@ -191,6 +191,13 @@ type DashboardSection =
   | "availability"
   | "messages";
 
+type WorkspaceNavItem = {
+  href: string;
+  section: DashboardSection;
+  label: string;
+  icon: ReactNode;
+};
+
 type OrderFilter =
   | "all"
   | "standard"
@@ -211,6 +218,24 @@ type DashboardActionData = {
   availabilityError?: string;
 };
 
+type DashboardPageMeta = {
+  eyebrow: string;
+  title: string;
+  helper: string;
+  icon: ReactNode;
+  tone: string;
+};
+
+type OverviewRoom = {
+  title: string;
+  helper: string;
+  href: string;
+  value: string;
+  actionLabel: string;
+  tone: string;
+  icon: ReactNode;
+};
+
 const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "standard", label: "Standard" },
@@ -220,12 +245,7 @@ const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "fulfilled", label: "Fulfilled" },
 ];
 
-const managementWorkspaceNav: {
-  href: string;
-  section: DashboardSection;
-  label: string;
-  icon: ReactNode;
-}[] = [
+const managementWorkspaceNav: WorkspaceNavItem[] = [
   {
     href: "/dashboard",
     section: "overview",
@@ -288,12 +308,7 @@ const managementWorkspaceNav: {
   },
 ];
 
-const staffWorkspaceNav: {
-  href: string;
-  section: DashboardSection;
-  label: string;
-  icon: ReactNode;
-}[] = [
+const staffWorkspaceNav: WorkspaceNavItem[] = [
   {
     href: "/dashboard",
     section: "tasks",
@@ -931,6 +946,111 @@ function rolePermissionMessage(role: string): string {
     return "Staff can work orders, visits, measurements, and handovers. Money, catalogue, measurement setup, availability, and reports stay with owners or admins.";
   }
   return "Your current role cannot perform that dashboard action.";
+}
+
+function dashboardPageMeta(section: DashboardSection): DashboardPageMeta {
+  switch (section) {
+    case "tasks":
+      return {
+        eyebrow: "Shift desk",
+        title: "Task queue",
+        helper:
+          "The work staff can safely move today: fittings, visits, production stages, handovers, and message checks.",
+        icon: <TuneRounded />,
+        tone: tokens.success,
+      };
+    case "reports":
+      return {
+        eyebrow: "Reports",
+        title: "Studio performance snapshot",
+        helper:
+          "Read revenue movement, collection health, production status, and follow-up pressure without digging through every order.",
+        icon: <QueryStatsRounded />,
+        tone: tokens.info,
+      };
+    case "orders":
+      return {
+        eyebrow: "Production",
+        title: "Order board",
+        helper:
+          "Filter live work, capture measurements, and move confirmed garments through the studio in clear stages.",
+        icon: <TimelineRounded />,
+        tone: tokens.burgundy,
+      };
+    case "money":
+      return {
+        eyebrow: "Money",
+        title: "Money desk",
+        helper:
+          "Track platform payments, manual takings, commission, and net income while keeping funds outside Xtiitch.",
+        icon: <AccountBalanceWalletRounded />,
+        tone: tokens.success,
+      };
+    case "visits":
+      return {
+        eyebrow: "Appointments",
+        title: "Visit queue",
+        helper:
+          "Manage held and booked home visits, keep customers updated, and protect the shop calendar.",
+        icon: <CalendarMonthRounded />,
+        tone: tokens.info,
+      };
+    case "handovers":
+      return {
+        eyebrow: "Fulfilment",
+        title: "Handover desk",
+        helper:
+          "Arrange pickup and delivery work for finished garments, then close the customer loop cleanly.",
+        icon: <LocalShippingRounded />,
+        tone: tokens.warning,
+      };
+    case "catalogue":
+      return {
+        eyebrow: "Storefront",
+        title: "Design studio",
+        helper:
+          "Publish, retire, and refresh the designs customers see before they order or request custom work.",
+        icon: <DesignServicesRounded />,
+        tone: tokens.burgundy,
+      };
+    case "measurements":
+      return {
+        eyebrow: "Fittings",
+        title: "Measurement setup",
+        helper:
+          "Define the fields staff use for visit, shop, and self-measurement flows so order records stay consistent.",
+        icon: <StraightenRounded />,
+        tone: tokens.info,
+      };
+    case "availability":
+      return {
+        eyebrow: "Calendar",
+        title: "Visit hours",
+        helper:
+          "Set the appointment windows customers can book and keep fitting capacity realistic.",
+        icon: <ScheduleRounded />,
+        tone: tokens.gold,
+      };
+    case "messages":
+      return {
+        eyebrow: "Outbox",
+        title: "Message log",
+        helper:
+          "Review order, payment, booking, and handover notifications so customer communication stays accountable.",
+        icon: <NotificationsRounded />,
+        tone: tokens.burgundy,
+      };
+    case "overview":
+    default:
+      return {
+        eyebrow: "Control room",
+        title: "Studio command center",
+        helper:
+          "Spot the studio decisions that need attention first, then move into the room that needs action.",
+        icon: <TuneRounded />,
+        tone: tokens.burgundy,
+      };
+  }
 }
 
 function safeDashboardReturn(value: string): string {
@@ -1617,7 +1737,22 @@ function MetricCard({
   tone?: string;
 }) {
   return (
-    <Panel sx={{ p: 2.25, minHeight: 142 }}>
+    <Panel
+      sx={{
+        p: 2.25,
+        minHeight: 142,
+        position: "relative",
+        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 42%)`,
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: "0 auto auto 0",
+          width: "100%",
+          height: 3,
+          bgcolor: tone,
+        },
+      }}
+    >
       <Stack
         spacing={2}
         sx={{ height: "100%", justifyContent: "space-between" }}
@@ -1685,6 +1820,572 @@ function ToneChip({
         "& .MuiChip-icon": { color: tone },
       }}
     />
+  );
+}
+
+function WorkspaceRail({
+  profile,
+  currentUser,
+  verified,
+  workspaceItems,
+  section,
+  storefrontURL,
+}: {
+  profile: Profile;
+  currentUser: CurrentUser;
+  verified: boolean;
+  workspaceItems: WorkspaceNavItem[];
+  section: DashboardSection;
+  storefrontURL: string;
+}) {
+  return (
+    <Panel
+      sx={{
+        p: 1.5,
+        position: { lg: "sticky" },
+        top: { lg: 24 },
+        alignSelf: "start",
+        minHeight: { lg: "calc(100vh - 48px)" },
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: alpha(tokens.white, 0.94),
+        backdropFilter: "blur(14px)",
+      }}
+    >
+      <Stack spacing={2} sx={{ flexGrow: 1 }}>
+        <Box
+          sx={{
+            p: 1,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            bgcolor: tokens.panel,
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box
+              sx={{
+                width: 46,
+                height: 46,
+                borderRadius: 1.5,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: alpha(tokens.burgundy, 0.1),
+                color: "primary.main",
+                flexShrink: 0,
+              }}
+            >
+              <StorefrontRounded />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {profile.name}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary" }}
+                noWrap
+              >
+                {profile.plan} plan · {profile.handle}
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={0.75} sx={{ mt: 1.25 }}>
+            <ToneChip
+              label={verified ? "Verified" : "Needs review"}
+              tone={verified ? tokens.success : tokens.warning}
+              icon={
+                verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
+              }
+            />
+            <ToneChip
+              label={roleLabel(currentUser.role)}
+              tone={roleTone(currentUser.role)}
+            />
+          </Stack>
+        </Box>
+
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontWeight: 900,
+              px: 1,
+              textTransform: "uppercase",
+            }}
+          >
+            Workspace
+          </Typography>
+          <Stack spacing={0.65} sx={{ mt: 0.9 }}>
+            {workspaceItems.map((item) => {
+              const active = item.section === section;
+              return (
+                <Button
+                  key={item.href}
+                  component={RouterLink}
+                  to={item.href}
+                  startIcon={item.icon}
+                  aria-current={active ? "page" : undefined}
+                  sx={{
+                    minHeight: 44,
+                    justifyContent: "flex-start",
+                    position: "relative",
+                    overflow: "hidden",
+                    color: active ? "primary.main" : "text.primary",
+                    bgcolor: active
+                      ? alpha(tokens.burgundy, 0.11)
+                      : "transparent",
+                    border: "1px solid",
+                    borderColor: active
+                      ? alpha(tokens.burgundy, 0.24)
+                      : "transparent",
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      left: 0,
+                      top: 7,
+                      bottom: 7,
+                      width: 3,
+                      borderRadius: 4,
+                      bgcolor: active ? tokens.burgundy : "transparent",
+                    },
+                    "& .MuiButton-startIcon": {
+                      color: active ? "primary.main" : "text.secondary",
+                    },
+                    "&:hover": {
+                      bgcolor: alpha(tokens.burgundy, 0.08),
+                      borderColor: alpha(tokens.burgundy, 0.16),
+                      color: "primary.main",
+                      "& .MuiButton-startIcon": { color: "primary.main" },
+                    },
+                  }}
+                >
+                  {item.label}
+                </Button>
+              );
+            })}
+          </Stack>
+        </Box>
+
+        <Box sx={{ mt: "auto" }}>
+          <Button
+            component={MuiLink}
+            href={storefrontURL}
+            target="_blank"
+            rel="noreferrer"
+            variant="outlined"
+            startIcon={<VisibilityRounded />}
+            fullWidth
+          >
+            View storefront
+          </Button>
+          <Form method="post">
+            <input type="hidden" name="intent" value="logout" />
+            <Button
+              type="submit"
+              color="inherit"
+              startIcon={<LogoutRounded />}
+              fullWidth
+              sx={{ mt: 1 }}
+            >
+              Log out
+            </Button>
+          </Form>
+        </Box>
+      </Stack>
+    </Panel>
+  );
+}
+
+function WorkspaceHeader({
+  meta,
+  canManage,
+  currentUser,
+  verified,
+  moneySummary,
+  liveOrders,
+  activeBookings,
+  availabilityWindows,
+  pendingPayments,
+  needsMeasurements,
+  openHandovers,
+}: {
+  meta: DashboardPageMeta;
+  canManage: boolean;
+  currentUser: CurrentUser;
+  verified: boolean;
+  moneySummary: MoneySummary;
+  liveOrders: OrderSummary[];
+  activeBookings: number;
+  availabilityWindows: AvailabilityWindow[];
+  pendingPayments: number;
+  needsMeasurements: number;
+  openHandovers: number;
+}) {
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2.25, md: 3 },
+        mb: 2.5,
+        position: "relative",
+        bgcolor: tokens.charcoal,
+        color: "common.white",
+        borderColor: alpha(tokens.ink, 0.1),
+        backgroundImage: `linear-gradient(135deg, ${alpha(meta.tone, 0.32)}, transparent 44%), linear-gradient(180deg, ${alpha(tokens.white, 0.08)}, transparent)`,
+      }}
+    >
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          right: { xs: -38, md: -18 },
+          top: { xs: -34, md: -42 },
+          color: alpha(tokens.white, 0.075),
+          transform: "rotate(-10deg)",
+          "& .MuiSvgIcon-root": {
+            fontSize: { xs: 150, md: 210 },
+          },
+        }}
+      >
+        {meta.icon}
+      </Box>
+      <Stack
+        direction={{ xs: "column", lg: "row" }}
+        spacing={2.5}
+        sx={{
+          position: "relative",
+          justifyContent: "space-between",
+          alignItems: { xs: "stretch", lg: "flex-end" },
+        }}
+      >
+        <Box sx={{ maxWidth: 800 }}>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", mb: 2 }}>
+            <Chip
+              size="small"
+              label={`${roleLabel(currentUser.role)} access`}
+              sx={{
+                color: "common.white",
+                bgcolor: alpha(tokens.white, 0.12),
+                border: "1px solid",
+                borderColor: alpha(tokens.white, 0.18),
+              }}
+            />
+            <Chip
+              size="small"
+              label={verified ? "Verified store" : "Verification needed"}
+              sx={{
+                color: "common.white",
+                bgcolor: alpha(
+                  verified ? tokens.success : tokens.warning,
+                  0.28,
+                ),
+                border: "1px solid",
+                borderColor: alpha(
+                  verified ? tokens.success : tokens.warning,
+                  0.48,
+                ),
+              }}
+            />
+          </Stack>
+          <Typography
+            variant="overline"
+            sx={{ color: alpha(tokens.white, 0.68), fontWeight: 900 }}
+          >
+            {meta.eyebrow}
+          </Typography>
+          <Typography
+            variant="h3"
+            component="h1"
+            sx={{
+              mt: 0.5,
+              maxWidth: 760,
+              fontSize: { xs: "2rem", md: "2.55rem" },
+              lineHeight: 1.04,
+            }}
+          >
+            {meta.title}
+          </Typography>
+          <Typography
+            sx={{
+              mt: 1.25,
+              color: alpha(tokens.white, 0.72),
+              maxWidth: 700,
+            }}
+          >
+            {meta.helper}
+          </Typography>
+        </Box>
+        <Box
+          sx={{
+            minWidth: { lg: 360 },
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr" },
+          }}
+        >
+          <HeaderSignal
+            icon={
+              canManage ? <AccountBalanceWalletRounded /> : <TimelineRounded />
+            }
+            tone={canManage ? tokens.gold : tokens.info}
+            title={
+              canManage
+                ? formatGHS(moneySummary.net_income_minor)
+                : `${liveOrders.length} live orders`
+            }
+            helper={
+              canManage
+                ? `${pendingPayments} payment follow-ups`
+                : `${needsMeasurements} measurement captures`
+            }
+          />
+          <HeaderSignal
+            icon={<EventAvailableRounded />}
+            tone={tokens.info}
+            title={`${activeBookings} active visits`}
+            helper={`${availabilityWindows.length} windows · ${openHandovers} handovers`}
+          />
+        </Box>
+      </Stack>
+    </Panel>
+  );
+}
+
+function HeaderSignal({
+  icon,
+  tone,
+  title,
+  helper,
+}: {
+  icon: ReactNode;
+  tone: string;
+  title: string;
+  helper: string;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      sx={{
+        p: 1.35,
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: alpha(tokens.white, 0.15),
+        bgcolor: alpha(tokens.white, 0.085),
+        minWidth: 0,
+      }}
+    >
+      <Box
+        sx={{
+          width: 36,
+          height: 36,
+          borderRadius: 1.25,
+          display: "grid",
+          placeItems: "center",
+          color: tone,
+          bgcolor: alpha(tone, 0.18),
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          sx={{
+            fontWeight: 900,
+            color: "common.white",
+            overflowWrap: "anywhere",
+          }}
+        >
+          {title}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{ color: alpha(tokens.white, 0.68), overflowWrap: "anywhere" }}
+        >
+          {helper}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <SectionHeader
+        eyebrow="Overview"
+        title="Choose the right workspace"
+        helper="Start with the room that matches the work in front of you, from production to money to customer follow-up."
+      />
+      <Box
+        sx={{
+          mt: 2,
+          display: "grid",
+          gap: 1.4,
+          gridTemplateColumns: {
+            xs: "1fr",
+            md: "repeat(2, minmax(0, 1fr))",
+          },
+        }}
+      >
+        {rooms.map((room) => (
+          <Box
+            key={room.href}
+            sx={{
+              p: 1.6,
+              border: "1px solid",
+              borderColor: alpha(room.tone, 0.2),
+              borderRadius: 2,
+              bgcolor: alpha(room.tone, 0.045),
+              minWidth: 0,
+              display: "grid",
+              gap: 1.25,
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "flex-start", minWidth: 0 }}
+            >
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 1.5,
+                  display: "grid",
+                  placeItems: "center",
+                  color: room.tone,
+                  bgcolor: alpha(room.tone, 0.1),
+                  flexShrink: 0,
+                }}
+              >
+                {room.icon}
+              </Box>
+              <Box sx={{ minWidth: 0, flex: 1 }}>
+                <Typography sx={{ fontWeight: 900 }}>{room.title}</Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ mt: 0.4, color: "text.secondary" }}
+                >
+                  {room.helper}
+                </Typography>
+              </Box>
+            </Stack>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+              }}
+            >
+              <ToneChip label={room.value} tone={room.tone} />
+              <Button
+                component={RouterLink}
+                to={room.href}
+                size="small"
+                endIcon={<ArrowForwardRounded />}
+              >
+                {room.actionLabel}
+              </Button>
+            </Stack>
+          </Box>
+        ))}
+      </Box>
+    </Panel>
+  );
+}
+
+function TodayFocusPanel({
+  pendingPayments,
+  needsMeasurements,
+  openHandovers,
+  pendingMessages,
+}: {
+  pendingPayments: number;
+  needsMeasurements: number;
+  openHandovers: number;
+  pendingMessages: number;
+}) {
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
+      <Stack spacing={1.75}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "flex-start" }}>
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: 1.5,
+              display: "grid",
+              placeItems: "center",
+              color: "primary.main",
+              bgcolor: alpha(tokens.burgundy, 0.1),
+              flexShrink: 0,
+            }}
+          >
+            <TuneRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Today's focus</Typography>
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.75, color: "text.secondary" }}
+            >
+              Clear drafts first, capture visit/shop measurements, then close
+              finished garments with pickup or delivery handovers. Xtiitch
+              records payment state but never holds funds.
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+          <ToneChip
+            label={`${pendingPayments} payment follow-ups`}
+            tone={tokens.warning}
+          />
+          <ToneChip
+            label={`${needsMeasurements} measurement captures`}
+            tone={tokens.info}
+          />
+          <ToneChip
+            label={`${openHandovers} active handovers`}
+            tone={tokens.warning}
+          />
+          <ToneChip
+            label={`${pendingMessages} messages pending`}
+            tone={tokens.burgundy}
+          />
+        </Stack>
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+          <Button
+            component={RouterLink}
+            to="/dashboard/orders?orders=draft"
+            size="small"
+            variant="outlined"
+          >
+            Drafts
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/dashboard/visits"
+            size="small"
+            variant="outlined"
+          >
+            Visits
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/dashboard/handovers"
+            size="small"
+            variant="outlined"
+          >
+            Handovers
+          </Button>
+        </Stack>
+      </Stack>
+    </Panel>
   );
 }
 
@@ -3769,6 +4470,66 @@ export default function Dashboard({
     measurementFields.length === 0
       ? 1
       : Math.max(...measurementFields.map((field) => field.sequence)) + 1;
+  const pageMeta = dashboardPageMeta(section);
+  const activeDesigns = designs.filter(
+    (design) => design.status === "active",
+  ).length;
+  const overviewRooms: OverviewRoom[] = [
+    {
+      title: "Reports",
+      helper: "Revenue, collection, production, and follow-up signals.",
+      href: "/dashboard/reports",
+      value: `${followUps.length} signals`,
+      actionLabel: "Open reports",
+      icon: <QueryStatsRounded />,
+      tone: tokens.info,
+    },
+    {
+      title: "Orders",
+      helper: "Live production work, measurements, and stage movement.",
+      href: "/dashboard/orders",
+      value: `${liveOrders.length} live`,
+      actionLabel: "Open orders",
+      icon: <TimelineRounded />,
+      tone: tokens.burgundy,
+    },
+    {
+      title: "Money",
+      helper: "Tracked takings, net income, and payment follow-ups.",
+      href: "/dashboard/money",
+      value: formatGHS(moneySummary.net_income_minor),
+      actionLabel: "Open money",
+      icon: <AccountBalanceWalletRounded />,
+      tone: tokens.success,
+    },
+    {
+      title: "Visits",
+      helper: "Held and booked appointments that need studio attention.",
+      href: "/dashboard/visits",
+      value: `${activeBookings} active`,
+      actionLabel: "Open visits",
+      icon: <CalendarMonthRounded />,
+      tone: tokens.info,
+    },
+    {
+      title: "Handovers",
+      helper: "Pickup and delivery work for finished garments.",
+      href: "/dashboard/handovers",
+      value: `${openHandovers} open`,
+      actionLabel: "Open handovers",
+      icon: <LocalShippingRounded />,
+      tone: tokens.warning,
+    },
+    {
+      title: "Catalogue",
+      helper: "Published designs and storefront product upkeep.",
+      href: "/dashboard/catalogue",
+      value: `${activeDesigns} active`,
+      actionLabel: "Open catalogue",
+      icon: <DesignServicesRounded />,
+      tone: tokens.burgundy,
+    },
+  ];
 
   return (
     <Box
@@ -3790,188 +4551,29 @@ export default function Dashboard({
           gridTemplateColumns: { xs: "1fr", lg: "270px minmax(0, 1fr)" },
         }}
       >
-        <Panel
-          sx={{
-            p: 2,
-            position: { lg: "sticky" },
-            top: { lg: 24 },
-            alignSelf: "start",
-            minHeight: { lg: "calc(100vh - 48px)" },
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <Stack spacing={2} sx={{ flexGrow: 1 }}>
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 1.5,
-                  display: "grid",
-                  placeItems: "center",
-                  bgcolor: alpha(tokens.burgundy, 0.1),
-                  color: "primary.main",
-                }}
-              >
-                <StorefrontRounded />
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 900 }} noWrap>
-                  {profile.name}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "text.secondary" }}
-                  noWrap
-                >
-                  {profile.plan} plan · {profile.handle}
-                </Typography>
-              </Box>
-            </Stack>
-
-            <ToneChip
-              label={verified ? "Verified for payments" : "Verification needed"}
-              tone={verified ? tokens.success : tokens.warning}
-              icon={
-                verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
-              }
-            />
-            <ToneChip
-              label={`${roleLabel(currentUser.role)} access`}
-              tone={roleTone(currentUser.role)}
-              icon={<VerifiedUserRounded />}
-            />
-
-            <Divider />
-
-            <Stack spacing={0.75}>
-              {workspaceItems.map((item) => (
-                <Button
-                  key={item.href}
-                  component={RouterLink}
-                  to={item.href}
-                  startIcon={item.icon}
-                  aria-current={item.section === section ? "page" : undefined}
-                  sx={{
-                    justifyContent: "flex-start",
-                    color:
-                      item.section === section
-                        ? "primary.main"
-                        : "text.primary",
-                    bgcolor:
-                      item.section === section
-                        ? alpha(tokens.burgundy, 0.1)
-                        : alpha(tokens.ink, 0.035),
-                    border: "1px solid",
-                    borderColor:
-                      item.section === section
-                        ? alpha(tokens.burgundy, 0.18)
-                        : "transparent",
-                    "&:hover": {
-                      bgcolor: alpha(tokens.burgundy, 0.08),
-                      color: "primary.main",
-                    },
-                  }}
-                >
-                  {item.label}
-                </Button>
-              ))}
-            </Stack>
-
-            <Box sx={{ mt: "auto" }}>
-              <Button
-                component={MuiLink}
-                href={storefrontURL}
-                target="_blank"
-                rel="noreferrer"
-                variant="outlined"
-                startIcon={<VisibilityRounded />}
-                fullWidth
-              >
-                View storefront
-              </Button>
-              <Form method="post">
-                <input type="hidden" name="intent" value="logout" />
-                <Button
-                  type="submit"
-                  color="inherit"
-                  startIcon={<LogoutRounded />}
-                  fullWidth
-                  sx={{ mt: 1 }}
-                >
-                  Log out
-                </Button>
-              </Form>
-            </Box>
-          </Stack>
-        </Panel>
+        <WorkspaceRail
+          profile={profile}
+          currentUser={currentUser}
+          verified={verified}
+          workspaceItems={workspaceItems}
+          section={section}
+          storefrontURL={storefrontURL}
+        />
 
         <Box sx={{ minWidth: 0 }}>
-          <Panel
-            sx={{
-              p: { xs: 2.5, md: 4 },
-              mb: 2.5,
-              bgcolor: tokens.charcoal,
-              color: "common.white",
-              borderColor: alpha(tokens.ink, 0.1),
-            }}
-          >
-            <Stack
-              direction={{ xs: "column", md: "row" }}
-              spacing={3}
-              sx={{ justifyContent: "space-between" }}
-            >
-              <Box sx={{ maxWidth: 760 }}>
-                <Typography
-                  variant="overline"
-                  sx={{ color: alpha(tokens.white, 0.64), fontWeight: 900 }}
-                >
-                  Studio command room
-                </Typography>
-                <Typography variant="h3" component="h1" sx={{ mt: 0.75 }}>
-                  {canManage
-                    ? "Keep every garment moving without losing the customer thread."
-                    : "Your shift view for orders, fittings, and handovers."}
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 1.5,
-                    color: alpha(tokens.white, 0.72),
-                    maxWidth: 680,
-                  }}
-                >
-                  {canManage
-                    ? "Orders, payments, visit slots, customer messages, and final pickup or delivery work now sit in one practical workspace."
-                    : "Work from the active production queue without opening money, catalogue, or store settings."}
-                </Typography>
-              </Box>
-              <Stack spacing={1} sx={{ minWidth: { md: 260 } }}>
-                <InfoStrip
-                  icon={
-                    canManage ? (
-                      <AccountBalanceWalletRounded />
-                    ) : (
-                      <TimelineRounded />
-                    )
-                  }
-                  tone={canManage ? tokens.gold : tokens.info}
-                  title={
-                    canManage
-                      ? formatGHS(moneySummary.net_income_minor)
-                      : `${liveOrders.length} live orders`
-                  }
-                  helper={canManage ? "Net tracked income" : "Production queue"}
-                />
-                <InfoStrip
-                  icon={<EventAvailableRounded />}
-                  tone={tokens.info}
-                  title={`${activeBookings} active visits`}
-                  helper={`${availabilityWindows.length} availability windows`}
-                />
-              </Stack>
-            </Stack>
-          </Panel>
+          <WorkspaceHeader
+            meta={pageMeta}
+            canManage={canManage}
+            currentUser={currentUser}
+            verified={verified}
+            moneySummary={moneySummary}
+            liveOrders={liveOrders}
+            activeBookings={activeBookings}
+            availabilityWindows={availabilityWindows}
+            pendingPayments={pendingPayments}
+            needsMeasurements={needsMeasurements}
+            openHandovers={openHandovers}
+          />
 
           {action.permissionError ? (
             <Alert severity="warning" sx={{ mb: 2.5 }}>
@@ -4066,13 +4668,20 @@ export default function Dashboard({
               gap: { xs: 2.5, xl: 3 },
               gridTemplateColumns: {
                 xs: "1fr",
-                xl: "1fr",
+                xl:
+                  canManage && section === "overview"
+                    ? "minmax(0, 1.35fr) minmax(320px, 0.65fr)"
+                    : "1fr",
               },
               alignItems: "start",
             }}
           >
             <Box sx={{ minWidth: 0 }}>
               <Stack spacing={2.5}>
+                {canManage && section === "overview" ? (
+                  <ManagementOverviewPanel rooms={overviewRooms} />
+                ) : null}
+
                 {canManage && section === "money" ? (
                   <MoneyPanel
                     summary={moneySummary}
@@ -4412,54 +5021,12 @@ export default function Dashboard({
               ) : null}
 
               {canManage && section === "overview" ? (
-                <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
-                  <Stack
-                    direction="row"
-                    spacing={1.25}
-                    sx={{ alignItems: "flex-start" }}
-                  >
-                    <Box sx={{ color: "primary.main", pt: 0.4 }}>
-                      <TuneRounded />
-                    </Box>
-                    <Box>
-                      <Typography sx={{ fontWeight: 900 }}>
-                        Today’s focus
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ mt: 0.75, color: "text.secondary" }}
-                      >
-                        {canManage
-                          ? "Clear drafts first, capture visit/shop measurements, then close finished garments with pickup or delivery handovers. Xtiitch records payment state but never holds funds."
-                          : "Start with measurement captures, keep visit slots current, and close pickup or delivery handovers when garments are ready."}
-                      </Typography>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ mt: 1.5, flexWrap: "wrap" }}
-                      >
-                        {canManage ? (
-                          <ToneChip
-                            label={`${pendingPayments} payment follow-ups`}
-                            tone={tokens.warning}
-                          />
-                        ) : null}
-                        <ToneChip
-                          label={`${needsMeasurements} measurement captures`}
-                          tone={tokens.info}
-                        />
-                        <ToneChip
-                          label={`${openHandovers} active handovers`}
-                          tone={tokens.warning}
-                        />
-                        <ToneChip
-                          label={`${pendingMessages} messages pending`}
-                          tone={tokens.burgundy}
-                        />
-                      </Stack>
-                    </Box>
-                  </Stack>
-                </Panel>
+                <TodayFocusPanel
+                  pendingPayments={pendingPayments}
+                  needsMeasurements={needsMeasurements}
+                  openHandovers={openHandovers}
+                  pendingMessages={pendingMessages}
+                />
               ) : null}
             </Stack>
           </Box>
