@@ -14,6 +14,7 @@ import (
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
+	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
@@ -27,6 +28,7 @@ import (
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
+	notifyapp "github.com/xcreativs/xtiitch/apps/api/internal/application/notification"
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -131,6 +133,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:       ids.UUIDGenerator{},
 	})
 
+	notificationService := notifyapp.NewService(notifyapp.Dependencies{
+		Messages: postgres.NewNotificationRepository(db),
+	})
+
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
 		Storefront:   postgres.NewStorefrontRepository(db),
 		Businesses:   postgres.NewBusinessChargeRepository(db),
@@ -152,6 +158,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		availabilityhttp.NewHandler(availabilityService, authenticator),
 		bookinghttp.NewHandler(bookingService, authenticator),
 		deliveryhttp.NewHandler(deliveryService, authenticator),
+		notificationhttp.NewHandler(notificationService, authenticator),
 	)
 
 	return App{

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -501,36 +502,8 @@ func (repo OrderRepository) AdvanceStage(ctx context.Context, scope common.Tenan
 		return order.Tracking{}, ports.ErrInvalidOrderState
 	}
 
-	// Find the next stage in this flow; if there is none, the order is at its
-	// final (green) stage and becomes fulfilled.
-	var nextStageID string
-	nextErr := tx.QueryRow(ctx, `
-		select stage_id from stage_templates
-		where business_id = $1 and flow = $2 and sequence > $3
-		order by sequence limit 1
-	`, businessID, flow, currentSeq.Int32).Scan(&nextStageID)
-
-	switch {
-	case nextErr == nil:
-		if _, err := tx.Exec(ctx, `
-			update orders set current_stage_id = $2, updated_at = now() where order_id = $1
-		`, orderID.String(), nextStageID); err != nil {
-			return order.Tracking{}, err
-		}
-		if _, err := tx.Exec(ctx, `
-			insert into stage_events (event_id, business_id, order_id, stage_id)
-			values (gen_random_uuid(), $1, $2, $3)
-		`, businessID, orderID.String(), nextStageID); err != nil {
-			return order.Tracking{}, err
-		}
-	case errors.Is(nextErr, pgx.ErrNoRows):
-		if _, err := tx.Exec(ctx, `
-			update orders set status = 'fulfilled', updated_at = now() where order_id = $1
-		`, orderID.String()); err != nil {
-			return order.Tracking{}, err
-		}
-	default:
-		return order.Tracking{}, nextErr
+	if err := advanceOrFulfil(ctx, tx, businessID, flow, orderID, currentSeq.Int32); err != nil {
+		return order.Tracking{}, err
 	}
 
 	tracking, err := loadTracking(ctx, tx, orderID)
@@ -541,6 +514,41 @@ func (repo OrderRepository) AdvanceStage(ctx context.Context, scope common.Tenan
 		return order.Tracking{}, err
 	}
 	return tracking, nil
+}
+
+// advanceOrFulfil moves a confirmed order to the next stage in its flow, or — if
+// it is already at the final stage — marks it fulfilled and records the intent
+// to tell the customer it is ready. It runs inside the AdvanceStage transaction.
+func advanceOrFulfil(ctx context.Context, tx pgx.Tx, businessID, flow string, orderID common.ID, currentSeq int32) error {
+	var nextStageID string
+	nextErr := tx.QueryRow(ctx, `
+		select stage_id from stage_templates
+		where business_id = $1 and flow = $2 and sequence > $3
+		order by sequence limit 1
+	`, businessID, flow, currentSeq).Scan(&nextStageID)
+
+	switch {
+	case nextErr == nil:
+		if _, err := tx.Exec(ctx, `
+			update orders set current_stage_id = $2, updated_at = now() where order_id = $1
+		`, orderID.String(), nextStageID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
+			insert into stage_events (event_id, business_id, order_id, stage_id)
+			values (gen_random_uuid(), $1, $2, $3)
+		`, businessID, orderID.String(), nextStageID)
+		return err
+	case errors.Is(nextErr, pgx.ErrNoRows):
+		if _, err := tx.Exec(ctx, `
+			update orders set status = 'fulfilled', updated_at = now() where order_id = $1
+		`, orderID.String()); err != nil {
+			return err
+		}
+		return enqueueOrderNotification(ctx, tx, businessID, orderID.String(), notification.KindOrderFulfilled)
+	default:
+		return nextErr
+	}
 }
 
 func (repo OrderRepository) GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error) {

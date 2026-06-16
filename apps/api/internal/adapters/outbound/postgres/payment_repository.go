@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 type PaymentRepository struct {
@@ -297,12 +298,17 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 		return nil
 	}
 
-	_, err = tx.Exec(ctx, `
+	if _, err = tx.Exec(ctx, `
 		insert into stage_events (event_id, business_id, order_id, stage_id)
 		select gen_random_uuid(), o.business_id, o.order_id, $2
 		from orders o where o.order_id = $1 and o.business_id = $3
-	`, orderID, stageID, businessID)
-	return err
+	`, orderID, stageID, businessID); err != nil {
+		return err
+	}
+
+	// The order is now confirmed; in the same transaction, record the intent to
+	// tell the customer. The dedup key makes a redelivered webhook a no-op.
+	return enqueueOrderNotification(ctx, tx, businessID, orderID, notification.KindOrderConfirmed)
 }
 
 func (repo PaymentRepository) ListByBusiness(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error) {
