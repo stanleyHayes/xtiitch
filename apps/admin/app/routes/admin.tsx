@@ -239,9 +239,12 @@ function Panel({ children, sx }: { children: ReactNode; sx?: SxProps<Theme> }) {
       elevation={0}
       sx={{
         border: "1px solid",
-        borderColor: "divider",
+        borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: "background.paper",
+        bgcolor: alpha(tokens.white, 0.96),
+        backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})`,
+        boxShadow: `0 22px 60px ${alpha(tokens.ink, 0.065)}`,
+        backdropFilter: "blur(10px)",
         overflow: "hidden",
         transition:
           "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
@@ -271,8 +274,16 @@ function MetricCard({
     <Panel
       sx={{
         p: 2.5,
+        minHeight: 176,
         position: "relative",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.075)}, transparent 42%)`,
+        display: "flex",
+        alignItems: "stretch",
+        borderColor: alpha(tokens.burgundy, 0.16),
+        backgroundImage: `
+          radial-gradient(circle at 88% 18%, ${alpha(tokens.warning, 0.18)} 0, transparent 30%),
+          linear-gradient(135deg, ${alpha(tokens.burgundy, 0.1)}, transparent 48%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.74)})
+        `,
         "&::before": {
           content: '""',
           position: "absolute",
@@ -281,32 +292,64 @@ function MetricCard({
           width: "100%",
           bgcolor: tokens.burgundy,
         },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          right: -22,
+          bottom: -28,
+          width: 104,
+          height: 104,
+          borderRadius: "50%",
+          border: "1px solid",
+          borderColor: alpha(tokens.burgundy, 0.12),
+          boxShadow: `inset 0 0 0 18px ${alpha(tokens.white, 0.42)}`,
+        },
         "&:hover": {
           transform: "translateY(-2px)",
-          boxShadow: `0 16px 44px ${alpha(tokens.ink, 0.08)}`,
+          borderColor: alpha(tokens.burgundy, 0.28),
+          boxShadow: `0 22px 56px ${alpha(tokens.ink, 0.11)}`,
         },
       }}
     >
-      <Stack spacing={1}>
+      <Stack spacing={1.2} sx={{ position: "relative", zIndex: 1, flex: 1 }}>
         <Typography
           variant="body2"
-          sx={{ color: "text.secondary", fontWeight: 700 }}
+          sx={{
+            color: "text.secondary",
+            fontWeight: 900,
+            textTransform: "uppercase",
+            fontSize: 12,
+          }}
         >
           {label}
         </Typography>
-        <Typography variant="h5">{value}</Typography>
+        <Typography variant="h5" sx={{ lineHeight: 1.1 }}>
+          {value}
+        </Typography>
         <Stack
           direction="row"
           spacing={1}
-          sx={{ alignItems: "center", justifyContent: "space-between" }}
+          sx={{
+            alignItems: "flex-end",
+            justifyContent: "space-between",
+            mt: "auto",
+          }}
         >
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          <Typography
+            variant="body2"
+            sx={{ color: "text.secondary", maxWidth: 180 }}
+          >
             {helper}
           </Typography>
           <Chip
             size="small"
             label={trend}
-            sx={{ bgcolor: alpha(tokens.success, 0.12), color: tokens.success }}
+            sx={{
+              bgcolor: alpha(tokens.success, 0.12),
+              color: tokens.success,
+              border: "1px solid",
+              borderColor: alpha(tokens.success, 0.22),
+            }}
           />
         </Stack>
       </Stack>
@@ -370,8 +413,25 @@ function VerificationCard({
   onNoteChange: (id: string, value: string) => void;
   onDecide: (id: string, nextDecision: Decision) => void;
 }) {
+  const accent = riskColor(item.riskLevel);
+
   return (
-    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        position: "relative",
+        borderColor: alpha(accent, 0.2),
+        backgroundImage: `
+          linear-gradient(135deg, ${alpha(accent, 0.08)}, transparent 38%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+        `,
+        "&:hover": {
+          transform: "translateY(-2px)",
+          borderColor: alpha(accent, 0.34),
+          boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.1)}`,
+        },
+      }}
+    >
       <Stack spacing={2}>
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -400,7 +460,15 @@ function VerificationCard({
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
           }}
         >
-          <Box>
+          <Box
+            sx={{
+              p: 1.5,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1.5,
+              bgcolor: alpha(tokens.white, 0.62),
+            }}
+          >
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Documents
             </Typography>
@@ -419,7 +487,15 @@ function VerificationCard({
               ))}
             </Stack>
           </Box>
-          <Box>
+          <Box
+            sx={{
+              p: 1.5,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1.5,
+              bgcolor: alpha(tokens.white, 0.62),
+            }}
+          >
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Checks
             </Typography>
@@ -447,7 +523,15 @@ function VerificationCard({
             gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
           }}
         >
-          <Box>
+          <Box
+            sx={{
+              p: 1.5,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1.5,
+              bgcolor: alpha(tokens.white, 0.62),
+            }}
+          >
             <Typography variant="subtitle2" sx={{ mb: 1 }}>
               Evidence
             </Typography>
@@ -559,11 +643,35 @@ function BusinessRow({
   onToggle: (id: string, nextStatus: VerificationStatus) => void;
 }) {
   const isSuspended = status === "suspended";
+  const accent = statusColor(status);
+
   return (
     <Panel
       sx={{
         p: 2,
-        borderColor: selected ? alpha(tokens.burgundy, 0.42) : "divider",
+        position: "relative",
+        borderColor: selected
+          ? alpha(tokens.burgundy, 0.42)
+          : alpha(accent, 0.2),
+        backgroundImage: `
+          linear-gradient(90deg, ${alpha(accent, selected ? 0.11 : 0.065)}, transparent 34%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+        `,
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: "14px auto 14px 0",
+          width: 4,
+          borderRadius: "0 8px 8px 0",
+          bgcolor: selected ? tokens.burgundy : alpha(accent, 0.68),
+        },
+        "&:hover": {
+          transform: "translateY(-2px)",
+          borderColor: selected
+            ? alpha(tokens.burgundy, 0.52)
+            : alpha(accent, 0.32),
+          boxShadow: `0 20px 52px ${alpha(tokens.ink, 0.09)}`,
+        },
       }}
     >
       <Box
@@ -667,9 +775,32 @@ function BusinessInspector({
 }) {
   if (!business) {
     return (
-      <Panel sx={{ p: 2.5, position: { xl: "sticky" }, top: { xl: 118 } }}>
+      <Panel
+        sx={{
+          p: 2.5,
+          position: { xl: "sticky" },
+          top: { xl: 118 },
+          borderColor: alpha(tokens.burgundy, 0.16),
+          backgroundImage: `
+            radial-gradient(circle at 92% 0%, ${alpha(tokens.burgundy, 0.12)}, transparent 34%),
+            linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          `,
+        }}
+      >
         <Stack spacing={1.5} sx={{ alignItems: "flex-start" }}>
-          <PersonSearchRounded sx={{ color: tokens.burgundy }} />
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: 1.5,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: alpha(tokens.burgundy, 0.1),
+              color: tokens.burgundy,
+            }}
+          >
+            <PersonSearchRounded />
+          </Box>
           <Typography variant="h6">Select a business</Typography>
           <Typography sx={{ color: "text.secondary" }}>
             Inspect one tenant to see its settlement reference, activity, risk
@@ -680,8 +811,21 @@ function BusinessInspector({
     );
   }
 
+  const accent = statusColor(status ?? business.status);
+
   return (
-    <Panel sx={{ p: 2.5, position: { xl: "sticky" }, top: { xl: 118 } }}>
+    <Panel
+      sx={{
+        p: 2.5,
+        position: { xl: "sticky" },
+        top: { xl: 118 },
+        borderColor: alpha(accent, 0.24),
+        backgroundImage: `
+          radial-gradient(circle at 95% 5%, ${alpha(accent, 0.14)}, transparent 32%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+        `,
+      }}
+    >
       <Stack spacing={2}>
         <Stack
           direction="row"
@@ -1218,6 +1362,11 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
+        backgroundImage: `
+          radial-gradient(circle at 100% 0%, ${alpha(tokens.burgundy, 0.08)}, transparent 30%),
+          radial-gradient(circle at 64% 18%, ${alpha(tokens.info, 0.06)}, transparent 28%),
+          linear-gradient(180deg, ${tokens.cream}, ${alpha(tokens.panel, 0.78)})
+        `,
         "@keyframes adminRailSlide": {
           from: { opacity: 0, transform: "translateX(-18px)" },
           to: { opacity: 1, transform: "translateX(0)" },
@@ -1261,8 +1410,9 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
             px: { xs: 2, md: 4 },
             py: 2,
             borderBottom: "1px solid",
-            borderColor: "divider",
-            bgcolor: alpha(tokens.white, 0.72),
+            borderColor: alpha(tokens.ink, 0.09),
+            bgcolor: alpha(tokens.white, 0.82),
+            backgroundImage: `linear-gradient(90deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.72)})`,
             position: { xs: "relative", lg: "sticky" },
             top: 0,
             zIndex: 2,
@@ -1379,8 +1529,19 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                           justifyContent: "space-between",
                           p: 1.5,
                           border: "1px solid",
-                          borderColor: "divider",
+                          borderColor: alpha(riskColor(item.riskLevel), 0.2),
                           borderRadius: 1.5,
+                          bgcolor: alpha(tokens.white, 0.72),
+                          backgroundImage: `linear-gradient(90deg, ${alpha(
+                            riskColor(item.riskLevel),
+                            0.08,
+                          )}, transparent 34%)`,
+                          transition:
+                            "transform 180ms ease, border-color 180ms ease",
+                          "&:hover": {
+                            transform: "translateX(3px)",
+                            borderColor: alpha(riskColor(item.riskLevel), 0.34),
+                          },
                         }}
                       >
                         <Box>
@@ -1401,7 +1562,16 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                   </Stack>
                 </Panel>
 
-                <Panel sx={{ p: { xs: 2, md: 3 }, bgcolor: tokens.panel }}>
+                <Panel
+                  sx={{
+                    p: { xs: 2, md: 3 },
+                    borderColor: alpha(tokens.info, 0.16),
+                    backgroundImage: `
+                      radial-gradient(circle at 92% 0%, ${alpha(tokens.info, 0.14)}, transparent 34%),
+                      linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                    `,
+                  }}
+                >
                   <Stack spacing={2}>
                     <Stack
                       direction="row"
@@ -1583,7 +1753,12 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                   gridTemplateColumns: { xs: "1fr", xl: "1.08fr 0.92fr" },
                 }}
               >
-                <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+                <Panel
+                  sx={{
+                    p: { xs: 2, md: 2.5 },
+                    borderColor: alpha(tokens.info, 0.16),
+                  }}
+                >
                   <Stack
                     direction="row"
                     spacing={1.5}
@@ -1609,8 +1784,31 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                           sx={{
                             p: 1.5,
                             border: "1px solid",
-                            borderColor: "divider",
+                            borderColor: alpha(
+                              replayed
+                                ? tokens.info
+                                : webhookColor(event.status),
+                              0.2,
+                            ),
                             borderRadius: 1.5,
+                            bgcolor: alpha(tokens.white, 0.7),
+                            backgroundImage: `linear-gradient(90deg, ${alpha(
+                              replayed
+                                ? tokens.info
+                                : webhookColor(event.status),
+                              0.075,
+                            )}, transparent 36%)`,
+                            transition:
+                              "transform 180ms ease, border-color 180ms ease",
+                            "&:hover": {
+                              transform: "translateX(3px)",
+                              borderColor: alpha(
+                                replayed
+                                  ? tokens.info
+                                  : webhookColor(event.status),
+                                0.34,
+                              ),
+                            },
                           }}
                         >
                           <Stack
@@ -1690,7 +1888,16 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                   </Stack>
                 </Panel>
 
-                <Panel sx={{ p: { xs: 2, md: 2.5 }, bgcolor: tokens.panel }}>
+                <Panel
+                  sx={{
+                    p: { xs: 2, md: 2.5 },
+                    borderColor: alpha(tokens.warning, 0.16),
+                    backgroundImage: `
+                      radial-gradient(circle at 92% 2%, ${alpha(tokens.warning, 0.14)}, transparent 34%),
+                      linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                    `,
+                  }}
+                >
                   <Stack
                     direction="row"
                     spacing={1.5}
@@ -1719,11 +1926,26 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                             border: "1px solid",
                             borderColor: held
                               ? alpha(tokens.danger, 0.32)
-                              : "divider",
+                              : alpha(payoutColor(review.status), 0.2),
                             borderRadius: 1.5,
                             bgcolor: held
                               ? alpha(tokens.danger, 0.04)
-                              : "background.paper",
+                              : alpha(tokens.white, 0.72),
+                            backgroundImage: `linear-gradient(90deg, ${alpha(
+                              held ? tokens.danger : payoutColor(review.status),
+                              0.075,
+                            )}, transparent 38%)`,
+                            transition:
+                              "transform 180ms ease, border-color 180ms ease",
+                            "&:hover": {
+                              transform: "translateX(3px)",
+                              borderColor: alpha(
+                                held
+                                  ? tokens.danger
+                                  : payoutColor(review.status),
+                                0.34,
+                              ),
+                            },
                           }}
                         >
                           <Stack spacing={1.25}>
@@ -1835,7 +2057,23 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
                 }}
               >
                 {riskReviews.map((item) => (
-                  <Panel key={item.id} sx={{ p: 2.5 }}>
+                  <Panel
+                    key={item.id}
+                    sx={{
+                      p: 2.5,
+                      minHeight: "100%",
+                      borderColor: alpha(riskColor(item.level), 0.22),
+                      backgroundImage: `
+                        radial-gradient(circle at 100% 0%, ${alpha(riskColor(item.level), 0.12)}, transparent 34%),
+                        linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                      `,
+                      "&:hover": {
+                        transform: "translateY(-2px)",
+                        borderColor: alpha(riskColor(item.level), 0.36),
+                        boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.1)}`,
+                      },
+                    }}
+                  >
                     <Stack spacing={1.5}>
                       <Stack
                         direction="row"
@@ -1906,7 +2144,31 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
               />
               <Stack spacing={1.5}>
                 {supportTickets.map((ticket) => (
-                  <Panel key={ticket.id} sx={{ p: 2.5 }}>
+                  <Panel
+                    key={ticket.id}
+                    sx={{
+                      p: 2.5,
+                      borderColor: alpha(
+                        ticket.priority === "urgent"
+                          ? tokens.danger
+                          : tokens.info,
+                        ticket.priority === "urgent" ? 0.28 : 0.18,
+                      ),
+                      backgroundImage: `
+                        linear-gradient(90deg, ${alpha(
+                          ticket.priority === "urgent"
+                            ? tokens.danger
+                            : tokens.info,
+                          ticket.priority === "urgent" ? 0.09 : 0.06,
+                        )}, transparent 38%),
+                        linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                      `,
+                      "&:hover": {
+                        transform: "translateY(-2px)",
+                        boxShadow: `0 22px 56px ${alpha(tokens.ink, 0.09)}`,
+                      },
+                    }}
+                  >
                     <Stack
                       direction={{ xs: "column", md: "row" }}
                       spacing={2}
@@ -2002,7 +2264,22 @@ export default function AdminDashboard({ loaderData }: Route.ComponentProps) {
               </Panel>
               <Stack spacing={1.5}>
                 {filteredAuditLog.map((event) => (
-                  <Panel key={event.id} sx={{ p: 2 }}>
+                  <Panel
+                    key={event.id}
+                    sx={{
+                      p: 2,
+                      borderColor: alpha(auditColor(event.severity), 0.18),
+                      backgroundImage: `linear-gradient(90deg, ${alpha(
+                        auditColor(event.severity),
+                        0.065,
+                      )}, transparent 36%)`,
+                      "&:hover": {
+                        transform: "translateY(-2px)",
+                        borderColor: alpha(auditColor(event.severity), 0.32),
+                        boxShadow: `0 18px 48px ${alpha(tokens.ink, 0.085)}`,
+                      },
+                    }}
+                  >
                     <Stack
                       direction={{ xs: "column", md: "row" }}
                       spacing={2}
@@ -2092,7 +2369,25 @@ function SectionHeader({
   helper: string;
 }) {
   return (
-    <Stack spacing={0.5}>
+    <Stack
+      spacing={0.5}
+      sx={{
+        position: "relative",
+        pl: 2,
+        py: 0.35,
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          left: 0,
+          top: 6,
+          bottom: 6,
+          width: 4,
+          borderRadius: 6,
+          bgcolor: tokens.burgundy,
+          boxShadow: `0 10px 24px ${alpha(tokens.burgundy, 0.24)}`,
+        },
+      }}
+    >
       <Typography
         variant="overline"
         sx={{ color: "primary.main", fontWeight: 900 }}
