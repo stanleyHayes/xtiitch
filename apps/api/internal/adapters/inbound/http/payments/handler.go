@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
@@ -22,6 +23,9 @@ type Service interface {
 	InitiateCharge(ctx context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error)
 	HandleProviderEvent(ctx context.Context, payload []byte, signature string) error
 	ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error)
+	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (common.ID, error)
+	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error)
+	MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error)
 }
 
 type Handler struct {
@@ -41,6 +45,9 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/businesses/me/verify", handler.verify)
 		protected.Post("/payments/checkout", handler.checkout)
 		protected.Get("/payments", handler.listPayments)
+		protected.Post("/money/takings", handler.logTaking)
+		protected.Get("/money/takings", handler.listTakings)
+		protected.Get("/money/summary", handler.moneySummary)
 	})
 }
 
@@ -160,6 +167,88 @@ func (handler Handler) listPayments(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"payments": response})
 }
 
+type logTakingRequest struct {
+	OrderID     string `json:"order_id"`
+	AmountMinor int64  `json:"amount_minor"`
+	Method      string `json:"method"`
+	WhatFor     string `json:"what_for"`
+}
+
+func (handler Handler) logTaking(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request logTakingRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	cmd := paymentsapp.LogManualTakingCommand{
+		Scope:       principal.TenantScope(),
+		AmountMinor: request.AmountMinor,
+		Method:      request.Method,
+		WhatFor:     request.WhatFor,
+	}
+	if request.OrderID != "" {
+		id := common.ID(request.OrderID)
+		cmd.OrderID = &id
+	}
+
+	takingID, err := handler.service.LogManualTaking(r.Context(), cmd)
+	if err != nil {
+		status, code := paymentError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"taking_id": takingID.String()})
+}
+
+func (handler Handler) listTakings(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	records, err := handler.service.ListManualTakings(r.Context(), principal.TenantScope())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	response := make([]map[string]any, 0, len(records))
+	for _, record := range records {
+		response = append(response, map[string]any{
+			"taking_id":    record.TakingID.String(),
+			"amount_minor": record.AmountMinor,
+			"method":       record.Method,
+			"what_for":     record.WhatFor,
+			"taken_at":     record.TakenAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"takings": response})
+}
+
+func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	summary, err := handler.service.MoneySummary(r.Context(), principal.TenantScope())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"through_platform_minor": summary.ThroughPlatformMinor,
+		"commission_minor":       summary.CommissionMinor,
+		"manual_takings_minor":   summary.ManualTakingsMinor,
+		"net_income_minor":       summary.NetIncomeMinor,
+	})
+}
+
 func (handler Handler) webhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, maxBodyBytes))
 	if err != nil {
@@ -183,7 +272,7 @@ func (handler Handler) webhook(w http.ResponseWriter, r *http.Request) {
 
 func paymentError(err error) (int, string) {
 	switch {
-	case errors.Is(err, paymentsapp.ErrInvalidCharge):
+	case errors.Is(err, paymentsapp.ErrInvalidCharge), errors.Is(err, paymentsapp.ErrInvalidTaking):
 		return http.StatusBadRequest, "invalid_charge"
 	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):
 		return http.StatusConflict, "business_not_verified"

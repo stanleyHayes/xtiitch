@@ -81,6 +81,47 @@ func TestInitiateChargeRejectsInvalidInput(t *testing.T) {
 	}
 }
 
+func TestLogManualTakingRecordsOffPlatformSale(t *testing.T) {
+	t.Parallel()
+
+	payments := &fakePaymentRepo{}
+	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{}, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+
+	id, err := service.LogManualTaking(context.Background(), LogManualTakingCommand{
+		Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: "cash", WhatFor: "  alteration  ",
+	})
+	if err != nil {
+		t.Fatalf("log manual taking: %v", err)
+	}
+	if id != "taking-1" || payments.taking.TakingID != "taking-1" || payments.taking.BusinessID != "b1" {
+		t.Fatalf("unexpected taking ids: %+v", payments.taking)
+	}
+	if payments.taking.AmountMinor != 5000 || payments.taking.Method != "cash" || payments.taking.WhatFor != "alteration" {
+		t.Fatalf("unexpected taking content: %+v", payments.taking)
+	}
+}
+
+func TestLogManualTakingRejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	cases := []LogManualTakingCommand{
+		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 0, Method: "cash"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: -10, Method: "cash"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: "card"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: ""},
+	}
+	for _, cmd := range cases {
+		payments := &fakePaymentRepo{}
+		service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{}, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+		if _, err := service.LogManualTaking(context.Background(), cmd); !errors.Is(err, ErrInvalidTaking) {
+			t.Fatalf("expected ErrInvalidTaking for %+v, got %v", cmd, err)
+		}
+		if payments.taking.TakingID != "" {
+			t.Fatalf("an invalid taking must not be recorded: %+v", payments.taking)
+		}
+	}
+}
+
 func TestHandleProviderEventRejectsBadSignature(t *testing.T) {
 	t.Parallel()
 
@@ -184,6 +225,7 @@ type fakePaymentRepo struct {
 	confirmInput  ports.ConfirmPaymentInput
 	confirmResult ports.ConfirmPaymentResult
 	list          []ports.PaymentRecord
+	taking        ports.ManualTakingInput
 }
 
 func (r *fakePaymentRepo) Create(_ context.Context, input ports.CreatePaymentInput) error {
@@ -199,6 +241,19 @@ func (r *fakePaymentRepo) ConfirmFromProvider(_ context.Context, input ports.Con
 
 func (r *fakePaymentRepo) ListByBusiness(_ context.Context, _ common.TenantScope) ([]ports.PaymentRecord, error) {
 	return r.list, nil
+}
+
+func (r *fakePaymentRepo) RecordManualTaking(_ context.Context, _ common.TenantScope, input ports.ManualTakingInput) error {
+	r.taking = input
+	return nil
+}
+
+func (r *fakePaymentRepo) ListManualTakings(_ context.Context, _ common.TenantScope) ([]ports.ManualTakingRecord, error) {
+	return nil, nil
+}
+
+func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
+	return ports.MoneySummary{}, nil
 }
 
 type fakeChargeRepo struct {

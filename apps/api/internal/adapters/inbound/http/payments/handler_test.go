@@ -128,3 +128,15 @@ func (s *fakeService) HandleProviderEvent(_ context.Context, _ []byte, _ string)
 func (s *fakeService) ListPayments(_ context.Context, _ common.TenantScope) ([]ports.PaymentRecord, error) {
 	return nil, nil
 }
+
+func (s *fakeService) LogManualTaking(_ context.Context, _ paymentsapp.LogManualTakingCommand) (common.ID, error) {
+	return "taking-1", nil
+}
+
+func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope) ([]ports.ManualTakingRecord, error) {
+	return nil, nil
+}
+
+func (s *fakeService) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
+	return ports.MoneySummary{}, nil
+}

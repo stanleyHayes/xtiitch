@@ -3,6 +3,7 @@ package paymentsapp
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
@@ -13,6 +14,7 @@ var (
 	ErrBusinessNotVerified = errors.New("business is not verified for payments")
 	ErrInvalidCharge       = errors.New("invalid charge request")
 	ErrInvalidSignature    = errors.New("invalid webhook signature")
+	ErrInvalidTaking       = errors.New("invalid manual taking")
 )
 
 type Service struct {
@@ -173,4 +175,47 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 
 func (s Service) ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error) {
 	return s.payments.ListByBusiness(ctx, scope)
+}
+
+type LogManualTakingCommand struct {
+	Scope       common.TenantScope
+	OrderID     *common.ID
+	AmountMinor int64
+	Method      string
+	WhatFor     string
+}
+
+// LogManualTaking records an off-platform sale (cash/momo/other) for the money
+// tracker. It carries no commission and moves no money — Xtiitch only records it
+// so the business sees its full income.
+func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (common.ID, error) {
+	if cmd.AmountMinor <= 0 {
+		return "", ErrInvalidTaking
+	}
+	switch cmd.Method {
+	case "cash", "momo", "other":
+	default:
+		return "", ErrInvalidTaking
+	}
+
+	id := s.ids.NewID()
+	if err := s.payments.RecordManualTaking(ctx, cmd.Scope, ports.ManualTakingInput{
+		TakingID:    id,
+		BusinessID:  cmd.Scope.BusinessID,
+		OrderID:     cmd.OrderID,
+		AmountMinor: cmd.AmountMinor,
+		Method:      cmd.Method,
+		WhatFor:     strings.TrimSpace(cmd.WhatFor),
+	}); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {
+	return s.payments.ListManualTakings(ctx, scope)
+}
+
+func (s Service) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
+	return s.payments.MoneySummary(ctx, scope)
 }

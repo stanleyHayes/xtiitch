@@ -167,6 +167,41 @@ type PaymentRepository interface {
 	// payment in a single transaction, so a re-delivered event is a no-op.
 	ConfirmFromProvider(ctx context.Context, input ConfirmPaymentInput) (ConfirmPaymentResult, error)
 	ListByBusiness(ctx context.Context, scope common.TenantScope) ([]PaymentRecord, error)
+	// RecordManualTaking logs an off-platform sale (cash/momo/other). It never
+	// carries commission — Xtiitch does not touch this money.
+	RecordManualTaking(ctx context.Context, scope common.TenantScope, input ManualTakingInput) error
+	// ListManualTakings lists a business's off-platform takings, most recent first.
+	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ManualTakingRecord, error)
+	// MoneySummary aggregates the business's income: succeeded through-platform
+	// payments and their commission, plus off-platform manual takings.
+	MoneySummary(ctx context.Context, scope common.TenantScope) (MoneySummary, error)
+}
+
+type ManualTakingInput struct {
+	TakingID    common.ID
+	BusinessID  common.ID
+	OrderID     *common.ID
+	AmountMinor int64
+	Method      string
+	WhatFor     string
+}
+
+type ManualTakingRecord struct {
+	TakingID    common.ID
+	AmountMinor int64
+	Method      string
+	WhatFor     string
+	TakenAt     time.Time
+}
+
+// MoneySummary is the business's income overview, all in GHS pesewas. Net income
+// is what the business keeps: through-platform settlements (gross minus the
+// platform commission) plus the off-platform takings it logged.
+type MoneySummary struct {
+	ThroughPlatformMinor int64
+	CommissionMinor      int64
+	ManualTakingsMinor   int64
+	NetIncomeMinor       int64
 }
 
 type CreatePaymentInput struct {

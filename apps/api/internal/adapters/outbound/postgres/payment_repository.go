@@ -358,6 +358,102 @@ func (repo PaymentRepository) ListByBusiness(ctx context.Context, scope common.T
 	return records, nil
 }
 
+func (repo PaymentRepository) RecordManualTaking(ctx context.Context, scope common.TenantScope, input ports.ManualTakingInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Off-platform money: no commission, no through_platform — Xtiitch never
+	// touches it, it is only recorded so the business sees its full income.
+	if _, err := tx.Exec(ctx, `
+		insert into manual_takings (taking_id, business_id, order_id, amount_minor, method, what_for)
+		values ($1, $2, $3, $4, $5, $6)
+	`, input.TakingID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID),
+		input.AmountMinor, input.Method, input.WhatFor); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		select taking_id, amount_minor, method, what_for, taken_at
+		from manual_takings where business_id = $1
+		order by taken_at desc
+	`, scope.BusinessID.String())
+	if err != nil {
+		return nil, err
+	}
+
+	var records []ports.ManualTakingRecord
+	for rows.Next() {
+		var record ports.ManualTakingRecord
+		if err := rows.Scan(&record.TakingID, &record.AmountMinor, &record.Method, &record.WhatFor, &record.TakenAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.MoneySummary{}, err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.MoneySummary{}, err
+	}
+
+	var summary ports.MoneySummary
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0), coalesce(sum(commission_minor), 0)
+		from payments
+		where business_id = $1 and status = 'succeeded' and through_platform = true
+	`, scope.BusinessID.String()).Scan(&summary.ThroughPlatformMinor, &summary.CommissionMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0) from manual_takings where business_id = $1
+	`, scope.BusinessID.String()).Scan(&summary.ManualTakingsMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	summary.NetIncomeMinor = summary.ThroughPlatformMinor - summary.CommissionMinor + summary.ManualTakingsMinor
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	return summary, nil
+}
+
 func rollbackPaymentUnlessCommitted(ctx context.Context, tx pgx.Tx) {
 	_ = tx.Rollback(ctx)
 }
