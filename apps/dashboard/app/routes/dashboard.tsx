@@ -56,6 +56,14 @@ type Profile = {
   plan: string;
 };
 
+type UserRole = "owner" | "admin" | "staff";
+
+type CurrentUser = {
+  business_id: string;
+  user_id: string;
+  role: UserRole | string;
+};
+
 type OrderSummary = {
   order_id: string;
   design_title: string;
@@ -179,6 +187,7 @@ type OrderFilter =
   | "fulfilled";
 
 type DashboardActionData = {
+  permissionError?: string;
   orderError?: string;
   designError?: string;
   fieldError?: string;
@@ -198,10 +207,14 @@ const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "fulfilled", label: "Fulfilled" },
 ];
 
-const workspaceNav: { href: string; label: string; icon: ReactNode }[] = [
+const managementWorkspaceNav: {
+  href: string;
+  label: string;
+  icon: ReactNode;
+}[] = [
+  { href: "#reports", label: "Reports", icon: <QueryStatsRounded /> },
   { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
   { href: "#money", label: "Money", icon: <AccountBalanceWalletRounded /> },
-  { href: "#reports", label: "Reports", icon: <QueryStatsRounded /> },
   { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
   { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
   { href: "#catalogue", label: "Catalogue", icon: <DesignServicesRounded /> },
@@ -209,6 +222,42 @@ const workspaceNav: { href: string; label: string; icon: ReactNode }[] = [
   { href: "#availability", label: "Availability", icon: <ScheduleRounded /> },
   { href: "#messages", label: "Messages", icon: <NotificationsRounded /> },
 ];
+
+const staffWorkspaceNav: { href: string; label: string; icon: ReactNode }[] = [
+  { href: "#tasks", label: "Tasks", icon: <TuneRounded /> },
+  { href: "#orders", label: "Orders", icon: <TimelineRounded /> },
+  { href: "#visits", label: "Visits", icon: <CalendarMonthRounded /> },
+  { href: "#handovers", label: "Handovers", icon: <LocalShippingRounded /> },
+  { href: "#messages", label: "Messages", icon: <NotificationsRounded /> },
+];
+
+const staffAllowedIntents = new Set([
+  "advance",
+  "record_measurements",
+  "cancel_booking",
+  "reschedule_booking",
+  "arrange_handover",
+  "advance_handover",
+  "cancel_handover",
+]);
+
+const dashboardActionIntents = new Set([
+  "advance",
+  "record_measurements",
+  "log_taking",
+  "cancel_booking",
+  "reschedule_booking",
+  "arrange_handover",
+  "advance_handover",
+  "cancel_handover",
+  "save_availability",
+  "create_measurement_field",
+  "update_measurement_field",
+  "delete_measurement_field",
+  "create",
+  "retire",
+  "restore",
+]);
 
 const fieldUnits = [
   { value: "in", label: "in" },
@@ -248,40 +297,32 @@ export function meta(): Route.MetaDescriptors {
 export async function loader({ request }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
+  const [profileResponse, currentUserResponse] = await Promise.all([
+    apiFetch(request, "/businesses/me"),
+    apiFetch(request, "/auth/business/me"),
+  ]);
+  const profile = (await profileResponse.json()) as Profile;
+  const currentUser = (await currentUserResponse.json()) as CurrentUser;
+  const canManage = canManageDashboard(currentUser.role);
+
   const [
-    profileResponse,
-    designsResponse,
     ordersResponse,
     fieldsResponse,
-    moneySummaryResponse,
-    takingsResponse,
     bookingsResponse,
     handoversResponse,
     notificationsResponse,
-    availabilityResponse,
   ] = await Promise.all([
-    apiFetch(request, "/businesses/me"),
-    apiFetch(request, "/designs"),
     apiFetch(request, "/orders"),
     apiFetch(request, "/measurement-fields"),
-    apiFetch(request, "/money/summary"),
-    apiFetch(request, "/money/takings"),
     apiFetch(request, "/bookings"),
     apiFetch(request, "/handovers"),
     apiFetch(request, "/notifications"),
-    apiFetch(request, "/availability"),
   ]);
-  const profile = (await profileResponse.json()) as Profile;
-  const designsData = (await designsResponse.json()) as { designs: Design[] };
   const ordersData = (await ordersResponse.json()) as {
     orders: OrderSummary[];
   };
   const fieldsData = (await fieldsResponse.json()) as {
     fields: MeasurementField[];
-  };
-  const moneySummary = (await moneySummaryResponse.json()) as MoneySummary;
-  const takingsData = (await takingsResponse.json()) as {
-    takings: ManualTaking[];
   };
   const bookingsData = (await bookingsResponse.json()) as {
     bookings: BookingSummary[];
@@ -292,25 +333,65 @@ export async function loader({ request }: Route.LoaderArgs) {
   const notificationsData = (await notificationsResponse.json()) as {
     notifications: NotificationSummary[];
   };
-  const availabilityData = (await availabilityResponse.json()) as {
-    windows: AvailabilityWindow[];
+
+  let designs: Design[] = [];
+  let moneySummary: MoneySummary = {
+    through_platform_minor: 0,
+    commission_minor: 0,
+    manual_takings_minor: 0,
+    net_income_minor: 0,
   };
+  let manualTakings: ManualTaking[] = [];
+  let availabilityWindows: AvailabilityWindow[] = [];
+  const orders = ordersData.orders ?? [];
+
+  if (canManage) {
+    const [
+      designsResponse,
+      moneySummaryResponse,
+      takingsResponse,
+      availabilityResponse,
+    ] = await Promise.all([
+      apiFetch(request, "/designs"),
+      apiFetch(request, "/money/summary"),
+      apiFetch(request, "/money/takings"),
+      apiFetch(request, "/availability"),
+    ]);
+    const designsData = (await designsResponse.json()) as {
+      designs: Design[];
+    };
+    const moneySummaryData =
+      (await moneySummaryResponse.json()) as MoneySummary;
+    const takingsData = (await takingsResponse.json()) as {
+      takings: ManualTaking[];
+    };
+    const availabilityData = (await availabilityResponse.json()) as {
+      windows: AvailabilityWindow[];
+    };
+
+    designs = designsData.designs ?? [];
+    moneySummary = {
+      through_platform_minor: moneySummaryData.through_platform_minor ?? 0,
+      commission_minor: moneySummaryData.commission_minor ?? 0,
+      manual_takings_minor: moneySummaryData.manual_takings_minor ?? 0,
+      net_income_minor: moneySummaryData.net_income_minor ?? 0,
+    };
+    manualTakings = takingsData.takings ?? [];
+    availabilityWindows = availabilityData.windows ?? [];
+  }
+
   return {
     profile,
-    designs: designsData.designs ?? [],
-    orders: ordersData.orders ?? [],
+    currentUser,
+    designs,
+    orders: canManage ? orders : stripStaffMoneyDetails(orders),
     measurementFields: fieldsData.fields ?? [],
-    moneySummary: {
-      through_platform_minor: moneySummary.through_platform_minor ?? 0,
-      commission_minor: moneySummary.commission_minor ?? 0,
-      manual_takings_minor: moneySummary.manual_takings_minor ?? 0,
-      net_income_minor: moneySummary.net_income_minor ?? 0,
-    },
-    manualTakings: takingsData.takings ?? [],
+    moneySummary,
+    manualTakings,
     bookings: bookingsData.bookings ?? [],
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
-    availabilityWindows: availabilityData.windows ?? [],
+    availabilityWindows,
     orderFilter,
   };
 }
@@ -321,6 +402,15 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "logout") {
     return logOut(request);
+  }
+
+  if (dashboardActionIntents.has(intent)) {
+    const currentUser = await loadCurrentUser(request);
+    if (!canUseDashboardIntent(currentUser.role, intent)) {
+      return {
+        permissionError: rolePermissionMessage(currentUser.role),
+      };
+    }
   }
 
   if (intent === "advance") {
@@ -645,6 +735,67 @@ function parseOrderFilter(value: string | null): OrderFilter {
   return orderFilters.some((filter) => filter.value === value)
     ? (value as OrderFilter)
     : "all";
+}
+
+async function loadCurrentUser(request: Request): Promise<CurrentUser> {
+  const response = await apiFetch(request, "/auth/business/me");
+  if (!response.ok) {
+    throw redirect("/login");
+  }
+  return (await response.json()) as CurrentUser;
+}
+
+function canManageDashboard(role: string): boolean {
+  return role === "owner" || role === "admin";
+}
+
+function canUseDashboardIntent(role: string, intent: string): boolean {
+  if (canManageDashboard(role)) {
+    return true;
+  }
+  return role === "staff" && staffAllowedIntents.has(intent);
+}
+
+function stripStaffMoneyDetails(orders: OrderSummary[]): OrderSummary[] {
+  return orders.map((order) => ({
+    ...order,
+    agreed_total_minor: null,
+    settled_minor: 0,
+    payment_amount_minor: null,
+  }));
+}
+
+function roleLabel(role: string): string {
+  switch (role) {
+    case "owner":
+      return "Owner";
+    case "admin":
+      return "Admin";
+    case "staff":
+      return "Staff";
+    default:
+      return "Limited access";
+  }
+}
+
+function roleTone(role: string): string {
+  switch (role) {
+    case "owner":
+      return tokens.burgundy;
+    case "admin":
+      return tokens.info;
+    case "staff":
+      return tokens.success;
+    default:
+      return tokens.mutedText;
+  }
+}
+
+function rolePermissionMessage(role: string): string {
+  if (role === "staff") {
+    return "Staff can work orders, visits, measurements, and handovers. Money, catalogue, measurement setup, availability, and reports stay with owners or admins.";
+  }
+  return "Your current role cannot perform that dashboard action.";
 }
 
 function safeDashboardReturn(value: string): string {
@@ -1423,10 +1574,12 @@ function OrderCard({
   order,
   returnTo,
   measurementFields,
+  showMoneyDetails,
 }: {
   order: OrderSummary;
   returnTo: string;
   measurementFields: MeasurementField[];
+  showMoneyDetails: boolean;
 }) {
   const colour = stageColor(order.colour);
   const payTone = paymentTone(order);
@@ -1538,7 +1691,11 @@ function OrderCard({
             icon={<PaymentsRounded />}
             tone={payTone}
             title={paymentLabel(order)}
-            helper={moneyProgress(order)}
+            helper={
+              showMoneyDetails
+                ? moneyProgress(order)
+                : "Payment detail visible to owners and admins"
+            }
           />
           <InfoStrip
             icon={<PhoneRounded />}
@@ -2323,6 +2480,288 @@ function ReportsPanel({
             ))
           )}
         </Box>
+      </Box>
+    </Panel>
+  );
+}
+
+function StaffTaskPanel({
+  orders,
+  bookings,
+  handovers,
+  followUps,
+  needsMeasurements,
+  activeBookings,
+  openHandovers,
+  readyForHandover,
+  pendingMessages,
+}: {
+  orders: OrderSummary[];
+  bookings: BookingSummary[];
+  handovers: HandoverSummary[];
+  followUps: FollowUpItem[];
+  needsMeasurements: number;
+  activeBookings: number;
+  openHandovers: number;
+  readyForHandover: number;
+  pendingMessages: number;
+}) {
+  const visitMeasurements = orders.filter(
+    (order) => measurementSourceFor(order) === "visit",
+  ).length;
+  const shopMeasurements = orders.filter(
+    (order) => measurementSourceFor(order) === "shop",
+  ).length;
+  const nextBookings = bookings.filter((booking) =>
+    canManageBooking(booking.status),
+  );
+  const nextHandovers = handovers.filter((handover) =>
+    canAdvanceHandover(handover.status),
+  );
+
+  return (
+    <Panel id="tasks">
+      <Box sx={{ p: { xs: 2, md: 2.75 } }}>
+        <Stack
+          direction={{ xs: "column", lg: "row" }}
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { xs: "stretch", lg: "flex-start" },
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <TuneRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Staff task queue</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Move production, capture measurements, manage visits, and close
+                pickup or delivery work.
+              </Typography>
+            </Box>
+          </Stack>
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+            <Button href="#orders" size="small" variant="contained">
+              Orders
+            </Button>
+            <Button href="#visits" size="small" variant="outlined">
+              Visits
+            </Button>
+            <Button href="#handovers" size="small" variant="outlined">
+              Handovers
+            </Button>
+          </Stack>
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+          }}
+        >
+          <MiniStat
+            icon={<TimelineRounded fontSize="small" />}
+            label="In studio"
+            value={String(countOrders(orders, "confirmed"))}
+            helper="Confirmed orders ready to move"
+            tone={tokens.info}
+          />
+          <MiniStat
+            icon={<StraightenRounded fontSize="small" />}
+            label="Measurements"
+            value={String(needsMeasurements)}
+            helper={`${visitMeasurements} visit, ${shopMeasurements} shop`}
+            tone={tokens.burgundy}
+          />
+          <MiniStat
+            icon={<CalendarMonthRounded fontSize="small" />}
+            label="Visits"
+            value={String(activeBookings)}
+            helper="Held or booked home visits"
+            tone={tokens.success}
+          />
+          <MiniStat
+            icon={<LocalShippingRounded fontSize="small" />}
+            label="Handovers"
+            value={String(openHandovers)}
+            helper={`${readyForHandover} fulfilled orders ready`}
+            tone={tokens.warning}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+          }}
+        >
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              overflow: "hidden",
+            }}
+          >
+            <Box sx={{ px: 1.75, py: 1.5, bgcolor: tokens.panel }}>
+              <Typography sx={{ fontWeight: 900 }}>Next visits</Typography>
+            </Box>
+            {nextBookings.length === 0 ? (
+              <Box sx={{ p: 1.75 }}>
+                <InlineEmptyState
+                  icon={<CalendarMonthRounded sx={{ fontSize: 34 }} />}
+                  title="No active visits"
+                  helper="Home visit work will appear here once customers book or hold a slot."
+                />
+              </Box>
+            ) : (
+              nextBookings.slice(0, 3).map((booking) => (
+                <Box
+                  key={booking.booking_id}
+                  sx={{
+                    px: 1.75,
+                    py: 1.35,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {booking.customer_name || "Visit customer"}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {shortDateTime(booking.slot_start)} · {booking.design_title}
+                  </Typography>
+                </Box>
+              ))
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              overflow: "hidden",
+            }}
+          >
+            <Box sx={{ px: 1.75, py: 1.5, bgcolor: tokens.panel }}>
+              <Typography sx={{ fontWeight: 900 }}>Handover work</Typography>
+            </Box>
+            {nextHandovers.length === 0 ? (
+              <Box sx={{ p: 1.75 }}>
+                <InlineEmptyState
+                  icon={<LocalShippingRounded sx={{ fontSize: 34 }} />}
+                  title="No open handovers"
+                  helper="Fulfilled garments waiting for pickup or delivery will appear here."
+                />
+              </Box>
+            ) : (
+              nextHandovers.slice(0, 3).map((handover) => (
+                <Box
+                  key={handover.handover_id}
+                  sx={{
+                    px: 1.75,
+                    py: 1.35,
+                    borderTop: "1px solid",
+                    borderColor: "divider",
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    alignItems: "center",
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {handover.customer_name || "Handover customer"}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                      noWrap
+                    >
+                      {formatMethod(handover.method)} · {handover.design_title}
+                    </Typography>
+                  </Box>
+                  <ToneChip
+                    label={handover.status}
+                    tone={handoverTone(handover.status)}
+                  />
+                </Box>
+              ))
+            )}
+          </Box>
+        </Box>
+
+        {followUps.length > 0 || pendingMessages > 0 ? (
+          <Box
+            sx={{
+              mt: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              overflow: "hidden",
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{
+                px: 1.75,
+                py: 1.5,
+                bgcolor: tokens.panel,
+                justifyContent: "space-between",
+                alignItems: { xs: "flex-start", sm: "center" },
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Follow-ups</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Open customer work that should not wait.
+                </Typography>
+              </Box>
+              <ToneChip
+                label={`${followUps.length} signals`}
+                tone={followUps.length > 0 ? tokens.warning : tokens.success}
+              />
+            </Stack>
+            {followUps.slice(0, 4).map((item) => (
+              <Box
+                key={item.id}
+                sx={{
+                  px: 1.75,
+                  py: 1.35,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "minmax(0, 1fr) auto",
+                  },
+                  alignItems: "center",
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {item.title}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {item.helper}
+                  </Typography>
+                </Box>
+                <Button href={item.href} size="small" variant="outlined">
+                  {item.meta}
+                </Button>
+              </Box>
+            ))}
+          </Box>
+        ) : null}
       </Box>
     </Panel>
   );
@@ -3115,6 +3554,7 @@ export default function Dashboard({
 }: Route.ComponentProps) {
   const {
     profile,
+    currentUser,
     designs,
     orders,
     measurementFields,
@@ -3128,6 +3568,8 @@ export default function Dashboard({
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
   const verified = profile.verification_status === "verified";
+  const canManage = canManageDashboard(currentUser.role);
+  const workspaceItems = canManage ? managementWorkspaceNav : staffWorkspaceNav;
   const filteredOrders = filterOrders(orders, orderFilter);
   const returnTo = `/dashboard?orders=${orderFilter}#orders`;
   const liveOrders = orders.filter(
@@ -3251,11 +3693,16 @@ export default function Dashboard({
                 verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
               }
             />
+            <ToneChip
+              label={`${roleLabel(currentUser.role)} access`}
+              tone={roleTone(currentUser.role)}
+              icon={<VerifiedUserRounded />}
+            />
 
             <Divider />
 
             <Stack spacing={0.75}>
-              {workspaceNav.map((item) => (
+              {workspaceItems.map((item) => (
                 <Button
                   key={item.href}
                   href={item.href}
@@ -3326,7 +3773,9 @@ export default function Dashboard({
                   Studio command room
                 </Typography>
                 <Typography variant="h3" component="h1" sx={{ mt: 0.75 }}>
-                  Keep every garment moving without losing the customer thread.
+                  {canManage
+                    ? "Keep every garment moving without losing the customer thread."
+                    : "Your shift view for orders, fittings, and handovers."}
                 </Typography>
                 <Typography
                   sx={{
@@ -3335,16 +3784,27 @@ export default function Dashboard({
                     maxWidth: 680,
                   }}
                 >
-                  Orders, payments, visit slots, customer messages, and final
-                  pickup or delivery work now sit in one practical workspace.
+                  {canManage
+                    ? "Orders, payments, visit slots, customer messages, and final pickup or delivery work now sit in one practical workspace."
+                    : "Work from the active production queue without opening money, catalogue, or store settings."}
                 </Typography>
               </Box>
               <Stack spacing={1} sx={{ minWidth: { md: 260 } }}>
                 <InfoStrip
-                  icon={<AccountBalanceWalletRounded />}
-                  tone={tokens.gold}
-                  title={formatGHS(moneySummary.net_income_minor)}
-                  helper="Net tracked income"
+                  icon={
+                    canManage ? (
+                      <AccountBalanceWalletRounded />
+                    ) : (
+                      <TimelineRounded />
+                    )
+                  }
+                  tone={canManage ? tokens.gold : tokens.info}
+                  title={
+                    canManage
+                      ? formatGHS(moneySummary.net_income_minor)
+                      : `${liveOrders.length} live orders`
+                  }
+                  helper={canManage ? "Net tracked income" : "Production queue"}
                 />
                 <InfoStrip
                   icon={<EventAvailableRounded />}
@@ -3355,6 +3815,12 @@ export default function Dashboard({
               </Stack>
             </Stack>
           </Panel>
+
+          {action.permissionError ? (
+            <Alert severity="warning" sx={{ mb: 2.5 }}>
+              {action.permissionError}
+            </Alert>
+          ) : null}
 
           <Box
             sx={{
@@ -3371,15 +3837,29 @@ export default function Dashboard({
               icon={<ReceiptLongRounded />}
               label="Live orders"
               value={String(liveOrders.length)}
-              helper={`${pendingPayments} awaiting payment`}
+              helper={
+                canManage
+                  ? `${pendingPayments} awaiting payment`
+                  : "Active production and fitting work"
+              }
             />
-            <MetricCard
-              icon={<AccountBalanceWalletRounded />}
-              label="Net income"
-              value={formatGHS(moneySummary.net_income_minor)}
-              helper="Platform and manual takings"
-              tone={tokens.success}
-            />
+            {canManage ? (
+              <MetricCard
+                icon={<AccountBalanceWalletRounded />}
+                label="Net income"
+                value={formatGHS(moneySummary.net_income_minor)}
+                helper="Platform and manual takings"
+                tone={tokens.success}
+              />
+            ) : (
+              <MetricCard
+                icon={<StraightenRounded />}
+                label="Measurements"
+                value={String(needsMeasurements)}
+                helper="Visit or shop captures waiting"
+                tone={tokens.burgundy}
+              />
+            )}
             <MetricCard
               icon={<CalendarMonthRounded />}
               label="Visit queue"
@@ -3397,14 +3877,28 @@ export default function Dashboard({
           </Box>
 
           <Box sx={{ mt: 2.5 }}>
-            <ReportsPanel
-              revenueBuckets={revenueBuckets}
-              stageMetrics={stageMetrics}
-              followUps={followUps}
-              totalRevenueMinor={sevenDayRevenueMinor}
-              completionRate={completionRate}
-              collectionRate={collectionRate}
-            />
+            {canManage ? (
+              <ReportsPanel
+                revenueBuckets={revenueBuckets}
+                stageMetrics={stageMetrics}
+                followUps={followUps}
+                totalRevenueMinor={sevenDayRevenueMinor}
+                completionRate={completionRate}
+                collectionRate={collectionRate}
+              />
+            ) : (
+              <StaffTaskPanel
+                orders={orders}
+                bookings={bookings}
+                handovers={handovers}
+                followUps={followUps}
+                needsMeasurements={needsMeasurements}
+                activeBookings={activeBookings}
+                openHandovers={openHandovers}
+                readyForHandover={readyForHandover}
+                pendingMessages={pendingMessages}
+              />
+            )}
           </Box>
 
           <Box
@@ -3421,12 +3915,14 @@ export default function Dashboard({
           >
             <Box sx={{ minWidth: 0 }}>
               <Stack spacing={2.5}>
-                <MoneyPanel
-                  summary={moneySummary}
-                  takings={manualTakings}
-                  orders={orders}
-                  error={action.moneyError}
-                />
+                {canManage ? (
+                  <MoneyPanel
+                    summary={moneySummary}
+                    takings={manualTakings}
+                    orders={orders}
+                    error={action.moneyError}
+                  />
+                ) : null}
 
                 <BookingQueuePanel
                   bookings={bookings}
@@ -3485,6 +3981,7 @@ export default function Dashboard({
                           order={order}
                           returnTo={returnTo}
                           measurementFields={measurementFields}
+                          showMoneyDetails={canManage}
                         />
                       ))
                     )}
@@ -3497,245 +3994,253 @@ export default function Dashboard({
                   error={action.handoverError}
                 />
 
-                <Box id="catalogue">
-                  <SectionHeader
-                    eyebrow="Catalogue"
-                    title="Design studio"
-                    helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
-                  />
-                  <Box
-                    sx={{
-                      mt: 2,
-                      display: "grid",
-                      gap: 2,
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        lg: "minmax(320px, 0.44fr) minmax(0, 0.56fr)",
-                      },
-                    }}
-                  >
-                    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-                      <Stack
-                        direction="row"
-                        spacing={1.25}
-                        sx={{ alignItems: "center", mb: 2 }}
-                      >
-                        <Box sx={{ color: "primary.main" }}>
-                          <ContentCutRounded />
-                        </Box>
-                        <Box>
-                          <Typography sx={{ fontWeight: 900 }}>
-                            Add a design
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            Publish a new piece to the storefront.
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="create" />
-                        <Stack spacing={1.75}>
-                          {action.designError ? (
-                            <Alert severity="error">{action.designError}</Alert>
-                          ) : null}
-                          <TextField
-                            name="title"
-                            label="Title"
-                            required
-                            fullWidth
-                          />
-                          <TextField
-                            name="description"
-                            label="Description"
-                            fullWidth
-                            multiline
-                            minRows={3}
-                          />
-                          <TextField
-                            name="image_url"
-                            label="Image URL"
-                            fullWidth
-                            placeholder="https://..."
-                            slotProps={{
-                              input: {
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    <DesignServicesRounded fontSize="small" />
-                                  </InputAdornment>
-                                ),
-                              },
-                            }}
-                          />
-                          <FormControlLabel
-                            control={<Checkbox name="customisation" />}
-                            label="Allow customisation"
-                          />
-                          <Button
-                            type="submit"
-                            variant="contained"
-                            startIcon={<AddRounded />}
-                          >
-                            Add design
-                          </Button>
-                        </Stack>
-                      </Form>
-                    </Panel>
-
-                    <Panel>
-                      <Box
-                        sx={{
-                          p: { xs: 2, md: 2.5 },
-                          display: "flex",
-                          justifyContent: "space-between",
-                          gap: 2,
-                        }}
-                      >
-                        <Box>
-                          <Typography sx={{ fontWeight: 900 }}>
-                            Designs
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {designs.length} total pieces
-                          </Typography>
-                        </Box>
-                        <ToneChip
-                          label={`${designs.filter((design) => design.status === "active").length} active`}
-                          tone={tokens.success}
-                        />
-                      </Box>
-                      {designs.length === 0 ? (
-                        <Box sx={{ px: 2.5, pb: 2.5 }}>
-                          <EmptyState
-                            icon={
-                              <DesignServicesRounded sx={{ fontSize: 38 }} />
-                            }
-                            title="No designs yet"
-                            helper="Add your first design with an image URL so customers can browse the store."
-                          />
-                        </Box>
-                      ) : (
-                        designs.map((design) => (
-                          <DesignRow key={design.design_id} design={design} />
-                        ))
-                      )}
-                    </Panel>
-                  </Box>
-                </Box>
-              </Stack>
-            </Box>
-
-            <Stack spacing={2.5} sx={{ minWidth: 0 }}>
-              <Panel id="measurements">
-                <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                  <Stack
-                    direction="row"
-                    spacing={1.25}
-                    sx={{ alignItems: "center" }}
-                  >
-                    <Box sx={{ color: "primary.main" }}>
-                      <StraightenRounded />
-                    </Box>
-                    <Box>
-                      <Typography sx={{ fontWeight: 900 }}>
-                        Measurement setup
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
-                      >
-                        Define the fields used for self, visit, and shop
-                        measurements.
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  {action.fieldError ? (
-                    <Alert severity="warning" sx={{ mt: 2 }}>
-                      {action.fieldError}
-                    </Alert>
-                  ) : null}
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="create_measurement_field"
+                {canManage ? (
+                  <Box id="catalogue">
+                    <SectionHeader
+                      eyebrow="Catalogue"
+                      title="Design studio"
+                      helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
                     />
                     <Box
                       sx={{
                         mt: 2,
                         display: "grid",
-                        gap: 1.25,
+                        gap: 2,
                         gridTemplateColumns: {
                           xs: "1fr",
-                          sm: "minmax(0, 1fr) 96px 96px",
+                          lg: "minmax(320px, 0.44fr) minmax(0, 0.56fr)",
                         },
                       }}
                     >
-                      <TextField
-                        name="label"
-                        label="Field label"
-                        placeholder="Chest"
-                        size="small"
-                        required
+                      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+                        <Stack
+                          direction="row"
+                          spacing={1.25}
+                          sx={{ alignItems: "center", mb: 2 }}
+                        >
+                          <Box sx={{ color: "primary.main" }}>
+                            <ContentCutRounded />
+                          </Box>
+                          <Box>
+                            <Typography sx={{ fontWeight: 900 }}>
+                              Add a design
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              Publish a new piece to the storefront.
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="create" />
+                          <Stack spacing={1.75}>
+                            {action.designError ? (
+                              <Alert severity="error">
+                                {action.designError}
+                              </Alert>
+                            ) : null}
+                            <TextField
+                              name="title"
+                              label="Title"
+                              required
+                              fullWidth
+                            />
+                            <TextField
+                              name="description"
+                              label="Description"
+                              fullWidth
+                              multiline
+                              minRows={3}
+                            />
+                            <TextField
+                              name="image_url"
+                              label="Image URL"
+                              fullWidth
+                              placeholder="https://..."
+                              slotProps={{
+                                input: {
+                                  startAdornment: (
+                                    <InputAdornment position="start">
+                                      <DesignServicesRounded fontSize="small" />
+                                    </InputAdornment>
+                                  ),
+                                },
+                              }}
+                            />
+                            <FormControlLabel
+                              control={<Checkbox name="customisation" />}
+                              label="Allow customisation"
+                            />
+                            <Button
+                              type="submit"
+                              variant="contained"
+                              startIcon={<AddRounded />}
+                            >
+                              Add design
+                            </Button>
+                          </Stack>
+                        </Form>
+                      </Panel>
+
+                      <Panel>
+                        <Box
+                          sx={{
+                            p: { xs: 2, md: 2.5 },
+                            display: "flex",
+                            justifyContent: "space-between",
+                            gap: 2,
+                          }}
+                        >
+                          <Box>
+                            <Typography sx={{ fontWeight: 900 }}>
+                              Designs
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              {designs.length} total pieces
+                            </Typography>
+                          </Box>
+                          <ToneChip
+                            label={`${designs.filter((design) => design.status === "active").length} active`}
+                            tone={tokens.success}
+                          />
+                        </Box>
+                        {designs.length === 0 ? (
+                          <Box sx={{ px: 2.5, pb: 2.5 }}>
+                            <EmptyState
+                              icon={
+                                <DesignServicesRounded sx={{ fontSize: 38 }} />
+                              }
+                              title="No designs yet"
+                              helper="Add your first design with an image URL so customers can browse the store."
+                            />
+                          </Box>
+                        ) : (
+                          designs.map((design) => (
+                            <DesignRow key={design.design_id} design={design} />
+                          ))
+                        )}
+                      </Panel>
+                    </Box>
+                  </Box>
+                ) : null}
+              </Stack>
+            </Box>
+
+            <Stack spacing={2.5} sx={{ minWidth: 0 }}>
+              {canManage ? (
+                <Panel id="measurements">
+                  <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                    <Stack
+                      direction="row"
+                      spacing={1.25}
+                      sx={{ alignItems: "center" }}
+                    >
+                      <Box sx={{ color: "primary.main" }}>
+                        <StraightenRounded />
+                      </Box>
+                      <Box>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          Measurement setup
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          Define the fields used for self, visit, and shop
+                          measurements.
+                        </Typography>
+                      </Box>
+                    </Stack>
+                    {action.fieldError ? (
+                      <Alert severity="warning" sx={{ mt: 2 }}>
+                        {action.fieldError}
+                      </Alert>
+                    ) : null}
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="create_measurement_field"
                       />
-                      <TextField
-                        name="unit"
-                        label="Unit"
-                        select
-                        defaultValue="in"
-                        size="small"
+                      <Box
+                        sx={{
+                          mt: 2,
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "minmax(0, 1fr) 96px 96px",
+                          },
+                        }}
                       >
-                        {fieldUnits.map((unit) => (
-                          <MenuItem key={unit.value} value={unit.value}>
-                            {unit.label}
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                      <TextField
-                        name="sequence"
-                        label="Order"
-                        type="number"
-                        defaultValue={nextFieldSequence}
-                        size="small"
-                        slotProps={{ htmlInput: { min: 0 } }}
-                        required
+                        <TextField
+                          name="label"
+                          label="Field label"
+                          placeholder="Chest"
+                          size="small"
+                          required
+                        />
+                        <TextField
+                          name="unit"
+                          label="Unit"
+                          select
+                          defaultValue="in"
+                          size="small"
+                        >
+                          {fieldUnits.map((unit) => (
+                            <MenuItem key={unit.value} value={unit.value}>
+                              {unit.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          name="sequence"
+                          label="Order"
+                          type="number"
+                          defaultValue={nextFieldSequence}
+                          size="small"
+                          slotProps={{ htmlInput: { min: 0 } }}
+                          required
+                        />
+                      </Box>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        startIcon={<AddRounded />}
+                        sx={{ mt: 1.5 }}
+                      >
+                        Add field
+                      </Button>
+                    </Form>
+                  </Box>
+
+                  {measurementFields.length === 0 ? (
+                    <Box sx={{ px: 2.5, pb: 2.5 }}>
+                      <EmptyState
+                        icon={<StraightenRounded sx={{ fontSize: 38 }} />}
+                        title="No measurement fields yet"
+                        helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
                       />
                     </Box>
-                    <Button
-                      type="submit"
-                      variant="contained"
-                      startIcon={<AddRounded />}
-                      sx={{ mt: 1.5 }}
-                    >
-                      Add field
-                    </Button>
-                  </Form>
-                </Box>
+                  ) : (
+                    measurementFields.map((field) => (
+                      <MeasurementFieldRow key={field.field_id} field={field} />
+                    ))
+                  )}
+                </Panel>
+              ) : null}
 
-                {measurementFields.length === 0 ? (
-                  <Box sx={{ px: 2.5, pb: 2.5 }}>
-                    <EmptyState
-                      icon={<StraightenRounded sx={{ fontSize: 38 }} />}
-                      title="No measurement fields yet"
-                      helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
-                    />
-                  </Box>
-                ) : (
-                  measurementFields.map((field) => (
-                    <MeasurementFieldRow key={field.field_id} field={field} />
-                  ))
-                )}
-              </Panel>
-
-              <AvailabilityPanel
-                windows={availabilityWindows}
-                error={action.availabilityError}
-              />
+              {canManage ? (
+                <AvailabilityPanel
+                  windows={availabilityWindows}
+                  error={action.availabilityError}
+                />
+              ) : null}
 
               <NotificationPanel notifications={notifications} />
 
@@ -3756,19 +4261,21 @@ export default function Dashboard({
                       variant="body2"
                       sx={{ mt: 0.75, color: "text.secondary" }}
                     >
-                      Clear drafts first, capture visit/shop measurements, then
-                      close finished garments with pickup or delivery handovers.
-                      Xtiitch records payment state but never holds funds.
+                      {canManage
+                        ? "Clear drafts first, capture visit/shop measurements, then close finished garments with pickup or delivery handovers. Xtiitch records payment state but never holds funds."
+                        : "Start with measurement captures, keep visit slots current, and close pickup or delivery handovers when garments are ready."}
                     </Typography>
                     <Stack
                       direction="row"
                       spacing={1}
                       sx={{ mt: 1.5, flexWrap: "wrap" }}
                     >
-                      <ToneChip
-                        label={`${pendingPayments} payment follow-ups`}
-                        tone={tokens.warning}
-                      />
+                      {canManage ? (
+                        <ToneChip
+                          label={`${pendingPayments} payment follow-ups`}
+                          tone={tokens.warning}
+                        />
+                      ) : null}
                       <ToneChip
                         label={`${needsMeasurements} measurement captures`}
                         tone={tokens.info}
