@@ -13,6 +13,7 @@ import (
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
+	measurementhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/measurement"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
@@ -27,6 +28,7 @@ import (
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
+	measurementapp "github.com/xcreativs/xtiitch/apps/api/internal/application/measurement"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	notifyapp "github.com/xcreativs/xtiitch/apps/api/internal/application/notification"
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
@@ -133,6 +135,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:       ids.UUIDGenerator{},
 	})
 
+	measurementService := measurementapp.NewService(measurementapp.Dependencies{
+		Measurements: postgres.NewMeasurementRepository(db),
+		IDs:          ids.UUIDGenerator{},
+	})
+
 	notificationService := notifyapp.NewService(notifyapp.Dependencies{
 		Messages: postgres.NewNotificationRepository(db),
 	})
@@ -158,6 +165,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		availabilityhttp.NewHandler(availabilityService, authenticator),
 		bookinghttp.NewHandler(bookingService, authenticator),
 		deliveryhttp.NewHandler(deliveryService, authenticator),
+		measurementhttp.NewHandler(measurementService, authenticator),
 		notificationhttp.NewHandler(notificationService, authenticator),
 	)
 

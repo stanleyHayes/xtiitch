@@ -13,6 +13,11 @@ var ErrNotFound = errors.New("not found")
 // check is authoritative and fails closed; services map it to a 400.
 var ErrUnknownMeasurementField = errors.New("unknown measurement field")
 
+// ErrMeasurementSequenceTaken is returned when a business tries to give two
+// measurement fields the same display position. The unique database index makes
+// this race-proof.
+var ErrMeasurementSequenceTaken = errors.New("measurement field sequence already exists")
+
 // ErrInvalidOrderState is returned when a state transition would violate the
 // order lifecycle, such as advancing a draft or already fulfilled order.
 var ErrInvalidOrderState = errors.New("invalid order state")
