@@ -195,6 +195,7 @@ type WorkspaceNavItem = {
   href: string;
   section: DashboardSection;
   label: string;
+  helper: string;
   icon: ReactNode;
 };
 
@@ -236,7 +237,7 @@ type OverviewRoom = {
   icon: ReactNode;
 };
 
-const dashboardRailWidth = 270;
+const dashboardRailWidth = 304;
 
 const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -252,60 +253,70 @@ const managementWorkspaceNav: WorkspaceNavItem[] = [
     href: "/dashboard",
     section: "overview",
     label: "Overview",
+    helper: "Studio pulse",
     icon: <TuneRounded />,
   },
   {
     href: "/dashboard/reports",
     section: "reports",
     label: "Reports",
+    helper: "Revenue signals",
     icon: <QueryStatsRounded />,
   },
   {
     href: "/dashboard/orders",
     section: "orders",
     label: "Orders",
+    helper: "Production board",
     icon: <TimelineRounded />,
   },
   {
     href: "/dashboard/money",
     section: "money",
     label: "Money",
+    helper: "Tracked income",
     icon: <AccountBalanceWalletRounded />,
   },
   {
     href: "/dashboard/visits",
     section: "visits",
     label: "Visits",
+    helper: "Fitting queue",
     icon: <CalendarMonthRounded />,
   },
   {
     href: "/dashboard/handovers",
     section: "handovers",
     label: "Handovers",
+    helper: "Pickup delivery",
     icon: <LocalShippingRounded />,
   },
   {
     href: "/dashboard/catalogue",
     section: "catalogue",
     label: "Catalogue",
+    helper: "Storefront pieces",
     icon: <DesignServicesRounded />,
   },
   {
     href: "/dashboard/measurements",
     section: "measurements",
     label: "Measurements",
+    helper: "Fitting setup",
     icon: <StraightenRounded />,
   },
   {
     href: "/dashboard/availability",
     section: "availability",
     label: "Availability",
+    helper: "Visit hours",
     icon: <ScheduleRounded />,
   },
   {
     href: "/dashboard/messages",
     section: "messages",
     label: "Messages",
+    helper: "Customer outbox",
     icon: <NotificationsRounded />,
   },
 ];
@@ -315,30 +326,35 @@ const staffWorkspaceNav: WorkspaceNavItem[] = [
     href: "/dashboard",
     section: "tasks",
     label: "Tasks",
+    helper: "Shift queue",
     icon: <TuneRounded />,
   },
   {
     href: "/dashboard/orders",
     section: "orders",
     label: "Orders",
+    helper: "Stage movement",
     icon: <TimelineRounded />,
   },
   {
     href: "/dashboard/visits",
     section: "visits",
     label: "Visits",
+    helper: "Fitting queue",
     icon: <CalendarMonthRounded />,
   },
   {
     href: "/dashboard/handovers",
     section: "handovers",
     label: "Handovers",
+    helper: "Pickup delivery",
     icon: <LocalShippingRounded />,
   },
   {
     href: "/dashboard/messages",
     section: "messages",
     label: "Messages",
+    helper: "Customer outbox",
     icon: <NotificationsRounded />,
   },
 ];
@@ -948,6 +964,10 @@ function rolePermissionMessage(role: string): string {
     return "Staff can work orders, visits, measurements, and handovers. Money, catalogue, measurement setup, availability, and reports stay with owners or admins.";
   }
   return "Your current role cannot perform that dashboard action.";
+}
+
+function railBadge(count: number): string | undefined {
+  return count > 0 ? String(count) : undefined;
 }
 
 function dashboardPageMeta(section: DashboardSection): DashboardPageMeta {
@@ -1832,6 +1852,7 @@ function WorkspaceRail({
   workspaceItems,
   section,
   storefrontURL,
+  badges,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
@@ -1839,11 +1860,12 @@ function WorkspaceRail({
   workspaceItems: WorkspaceNavItem[];
   section: DashboardSection;
   storefrontURL: string;
+  badges: Partial<Record<DashboardSection, string | undefined>>;
 }) {
   return (
     <Panel
       sx={{
-        p: 1.5,
+        p: 0,
         position: { xs: "sticky", lg: "fixed" },
         top: { xs: 0, lg: 24 },
         left: {
@@ -1854,12 +1876,19 @@ function WorkspaceRail({
         minHeight: { lg: "auto" },
         height: { lg: "calc(100vh - 48px)" },
         zIndex: 8,
+        overflowX: { xs: "auto", lg: "hidden" },
         overflowY: { lg: "auto" },
-        display: "flex",
-        flexDirection: "column",
-        bgcolor: alpha(tokens.white, 0.94),
+        bgcolor: tokens.charcoal,
+        color: tokens.white,
         backdropFilter: "blur(14px)",
-        boxShadow: { lg: `0 22px 70px ${alpha(tokens.ink, 0.12)}` },
+        borderColor: alpha(tokens.white, 0.12),
+        boxShadow: { lg: `18px 0 60px ${alpha(tokens.ink, 0.18)}` },
+        backgroundImage: `
+          linear-gradient(${alpha(tokens.white, 0.05)} 1px, transparent 1px),
+          linear-gradient(90deg, ${alpha(tokens.white, 0.05)} 1px, transparent 1px),
+          linear-gradient(145deg, ${alpha(tokens.burgundy, 0.48)}, transparent 50%)
+        `,
+        backgroundSize: "34px 34px, 34px 34px, auto",
         "@media (prefers-reduced-motion: no-preference)": {
           animation: {
             xs: "dashboardRailDrop 360ms ease both",
@@ -1868,14 +1897,23 @@ function WorkspaceRail({
         },
       }}
     >
-      <Stack spacing={2} sx={{ flexGrow: 1 }}>
+      <Stack
+        spacing={{ xs: 1, lg: 1.6 }}
+        sx={{
+          minWidth: { xs: 980, lg: "auto" },
+          minHeight: { lg: "100%" },
+          p: { xs: 1.25, lg: 1.5 },
+        }}
+      >
         <Box
           sx={{
             p: 1,
             border: "1px solid",
-            borderColor: "divider",
+            borderColor: alpha(tokens.white, 0.13),
             borderRadius: 2,
-            bgcolor: tokens.panel,
+            bgcolor: alpha(tokens.white, 0.075),
+            backdropFilter: "blur(14px)",
+            minWidth: { xs: 280, lg: "auto" },
           }}
         >
           <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
@@ -1886,8 +1924,9 @@ function WorkspaceRail({
                 borderRadius: 1.5,
                 display: "grid",
                 placeItems: "center",
-                bgcolor: alpha(tokens.burgundy, 0.1),
-                color: "primary.main",
+                bgcolor: tokens.burgundy,
+                color: tokens.white,
+                boxShadow: `0 16px 42px ${alpha(tokens.burgundy, 0.36)}`,
                 flexShrink: 0,
               }}
             >
@@ -1899,7 +1938,7 @@ function WorkspaceRail({
               </Typography>
               <Typography
                 variant="caption"
-                sx={{ color: "text.secondary" }}
+                sx={{ color: alpha(tokens.white, 0.66), fontWeight: 800 }}
                 noWrap
               >
                 {profile.plan} plan · {profile.handle}
@@ -1907,35 +1946,60 @@ function WorkspaceRail({
             </Box>
           </Stack>
           <Stack direction="row" spacing={0.75} sx={{ mt: 1.25 }}>
-            <ToneChip
-              label={verified ? "Verified" : "Needs review"}
-              tone={verified ? tokens.success : tokens.warning}
+            <Chip
+              size="small"
               icon={
                 verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
               }
+              label={verified ? "Verified" : "Needs review"}
+              sx={{
+                color: tokens.white,
+                bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.3),
+                border: "1px solid",
+                borderColor: alpha(
+                  verified ? tokens.success : tokens.warning,
+                  0.42,
+                ),
+                "& .MuiChip-icon": { color: alpha(tokens.white, 0.86) },
+              }}
             />
-            <ToneChip
+            <Chip
+              size="small"
               label={roleLabel(currentUser.role)}
-              tone={roleTone(currentUser.role)}
+              sx={{
+                color: tokens.white,
+                bgcolor: alpha(roleTone(currentUser.role), 0.34),
+                border: "1px solid",
+                borderColor: alpha(roleTone(currentUser.role), 0.45),
+              }}
             />
           </Stack>
         </Box>
 
-        <Box>
+        <Box sx={{ flex: 1 }}>
           <Typography
             variant="caption"
             sx={{
-              color: "text.secondary",
+              display: { xs: "none", lg: "block" },
+              color: alpha(tokens.white, 0.58),
               fontWeight: 900,
               px: 1,
               textTransform: "uppercase",
             }}
           >
-            Workspace
+            Studio workspace
           </Typography>
-          <Stack spacing={0.65} sx={{ mt: 0.9 }}>
+          <Stack
+            spacing={0.65}
+            sx={{
+              mt: { xs: 0, lg: 0.9 },
+              display: { xs: "flex", lg: "grid" },
+              flexDirection: { xs: "row", lg: "column" },
+            }}
+          >
             {workspaceItems.map((item) => {
               const active = item.section === section;
+              const badge = badges[item.section];
               return (
                 <Button
                   key={item.href}
@@ -1944,17 +2008,18 @@ function WorkspaceRail({
                   startIcon={item.icon}
                   aria-current={active ? "page" : undefined}
                   sx={{
-                    minHeight: 44,
+                    minHeight: 54,
+                    minWidth: { xs: 176, lg: "auto" },
                     justifyContent: "flex-start",
                     position: "relative",
                     overflow: "hidden",
-                    color: active ? "primary.main" : "text.primary",
+                    color: tokens.white,
                     bgcolor: active
-                      ? alpha(tokens.burgundy, 0.11)
-                      : "transparent",
+                      ? alpha(tokens.white, 0.13)
+                      : alpha(tokens.white, 0.035),
                     border: "1px solid",
                     borderColor: active
-                      ? alpha(tokens.burgundy, 0.24)
+                      ? alpha(tokens.white, 0.18)
                       : "transparent",
                     "&::before": {
                       content: '""',
@@ -1964,38 +2029,81 @@ function WorkspaceRail({
                       bottom: 7,
                       width: 3,
                       borderRadius: 4,
-                      bgcolor: active ? tokens.burgundy : "transparent",
+                      bgcolor: active ? tokens.gold : "transparent",
                     },
                     "& .MuiButton-startIcon": {
-                      color: active ? "primary.main" : "text.secondary",
+                      color: active ? tokens.white : alpha(tokens.white, 0.62),
                     },
                     "&:hover": {
-                      bgcolor: alpha(tokens.burgundy, 0.08),
-                      borderColor: alpha(tokens.burgundy, 0.16),
-                      color: "primary.main",
+                      bgcolor: alpha(tokens.white, 0.17),
+                      borderColor: alpha(tokens.white, 0.16),
+                      color: tokens.white,
                       transform: "translateX(2px)",
-                      "& .MuiButton-startIcon": { color: "primary.main" },
+                      "& .MuiButton-startIcon": { color: tokens.white },
                     },
                     transition:
                       "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
                   }}
                 >
-                  {item.label}
+                  <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                    <Typography
+                      component="span"
+                      sx={{
+                        display: "block",
+                        fontWeight: active ? 900 : 780,
+                        fontSize: 14,
+                        lineHeight: 1.15,
+                      }}
+                      noWrap
+                    >
+                      {item.label}
+                    </Typography>
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      sx={{
+                        display: { xs: "none", lg: "block" },
+                        color: alpha(tokens.white, 0.56),
+                        lineHeight: 1.1,
+                      }}
+                      noWrap
+                    >
+                      {item.helper}
+                    </Typography>
+                  </Box>
+                  {badge ? (
+                    <Chip
+                      size="small"
+                      label={badge}
+                      sx={{
+                        height: 22,
+                        color: tokens.white,
+                        bgcolor: alpha(tokens.burgundy, 0.72),
+                        border: "1px solid",
+                        borderColor: alpha(tokens.white, 0.14),
+                      }}
+                    />
+                  ) : null}
                 </Button>
               );
             })}
           </Stack>
         </Box>
 
-        <Box sx={{ mt: "auto" }}>
+        <Box sx={{ mt: "auto", minWidth: { xs: 260, lg: "auto" } }}>
           <Button
             component={MuiLink}
             href={storefrontURL}
             target="_blank"
             rel="noreferrer"
-            variant="outlined"
+            variant="contained"
             startIcon={<VisibilityRounded />}
             fullWidth
+            sx={{
+              bgcolor: tokens.burgundy,
+              color: tokens.white,
+              "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
+            }}
           >
             View storefront
           </Button>
@@ -2006,7 +2114,14 @@ function WorkspaceRail({
               color="inherit"
               startIcon={<LogoutRounded />}
               fullWidth
-              sx={{ mt: 1 }}
+              sx={{
+                mt: 1,
+                color: tokens.white,
+                border: "1px solid",
+                borderColor: alpha(tokens.white, 0.16),
+                bgcolor: alpha(tokens.white, 0.06),
+                "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+              }}
             >
               Log out
             </Button>
@@ -4549,6 +4664,27 @@ export default function Dashboard({
       tone: tokens.burgundy,
     },
   ];
+  const railBadges: Partial<Record<DashboardSection, string | undefined>> =
+    canManage
+      ? {
+          overview: railBadge(followUps.length),
+          reports: railBadge(followUps.length),
+          orders: railBadge(liveOrders.length),
+          money: railBadge(pendingPayments),
+          visits: railBadge(activeBookings),
+          handovers: railBadge(openHandovers),
+          catalogue: railBadge(activeDesigns),
+          measurements: railBadge(needsMeasurements),
+          availability: railBadge(availabilityWindows.length),
+          messages: railBadge(pendingMessages),
+        }
+      : {
+          tasks: railBadge(followUps.length),
+          orders: railBadge(liveOrders.length),
+          visits: railBadge(activeBookings),
+          handovers: railBadge(openHandovers),
+          messages: railBadge(pendingMessages),
+        };
 
   return (
     <Box
@@ -4585,7 +4721,10 @@ export default function Dashboard({
           py: { xs: 1.5, lg: 3 },
           display: "grid",
           gap: { xs: 2, lg: 3 },
-          gridTemplateColumns: { xs: "1fr", lg: "270px minmax(0, 1fr)" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            lg: `${dashboardRailWidth}px minmax(0, 1fr)`,
+          },
         }}
       >
         <WorkspaceRail
@@ -4595,6 +4734,7 @@ export default function Dashboard({
           workspaceItems={workspaceItems}
           section={section}
           storefrontURL={storefrontURL}
+          badges={railBadges}
         />
 
         <Box

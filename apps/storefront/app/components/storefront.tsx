@@ -103,6 +103,29 @@ function StoreBrowseRail({
   const pricedCount = designs.filter(
     (design) => design.prices.length > 0,
   ).length;
+  const services = [
+    {
+      label: "Bespoke",
+      active: store.settings.bespoke_enabled,
+      helper: "Custom orders",
+    },
+    {
+      label: "Measurements",
+      active: store.settings.measurements_enabled,
+      helper: "Fit details",
+    },
+    {
+      label: "Delivery",
+      active:
+        store.settings.delivery_enabled || store.settings.dispatch_enabled,
+      helper: "Handover options",
+    },
+    {
+      label: "Collections",
+      active: store.settings.collections_enabled,
+      helper: "Grouped drops",
+    },
+  ];
 
   return (
     <Box
@@ -112,16 +135,22 @@ function StoreBrowseRail({
         top: { xs: 0, lg: 24 },
         left: { lg: 24 },
         zIndex: 10,
-        width: { lg: 280 },
+        width: { lg: 320 },
+        height: { lg: "calc(100vh - 48px)" },
         maxHeight: { lg: "calc(100vh - 48px)" },
         overflowX: { xs: "auto", lg: "hidden" },
         overflowY: { lg: "auto" },
         border: "1px solid",
-        borderColor: "divider",
+        borderColor: alpha(brand, 0.2),
         borderRadius: { xs: 0, lg: "8px" },
-        bgcolor: alpha(tokens.white, 0.96),
+        bgcolor: alpha(tokens.white, 0.98),
         backdropFilter: "blur(14px)",
-        boxShadow: { lg: `0 22px 70px ${alpha(tokens.ink, 0.12)}` },
+        boxShadow: { lg: `18px 0 70px ${alpha(tokens.ink, 0.14)}` },
+        backgroundImage: `
+          linear-gradient(${alpha(brand, 0.04)} 1px, transparent 1px),
+          linear-gradient(90deg, ${alpha(brand, 0.04)} 1px, transparent 1px)
+        `,
+        backgroundSize: "32px 32px",
         "@media (prefers-reduced-motion: no-preference)": {
           animation: {
             xs: "storeRailDrop 320ms ease both",
@@ -134,17 +163,20 @@ function StoreBrowseRail({
         spacing={{ xs: 1, lg: 1.5 }}
         sx={{
           p: { xs: 1.25, lg: 1.5 },
-          minWidth: { xs: 720, lg: "auto" },
+          minWidth: { xs: 980, lg: "auto" },
+          minHeight: { lg: "100%" },
         }}
       >
         <Box
           sx={{
-            p: 1.25,
+            p: 1.35,
             borderRadius: "8px",
             bgcolor: brand,
             color: onBrand,
             position: "relative",
             overflow: "hidden",
+            minWidth: { xs: 270, lg: "auto" },
+            boxShadow: `0 18px 48px ${alpha(brand, 0.22)}`,
           }}
         >
           <Box
@@ -193,50 +225,207 @@ function StoreBrowseRail({
               </Typography>
             </Box>
           </Stack>
-        </Box>
-
-        <Form method="get" role="search">
-          <TextField
-            name="q"
-            defaultValue={query}
-            placeholder="Search designs"
-            size="small"
-            fullWidth
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRounded fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-        </Form>
-
-        <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-          <Chip
-            size="small"
-            label={`${designs.length} pieces`}
-            sx={{ bgcolor: alpha(brand, 0.1), color: brand }}
-          />
-          <Chip
-            size="small"
-            label={`${pricedCount} priced`}
-            variant="outlined"
-          />
-          {customisableCount > 0 ? (
+          <Stack
+            direction="row"
+            spacing={0.75}
+            sx={{ position: "relative", mt: 1.25, flexWrap: "wrap" }}
+          >
             <Chip
               size="small"
-              label={`${customisableCount} custom`}
-              variant="outlined"
+              icon={<VerifiedRounded />}
+              label="Verified store"
+              sx={{
+                color: onBrand,
+                bgcolor: alpha(onBrand, 0.12),
+                border: "1px solid",
+                borderColor: alpha(onBrand, 0.18),
+                "& .MuiChip-icon": { color: alpha(onBrand, 0.78) },
+              }}
             />
-          ) : null}
-        </Stack>
+            <Chip
+              size="small"
+              label={`${designs.length} pieces`}
+              sx={{
+                color: onBrand,
+                bgcolor: alpha(onBrand, 0.12),
+                border: "1px solid",
+                borderColor: alpha(onBrand, 0.18),
+              }}
+            />
+          </Stack>
+        </Box>
+
+        <Box sx={{ minWidth: { xs: 280, lg: "auto" } }}>
+          <Typography
+            variant="caption"
+            sx={{
+              display: { xs: "none", lg: "block" },
+              mb: 0.75,
+              color: "text.secondary",
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            Find a design
+          </Typography>
+          <Form method="get" role="search">
+            <TextField
+              name="q"
+              defaultValue={query}
+              placeholder="Search designs"
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              sx={{
+                "& .MuiOutlinedInput-root": {
+                  bgcolor: tokens.white,
+                  boxShadow: `0 8px 22px ${alpha(tokens.ink, 0.05)}`,
+                },
+              }}
+            />
+          </Form>
+        </Box>
 
         <Divider sx={{ display: { xs: "none", lg: "block" } }} />
 
-        <Stack direction={{ xs: "row", lg: "column" }} spacing={0.75}>
+        <Box sx={{ minWidth: { xs: 330, lg: "auto" } }}>
+          <Typography
+            variant="caption"
+            sx={{
+              display: { xs: "none", lg: "block" },
+              mb: 0.75,
+              color: "text.secondary",
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            Store signals
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 0.75,
+              gridTemplateColumns: {
+                xs: "repeat(3, 1fr)",
+                lg: "repeat(2, 1fr)",
+              },
+            }}
+          >
+            {[
+              { label: "Priced", value: String(pricedCount) },
+              { label: "Custom", value: String(customisableCount) },
+              {
+                label: "Delivery",
+                value:
+                  store.settings.delivery_enabled ||
+                  store.settings.dispatch_enabled
+                    ? "On"
+                    : "Ask",
+              },
+            ].map((signal) => (
+              <Box
+                key={signal.label}
+                sx={{
+                  p: 1,
+                  border: "1px solid",
+                  borderColor: alpha(brand, 0.16),
+                  borderRadius: "8px",
+                  bgcolor: alpha(brand, 0.045),
+                  minWidth: 0,
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary", fontWeight: 900 }}
+                >
+                  {signal.label}
+                </Typography>
+                <Typography sx={{ fontWeight: 900, overflowWrap: "anywhere" }}>
+                  {signal.value}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        <Box sx={{ minWidth: { xs: 360, lg: "auto" } }}>
+          <Typography
+            variant="caption"
+            sx={{
+              display: { xs: "none", lg: "block" },
+              mb: 0.75,
+              color: "text.secondary",
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            Services
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 0.75,
+              gridTemplateColumns: { xs: "repeat(4, 1fr)", lg: "1fr" },
+            }}
+          >
+            {services.map((service) => (
+              <Box
+                key={service.label}
+                sx={{
+                  p: 1,
+                  border: "1px solid",
+                  borderColor: service.active ? alpha(brand, 0.22) : "divider",
+                  borderRadius: "8px",
+                  bgcolor: service.active
+                    ? alpha(brand, 0.06)
+                    : alpha(tokens.ink, 0.025),
+                  minWidth: 0,
+                }}
+              >
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  sx={{ alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {service.label}
+                  </Typography>
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      bgcolor: service.active ? brand : alpha(tokens.ink, 0.25),
+                      flexShrink: 0,
+                    }}
+                  />
+                </Stack>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary" }}
+                  noWrap
+                >
+                  {service.helper}
+                </Typography>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+
+        <Stack
+          direction={{ xs: "row", lg: "column" }}
+          spacing={0.75}
+          sx={{ mt: "auto", minWidth: { xs: 270, lg: "auto" } }}
+        >
           <Button
             href="#designs"
             variant="contained"
@@ -294,7 +483,7 @@ export function StoreView({
       <StoreBrowseRail store={store} designs={designs} query={query} />
       <Box
         sx={{
-          ml: { lg: "304px" },
+          ml: { lg: "344px" },
           minWidth: 0,
           "@media (prefers-reduced-motion: no-preference)": {
             animation: "storeSurfaceIn 500ms ease both",
