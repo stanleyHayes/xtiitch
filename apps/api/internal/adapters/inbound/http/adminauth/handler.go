@@ -2854,6 +2854,8 @@ func permissionLabel(permission admindomain.Permission) string {
 		return "Promotions"
 	case admindomain.PermissionManageAds:
 		return "Sponsored placements"
+	case admindomain.PermissionManageGrowth:
+		return "Growth programmes"
 	case admindomain.PermissionManageRisk:
 		return "Risk review"
 	case admindomain.PermissionManageSupport:

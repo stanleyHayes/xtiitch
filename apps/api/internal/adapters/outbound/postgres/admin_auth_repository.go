@@ -267,15 +267,16 @@ func (repo AdminAuthRepository) ListAdminRolePermissions(ctx context.Context) ([
 			array_position(array[
 				'manage_admin_users',
 				'manage_roles',
-					'manage_settings',
-					'review_businesses',
-					'manage_money_rails',
-					'manage_subscriptions',
-					'manage_plans',
-					'manage_promotions',
-					'manage_ads',
-					'manage_risk',
-					'manage_support',
+				'manage_settings',
+				'review_businesses',
+				'manage_money_rails',
+				'manage_subscriptions',
+				'manage_plans',
+				'manage_promotions',
+				'manage_ads',
+				'manage_growth',
+				'manage_risk',
+				'manage_support',
 				'view_audit'
 			]::text[], permission)
 	`)

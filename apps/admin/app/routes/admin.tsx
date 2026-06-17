@@ -7706,6 +7706,7 @@ const permissionLabels: Record<string, string> = {
   manage_plans: "Plan packages",
   manage_promotions: "Promotions",
   manage_ads: "Sponsored placements",
+  manage_growth: "Growth programmes",
   manage_risk: "Risk review",
   manage_support: "Support queue",
   view_audit: "Audit trail",
@@ -7726,6 +7727,8 @@ const permissionDescriptions: Record<string, string> = {
     "Create, pause, archive, and audit platform or business-funded promotions.",
   manage_ads:
     "Review, approve, pause, and audit sponsored marketing placements.",
+  manage_growth:
+    "Manage admin-run affiliate and referral programme controls.",
   manage_risk: "Close or reopen platform trust and safety reviews.",
   manage_support: "Assign and resolve customer or business support issues.",
   view_audit: "Read the operator action trail and sensitive change history.",
