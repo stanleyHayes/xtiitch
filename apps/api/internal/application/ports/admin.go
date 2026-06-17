@@ -58,6 +58,7 @@ type AdminBusinessRepository interface {
 	ArchiveAdminAdCampaign(ctx context.Context, input ArchiveAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
+	UpdateAdminAffiliateConversionStatus(ctx context.Context, input UpdateAdminAffiliateConversionStatusInput) (AdminAffiliateConversionRecord, error)
 	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	ArchiveAdminAffiliate(ctx context.Context, input ArchiveAdminAffiliateInput) (AdminAffiliateRecord, error)
@@ -691,6 +692,13 @@ type AdminAffiliateConversionRecord struct {
 	HoldUntil        *time.Time
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
+}
+
+type UpdateAdminAffiliateConversionStatusInput struct {
+	ConversionID   common.ID
+	Status         string
+	Reason         string
+	ActorAdminUser common.ID
 }
 
 type AdminReferralProgrammeRecord struct {

@@ -59,6 +59,7 @@ type Service interface {
 	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
 	ListAffiliateAttribution(ctx context.Context, command adminauthapp.ListAffiliateAttributionCommand) ([]ports.AdminAffiliateAttributionRecord, error)
+	UpdateAffiliateConversionStatus(ctx context.Context, command adminauthapp.UpdateAffiliateConversionStatusCommand) (ports.AdminAffiliateConversionRecord, error)
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
@@ -126,6 +127,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
 		protected.Get("/admin/affiliates", handler.affiliates)
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
+		protected.Patch("/admin/affiliate-conversions/{id}/status", handler.updateAffiliateConversionStatus)
 		protected.Post("/admin/affiliates", handler.createAffiliate)
 		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)
 		protected.Post("/admin/affiliates/{id}/archive", handler.archiveAffiliate)
@@ -330,6 +332,11 @@ type affiliateUpsertRequest struct {
 }
 
 type affiliateArchiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+type affiliateConversionStatusRequest struct {
+	Status string `json:"status"`
 	Reason string `json:"reason"`
 }
 
@@ -1710,6 +1717,40 @@ func (handler Handler) affiliateAttribution(w http.ResponseWriter, r *http.Reque
 		out = append(out, newAffiliateAttributionResponse(record))
 	}
 	writeJSON(w, http.StatusOK, map[string][]affiliateAttributionResponse{"attribution": out})
+}
+
+func (handler Handler) updateAffiliateConversionStatus(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request affiliateConversionStatusRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.UpdateAffiliateConversionStatus(
+		r.Context(),
+		adminauthapp.UpdateAffiliateConversionStatusCommand{
+			ActorUserID:  principal.AdminUserID,
+			ActorRole:    principal.Role,
+			ConversionID: common.ID(chi.URLParam(r, "id")),
+			Status:       request.Status,
+			Reason:       request.Reason,
+			UserAgent:    r.UserAgent(),
+			IPAddress:    requestIP(r),
+		},
+	)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAffiliateConversionResponse(record))
 }
 
 func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {

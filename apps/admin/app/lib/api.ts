@@ -1943,6 +1943,25 @@ export const adminApi = {
     });
     return payload.attribution.map(mapAffiliateAttribution);
   },
+  updateAffiliateConversionStatus: (
+    accessToken: string,
+    conversionId: string,
+    input: {
+      status: Exclude<AdminAffiliateConversion["status"], "pending">;
+      reason: string;
+    },
+  ) =>
+    requestJSON<AdminAffiliateConversionPayload>(
+      `/admin/affiliate-conversions/${encodeURIComponent(conversionId)}/status`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          status: input.status,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapAffiliateConversion),
   createAffiliate: (
     accessToken: string,
     input: {

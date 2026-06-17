@@ -2,11 +2,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -20,6 +22,14 @@ const (
 	itAdminPromoRedB  = "99999999-9999-9999-9999-999999999982"
 	itAdminPromoCustA = "aaaaaaaa-9999-9999-9999-999999999981"
 	itAdminPromoCustB = "aaaaaaaa-9999-9999-9999-999999999982"
+
+	itAdminAffBiz        = "66666666-6666-6666-6666-666666666663"
+	itAdminAffCust       = "aaaaaaaa-9999-9999-9999-999999999983"
+	itAdminAffDesign     = "bbbbbbbb-9999-9999-9999-999999999981"
+	itAdminAffOrder      = "cccccccc-9999-9999-9999-999999999981"
+	itAdminAffAffiliate  = "dddddddd-9999-9999-9999-999999999981"
+	itAdminAffConversion = "eeeeeeee-9999-9999-9999-999999999981"
+	itAdminAffAdmin      = "77777777-7777-7777-7777-777777777772"
 )
 
 func TestUpdateAdminSubscriptionStoresProviderReferences(t *testing.T) {
@@ -105,6 +115,52 @@ func TestListAdminPromotionsIncludesRecentRedemptions(t *testing.T) {
 	}
 }
 
+func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+
+	approved, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "approved",
+		Reason:         "Integration approval.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("approve affiliate conversion: %v", err)
+	}
+	if approved.Status != "approved" || approved.CommissionMinor != 2500 {
+		t.Fatalf("expected approved conversion, got %+v", approved)
+	}
+
+	settled, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "settled",
+		Reason:         "Integration settlement.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("settle affiliate conversion: %v", err)
+	}
+	if settled.Status != "settled" {
+		t.Fatalf("expected settled conversion, got %+v", settled)
+	}
+
+	_, err = repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "reversed",
+		Reason:         "Too late.",
+		ActorAdminUser: itAdminAffAdmin,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected settled conversion to be terminal, got %v", err)
+	}
+}
+
 func seedAdminSubscriptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAdminSubscriptionFixture(t, pool)
@@ -177,11 +233,92 @@ func seedAdminPromotionRedemptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	})
 }
 
+func seedAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	cleanupAdminAffiliateConversionFixture(t, pool)
+
+	var planID string
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+		t.Fatalf("probe standard plan: %v", err)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into admin_users (admin_user_id, email, display_name, password_hash, role, is_active)
+			values ($1, 'it-affiliates@xtiitch.test', 'IT Affiliates', 'hash', 'operator', true)
+		`, itAdminAffAdmin)
+		mustExec(t, tx, `
+			insert into businesses (business_id, plan_id, name, handle, verification_status)
+			values ($1, $2, 'IT Affiliate Admin Shop', 'it-affiliate-admin-shop', 'verified')
+		`, itAdminAffBiz, planID)
+		mustExec(t, tx, `
+			insert into customers (customer_id, display_name)
+			values ($1, 'Affiliate Customer')
+		`, itAdminAffCust)
+		mustExec(t, tx, `
+			insert into designs (design_id, business_id, title, handle, status)
+			values ($1, $2, 'Affiliate Design', 'affiliate-design', 'active')
+		`, itAdminAffDesign, itAdminAffBiz)
+		mustExec(t, tx, `
+			insert into orders (
+				order_id,
+				business_id,
+				customer_id,
+				design_id,
+				order_type,
+				size_mode,
+				flow,
+				channel,
+				agreed_total_minor,
+				settled_minor,
+				status
+			)
+			values ($1, $2, $3, $4, 'standard', 'band', 'ready_made', 'online', 25000, 25000, 'confirmed')
+		`, itAdminAffOrder, itAdminAffBiz, itAdminAffCust, itAdminAffDesign)
+		mustExec(t, tx, `
+			insert into affiliates (
+				affiliate_id,
+				code,
+				display_name,
+				commission_model,
+				commission_rate,
+				status
+			)
+			values ($1, 'ITAFFILIATE', 'IT Affiliate', 'percentage', 1000, 'active')
+		`, itAdminAffAffiliate)
+		mustExec(t, tx, `
+			insert into affiliate_conversions (
+				affiliate_conversion_id,
+				affiliate_id,
+				business_id,
+				order_id,
+				gross_minor,
+				commission_minor,
+				commission_model,
+				commission_rate,
+				status
+			)
+			values ($1, $2, $3, $4, 25000, 2500, 'percentage', 1000, 'pending')
+		`, itAdminAffConversion, itAdminAffAffiliate, itAdminAffBiz, itAdminAffOrder)
+	})
+}
+
 func cleanupAdminSubscriptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from businesses where business_id = $1`, itAdminSubBiz)
 		mustExec(t, tx, `delete from admin_users where admin_user_id = $1`, itAdminSubAdmin)
+	})
+}
+
+func cleanupAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from admin_audit_events where actor_admin_user_id = $1`, itAdminAffAdmin)
+		mustExec(t, tx, `delete from businesses where business_id = $1`, itAdminAffBiz)
+		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itAdminAffAffiliate)
+		mustExec(t, tx, `delete from customers where customer_id = $1`, itAdminAffCust)
+		mustExec(t, tx, `delete from admin_users where admin_user_id = $1`, itAdminAffAdmin)
 	})
 }
 

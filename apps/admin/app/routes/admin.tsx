@@ -69,6 +69,7 @@ import {
   type AdminAffiliate,
   type AdminAffiliateAttribution,
   type AdminAffiliateCommissionModel,
+  type AdminAffiliateConversion,
   type AdminAffiliateEntityType,
   type AdminAffiliatePayoutMode,
   type AdminAffiliateStatus,
@@ -1236,6 +1237,33 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-affiliate-conversion:update") {
+    const { accessToken } = await requireAdminContext(request);
+    const status = readAffiliateConversionStatus(form.get("status"));
+
+    try {
+      await adminApi.updateAffiliateConversionStatus(
+        accessToken,
+        String(form.get("conversion_id") ?? ""),
+        {
+          status,
+          reason: String(form.get("reason") ?? ""),
+        },
+      );
+      return {
+        section: "affiliates",
+        severity: "success",
+        message: affiliateConversionActionMessage(status),
+      };
+    } catch (error) {
+      return {
+        section: "affiliates",
+        severity: "error",
+        message: adminAffiliateActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-referral-programme:create" ||
     intent === "admin-referral-programme:update" ||
@@ -1568,6 +1596,16 @@ function readAffiliateEditableStatus(
     return status;
   }
   return "pending_review";
+}
+
+function readAffiliateConversionStatus(
+  value: FormDataEntryValue | null,
+): Exclude<AdminAffiliateConversion["status"], "pending"> {
+  const status = String(value ?? "");
+  if (status === "settled" || status === "reversed") {
+    return status;
+  }
+  return "approved";
 }
 
 function readReferralAudience(
@@ -1914,14 +1952,47 @@ function adminAffiliateActionError(error: unknown): string {
       case "forbidden":
         return "Your role cannot manage affiliate programmes.";
       case "invalid_input":
-        return "Check the affiliate code, contact, commission, payout, and status fields.";
+        return "Check the affiliate fields or conversion status transition.";
       case "not_found":
-        return "That affiliate partner could not be found.";
+        return "That affiliate partner or conversion could not be found.";
       default:
         return "The affiliate programme change could not be saved.";
     }
   }
   return "The affiliate programme change could not be saved.";
+}
+
+function affiliateConversionActionMessage(
+  status: Exclude<AdminAffiliateConversion["status"], "pending">,
+): string {
+  if (status === "settled") {
+    return "Affiliate conversion marked settled.";
+  }
+  if (status === "reversed") {
+    return "Affiliate conversion reversed.";
+  }
+  return "Affiliate conversion approved.";
+}
+
+function affiliateConversionActions(
+  status: AdminAffiliateConversion["status"],
+): {
+  status: Exclude<AdminAffiliateConversion["status"], "pending">;
+  label: string;
+}[] {
+  if (status === "pending") {
+    return [
+      { status: "approved", label: "Approve" },
+      { status: "reversed", label: "Reverse" },
+    ];
+  }
+  if (status === "approved") {
+    return [
+      { status: "settled", label: "Settle" },
+      { status: "reversed", label: "Reverse" },
+    ];
+  }
+  return [];
 }
 
 function adminReferralProgrammeActionError(error: unknown): string {
@@ -8814,46 +8885,102 @@ function AffiliatesSection({
                         Recent conversions
                       </Typography>
                       <Stack spacing={0.75} sx={{ mt: 1 }}>
-                        {performance.recentConversions.map((conversion) => (
-                          <Stack
-                            key={conversion.conversionId}
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1}
-                            sx={{
-                              justifyContent: "space-between",
-                              p: 1,
-                              borderRadius: 1,
-                              bgcolor: alpha(tokens.panel, 0.76),
-                            }}
-                          >
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 900 }}>
-                                {conversion.businessName || "Unknown business"}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
-                              >
-                                {shortID(conversion.orderId)} ·{" "}
-                                {conversion.attributionModel.replace("_", " ")}
-                              </Typography>
-                            </Box>
+                        {performance.recentConversions.map((conversion) => {
+                          const actions = affiliateConversionActions(
+                            conversion.status,
+                          );
+                          return (
                             <Stack
-                              direction="row"
+                              key={conversion.conversionId}
                               spacing={1}
-                              sx={{ alignItems: "center", flexWrap: "wrap" }}
+                              sx={{
+                                p: 1,
+                                borderRadius: 1,
+                                bgcolor: alpha(tokens.panel, 0.76),
+                              }}
                             >
-                              <Chip
-                                size="small"
-                                label={conversion.status}
-                                variant="outlined"
-                              />
-                              <Typography sx={{ fontWeight: 900 }}>
-                                {formatGHS(conversion.commissionMinor)}
-                              </Typography>
+                              <Stack
+                                direction={{ xs: "column", sm: "row" }}
+                                spacing={1}
+                                sx={{
+                                  justifyContent: "space-between",
+                                  alignItems: { sm: "center" },
+                                }}
+                              >
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography sx={{ fontWeight: 900 }}>
+                                    {conversion.businessName || "Unknown business"}
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary" }}
+                                  >
+                                    {shortID(conversion.orderId)} ·{" "}
+                                    {conversion.attributionModel.replace("_", " ")}
+                                  </Typography>
+                                </Box>
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  sx={{ alignItems: "center", flexWrap: "wrap" }}
+                                >
+                                  <Chip
+                                    size="small"
+                                    label={conversion.status}
+                                    variant="outlined"
+                                  />
+                                  <Typography sx={{ fontWeight: 900 }}>
+                                    {formatGHS(conversion.commissionMinor)}
+                                  </Typography>
+                                </Stack>
+                              </Stack>
+                              {actions.length ? (
+                                <Form method="post">
+                                  <input
+                                    type="hidden"
+                                    name="intent"
+                                    value="admin-affiliate-conversion:update"
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="conversion_id"
+                                    value={conversion.conversionId}
+                                  />
+                                  <Stack
+                                    direction={{ xs: "column", sm: "row" }}
+                                    spacing={1}
+                                    sx={{ alignItems: { sm: "center" } }}
+                                  >
+                                    <TextField
+                                      label="Note"
+                                      name="reason"
+                                      size="small"
+                                      sx={{ flex: 1 }}
+                                    />
+                                    <Stack
+                                      direction="row"
+                                      spacing={1}
+                                      sx={{ flexWrap: "wrap" }}
+                                    >
+                                      {actions.map((action) => (
+                                        <Button
+                                          key={action.status}
+                                          type="submit"
+                                          name="status"
+                                          value={action.status}
+                                          size="small"
+                                          variant="outlined"
+                                        >
+                                          {action.label}
+                                        </Button>
+                                      ))}
+                                    </Stack>
+                                  </Stack>
+                                </Form>
+                              ) : null}
                             </Stack>
-                          </Stack>
-                        ))}
+                          );
+                        })}
                       </Stack>
                     </Box>
                   ) : null}

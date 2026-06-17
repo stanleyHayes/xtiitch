@@ -2946,6 +2946,70 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	return records, nil
 }
 
+func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
+	ctx context.Context,
+	input ports.UpdateAdminAffiliateConversionStatusInput,
+) (ports.AdminAffiliateConversionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	current, err := queryAdminAffiliateConversion(ctx, tx, input.ConversionID.String())
+	if err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+	if !validAffiliateConversionTransition(current.Status, input.Status) {
+		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update affiliate_conversions
+		set status = $2,
+			approved_at = case
+				when $2 = 'approved' then coalesce(approved_at, now())
+				else approved_at
+			end,
+			settled_at = case
+				when $2 = 'settled' then coalesce(settled_at, now())
+				else settled_at
+			end,
+			reversed_at = case
+				when $2 = 'reversed' then coalesce(reversed_at, now())
+				else reversed_at
+			end,
+			reversal_reason = case
+				when $2 = 'reversed' then $3
+				else reversal_reason
+			end,
+			metadata = metadata || jsonb_build_object(
+				'admin_status_note', $3::text,
+				'admin_status_by', $4::text,
+				'admin_status_at', now()
+			),
+			updated_at = now()
+		where affiliate_conversion_id = $1::uuid
+	`, input.ConversionID.String(), input.Status, input.Reason, input.ActorAdminUser.String()); err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	record, err := queryAdminAffiliateConversion(ctx, tx, input.ConversionID.String())
+	if err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	return record, nil
+}
+
 func (repo AdminAuthRepository) CreateAdminAffiliate(
 	ctx context.Context,
 	input ports.CreateAdminAffiliateInput,
@@ -4205,6 +4269,71 @@ func listAdminAffiliateConversions(
 	}
 
 	return out, nil
+}
+
+func queryAdminAffiliateConversion(
+	ctx context.Context,
+	tx pgx.Tx,
+	conversionID string,
+) (ports.AdminAffiliateConversionRecord, error) {
+	return scanAdminAffiliateConversionRecord(tx.QueryRow(ctx, `
+		select
+			ac.affiliate_conversion_id::text,
+			ac.affiliate_id::text,
+			ac.business_id::text,
+			coalesce(b.name, '') as business_name,
+			ac.order_id::text,
+			ac.gross_minor,
+			ac.commission_minor,
+			ac.status,
+			ac.attribution_model,
+			ac.hold_until,
+			ac.created_at,
+			ac.updated_at
+		from affiliate_conversions ac
+		left join businesses b on b.business_id = ac.business_id
+		where ac.affiliate_conversion_id = $1::uuid
+	`, conversionID))
+}
+
+func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConversionRecord, error) {
+	var record ports.AdminAffiliateConversionRecord
+	var holdUntil pgtype.Timestamptz
+	if err := row.Scan(
+		&record.ConversionID,
+		&record.AffiliateID,
+		&record.BusinessID,
+		&record.BusinessName,
+		&record.OrderID,
+		&record.GrossMinor,
+		&record.CommissionMinor,
+		&record.Status,
+		&record.AttributionModel,
+		&holdUntil,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliateConversionRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+	record.HoldUntil = timestamptzPtr(holdUntil)
+	return record, nil
+}
+
+func validAffiliateConversionTransition(from string, to string) bool {
+	if from == to {
+		return true
+	}
+	switch from {
+	case "pending":
+		return to == "approved" || to == "reversed"
+	case "approved":
+		return to == "settled" || to == "reversed"
+	default:
+		return false
+	}
 }
 
 func scanAdminReferralProgrammeRecord(row pgx.Row) (ports.AdminReferralProgrammeRecord, error) {

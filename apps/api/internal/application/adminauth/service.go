@@ -332,6 +332,16 @@ type ListAffiliateAttributionCommand struct {
 	ActorRole admindomain.Role
 }
 
+type UpdateAffiliateConversionStatusCommand struct {
+	ActorUserID  common.ID
+	ActorRole    admindomain.Role
+	ConversionID common.ID
+	Status       string
+	Reason       string
+	UserAgent    string
+	IPAddress    string
+}
+
 type CreateAffiliateCommand struct {
 	ActorUserID      common.ID
 	ActorRole        admindomain.Role
@@ -1647,6 +1657,71 @@ func (s Service) ListAffiliateAttribution(
 	}
 
 	return s.businesses.ListAdminAffiliateAttribution(ctx)
+}
+
+func (s Service) UpdateAffiliateConversionStatus(
+	ctx context.Context,
+	cmd UpdateAffiliateConversionStatusCommand,
+) (ports.AdminAffiliateConversionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.ConversionID.IsZero() {
+		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrForbidden
+	}
+
+	status := strings.TrimSpace(cmd.Status)
+	if status != "approved" && status != "settled" && status != "reversed" {
+		return ports.AdminAffiliateConversionRecord{}, authdomain.ErrInvalidInput
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Operator marked affiliate conversion " + status + "."
+	}
+
+	record, err := s.businesses.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   cmd.ConversionID,
+		Status:         status,
+		Reason:         reason,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	action := "Marked affiliate conversion " + status
+	severity := admindomain.AuditSeverityInfo
+	if status == "reversed" {
+		severity = admindomain.AuditSeverityWarning
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      action,
+		TargetType:  "affiliate_conversion",
+		TargetID:    record.ConversionID.String(),
+		TargetLabel: fallbackString(record.BusinessName, record.OrderID.String()),
+		Summary:     action + ". Reason: " + reason,
+		Severity:    severity,
+		Metadata: map[string]string{
+			"affiliate_id":     record.AffiliateID.String(),
+			"business_id":      record.BusinessID.String(),
+			"order_id":         record.OrderID.String(),
+			"status":           record.Status,
+			"commission_minor": intString64(record.CommissionMinor),
+			"reason":           reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	return record, nil
 }
 
 func (s Service) CreateAffiliate(

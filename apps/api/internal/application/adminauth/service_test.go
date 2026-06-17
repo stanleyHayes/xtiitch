@@ -1643,6 +1643,79 @@ func TestAffiliateAttributionRequiresGrowthPermission(t *testing.T) {
 	}
 }
 
+func TestUpdateAffiliateConversionStatusRequiresGrowthPermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.UpdateAffiliateConversionStatus(
+		context.Background(),
+		UpdateAffiliateConversionStatusCommand{
+			ActorUserID:  "operator-1",
+			ActorRole:    admindomain.RoleOperator,
+			ConversionID: "conversion-1",
+			Status:       "approved",
+			Reason:       "  order confirmed  ",
+			UserAgent:    "test-agent",
+			IPAddress:    "127.0.0.1",
+		},
+	)
+	if err != nil {
+		t.Fatalf("update affiliate conversion: %v", err)
+	}
+	if businesses.updatedAffiliateConversion.ConversionID != "conversion-1" ||
+		businesses.updatedAffiliateConversion.Status != "approved" ||
+		businesses.updatedAffiliateConversion.Reason != "order confirmed" {
+		t.Fatalf("expected normalized conversion update, got %+v", businesses.updatedAffiliateConversion)
+	}
+	if record.Status != "approved" {
+		t.Fatalf("unexpected conversion response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Marked affiliate conversion approved" ||
+		event.TargetID != "conversion-1" ||
+		event.Metadata["reason"] != "order confirmed" ||
+		event.Metadata["commission_minor"] != "1500" {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+
+	_, err = service.UpdateAffiliateConversionStatus(
+		context.Background(),
+		UpdateAffiliateConversionStatusCommand{
+			ActorUserID:  "support-1",
+			ActorRole:    admindomain.RoleSupport,
+			ConversionID: "conversion-1",
+			Status:       "approved",
+		},
+	)
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+
+	_, err = service.UpdateAffiliateConversionStatus(
+		context.Background(),
+		UpdateAffiliateConversionStatusCommand{
+			ActorUserID:  "operator-1",
+			ActorRole:    admindomain.RoleOperator,
+			ConversionID: "conversion-1",
+			Status:       "pending",
+		},
+	)
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid manual status, got %v", err)
+	}
+}
+
 func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -2281,47 +2354,48 @@ func samePermissions(left []admindomain.Permission, right []admindomain.Permissi
 }
 
 type fakeAdminBusinesses struct {
-	cases                     []ports.AdminVerificationCaseRecord
-	listCalled                bool
-	decided                   ports.AdminBusinessVerificationDecisionInput
-	businesses                []ports.AdminBusinessRecord
-	statusUpdate              ports.UpdateAdminBusinessStatusInput
-	metrics                   ports.AdminPlatformMetricsRecord
-	moneyRails                ports.AdminMoneyRailsRecord
-	subscriptions             []ports.AdminSubscriptionRecord
-	subscriptionUpdate        ports.UpdateAdminSubscriptionInput
-	issuedSubscriptionInvoice ports.IssueAdminSubscriptionInvoiceInput
-	paidSubscriptionInvoice   ports.MarkAdminSubscriptionInvoicePaidInput
-	failedSubscriptionInvoice ports.MarkAdminSubscriptionInvoiceFailedInput
-	sweepInput                ports.RunAdminSubscriptionBillingSweepInput
-	sweepResult               ports.AdminSubscriptionBillingSweepRecord
-	plans                     []ports.AdminPlanRecord
-	createdPlan               ports.CreateAdminPlanInput
-	updatedPlan               ports.UpdateAdminPlanInput
-	archivedPlan              ports.ArchiveAdminPlanInput
-	promotions                []ports.AdminPromotionRecord
-	createdPromotion          ports.CreateAdminPromotionInput
-	updatedPromotion          ports.UpdateAdminPromotionInput
-	archivedPromotion         ports.ArchiveAdminPromotionInput
-	adCampaigns               []ports.AdminAdCampaignRecord
-	createdAdCampaign         ports.CreateAdminAdCampaignInput
-	updatedAdCampaign         ports.UpdateAdminAdCampaignInput
-	archivedAdCampaign        ports.ArchiveAdminAdCampaignInput
-	affiliates                []ports.AdminAffiliateRecord
-	createdAffiliate          ports.CreateAdminAffiliateInput
-	updatedAffiliate          ports.UpdateAdminAffiliateInput
-	archivedAffiliate         ports.ArchiveAdminAffiliateInput
-	affiliateAttribution      []ports.AdminAffiliateAttributionRecord
-	referralProgrammes        []ports.AdminReferralProgrammeRecord
-	createdReferralProgramme  ports.CreateAdminReferralProgrammeInput
-	updatedReferralProgramme  ports.UpdateAdminReferralProgrammeInput
-	archivedReferralProgramme ports.ArchiveAdminReferralProgrammeInput
-	replay                    ports.QueueAdminMoneyReplayInput
-	hold                      ports.SetAdminSettlementReviewHoldInput
-	riskReviews               []ports.AdminRiskReviewRecord
-	riskUpdate                ports.SetAdminRiskReviewStatusInput
-	supportTickets            []ports.AdminSupportTicketRecord
-	supportUpdate             ports.UpdateAdminSupportTicketInput
+	cases                      []ports.AdminVerificationCaseRecord
+	listCalled                 bool
+	decided                    ports.AdminBusinessVerificationDecisionInput
+	businesses                 []ports.AdminBusinessRecord
+	statusUpdate               ports.UpdateAdminBusinessStatusInput
+	metrics                    ports.AdminPlatformMetricsRecord
+	moneyRails                 ports.AdminMoneyRailsRecord
+	subscriptions              []ports.AdminSubscriptionRecord
+	subscriptionUpdate         ports.UpdateAdminSubscriptionInput
+	issuedSubscriptionInvoice  ports.IssueAdminSubscriptionInvoiceInput
+	paidSubscriptionInvoice    ports.MarkAdminSubscriptionInvoicePaidInput
+	failedSubscriptionInvoice  ports.MarkAdminSubscriptionInvoiceFailedInput
+	sweepInput                 ports.RunAdminSubscriptionBillingSweepInput
+	sweepResult                ports.AdminSubscriptionBillingSweepRecord
+	plans                      []ports.AdminPlanRecord
+	createdPlan                ports.CreateAdminPlanInput
+	updatedPlan                ports.UpdateAdminPlanInput
+	archivedPlan               ports.ArchiveAdminPlanInput
+	promotions                 []ports.AdminPromotionRecord
+	createdPromotion           ports.CreateAdminPromotionInput
+	updatedPromotion           ports.UpdateAdminPromotionInput
+	archivedPromotion          ports.ArchiveAdminPromotionInput
+	adCampaigns                []ports.AdminAdCampaignRecord
+	createdAdCampaign          ports.CreateAdminAdCampaignInput
+	updatedAdCampaign          ports.UpdateAdminAdCampaignInput
+	archivedAdCampaign         ports.ArchiveAdminAdCampaignInput
+	affiliates                 []ports.AdminAffiliateRecord
+	createdAffiliate           ports.CreateAdminAffiliateInput
+	updatedAffiliate           ports.UpdateAdminAffiliateInput
+	archivedAffiliate          ports.ArchiveAdminAffiliateInput
+	affiliateAttribution       []ports.AdminAffiliateAttributionRecord
+	updatedAffiliateConversion ports.UpdateAdminAffiliateConversionStatusInput
+	referralProgrammes         []ports.AdminReferralProgrammeRecord
+	createdReferralProgramme   ports.CreateAdminReferralProgrammeInput
+	updatedReferralProgramme   ports.UpdateAdminReferralProgrammeInput
+	archivedReferralProgramme  ports.ArchiveAdminReferralProgrammeInput
+	replay                     ports.QueueAdminMoneyReplayInput
+	hold                       ports.SetAdminSettlementReviewHoldInput
+	riskReviews                []ports.AdminRiskReviewRecord
+	riskUpdate                 ports.SetAdminRiskReviewStatusInput
+	supportTickets             []ports.AdminSupportTicketRecord
+	supportUpdate              ports.UpdateAdminSupportTicketInput
 }
 
 func (repo *fakeAdminBusinesses) ListAdminVerificationCases(context.Context) ([]ports.AdminVerificationCaseRecord, error) {
@@ -2848,6 +2922,21 @@ func (repo *fakeAdminBusinesses) ListAdminAffiliateAttribution(context.Context) 
 	return []ports.AdminAffiliateAttributionRecord{
 		fakeAdminAffiliateAttributionRecord("affiliate-1", "SEWINGPRO", "Sewing Pro Partners"),
 	}, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliateConversionStatus(
+	_ context.Context,
+	input ports.UpdateAdminAffiliateConversionStatusInput,
+) (ports.AdminAffiliateConversionRecord, error) {
+	repo.updatedAffiliateConversion = input
+	record := fakeAdminAffiliateAttributionRecord(
+		"affiliate-1",
+		"SEWINGPRO",
+		"Sewing Pro Partners",
+	).RecentConversions[0]
+	record.ConversionID = input.ConversionID
+	record.Status = input.Status
+	return record, nil
 }
 
 func (repo *fakeAdminBusinesses) CreateAdminAffiliate(
