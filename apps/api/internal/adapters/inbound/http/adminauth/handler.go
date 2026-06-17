@@ -1786,6 +1786,32 @@ func (handler Handler) exportDatasetRows(
 			})
 		}
 		return rows, nil
+	case "settings":
+		profile, err := handler.service.GetProfileSettings(ctx, principal.AdminUserID)
+		if err != nil {
+			return nil, err
+		}
+		settings, err := handler.service.GetPlatformSettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		preferences := profile.Preferences
+		return [][]string{
+			{"Area", "Setting", "Value", "Detail"},
+			{"Operator profile", "Display name", profile.User.DisplayName, profile.User.Email},
+			{"Operator profile", "Role", string(profile.User.Role), boolCSV(profile.User.IsActive, "Active", "Inactive")},
+			{"Notification preferences", "Email alerts", boolCSV(preferences.NotifyEmail, "On", "Off"), "Primary operator delivery route"},
+			{"Notification preferences", "SMS alerts", boolCSV(preferences.NotifySMS, "On", "Off"), fallbackText(preferences.PhoneNumber, "No phone number")},
+			{"Notification preferences", "Daily digest", preferences.DailyDigestTime, preferences.Timezone},
+			{"Notification preferences", "Verification alerts", boolCSV(preferences.AlertVerifications, "Watched", "Muted"), "Business verification queue"},
+			{"Notification preferences", "Money rail alerts", boolCSV(preferences.AlertMoneyRails, "Watched", "Muted"), "Payment, payout, and webhook queue"},
+			{"Notification preferences", "Risk alerts", boolCSV(preferences.AlertRisk, "Watched", "Muted"), "Risk review queue"},
+			{"Notification preferences", "Support alerts", boolCSV(preferences.AlertSupport, "Watched", "Muted"), "Support queue"},
+			{"Platform policy", "Platform name", settings.PlatformName, settings.SupportEmail},
+			{"Platform policy", "Maintenance mode", boolCSV(settings.MaintenanceMode, "On", "Off"), "Global operator-controlled maintenance flag"},
+			{"Platform policy", "Verification SLA", fmt.Sprintf("%dh", settings.VerificationSLAHours), "Target KYC review window"},
+			{"Platform policy", "Payout review threshold", moneyCSV(int64(settings.PayoutReviewThresholdPesewas)), "Settlement review threshold"},
+		}, nil
 	case "subscriptions":
 		records, err := handler.service.ListSubscriptions(ctx, adminauthapp.ListSubscriptionsCommand{ActorRole: principal.Role})
 		if err != nil {

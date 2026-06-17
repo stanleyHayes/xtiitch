@@ -158,6 +158,7 @@ type AdminExportDatasetId =
   | "audit"
   | "users"
   | "roles"
+  | "settings"
   | "plans"
   | "subscriptions"
   | "promotions"
@@ -316,6 +317,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "audit",
   "users",
   "roles",
+  "settings",
   "plans",
   "subscriptions",
   "promotions",
@@ -3549,6 +3551,7 @@ function ReportsSection({
 function ExportsSection({
   platformMetrics,
   platformSettings,
+  profileSettings,
   adminUsers,
   adminBusinesses,
   verificationCases,
@@ -3564,6 +3567,7 @@ function ExportsSection({
 }: {
   platformMetrics: AdminPlatformMetrics | null;
   platformSettings: AdminPlatformSettings;
+  profileSettings: AdminProfileSettings;
   adminUsers: AdminUser[];
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
@@ -3883,6 +3887,66 @@ function ExportsSection({
           role.permissions.length,
           role.permissions.join("; "),
         ]),
+      ],
+    },
+    {
+      id: "settings",
+      title: "Settings and notifications",
+      helper:
+        "Operator profile, notification routing, and platform policy controls.",
+      source: "settings",
+      sourceLabel: "Open settings",
+      tone: platformSettings.maintenanceMode ? "watch" : "ready",
+      rows: [
+        ["Area", "Setting", "Value", "Detail"],
+        [
+          "Operator profile",
+          "Display name",
+          profileSettings.user.displayName,
+          profileSettings.user.email,
+        ],
+        [
+          "Operator profile",
+          "Role",
+          profileSettings.user.role,
+          profileSettings.user.isActive ? "Active" : "Inactive",
+        ],
+        [
+          "Notification preferences",
+          "Email alerts",
+          profileSettings.preferences.notifyEmail ? "On" : "Off",
+          "Primary operator delivery route",
+        ],
+        [
+          "Notification preferences",
+          "SMS alerts",
+          profileSettings.preferences.notifySms ? "On" : "Off",
+          profileSettings.preferences.phoneNumber || "No phone number",
+        ],
+        [
+          "Notification preferences",
+          "Daily digest",
+          profileSettings.preferences.dailyDigestTime,
+          profileSettings.preferences.timezone,
+        ],
+        [
+          "Platform policy",
+          "Maintenance mode",
+          platformSettings.maintenanceMode ? "On" : "Off",
+          platformSettings.platformName,
+        ],
+        [
+          "Platform policy",
+          "Verification SLA",
+          `${platformSettings.verificationSlaHours}h`,
+          platformSettings.supportEmail,
+        ],
+        [
+          "Platform policy",
+          "Payout review threshold",
+          formatGHS(platformSettings.payoutReviewThresholdPesewas),
+          "Settlement review threshold",
+        ],
       ],
     },
     {
@@ -9022,6 +9086,7 @@ export default function AdminDashboard({
             <ExportsSection
               platformMetrics={platformMetrics}
               platformSettings={platformSettings}
+              profileSettings={profileSettings}
               adminUsers={adminUsers}
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
