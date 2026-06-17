@@ -288,6 +288,39 @@ export type AdminAdCampaign = {
   updatedAt: string;
 };
 
+export type AdminAffiliateEntityType = "person" | "business" | "agency";
+export type AdminAffiliateCommissionModel = "percentage" | "flat";
+export type AdminAffiliatePayoutMode =
+  | "paystack_split"
+  | "paystack_transfer"
+  | "voucher"
+  | "manual";
+export type AdminAffiliateStatus =
+  | "pending_review"
+  | "active"
+  | "paused"
+  | "archived";
+
+export type AdminAffiliate = {
+  affiliateId: string;
+  entityType: AdminAffiliateEntityType;
+  code: string;
+  displayName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  websiteUrl: string;
+  commissionModel: AdminAffiliateCommissionModel;
+  commissionRate: number;
+  cookieWindowDays: number;
+  payoutMode: AdminAffiliatePayoutMode;
+  payoutReference: string;
+  status: AdminAffiliateStatus;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminAuditSeverity = "info" | "warning" | "critical";
 
 export type AdminVerificationStatus =
@@ -643,6 +676,26 @@ type AdminAdCampaignPayload = {
   click_count: number;
   click_rate_bps: number;
   review_note: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAffiliatePayload = {
+  affiliate_id: string;
+  entity_type: AdminAffiliateEntityType;
+  code: string;
+  display_name: string;
+  contact_name: string;
+  email: string;
+  phone: string;
+  website_url: string;
+  commission_model: AdminAffiliateCommissionModel;
+  commission_rate: number;
+  cookie_window_days: number;
+  payout_mode: AdminAffiliatePayoutMode;
+  payout_reference: string;
+  status: AdminAffiliateStatus;
+  notes: string;
   created_at: string;
   updated_at: string;
 };
@@ -1068,6 +1121,28 @@ function mapAdCampaign(payload: AdminAdCampaignPayload): AdminAdCampaign {
     clickCount: payload.click_count,
     clickRateBps: payload.click_rate_bps,
     reviewNote: payload.review_note,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
+  return {
+    affiliateId: payload.affiliate_id,
+    entityType: payload.entity_type,
+    code: payload.code,
+    displayName: payload.display_name,
+    contactName: payload.contact_name,
+    email: payload.email,
+    phone: payload.phone,
+    websiteUrl: payload.website_url,
+    commissionModel: payload.commission_model,
+    commissionRate: payload.commission_rate,
+    cookieWindowDays: payload.cookie_window_days,
+    payoutMode: payload.payout_mode,
+    payoutReference: payload.payout_reference,
+    status: payload.status,
+    notes: payload.notes,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -1671,6 +1746,111 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapAdCampaign),
+  affiliates: async (accessToken: string) => {
+    const payload = await requestJSON<{ affiliates: AdminAffiliatePayload[] }>(
+      "/admin/affiliates",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.affiliates.map(mapAffiliate);
+  },
+  createAffiliate: (
+    accessToken: string,
+    input: {
+      entityType: AdminAffiliateEntityType;
+      code: string;
+      displayName: string;
+      contactName: string;
+      email: string;
+      phone: string;
+      websiteUrl: string;
+      commissionModel: AdminAffiliateCommissionModel;
+      commissionRate: number;
+      cookieWindowDays: number;
+      payoutMode: AdminAffiliatePayoutMode;
+      payoutReference: string;
+      status: Exclude<AdminAffiliateStatus, "archived">;
+      notes: string;
+    },
+  ) =>
+    requestJSON<AdminAffiliatePayload>("/admin/affiliates", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        entity_type: input.entityType,
+        code: input.code,
+        display_name: input.displayName,
+        contact_name: input.contactName,
+        email: input.email,
+        phone: input.phone,
+        website_url: input.websiteUrl,
+        commission_model: input.commissionModel,
+        commission_rate: input.commissionRate,
+        cookie_window_days: input.cookieWindowDays,
+        payout_mode: input.payoutMode,
+        payout_reference: input.payoutReference,
+        status: input.status,
+        notes: input.notes,
+      }),
+    }).then(mapAffiliate),
+  updateAffiliate: (
+    accessToken: string,
+    affiliateId: string,
+    input: {
+      entityType: AdminAffiliateEntityType;
+      code: string;
+      displayName: string;
+      contactName: string;
+      email: string;
+      phone: string;
+      websiteUrl: string;
+      commissionModel: AdminAffiliateCommissionModel;
+      commissionRate: number;
+      cookieWindowDays: number;
+      payoutMode: AdminAffiliatePayoutMode;
+      payoutReference: string;
+      status: Exclude<AdminAffiliateStatus, "archived">;
+      notes: string;
+    },
+  ) =>
+    requestJSON<AdminAffiliatePayload>(
+      `/admin/affiliates/${encodeURIComponent(affiliateId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          entity_type: input.entityType,
+          code: input.code,
+          display_name: input.displayName,
+          contact_name: input.contactName,
+          email: input.email,
+          phone: input.phone,
+          website_url: input.websiteUrl,
+          commission_model: input.commissionModel,
+          commission_rate: input.commissionRate,
+          cookie_window_days: input.cookieWindowDays,
+          payout_mode: input.payoutMode,
+          payout_reference: input.payoutReference,
+          status: input.status,
+          notes: input.notes,
+        }),
+      },
+    ).then(mapAffiliate),
+  archiveAffiliate: (
+    accessToken: string,
+    affiliateId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminAffiliatePayload>(
+      `/admin/affiliates/${encodeURIComponent(affiliateId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapAffiliate),
   queueMoneyReplay: (
     accessToken: string,
     input: { providerReference: string; reason: string },

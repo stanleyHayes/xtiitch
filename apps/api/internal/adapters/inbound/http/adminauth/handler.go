@@ -57,6 +57,10 @@ type Service interface {
 	CreateAdCampaign(ctx context.Context, command adminauthapp.CreateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	UpdateAdCampaign(ctx context.Context, command adminauthapp.UpdateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
+	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
+	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
+	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
+	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
@@ -115,6 +119,10 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/ad-campaigns", handler.createAdCampaign)
 		protected.Patch("/admin/ad-campaigns/{id}", handler.updateAdCampaign)
 		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
+		protected.Get("/admin/affiliates", handler.affiliates)
+		protected.Post("/admin/affiliates", handler.createAffiliate)
+		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)
+		protected.Post("/admin/affiliates/{id}/archive", handler.archiveAffiliate)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
@@ -291,6 +299,27 @@ type adCampaignUpsertRequest struct {
 }
 
 type adCampaignArchiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+type affiliateUpsertRequest struct {
+	EntityType       string `json:"entity_type"`
+	Code             string `json:"code"`
+	DisplayName      string `json:"display_name"`
+	ContactName      string `json:"contact_name"`
+	Email            string `json:"email"`
+	Phone            string `json:"phone"`
+	WebsiteURL       string `json:"website_url"`
+	CommissionModel  string `json:"commission_model"`
+	CommissionRate   int64  `json:"commission_rate"`
+	CookieWindowDays int    `json:"cookie_window_days"`
+	PayoutMode       string `json:"payout_mode"`
+	PayoutReference  string `json:"payout_reference"`
+	Status           string `json:"status"`
+	Notes            string `json:"notes"`
+}
+
+type affiliateArchiveRequest struct {
 	Reason string `json:"reason"`
 }
 
@@ -601,6 +630,26 @@ type adCampaignResponse struct {
 	ReviewNote      string `json:"review_note"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
+}
+
+type affiliateResponse struct {
+	AffiliateID      string `json:"affiliate_id"`
+	EntityType       string `json:"entity_type"`
+	Code             string `json:"code"`
+	DisplayName      string `json:"display_name"`
+	ContactName      string `json:"contact_name"`
+	Email            string `json:"email"`
+	Phone            string `json:"phone"`
+	WebsiteURL       string `json:"website_url"`
+	CommissionModel  string `json:"commission_model"`
+	CommissionRate   int64  `json:"commission_rate"`
+	CookieWindowDays int    `json:"cookie_window_days"`
+	PayoutMode       string `json:"payout_mode"`
+	PayoutReference  string `json:"payout_reference"`
+	Status           string `json:"status"`
+	Notes            string `json:"notes"`
+	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
 }
 
 type subscriptionEventResponse struct {
@@ -1533,6 +1582,144 @@ func (handler Handler) archiveAdCampaign(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusOK, newAdCampaignResponse(record))
+}
+
+func (handler Handler) affiliates(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListAffiliates(r.Context(), adminauthapp.ListAffiliatesCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]affiliateResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newAffiliateResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]affiliateResponse{"affiliates": out})
+}
+
+func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request affiliateUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.CreateAffiliate(r.Context(), adminauthapp.CreateAffiliateCommand{
+		ActorUserID:      principal.AdminUserID,
+		ActorRole:        principal.Role,
+		EntityType:       request.EntityType,
+		Code:             request.Code,
+		DisplayName:      request.DisplayName,
+		ContactName:      request.ContactName,
+		Email:            request.Email,
+		Phone:            request.Phone,
+		WebsiteURL:       request.WebsiteURL,
+		CommissionModel:  request.CommissionModel,
+		CommissionRate:   request.CommissionRate,
+		CookieWindowDays: request.CookieWindowDays,
+		PayoutMode:       request.PayoutMode,
+		PayoutReference:  request.PayoutReference,
+		Status:           request.Status,
+		Notes:            request.Notes,
+		UserAgent:        r.UserAgent(),
+		IPAddress:        requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newAffiliateResponse(record))
+}
+
+func (handler Handler) updateAffiliate(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request affiliateUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.UpdateAffiliate(r.Context(), adminauthapp.UpdateAffiliateCommand{
+		ActorUserID:      principal.AdminUserID,
+		ActorRole:        principal.Role,
+		AffiliateID:      common.ID(chi.URLParam(r, "id")),
+		EntityType:       request.EntityType,
+		Code:             request.Code,
+		DisplayName:      request.DisplayName,
+		ContactName:      request.ContactName,
+		Email:            request.Email,
+		Phone:            request.Phone,
+		WebsiteURL:       request.WebsiteURL,
+		CommissionModel:  request.CommissionModel,
+		CommissionRate:   request.CommissionRate,
+		CookieWindowDays: request.CookieWindowDays,
+		PayoutMode:       request.PayoutMode,
+		PayoutReference:  request.PayoutReference,
+		Status:           request.Status,
+		Notes:            request.Notes,
+		UserAgent:        r.UserAgent(),
+		IPAddress:        requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAffiliateResponse(record))
+}
+
+func (handler Handler) archiveAffiliate(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request affiliateArchiveRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.ArchiveAffiliate(r.Context(), adminauthapp.ArchiveAffiliateCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		AffiliateID: common.ID(chi.URLParam(r, "id")),
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAffiliateResponse(record))
 }
 
 func (handler Handler) queueMoneyReplay(w http.ResponseWriter, r *http.Request) {
@@ -2661,6 +2848,28 @@ func newAdCampaignResponse(record ports.AdminAdCampaignRecord) adCampaignRespons
 		ReviewNote:      record.ReviewNote,
 		CreatedAt:       record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newAffiliateResponse(record ports.AdminAffiliateRecord) affiliateResponse {
+	return affiliateResponse{
+		AffiliateID:      record.AffiliateID.String(),
+		EntityType:       record.EntityType,
+		Code:             record.Code,
+		DisplayName:      record.DisplayName,
+		ContactName:      record.ContactName,
+		Email:            record.Email,
+		Phone:            record.Phone,
+		WebsiteURL:       record.WebsiteURL,
+		CommissionModel:  record.CommissionModel,
+		CommissionRate:   record.CommissionRate,
+		CookieWindowDays: record.CookieWindowDays,
+		PayoutMode:       record.PayoutMode,
+		PayoutReference:  record.PayoutReference,
+		Status:           record.Status,
+		Notes:            record.Notes,
+		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

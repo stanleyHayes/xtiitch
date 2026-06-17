@@ -56,6 +56,10 @@ type AdminBusinessRepository interface {
 	CreateAdminAdCampaign(ctx context.Context, input CreateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	UpdateAdminAdCampaign(ctx context.Context, input UpdateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	ArchiveAdminAdCampaign(ctx context.Context, input ArchiveAdminAdCampaignInput) (AdminAdCampaignRecord, error)
+	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
+	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
+	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)
+	ArchiveAdminAffiliate(ctx context.Context, input ArchiveAdminAffiliateInput) (AdminAffiliateRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
@@ -587,6 +591,69 @@ type UpdateAdminAdCampaignInput struct {
 
 type ArchiveAdminAdCampaignInput struct {
 	CampaignID     common.ID
+	ActorAdminUser common.ID
+}
+
+type AdminAffiliateRecord struct {
+	AffiliateID      common.ID
+	EntityType       string
+	Code             string
+	DisplayName      string
+	ContactName      string
+	Email            string
+	Phone            string
+	WebsiteURL       string
+	CommissionModel  string
+	CommissionRate   int64
+	CookieWindowDays int
+	PayoutMode       string
+	PayoutReference  string
+	Status           string
+	Notes            string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type CreateAdminAffiliateInput struct {
+	AffiliateID      common.ID
+	EntityType       string
+	Code             string
+	DisplayName      string
+	ContactName      string
+	Email            string
+	Phone            string
+	WebsiteURL       string
+	CommissionModel  string
+	CommissionRate   int64
+	CookieWindowDays int
+	PayoutMode       string
+	PayoutReference  string
+	Status           string
+	Notes            string
+	ActorAdminUser   common.ID
+}
+
+type UpdateAdminAffiliateInput struct {
+	AffiliateID      common.ID
+	EntityType       string
+	Code             string
+	DisplayName      string
+	ContactName      string
+	Email            string
+	Phone            string
+	WebsiteURL       string
+	CommissionModel  string
+	CommissionRate   int64
+	CookieWindowDays int
+	PayoutMode       string
+	PayoutReference  string
+	Status           string
+	Notes            string
+	ActorAdminUser   common.ID
+}
+
+type ArchiveAdminAffiliateInput struct {
+	AffiliateID    common.ID
 	ActorAdminUser common.ID
 }
 

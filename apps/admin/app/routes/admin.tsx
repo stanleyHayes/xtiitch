@@ -66,6 +66,11 @@ import {
   type AdminAdCampaignStatus,
   type AdminAdPlacementType,
   type AdminAdPricingModel,
+  type AdminAffiliate,
+  type AdminAffiliateCommissionModel,
+  type AdminAffiliateEntityType,
+  type AdminAffiliatePayoutMode,
+  type AdminAffiliateStatus,
   type AdminAuditEvent,
   type AdminBusiness,
   type AdminBusinessOperationalStatus,
@@ -112,6 +117,7 @@ type Section =
   | "subscriptions"
   | "promotions"
   | "ads"
+  | "affiliates"
   | "users"
   | "roles"
   | "verification"
@@ -250,6 +256,12 @@ const navItems: AdminNavItem[] = [
     icon: <CampaignRounded />,
   },
   {
+    id: "affiliates",
+    label: "Affiliates",
+    helper: "Partner programmes",
+    icon: <WorkspacePremiumRounded />,
+  },
+  {
     id: "users",
     label: "Users",
     helper: "Operators and roles",
@@ -380,6 +392,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let promotionsError: string | null = null;
   let adCampaigns: AdminAdCampaign[] = [];
   let adCampaignsError: string | null = null;
+  let affiliates: AdminAffiliate[] = [];
+  let affiliatesError: string | null = null;
   let riskReviews: AdminRiskReview[] = [];
   let riskReviewError: string | null = null;
   let supportTickets: AdminSupportTicket[] = [];
@@ -479,6 +493,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
+    affiliates = await adminApi.affiliates(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      affiliatesError = "Your role cannot manage affiliate programmes.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
     riskReviews = await adminApi.riskReviews(accessToken);
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
@@ -534,6 +558,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     promotionsError,
     adCampaigns,
     adCampaignsError,
+    affiliates,
+    affiliatesError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -1089,6 +1115,77 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (
+    intent === "admin-affiliate:create" ||
+    intent === "admin-affiliate:update" ||
+    intent === "admin-affiliate:archive"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      if (intent === "admin-affiliate:archive") {
+        await adminApi.archiveAffiliate(
+          accessToken,
+          String(form.get("affiliate_id") ?? ""),
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "affiliates",
+          severity: "success",
+          message: "Affiliate partner archived.",
+        };
+      }
+
+      const payload = {
+        entityType: readAffiliateEntityType(form.get("entity_type")),
+        code: String(form.get("code") ?? ""),
+        displayName: String(form.get("display_name") ?? ""),
+        contactName: String(form.get("contact_name") ?? ""),
+        email: String(form.get("email") ?? ""),
+        phone: String(form.get("phone") ?? ""),
+        websiteUrl: String(form.get("website_url") ?? ""),
+        commissionModel: readAffiliateCommissionModel(
+          form.get("commission_model"),
+        ),
+        commissionRate: readAffiliateCommissionValue(
+          form.get("commission_model"),
+          form.get("commission_value"),
+        ),
+        cookieWindowDays: readInt(form.get("cookie_window_days"), 30),
+        payoutMode: readAffiliatePayoutMode(form.get("payout_mode")),
+        payoutReference: String(form.get("payout_reference") ?? ""),
+        status: readAffiliateEditableStatus(form.get("status")),
+        notes: String(form.get("notes") ?? ""),
+      };
+
+      if (intent === "admin-affiliate:create") {
+        await adminApi.createAffiliate(accessToken, payload);
+        return {
+          section: "affiliates",
+          severity: "success",
+          message: "Affiliate partner created.",
+        };
+      }
+
+      await adminApi.updateAffiliate(
+        accessToken,
+        String(form.get("affiliate_id") ?? ""),
+        payload,
+      );
+      return {
+        section: "affiliates",
+        severity: "success",
+        message: "Affiliate partner updated.",
+      };
+    } catch (error) {
+      return {
+        section: "affiliates",
+        severity: "error",
+        message: adminAffiliateActionError(error),
+      };
+    }
+  }
+
   if (intent === "admin-risk-review:update") {
     const { accessToken } = await requireAdminContext(request);
     const status = readRiskReviewStatus(form.get("status"));
@@ -1307,6 +1404,56 @@ function readAdPricingModel(
   return "flat_time";
 }
 
+function readAffiliateEntityType(
+  value: FormDataEntryValue | null,
+): AdminAffiliateEntityType {
+  const entityType = String(value ?? "");
+  if (entityType === "business" || entityType === "agency") {
+    return entityType;
+  }
+  return "person";
+}
+
+function readAffiliateCommissionModel(
+  value: FormDataEntryValue | null,
+): AdminAffiliateCommissionModel {
+  return String(value ?? "") === "flat" ? "flat" : "percentage";
+}
+
+function readAffiliatePayoutMode(
+  value: FormDataEntryValue | null,
+): AdminAffiliatePayoutMode {
+  const mode = String(value ?? "");
+  if (
+    mode === "paystack_split" ||
+    mode === "paystack_transfer" ||
+    mode === "manual"
+  ) {
+    return mode;
+  }
+  return "voucher";
+}
+
+function readAffiliateEditableStatus(
+  value: FormDataEntryValue | null,
+): Exclude<AdminAffiliateStatus, "archived"> {
+  const status = String(value ?? "");
+  if (status === "active" || status === "paused") {
+    return status;
+  }
+  return "pending_review";
+}
+
+function readAffiliateCommissionValue(
+  modelValue: FormDataEntryValue | null,
+  value: FormDataEntryValue | null,
+): number {
+  if (readAffiliateCommissionModel(modelValue) === "percentage") {
+    return Math.round(readNumber(value, 0) * 100);
+  }
+  return readGhsPesewas(value);
+}
+
 function readPromotionDiscountValue(
   discountType: AdminPromotionDiscountType,
   value: FormDataEntryValue | null,
@@ -1368,6 +1515,10 @@ function readNumber(
 ): number {
   const parsed = Number(String(value ?? ""));
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function readInt(value: FormDataEntryValue | null, fallback: number): number {
+  return Math.trunc(readNumber(value, fallback));
 }
 
 function readOptionalText(
@@ -1577,6 +1728,22 @@ function adminAdCampaignActionError(error: unknown): string {
     }
   }
   return "The sponsored placement change could not be saved.";
+}
+
+function adminAffiliateActionError(error: unknown): string {
+  if (error instanceof AdminApiError) {
+    switch (error.code) {
+      case "forbidden":
+        return "Your role cannot manage affiliate programmes.";
+      case "invalid_input":
+        return "Check the affiliate code, contact, commission, payout, and status fields.";
+      case "not_found":
+        return "That affiliate partner could not be found.";
+      default:
+        return "The affiliate programme change could not be saved.";
+    }
+  }
+  return "The affiliate programme change could not be saved.";
 }
 
 function adminRiskActionError(error: unknown): string {
@@ -5100,6 +5267,42 @@ const adCampaignStatusOptions: {
   { value: "completed", label: "Completed" },
 ];
 
+const affiliateEntityOptions: {
+  value: AdminAffiliateEntityType;
+  label: string;
+}[] = [
+  { value: "person", label: "Person" },
+  { value: "business", label: "Business" },
+  { value: "agency", label: "Agency" },
+];
+
+const affiliateCommissionOptions: {
+  value: AdminAffiliateCommissionModel;
+  label: string;
+}[] = [
+  { value: "percentage", label: "Percentage" },
+  { value: "flat", label: "Flat fee" },
+];
+
+const affiliatePayoutOptions: {
+  value: AdminAffiliatePayoutMode;
+  label: string;
+}[] = [
+  { value: "paystack_split", label: "Paystack split" },
+  { value: "paystack_transfer", label: "Paystack transfer" },
+  { value: "voucher", label: "Voucher fallback" },
+  { value: "manual", label: "Manual review" },
+];
+
+const affiliateStatusOptions: {
+  value: Exclude<AdminAffiliateStatus, "archived">;
+  label: string;
+}[] = [
+  { value: "pending_review", label: "Pending review" },
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+];
+
 function subscriptionStatusLabel(status: AdminSubscriptionStatus): string {
   return (
     subscriptionStatusOptions.find((option) => option.value === status)
@@ -5201,6 +5404,47 @@ function adCampaignStatusColor(status: AdminAdCampaignStatus): string {
     default:
       return tokens.mutedText;
   }
+}
+
+function affiliateStatusLabel(status: AdminAffiliateStatus): string {
+  return (
+    affiliateStatusOptions.find((option) => option.value === status)?.label ??
+    (status === "archived" ? "Archived" : status)
+  );
+}
+
+function affiliateEntityLabel(value: AdminAffiliateEntityType): string {
+  return affiliateEntityOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function affiliatePayoutLabel(value: AdminAffiliatePayoutMode): string {
+  return affiliatePayoutOptions.find((option) => option.value === value)?.label ?? value;
+}
+
+function affiliateStatusColor(status: AdminAffiliateStatus): string {
+  switch (status) {
+    case "active":
+      return tokens.success;
+    case "pending_review":
+    case "paused":
+      return tokens.warning;
+    default:
+      return tokens.mutedText;
+  }
+}
+
+function affiliateCommissionLabel(affiliate: AdminAffiliate): string {
+  if (affiliate.commissionModel === "percentage") {
+    return formatPercentBps(affiliate.commissionRate);
+  }
+  return formatGHS(affiliate.commissionRate);
+}
+
+function affiliateCommissionDefault(affiliate: AdminAffiliate): string {
+  if (affiliate.commissionModel === "percentage") {
+    return (affiliate.commissionRate / 100).toString();
+  }
+  return (affiliate.commissionRate / 100).toFixed(2);
 }
 
 function moneyInputDefault(value?: number): string {
@@ -7696,6 +7940,390 @@ function AdsSection({
   );
 }
 
+function AffiliatesSection({
+  affiliates,
+  affiliatesError,
+  actionData,
+}: {
+  affiliates: AdminAffiliate[];
+  affiliatesError: string | null;
+  actionData?: AdminActionFeedback;
+}) {
+  const pendingAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "pending_review",
+  );
+  const activeAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "active",
+  );
+  const archivedAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "archived",
+  );
+
+  return (
+    <Stack spacing={2.5}>
+      <SectionHeader
+        eyebrow="Growth controls"
+        title="Affiliate programmes"
+        helper="Register partners and agents, track codes, commission terms, cookie windows, payout rail readiness, and approval state."
+      />
+
+      {actionData?.section === "affiliates" && actionData.message ? (
+        <Alert severity={actionData.severity ?? "success"}>
+          {actionData.message}
+        </Alert>
+      ) : null}
+      {affiliatesError ? (
+        <Alert severity="warning">{affiliatesError}</Alert>
+      ) : null}
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" },
+        }}
+      >
+        <MetricCard
+          label="Active partners"
+          value={String(activeAffiliates.length)}
+          helper="Eligible for attribution"
+          trend={`${affiliates.length} total`}
+        />
+        <MetricCard
+          label="Pending review"
+          value={String(pendingAffiliates.length)}
+          helper="Needs operator approval"
+          trend="KYC/payout check"
+        />
+        <MetricCard
+          label="Archived"
+          value={String(archivedAffiliates.length)}
+          helper="Disabled partner links"
+          trend="Audit retained"
+        />
+        <MetricCard
+          label="Paystack ready"
+          value={String(
+            affiliates.filter((affiliate) =>
+              affiliate.payoutMode.startsWith("paystack"),
+            ).length,
+          )}
+          helper="Split or transfer mode"
+          trend="No held funds"
+        />
+      </Box>
+
+      {!affiliatesError ? (
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Form method="post">
+            <input type="hidden" name="intent" value="admin-affiliate:create" />
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                sx={{ justifyContent: "space-between" }}
+              >
+                <Box>
+                  <Typography variant="h6">Register affiliate</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Add a partner code and the commercial terms operators approve.
+                  </Typography>
+                </Box>
+                <Button type="submit" variant="contained">
+                  Create partner
+                </Button>
+              </Stack>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                }}
+              >
+                <TextField select label="Entity" name="entity_type" defaultValue="person">
+                  {affiliateEntityOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField label="Code" name="code" required placeholder="SEWINGPRO" />
+                <TextField label="Display name" name="display_name" required />
+                <TextField label="Contact name" name="contact_name" />
+                <TextField label="Email" name="email" type="email" />
+                <TextField label="Phone" name="phone" />
+                <TextField label="Website" name="website_url" type="url" />
+                <TextField
+                  select
+                  label="Commission"
+                  name="commission_model"
+                  defaultValue="percentage"
+                >
+                  {affiliateCommissionOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Commission value"
+                  name="commission_value"
+                  type="number"
+                  required
+                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                />
+                <TextField
+                  label="Cookie window"
+                  name="cookie_window_days"
+                  type="number"
+                  defaultValue={30}
+                  slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
+                />
+                <TextField select label="Payout mode" name="payout_mode" defaultValue="voucher">
+                  {affiliatePayoutOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField select label="Status" name="status" defaultValue="pending_review">
+                  {affiliateStatusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <TextField label="Payout reference" name="payout_reference" />
+                <TextField label="Notes" name="notes" multiline minRows={2} />
+              </Box>
+            </Stack>
+          </Form>
+        </Panel>
+      ) : null}
+
+      {!affiliatesError && affiliates.length === 0 ? (
+        <Alert severity="info">No affiliate partners are registered yet.</Alert>
+      ) : null}
+
+      {!affiliatesError && affiliates.length > 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          {affiliates.map((affiliate) => {
+            const color = affiliateStatusColor(affiliate.status);
+            const archived = affiliate.status === "archived";
+            return (
+              <Panel
+                key={affiliate.affiliateId}
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  borderColor: alpha(color, archived ? 0.12 : 0.2),
+                  backgroundImage: `linear-gradient(180deg, ${alpha(
+                    color,
+                    archived ? 0.035 : 0.075,
+                  )}, transparent 42%)`,
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.25}
+                    sx={{ justifyContent: "space-between", alignItems: { sm: "flex-start" } }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
+                        <Typography variant="h6">{affiliate.displayName}</Typography>
+                        <Chip size="small" label={affiliate.code} variant="outlined" />
+                      </Stack>
+                      <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+                        {affiliateEntityLabel(affiliate.entityType)} · {affiliate.contactName || "No contact"}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={affiliateStatusLabel(affiliate.status)}
+                      sx={{ bgcolor: alpha(color, 0.12), color, fontWeight: 900 }}
+                    />
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+                    }}
+                  >
+                    <DetailLine label="Commission" value={affiliateCommissionLabel(affiliate)} />
+                    <DetailLine
+                      label="Cookie window"
+                      value={`${affiliate.cookieWindowDays} days`}
+                    />
+                    <DetailLine
+                      label="Payout mode"
+                      value={affiliatePayoutLabel(affiliate.payoutMode)}
+                    />
+                    <DetailLine
+                      label="Contact"
+                      value={affiliate.email || affiliate.phone || "No contact"}
+                    />
+                  </Box>
+
+                  {affiliate.notes || affiliate.payoutReference ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.ink, 0.08),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.white, 0.7),
+                      }}
+                    >
+                      {affiliate.payoutReference ? (
+                        <Typography sx={{ overflowWrap: "anywhere" }}>
+                          {affiliate.payoutReference}
+                        </Typography>
+                      ) : null}
+                      {affiliate.notes ? (
+                        <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+                          Notes: {affiliate.notes}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                  ) : null}
+
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="admin-affiliate:update" />
+                    <input type="hidden" name="affiliate_id" value={affiliate.affiliateId} />
+                    <Stack spacing={1.25}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+                        }}
+                      >
+                        <TextField select label="Entity" name="entity_type" size="small" defaultValue={affiliate.entityType} disabled={archived}>
+                          {affiliateEntityOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField label="Code" name="code" size="small" defaultValue={affiliate.code} required disabled={archived} />
+                        <TextField label="Display name" name="display_name" size="small" defaultValue={affiliate.displayName} required disabled={archived} />
+                        <TextField label="Contact name" name="contact_name" size="small" defaultValue={affiliate.contactName} disabled={archived} />
+                        <TextField label="Email" name="email" type="email" size="small" defaultValue={affiliate.email} disabled={archived} />
+                        <TextField label="Phone" name="phone" size="small" defaultValue={affiliate.phone} disabled={archived} />
+                        <TextField label="Website" name="website_url" type="url" size="small" defaultValue={affiliate.websiteUrl} disabled={archived} />
+                        <TextField select label="Commission" name="commission_model" size="small" defaultValue={affiliate.commissionModel} disabled={archived}>
+                          {affiliateCommissionOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Commission value"
+                          name="commission_value"
+                          type="number"
+                          size="small"
+                          defaultValue={affiliateCommissionDefault(affiliate)}
+                          required
+                          disabled={archived}
+                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                        />
+                        <TextField
+                          label="Cookie window"
+                          name="cookie_window_days"
+                          type="number"
+                          size="small"
+                          defaultValue={affiliate.cookieWindowDays}
+                          disabled={archived}
+                          slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
+                        />
+                        <TextField select label="Payout mode" name="payout_mode" size="small" defaultValue={affiliate.payoutMode} disabled={archived}>
+                          {affiliatePayoutOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Status"
+                          name="status"
+                          size="small"
+                          defaultValue={affiliate.status === "archived" ? "paused" : affiliate.status}
+                          disabled={archived}
+                        >
+                          {affiliateStatusOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                        }}
+                      >
+                        <TextField label="Payout reference" name="payout_reference" size="small" defaultValue={affiliate.payoutReference} disabled={archived} />
+                        <TextField label="Notes" name="notes" multiline minRows={2} size="small" defaultValue={affiliate.notes} disabled={archived} />
+                      </Box>
+                      <Button type="submit" variant="contained" disabled={archived} sx={{ alignSelf: "flex-start" }}>
+                        Save partner
+                      </Button>
+                    </Stack>
+                  </Form>
+
+                  <Form method="post">
+                    <input type="hidden" name="intent" value="admin-affiliate:archive" />
+                    <input type="hidden" name="affiliate_id" value={affiliate.affiliateId} />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        label="Archive reason"
+                        name="reason"
+                        size="small"
+                        placeholder="Programme closed"
+                        fullWidth
+                        disabled={archived}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        color="warning"
+                        disabled={archived}
+                        sx={{ minWidth: { sm: 140 } }}
+                      >
+                        Archive
+                      </Button>
+                    </Stack>
+                  </Form>
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
 const permissionLabels: Record<string, string> = {
   manage_admin_users: "Manage admin users",
   manage_roles: "Manage roles",
@@ -9640,6 +10268,8 @@ export default function AdminDashboard({
     promotionsError,
     adCampaigns,
     adCampaignsError,
+    affiliates,
+    affiliatesError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -9659,6 +10289,7 @@ export default function AdminDashboard({
       actionFeedback?.section === "subscriptions" ||
       actionFeedback?.section === "promotions" ||
       actionFeedback?.section === "ads" ||
+      actionFeedback?.section === "affiliates" ||
       actionFeedback?.section === "verification" ||
       actionFeedback?.section === "businesses" ||
       actionFeedback?.section === "money" ||
@@ -10135,6 +10766,14 @@ export default function AdminDashboard({
               campaigns={adCampaigns}
               adCampaignsError={adCampaignsError}
               businesses={adminBusinesses}
+              actionData={actionFeedback}
+            />
+          ) : null}
+
+          {section === "affiliates" ? (
+            <AffiliatesSection
+              affiliates={affiliates}
+              affiliatesError={affiliatesError}
               actionData={actionFeedback}
             />
           ) : null}

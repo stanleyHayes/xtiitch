@@ -1478,6 +1478,133 @@ func TestAdCampaignValidation(t *testing.T) {
 	}
 }
 
+func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"affiliate-created", "audit-create", "audit-update", "audit-archive", "affiliate-invalid"},
+	)
+
+	affiliates, err := service.ListAffiliates(context.Background(), ListAffiliatesCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list affiliates: %v", err)
+	}
+	if len(affiliates) != 1 || affiliates[0].Code != "SEWINGPRO" {
+		t.Fatalf("unexpected affiliates: %+v", affiliates)
+	}
+
+	created, err := service.CreateAffiliate(context.Background(), CreateAffiliateCommand{
+		ActorUserID:      "operator-1",
+		ActorRole:        admindomain.RoleOperator,
+		EntityType:       " agency ",
+		Code:             " sewing-pro ",
+		DisplayName:      "  Sewing   Pro Partners ",
+		ContactName:      "  Ama   Partner ",
+		Email:            "AMA@EXAMPLE.COM",
+		Phone:            " +233 20 000 0000 ",
+		WebsiteURL:       "https://partners.example.com/ref",
+		CommissionModel:  "percentage",
+		CommissionRate:   1250,
+		CookieWindowDays: 45,
+		PayoutMode:       "paystack_transfer",
+		PayoutReference:  " KYC transfer account ",
+		Status:           "active",
+		Notes:            " reviewed ",
+		UserAgent:        "test-agent",
+		IPAddress:        "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create affiliate: %v", err)
+	}
+	if created.AffiliateID != "affiliate-created" ||
+		businesses.createdAffiliate.Code != "SEWING-PRO" ||
+		businesses.createdAffiliate.Email != "ama@example.com" ||
+		businesses.createdAffiliate.DisplayName != "Sewing Pro Partners" ||
+		businesses.createdAffiliate.CookieWindowDays != 45 {
+		t.Fatalf("expected normalized affiliate create, got input=%+v record=%+v", businesses.createdAffiliate, created)
+	}
+
+	updated, err := service.UpdateAffiliate(context.Background(), UpdateAffiliateCommand{
+		ActorUserID:      "operator-1",
+		ActorRole:        admindomain.RoleOperator,
+		AffiliateID:      "affiliate-created",
+		EntityType:       "agency",
+		Code:             "SEWING-PRO",
+		DisplayName:      "Sewing Pro Partners",
+		CommissionModel:  "flat",
+		CommissionRate:   5000,
+		CookieWindowDays: 30,
+		PayoutMode:       "manual",
+		Status:           "paused",
+		UserAgent:        "test-agent",
+		IPAddress:        "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update affiliate: %v", err)
+	}
+	if businesses.updatedAffiliate.Status != "paused" || updated.Status != "paused" {
+		t.Fatalf("expected paused affiliate update, got input=%+v record=%+v", businesses.updatedAffiliate, updated)
+	}
+
+	archived, err := service.ArchiveAffiliate(context.Background(), ArchiveAffiliateCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		AffiliateID: "affiliate-created",
+		Reason:      " programme closed ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("archive affiliate: %v", err)
+	}
+	if businesses.archivedAffiliate.AffiliateID != "affiliate-created" || archived.Status != "archived" {
+		t.Fatalf("expected archived affiliate, got input=%+v record=%+v", businesses.archivedAffiliate, archived)
+	}
+	if len(audits.created) != 3 {
+		t.Fatalf("expected three affiliate audit events, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Created affiliate programme partner" ||
+		audits.created[1].Action != "Updated affiliate programme partner" ||
+		audits.created[2].Action != "Archived affiliate programme partner" ||
+		audits.created[0].Metadata["code"] != "SEWING-PRO" {
+		t.Fatalf("unexpected affiliate audit events: %+v", audits.created)
+	}
+
+	_, err = service.CreateAffiliate(context.Background(), CreateAffiliateCommand{
+		ActorUserID:     "support-1",
+		ActorRole:       admindomain.RoleSupport,
+		Code:            "NOPE",
+		DisplayName:     "Nope",
+		CommissionModel: "percentage",
+		CommissionRate:  100,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+
+	_, err = service.CreateAffiliate(context.Background(), CreateAffiliateCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		Code:            "BAD",
+		DisplayName:     "Bad",
+		Email:           "bad-email",
+		WebsiteURL:      "ftp://example.com",
+		CommissionModel: "percentage",
+		CommissionRate:  10001,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid affiliate fields, got %v", err)
+	}
+}
+
 func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -2001,6 +2128,10 @@ type fakeAdminBusinesses struct {
 	createdAdCampaign         ports.CreateAdminAdCampaignInput
 	updatedAdCampaign         ports.UpdateAdminAdCampaignInput
 	archivedAdCampaign        ports.ArchiveAdminAdCampaignInput
+	affiliates                []ports.AdminAffiliateRecord
+	createdAffiliate          ports.CreateAdminAffiliateInput
+	updatedAffiliate          ports.UpdateAdminAffiliateInput
+	archivedAffiliate         ports.ArchiveAdminAffiliateInput
 	replay                    ports.QueueAdminMoneyReplayInput
 	hold                      ports.SetAdminSettlementReviewHoldInput
 	riskReviews               []ports.AdminRiskReviewRecord
@@ -2511,6 +2642,85 @@ func fakeAdminAdCampaignRecord(
 		ReviewNote:      "verified advertiser",
 		CreatedAt:       now,
 		UpdatedAt:       now,
+	}
+}
+
+func (repo *fakeAdminBusinesses) ListAdminAffiliates(context.Context) ([]ports.AdminAffiliateRecord, error) {
+	if repo.affiliates != nil {
+		return repo.affiliates, nil
+	}
+	return []ports.AdminAffiliateRecord{fakeAdminAffiliateRecord(
+		"affiliate-1",
+		"SEWINGPRO",
+		"Sewing Pro Partners",
+		"active",
+	)}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminAffiliate(
+	_ context.Context,
+	input ports.CreateAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	repo.createdAffiliate = input
+	return fakeAdminAffiliateRecord(
+		input.AffiliateID,
+		input.Code,
+		input.DisplayName,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliate(
+	_ context.Context,
+	input ports.UpdateAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	repo.updatedAffiliate = input
+	return fakeAdminAffiliateRecord(
+		input.AffiliateID,
+		input.Code,
+		input.DisplayName,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) ArchiveAdminAffiliate(
+	_ context.Context,
+	input ports.ArchiveAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	repo.archivedAffiliate = input
+	return fakeAdminAffiliateRecord(
+		input.AffiliateID,
+		"SEWINGPRO",
+		"Sewing Pro Partners",
+		"archived",
+	), nil
+}
+
+func fakeAdminAffiliateRecord(
+	affiliateID common.ID,
+	code string,
+	displayName string,
+	status string,
+) ports.AdminAffiliateRecord {
+	now := time.Now()
+	return ports.AdminAffiliateRecord{
+		AffiliateID:      affiliateID,
+		EntityType:       "agency",
+		Code:             code,
+		DisplayName:      displayName,
+		ContactName:      "Ama Partner",
+		Email:            "ama@example.com",
+		Phone:            "+233 20 000 0000",
+		WebsiteURL:       "https://partners.example.com/ref",
+		CommissionModel:  "percentage",
+		CommissionRate:   1250,
+		CookieWindowDays: 45,
+		PayoutMode:       "paystack_transfer",
+		PayoutReference:  "KYC transfer account",
+		Status:           status,
+		Notes:            "reviewed",
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 }
 

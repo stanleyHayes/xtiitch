@@ -2800,6 +2800,245 @@ func (repo AdminAuthRepository) ArchiveAdminAdCampaign(
 	return record, nil
 }
 
+func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]ports.AdminAffiliateRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, adminAffiliatesQuery()+`
+		order by
+			case status when 'pending_review' then 1 when 'active' then 2 when 'paused' then 3 else 4 end,
+			updated_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminAffiliateRecord{}
+	for rows.Next() {
+		record, err := scanAdminAffiliateRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminAffiliate(
+	ctx context.Context,
+	input ports.CreateAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	record, err := scanAdminAffiliateRecord(tx.QueryRow(ctx, `
+		with inserted as (
+			insert into affiliates (
+				affiliate_id,
+				entity_type,
+				code,
+				display_name,
+				contact_name,
+				email,
+				phone,
+				website_url,
+				commission_model,
+				commission_rate,
+				cookie_window_days,
+				payout_mode,
+				payout_reference,
+				status,
+				notes,
+				created_by_admin_user_id,
+				updated_by_admin_user_id
+			)
+			values (
+				$1::uuid,
+				$2,
+				$3,
+				$4,
+				$5,
+				$6,
+				$7,
+				$8,
+				$9,
+				$10,
+				$11,
+				$12,
+				$13,
+				$14,
+				$15,
+				$16::uuid,
+				$16::uuid
+			)
+			returning *
+		)
+		`+adminAffiliateSelect("inserted")+`
+	`, input.AffiliateID.String(),
+		input.EntityType,
+		input.Code,
+		input.DisplayName,
+		input.ContactName,
+		input.Email,
+		input.Phone,
+		input.WebsiteURL,
+		input.CommissionModel,
+		input.CommissionRate,
+		input.CookieWindowDays,
+		input.PayoutMode,
+		input.PayoutReference,
+		input.Status,
+		input.Notes,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if affiliateCodeTaken(err) {
+			return ports.AdminAffiliateRecord{}, authdomain.ErrInvalidInput
+		}
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) UpdateAdminAffiliate(
+	ctx context.Context,
+	input ports.UpdateAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	record, err := scanAdminAffiliateRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update affiliates
+			set entity_type = $2,
+				code = $3,
+				display_name = $4,
+				contact_name = $5,
+				email = $6,
+				phone = $7,
+				website_url = $8,
+				commission_model = $9,
+				commission_rate = $10,
+				cookie_window_days = $11,
+				payout_mode = $12,
+				payout_reference = $13,
+				status = $14,
+				notes = $15,
+				updated_by_admin_user_id = $16::uuid,
+				updated_at = now()
+			where affiliate_id = $1::uuid
+				and status <> 'archived'
+			returning *
+		)
+		`+adminAffiliateSelect("updated")+`
+	`, input.AffiliateID.String(),
+		input.EntityType,
+		input.Code,
+		input.DisplayName,
+		input.ContactName,
+		input.Email,
+		input.Phone,
+		input.WebsiteURL,
+		input.CommissionModel,
+		input.CommissionRate,
+		input.CookieWindowDays,
+		input.PayoutMode,
+		input.PayoutReference,
+		input.Status,
+		input.Notes,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if affiliateCodeTaken(err) {
+			return ports.AdminAffiliateRecord{}, authdomain.ErrInvalidInput
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliateRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) ArchiveAdminAffiliate(
+	ctx context.Context,
+	input ports.ArchiveAdminAffiliateInput,
+) (ports.AdminAffiliateRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	record, err := scanAdminAffiliateRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update affiliates
+			set status = 'archived',
+				updated_by_admin_user_id = $2::uuid,
+				updated_at = now()
+			where affiliate_id = $1::uuid
+			returning *
+		)
+		`+adminAffiliateSelect("updated")+`
+	`, input.AffiliateID.String(), input.ActorAdminUser.String()))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliateRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+
+	return record, nil
+}
+
 func (repo AdminAuthRepository) QueueAdminMoneyReplay(
 	ctx context.Context,
 	input ports.QueueAdminMoneyReplayInput,
@@ -3530,6 +3769,32 @@ func scanAdminAdCampaignRecord(row pgx.Row) (ports.AdminAdCampaignRecord, error)
 	return record, nil
 }
 
+func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
+	var record ports.AdminAffiliateRecord
+	if err := row.Scan(
+		&record.AffiliateID,
+		&record.EntityType,
+		&record.Code,
+		&record.DisplayName,
+		&record.ContactName,
+		&record.Email,
+		&record.Phone,
+		&record.WebsiteURL,
+		&record.CommissionModel,
+		&record.CommissionRate,
+		&record.CookieWindowDays,
+		&record.PayoutMode,
+		&record.PayoutReference,
+		&record.Status,
+		&record.Notes,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminAffiliateRecord{}, err
+	}
+	return record, nil
+}
+
 func listAdminPromotionRedemptions(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -4066,6 +4331,34 @@ func adminAdCampaignSelect(source string) string {
 	`
 }
 
+func adminAffiliatesQuery() string {
+	return adminAffiliateSelect("affiliates")
+}
+
+func adminAffiliateSelect(source string) string {
+	return `
+		select
+			a.affiliate_id::text,
+			a.entity_type,
+			a.code,
+			a.display_name,
+			a.contact_name,
+			a.email,
+			a.phone,
+			a.website_url,
+			a.commission_model,
+			a.commission_rate::bigint,
+			a.cookie_window_days::int,
+			a.payout_mode,
+			a.payout_reference,
+			a.status,
+			a.notes,
+			a.created_at,
+			a.updated_at
+		from ` + source + ` a
+	`
+}
+
 func queryAdminMoneyPayoutReview(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -4585,6 +4878,11 @@ func subscriptionInvoiceOpen(err error) bool {
 func promotionCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "promotions_active_code_unique_idx"
+}
+
+func affiliateCodeTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "affiliates_code_unique_idx"
 }
 
 func nullableTextArg(value string) any {
