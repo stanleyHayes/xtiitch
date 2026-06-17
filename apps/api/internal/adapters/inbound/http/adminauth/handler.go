@@ -1767,6 +1767,25 @@ func (handler Handler) exportDatasetRows(
 			rows = append(rows, []string{record.DisplayName, record.Email, string(record.Role), boolCSV(record.IsActive, "Active", "Inactive"), timeCSV(record.CreatedAt), timeCSV(record.UpdatedAt)})
 		}
 		return rows, nil
+	case "roles":
+		records, err := handler.service.ListRolePermissions(ctx)
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Role", "Label", "Permission count", "Permissions"}}
+		for _, record := range records {
+			permissions := make([]string, 0, len(record.Permissions))
+			for _, permission := range record.Permissions {
+				permissions = append(permissions, permissionLabel(permission))
+			}
+			rows = append(rows, []string{
+				string(record.Role),
+				roleLabel(record.Role),
+				fmt.Sprint(len(record.Permissions)),
+				strings.Join(permissions, "; "),
+			})
+		}
+		return rows, nil
 	case "subscriptions":
 		records, err := handler.service.ListSubscriptions(ctx, adminauthapp.ListSubscriptionsCommand{ActorRole: principal.Role})
 		if err != nil {

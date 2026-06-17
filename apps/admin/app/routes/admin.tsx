@@ -157,6 +157,7 @@ type AdminExportDatasetId =
   | "support"
   | "audit"
   | "users"
+  | "roles"
   | "plans"
   | "subscriptions"
   | "promotions"
@@ -314,6 +315,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "support",
   "audit",
   "users",
+  "roles",
   "plans",
   "subscriptions",
   "promotions",
@@ -3551,6 +3553,7 @@ function ExportsSection({
   adminBusinesses,
   verificationCases,
   moneyRails,
+  roleCatalog,
   plans,
   subscriptions,
   promotions,
@@ -3565,6 +3568,7 @@ function ExportsSection({
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
+  roleCatalog: AdminRoleDefinition[];
   plans: AdminPlan[];
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
@@ -3859,6 +3863,25 @@ function ExportsSection({
           user.isActive ? "Active" : "Inactive",
           timeOrFallback(user.createdAt),
           timeOrFallback(user.updatedAt),
+        ]),
+      ],
+    },
+    {
+      id: "roles",
+      title: "Roles and permissions",
+      helper: "RBAC grant matrix for owner, operator, and support roles.",
+      source: "roles",
+      sourceLabel: "Open roles",
+      tone: roleCatalog.some((role) => role.permissions.length === 0)
+        ? "watch"
+        : "ready",
+      rows: [
+        ["Role", "Label", "Permission count", "Permissions"],
+        ...roleCatalog.map((role) => [
+          role.role,
+          role.label,
+          role.permissions.length,
+          role.permissions.join("; "),
         ]),
       ],
     },
@@ -9003,6 +9026,7 @@ export default function AdminDashboard({
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
+              roleCatalog={roleCatalog}
               plans={plans}
               subscriptions={subscriptions}
               promotions={promotions}
