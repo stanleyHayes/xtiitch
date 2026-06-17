@@ -2487,6 +2487,39 @@ func (handler Handler) exportDatasetRows(
 			})
 		}
 		return rows, nil
+	case "referral-programmes":
+		records, err := handler.service.ListReferralProgrammes(ctx, adminauthapp.ListReferralProgrammesCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Programme", "Code prefix", "Audience", "Referrer reward", "New customer reward", "Reward", "Reward cap", "Minimum order", "Hold days", "Status", "Starts", "Ends", "Notes", "Updated"}}
+		for _, record := range records {
+			reward := moneyCSV(record.RewardValue)
+			if record.RewardType == "percentage" {
+				reward = fmt.Sprintf("%.2f%%", float64(record.RewardValue)/100)
+			}
+			rewardCap := ""
+			if record.MaxRewardMinor != nil {
+				rewardCap = moneyCSV(*record.MaxRewardMinor)
+			}
+			rows = append(rows, []string{
+				record.Title,
+				record.CodePrefix,
+				record.Audience,
+				record.ReferrerRewardKind,
+				record.RefereeRewardKind,
+				reward,
+				rewardCap,
+				moneyCSV(record.QualifyingOrderMinMinor),
+				fmt.Sprintf("%d days", record.RewardHoldDays),
+				record.Status,
+				optionalTimeCSV(record.StartsAt),
+				optionalTimeCSV(record.EndsAt),
+				record.Notes,
+				timeCSV(record.UpdatedAt),
+			})
+		}
+		return rows, nil
 	case "promotion-redemptions":
 		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
 		if err != nil {

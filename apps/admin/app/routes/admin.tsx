@@ -152,6 +152,7 @@ type AdminNotificationCategory =
   | "promotions"
   | "ads"
   | "affiliates"
+  | "referrals"
   | "risk"
   | "support"
   | "platform"
@@ -185,6 +186,7 @@ type AdminExportDatasetId =
   | "promotions"
   | "ad-campaigns"
   | "affiliates"
+  | "referral-programmes"
   | "promotion-redemptions";
 type AdminReportItem = {
   id: string;
@@ -364,6 +366,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "promotions",
   "ad-campaigns",
   "affiliates",
+  "referral-programmes",
   "promotion-redemptions",
 ];
 
@@ -2049,6 +2052,8 @@ function notificationCategoryLabel(
       return "Sponsored placements";
     case "affiliates":
       return "Affiliate programmes";
+    case "referrals":
+      return "Referral programmes";
     case "risk":
       return "Risk";
     case "support":
@@ -2076,6 +2081,8 @@ function notificationCategoryWatched(
     case "ads":
       return preferences.alertPromotions;
     case "affiliates":
+      return preferences.alertPromotions;
+    case "referrals":
       return preferences.alertPromotions;
     case "risk":
       return preferences.alertRisk;
@@ -2119,6 +2126,7 @@ function buildAdminNotifications({
   promotions,
   adCampaigns,
   affiliates,
+  referralProgrammes,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -2131,6 +2139,7 @@ function buildAdminNotifications({
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
   affiliates: AdminAffiliate[];
+  referralProgrammes: AdminReferralProgramme[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -2291,6 +2300,30 @@ function buildAdminNotifications({
       });
     });
 
+  referralProgrammes
+    .filter(
+      (programme) =>
+        programme.status === "draft" || programme.status === "paused",
+    )
+    .slice(0, 4)
+    .forEach((programme) => {
+      notifications.push({
+        id: `referral-programme-${programme.programmeId}`,
+        tone: programme.status === "draft" ? "warning" : "info",
+        category: "referrals",
+        title: `${programme.title} is ${referralStatusLabel(programme.status)}`,
+        helper: `${programme.codePrefix} · ${referralRewardLabel(
+          programme,
+        )} · ${referralAudienceLabel(programme.audience)}`,
+        meta: `${formatGHS(
+          programme.qualifyingOrderMinMinor,
+        )} qualifying order`,
+        source: programme.codePrefix,
+        target: "referrals",
+        targetLabel: "Open referrals",
+      });
+    });
+
   riskReviews
     .filter((review) => review.status === "open")
     .slice(0, 4)
@@ -2378,7 +2411,7 @@ function buildAdminNotifications({
       category: "platform",
       title: "No admin alerts waiting",
       helper:
-        "Verification, money rails, ads, affiliates, risk, and support are clear right now.",
+        "Verification, money rails, ads, affiliates, referrals, risk, and support are clear right now.",
       meta: "Live queue",
       source: "Admin console",
       target: "overview",
@@ -3153,6 +3186,9 @@ function NotificationsSection({
     { value: "money", label: "Money" },
     { value: "subscriptions", label: "Subscriptions" },
     { value: "promotions", label: "Promotions" },
+    { value: "ads", label: "Ads" },
+    { value: "affiliates", label: "Affiliates" },
+    { value: "referrals", label: "Referrals" },
     { value: "risk", label: "Risk" },
     { value: "support", label: "Support" },
     { value: "platform", label: "Platform" },
@@ -3603,6 +3639,7 @@ function ReportsSection({
   promotions,
   adCampaigns,
   affiliates,
+  referralProgrammes,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3617,6 +3654,7 @@ function ReportsSection({
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
   affiliates: AdminAffiliate[];
+  referralProgrammes: AdminReferralProgramme[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3689,6 +3727,18 @@ function ReportsSection({
   );
   const paystackAffiliates = affiliates.filter((affiliate) =>
     affiliate.payoutMode.startsWith("paystack"),
+  );
+  const activeReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "active",
+  );
+  const draftReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "draft",
+  );
+  const pausedReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "paused",
+  );
+  const archivedReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "archived",
   );
   const openRisks = riskReviews.filter((review) => review.status === "open");
   const urgentSupport = supportTickets.filter(
@@ -3790,6 +3840,18 @@ function ReportsSection({
       status: pendingAffiliates.length > 0 ? "watch" : "ready",
       target: "affiliates",
       targetLabel: "Open affiliates",
+    },
+    {
+      id: "referrals",
+      label: "Referral programmes",
+      value: `${draftReferralProgrammes.length + pausedReferralProgrammes.length} signals`,
+      helper:
+        draftReferralProgrammes.length > 0
+          ? `${activeReferralProgrammes.length} active programmes · ${draftReferralProgrammes.length} drafts need final review.`
+          : `${activeReferralProgrammes.length} active programmes · ${archivedReferralProgrammes.length} archived.`,
+      status: draftReferralProgrammes.length > 0 ? "watch" : "ready",
+      target: "referrals",
+      targetLabel: "Open referrals",
     },
     {
       id: "risk",
@@ -4159,6 +4221,7 @@ function ExportsSection({
   promotions,
   adCampaigns,
   affiliates,
+  referralProgrammes,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -4177,6 +4240,7 @@ function ExportsSection({
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
   affiliates: AdminAffiliate[];
+  referralProgrammes: AdminReferralProgramme[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -4196,6 +4260,9 @@ function ExportsSection({
   );
   const pendingAffiliates = affiliates.filter(
     (affiliate) => affiliate.status === "pending_review",
+  );
+  const draftReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "draft",
   );
   const exportDatasets: AdminExportDataset[] = [
     {
@@ -4785,6 +4852,47 @@ function ExportsSection({
       ],
     },
     {
+      id: "referral-programmes",
+      title: "Referral programmes",
+      helper:
+        "Code prefixes, audiences, reward economics, qualifying order minimums, hold windows, schedules, and status.",
+      source: "referrals",
+      sourceLabel: "Open referrals",
+      tone: draftReferralProgrammes.length > 0 ? "watch" : "ready",
+      rows: [
+        [
+          "Programme",
+          "Code prefix",
+          "Audience",
+          "Referrer reward",
+          "New customer reward",
+          "Reward",
+          "Minimum order",
+          "Hold days",
+          "Status",
+          "Starts",
+          "Ends",
+          "Notes",
+          "Updated",
+        ],
+        ...referralProgrammes.map((programme) => [
+          programme.title,
+          programme.codePrefix,
+          referralAudienceLabel(programme.audience),
+          referralRewardKindLabel(programme.referrerRewardKind),
+          referralRefereeRewardKindLabel(programme.refereeRewardKind),
+          referralRewardLabel(programme),
+          formatGHS(programme.qualifyingOrderMinMinor),
+          programme.rewardHoldDays,
+          referralStatusLabel(programme.status),
+          programme.startsAt ? shortTime(programme.startsAt) : "",
+          programme.endsAt ? shortTime(programme.endsAt) : "",
+          programme.notes,
+          shortTime(programme.updatedAt),
+        ]),
+      ],
+    },
+    {
       id: "promotion-redemptions",
       title: "Recent promotion redemptions",
       helper:
@@ -4993,6 +5101,7 @@ function HealthSection({
   promotions,
   adCampaigns,
   affiliates,
+  referralProgrammes,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -5008,6 +5117,7 @@ function HealthSection({
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
   affiliates: AdminAffiliate[];
+  referralProgrammes: AdminReferralProgramme[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -5074,6 +5184,15 @@ function HealthSection({
   );
   const manualPayoutAffiliates = affiliates.filter(
     (affiliate) => affiliate.payoutMode === "manual",
+  );
+  const activeReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "active",
+  );
+  const draftReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "draft",
+  );
+  const pausedReferralProgrammes = referralProgrammes.filter(
+    (programme) => programme.status === "paused",
   );
   const paymentHealth = platformMetrics?.paymentHealthBps ?? 0;
   const healthSignals: AdminReportItem[] = [
@@ -5149,6 +5268,18 @@ function HealthSection({
           : "ready",
       target: "affiliates",
       targetLabel: "Open affiliates",
+    },
+    {
+      id: "referrals",
+      label: "Referral programmes",
+      value: `${activeReferralProgrammes.length} active`,
+      helper:
+        draftReferralProgrammes.length > 0
+          ? `${draftReferralProgrammes.length} draft programmes need operator review before launch.`
+          : `${pausedReferralProgrammes.length} paused programmes are retained for audit and future relaunch.`,
+      status: draftReferralProgrammes.length > 0 ? "watch" : "ready",
+      target: "referrals",
+      targetLabel: "Open referrals",
     },
     {
       id: "kyc",
@@ -11342,6 +11473,7 @@ export default function AdminDashboard({
     promotions,
     adCampaigns,
     affiliates,
+    referralProgrammes,
     riskReviews,
     supportTickets,
     auditEvents,
@@ -11678,6 +11810,7 @@ export default function AdminDashboard({
               promotions={promotions}
               adCampaigns={adCampaigns}
               affiliates={affiliates}
+              referralProgrammes={referralProgrammes}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -11700,6 +11833,7 @@ export default function AdminDashboard({
               promotions={promotions}
               adCampaigns={adCampaigns}
               affiliates={affiliates}
+              referralProgrammes={referralProgrammes}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -11719,6 +11853,7 @@ export default function AdminDashboard({
               promotions={promotions}
               adCampaigns={adCampaigns}
               affiliates={affiliates}
+              referralProgrammes={referralProgrammes}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
