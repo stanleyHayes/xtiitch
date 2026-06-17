@@ -1777,6 +1777,32 @@ func (handler Handler) exportDatasetRows(
 			rows = append(rows, []string{record.BusinessName, record.Handle, record.PlanName, record.Status, record.BillingMode, moneyCSV(record.MonthlyFeeMinor), record.LastInvoiceRef, optionalTimeCSV(record.LastPaymentAt), optionalTimeCSV(record.NextBillingAt)})
 		}
 		return rows, nil
+	case "plans":
+		records, err := handler.service.ListPlans(ctx, adminauthapp.ListPlansCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Name", "Code", "Active", "Monthly fee", "Commission", "Design limit", "Businesses", "Active subscriptions", "Estimated MRR", "Created", "Updated"}}
+		for _, record := range records {
+			designLimit := "Unlimited"
+			if record.DesignLimit != nil {
+				designLimit = fmt.Sprint(*record.DesignLimit)
+			}
+			rows = append(rows, []string{
+				record.Name,
+				record.Code,
+				boolCSV(record.IsActive, "Active", "Archived"),
+				moneyCSV(record.MonthlyFeeMinor),
+				fmt.Sprintf("%.2f%%", float64(record.CommissionBPS)/100),
+				designLimit,
+				fmt.Sprint(record.BusinessCount),
+				fmt.Sprint(record.ActiveSubscriptionCount),
+				moneyCSV(record.EstimatedMRRMinor),
+				timeCSV(record.CreatedAt),
+				timeCSV(record.UpdatedAt),
+			})
+		}
+		return rows, nil
 	case "promotions":
 		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
 		if err != nil {

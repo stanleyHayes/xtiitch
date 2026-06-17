@@ -157,6 +157,7 @@ type AdminExportDatasetId =
   | "support"
   | "audit"
   | "users"
+  | "plans"
   | "subscriptions"
   | "promotions"
   | "promotion-redemptions";
@@ -313,6 +314,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "support",
   "audit",
   "users",
+  "plans",
   "subscriptions",
   "promotions",
   "promotion-redemptions",
@@ -3549,6 +3551,7 @@ function ExportsSection({
   adminBusinesses,
   verificationCases,
   moneyRails,
+  plans,
   subscriptions,
   promotions,
   riskReviews,
@@ -3562,6 +3565,7 @@ function ExportsSection({
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
+  plans: AdminPlan[];
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   riskReviews: AdminRiskReview[];
@@ -3855,6 +3859,42 @@ function ExportsSection({
           user.isActive ? "Active" : "Inactive",
           timeOrFallback(user.createdAt),
           timeOrFallback(user.updatedAt),
+        ]),
+      ],
+    },
+    {
+      id: "plans",
+      title: "Plan packages",
+      helper: "Package pricing, commission, tenant count, and MRR snapshot.",
+      source: "subscriptions",
+      sourceLabel: "Open plans",
+      tone: plans.some((plan) => !plan.isActive) ? "watch" : "ready",
+      rows: [
+        [
+          "Name",
+          "Code",
+          "Active",
+          "Monthly fee",
+          "Commission",
+          "Design limit",
+          "Businesses",
+          "Active subscriptions",
+          "Estimated MRR",
+          "Created",
+          "Updated",
+        ],
+        ...plans.map((plan) => [
+          plan.name,
+          plan.code,
+          plan.isActive ? "Active" : "Archived",
+          formatGHS(plan.monthlyFeeMinor),
+          `${(plan.commissionBps / 100).toFixed(2)}%`,
+          typeof plan.designLimit === "number" ? plan.designLimit : "Unlimited",
+          plan.businessCount,
+          plan.activeSubscriptionCount,
+          formatGHS(plan.estimatedMrrMinor),
+          shortTime(plan.createdAt),
+          shortTime(plan.updatedAt),
         ]),
       ],
     },
@@ -8963,6 +9003,7 @@ export default function AdminDashboard({
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
+              plans={plans}
               subscriptions={subscriptions}
               promotions={promotions}
               riskReviews={riskReviews}
