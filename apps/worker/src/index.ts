@@ -2,15 +2,19 @@ import "dotenv/config";
 
 import { Queue, QueueEvents, Worker } from "bullmq";
 
+import { PostgresSubscriptionBillingSweepStore, runSubscriptionBillingSweep } from "./billing";
 import { loadConfig } from "./config";
 import { drainOutbox, PostgresOutboxStore } from "./outbox";
 import { createNotificationSender } from "./senders";
 
 const drainJobName = "drain-notification-outbox";
 const drainJobId = "notification-outbox-drain";
+const billingSweepJobName = "run-subscription-billing-sweep";
+const billingSweepJobId = "subscription-billing-sweep";
 
 const config = loadConfig();
 const store = new PostgresOutboxStore(config.databaseUrl);
+const billingStore = new PostgresSubscriptionBillingSweepStore(config.databaseUrl);
 const sender = createNotificationSender({
   transport: config.notificationTransport,
   http: config.notificationHttp,
@@ -20,23 +24,42 @@ const queue = new Queue(config.queueName, { connection: config.redisConnection }
 const worker = new Worker(
   config.queueName,
   async (job) => {
-    if (job.name !== drainJobName) {
-      console.log({ jobId: job.id, jobName: job.name }, "ignored unsupported worker job");
-      return;
+    switch (job.name) {
+      case drainJobName: {
+        const summary = await drainOutbox({
+          store,
+          sender,
+          batchSize: config.outboxBatchSize,
+          leaseSeconds: config.outboxLeaseSeconds,
+          retryPolicy: {
+            maxAttempts: config.outboxMaxAttempts,
+            baseDelayMs: config.outboxRetryBaseDelayMs,
+            maxDelayMs: config.outboxRetryMaxDelayMs,
+          },
+        });
+        console.log({ jobId: job.id, ...summary }, "notification outbox drained");
+        return;
+      }
+      case billingSweepJobName: {
+        const summary = await runSubscriptionBillingSweep({
+          store: billingStore,
+          reason: "Scheduled worker billing sweep.",
+        });
+        console.log(
+          {
+            jobId: job.id,
+            overdueInvoicesFailed: summary.overdueInvoicesFailed,
+            subscriptionsCanceled: summary.subscriptionsCanceled,
+            businessesTouched: summary.businessesTouched,
+            ranAt: summary.ranAt.toISOString(),
+          },
+          "subscription billing sweep completed",
+        );
+        return;
+      }
+      default:
+        console.log({ jobId: job.id, jobName: job.name }, "ignored unsupported worker job");
     }
-
-    const summary = await drainOutbox({
-      store,
-      sender,
-      batchSize: config.outboxBatchSize,
-      leaseSeconds: config.outboxLeaseSeconds,
-      retryPolicy: {
-        maxAttempts: config.outboxMaxAttempts,
-        baseDelayMs: config.outboxRetryBaseDelayMs,
-        maxDelayMs: config.outboxRetryMaxDelayMs,
-      },
-    });
-    console.log({ jobId: job.id, ...summary }, "notification outbox drained");
   },
   { connection: config.redisConnection, concurrency: 1 },
 );
@@ -70,6 +93,35 @@ if (config.outboxDrainEnabled) {
   );
 }
 
+if (config.subscriptionBillingSweepEnabled) {
+  await queue.add(
+    billingSweepJobName,
+    {},
+    {
+      jobId: billingSweepJobId,
+      repeat: { every: config.subscriptionBillingSweepIntervalMs },
+      removeOnComplete: true,
+      removeOnFail: 50,
+    },
+  );
+  await queue.add(
+    billingSweepJobName,
+    {},
+    {
+      jobId: `${billingSweepJobId}:startup`,
+      removeOnComplete: true,
+      removeOnFail: 50,
+    },
+  );
+  console.log(
+    {
+      queueName: config.queueName,
+      sweepIntervalMs: config.subscriptionBillingSweepIntervalMs,
+    },
+    "subscription billing sweep worker scheduled",
+  );
+}
+
 let isShuttingDown = false;
 
 const shutdown = async () => {
@@ -81,6 +133,7 @@ const shutdown = async () => {
   await worker.close();
   await queue.close();
   await store.close();
+  await billingStore.close();
 };
 
 process.on("SIGINT", () => {

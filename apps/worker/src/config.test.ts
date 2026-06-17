@@ -8,6 +8,8 @@ test("loadConfig defaults to the log notification transport", () => {
 
   assert.equal(config.notificationTransport, "log");
   assert.equal(config.notificationHttp, undefined);
+  assert.equal(config.subscriptionBillingSweepEnabled, true);
+  assert.equal(config.subscriptionBillingSweepIntervalMs, 3_600_000);
 });
 
 test("loadConfig requires HTTP transport credentials", () => {
@@ -43,4 +45,14 @@ test("loadConfig parses HTTP notification transport settings", () => {
     from: "Xtiitch Local",
     timeoutMs: 3000,
   });
+});
+
+test("loadConfig parses subscription billing sweep settings", () => {
+  const config = loadConfig({
+    SUBSCRIPTION_BILLING_SWEEP_ENABLED: "false",
+    SUBSCRIPTION_BILLING_SWEEP_INTERVAL_MS: "60000",
+  });
+
+  assert.equal(config.subscriptionBillingSweepEnabled, false);
+  assert.equal(config.subscriptionBillingSweepIntervalMs, 60_000);
 });

@@ -21,6 +21,8 @@ export type WorkerConfig = {
   outboxMaxAttempts: number;
   outboxRetryBaseDelayMs: number;
   outboxRetryMaxDelayMs: number;
+  subscriptionBillingSweepEnabled: boolean;
+  subscriptionBillingSweepIntervalMs: number;
   notificationTransport: NotificationTransportName;
   notificationHttp?: NotificationHttpConfig;
 };
@@ -44,6 +46,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     outboxMaxAttempts: parsePositiveInteger(env.OUTBOX_MAX_ATTEMPTS, 5),
     outboxRetryBaseDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_BASE_DELAY_MS, 60_000),
     outboxRetryMaxDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_MAX_DELAY_MS, 3_600_000),
+    subscriptionBillingSweepEnabled: parseBoolean(
+      env.SUBSCRIPTION_BILLING_SWEEP_ENABLED,
+      true,
+    ),
+    subscriptionBillingSweepIntervalMs: parsePositiveInteger(
+      env.SUBSCRIPTION_BILLING_SWEEP_INTERVAL_MS,
+      3_600_000,
+    ),
     notificationTransport,
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
   };
