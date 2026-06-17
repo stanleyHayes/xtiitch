@@ -1787,6 +1787,39 @@ func (handler Handler) exportDatasetRows(
 			rows = append(rows, []string{record.Title, record.Code, fallbackText(record.BusinessName, "Platform-wide"), record.Status, record.DiscountType, fmt.Sprint(record.DiscountValue), record.FundingSource, record.Scope, fmt.Sprint(record.RedemptionCount), moneyCSV(record.DiscountRedeemedMinor)})
 		}
 		return rows, nil
+	case "promotion-redemptions":
+		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Promotion", "Code", "Business", "Business ID", "Customer", "Customer ID", "Order ID", "Status", "Discount", "Redeemed at", "Created at", "Updated at"}}
+		for _, record := range records {
+			for _, redemption := range record.RecentRedemptions {
+				customerID := ""
+				if redemption.CustomerID != nil {
+					customerID = redemption.CustomerID.String()
+				}
+				orderID := ""
+				if redemption.OrderID != nil {
+					orderID = redemption.OrderID.String()
+				}
+				rows = append(rows, []string{
+					record.Title,
+					record.Code,
+					fallbackText(record.BusinessName, "Platform-wide"),
+					redemption.BusinessID.String(),
+					fallbackText(redemption.CustomerName, "Unknown customer"),
+					customerID,
+					orderID,
+					redemption.Status,
+					moneyCSV(redemption.DiscountMinor),
+					optionalTimeCSV(redemption.RedeemedAt),
+					timeCSV(redemption.CreatedAt),
+					timeCSV(redemption.UpdatedAt),
+				})
+			}
+		}
+		return rows, nil
 	default:
 		return nil, ports.ErrNotFound
 	}

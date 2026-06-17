@@ -156,7 +156,8 @@ type AdminExportDatasetId =
   | "audit"
   | "users"
   | "subscriptions"
-  | "promotions";
+  | "promotions"
+  | "promotion-redemptions";
 type AdminReportItem = {
   id: string;
   label: string;
@@ -312,6 +313,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "users",
   "subscriptions",
   "promotions",
+  "promotion-redemptions",
 ];
 
 const ghs = new Intl.NumberFormat("en-GH", {
@@ -3406,6 +3408,7 @@ function ExportsSection({
   riskReviews,
   supportTickets,
   auditEvents,
+  promotions,
   onSelect,
 }: {
   platformMetrics: AdminPlatformMetrics | null;
@@ -3417,11 +3420,18 @@ function ExportsSection({
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
+  promotions: AdminPromotion[];
   onSelect: (section: Section) => void;
 }) {
   const timeOrFallback = (value?: string) => (value ? shortTime(value) : "");
   const moneyWebhookEvents = moneyRails?.webhookEvents ?? [];
   const moneyPayoutReviews = moneyRails?.payoutReviews ?? [];
+  const promotionRedemptions = promotions.flatMap((promotion) =>
+    promotion.recentRedemptions.map((redemption) => ({
+      promotion,
+      redemption,
+    })),
+  );
   const exportDatasets: AdminExportDataset[] = [
     {
       id: "report-posture",
@@ -3699,6 +3709,87 @@ function ExportsSection({
           user.isActive ? "Active" : "Inactive",
           timeOrFallback(user.createdAt),
           timeOrFallback(user.updatedAt),
+        ]),
+      ],
+    },
+    {
+      id: "promotions",
+      title: "Promotions",
+      helper: "Voucher rules, targeting, funding, usage, and redeemed value.",
+      source: "promotions",
+      sourceLabel: "Open promotions",
+      tone: promotions.some((promotion) => promotion.status === "paused")
+        ? "watch"
+        : "ready",
+      rows: [
+        [
+          "Title",
+          "Code",
+          "Business",
+          "Status",
+          "Type",
+          "Value",
+          "Funding",
+          "Scope",
+          "Redemptions",
+          "Discount redeemed",
+        ],
+        ...promotions.map((promotion) => [
+          promotion.title,
+          promotion.code,
+          promotion.businessName || "Platform-wide",
+          promotion.status,
+          promotion.discountType,
+          promotion.discountType === "percentage"
+            ? `${(promotion.discountValue / 100).toFixed(1)}%`
+            : formatGHS(promotion.discountValue),
+          promotion.fundingSource,
+          promotion.scope,
+          promotion.redemptionCount,
+          formatGHS(promotion.discountRedeemedMinor),
+        ]),
+      ],
+    },
+    {
+      id: "promotion-redemptions",
+      title: "Recent promotion redemptions",
+      helper:
+        "Latest redemption rows per voucher with customer and order evidence.",
+      source: "promotions",
+      sourceLabel: "Open promotions",
+      tone: promotionRedemptions.some(
+        ({ redemption }) => redemption.status === "pending",
+      )
+        ? "watch"
+        : "ready",
+      rows: [
+        [
+          "Promotion",
+          "Code",
+          "Business",
+          "Business ID",
+          "Customer",
+          "Customer ID",
+          "Order ID",
+          "Status",
+          "Discount",
+          "Redeemed at",
+          "Created at",
+          "Updated at",
+        ],
+        ...promotionRedemptions.map(({ promotion, redemption }) => [
+          promotion.title,
+          promotion.code,
+          promotion.businessName || "Platform-wide",
+          redemption.businessId,
+          redemption.customerName || "Unknown customer",
+          redemption.customerId ?? "",
+          redemption.orderId ?? "",
+          redemption.status,
+          formatGHS(redemption.discountMinor),
+          timeOrFallback(redemption.redeemedAt),
+          shortTime(redemption.createdAt),
+          shortTime(redemption.updatedAt),
         ]),
       ],
     },
@@ -8623,6 +8714,7 @@ export default function AdminDashboard({
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
+              promotions={promotions}
               onSelect={setSection}
             />
           ) : null}
