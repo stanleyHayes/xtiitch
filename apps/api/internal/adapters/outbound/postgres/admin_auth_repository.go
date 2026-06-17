@@ -273,6 +273,7 @@ func (repo AdminAuthRepository) ListAdminRolePermissions(ctx context.Context) ([
 					'manage_subscriptions',
 					'manage_plans',
 					'manage_promotions',
+					'manage_ads',
 					'manage_risk',
 					'manage_support',
 				'view_audit'

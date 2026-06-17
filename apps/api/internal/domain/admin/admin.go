@@ -21,6 +21,7 @@ const (
 	PermissionManageSubscriptions Permission = "manage_subscriptions"
 	PermissionManagePlans         Permission = "manage_plans"
 	PermissionManagePromotions    Permission = "manage_promotions"
+	PermissionManageAds           Permission = "manage_ads"
 	PermissionManageRisk          Permission = "manage_risk"
 	PermissionManageSupport       Permission = "manage_support"
 	PermissionViewAudit           Permission = "view_audit"
@@ -53,6 +54,7 @@ func (role Role) Permissions() []Permission {
 			PermissionManageSubscriptions,
 			PermissionManagePlans,
 			PermissionManagePromotions,
+			PermissionManageAds,
 			PermissionManageRisk,
 			PermissionManageSupport,
 			PermissionViewAudit,
@@ -64,6 +66,7 @@ func (role Role) Permissions() []Permission {
 			PermissionManageSubscriptions,
 			PermissionManagePlans,
 			PermissionManagePromotions,
+			PermissionManageAds,
 			PermissionManageRisk,
 			PermissionManageSupport,
 			PermissionViewAudit,
@@ -110,6 +113,7 @@ func PermissionCatalog() []Permission {
 		PermissionManageSubscriptions,
 		PermissionManagePlans,
 		PermissionManagePromotions,
+		PermissionManageAds,
 		PermissionManageRisk,
 		PermissionManageSupport,
 		PermissionViewAudit,
