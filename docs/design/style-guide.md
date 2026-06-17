@@ -42,8 +42,8 @@ Do not let the app become one-note burgundy. Burgundy is the signature, not the 
 
 Use typography to separate public storytelling from operational work:
 
-- Marketing web: use `Fraunces` for large page and section headings, and `Manrope` for body copy, navigation, cards, forms, buttons, and metadata.
-- Product web: use `Manrope` or the shared sans-serif stack. Avoid display type inside dense dashboards unless a specific brand surface calls for it.
+- Marketing web: use `DM Serif Display` for large page and section headings, and `Instrument Sans` for body copy, navigation, cards, forms, buttons, and metadata.
+- Product web: use `DM Serif Display` for headings and `Instrument Sans` for dense dashboard body/UI text. Keep operational headings compact and do not use decorative alternates beyond the shared title face.
 - Mobile: use the platform system font through React Native until a native-safe brand type plan is chosen.
 - Avoid narrow, fragile, or overly decorative fashion fonts in operational UI.
 - Headings should be confident but compact.
@@ -86,7 +86,7 @@ Storefront surfaces should prioritize browsing:
 Marketing pages should feel specific to fashion operators:
 
 - Keep the page content from the approved marketing plan, but present it with editorial rhythm, generous whitespace, and clear conversion paths.
-- Page heroes should use the cream grid, large `Fraunces` title, and a dark brand panel with a page-specific icon watermark.
+- Page heroes should use the cream grid, large `DM Serif Display` title, and a dark brand panel with a page-specific icon watermark.
 - Do not squeeze fake dashboard screens into hero panels. Use real product screenshots only when the dashboard exists and can be shown accurately.
 - Use page-specific icon watermarks as quiet background identity, not as generic decoration.
 - Contact, pricing, security, customer, legal, and feature pages should all feel like parts of one system, not unrelated templates.

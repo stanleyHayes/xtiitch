@@ -7,6 +7,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -52,6 +53,24 @@ func (issuer JWTIssuer) IssueAccessToken(_ context.Context, input ports.AccessTo
 	return token.SignedString(issuer.signingKey)
 }
 
+func (issuer JWTIssuer) IssueAdminAccessToken(_ context.Context, input ports.AdminAccessTokenInput) (string, error) {
+	claims := jwt.MapClaims{
+		"aud":   issuer.audience,
+		"exp":   input.ExpiresAt.Unix(),
+		"iat":   input.IssuedAt.Unix(),
+		"iss":   issuer.issuer,
+		"role":  string(input.Role),
+		"scope": "admin",
+		"sub":   input.Subject.String(),
+		"typ":   "admin_access",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token.Header["kid"] = "default"
+
+	return token.SignedString(issuer.signingKey)
+}
+
 func (issuer JWTIssuer) VerifyAccessToken(_ context.Context, tokenString string) (ports.VerifiedAccessToken, error) {
 	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {
@@ -81,6 +100,40 @@ func (issuer JWTIssuer) VerifyAccessToken(_ context.Context, tokenString string)
 		Subject:    common.ID(subject),
 		BusinessID: common.ID(businessID),
 		Role:       business.UserRole(role),
+	}, nil
+}
+
+func (issuer JWTIssuer) VerifyAdminAccessToken(_ context.Context, tokenString string) (ports.VerifiedAdminAccessToken, error) {
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {
+		return issuer.signingKey, nil
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(issuer.issuer),
+		jwt.WithAudience(issuer.audience),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil || !token.Valid {
+		return ports.VerifiedAdminAccessToken{}, ErrInvalidToken
+	}
+
+	if tokenType, _ := claims["typ"].(string); tokenType != "admin_access" {
+		return ports.VerifiedAdminAccessToken{}, ErrInvalidToken
+	}
+	if scope, _ := claims["scope"].(string); scope != "admin" {
+		return ports.VerifiedAdminAccessToken{}, ErrInvalidToken
+	}
+
+	subject, _ := claims["sub"].(string)
+	roleValue, _ := claims["role"].(string)
+	role := admindomain.Role(roleValue)
+	if subject == "" || !role.Valid() {
+		return ports.VerifiedAdminAccessToken{}, ErrInvalidToken
+	}
+
+	return ports.VerifiedAdminAccessToken{
+		Subject: common.ID(subject),
+		Role:    role,
 	}, nil
 }
 

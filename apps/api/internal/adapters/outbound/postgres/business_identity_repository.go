@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 // ErrNotFound aliases the port-level not-found sentinel so handlers can map it
@@ -163,6 +164,175 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 	}
 
 	return credentials, nil
+}
+
+func (repo BusinessIdentityRepository) ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		select
+			business_user_id::text,
+			business_id::text,
+			email,
+			display_name,
+			role,
+			is_active,
+			created_at,
+			updated_at
+		from business_users
+		where business_id = $1
+		order by
+			case role
+				when 'owner' then 1
+				when 'admin' then 2
+				else 3
+			end,
+			lower(display_name),
+			created_at
+	`, scope.BusinessID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []ports.BusinessUserRecord
+	for rows.Next() {
+		user, err := scanBusinessUserRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
+
+func (repo BusinessIdentityRepository) CreateBusinessUser(ctx context.Context, scope common.TenantScope, input ports.CreateBusinessUserInput) (ports.BusinessUserRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	user, err := scanBusinessUserRecord(tx.QueryRow(ctx, `
+		insert into business_users (
+			business_user_id,
+			business_id,
+			email,
+			display_name,
+			password_hash,
+			role,
+			is_active
+		)
+		values ($1, $2, $3, $4, $5, $6, true)
+		returning
+			business_user_id::text,
+			business_id::text,
+			email,
+			display_name,
+			role,
+			is_active,
+			created_at,
+			updated_at
+	`, input.UserID.String(), input.BusinessID.String(), input.Email, input.DisplayName, input.PasswordHash, string(input.Role)))
+	if err != nil {
+		if businessUserEmailTaken(err) {
+			return ports.BusinessUserRecord{}, business.ErrUserEmailTaken
+		}
+		return ports.BusinessUserRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	return user, nil
+}
+
+func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserInput) (ports.BusinessUserRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	user, err := scanBusinessUserRecord(tx.QueryRow(ctx, `
+		update business_users
+		set display_name = $3,
+			role = $4,
+			is_active = $5,
+			updated_at = now()
+		where business_user_id = $1
+			and business_id = $2
+			and role <> 'owner'
+		returning
+			business_user_id::text,
+			business_id::text,
+			email,
+			display_name,
+			role,
+			is_active,
+			created_at,
+			updated_at
+	`, input.UserID.String(), scope.BusinessID.String(), input.DisplayName, string(input.Role), input.IsActive))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.BusinessUserRecord{}, ports.ErrNotFound
+		}
+		return ports.BusinessUserRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	return user, nil
+}
+
+func scanBusinessUserRecord(row pgx.Row) (ports.BusinessUserRecord, error) {
+	var user ports.BusinessUserRecord
+	var role string
+	if err := row.Scan(
+		&user.UserID,
+		&user.BusinessID,
+		&user.Email,
+		&user.DisplayName,
+		&role,
+		&user.IsActive,
+		&user.CreatedAt,
+		&user.UpdatedAt,
+	); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+	user.Role = business.UserRole(role)
+	return user, nil
+}
+
+func businessUserEmailTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "business_users_business_email_unique_idx"
 }
 
 func rollbackUnlessCommitted(ctx context.Context, tx pgx.Tx) {

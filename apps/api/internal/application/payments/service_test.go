@@ -48,6 +48,58 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	}
 }
 
+func TestInitiateChargeAcceptsCommissionOverride(t *testing.T) {
+	t.Parallel()
+
+	override := int64(1500)
+	provider := &fakeProvider{verifySig: true, initResult: ports.InitializeTransactionResult{AuthorizationURL: "https://pay/x"}}
+	payments := &fakePaymentRepo{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
+	}}
+	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+
+	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:                   common.TenantScope{BusinessID: "business-1"},
+		Purpose:                 money.PaymentPurposeStandardFull,
+		AmountMinor:             45000,
+		CommissionMinorOverride: &override,
+		Method:                  money.PaymentMethodMomo,
+		CustomerEmail:           "buyer@example.com",
+	})
+	if err != nil {
+		t.Fatalf("initiate charge: %v", err)
+	}
+	if result.CommissionMinor != override {
+		t.Fatalf("expected override commission %d, got %d", override, result.CommissionMinor)
+	}
+	if provider.initInput.CommissionMinor != override || payments.created[0].CommissionMinor != override {
+		t.Fatalf("expected override to reach provider and payment row, provider=%+v payment=%+v", provider.initInput, payments.created[0])
+	}
+}
+
+func TestInitiateChargeRejectsInvalidCommissionOverride(t *testing.T) {
+	t.Parallel()
+
+	override := int64(6000)
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID: "business-1", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
+	}}
+	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+
+	_, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:                   common.TenantScope{BusinessID: "business-1"},
+		Purpose:                 money.PaymentPurposeStandardFull,
+		AmountMinor:             5000,
+		CommissionMinorOverride: &override,
+		Method:                  money.PaymentMethodMomo,
+		CustomerEmail:           "buyer@example.com",
+	})
+	if !errors.Is(err, ErrInvalidCharge) {
+		t.Fatalf("expected invalid charge for oversized commission override, got %v", err)
+	}
+}
+
 func TestInitiateChargeRejectsUnverifiedBusiness(t *testing.T) {
 	t.Parallel()
 

@@ -9,18 +9,27 @@ import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import CardMedia from "@mui/material/CardMedia";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
+import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
-import type { Design, StoreSummary } from "../lib/api";
+import type { Collection, Design, StoreSummary } from "../lib/api";
 import { priceLabel } from "../lib/format";
 import { tokens } from "../theme";
+
+const fallbackDesignImages = [
+  "/images/storefront-atelier-review.webp",
+  "/images/storefront-fitting.webp",
+  "/images/storefront-atelier-hero.webp",
+];
 
 // Readable text colour for an arbitrary brand background.
 function contrastText(hex: string): string {
@@ -37,42 +46,133 @@ function contrastText(hex: string): string {
 
 export function StoreHeader({
   store,
-  children,
+  designs,
+  query,
 }: {
   store: StoreSummary;
-  children?: ReactNode;
+  designs: Design[];
+  query: string;
 }) {
   const brand = store.brand_color || "#800020";
   const onBrand = contrastText(brand);
+  const customisableCount = designs.filter(
+    (design) => design.customisation_allowed,
+  ).length;
+  const pricedCount = designs.filter(
+    (design) => design.prices.length > 0,
+  ).length;
   return (
     <Box
       component="header"
       sx={{
-        bgcolor: brand,
         color: onBrand,
         position: "relative",
         overflow: "hidden",
-        borderBottom: "1px solid",
-        borderColor: alpha(onBrand, 0.14),
         backgroundImage: `
-          linear-gradient(${alpha(onBrand, 0.07)} 1px, transparent 1px),
-          linear-gradient(90deg, ${alpha(onBrand, 0.07)} 1px, transparent 1px),
-          linear-gradient(135deg, ${alpha("#000000", 0.18)}, transparent 46%)
+          linear-gradient(90deg, ${alpha(brand, 0.96)} 0%, ${alpha(brand, 0.88)} 46%, ${alpha(brand, 0.46)} 100%),
+          url("/images/storefront-atelier-hero.webp")
         `,
-        backgroundSize: "36px 36px, 36px 36px, auto",
+        backgroundSize: "cover",
+        backgroundPosition: "center",
+        minHeight: { xs: 500, md: 560 },
+        display: "flex",
+        flexDirection: "column",
         "&::after": {
           content: '""',
           position: "absolute",
-          inset: "auto -15% -70% auto",
-          width: 360,
-          height: 360,
-          borderRadius: "50%",
-          border: `1px solid ${alpha(onBrand, 0.18)}`,
+          inset: 0,
+          backgroundImage: `
+            linear-gradient(${alpha(onBrand, 0.08)} 1px, transparent 1px),
+            linear-gradient(90deg, ${alpha(onBrand, 0.08)} 1px, transparent 1px)
+          `,
+          backgroundSize: "44px 44px",
+          maskImage:
+            "linear-gradient(90deg, black 0%, black 58%, transparent 100%)",
+          pointerEvents: "none",
         },
       }}
     >
-      <Container sx={{ py: { xs: 4.5, md: 6.5 }, position: "relative" }}>
-        <Box sx={{ maxWidth: 760 }}>
+      <Container
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          py: 2,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 2,
+        }}
+      >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: 1.5,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: alpha(onBrand, 0.13),
+              border: "1px solid",
+              borderColor: alpha(onBrand, 0.18),
+              flexShrink: 0,
+            }}
+          >
+            <StorefrontOutlined />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 900 }} noWrap>
+              {store.name}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ opacity: 0.72, fontWeight: 800 }}
+              noWrap
+            >
+              {store.handle}.xtiitch.com
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ display: { xs: "none", sm: "flex" } }}
+        >
+          <Button
+            href="#designs"
+            variant="contained"
+            sx={{
+              bgcolor: alpha(onBrand, 0.92),
+              color: brand,
+              "&:hover": { bgcolor: onBrand },
+            }}
+          >
+            Browse pieces
+          </Button>
+          <Button
+            href="https://xtiitch.com"
+            variant="outlined"
+            sx={{
+              color: onBrand,
+              borderColor: alpha(onBrand, 0.32),
+              "&:hover": { borderColor: alpha(onBrand, 0.58) },
+            }}
+          >
+            About Xtiitch
+          </Button>
+        </Stack>
+      </Container>
+
+      <Container
+        sx={{
+          position: "relative",
+          zIndex: 1,
+          flex: 1,
+          display: "grid",
+          alignItems: "center",
+          py: { xs: 5, md: 7 },
+        }}
+      >
+        <Box sx={{ maxWidth: 720 }}>
           <Stack
             direction="row"
             spacing={1.2}
@@ -90,222 +190,46 @@ export function StoreHeader({
                 "& .MuiChip-icon": { color: alpha(onBrand, 0.78) },
               }}
             />
-            <Typography
-              variant="caption"
-              sx={{ opacity: 0.75, fontWeight: 900 }}
-            >
-              {store.handle}.xtiitch.com
-            </Typography>
+            <Chip
+              size="small"
+              label={`${designs.length} ${designs.length === 1 ? "piece" : "pieces"}`}
+              sx={{
+                color: onBrand,
+                bgcolor: alpha(onBrand, 0.12),
+                border: "1px solid",
+                borderColor: alpha(onBrand, 0.18),
+              }}
+            />
           </Stack>
-          <Typography variant="h3" component="h1">
+          <Typography
+            variant="h2"
+            component="h1"
+            sx={{
+              maxWidth: 680,
+              fontSize: { xs: "2.6rem", md: "4.15rem" },
+              lineHeight: 0.98,
+            }}
+          >
             {store.name}
           </Typography>
           <Typography
             sx={{
-              mt: 1.5,
-              opacity: 0.78,
+              mt: 2,
+              opacity: 0.82,
               maxWidth: 620,
-              fontSize: { xs: 16, md: 18 },
+              fontSize: { xs: 17, md: 20 },
             }}
           >
-            Browse pieces, check services, and start from the design that fits
-            the occasion.
+            Browse available pieces, choose a fit route, and start an order from
+            the design that feels right.
           </Typography>
-        </Box>
-        {children}
-      </Container>
-    </Box>
-  );
-}
 
-function StoreBrowseRail({
-  store,
-  designs,
-  query,
-}: {
-  store: StoreSummary;
-  designs: Design[];
-  query: string;
-}) {
-  const brand = store.brand_color || tokens.burgundy;
-  const onBrand = contrastText(brand);
-  const customisableCount = designs.filter(
-    (design) => design.customisation_allowed,
-  ).length;
-  const pricedCount = designs.filter(
-    (design) => design.prices.length > 0,
-  ).length;
-  const services = [
-    {
-      label: "Bespoke",
-      active: store.settings.bespoke_enabled,
-      helper: "Custom orders",
-    },
-    {
-      label: "Measurements",
-      active: store.settings.measurements_enabled,
-      helper: "Fit details",
-    },
-    {
-      label: "Delivery",
-      active:
-        store.settings.delivery_enabled || store.settings.dispatch_enabled,
-      helper: "Handover options",
-    },
-    {
-      label: "Collections",
-      active: store.settings.collections_enabled,
-      helper: "Grouped drops",
-    },
-  ];
-
-  return (
-    <Box
-      component="aside"
-      sx={{
-        position: { xs: "sticky", lg: "fixed" },
-        top: { xs: 0, lg: 24 },
-        left: { lg: 24 },
-        zIndex: 10,
-        width: { lg: 320 },
-        height: { lg: "calc(100vh - 48px)" },
-        maxHeight: { lg: "calc(100vh - 48px)" },
-        overflowX: { xs: "auto", lg: "hidden" },
-        overflowY: { lg: "auto" },
-        border: "1px solid",
-        borderColor: alpha(brand, 0.2),
-        borderRadius: { xs: 0, lg: "8px" },
-        bgcolor: alpha(tokens.white, 0.98),
-        backdropFilter: "blur(14px)",
-        boxShadow: { lg: `18px 0 70px ${alpha(tokens.ink, 0.14)}` },
-        backgroundImage: `
-          linear-gradient(${alpha(brand, 0.04)} 1px, transparent 1px),
-          linear-gradient(90deg, ${alpha(brand, 0.04)} 1px, transparent 1px)
-        `,
-        backgroundSize: "32px 32px",
-        "@media (prefers-reduced-motion: no-preference)": {
-          animation: {
-            xs: "storeRailDrop 320ms ease both",
-            lg: "storeRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
-          },
-        },
-      }}
-    >
-      <Stack
-        spacing={{ xs: 1, lg: 1.5 }}
-        sx={{
-          p: { xs: 1.25, lg: 1.5 },
-          minWidth: { xs: 980, lg: "auto" },
-          minHeight: { lg: "100%" },
-        }}
-      >
-        <Box
-          sx={{
-            p: 1.35,
-            borderRadius: "8px",
-            bgcolor: brand,
-            color: onBrand,
-            position: "relative",
-            overflow: "hidden",
-            minWidth: { xs: 270, lg: "auto" },
-            boxShadow: `0 18px 48px ${alpha(brand, 0.22)}`,
-          }}
-        >
-          <Box
-            aria-hidden
-            sx={{
-              position: "absolute",
-              right: -16,
-              top: -22,
-              color: alpha(onBrand, 0.12),
-              transform: "rotate(-8deg)",
-              "& .MuiSvgIcon-root": { fontSize: 118 },
-            }}
-          >
-            <StorefrontOutlined />
-          </Box>
-          <Stack
-            direction="row"
-            spacing={1.1}
-            sx={{ position: "relative", alignItems: "center" }}
-          >
-            <Box
-              sx={{
-                width: 42,
-                height: 42,
-                borderRadius: "8px",
-                display: "grid",
-                placeItems: "center",
-                bgcolor: alpha(onBrand, 0.14),
-                border: "1px solid",
-                borderColor: alpha(onBrand, 0.18),
-                flexShrink: 0,
-              }}
-            >
-              <StorefrontOutlined />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {store.name}
-              </Typography>
-              <Typography
-                variant="caption"
-                sx={{ opacity: 0.76, fontWeight: 800 }}
-                noWrap
-              >
-                {store.handle}.xtiitch.com
-              </Typography>
-            </Box>
-          </Stack>
-          <Stack
-            direction="row"
-            spacing={0.75}
-            sx={{ position: "relative", mt: 1.25, flexWrap: "wrap" }}
-          >
-            <Chip
-              size="small"
-              icon={<VerifiedRounded />}
-              label="Verified store"
-              sx={{
-                color: onBrand,
-                bgcolor: alpha(onBrand, 0.12),
-                border: "1px solid",
-                borderColor: alpha(onBrand, 0.18),
-                "& .MuiChip-icon": { color: alpha(onBrand, 0.78) },
-              }}
-            />
-            <Chip
-              size="small"
-              label={`${designs.length} pieces`}
-              sx={{
-                color: onBrand,
-                bgcolor: alpha(onBrand, 0.12),
-                border: "1px solid",
-                borderColor: alpha(onBrand, 0.18),
-              }}
-            />
-          </Stack>
-        </Box>
-
-        <Box sx={{ minWidth: { xs: 280, lg: "auto" } }}>
-          <Typography
-            variant="caption"
-            sx={{
-              display: { xs: "none", lg: "block" },
-              mb: 0.75,
-              color: "text.secondary",
-              fontWeight: 900,
-              textTransform: "uppercase",
-            }}
-          >
-            Find a design
-          </Typography>
           <Form method="get" role="search">
             <TextField
               name="q"
               defaultValue={query}
-              placeholder="Search designs"
-              size="small"
+              placeholder="Search pieces"
+              size="medium"
               fullWidth
               slotProps={{
                 input: {
@@ -317,160 +241,296 @@ function StoreBrowseRail({
                 },
               }}
               sx={{
+                mt: 3,
+                maxWidth: 560,
                 "& .MuiOutlinedInput-root": {
-                  bgcolor: tokens.white,
-                  boxShadow: `0 8px 22px ${alpha(tokens.ink, 0.05)}`,
+                  bgcolor: alpha(tokens.white, 0.96),
+                  color: tokens.ink,
+                  boxShadow: `0 16px 42px ${alpha(tokens.ink, 0.16)}`,
                 },
               }}
             />
           </Form>
-        </Box>
 
-        <Divider sx={{ display: { xs: "none", lg: "block" } }} />
-
-        <Box sx={{ minWidth: { xs: 330, lg: "auto" } }}>
-          <Typography
-            variant="caption"
-            sx={{
-              display: { xs: "none", lg: "block" },
-              mb: 0.75,
-              color: "text.secondary",
-              fontWeight: 900,
-              textTransform: "uppercase",
-            }}
-          >
-            Store signals
-          </Typography>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 0.75,
-              gridTemplateColumns: {
-                xs: "repeat(3, 1fr)",
-                lg: "repeat(2, 1fr)",
-              },
-            }}
-          >
+          <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap" }}>
             {[
-              { label: "Priced", value: String(pricedCount) },
-              { label: "Custom", value: String(customisableCount) },
-              {
-                label: "Delivery",
-                value:
-                  store.settings.delivery_enabled ||
-                  store.settings.dispatch_enabled
-                    ? "On"
-                    : "Ask",
-              },
+              { label: "Priced pieces", value: String(pricedCount) },
+              { label: "Custom options", value: String(customisableCount) },
             ].map((signal) => (
-              <Box
+              <Chip
                 key={signal.label}
+                label={`${signal.value} ${signal.label.toLowerCase()}`}
                 sx={{
-                  p: 1,
+                  color: onBrand,
+                  bgcolor: alpha(onBrand, 0.12),
                   border: "1px solid",
-                  borderColor: alpha(brand, 0.16),
-                  borderRadius: "8px",
-                  bgcolor: alpha(brand, 0.045),
-                  minWidth: 0,
+                  borderColor: alpha(onBrand, 0.18),
+                  fontWeight: 850,
                 }}
-              >
-                <Typography
-                  variant="caption"
-                  sx={{ color: "text.secondary", fontWeight: 900 }}
-                >
-                  {signal.label}
-                </Typography>
-                <Typography sx={{ fontWeight: 900, overflowWrap: "anywhere" }}>
-                  {signal.value}
-                </Typography>
-              </Box>
+              />
             ))}
-          </Box>
+          </Stack>
         </Box>
+      </Container>
+    </Box>
+  );
+}
 
-        <Box sx={{ minWidth: { xs: 360, lg: "auto" } }}>
-          <Typography
-            variant="caption"
+function storeServices(store: StoreSummary): {
+  label: string;
+  active: boolean;
+  helper: string;
+  icon: ReactNode;
+}[] {
+  return [
+    {
+      label: "Bespoke",
+      active: store.settings.bespoke_enabled,
+      helper: "Custom order requests",
+      icon: <ContentCutRounded />,
+    },
+    {
+      label: "Measurements",
+      active: store.settings.measurements_enabled,
+      helper: "Fit details supported",
+      icon: <StraightenRounded />,
+    },
+    {
+      label: "Delivery",
+      active:
+        store.settings.delivery_enabled || store.settings.dispatch_enabled,
+      helper: "Pickup or handover options",
+      icon: <LocalShippingRounded />,
+    },
+    {
+      label: "Collections",
+      active: store.settings.collections_enabled,
+      helper: "Grouped store drops",
+      icon: <StorefrontOutlined />,
+    },
+  ];
+}
+
+function StoreServiceBand({ store }: { store: StoreSummary }) {
+  const brand = store.brand_color || tokens.burgundy;
+  const services = storeServices(store);
+
+  return (
+    <Box
+      sx={{
+        borderBlock: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: alpha(tokens.white, 0.86),
+      }}
+    >
+      <Container
+        sx={{
+          py: { xs: 2, md: 2.5 },
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(4, minmax(0, 1fr))",
+          },
+        }}
+      >
+        {services.map((service) => (
+          <Stack
+            key={service.label}
+            direction="row"
+            spacing={1.25}
             sx={{
-              display: { xs: "none", lg: "block" },
-              mb: 0.75,
-              color: "text.secondary",
-              fontWeight: 900,
-              textTransform: "uppercase",
+              alignItems: "center",
+              minWidth: 0,
+              p: 1.25,
+              borderRadius: 1.5,
+              bgcolor: service.active
+                ? alpha(brand, 0.055)
+                : alpha(tokens.ink, 0.025),
             }}
           >
-            Services
-          </Typography>
+            <Box
+              sx={{
+                width: 38,
+                height: 38,
+                borderRadius: 1.25,
+                display: "grid",
+                placeItems: "center",
+                color: service.active ? brand : tokens.mutedText,
+                bgcolor: service.active
+                  ? alpha(brand, 0.1)
+                  : alpha(tokens.ink, 0.04),
+                flexShrink: 0,
+              }}
+            >
+              {service.icon}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ alignItems: "center" }}
+              >
+                <Typography sx={{ fontWeight: 900 }} noWrap>
+                  {service.label}
+                </Typography>
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    bgcolor: service.active ? brand : alpha(tokens.ink, 0.25),
+                    flexShrink: 0,
+                  }}
+                />
+              </Stack>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary" }}
+                noWrap
+              >
+                {service.active ? service.helper : "Ask the store"}
+              </Typography>
+            </Box>
+          </Stack>
+        ))}
+      </Container>
+    </Box>
+  );
+}
+
+function CollectionStrip({
+  store,
+  collections,
+}: {
+  store: StoreSummary;
+  collections: Collection[];
+}) {
+  if (collections.length === 0 || !store.settings.collections_enabled) {
+    return null;
+  }
+
+  const brand = store.brand_color || tokens.burgundy;
+
+  return (
+    <Box
+      sx={{
+        borderBottom: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: alpha(tokens.white, 0.9),
+      }}
+    >
+      <Container sx={{ py: { xs: 2.5, md: 3 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            alignItems: { xs: "stretch", md: "center" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box
+              sx={{
+                width: 42,
+                height: 42,
+                borderRadius: "8px",
+                display: "grid",
+                placeItems: "center",
+                color: brand,
+                bgcolor: alpha(brand, 0.08),
+                flexShrink: 0,
+              }}
+            >
+              <CollectionsBookmarkRounded />
+            </Box>
+            <Box>
+              <Typography variant="h6">Shop by collection</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Curated store drops from {store.name}
+              </Typography>
+            </Box>
+          </Stack>
           <Box
             sx={{
               display: "grid",
-              gap: 0.75,
-              gridTemplateColumns: { xs: "repeat(4, 1fr)", lg: "1fr" },
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(2, minmax(0, 1fr))",
+                lg: "repeat(3, minmax(0, 1fr))",
+              },
+              flex: 1,
+              maxWidth: { md: 760 },
             }}
           >
-            {services.map((service) => (
+            {collections.slice(0, 6).map((collection) => (
               <Box
-                key={service.label}
+                key={collection.collection_id}
+                component={RouterLink}
+                to={`/c/${collection.handle}`}
                 sx={{
-                  p: 1,
-                  border: "1px solid",
-                  borderColor: service.active ? alpha(brand, 0.22) : "divider",
+                  p: 1.5,
+                  minHeight: 96,
                   borderRadius: "8px",
-                  bgcolor: service.active
-                    ? alpha(brand, 0.06)
-                    : alpha(tokens.ink, 0.025),
-                  minWidth: 0,
+                  border: "1px solid",
+                  borderColor: alpha(brand, 0.14),
+                  bgcolor: alpha(brand, 0.045),
+                  color: "inherit",
+                  textDecoration: "none",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  transition:
+                    "transform 180ms ease, border-color 180ms ease, background-color 180ms ease",
+                  "&:hover": {
+                    transform: "translateY(-2px)",
+                    borderColor: alpha(brand, 0.28),
+                    bgcolor: alpha(brand, 0.075),
+                  },
                 }}
               >
+                <Box>
+                  <Typography sx={{ fontWeight: 950 }} noWrap>
+                    {collection.name}
+                  </Typography>
+                  {collection.theme ? (
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        mt: 0.5,
+                        color: "text.secondary",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {collection.theme}
+                    </Typography>
+                  ) : null}
+                </Box>
                 <Stack
                   direction="row"
-                  spacing={0.75}
-                  sx={{ alignItems: "center", justifyContent: "space-between" }}
+                  spacing={0.5}
+                  sx={{
+                    mt: 1,
+                    alignItems: "center",
+                    color: brand,
+                    fontWeight: 900,
+                    fontSize: 13,
+                  }}
                 >
-                  <Typography sx={{ fontWeight: 900 }} noWrap>
-                    {service.label}
-                  </Typography>
-                  <Box
-                    aria-hidden
-                    sx={{
-                      width: 8,
-                      height: 8,
-                      borderRadius: "50%",
-                      bgcolor: service.active ? brand : alpha(tokens.ink, 0.25),
-                      flexShrink: 0,
-                    }}
-                  />
+                  <span>Browse</span>
+                  <ArrowForwardRounded sx={{ fontSize: 16 }} />
                 </Stack>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "text.secondary" }}
-                  noWrap
-                >
-                  {service.helper}
-                </Typography>
               </Box>
             ))}
           </Box>
-        </Box>
-
-        <Stack
-          direction={{ xs: "row", lg: "column" }}
-          spacing={0.75}
-          sx={{ mt: "auto", minWidth: { xs: 270, lg: "auto" } }}
-        >
-          <Button
-            href="#designs"
-            variant="contained"
-            endIcon={<ArrowForwardRounded />}
-            sx={{ bgcolor: brand, color: onBrand }}
-          >
-            Browse designs
-          </Button>
-          <Button href="https://xtiitch.com" variant="outlined">
-            About Xtiitch
-          </Button>
         </Stack>
-      </Stack>
+      </Container>
     </Box>
   );
 }
@@ -482,39 +542,22 @@ export function StoreView({
   store,
   designs,
   query,
+  collections = [],
 }: {
   store: StoreSummary;
   designs: Design[];
   query: string;
+  collections?: Collection[];
 }) {
   const brand = store.brand_color || tokens.burgundy;
-  const onBrand = contrastText(brand);
-  const customisableCount = designs.filter(
-    (design) => design.customisation_allowed,
-  ).length;
-  const pricedCount = designs.filter(
-    (design) => design.prices.length > 0,
-  ).length;
-  const servicesAvailable = [
-    store.settings.bespoke_enabled,
-    store.settings.measurements_enabled,
-    store.settings.delivery_enabled || store.settings.dispatch_enabled,
-    store.settings.collections_enabled,
-  ].filter(Boolean).length;
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        "@keyframes storeRailSlide": {
-          from: { opacity: 0, transform: "translateX(-16px)" },
-          to: { opacity: 1, transform: "translateX(0)" },
-        },
-        "@keyframes storeRailDrop": {
-          from: { opacity: 0, transform: "translateY(-10px)" },
-          to: { opacity: 1, transform: "translateY(0)" },
-        },
+        backgroundImage: `linear-gradient(${alpha(brand, 0.035)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(brand, 0.035)} 1px, transparent 1px)`,
+        backgroundSize: "40px 40px",
         "@keyframes storeSurfaceIn": {
           from: { opacity: 0, transform: "translateY(10px)" },
           to: { opacity: 1, transform: "translateY(0)" },
@@ -527,60 +570,21 @@ export function StoreView({
         },
       }}
     >
-      <StoreBrowseRail store={store} designs={designs} query={query} />
+      <StoreHeader store={store} designs={designs} query={query} />
+      <StoreServiceBand store={store} />
+      {!query ? (
+        <CollectionStrip store={store} collections={collections} />
+      ) : null}
+
       <Box
         sx={{
-          ml: { lg: "344px" },
           minWidth: 0,
           "@media (prefers-reduced-motion: no-preference)": {
             animation: "storeSurfaceIn 500ms ease both",
           },
         }}
       >
-        <StoreHeader store={store}>
-          <Box
-            sx={{
-              mt: { xs: 3, md: 4 },
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(3, minmax(0, 1fr))",
-              },
-              maxWidth: 820,
-            }}
-          >
-            {[
-              { label: "Priced pieces", value: String(pricedCount) },
-              { label: "Custom options", value: String(customisableCount) },
-              { label: "Services active", value: `${servicesAvailable}/4` },
-            ].map((signal) => (
-              <Box
-                key={signal.label}
-                sx={{
-                  p: 1.25,
-                  borderRadius: "8px",
-                  bgcolor: alpha(onBrand, 0.11),
-                  border: "1px solid",
-                  borderColor: alpha(onBrand, 0.16),
-                  backdropFilter: "blur(10px)",
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  sx={{ display: "block", opacity: 0.7, fontWeight: 900 }}
-                >
-                  {signal.label}
-                </Typography>
-                <Typography sx={{ fontWeight: 950, fontSize: 22 }}>
-                  {signal.value}
-                </Typography>
-              </Box>
-            ))}
-          </Box>
-        </StoreHeader>
-
-        <Container id="designs" sx={{ py: { xs: 4, md: 6 } }}>
+        <Container id="designs" sx={{ py: { xs: 4, md: 7 } }}>
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={2}
@@ -602,12 +606,12 @@ export function StoreView({
                 {query ? "Search results" : "Store catalogue"}
               </Typography>
               <Typography variant="h5" component="h2">
-                {query ? `Results for "${query}"` : "Shop the latest pieces"}
+                {query ? `Results for "${query}"` : "Available pieces"}
               </Typography>
               <Typography sx={{ color: "text.secondary", maxWidth: 620 }}>
                 {query
-                  ? "Matched designs from this store, with pricing and custom options kept close at hand."
-                  : "Every card opens the live order flow for that design, with the store's services visible while you browse."}
+                  ? "Matched designs from this store, with pricing and custom options close at hand."
+                  : "Choose a design to see its price, custom options, and order route."}
               </Typography>
             </Box>
             <Chip
@@ -626,6 +630,15 @@ export function StoreView({
   );
 }
 
+function fallbackDesignImage(design: Design): string {
+  const key = design.handle || design.design_id || design.title;
+  const index = Array.from(key).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return fallbackDesignImages[index % fallbackDesignImages.length] ?? "";
+}
+
 function DesignImage({ design }: { design: Design }) {
   const first = design.images[0];
   if (first) {
@@ -639,20 +652,16 @@ function DesignImage({ design }: { design: Design }) {
     );
   }
   return (
-    <Box
-      aria-hidden
+    <CardMedia
+      component="img"
+      image={fallbackDesignImage(design)}
+      alt={`Studio preview for ${design.title}`}
       sx={{
         aspectRatio: "4 / 5",
-        display: "grid",
-        placeItems: "center",
-        bgcolor: "rgba(128,0,32,0.08)",
-        color: "primary.main",
-        fontWeight: 800,
-        fontSize: 40,
+        objectFit: "cover",
+        filter: "saturate(0.92) contrast(1.02)",
       }}
-    >
-      {design.title.slice(0, 1).toUpperCase()}
-    </Box>
+    />
   );
 }
 
@@ -779,10 +788,11 @@ export function DesignGrid({ designs }: { designs: Design[] }) {
         display: "grid",
         gap: 3,
         gridTemplateColumns: {
-          xs: "1fr 1fr",
-          sm: "repeat(3, 1fr)",
-          md: "repeat(4, 1fr)",
+          xs: "1fr",
+          sm: "repeat(2, minmax(0, 1fr))",
+          lg: "repeat(auto-fill, minmax(280px, 360px))",
         },
+        justifyContent: "start",
       }}
     >
       {designs.map((design, index) => (

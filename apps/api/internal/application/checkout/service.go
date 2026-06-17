@@ -26,6 +26,7 @@ var (
 	ErrBespokeDisabled      = errors.New("bespoke orders are not enabled for this store")
 	ErrMeasurementsDisabled = errors.New("self-measurement is not enabled for this store")
 	ErrInvalidMeasurements  = errors.New("invalid or missing measurements")
+	ErrPromotionUnavailable = errors.New("promotion unavailable for this order")
 )
 
 // Payments is the slice of the payments use case the checkout needs.
@@ -44,6 +45,7 @@ type Service struct {
 	businesses   ports.BusinessChargeRepository
 	orders       ports.OrderRepository
 	bookings     ports.BookingRepository
+	promotions   ports.PromotionRepository
 	availability Availability
 	payments     Payments
 	ids          ports.IDGenerator
@@ -55,6 +57,7 @@ type Dependencies struct {
 	Businesses   ports.BusinessChargeRepository
 	Orders       ports.OrderRepository
 	Bookings     ports.BookingRepository
+	Promotions   ports.PromotionRepository
 	Availability Availability
 	Payments     Payments
 	IDs          ports.IDGenerator
@@ -71,6 +74,7 @@ func NewService(deps Dependencies) Service {
 		businesses:   deps.Businesses,
 		orders:       deps.Orders,
 		bookings:     deps.Bookings,
+		promotions:   deps.Promotions,
 		availability: deps.Availability,
 		payments:     deps.Payments,
 		ids:          deps.IDs,
@@ -86,6 +90,7 @@ type PlaceStandardOrderCommand struct {
 	CustomerPhone string
 	CustomerEmail string
 	Method        money.PaymentMethod
+	PromoCode     string
 }
 
 type PlaceStandardOrderResult struct {
@@ -93,6 +98,7 @@ type PlaceStandardOrderResult struct {
 	Reference        string
 	AuthorizationURL string
 	AmountMinor      int64
+	DiscountMinor    int64
 }
 
 // PlaceStandardOrder records a standard order against a listed size band and
@@ -148,22 +154,46 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		return PlaceStandardOrderResult{}, err
 	}
 
+	promotion, err := s.reservePromotion(ctx, scope, promotionCheckoutInput{
+		code:          cmd.PromoCode,
+		orderID:       orderID,
+		customerID:    customerID,
+		designID:      designID,
+		subtotalMinor: price,
+		commissionBps: charge.CommissionBps,
+	})
+	if err != nil {
+		s.discardDraft(ctx, scope, orderID, customerID)
+		return PlaceStandardOrderResult{}, err
+	}
+	chargeAmount := price
+	if promotion.discountMinor > 0 {
+		chargeAmount = promotion.payableMinor
+		if err := s.orders.SetDraftOrderAgreedTotal(ctx, scope, orderID, chargeAmount); err != nil {
+			s.voidPromotionReservation(ctx, scope, orderID)
+			s.discardDraft(ctx, scope, orderID, customerID)
+			return PlaceStandardOrderResult{}, err
+		}
+	}
+
 	method := cmd.Method
 	if method == "" {
 		method = money.PaymentMethodMomo
 	}
 	chargeResult, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
-		Scope:         scope,
-		OrderID:       &orderID,
-		Purpose:       money.PaymentPurposeStandardFull,
-		AmountMinor:   price,
-		Method:        method,
-		CustomerEmail: email,
+		Scope:                   scope,
+		OrderID:                 &orderID,
+		Purpose:                 money.PaymentPurposeStandardFull,
+		AmountMinor:             chargeAmount,
+		CommissionMinorOverride: promotion.commissionMinor,
+		Method:                  method,
+		CustomerEmail:           email,
 	})
 	if err != nil {
 		// The draft order is committed but no payment was raised, so it could
 		// never be confirmed. Roll it back so checkout stays all-or-nothing and
 		// no un-payable draft (or its customer) is left to accumulate.
+		s.voidPromotionReservation(ctx, scope, orderID)
 		s.discardDraft(ctx, scope, orderID, customerID)
 		return PlaceStandardOrderResult{}, err
 	}
@@ -172,7 +202,8 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		OrderID:          orderID,
 		Reference:        chargeResult.Reference,
 		AuthorizationURL: chargeResult.AuthorizationURL,
-		AmountMinor:      price,
+		AmountMinor:      chargeAmount,
+		DiscountMinor:    promotion.discountMinor,
 	}, nil
 }
 
@@ -224,6 +255,7 @@ type PlaceHomeVisitBookingCommand struct {
 	CustomerPhone string
 	CustomerEmail string
 	Method        money.PaymentMethod
+	PromoCode     string
 	SlotStart     time.Time
 	Address       string
 }
@@ -360,6 +392,7 @@ type PlaceCustomOrderCommand struct {
 	CustomerPhone string
 	CustomerEmail string
 	Method        money.PaymentMethod
+	PromoCode     string
 	// Measurements maps the business's measurement field ids to entered values;
 	// only used (and required) for the self-measure route.
 	Measurements map[string]string
@@ -370,6 +403,7 @@ type PlaceCustomOrderResult struct {
 	Reference        string
 	AuthorizationURL string
 	AmountMinor      int64
+	DiscountMinor    int64
 }
 
 type customerDetails struct {
@@ -415,6 +449,9 @@ func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderComma
 	}
 
 	if mode == order.SizeModeComeToShop {
+		if normalizeCheckoutPromotionCode(cmd.PromoCode) != "" {
+			return PlaceCustomOrderResult{}, ErrPromotionUnavailable
+		}
 		return s.placeComeToShop(ctx, scope, store.BusinessID, design.ID, customer)
 	}
 	return s.placeDepositCustomOrder(ctx, scope, store, design, mode, customer, cmd)
@@ -503,21 +540,40 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		return PlaceCustomOrderResult{}, err
 	}
 
+	promotion, err := s.reservePromotion(ctx, scope, promotionCheckoutInput{
+		code:          cmd.PromoCode,
+		orderID:       orderID,
+		customerID:    customerID,
+		designID:      design.ID,
+		subtotalMinor: deposit,
+		commissionBps: charge.CommissionBps,
+	})
+	if err != nil {
+		s.discardCustomDraft(ctx, scope, orderID, customerID)
+		return PlaceCustomOrderResult{}, err
+	}
+	chargeAmount := deposit
+	if promotion.discountMinor > 0 {
+		chargeAmount = promotion.payableMinor
+	}
+
 	method := cmd.Method
 	if method == "" {
 		method = money.PaymentMethodMomo
 	}
 	chargeResult, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
-		Scope:         scope,
-		OrderID:       &orderID,
-		Purpose:       money.PaymentPurposeDeposit,
-		AmountMinor:   deposit,
-		Method:        method,
-		CustomerEmail: customer.email,
+		Scope:                   scope,
+		OrderID:                 &orderID,
+		Purpose:                 money.PaymentPurposeDeposit,
+		AmountMinor:             chargeAmount,
+		CommissionMinorOverride: promotion.commissionMinor,
+		Method:                  method,
+		CustomerEmail:           customer.email,
 	})
 	if err != nil {
 		// No deposit could be raised, so the draft custom order could never be
 		// confirmed: compensate it (and its measurement + customer) away.
+		s.voidPromotionReservation(ctx, scope, orderID)
 		s.discardCustomDraft(ctx, scope, orderID, customerID)
 		return PlaceCustomOrderResult{}, err
 	}
@@ -526,8 +582,117 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		OrderID:          orderID,
 		Reference:        chargeResult.Reference,
 		AuthorizationURL: chargeResult.AuthorizationURL,
-		AmountMinor:      deposit,
+		AmountMinor:      chargeAmount,
+		DiscountMinor:    promotion.discountMinor,
 	}, nil
+}
+
+type promotionCheckoutInput struct {
+	code          string
+	orderID       common.ID
+	customerID    common.ID
+	designID      common.ID
+	subtotalMinor int64
+	commissionBps int
+}
+
+type promotionCheckoutResult struct {
+	payableMinor    int64
+	discountMinor   int64
+	commissionMinor *int64
+}
+
+func (s Service) reservePromotion(
+	ctx context.Context,
+	scope common.TenantScope,
+	input promotionCheckoutInput,
+) (promotionCheckoutResult, error) {
+	code := normalizeCheckoutPromotionCode(input.code)
+	if code == "" {
+		return promotionCheckoutResult{payableMinor: input.subtotalMinor}, nil
+	}
+	if s.promotions == nil {
+		return promotionCheckoutResult{}, ErrPromotionUnavailable
+	}
+
+	redemption, err := s.promotions.ReservePromotion(ctx, scope, ports.ReservePromotionInput{
+		RedemptionID:  s.ids.NewID(),
+		BusinessID:    scope.BusinessID,
+		OrderID:       input.orderID,
+		CustomerID:    input.customerID,
+		DesignID:      input.designID,
+		Code:          code,
+		SubtotalMinor: input.subtotalMinor,
+	})
+	if err != nil {
+		if errors.Is(err, ports.ErrPromotionUnavailable) || errors.Is(err, ports.ErrNotFound) {
+			return promotionCheckoutResult{}, ErrPromotionUnavailable
+		}
+		return promotionCheckoutResult{}, err
+	}
+	if redemption.DiscountMinor <= 0 || redemption.DiscountMinor >= input.subtotalMinor {
+		s.voidPromotionReservation(ctx, scope, input.orderID)
+		return promotionCheckoutResult{}, ErrPromotionUnavailable
+	}
+
+	payable := input.subtotalMinor - redemption.DiscountMinor
+	commission, err := promotionCommissionMinor(
+		input.subtotalMinor,
+		payable,
+		redemption.DiscountMinor,
+		input.commissionBps,
+		redemption.FundingSource,
+	)
+	if err != nil {
+		s.voidPromotionReservation(ctx, scope, input.orderID)
+		return promotionCheckoutResult{}, err
+	}
+
+	return promotionCheckoutResult{
+		payableMinor:    payable,
+		discountMinor:   redemption.DiscountMinor,
+		commissionMinor: &commission,
+	}, nil
+}
+
+func (s Service) voidPromotionReservation(ctx context.Context, scope common.TenantScope, orderID common.ID) {
+	if s.promotions == nil || orderID.IsZero() {
+		return
+	}
+	if err := s.promotions.VoidPendingPromotionRedemptions(ctx, scope, orderID); err != nil {
+		s.logger.ErrorContext(ctx, "checkout: failed to void pending promotion redemption",
+			"business_id", scope.BusinessID.String(), "order_id", orderID.String(), "error", err)
+	}
+}
+
+func normalizeCheckoutPromotionCode(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func promotionCommissionMinor(
+	originalMinor int64,
+	payableMinor int64,
+	discountMinor int64,
+	commissionBps int,
+	fundingSource string,
+) (int64, error) {
+	originalCommission := money.Commission(originalMinor, commissionBps)
+	switch fundingSource {
+	case "business":
+		if originalCommission > payableMinor {
+			return 0, ErrPromotionUnavailable
+		}
+		return originalCommission, nil
+	case "platform":
+		if discountMinor > originalCommission {
+			return 0, ErrPromotionUnavailable
+		}
+		return originalCommission - discountMinor, nil
+	case "split":
+		return money.Commission(payableMinor, commissionBps), nil
+	default:
+		return 0, ErrPromotionUnavailable
+	}
 }
 
 func (s Service) discardCustomDraft(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) {

@@ -20,6 +20,10 @@ type OrderRepository interface {
 	// created with it, scoped to the tenant. It compensates a checkout whose
 	// payment could not be raised, so no un-payable draft is left behind.
 	DiscardDraftOrder(ctx context.Context, scope common.TenantScope, orderID, customerID common.ID) error
+	// SetDraftOrderAgreedTotal updates the payable total on a still-draft
+	// standard online order, used after a promotion reservation lowers the charge
+	// before the payment is raised.
+	SetDraftOrderAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error
 	// CreateCustomOrder records an online custom (bespoke) order as draft and, for
 	// the self-measure route, stores the customer's measurements against it in the
 	// same transaction. Confirmation happens via the deposit payment webhook. It

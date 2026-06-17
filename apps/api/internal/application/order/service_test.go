@@ -77,6 +77,10 @@ func (r *fakeOrderRepo) DiscardDraftOrder(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (r *fakeOrderRepo) SetDraftOrderAgreedTotal(_ context.Context, _ common.TenantScope, _ common.ID, _ int64) error {
+	return nil
+}
+
 func (r *fakeOrderRepo) CreateCustomOrder(_ context.Context, _ common.TenantScope, _ ports.CreateCustomOrderInput) error {
 	return nil
 }

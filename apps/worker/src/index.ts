@@ -11,7 +11,10 @@ const drainJobId = "notification-outbox-drain";
 
 const config = loadConfig();
 const store = new PostgresOutboxStore(config.databaseUrl);
-const sender = createNotificationSender(config.notificationTransport);
+const sender = createNotificationSender({
+  transport: config.notificationTransport,
+  http: config.notificationHttp,
+});
 const queue = new Queue(config.queueName, { connection: config.redisConnection });
 
 const worker = new Worker(

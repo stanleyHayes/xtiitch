@@ -23,13 +23,18 @@ export type DrainSummary = {
   dead: number;
 };
 
+export type NotificationSendResult = {
+  providerMessageId?: string;
+  providerResponse?: Record<string, unknown>;
+};
+
 export type NotificationSender = {
-  send(message: OutboundMessage): Promise<void>;
+  send(message: OutboundMessage): Promise<NotificationSendResult | undefined>;
 };
 
 export type OutboxStore = {
   claimDueMessages(batchSize: number, leaseSeconds: number): Promise<OutboundMessage[]>;
-  markSent(messageId: string): Promise<void>;
+  markSent(messageId: string, result?: NotificationSendResult): Promise<void>;
   markFailed(
     message: OutboundMessage,
     error: string,
@@ -84,18 +89,24 @@ export class PostgresOutboxStore implements OutboxStore {
     });
   }
 
-  async markSent(messageId: string): Promise<void> {
+  async markSent(messageId: string, result?: NotificationSendResult): Promise<void> {
     await this.withTransportBypass(async (client) => {
       await client.query(
         `
           update outbound_messages
           set status = 'sent',
             last_error = '',
+            provider_message_id = $2,
+            provider_response = $3::jsonb,
             sent_at = now(),
             updated_at = now()
           where message_id = $1 and status = 'sending'
         `,
-        [messageId],
+        [
+          messageId,
+          trimProviderMessageId(result?.providerMessageId ?? ""),
+          JSON.stringify(result?.providerResponse ?? {}),
+        ],
       );
     });
   }
@@ -159,8 +170,8 @@ export async function drainOutbox(args: {
 
   for (const message of messages) {
     try {
-      await args.sender.send(message);
-      await args.store.markSent(message.messageId);
+      const result = await args.sender.send(message);
+      await args.store.markSent(message.messageId, result ?? undefined);
       summary.sent += 1;
     } catch (error) {
       const terminal = message.attempts >= args.retryPolicy.maxAttempts;
@@ -218,4 +229,8 @@ function recordPayload(payload: unknown): Record<string, unknown> {
 
 function trimError(error: string): string {
   return error.slice(0, 2_000);
+}
+
+function trimProviderMessageId(value: string): string {
+  return value.trim().slice(0, 200);
 }

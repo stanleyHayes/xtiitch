@@ -2,11 +2,15 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
+	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
 	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
@@ -22,6 +26,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
+	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
@@ -34,6 +39,7 @@ import (
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/config"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/ids"
@@ -47,6 +53,11 @@ type App struct {
 }
 
 func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, error) {
+	adminBootstrapUsers, err := adminBootstrapCommands(cfg)
+	if err != nil {
+		return App{}, err
+	}
+
 	db, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return App{}, err
@@ -73,6 +84,27 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
+	adminAuthRepository := postgres.NewAdminAuthRepository(db)
+	adminAuthService := adminauthapp.NewService(adminauthapp.Dependencies{
+		Users:         adminAuthRepository,
+		Sessions:      adminAuthRepository,
+		Audits:        adminAuthRepository,
+		Businesses:    adminAuthRepository,
+		Passwords:     authadapter.NewBcryptPasswordHasher(0),
+		AccessTokens:  jwtIssuer,
+		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
+		IDs:           ids.UUIDGenerator{},
+		Clock:         clock.SystemClock{},
+	})
+	for _, command := range adminBootstrapUsers {
+		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)
+		if err != nil {
+			db.Close()
+			return App{}, err
+		}
+		logger.Info("admin bootstrap user ensured", "email", adminUser.Email, "role", adminUser.Role)
+	}
+	adminAuthenticator := adminauthhttp.NewAuthenticator(jwtIssuer)
 
 	var paymentProvider ports.PaymentProvider
 	if cfg.PaystackSecretKey != "" {
@@ -149,6 +181,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Businesses:   postgres.NewBusinessChargeRepository(db),
 		Orders:       postgres.NewOrderRepository(db),
 		Bookings:     postgres.NewBookingRepository(db),
+		Promotions:   postgres.NewPromotionRepository(db),
 		Availability: availabilityService,
 		Payments:     paymentService,
 		IDs:          ids.UUIDGenerator{},
@@ -156,6 +189,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	router := httpadapter.NewRouter(logger, db.Ping,
+		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
@@ -186,5 +220,70 @@ func (a App) HTTPServer() *http.Server {
 func (a App) Close() {
 	if a.db != nil {
 		a.db.Close()
+	}
+}
+
+type adminBootstrapUserConfig struct {
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+}
+
+func adminBootstrapCommands(cfg config.Config) ([]adminauthapp.BootstrapAdminCommand, error) {
+	commands := make([]adminauthapp.BootstrapAdminCommand, 0, 1)
+	if cfg.AdminBootstrapEmail != "" || cfg.AdminBootstrapPassword != "" {
+		commands = append(commands, adminauthapp.BootstrapAdminCommand{
+			Email:       cfg.AdminBootstrapEmail,
+			DisplayName: cfg.AdminBootstrapDisplayName,
+			Password:    cfg.AdminBootstrapPassword,
+			Role:        admindomain.Role(cfg.AdminBootstrapRole),
+		})
+	}
+
+	rawExtraUsers := strings.TrimSpace(cfg.AdminBootstrapExtraUsers)
+	if rawExtraUsers == "" {
+		return commands, nil
+	}
+
+	var extraUsers []adminBootstrapUserConfig
+	if err := json.Unmarshal([]byte(rawExtraUsers), &extraUsers); err != nil {
+		return nil, fmt.Errorf("parse ADMIN_BOOTSTRAP_EXTRA_USERS_JSON: %w", err)
+	}
+
+	for index, user := range extraUsers {
+		if strings.TrimSpace(user.Email) == "" || strings.TrimSpace(user.Password) == "" {
+			return nil, fmt.Errorf("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON[%d] is missing email or password", index)
+		}
+
+		role := admindomain.Role(strings.TrimSpace(user.Role))
+		if role == "" {
+			role = admindomain.RoleOperator
+		}
+
+		displayName := strings.TrimSpace(user.DisplayName)
+		if displayName == "" {
+			displayName = defaultAdminDisplayName(role)
+		}
+
+		commands = append(commands, adminauthapp.BootstrapAdminCommand{
+			Email:       user.Email,
+			DisplayName: displayName,
+			Password:    user.Password,
+			Role:        role,
+		})
+	}
+
+	return commands, nil
+}
+
+func defaultAdminDisplayName(role admindomain.Role) string {
+	switch role {
+	case admindomain.RoleSupport:
+		return "Xtiitch Support"
+	case admindomain.RoleOperator:
+		return "Xtiitch Operator"
+	default:
+		return "Xtiitch Owner"
 	}
 }

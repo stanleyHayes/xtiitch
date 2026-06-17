@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -243,6 +244,131 @@ func TestLogoutReturnsNoContent(t *testing.T) {
 	}
 }
 
+func TestListBusinessUsersPassesPrincipalRole(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	service := &fakeAuthService{
+		users: []ports.BusinessUserRecord{
+			{
+				UserID:      "user-1",
+				BusinessID:  "business-1",
+				Email:       "ama@example.com",
+				DisplayName: "Ama",
+				Role:        business.UserRoleOwner,
+				IsActive:    true,
+				CreatedAt:   createdAt,
+				UpdatedAt:   createdAt,
+			},
+		},
+	}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "owner-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleOwner,
+	}})
+	request := httptest.NewRequest(http.MethodGet, "/auth/business/users", nil)
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	if !service.listUsersCalled {
+		t.Fatal("expected list users service to be called")
+	}
+	if service.listUsersCommand.Scope.BusinessID != "business-1" || service.listUsersCommand.ActorRole != business.UserRoleOwner {
+		t.Fatalf("unexpected list users command: %+v", service.listUsersCommand)
+	}
+
+	var body struct {
+		Users []businessUserResponse `json:"users"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body.Users) != 1 || body.Users[0].UserID != "user-1" || body.Users[0].Role != "owner" {
+		t.Fatalf("unexpected users response: %+v", body.Users)
+	}
+}
+
+func TestCreateBusinessUserReturnsCreatedUser(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{
+		businessUser: ports.BusinessUserRecord{
+			UserID:      "user-2",
+			BusinessID:  "business-1",
+			Email:       "kofi@example.com",
+			DisplayName: "Kofi",
+			Role:        business.UserRoleStaff,
+			IsActive:    true,
+			CreatedAt:   time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC),
+			UpdatedAt:   time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC),
+		},
+	}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "owner-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleAdmin,
+	}})
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/users", bytes.NewReader([]byte(`{
+		"display_name": "Kofi",
+		"email": "kofi@example.com",
+		"password": "strong-password",
+		"role": "staff"
+	}`)))
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusCreated, response.Code, response.Body.String())
+	}
+	if !service.createUserCalled {
+		t.Fatal("expected create user service to be called")
+	}
+	if service.createUserCommand.Scope.BusinessID != "business-1" || service.createUserCommand.ActorRole != business.UserRoleAdmin {
+		t.Fatalf("unexpected create user command scope/role: %+v", service.createUserCommand)
+	}
+	if service.createUserCommand.Role != business.UserRoleStaff || service.createUserCommand.Email != "kofi@example.com" {
+		t.Fatalf("unexpected create user command body: %+v", service.createUserCommand)
+	}
+}
+
+func TestUpdateBusinessUserMapsForbidden(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{userErr: authdomain.ErrForbidden}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "staff-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleStaff,
+	}})
+	request := httptest.NewRequest(http.MethodPatch, "/auth/business/users/user-2", bytes.NewReader([]byte(`{
+		"display_name": "Kofi",
+		"role": "staff",
+		"is_active": false
+	}`)))
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusForbidden, response.Code, response.Body.String())
+	}
+	if !service.updateUserCalled {
+		t.Fatal("expected update user service to be called")
+	}
+	if service.updateUserCommand.UserID != "user-2" || service.updateUserCommand.IsActive {
+		t.Fatalf("unexpected update user command: %+v", service.updateUserCommand)
+	}
+}
+
 func newTestRouter(service *fakeAuthService) http.Handler {
 	return newTestRouterWithVerifier(service, fakeTokenVerifier{err: errors.New("no verifier")})
 }
@@ -263,14 +389,23 @@ func (v fakeTokenVerifier) VerifyAccessToken(_ context.Context, _ string) (ports
 }
 
 type fakeAuthService struct {
-	result          authapp.AuthResult
-	err             error
-	registerCalled  bool
-	registerCommand authapp.RegisterBusinessCommand
-	loginCalled     bool
-	loginCommand    authapp.LoginBusinessCommand
-	refreshCalled   bool
-	logoutCalled    bool
+	result            authapp.AuthResult
+	err               error
+	registerCalled    bool
+	registerCommand   authapp.RegisterBusinessCommand
+	loginCalled       bool
+	loginCommand      authapp.LoginBusinessCommand
+	refreshCalled     bool
+	logoutCalled      bool
+	users             []ports.BusinessUserRecord
+	businessUser      ports.BusinessUserRecord
+	userErr           error
+	listUsersCalled   bool
+	listUsersCommand  authapp.ListBusinessUsersCommand
+	createUserCalled  bool
+	createUserCommand authapp.CreateBusinessUserCommand
+	updateUserCalled  bool
+	updateUserCommand authapp.UpdateBusinessUserCommand
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -309,4 +444,31 @@ func (service *fakeAuthService) RefreshSession(_ context.Context, _ authapp.Refr
 func (service *fakeAuthService) Logout(_ context.Context, _ authapp.LogoutCommand) error {
 	service.logoutCalled = true
 	return service.err
+}
+
+func (service *fakeAuthService) ListBusinessUsers(_ context.Context, command authapp.ListBusinessUsersCommand) ([]ports.BusinessUserRecord, error) {
+	service.listUsersCalled = true
+	service.listUsersCommand = command
+	if service.userErr != nil {
+		return nil, service.userErr
+	}
+	return service.users, nil
+}
+
+func (service *fakeAuthService) CreateBusinessUser(_ context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+	service.createUserCalled = true
+	service.createUserCommand = command
+	if service.userErr != nil {
+		return ports.BusinessUserRecord{}, service.userErr
+	}
+	return service.businessUser, nil
+}
+
+func (service *fakeAuthService) UpdateBusinessUser(_ context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+	service.updateUserCalled = true
+	service.updateUserCommand = command
+	if service.userErr != nil {
+		return ports.BusinessUserRecord{}, service.userErr
+	}
+	return service.businessUser, nil
 }

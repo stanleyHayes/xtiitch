@@ -1,0 +1,1468 @@
+const API_BASE = (
+  process.env.XTIITCH_API_URL ?? "http://localhost:8080"
+).replace(/\/+$/, "");
+
+export type AdminRole = "owner" | "operator" | "support";
+
+export type AdminAuthResult = {
+  adminUserId: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  accessToken: string;
+  refreshToken: string;
+  accessExpiresAt: string;
+  refreshExpiresAt: string;
+};
+
+export type AdminUser = {
+  adminUserId: string;
+  email: string;
+  displayName: string;
+  role: AdminRole;
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type AdminPreferences = {
+  timezone: string;
+  phoneNumber: string;
+  notifyEmail: boolean;
+  notifySms: boolean;
+  alertVerifications: boolean;
+  alertMoneyRails: boolean;
+  alertRisk: boolean;
+  alertSupport: boolean;
+  dailyDigestTime: string;
+  updatedAt?: string;
+};
+
+export type AdminProfileSettings = {
+  user: AdminUser;
+  preferences: AdminPreferences;
+};
+
+export type AdminPlatformSettings = {
+  platformName: string;
+  supportEmail: string;
+  verificationSlaHours: number;
+  payoutReviewThresholdPesewas: number;
+  maintenanceMode: boolean;
+  updatedAt?: string;
+};
+
+export type AdminPlatformMetrics = {
+  gmvMonthMinor: number;
+  platformRevenueMonthMinor: number;
+  activeBusinesses: number;
+  totalBusinesses: number;
+  pendingVerifications: number;
+  suspendedBusinesses: number;
+  paymentHealthBps: number;
+  failedPayments30d: number;
+  totalPayments30d: number;
+  updatedAt: string;
+};
+
+export type AdminMoneyWebhookStatus = "verified" | "failed" | "replayed";
+export type AdminMoneyPayoutStatus = "ready" | "review" | "blocked";
+
+export type AdminMoneyWebhookEvent = {
+  id: string;
+  providerReference: string;
+  business: string;
+  status: AdminMoneyWebhookStatus;
+  purpose: string;
+  amountMinor: number;
+  attempts: number;
+  receivedAt: string;
+  note: string;
+};
+
+export type AdminMoneyPayoutReview = {
+  id: string;
+  business: string;
+  subaccountRef: string;
+  status: AdminMoneyPayoutStatus;
+  settlementMinor: number;
+  commissionMinor: number;
+  nextAction: string;
+  holdActive: boolean;
+  holdReason: string;
+  holdUpdatedAt?: string;
+};
+
+export type AdminMoneyRails = {
+  webhookEvents: AdminMoneyWebhookEvent[];
+  payoutReviews: AdminMoneyPayoutReview[];
+  updatedAt: string;
+};
+
+export type AdminSubscriptionStatus =
+  | "active"
+  | "trialing"
+  | "past_due"
+  | "grace_period"
+  | "cancel_at_period_end"
+  | "canceled";
+
+export type AdminSubscriptionBillingMode =
+  | "manual"
+  | "payment_link"
+  | "recurring";
+
+export type AdminSubscriptionEvent = {
+  id: string;
+  eventType: string;
+  summary: string;
+  actorEmail: string;
+  createdAt: string;
+};
+
+export type AdminSubscription = {
+  subscriptionId?: string;
+  businessId: string;
+  businessName: string;
+  handle: string;
+  ownerEmail: string;
+  planCode: string;
+  planName: string;
+  monthlyFeeMinor: number;
+  commissionBps: number;
+  designLimit?: number;
+  status: AdminSubscriptionStatus;
+  billingMode: AdminSubscriptionBillingMode;
+  provider: string;
+  providerCustomerRef: string;
+  providerSubscriptionRef: string;
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  trialEndsAt?: string;
+  graceEndsAt?: string;
+  cancelAtPeriodEnd: boolean;
+  canceledAt?: string;
+  failedPaymentCount: number;
+  lastInvoiceRef: string;
+  lastPaymentAt?: string;
+  nextBillingAt?: string;
+  orders: number;
+  gmvMinor: number;
+  commissionMinor: number;
+  updatedAt: string;
+  events: AdminSubscriptionEvent[];
+};
+
+export type AdminPlan = {
+  planId: string;
+  code: string;
+  name: string;
+  monthlyFeeMinor: number;
+  commissionBps: number;
+  designLimit?: number;
+  isActive: boolean;
+  businessCount: number;
+  activeSubscriptionCount: number;
+  estimatedMrrMinor: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminPromotionDiscountType = "percentage" | "fixed";
+export type AdminPromotionFundingSource = "business" | "platform" | "split";
+export type AdminPromotionScope = "store" | "collection" | "design";
+export type AdminPromotionStatus = "active" | "paused" | "archived";
+
+export type AdminPromotion = {
+  promotionId: string;
+  businessId?: string;
+  businessName: string;
+  businessHandle: string;
+  code: string;
+  title: string;
+  description: string;
+  discountType: AdminPromotionDiscountType;
+  discountValue: number;
+  maxDiscountMinor?: number;
+  minSpendMinor: number;
+  usageLimitGlobal?: number;
+  usageLimitPerCustomer?: number;
+  fundingSource: AdminPromotionFundingSource;
+  scope: AdminPromotionScope;
+  status: AdminPromotionStatus;
+  startsAt?: string;
+  endsAt?: string;
+  redemptionCount: number;
+  discountRedeemedMinor: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminAuditSeverity = "info" | "warning" | "critical";
+
+export type AdminVerificationStatus =
+  | "unverified"
+  | "pending"
+  | "verified"
+  | "rejected";
+export type AdminVerificationDecision = "approved" | "rejected" | "held";
+export type AdminRiskLevel = "low" | "medium" | "high";
+export type AdminRiskReviewStatus = "open" | "closed";
+export type AdminSupportPriority = "normal" | "urgent";
+export type AdminSupportTicketStatus = "open" | "resolved";
+export type AdminSupportAssignment = "self" | "unassigned" | "unchanged";
+export type AdminBusinessOperationalStatus = "active" | "suspended";
+export type AdminBusinessStatus = AdminVerificationStatus | "suspended";
+
+export type AdminVerificationCase = {
+  id: string;
+  businessName: string;
+  handle: string;
+  ownerName: string;
+  ownerEmail: string;
+  submittedAt: string;
+  updatedAt: string;
+  plan: string;
+  status: AdminVerificationStatus;
+  riskLevel: AdminRiskLevel;
+  documents: string[];
+  checks: string[];
+  evidence: string[];
+  notes: string;
+};
+
+export type AdminBusiness = {
+  id: string;
+  name: string;
+  handle: string;
+  ownerName: string;
+  ownerEmail: string;
+  status: AdminBusinessStatus;
+  verificationStatus: AdminVerificationStatus;
+  operationalStatus: AdminBusinessOperationalStatus;
+  plan: string;
+  orders: number;
+  gmvMinor: number;
+  commissionMinor: number;
+  riskLevel: AdminRiskLevel;
+  lastActive: string;
+  subaccountRef: string;
+  suspensionReason: string;
+  suspendedAt?: string;
+  updatedAt: string;
+};
+
+export type AdminRiskReview = {
+  id: string;
+  businessId: string;
+  title: string;
+  business: string;
+  level: AdminRiskLevel;
+  reason: string;
+  owner: string;
+  status: AdminRiskReviewStatus;
+  updatedAt: string;
+};
+
+export type AdminSupportTicket = {
+  id: string;
+  businessId: string;
+  subject: string;
+  business: string;
+  priority: AdminSupportPriority;
+  summary: string;
+  category: string;
+  status: AdminSupportTicketStatus;
+  assignedAdminUserId?: string;
+  assignedAdminEmail?: string;
+  assignedAdminName?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminAuditEvent = {
+  id: string;
+  actor: string;
+  actorRole: AdminRole | string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  target: string;
+  detail: string;
+  severity: AdminAuditSeverity;
+  createdAt: string;
+};
+
+export type AdminRoleDefinition = {
+  role: AdminRole;
+  label: string;
+  permissions: string[];
+};
+
+export type AdminPermissionDefinition = {
+  permission: string;
+  label: string;
+};
+
+type AdminAuthPayload = {
+  admin_user_id: string;
+  email: string;
+  display_name: string;
+  role: AdminRole;
+  access_token: string;
+  refresh_token: string;
+  access_expires_at: string;
+  refresh_expires_at: string;
+};
+
+type AdminUserPayload = {
+  admin_user_id: string;
+  email: string;
+  display_name: string;
+  role: AdminRole;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+type AdminPreferencesPayload = {
+  timezone: string;
+  phone_number: string;
+  notify_email: boolean;
+  notify_sms: boolean;
+  alert_verifications: boolean;
+  alert_money_rails: boolean;
+  alert_risk: boolean;
+  alert_support: boolean;
+  daily_digest_time: string;
+  updated_at?: string;
+};
+
+type AdminProfileSettingsPayload = {
+  user: AdminUserPayload;
+  preferences: AdminPreferencesPayload;
+};
+
+type AdminPlatformSettingsPayload = {
+  platform_name: string;
+  support_email: string;
+  verification_sla_hours: number;
+  payout_review_threshold_pesewas: number;
+  maintenance_mode: boolean;
+  updated_at?: string;
+};
+
+type AdminPlatformMetricsPayload = {
+  gmv_month_minor: number;
+  platform_revenue_month_minor: number;
+  active_businesses: number;
+  total_businesses: number;
+  pending_verifications: number;
+  suspended_businesses: number;
+  payment_health_bps: number;
+  failed_payments_30d: number;
+  total_payments_30d: number;
+  updated_at: string;
+};
+
+type AdminMoneyWebhookEventPayload = {
+  id: string;
+  provider_reference: string;
+  business: string;
+  status: AdminMoneyWebhookStatus;
+  purpose: string;
+  amount_minor: number;
+  attempts: number;
+  received_at: string;
+  note: string;
+};
+
+type AdminMoneyPayoutReviewPayload = {
+  id: string;
+  business: string;
+  subaccount_ref: string;
+  status: AdminMoneyPayoutStatus;
+  settlement_minor: number;
+  commission_minor: number;
+  next_action: string;
+  hold_active: boolean;
+  hold_reason: string;
+  hold_updated_at?: string;
+};
+
+type AdminMoneyReplayRequestPayload = {
+  replay_request_id: string;
+  provider_reference: string;
+  payment_id?: string;
+  business: string;
+  reason: string;
+  status: string;
+  created_at: string;
+};
+
+type AdminMoneyRailsPayload = {
+  webhook_events: AdminMoneyWebhookEventPayload[];
+  payout_reviews: AdminMoneyPayoutReviewPayload[];
+  updated_at: string;
+};
+
+type AdminSubscriptionEventPayload = {
+  subscription_event_id: string;
+  event_type: string;
+  summary: string;
+  actor_email: string;
+  created_at: string;
+};
+
+type AdminSubscriptionPayload = {
+  subscription_id?: string;
+  business_id: string;
+  business_name: string;
+  handle: string;
+  owner_email: string;
+  plan_code: string;
+  plan_name: string;
+  monthly_fee_minor: number;
+  commission_bps: number;
+  design_limit?: number;
+  status: AdminSubscriptionStatus;
+  billing_mode: AdminSubscriptionBillingMode;
+  provider: string;
+  provider_customer_ref: string;
+  provider_subscription_ref: string;
+  current_period_start: string;
+  current_period_end: string;
+  trial_ends_at?: string;
+  grace_ends_at?: string;
+  cancel_at_period_end: boolean;
+  canceled_at?: string;
+  failed_payment_count: number;
+  last_invoice_ref: string;
+  last_payment_at?: string;
+  next_billing_at?: string;
+  orders: number;
+  gmv_minor: number;
+  commission_minor: number;
+  updated_at: string;
+  events: AdminSubscriptionEventPayload[];
+};
+
+type AdminPlanPayload = {
+  plan_id: string;
+  code: string;
+  name: string;
+  monthly_fee_minor: number;
+  commission_bps: number;
+  design_limit?: number;
+  is_active: boolean;
+  business_count: number;
+  active_subscription_count: number;
+  estimated_mrr_minor: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminPromotionPayload = {
+  promotion_id: string;
+  business_id?: string;
+  business_name: string;
+  business_handle: string;
+  code: string;
+  title: string;
+  description: string;
+  discount_type: AdminPromotionDiscountType;
+  discount_value: number;
+  max_discount_minor?: number;
+  min_spend_minor: number;
+  usage_limit_global?: number;
+  usage_limit_per_customer?: number;
+  funding_source: AdminPromotionFundingSource;
+  scope: AdminPromotionScope;
+  status: AdminPromotionStatus;
+  starts_at?: string;
+  ends_at?: string;
+  redemption_count: number;
+  discount_redeemed_minor: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminRiskReviewPayload = {
+  review_key: string;
+  business_id: string;
+  title: string;
+  business: string;
+  level: AdminRiskLevel;
+  reason: string;
+  owner: string;
+  status: AdminRiskReviewStatus;
+  updated_at: string;
+};
+
+type AdminSupportTicketPayload = {
+  ticket_key: string;
+  business_id: string;
+  subject: string;
+  business: string;
+  priority: AdminSupportPriority;
+  summary: string;
+  category: string;
+  status: AdminSupportTicketStatus;
+  assigned_admin_user_id?: string;
+  assigned_admin_email?: string;
+  assigned_admin_name?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAuditEventPayload = {
+  audit_event_id: string;
+  actor_email: string;
+  actor_role: AdminRole | string;
+  action: string;
+  target_type: string;
+  target_id: string;
+  target_label: string;
+  summary: string;
+  severity: AdminAuditSeverity;
+  created_at: string;
+};
+
+type AdminVerificationCasePayload = {
+  business_id: string;
+  business_name: string;
+  handle: string;
+  owner_name: string;
+  owner_email: string;
+  submitted_at: string;
+  updated_at: string;
+  plan: string;
+  status: AdminVerificationStatus;
+  risk_level: AdminRiskLevel;
+  documents: string[];
+  checks: string[];
+  evidence: string[];
+  notes: string;
+};
+
+type AdminBusinessPayload = {
+  business_id: string;
+  name: string;
+  handle: string;
+  owner_name: string;
+  owner_email: string;
+  status: AdminBusinessStatus;
+  verification_status: AdminVerificationStatus;
+  operational_status: AdminBusinessOperationalStatus;
+  plan: string;
+  orders: number;
+  gmv_minor: number;
+  commission_minor: number;
+  risk_level: AdminRiskLevel;
+  last_active: string;
+  subaccount_ref: string;
+  suspension_reason: string;
+  suspended_at?: string;
+  updated_at: string;
+};
+
+type AdminRolePayload = {
+  role: AdminRole;
+  label: string;
+  permissions: string[];
+};
+
+type AdminPermissionPayload = {
+  permission: string;
+  label: string;
+};
+
+export class AdminApiError extends Error {
+  status: number;
+  code: string;
+
+  constructor(status: number, code: string) {
+    super(code);
+    this.name = "AdminApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/v1${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new AdminApiError(503, "admin_api_unavailable");
+  }
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new AdminApiError(
+      response.status,
+      payload?.error ?? "admin_api_error",
+    );
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+function mapAuth(payload: AdminAuthPayload): AdminAuthResult {
+  return {
+    adminUserId: payload.admin_user_id,
+    email: payload.email,
+    displayName: payload.display_name,
+    role: payload.role,
+    accessToken: payload.access_token,
+    refreshToken: payload.refresh_token,
+    accessExpiresAt: payload.access_expires_at,
+    refreshExpiresAt: payload.refresh_expires_at,
+  };
+}
+
+function mapUser(payload: AdminUserPayload): AdminUser {
+  return {
+    adminUserId: payload.admin_user_id,
+    email: payload.email,
+    displayName: payload.display_name,
+    role: payload.role,
+    isActive: payload.is_active,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapPreferences(payload: AdminPreferencesPayload): AdminPreferences {
+  return {
+    timezone: payload.timezone,
+    phoneNumber: payload.phone_number,
+    notifyEmail: payload.notify_email,
+    notifySms: payload.notify_sms,
+    alertVerifications: payload.alert_verifications,
+    alertMoneyRails: payload.alert_money_rails,
+    alertRisk: payload.alert_risk,
+    alertSupport: payload.alert_support,
+    dailyDigestTime: payload.daily_digest_time,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapProfileSettings(
+  payload: AdminProfileSettingsPayload,
+): AdminProfileSettings {
+  return {
+    user: mapUser(payload.user),
+    preferences: mapPreferences(payload.preferences),
+  };
+}
+
+function mapPlatformSettings(
+  payload: AdminPlatformSettingsPayload,
+): AdminPlatformSettings {
+  return {
+    platformName: payload.platform_name,
+    supportEmail: payload.support_email,
+    verificationSlaHours: payload.verification_sla_hours,
+    payoutReviewThresholdPesewas: payload.payout_review_threshold_pesewas,
+    maintenanceMode: payload.maintenance_mode,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapPlatformMetrics(
+  payload: AdminPlatformMetricsPayload,
+): AdminPlatformMetrics {
+  return {
+    gmvMonthMinor: payload.gmv_month_minor,
+    platformRevenueMonthMinor: payload.platform_revenue_month_minor,
+    activeBusinesses: payload.active_businesses,
+    totalBusinesses: payload.total_businesses,
+    pendingVerifications: payload.pending_verifications,
+    suspendedBusinesses: payload.suspended_businesses,
+    paymentHealthBps: payload.payment_health_bps,
+    failedPayments30d: payload.failed_payments_30d,
+    totalPayments30d: payload.total_payments_30d,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapMoneyRails(payload: AdminMoneyRailsPayload): AdminMoneyRails {
+  return {
+    webhookEvents: payload.webhook_events.map((event) => ({
+      id: event.id,
+      providerReference: event.provider_reference,
+      business: event.business,
+      status: event.status,
+      purpose: event.purpose,
+      amountMinor: event.amount_minor,
+      attempts: event.attempts,
+      receivedAt: event.received_at,
+      note: event.note,
+    })),
+    payoutReviews: payload.payout_reviews.map((review) => ({
+      id: review.id,
+      business: review.business,
+      subaccountRef: review.subaccount_ref,
+      status: review.status,
+      settlementMinor: review.settlement_minor,
+      commissionMinor: review.commission_minor,
+      nextAction: review.next_action,
+      holdActive: review.hold_active,
+      holdReason: review.hold_reason,
+      holdUpdatedAt: review.hold_updated_at,
+    })),
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
+  return {
+    subscriptionId: payload.subscription_id,
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    handle: payload.handle,
+    ownerEmail: payload.owner_email,
+    planCode: payload.plan_code,
+    planName: payload.plan_name,
+    monthlyFeeMinor: payload.monthly_fee_minor,
+    commissionBps: payload.commission_bps,
+    designLimit: payload.design_limit,
+    status: payload.status,
+    billingMode: payload.billing_mode,
+    provider: payload.provider,
+    providerCustomerRef: payload.provider_customer_ref,
+    providerSubscriptionRef: payload.provider_subscription_ref,
+    currentPeriodStart: payload.current_period_start,
+    currentPeriodEnd: payload.current_period_end,
+    trialEndsAt: payload.trial_ends_at,
+    graceEndsAt: payload.grace_ends_at,
+    cancelAtPeriodEnd: payload.cancel_at_period_end,
+    canceledAt: payload.canceled_at,
+    failedPaymentCount: payload.failed_payment_count,
+    lastInvoiceRef: payload.last_invoice_ref,
+    lastPaymentAt: payload.last_payment_at,
+    nextBillingAt: payload.next_billing_at,
+    orders: payload.orders,
+    gmvMinor: payload.gmv_minor,
+    commissionMinor: payload.commission_minor,
+    updatedAt: payload.updated_at,
+    events: payload.events.map((event) => ({
+      id: event.subscription_event_id,
+      eventType: event.event_type,
+      summary: event.summary,
+      actorEmail: event.actor_email,
+      createdAt: event.created_at,
+    })),
+  };
+}
+
+function mapPlan(payload: AdminPlanPayload): AdminPlan {
+  return {
+    planId: payload.plan_id,
+    code: payload.code,
+    name: payload.name,
+    monthlyFeeMinor: payload.monthly_fee_minor,
+    commissionBps: payload.commission_bps,
+    designLimit: payload.design_limit,
+    isActive: payload.is_active,
+    businessCount: payload.business_count,
+    activeSubscriptionCount: payload.active_subscription_count,
+    estimatedMrrMinor: payload.estimated_mrr_minor,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
+  return {
+    promotionId: payload.promotion_id,
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    businessHandle: payload.business_handle,
+    code: payload.code,
+    title: payload.title,
+    description: payload.description,
+    discountType: payload.discount_type,
+    discountValue: payload.discount_value,
+    maxDiscountMinor: payload.max_discount_minor,
+    minSpendMinor: payload.min_spend_minor,
+    usageLimitGlobal: payload.usage_limit_global,
+    usageLimitPerCustomer: payload.usage_limit_per_customer,
+    fundingSource: payload.funding_source,
+    scope: payload.scope,
+    status: payload.status,
+    startsAt: payload.starts_at,
+    endsAt: payload.ends_at,
+    redemptionCount: payload.redemption_count,
+    discountRedeemedMinor: payload.discount_redeemed_minor,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapRiskReview(payload: AdminRiskReviewPayload): AdminRiskReview {
+  return {
+    id: payload.review_key,
+    businessId: payload.business_id,
+    title: payload.title,
+    business: payload.business,
+    level: payload.level,
+    reason: payload.reason,
+    owner: payload.owner,
+    status: payload.status,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapSupportTicket(
+  payload: AdminSupportTicketPayload,
+): AdminSupportTicket {
+  return {
+    id: payload.ticket_key,
+    businessId: payload.business_id,
+    subject: payload.subject,
+    business: payload.business,
+    priority: payload.priority,
+    summary: payload.summary,
+    category: payload.category,
+    status: payload.status,
+    assignedAdminUserId: payload.assigned_admin_user_id,
+    assignedAdminEmail: payload.assigned_admin_email,
+    assignedAdminName: payload.assigned_admin_name,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAuditEvent(payload: AdminAuditEventPayload): AdminAuditEvent {
+  return {
+    id: payload.audit_event_id,
+    actor: payload.actor_email || "system",
+    actorRole: payload.actor_role,
+    action: payload.action,
+    targetType: payload.target_type,
+    targetId: payload.target_id,
+    target: payload.target_label || payload.target_id,
+    detail: payload.summary,
+    severity: payload.severity,
+    createdAt: payload.created_at,
+  };
+}
+
+function mapVerificationCase(
+  payload: AdminVerificationCasePayload,
+): AdminVerificationCase {
+  return {
+    id: payload.business_id,
+    businessName: payload.business_name,
+    handle: payload.handle,
+    ownerName: payload.owner_name,
+    ownerEmail: payload.owner_email,
+    submittedAt: payload.submitted_at,
+    updatedAt: payload.updated_at,
+    plan: payload.plan,
+    status: payload.status,
+    riskLevel: payload.risk_level,
+    documents: payload.documents,
+    checks: payload.checks,
+    evidence: payload.evidence,
+    notes: payload.notes,
+  };
+}
+
+function mapBusiness(payload: AdminBusinessPayload): AdminBusiness {
+  return {
+    id: payload.business_id,
+    name: payload.name,
+    handle: payload.handle,
+    ownerName: payload.owner_name,
+    ownerEmail: payload.owner_email,
+    status: payload.status,
+    verificationStatus: payload.verification_status,
+    operationalStatus: payload.operational_status,
+    plan: payload.plan,
+    orders: payload.orders,
+    gmvMinor: payload.gmv_minor,
+    commissionMinor: payload.commission_minor,
+    riskLevel: payload.risk_level,
+    lastActive: payload.last_active,
+    subaccountRef: payload.subaccount_ref,
+    suspensionReason: payload.suspension_reason,
+    suspendedAt: payload.suspended_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapRole(payload: AdminRolePayload): AdminRoleDefinition {
+  return {
+    role: payload.role,
+    label: payload.label,
+    permissions: payload.permissions,
+  };
+}
+
+function mapPermission(
+  payload: AdminPermissionPayload,
+): AdminPermissionDefinition {
+  return {
+    permission: payload.permission,
+    label: payload.label,
+  };
+}
+
+export const adminApi = {
+  login: async (email: string, password: string) => {
+    const payload = await requestJSON<AdminAuthPayload>("/admin/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    });
+    return mapAuth(payload);
+  },
+  refresh: async (refreshToken: string) => {
+    const payload = await requestJSON<AdminAuthPayload>("/admin/auth/refresh", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    return mapAuth(payload);
+  },
+  logout: (refreshToken: string) =>
+    requestJSON<undefined>("/admin/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    }),
+  me: async (accessToken: string) => {
+    const payload = await requestJSON<AdminUserPayload>("/admin/auth/me", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return mapUser(payload);
+  },
+  profileSettings: async (accessToken: string) => {
+    const payload = await requestJSON<AdminProfileSettingsPayload>(
+      "/admin/settings/profile",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return mapProfileSettings(payload);
+  },
+  updateProfile: (
+    accessToken: string,
+    input: { displayName: string; email: string },
+  ) =>
+    requestJSON<AdminUserPayload>("/admin/settings/profile", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        display_name: input.displayName,
+        email: input.email,
+      }),
+    }).then(mapUser),
+  updatePreferences: (
+    accessToken: string,
+    input: {
+      timezone: string;
+      phoneNumber: string;
+      notifyEmail: boolean;
+      notifySms: boolean;
+      alertVerifications: boolean;
+      alertMoneyRails: boolean;
+      alertRisk: boolean;
+      alertSupport: boolean;
+      dailyDigestTime: string;
+    },
+  ) =>
+    requestJSON<AdminPreferencesPayload>("/admin/settings/preferences", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        timezone: input.timezone,
+        phone_number: input.phoneNumber,
+        notify_email: input.notifyEmail,
+        notify_sms: input.notifySms,
+        alert_verifications: input.alertVerifications,
+        alert_money_rails: input.alertMoneyRails,
+        alert_risk: input.alertRisk,
+        alert_support: input.alertSupport,
+        daily_digest_time: input.dailyDigestTime,
+      }),
+    }).then(mapPreferences),
+  platformSettings: async (accessToken: string) => {
+    const payload = await requestJSON<AdminPlatformSettingsPayload>(
+      "/admin/settings/platform",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return mapPlatformSettings(payload);
+  },
+  updatePlatformSettings: (
+    accessToken: string,
+    input: {
+      platformName: string;
+      supportEmail: string;
+      verificationSlaHours: number;
+      payoutReviewThresholdPesewas: number;
+      maintenanceMode: boolean;
+    },
+  ) =>
+    requestJSON<AdminPlatformSettingsPayload>("/admin/settings/platform", {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        platform_name: input.platformName,
+        support_email: input.supportEmail,
+        verification_sla_hours: input.verificationSlaHours,
+        payout_review_threshold_pesewas: input.payoutReviewThresholdPesewas,
+        maintenance_mode: input.maintenanceMode,
+      }),
+    }).then(mapPlatformSettings),
+  platformMetrics: (accessToken: string) =>
+    requestJSON<AdminPlatformMetricsPayload>("/admin/platform-metrics", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapPlatformMetrics),
+  moneyRails: (accessToken: string) =>
+    requestJSON<AdminMoneyRailsPayload>("/admin/money-rails", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapMoneyRails),
+  subscriptions: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      subscriptions: AdminSubscriptionPayload[];
+    }>("/admin/subscriptions", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.subscriptions.map(mapSubscription);
+  },
+  updateSubscription: (
+    accessToken: string,
+    businessId: string,
+    input: {
+      status: AdminSubscriptionStatus;
+      billingMode: AdminSubscriptionBillingMode;
+      reason: string;
+    },
+  ) =>
+    requestJSON<AdminSubscriptionPayload>(
+      `/admin/subscriptions/businesses/${encodeURIComponent(businessId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          status: input.status,
+          billing_mode: input.billingMode,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapSubscription),
+  plans: async (accessToken: string) => {
+    const payload = await requestJSON<{ plans: AdminPlanPayload[] }>(
+      "/admin/plans",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.plans.map(mapPlan);
+  },
+  createPlan: (
+    accessToken: string,
+    input: {
+      code: string;
+      name: string;
+      monthlyFeeMinor: number;
+      commissionBps: number;
+      designLimit?: number;
+    },
+  ) =>
+    requestJSON<AdminPlanPayload>("/admin/plans", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        code: input.code,
+        name: input.name,
+        monthly_fee_minor: input.monthlyFeeMinor,
+        commission_bps: input.commissionBps,
+        design_limit: input.designLimit,
+      }),
+    }).then(mapPlan),
+  updatePlan: (
+    accessToken: string,
+    planId: string,
+    input: {
+      name: string;
+      monthlyFeeMinor: number;
+      commissionBps: number;
+      designLimit?: number;
+      isActive: boolean;
+    },
+  ) =>
+    requestJSON<AdminPlanPayload>(
+      `/admin/plans/${encodeURIComponent(planId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          name: input.name,
+          monthly_fee_minor: input.monthlyFeeMinor,
+          commission_bps: input.commissionBps,
+          design_limit: input.designLimit,
+          is_active: input.isActive,
+        }),
+      },
+    ).then(mapPlan),
+  archivePlan: (accessToken: string, planId: string, reason: string) =>
+    requestJSON<AdminPlanPayload>(
+      `/admin/plans/${encodeURIComponent(planId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapPlan),
+  promotions: async (accessToken: string) => {
+    const payload = await requestJSON<{ promotions: AdminPromotionPayload[] }>(
+      "/admin/promotions",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.promotions.map(mapPromotion);
+  },
+  createPromotion: (
+    accessToken: string,
+    input: {
+      businessId?: string;
+      code: string;
+      title: string;
+      description: string;
+      discountType: AdminPromotionDiscountType;
+      discountValue: number;
+      maxDiscountMinor?: number;
+      minSpendMinor: number;
+      usageLimitGlobal?: number;
+      usageLimitPerCustomer?: number;
+      fundingSource: AdminPromotionFundingSource;
+      scope: AdminPromotionScope;
+      status: Exclude<AdminPromotionStatus, "archived">;
+      startsAt?: string;
+      endsAt?: string;
+    },
+  ) =>
+    requestJSON<AdminPromotionPayload>("/admin/promotions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        business_id: input.businessId,
+        code: input.code,
+        title: input.title,
+        description: input.description,
+        discount_type: input.discountType,
+        discount_value: input.discountValue,
+        max_discount_minor: input.maxDiscountMinor,
+        min_spend_minor: input.minSpendMinor,
+        usage_limit_global: input.usageLimitGlobal,
+        usage_limit_per_customer: input.usageLimitPerCustomer,
+        funding_source: input.fundingSource,
+        scope: input.scope,
+        status: input.status,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+      }),
+    }).then(mapPromotion),
+  updatePromotion: (
+    accessToken: string,
+    promotionId: string,
+    input: {
+      businessId?: string;
+      code: string;
+      title: string;
+      description: string;
+      discountType: AdminPromotionDiscountType;
+      discountValue: number;
+      maxDiscountMinor?: number;
+      minSpendMinor: number;
+      usageLimitGlobal?: number;
+      usageLimitPerCustomer?: number;
+      fundingSource: AdminPromotionFundingSource;
+      scope: AdminPromotionScope;
+      status: Exclude<AdminPromotionStatus, "archived">;
+      startsAt?: string;
+      endsAt?: string;
+    },
+  ) =>
+    requestJSON<AdminPromotionPayload>(
+      `/admin/promotions/${encodeURIComponent(promotionId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          business_id: input.businessId,
+          code: input.code,
+          title: input.title,
+          description: input.description,
+          discount_type: input.discountType,
+          discount_value: input.discountValue,
+          max_discount_minor: input.maxDiscountMinor,
+          min_spend_minor: input.minSpendMinor,
+          usage_limit_global: input.usageLimitGlobal,
+          usage_limit_per_customer: input.usageLimitPerCustomer,
+          funding_source: input.fundingSource,
+          scope: input.scope,
+          status: input.status,
+          starts_at: input.startsAt,
+          ends_at: input.endsAt,
+        }),
+      },
+    ).then(mapPromotion),
+  archivePromotion: (
+    accessToken: string,
+    promotionId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminPromotionPayload>(
+      `/admin/promotions/${encodeURIComponent(promotionId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapPromotion),
+  queueMoneyReplay: (
+    accessToken: string,
+    input: { providerReference: string; reason: string },
+  ) =>
+    requestJSON<AdminMoneyReplayRequestPayload>(
+      "/admin/money-rails/replay-requests",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          provider_reference: input.providerReference,
+          reason: input.reason,
+        }),
+      },
+    ),
+  setSettlementReviewHold: (
+    accessToken: string,
+    businessId: string,
+    input: { hold: boolean; reason: string },
+  ) =>
+    requestJSON<AdminMoneyPayoutReviewPayload>(
+      `/admin/money-rails/businesses/${encodeURIComponent(businessId)}/settlement-hold`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          hold: input.hold,
+          reason: input.reason,
+        }),
+      },
+    ),
+  riskReviews: async (accessToken: string) => {
+    const payload = await requestJSON<{ reviews: AdminRiskReviewPayload[] }>(
+      "/admin/risk-reviews",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.reviews.map(mapRiskReview);
+  },
+  updateRiskReviewStatus: (
+    accessToken: string,
+    reviewKey: string,
+    input: { status: AdminRiskReviewStatus; reason: string },
+  ) =>
+    requestJSON<AdminRiskReviewPayload>(
+      `/admin/risk-reviews/${encodeURIComponent(reviewKey)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          status: input.status,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapRiskReview),
+  supportTickets: async (accessToken: string) => {
+    const payload = await requestJSON<{ tickets: AdminSupportTicketPayload[] }>(
+      "/admin/support-tickets",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.tickets.map(mapSupportTicket);
+  },
+  updateSupportTicket: (
+    accessToken: string,
+    ticketKey: string,
+    input: {
+      status: AdminSupportTicketStatus;
+      assignment: AdminSupportAssignment;
+      note: string;
+    },
+  ) =>
+    requestJSON<AdminSupportTicketPayload>(
+      `/admin/support-tickets/${encodeURIComponent(ticketKey)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          status: input.status,
+          assignment: input.assignment,
+          note: input.note,
+        }),
+      },
+    ).then(mapSupportTicket),
+  auditEvents: async (accessToken: string, severity?: AdminAuditSeverity) => {
+    const query = severity ? `?severity=${encodeURIComponent(severity)}` : "";
+    const payload = await requestJSON<{ events: AdminAuditEventPayload[] }>(
+      `/admin/audit-events${query}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.events.map(mapAuditEvent);
+  },
+  verificationCases: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      cases: AdminVerificationCasePayload[];
+    }>("/admin/business-verifications", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.cases.map(mapVerificationCase);
+  },
+  decideVerification: (
+    accessToken: string,
+    businessId: string,
+    input: { decision: AdminVerificationDecision; note: string },
+  ) =>
+    requestJSON<AdminVerificationCasePayload>(
+      `/admin/business-verifications/${encodeURIComponent(businessId)}/decision`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ decision: input.decision, note: input.note }),
+      },
+    ).then(mapVerificationCase),
+  businesses: async (accessToken: string) => {
+    const payload = await requestJSON<{ businesses: AdminBusinessPayload[] }>(
+      "/admin/businesses",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.businesses.map(mapBusiness);
+  },
+  updateBusinessStatus: (
+    accessToken: string,
+    businessId: string,
+    input: {
+      operationalStatus: AdminBusinessOperationalStatus;
+      reason: string;
+    },
+  ) =>
+    requestJSON<AdminBusinessPayload>(
+      `/admin/businesses/${encodeURIComponent(businessId)}/status`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          operational_status: input.operationalStatus,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapBusiness),
+  roles: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      roles: AdminRolePayload[];
+      permissions: AdminPermissionPayload[];
+    }>("/admin/roles", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return {
+      roles: payload.roles.map(mapRole),
+      permissions: payload.permissions.map(mapPermission),
+    };
+  },
+  updateRolePermissions: (
+    accessToken: string,
+    role: AdminRole,
+    permissions: string[],
+  ) =>
+    requestJSON<AdminRolePayload>(`/admin/roles/${encodeURIComponent(role)}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ permissions }),
+    }).then(mapRole),
+  listUsers: async (accessToken: string) => {
+    const payload = await requestJSON<{ users: AdminUserPayload[] }>(
+      "/admin/users",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.users.map(mapUser);
+  },
+  createUser: (
+    accessToken: string,
+    input: {
+      displayName: string;
+      email: string;
+      password: string;
+      role: AdminRole;
+    },
+  ) =>
+    requestJSON<AdminUserPayload>("/admin/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        display_name: input.displayName,
+        email: input.email,
+        password: input.password,
+        role: input.role,
+      }),
+    }).then(mapUser),
+  updateUser: (
+    accessToken: string,
+    userId: string,
+    input: { displayName: string; role: AdminRole; isActive: boolean },
+  ) =>
+    requestJSON<AdminUserPayload>(
+      `/admin/users/${encodeURIComponent(userId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          display_name: input.displayName,
+          role: input.role,
+          is_active: input.isActive,
+        }),
+      },
+    ).then(mapUser),
+};

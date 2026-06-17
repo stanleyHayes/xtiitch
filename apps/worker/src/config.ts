@@ -1,6 +1,14 @@
 import type { RedisOptions } from "bullmq";
 
-export type NotificationTransportName = "disabled" | "log";
+export type NotificationTransportName = "disabled" | "log" | "http";
+
+export type NotificationHttpConfig = {
+  url: string;
+  authHeader: string;
+  authValue: string;
+  from: string;
+  timeoutMs: number;
+};
 
 export type WorkerConfig = {
   databaseUrl: string;
@@ -14,12 +22,14 @@ export type WorkerConfig = {
   outboxRetryBaseDelayMs: number;
   outboxRetryMaxDelayMs: number;
   notificationTransport: NotificationTransportName;
+  notificationHttp?: NotificationHttpConfig;
 };
 
 const defaultDatabaseUrl =
   "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable";
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
+  const notificationTransport = parseTransport(env.NOTIFICATION_TRANSPORT);
   return {
     databaseUrl: env.DATABASE_URL ?? defaultDatabaseUrl,
     redisConnection: {
@@ -34,7 +44,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     outboxMaxAttempts: parsePositiveInteger(env.OUTBOX_MAX_ATTEMPTS, 5),
     outboxRetryBaseDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_BASE_DELAY_MS, 60_000),
     outboxRetryMaxDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_MAX_DELAY_MS, 3_600_000),
-    notificationTransport: parseTransport(env.NOTIFICATION_TRANSPORT),
+    notificationTransport,
+    notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
   };
 }
 
@@ -71,8 +82,56 @@ function parseTransport(value: string | undefined): NotificationTransportName {
   if (value === undefined || value.trim() === "") {
     return "log";
   }
-  if (value === "disabled" || value === "log") {
+  if (value === "disabled" || value === "log" || value === "http") {
     return value;
   }
   throw new Error(`Unsupported NOTIFICATION_TRANSPORT value: ${value}`);
+}
+
+function parseNotificationHttpConfig(
+  transport: NotificationTransportName,
+  env: NodeJS.ProcessEnv,
+): NotificationHttpConfig | undefined {
+  if (transport !== "http") {
+    return undefined;
+  }
+
+  const url = requiredString(env.NOTIFICATION_HTTP_URL, "NOTIFICATION_HTTP_URL");
+  const authValue = requiredString(
+    env.NOTIFICATION_HTTP_AUTH_VALUE,
+    "NOTIFICATION_HTTP_AUTH_VALUE",
+  );
+  const authHeader = (env.NOTIFICATION_HTTP_AUTH_HEADER ?? "Authorization").trim();
+  if (authHeader === "") {
+    throw new Error("NOTIFICATION_HTTP_AUTH_HEADER cannot be blank");
+  }
+
+  validateHttpUrl(url);
+
+  return {
+    url,
+    authHeader,
+    authValue,
+    from: (env.NOTIFICATION_FROM ?? "Xtiitch").trim() || "Xtiitch",
+    timeoutMs: parsePositiveInteger(env.NOTIFICATION_HTTP_TIMEOUT_MS, 10_000),
+  };
+}
+
+function requiredString(value: string | undefined, name: string): string {
+  if (value === undefined || value.trim() === "") {
+    throw new Error(`${name} is required when NOTIFICATION_TRANSPORT=http`);
+  }
+  return value.trim();
+}
+
+function validateHttpUrl(value: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`Expected NOTIFICATION_HTTP_URL to be a valid URL, got ${value}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error("NOTIFICATION_HTTP_URL must use http or https");
+  }
 }

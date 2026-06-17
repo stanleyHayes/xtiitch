@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -81,6 +82,38 @@ func TestNewJWTIssuerRequiresSigningKey(t *testing.T) {
 	_, err := NewJWTIssuer("", "xtiitch-api", "xtiitch-clients")
 	if !errors.Is(err, ErrMissingJWTSigningKey) {
 		t.Fatalf("expected missing signing key error, got %v", err)
+	}
+}
+
+func TestJWTIssuerIssuesAndVerifiesAdminAccessToken(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+
+	issuedAt := time.Now()
+	expiresAt := issuedAt.Add(15 * time.Minute)
+	token, err := issuer.IssueAdminAccessToken(context.Background(), ports.AdminAccessTokenInput{
+		Subject:   common.ID("admin-1"),
+		Role:      admindomain.RoleOwner,
+		IssuedAt:  issuedAt,
+		ExpiresAt: expiresAt,
+	})
+	if err != nil {
+		t.Fatalf("issue admin access token: %v", err)
+	}
+
+	verified, err := issuer.VerifyAdminAccessToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("verify admin access token: %v", err)
+	}
+	if verified.Subject != "admin-1" || verified.Role != admindomain.RoleOwner {
+		t.Fatalf("unexpected verified admin token: %+v", verified)
+	}
+	if _, err := issuer.VerifyAccessToken(context.Background(), token); !errors.Is(err, ErrInvalidToken) {
+		t.Fatalf("expected admin token to be rejected by business verifier, got %v", err)
 	}
 }
 

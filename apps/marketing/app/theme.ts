@@ -34,9 +34,14 @@ const bodyFontStack = [
 
 const displayFontStack = [
   "DM Serif Display",
-  "Georgia",
-  "Times New Roman",
-  "serif",
+  "Instrument Sans",
+  "Roboto",
+  "system-ui",
+  "-apple-system",
+  "Segoe UI",
+  "Helvetica",
+  "Arial",
+  "sans-serif",
 ].join(", ");
 
 export const theme: Theme = createTheme({
@@ -63,39 +68,42 @@ export const theme: Theme = createTheme({
     // The style guide forbids negative letter spacing and viewport-scaled type.
     h1: {
       fontFamily: displayFontStack,
-      fontWeight: 700,
+      fontWeight: 400,
       fontSize: "3rem",
       lineHeight: 1,
       letterSpacing: 0,
     },
     h2: {
       fontFamily: displayFontStack,
-      fontWeight: 700,
+      fontWeight: 400,
       fontSize: "2.35rem",
       lineHeight: 1.05,
       letterSpacing: 0,
     },
     h3: {
       fontFamily: displayFontStack,
-      fontWeight: 700,
+      fontWeight: 400,
       fontSize: "1.8rem",
       lineHeight: 1.08,
       letterSpacing: 0,
     },
     h4: {
-      fontWeight: 700,
+      fontFamily: displayFontStack,
+      fontWeight: 400,
       fontSize: "1.25rem",
       lineHeight: 1.25,
       letterSpacing: 0,
     },
     h5: {
-      fontWeight: 600,
+      fontFamily: displayFontStack,
+      fontWeight: 400,
       fontSize: "1.125rem",
       lineHeight: 1.3,
       letterSpacing: 0,
     },
     h6: {
-      fontWeight: 600,
+      fontFamily: displayFontStack,
+      fontWeight: 400,
       fontSize: "1rem",
       lineHeight: 1.3,
       letterSpacing: 0,

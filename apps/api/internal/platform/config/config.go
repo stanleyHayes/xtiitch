@@ -3,25 +3,35 @@ package config
 import "os"
 
 type Config struct {
-	CloudinaryURL      string
-	DatabaseURL        string
-	Environment        string
-	ExpoAccessToken    string
-	HTTPAddr           string
-	JWTAudience        string
-	JWTIssuer          string
-	JWTSigningKey      string
-	PaystackSecretKey  string
-	PaystackWebhookKey string
-	RedisURL           string
-	ResendAPIKey       string
-	SonarHostURL       string
-	WorkerQueueName    string
+	AdminBootstrapDisplayName string
+	AdminBootstrapEmail       string
+	AdminBootstrapExtraUsers  string
+	AdminBootstrapPassword    string
+	AdminBootstrapRole        string
+	CloudinaryURL             string
+	DatabaseURL               string
+	Environment               string
+	ExpoAccessToken           string
+	HTTPAddr                  string
+	JWTAudience               string
+	JWTIssuer                 string
+	JWTSigningKey             string
+	PaystackSecretKey         string
+	PaystackWebhookKey        string
+	RedisURL                  string
+	ResendAPIKey              string
+	SonarHostURL              string
+	WorkerQueueName           string
 }
 
 func Load() Config {
 	return Config{
-		CloudinaryURL: getenv("CLOUDINARY_URL", ""),
+		AdminBootstrapDisplayName: getenv("ADMIN_BOOTSTRAP_DISPLAY_NAME", ""),
+		AdminBootstrapEmail:       getenv("ADMIN_BOOTSTRAP_EMAIL", ""),
+		AdminBootstrapExtraUsers:  getenv("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON", ""),
+		AdminBootstrapPassword:    getenv("ADMIN_BOOTSTRAP_PASSWORD", ""),
+		AdminBootstrapRole:        getenv("ADMIN_BOOTSTRAP_ROLE", "owner"),
+		CloudinaryURL:             getenv("CLOUDINARY_URL", ""),
 		// The API connects as the non-superuser application role so row-level
 		// security is enforced. Migrations run separately as the owner.
 		DatabaseURL:        getenv("DATABASE_URL", "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable"),

@@ -15,9 +15,20 @@ export const tokens = {
   charcoal: "#201923",
 } as const;
 
-const fontStack = [
+const bodyFontStack = [
   "Instrument Sans",
-  "Inter",
+  "Roboto",
+  "system-ui",
+  "-apple-system",
+  "Segoe UI",
+  "Helvetica",
+  "Arial",
+  "sans-serif",
+].join(", ");
+
+const displayFontStack = [
+  "DM Serif Display",
+  "Instrument Sans",
   "Roboto",
   "system-ui",
   "-apple-system",
@@ -43,13 +54,13 @@ export const theme: Theme = createTheme({
   },
   shape: { borderRadius: 8 },
   typography: {
-    fontFamily: fontStack,
-    h1: { fontWeight: 800, letterSpacing: 0 },
-    h2: { fontWeight: 760, letterSpacing: 0 },
-    h3: { fontWeight: 740, letterSpacing: 0 },
-    h4: { fontWeight: 720, letterSpacing: 0 },
-    h5: { fontWeight: 700, letterSpacing: 0 },
-    h6: { fontWeight: 700, letterSpacing: 0 },
+    fontFamily: bodyFontStack,
+    h1: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h2: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h3: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h4: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h5: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h6: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
     button: { textTransform: "none", fontWeight: 700 },
   },
   components: {

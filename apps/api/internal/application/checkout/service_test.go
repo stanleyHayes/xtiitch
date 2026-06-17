@@ -96,6 +96,145 @@ func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 	}
 }
 
+func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	promotions := &fakePromotions{
+		redemption: ports.PromotionRedemption{
+			PromotionID:   "promotion-1",
+			DiscountMinor: 5000,
+			FundingSource: "business",
+		},
+	}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1", CommissionBps: 300,
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Promotions: promotions,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "redemption-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.PromoCode = " welcome10 "
+	res, err := svc.PlaceStandardOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.AmountMinor != 45000 || res.DiscountMinor != 5000 {
+		t.Fatalf("expected discounted charge, got %+v", res)
+	}
+	if promotions.reserve.Code != "WELCOME10" ||
+		promotions.reserve.SubtotalMinor != 50000 ||
+		promotions.reserve.OrderID != "order-1" ||
+		promotions.reserve.CustomerID != "customer-1" {
+		t.Fatalf("unexpected promotion reservation: %+v", promotions.reserve)
+	}
+	if !orders.draftTotalSet || orders.draftTotal != 45000 {
+		t.Fatalf("expected draft order total to be lowered, got set=%v total=%d", orders.draftTotalSet, orders.draftTotal)
+	}
+	if payments.command.AmountMinor != 45000 {
+		t.Fatalf("expected discounted payment amount, got %+v", payments.command)
+	}
+	if payments.command.CommissionMinorOverride == nil || *payments.command.CommissionMinorOverride != 1500 {
+		t.Fatalf("business-funded promo should preserve original commission, got %+v", payments.command.CommissionMinorOverride)
+	}
+}
+
+func TestPlaceStandardOrderVoidsPromotionWhenChargeFails(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{err: errors.New("provider down")}
+	promotions := &fakePromotions{
+		redemption: ports.PromotionRedemption{
+			PromotionID:   "promotion-1",
+			DiscountMinor: 5000,
+			FundingSource: "split",
+		},
+	}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1", CommissionBps: 300,
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Promotions: promotions,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "redemption-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.PromoCode = "PROMO"
+	if _, err := svc.PlaceStandardOrder(context.Background(), cmd); err == nil {
+		t.Fatal("expected charge failure")
+	}
+	if !promotions.voidCalled || promotions.voidOrder != "order-1" {
+		t.Fatalf("expected pending promotion to be voided, got %+v", promotions)
+	}
+	if !orders.discardCalled {
+		t.Fatal("expected failed charge to discard the draft order")
+	}
+}
+
+func TestPlaceStandardOrderRejectsPlatformFundedDiscountAboveCommission(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{}
+	promotions := &fakePromotions{
+		redemption: ports.PromotionRedemption{
+			PromotionID:   "promotion-1",
+			DiscountMinor: 5000,
+			FundingSource: "platform",
+		},
+	}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1", CommissionBps: 300,
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Promotions: promotions,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "redemption-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.PromoCode = "BIGPLATFORM"
+	if _, err := svc.PlaceStandardOrder(context.Background(), cmd); !errors.Is(err, ErrPromotionUnavailable) {
+		t.Fatalf("expected unavailable promotion, got %v", err)
+	}
+	if payments.called {
+		t.Fatal("must not raise a payment for an over-funded platform promotion")
+	}
+	if !promotions.voidCalled || !orders.discardCalled {
+		t.Fatalf("expected reservation void + draft discard, got promo=%+v orders=%+v", promotions, orders)
+	}
+}
+
 func TestPlaceStandardOrderRejectsInvalidPaymentMethod(t *testing.T) {
 	t.Parallel()
 
@@ -238,6 +377,44 @@ func TestPlaceCustomOrderHomeVisitRaisesDepositWithoutMeasurements(t *testing.T)
 	}
 	if orders.customCreated.SizeMode != "home_visit" || orders.customCreated.MeasurementID != "" || orders.customCreated.Measurements != nil {
 		t.Fatalf("home_visit must not capture measurements at checkout: %+v", orders.customCreated)
+	}
+}
+
+func TestPlaceCustomOrderAppliesPromotionToDeposit(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref"}}
+	promotions := &fakePromotions{
+		redemption: ports.PromotionRedemption{
+			PromotionID:   "promotion-1",
+			DiscountMinor: 3000,
+			FundingSource: "split",
+		},
+	}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{store: customStore(), design: customDesign()},
+		Businesses: fakeCharge{ctx: verifiedCharge()},
+		Orders:     orders,
+		Payments:   payments,
+		Promotions: promotions,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "redemption-1"}},
+	})
+
+	cmd := customCommand("home_visit")
+	cmd.PromoCode = "DEPOSIT3"
+	res, err := svc.PlaceCustomOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.AmountMinor != 12000 || res.DiscountMinor != 3000 {
+		t.Fatalf("expected discounted deposit, got %+v", res)
+	}
+	if promotions.reserve.SubtotalMinor != 15000 || promotions.reserve.Code != "DEPOSIT3" {
+		t.Fatalf("unexpected promotion reservation: %+v", promotions.reserve)
+	}
+	if payments.command.CommissionMinorOverride == nil || *payments.command.CommissionMinorOverride != 360 {
+		t.Fatalf("split-funded promo should recompute commission on payable deposit, got %+v", payments.command.CommissionMinorOverride)
 	}
 }
 
@@ -564,6 +741,9 @@ type fakeOrders struct {
 	discardCalled       bool
 	discardOrder        common.ID
 	discardCustomer     common.ID
+	draftTotalSet       bool
+	draftTotalOrder     common.ID
+	draftTotal          int64
 	customCreated       ports.CreateCustomOrderInput
 	createCustomErr     error
 	customConfirmed     ports.CreateCustomOrderConfirmedInput
@@ -584,6 +764,13 @@ func (f *fakeOrders) DiscardDraftOrder(_ context.Context, _ common.TenantScope, 
 	f.discardCalled = true
 	f.discardOrder = orderID
 	f.discardCustomer = customerID
+	return nil
+}
+
+func (f *fakeOrders) SetDraftOrderAgreedTotal(_ context.Context, _ common.TenantScope, orderID common.ID, agreedTotalMinor int64) error {
+	f.draftTotalSet = true
+	f.draftTotalOrder = orderID
+	f.draftTotal = agreedTotalMinor
 	return nil
 }
 
@@ -634,6 +821,34 @@ func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.Ini
 	f.called = true
 	f.command = command
 	return f.result, f.err
+}
+
+type fakePromotions struct {
+	redemption ports.PromotionRedemption
+	err        error
+	reserve    ports.ReservePromotionInput
+	voidCalled bool
+	voidOrder  common.ID
+}
+
+func (f *fakePromotions) ReservePromotion(_ context.Context, _ common.TenantScope, input ports.ReservePromotionInput) (ports.PromotionRedemption, error) {
+	f.reserve = input
+	if f.err != nil {
+		return ports.PromotionRedemption{}, f.err
+	}
+	redemption := f.redemption
+	redemption.RedemptionID = input.RedemptionID
+	redemption.BusinessID = input.BusinessID
+	redemption.OrderID = input.OrderID
+	redemption.CustomerID = input.CustomerID
+	redemption.SubtotalMinor = input.SubtotalMinor
+	return redemption, nil
+}
+
+func (f *fakePromotions) VoidPendingPromotionRedemptions(_ context.Context, _ common.TenantScope, orderID common.ID) error {
+	f.voidCalled = true
+	f.voidOrder = orderID
+	return nil
 }
 
 type seqIDs struct {

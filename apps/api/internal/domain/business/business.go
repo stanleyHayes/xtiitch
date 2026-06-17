@@ -3,6 +3,7 @@ package business
 import "github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 
 type VerificationStatus string
+type OperationalStatus string
 type UserRole string
 
 const (
@@ -11,10 +12,31 @@ const (
 	VerificationStatusVerified   VerificationStatus = "verified"
 	VerificationStatusRejected   VerificationStatus = "rejected"
 
+	OperationalStatusActive    OperationalStatus = "active"
+	OperationalStatusSuspended OperationalStatus = "suspended"
+
 	UserRoleOwner UserRole = "owner"
 	UserRoleAdmin UserRole = "admin"
 	UserRoleStaff UserRole = "staff"
 )
+
+func (status VerificationStatus) Valid() bool {
+	switch status {
+	case VerificationStatusUnverified, VerificationStatusPending, VerificationStatusVerified, VerificationStatusRejected:
+		return true
+	default:
+		return false
+	}
+}
+
+func (status OperationalStatus) Valid() bool {
+	switch status {
+	case OperationalStatusActive, OperationalStatusSuspended:
+		return true
+	default:
+		return false
+	}
+}
 
 type Business struct {
 	ID                 common.ID

@@ -1,11 +1,12 @@
 import { Form, Link as RouterLink, redirect } from "react-router";
-import type { ReactElement, ReactNode } from "react";
+import { useState, type ReactElement, type ReactNode } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -22,19 +23,26 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
+import PaletteRounded from "@mui/icons-material/PaletteRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PhoneRounded from "@mui/icons-material/PhoneRounded";
+import PriceCheckRounded from "@mui/icons-material/PriceCheckRounded";
 import QueryStatsRounded from "@mui/icons-material/QueryStatsRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SaveRounded from "@mui/icons-material/SaveRounded";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
+import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
@@ -45,7 +53,7 @@ import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { Route } from "./+types/dashboard";
 import { apiFetch, logOut } from "../lib/auth";
-import type { Design } from "../lib/api";
+import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
 
@@ -62,6 +70,42 @@ type CurrentUser = {
   business_id: string;
   user_id: string;
   role: UserRole | string;
+};
+
+type BusinessUser = {
+  business_user_id: string;
+  business_id: string;
+  email: string;
+  display_name: string;
+  role: UserRole | string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+type StoreSettings = {
+  bespoke_enabled: boolean;
+  measurements_enabled: boolean;
+  customisation_enabled: boolean;
+  collections_enabled: boolean;
+  delivery_enabled: boolean;
+  dispatch_enabled: boolean;
+  brand_color: string;
+};
+
+type CollectionSummary = {
+  collection_id: string;
+  name: string;
+  theme: string;
+  handle: string;
+  status: string;
+  sequence: number;
+};
+
+type SizeBand = {
+  size_band_id: string;
+  label: string;
+  sequence: number;
 };
 
 type OrderSummary = {
@@ -189,6 +233,8 @@ type DashboardSection =
   | "catalogue"
   | "measurements"
   | "availability"
+  | "settings"
+  | "team"
   | "messages";
 
 type WorkspaceNavItem = {
@@ -211,12 +257,19 @@ type DashboardActionData = {
   permissionError?: string;
   orderError?: string;
   designError?: string;
+  mediaError?: string;
   fieldError?: string;
   measurementError?: string;
   moneyError?: string;
   bookingError?: string;
   handoverError?: string;
   availabilityError?: string;
+  teamError?: string;
+  settingsError?: string;
+  collectionError?: string;
+  sizeBandError?: string;
+  priceError?: string;
+  walkInError?: string;
 };
 
 type DashboardPageMeta = {
@@ -237,7 +290,52 @@ type OverviewRoom = {
   icon: ReactNode;
 };
 
+type PriorityRibbonItem = {
+  label: string;
+  value: number;
+  href: string;
+  icon: ReactElement;
+  tone: string;
+};
+
+type SetupStep = {
+  label: string;
+  helper: string;
+  href: string;
+  done: boolean;
+  icon: ReactElement;
+};
+
+type UploadSignature = {
+  signature: string;
+  timestamp: number;
+  cloud_name: string;
+  api_key: string;
+  folder: string;
+};
+
+type CloudinaryUploadResult = {
+  secure_url?: string;
+  url?: string;
+};
+
 const dashboardRailWidth = 304;
+
+const dashboardFallbackDesignImages = [
+  "/images/dashboard-atelier-review.webp",
+  "/images/dashboard-fitting.webp",
+  "/images/dashboard-atelier-hero.webp",
+];
+
+const defaultStoreSettings: StoreSettings = {
+  bespoke_enabled: false,
+  measurements_enabled: false,
+  customisation_enabled: false,
+  collections_enabled: false,
+  delivery_enabled: false,
+  dispatch_enabled: false,
+  brand_color: tokens.burgundy,
+};
 
 const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },
@@ -313,6 +411,20 @@ const managementWorkspaceNav: WorkspaceNavItem[] = [
     icon: <ScheduleRounded />,
   },
   {
+    href: "/dashboard/settings",
+    section: "settings",
+    label: "Settings",
+    helper: "Store switches",
+    icon: <SettingsRounded />,
+  },
+  {
+    href: "/dashboard/team",
+    section: "team",
+    label: "Team",
+    helper: "Access roles",
+    icon: <PeopleAltRounded />,
+  },
+  {
     href: "/dashboard/messages",
     section: "messages",
     label: "Messages",
@@ -372,6 +484,9 @@ const staffAllowedIntents = new Set([
 const dashboardActionIntents = new Set([
   "advance",
   "record_measurements",
+  "create_walk_in_order",
+  "set_agreed_total",
+  "collect_balance",
   "log_taking",
   "cancel_booking",
   "reschedule_booking",
@@ -382,6 +497,18 @@ const dashboardActionIntents = new Set([
   "create_measurement_field",
   "update_measurement_field",
   "delete_measurement_field",
+  "create_business_user",
+  "update_business_user",
+  "save_store_settings",
+  "create_collection",
+  "retire_collection",
+  "restore_collection",
+  "delete_collection",
+  "create_size_band",
+  "set_design_price",
+  "upload_design_image",
+  "update_design",
+  "delete_design",
   "create",
   "retire",
   "restore",
@@ -396,6 +523,11 @@ const manualTakingMethods = [
   { value: "cash", label: "Cash" },
   { value: "momo", label: "Mobile money" },
   { value: "other", label: "Other" },
+];
+
+const businessUserRoleOptions = [
+  { value: "admin", label: "Admin" },
+  { value: "staff", label: "Staff" },
 ];
 
 const handoverMethods = [
@@ -472,6 +604,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   };
   let manualTakings: ManualTaking[] = [];
   let availabilityWindows: AvailabilityWindow[] = [];
+  let businessUsers: BusinessUser[] = [];
+  let storeSettings = defaultStoreSettings;
+  let collections: CollectionSummary[] = [];
+  let sizeBands: SizeBand[] = [];
   const orders = ordersData.orders ?? [];
 
   if (canManage) {
@@ -480,11 +616,19 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       moneySummaryResponse,
       takingsResponse,
       availabilityResponse,
+      businessUsersResponse,
+      settingsResponse,
+      collectionsResponse,
+      sizeBandsResponse,
     ] = await Promise.all([
       apiFetch(request, "/designs"),
       apiFetch(request, "/money/summary"),
       apiFetch(request, "/money/takings"),
       apiFetch(request, "/availability"),
+      apiFetch(request, "/auth/business/users"),
+      apiFetch(request, "/store-settings"),
+      apiFetch(request, "/collections"),
+      apiFetch(request, "/size-bands"),
     ]);
     const designsData = (await designsResponse.json()) as {
       designs: Design[];
@@ -497,8 +641,30 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const availabilityData = (await availabilityResponse.json()) as {
       windows: AvailabilityWindow[];
     };
+    const businessUsersData = (await businessUsersResponse.json()) as {
+      users: BusinessUser[];
+    };
+    const settingsData = (await settingsResponse.json()) as StoreSettings;
+    const collectionsData = (await collectionsResponse.json()) as {
+      collections: CollectionSummary[];
+    };
+    const sizeBandsData = (await sizeBandsResponse.json()) as {
+      size_bands: SizeBand[];
+    };
 
-    designs = designsData.designs ?? [];
+    const listedDesigns = designsData.designs ?? [];
+    designs = await Promise.all(
+      listedDesigns.map(async (design) => {
+        const pricesResponse = await apiFetch(
+          request,
+          `/designs/${encodeURIComponent(design.design_id)}/prices`,
+        );
+        const pricesData = (await pricesResponse.json()) as {
+          prices: BandPrice[];
+        };
+        return { ...design, prices: pricesData.prices ?? [] };
+      }),
+    );
     moneySummary = {
       through_platform_minor: moneySummaryData.through_platform_minor ?? 0,
       commission_minor: moneySummaryData.commission_minor ?? 0,
@@ -507,6 +673,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     };
     manualTakings = takingsData.takings ?? [];
     availabilityWindows = availabilityData.windows ?? [];
+    businessUsers = businessUsersData.users ?? [];
+    storeSettings = settingsData;
+    collections = collectionsData.collections ?? [];
+    sizeBands = sizeBandsData.size_bands ?? [];
   }
 
   return {
@@ -521,6 +691,10 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
     availabilityWindows,
+    businessUsers,
+    storeSettings,
+    collections,
+    sizeBands,
     section,
     orderFilter,
   };
@@ -584,6 +758,92 @@ export async function action({ request }: Route.ActionArgs) {
         measurementError:
           "Could not save those measurements. Check the order route and field list.",
       };
+    }
+    return redirect(returnTo);
+  }
+
+  if (intent === "create_walk_in_order") {
+    const designID = String(form.get("design_id") ?? "").trim();
+    const sizeBandID = String(form.get("size_band_id") ?? "").trim();
+    const customerName = String(form.get("customer_name") ?? "").trim();
+    const agreedTotalMinor = parseMoneyMinor(form.get("agreed_total_ghs"));
+    if (!designID || !customerName) {
+      return {
+        walkInError:
+          "Choose a design and add the customer name before logging a walk-in order.",
+      };
+    }
+    const response = await apiFetch(request, "/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        design_id: designID,
+        size_band_id: sizeBandID || undefined,
+        customer_name: customerName,
+        customer_phone: String(form.get("customer_phone") ?? "").trim(),
+        customer_email: String(form.get("customer_email") ?? "").trim(),
+        agreed_total_minor: agreedTotalMinor,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        walkInError:
+          "Could not log that walk-in order. Check the design, size, and customer details.",
+      };
+    }
+    return redirect("/dashboard/orders?orders=confirmed");
+  }
+
+  if (intent === "set_agreed_total") {
+    const orderID = String(form.get("order_id") ?? "").trim();
+    const agreedTotalMinor = parseMoneyMinor(form.get("agreed_total_ghs"));
+    const returnTo = safeDashboardReturn(String(form.get("return_to") ?? ""));
+    if (!orderID || agreedTotalMinor === null) {
+      return { orderError: "Add a valid agreed total before saving." };
+    }
+    const response = await apiFetch(
+      request,
+      `/orders/${encodeURIComponent(orderID)}/agreed-total`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agreed_total_minor: agreedTotalMinor }),
+      },
+    );
+    if (!response.ok) {
+      return { orderError: "Could not save that agreed total." };
+    }
+    return redirect(returnTo);
+  }
+
+  if (intent === "collect_balance") {
+    const orderID = String(form.get("order_id") ?? "").trim();
+    const method =
+      String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
+    const returnTo = safeDashboardReturn(String(form.get("return_to") ?? ""));
+    if (!orderID) {
+      return { orderError: "Choose an order before collecting a balance." };
+    }
+    const response = await apiFetch(
+      request,
+      `/orders/${encodeURIComponent(orderID)}/balance`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        orderError:
+          "Could not open balance checkout. The order may already be paid or payment may be in progress.",
+      };
+    }
+    const payload = (await response.json()) as {
+      authorization_url?: string;
+    };
+    if (payload.authorization_url) {
+      return redirect(payload.authorization_url);
     }
     return redirect(returnTo);
   }
@@ -829,16 +1089,282 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/measurements");
   }
 
+  if (intent === "save_store_settings") {
+    const brandColor = String(form.get("brand_color") ?? "").trim();
+    const response = await apiFetch(request, "/store-settings", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bespoke_enabled: form.get("bespoke_enabled") === "on",
+        measurements_enabled: form.get("measurements_enabled") === "on",
+        customisation_enabled: form.get("customisation_enabled") === "on",
+        collections_enabled: form.get("collections_enabled") === "on",
+        delivery_enabled: form.get("delivery_enabled") === "on",
+        dispatch_enabled: form.get("dispatch_enabled") === "on",
+        brand_color: brandColor || tokens.burgundy,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        settingsError:
+          "Could not save storefront settings. Check the brand colour and feature switches.",
+      };
+    }
+    return redirect("/dashboard/settings");
+  }
+
+  if (intent === "create_business_user") {
+    const response = await apiFetch(request, "/auth/business/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        display_name: String(form.get("display_name") ?? "").trim(),
+        email: String(form.get("email") ?? "").trim(),
+        password: String(form.get("password") ?? ""),
+        role: String(form.get("role") ?? "staff").trim(),
+      }),
+    });
+    if (!response.ok) {
+      return { teamError: businessUserErrorMessage(response.status, "create") };
+    }
+    return redirect("/dashboard/team");
+  }
+
+  if (intent === "update_business_user") {
+    const userID = String(form.get("business_user_id") ?? "").trim();
+    if (!userID) {
+      return { teamError: "That team member could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/auth/business/users/${encodeURIComponent(userID)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          display_name: String(form.get("display_name") ?? "").trim(),
+          role: String(form.get("role") ?? "staff").trim(),
+          is_active: String(form.get("is_active") ?? "false") === "true",
+        }),
+      },
+    );
+    if (!response.ok) {
+      return { teamError: businessUserErrorMessage(response.status, "update") };
+    }
+    return redirect("/dashboard/team");
+  }
+
+  if (intent === "create_collection") {
+    const sequence = parseSequence(form.get("sequence"));
+    if (sequence === null) {
+      return {
+        collectionError:
+          "Use a zero or positive display order for the collection.",
+      };
+    }
+    const response = await apiFetch(request, "/collections", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: String(form.get("name") ?? "").trim(),
+        theme: String(form.get("theme") ?? "").trim(),
+        sequence,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        collectionError:
+          "Could not create that collection. Add a name and unique display order.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "retire_collection" || intent === "restore_collection") {
+    const collectionID = String(form.get("collection_id") ?? "").trim();
+    if (!collectionID) {
+      return { collectionError: "That collection could not be found." };
+    }
+    const actionName = intent === "retire_collection" ? "retire" : "restore";
+    const response = await apiFetch(
+      request,
+      `/collections/${encodeURIComponent(collectionID)}/${actionName}`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      return { collectionError: "Could not update that collection." };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "delete_collection") {
+    const collectionID = String(form.get("collection_id") ?? "").trim();
+    if (!collectionID) {
+      return { collectionError: "That collection could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/collections/${encodeURIComponent(collectionID)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      return {
+        collectionError:
+          "Could not remove that collection. Retire it first if it is still active.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "create_size_band") {
+    const sequence = parseSequence(form.get("sequence"));
+    if (sequence === null) {
+      return {
+        sizeBandError: "Use a zero or positive display order for the size.",
+      };
+    }
+    const response = await apiFetch(request, "/size-bands", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        label: String(form.get("label") ?? "").trim(),
+        sequence,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        sizeBandError:
+          "Could not create that size band. Add a label and unique display order.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "upload_design_image") {
+    const designID = String(form.get("design_id") ?? "").trim();
+    const file = form.get("image_file");
+    if (!designID) {
+      return { mediaError: "Choose a design before uploading an image." };
+    }
+    if (!(file instanceof File) || file.size === 0) {
+      return { mediaError: "Choose an image file before uploading." };
+    }
+    if (!file.type.startsWith("image/")) {
+      return { mediaError: "Upload an image file such as JPG, PNG, or WebP." };
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      return { mediaError: "Keep design images under 10 MB." };
+    }
+
+    const designResponse = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}`,
+    );
+    if (!designResponse.ok) {
+      return { mediaError: "That design could not be found." };
+    }
+    const design = (await designResponse.json()) as Design;
+    const imageUrl = await uploadDesignImage(request, file);
+    if (!imageUrl) {
+      return {
+        mediaError:
+          "Could not upload that image. Check Cloudinary setup or try another file.",
+      };
+    }
+
+    const response = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(
+          designPatchBody(design, [
+            imageUrl,
+            ...design.images.filter((url) => url !== imageUrl),
+          ]),
+        ),
+      },
+    );
+    if (!response.ok) {
+      return {
+        mediaError: "Image uploaded, but the design could not be saved.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "update_design") {
+    const designID = String(form.get("design_id") ?? "").trim();
+    const sequence = parseSequence(form.get("sequence"));
+    const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    if (!designID || sequence === null) {
+      return {
+        designError: "Could not update that design. Check the display order.",
+      };
+    }
+    const response = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          collection_id: String(form.get("collection_id") ?? "").trim() || null,
+          title: String(form.get("title") ?? "").trim(),
+          description: String(form.get("description") ?? "").trim(),
+          customisation_allowed: form.get("customisation") === "on",
+          deposit_override_minor: depositOverrideMinor,
+          sequence,
+          images: parseImageURLs(form.get("image_urls")),
+        }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        designError:
+          "Could not update that design. Check the title, images, deposit, and collection.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "set_design_price") {
+    const designID = String(form.get("design_id") ?? "").trim();
+    const sizeBandID = String(form.get("size_band_id") ?? "").trim();
+    const priceMinor = parseMoneyMinor(form.get("price_ghs"));
+    if (!designID || !sizeBandID || priceMinor === null) {
+      return { priceError: "Choose a design, size, and valid price." };
+    }
+    const response = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}/prices/${encodeURIComponent(sizeBandID)}`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ price_minor: priceMinor }),
+      },
+    );
+    if (!response.ok) {
+      return { priceError: "Could not save that design price." };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
   if (intent === "create") {
-    const imageUrl = String(form.get("image_url") ?? "").trim();
+    const sequence = parseSequence(form.get("sequence"));
+    const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
     const response = await apiFetch(request, "/designs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        collection_id: String(form.get("collection_id") ?? "").trim() || null,
         title: String(form.get("title") ?? "").trim(),
         description: String(form.get("description") ?? "").trim(),
         customisation_allowed: form.get("customisation") === "on",
-        images: imageUrl ? [imageUrl] : [],
+        deposit_override_minor: depositOverrideMinor,
+        sequence: sequence ?? 0,
+        images: parseImageURLs(form.get("image_url")),
       }),
     });
     if (!response.ok) {
@@ -849,12 +1375,35 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/catalogue");
   }
 
-  if (intent === "retire" || intent === "restore") {
-    await apiFetch(
+  if (intent === "delete_design") {
+    const designID = String(form.get("id") ?? "").trim();
+    if (!designID) {
+      return { designError: "That design could not be found." };
+    }
+    const response = await apiFetch(
       request,
-      `/designs/${String(form.get("id") ?? "")}/${intent}`,
+      `/designs/${encodeURIComponent(designID)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      return { designError: "Could not remove that design." };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "retire" || intent === "restore") {
+    const designID = String(form.get("id") ?? "").trim();
+    if (!designID) {
+      return { designError: "That design could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}/${intent}`,
       { method: "POST" },
     );
+    if (!response.ok) {
+      return { designError: "Could not update that design status." };
+    }
     return redirect("/dashboard/catalogue");
   }
 
@@ -897,6 +1446,8 @@ function isManagementSection(value: string): value is DashboardSection {
     "catalogue",
     "measurements",
     "availability",
+    "settings",
+    "team",
     "messages",
   ].includes(value);
 }
@@ -964,6 +1515,29 @@ function rolePermissionMessage(role: string): string {
     return "Staff can work orders, visits, measurements, and handovers. Money, catalogue, measurement setup, availability, and reports stay with owners or admins.";
   }
   return "Your current role cannot perform that dashboard action.";
+}
+
+function businessUserErrorMessage(
+  status: number,
+  action: "create" | "update",
+): string {
+  if (status === 403) {
+    return "Only owners and admins can manage team access.";
+  }
+  if (status === 409) {
+    return "That email is already attached to this business.";
+  }
+  if (status === 404) {
+    return "That team member could not be found or is protected.";
+  }
+  if (status === 400) {
+    return action === "create"
+      ? "Add a name, valid email, password of at least 8 characters, and an admin or staff role."
+      : "Add a name and choose an admin or staff role before saving.";
+  }
+  return action === "create"
+    ? "Could not create that team member yet."
+    : "Could not update that team member yet.";
 }
 
 function railBadge(count: number): string | undefined {
@@ -1053,6 +1627,24 @@ function dashboardPageMeta(section: DashboardSection): DashboardPageMeta {
         icon: <ScheduleRounded />,
         tone: tokens.gold,
       };
+    case "settings":
+      return {
+        eyebrow: "Storefront setup",
+        title: "Store switches",
+        helper:
+          "Control what customers can request, which services appear, and how your public store is branded.",
+        icon: <SettingsRounded />,
+        tone: tokens.burgundy,
+      };
+    case "team":
+      return {
+        eyebrow: "Access",
+        title: "Team permissions",
+        helper:
+          "Create admin and staff accounts, keep inactive people out, and see who can manage the studio.",
+        icon: <PeopleAltRounded />,
+        tone: tokens.info,
+      };
     case "messages":
       return {
         eyebrow: "Outbox",
@@ -1108,6 +1700,65 @@ function parseMoneyMinor(value: FormDataEntryValue | null): number | null {
     return null;
   }
   return Math.round(amount * 100);
+}
+
+function parseImageURLs(value: FormDataEntryValue | null): string[] {
+  return String(value ?? "")
+    .split(/\r?\n|,/)
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+async function uploadDesignImage(
+  request: Request,
+  file: File,
+): Promise<string | null> {
+  const signatureResponse = await apiFetch(
+    request,
+    "/media/design-upload-signature",
+    { method: "POST" },
+  );
+  if (!signatureResponse.ok) {
+    return null;
+  }
+  const signature = (await signatureResponse.json()) as UploadSignature;
+  if (signature.cloud_name === "demo" && signature.api_key === "demo") {
+    return null;
+  }
+
+  const uploadForm = new FormData();
+  uploadForm.set("file", file);
+  uploadForm.set("api_key", signature.api_key);
+  uploadForm.set("timestamp", String(signature.timestamp));
+  uploadForm.set("signature", signature.signature);
+  if (signature.folder) {
+    uploadForm.set("folder", signature.folder);
+  }
+
+  const uploadResponse = await fetch(
+    `https://api.cloudinary.com/v1_1/${encodeURIComponent(signature.cloud_name)}/image/upload`,
+    { method: "POST", body: uploadForm },
+  );
+  if (!uploadResponse.ok) {
+    return null;
+  }
+  const result = (await uploadResponse.json()) as CloudinaryUploadResult;
+  return result.secure_url ?? result.url ?? null;
+}
+
+function designPatchBody(
+  design: Design,
+  images: string[],
+): Record<string, unknown> {
+  return {
+    collection_id: design.collection_id,
+    title: design.title,
+    description: design.description,
+    customisation_allowed: design.customisation_allowed,
+    deposit_override_minor: design.deposit_override_minor,
+    sequence: design.sequence,
+    images,
+  };
 }
 
 function datetimeLocalToRFC3339(value: string): string | null {
@@ -1591,6 +2242,43 @@ function moneyProgress(order: OrderSummary): string {
   return `${formatGHS(order.settled_minor)} / ${formatGHS(target)}`;
 }
 
+function moneyInputValue(value: number | null | undefined): string {
+  if (!value || value <= 0) {
+    return "";
+  }
+  return String(value / 100);
+}
+
+function orderTargetMinor(order: OrderSummary): number | null {
+  return order.agreed_total_minor ?? order.payment_amount_minor ?? null;
+}
+
+function orderBalanceDueMinor(order: OrderSummary): number {
+  const target = orderTargetMinor(order);
+  if (!target) {
+    return 0;
+  }
+  return Math.max(0, target - order.settled_minor);
+}
+
+function findBandPrice(
+  design: Design,
+  sizeBandID: string,
+): BandPrice | undefined {
+  return design.prices.find((price) => price.size_band_id === sizeBandID);
+}
+
+function enabledStoreSettings(settings: StoreSettings): number {
+  return [
+    settings.bespoke_enabled,
+    settings.measurements_enabled,
+    settings.customisation_enabled,
+    settings.collections_enabled,
+    settings.delivery_enabled,
+    settings.dispatch_enabled,
+  ].filter(Boolean).length;
+}
+
 function shortDate(value: string): string {
   if (!value) {
     return "";
@@ -1679,6 +2367,35 @@ function orderInitials(order: OrderSummary): string {
     .join("");
 }
 
+function businessUserInitials(user: BusinessUser): string {
+  return (user.display_name || user.email || "Team")
+    .split(/[ @.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("");
+}
+
+function businessUserJoinedLabel(user: BusinessUser): string {
+  const created = shortDate(user.created_at);
+  return created ? `Joined ${created}` : "Join date missing";
+}
+
+function fallbackDesignImage(design: Design): string {
+  const key = design.handle || design.design_id || design.title;
+  const index = Array.from(key).reduce(
+    (total, character) => total + character.charCodeAt(0),
+    0,
+  );
+  return (
+    dashboardFallbackDesignImages[
+      index % dashboardFallbackDesignImages.length
+    ] ??
+    dashboardFallbackDesignImages[0] ??
+    ""
+  );
+}
+
 function Panel({
   children,
   sx,
@@ -1699,8 +2416,15 @@ function Panel({
         bgcolor: alpha(tokens.white, 0.96),
         backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.78)}, ${alpha(tokens.panel, 0.5)})`,
         boxShadow: `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
+        minWidth: 0,
+        maxWidth: "100%",
         overflow: "hidden",
         backdropFilter: "blur(10px)",
+        transition:
+          "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
+        "@media (prefers-reduced-motion: no-preference)": {
+          animation: "dashboardSurfaceIn 420ms ease both",
+        },
         ...sx,
       }}
     >
@@ -1883,6 +2607,8 @@ function WorkspaceRail({
   section,
   storefrontURL,
   badges,
+  mobileOpen,
+  onCloseMobile,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
@@ -1891,62 +2617,52 @@ function WorkspaceRail({
   section: DashboardSection;
   storefrontURL: string;
   badges: Partial<Record<DashboardSection, string | undefined>>;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
 }) {
-  return (
-    <Panel
+  const railSurfaceSx = {
+    bgcolor: tokens.charcoal,
+    color: tokens.white,
+    backgroundImage: `
+      linear-gradient(${alpha(tokens.white, 0.05)} 1px, transparent 1px),
+      linear-gradient(90deg, ${alpha(tokens.white, 0.05)} 1px, transparent 1px),
+      linear-gradient(145deg, ${alpha(tokens.burgundy, 0.48)}, transparent 50%)
+    `,
+    backgroundSize: "34px 34px, 34px 34px, auto",
+    scrollbarWidth: "none",
+    "&::-webkit-scrollbar": { display: "none" },
+  };
+
+  const renderRailContent = ({ inDrawer = false }: { inDrawer?: boolean }) => (
+    <Stack
+      spacing={{ xs: 1.2, lg: 1.6 }}
       sx={{
-        p: 0,
-        position: { xs: "sticky", lg: "fixed" },
-        top: { xs: 0, lg: 24 },
-        left: {
-          lg: "max(24px, calc((100vw - 1500px) / 2 + 24px))",
-        },
-        width: { lg: dashboardRailWidth },
-        alignSelf: "start",
-        minHeight: { lg: "auto" },
-        height: { lg: "calc(100vh - 48px)" },
-        zIndex: 8,
-        overflowX: { xs: "auto", lg: "hidden" },
-        overflowY: { lg: "auto" },
-        bgcolor: tokens.charcoal,
-        color: tokens.white,
-        backdropFilter: "blur(14px)",
-        borderColor: alpha(tokens.white, 0.12),
-        boxShadow: { lg: `18px 0 60px ${alpha(tokens.ink, 0.18)}` },
-        backgroundImage: `
-          linear-gradient(${alpha(tokens.white, 0.05)} 1px, transparent 1px),
-          linear-gradient(90deg, ${alpha(tokens.white, 0.05)} 1px, transparent 1px),
-          linear-gradient(145deg, ${alpha(tokens.burgundy, 0.48)}, transparent 50%)
-        `,
-        backgroundSize: "34px 34px, 34px 34px, auto",
-        "@media (prefers-reduced-motion: no-preference)": {
-          animation: {
-            xs: "dashboardRailDrop 360ms ease both",
-            lg: "dashboardRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
-          },
-        },
+        minHeight: inDrawer ? "auto" : "100%",
+        width: "100%",
+        p: { xs: 1.25, sm: 1.5 },
+        pb: inDrawer ? 2 : { xs: 1.25, sm: 1.5 },
       }}
     >
-      <Stack
-        spacing={{ xs: 1, lg: 1.6 }}
+      <Box
         sx={{
-          minWidth: { xs: 980, lg: "auto" },
-          minHeight: { lg: "100%" },
-          p: { xs: 1.25, lg: 1.5 },
+          p: 1,
+          border: "1px solid",
+          borderColor: alpha(tokens.white, 0.13),
+          borderRadius: 2,
+          bgcolor: alpha(tokens.white, 0.075),
+          backdropFilter: "blur(14px)",
         }}
       >
-        <Box
-          sx={{
-            p: 1,
-            border: "1px solid",
-            borderColor: alpha(tokens.white, 0.13),
-            borderRadius: 2,
-            bgcolor: alpha(tokens.white, 0.075),
-            backdropFilter: "blur(14px)",
-            minWidth: { xs: 280, lg: "auto" },
-          }}
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{ alignItems: "center", justifyContent: "space-between" }}
         >
-          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", minWidth: 0 }}
+          >
             <Box
               sx={{
                 width: 46,
@@ -1975,190 +2691,264 @@ function WorkspaceRail({
               </Typography>
             </Box>
           </Stack>
-          <Stack direction="row" spacing={0.75} sx={{ mt: 1.25 }}>
-            <Chip
-              size="small"
-              icon={
-                verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
-              }
-              label={verified ? "Verified" : "Needs review"}
+          {inDrawer ? (
+            <IconButton
+              aria-label="Close navigation"
+              onClick={onCloseMobile}
               sx={{
                 color: tokens.white,
-                bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.3),
                 border: "1px solid",
-                borderColor: alpha(
-                  verified ? tokens.success : tokens.warning,
-                  0.42,
-                ),
-                "& .MuiChip-icon": { color: alpha(tokens.white, 0.86) },
-              }}
-            />
-            <Chip
-              size="small"
-              label={roleLabel(currentUser.role)}
-              sx={{
-                color: tokens.white,
-                bgcolor: alpha(roleTone(currentUser.role), 0.34),
-                border: "1px solid",
-                borderColor: alpha(roleTone(currentUser.role), 0.45),
-              }}
-            />
-          </Stack>
-        </Box>
-
-        <Box sx={{ flex: 1 }}>
-          <Typography
-            variant="caption"
-            sx={{
-              display: { xs: "none", lg: "block" },
-              color: alpha(tokens.white, 0.58),
-              fontWeight: 900,
-              px: 1,
-              textTransform: "uppercase",
-            }}
-          >
-            Studio workspace
-          </Typography>
-          <Stack
-            spacing={0.65}
-            sx={{
-              mt: { xs: 0, lg: 0.9 },
-              display: { xs: "flex", lg: "grid" },
-              flexDirection: { xs: "row", lg: "column" },
-            }}
-          >
-            {workspaceItems.map((item) => {
-              const active = item.section === section;
-              const badge = badges[item.section];
-              return (
-                <Button
-                  key={item.href}
-                  component={RouterLink}
-                  to={item.href}
-                  startIcon={item.icon}
-                  aria-current={active ? "page" : undefined}
-                  sx={{
-                    minHeight: 54,
-                    minWidth: { xs: 176, lg: "auto" },
-                    justifyContent: "flex-start",
-                    position: "relative",
-                    overflow: "hidden",
-                    color: tokens.white,
-                    bgcolor: active
-                      ? alpha(tokens.white, 0.13)
-                      : alpha(tokens.white, 0.035),
-                    border: "1px solid",
-                    borderColor: active
-                      ? alpha(tokens.white, 0.18)
-                      : "transparent",
-                    "&::before": {
-                      content: '""',
-                      position: "absolute",
-                      left: 0,
-                      top: 7,
-                      bottom: 7,
-                      width: 3,
-                      borderRadius: 4,
-                      bgcolor: active ? tokens.gold : "transparent",
-                    },
-                    "& .MuiButton-startIcon": {
-                      color: active ? tokens.white : alpha(tokens.white, 0.62),
-                    },
-                    "&:hover": {
-                      bgcolor: alpha(tokens.white, 0.17),
-                      borderColor: alpha(tokens.white, 0.16),
-                      color: tokens.white,
-                      transform: "translateX(2px)",
-                      "& .MuiButton-startIcon": { color: tokens.white },
-                    },
-                    transition:
-                      "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-                  }}
-                >
-                  <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
-                    <Typography
-                      component="span"
-                      sx={{
-                        display: "block",
-                        fontWeight: active ? 900 : 780,
-                        fontSize: 14,
-                        lineHeight: 1.15,
-                      }}
-                      noWrap
-                    >
-                      {item.label}
-                    </Typography>
-                    <Typography
-                      component="span"
-                      variant="caption"
-                      sx={{
-                        display: { xs: "none", lg: "block" },
-                        color: alpha(tokens.white, 0.56),
-                        lineHeight: 1.1,
-                      }}
-                      noWrap
-                    >
-                      {item.helper}
-                    </Typography>
-                  </Box>
-                  {badge ? (
-                    <Chip
-                      size="small"
-                      label={badge}
-                      sx={{
-                        height: 22,
-                        color: tokens.white,
-                        bgcolor: alpha(tokens.burgundy, 0.72),
-                        border: "1px solid",
-                        borderColor: alpha(tokens.white, 0.14),
-                      }}
-                    />
-                  ) : null}
-                </Button>
-              );
-            })}
-          </Stack>
-        </Box>
-
-        <Box sx={{ mt: "auto", minWidth: { xs: 260, lg: "auto" } }}>
-          <Button
-            component={MuiLink}
-            href={storefrontURL}
-            target="_blank"
-            rel="noreferrer"
-            variant="contained"
-            startIcon={<VisibilityRounded />}
-            fullWidth
-            sx={{
-              bgcolor: tokens.burgundy,
-              color: tokens.white,
-              "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
-            }}
-          >
-            View storefront
-          </Button>
-          <Form method="post">
-            <input type="hidden" name="intent" value="logout" />
-            <Button
-              type="submit"
-              color="inherit"
-              startIcon={<LogoutRounded />}
-              fullWidth
-              sx={{
-                mt: 1,
-                color: tokens.white,
-                border: "1px solid",
-                borderColor: alpha(tokens.white, 0.16),
+                borderColor: alpha(tokens.white, 0.14),
                 bgcolor: alpha(tokens.white, 0.06),
-                "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                flexShrink: 0,
               }}
             >
-              Log out
-            </Button>
-          </Form>
-        </Box>
-      </Stack>
-    </Panel>
+              <CloseRounded />
+            </IconButton>
+          ) : null}
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{ mt: 1.25, flexWrap: "wrap", gap: 0.75 }}
+        >
+          <Chip
+            size="small"
+            icon={verified ? <VerifiedUserRounded /> : <WarningAmberRounded />}
+            label={verified ? "Verified" : "Needs review"}
+            sx={{
+              color: tokens.white,
+              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.3),
+              border: "1px solid",
+              borderColor: alpha(verified ? tokens.success : tokens.warning, 0.42),
+              "& .MuiChip-icon": { color: alpha(tokens.white, 0.86) },
+            }}
+          />
+          <Chip
+            size="small"
+            label={roleLabel(currentUser.role)}
+            sx={{
+              color: tokens.white,
+              bgcolor: alpha(roleTone(currentUser.role), 0.34),
+              border: "1px solid",
+              borderColor: alpha(roleTone(currentUser.role), 0.45),
+            }}
+          />
+        </Stack>
+      </Box>
+
+      <Box
+        sx={{
+          flex: inDrawer ? "0 0 auto" : 1,
+          minHeight: inDrawer ? "auto" : 0,
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{
+            display: "block",
+            color: alpha(tokens.white, 0.58),
+            fontWeight: 900,
+            px: 1,
+            textTransform: "uppercase",
+          }}
+        >
+          Studio workspace
+        </Typography>
+        <Stack spacing={0.65} sx={{ mt: 0.9, display: "grid" }}>
+          {workspaceItems.map((item) => {
+            const active = item.section === section;
+            const badge = badges[item.section];
+            return (
+              <Button
+                key={item.href}
+                component={RouterLink}
+                to={item.href}
+                startIcon={item.icon}
+                aria-current={active ? "page" : undefined}
+                onClick={inDrawer ? onCloseMobile : undefined}
+                sx={{
+                  minHeight: 54,
+                  minWidth: 0,
+                  justifyContent: "flex-start",
+                  position: "relative",
+                  overflow: "hidden",
+                  color: tokens.white,
+                  bgcolor: active
+                    ? alpha(tokens.white, 0.13)
+                    : alpha(tokens.white, 0.035),
+                  border: "1px solid",
+                  borderColor: active ? alpha(tokens.white, 0.18) : "transparent",
+                  "&::before": {
+                    content: '""',
+                    position: "absolute",
+                    left: 0,
+                    top: 7,
+                    bottom: 7,
+                    width: 3,
+                    borderRadius: 4,
+                    bgcolor: active ? tokens.gold : "transparent",
+                  },
+                  "& .MuiButton-startIcon": {
+                    color: active ? tokens.white : alpha(tokens.white, 0.62),
+                  },
+                  "&:hover": {
+                    bgcolor: alpha(tokens.white, 0.17),
+                    borderColor: alpha(tokens.white, 0.16),
+                    color: tokens.white,
+                    transform: "translateX(2px)",
+                    "& .MuiButton-startIcon": { color: tokens.white },
+                  },
+                  transition:
+                    "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                }}
+              >
+                <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                  <Typography
+                    component="span"
+                    sx={{
+                      display: "block",
+                      fontWeight: active ? 900 : 780,
+                      fontSize: 14,
+                      lineHeight: 1.15,
+                    }}
+                    noWrap
+                  >
+                    {item.label}
+                  </Typography>
+                  <Typography
+                    component="span"
+                    variant="caption"
+                    sx={{
+                      display: "block",
+                      color: alpha(tokens.white, 0.56),
+                      lineHeight: 1.1,
+                    }}
+                    noWrap
+                  >
+                    {item.helper}
+                  </Typography>
+                </Box>
+                {badge ? (
+                  <Chip
+                    size="small"
+                    label={badge}
+                    sx={{
+                      height: 22,
+                      color: tokens.white,
+                      bgcolor: alpha(tokens.burgundy, 0.72),
+                      border: "1px solid",
+                      borderColor: alpha(tokens.white, 0.14),
+                    }}
+                  />
+                ) : null}
+              </Button>
+            );
+          })}
+        </Stack>
+      </Box>
+
+      <Box sx={{ mt: "auto" }}>
+        <Button
+          component={MuiLink}
+          href={storefrontURL}
+          target="_blank"
+          rel="noreferrer"
+          variant="contained"
+          startIcon={<VisibilityRounded />}
+          fullWidth
+          sx={{
+            bgcolor: tokens.burgundy,
+            color: tokens.white,
+            "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
+          }}
+        >
+          View storefront
+        </Button>
+        <Form method="post">
+          <input type="hidden" name="intent" value="logout" />
+          <Button
+            type="submit"
+            color="inherit"
+            startIcon={<LogoutRounded />}
+            fullWidth
+            sx={{
+              mt: 1,
+              color: tokens.white,
+              border: "1px solid",
+              borderColor: alpha(tokens.white, 0.16),
+              bgcolor: alpha(tokens.white, 0.06),
+              "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+            }}
+          >
+            Log out
+          </Button>
+        </Form>
+      </Box>
+    </Stack>
+  );
+
+  return (
+    <>
+      <Panel
+        sx={{
+          ...railSurfaceSx,
+          display: { xs: "none", md: "block" },
+          p: 0,
+          position: "sticky",
+          top: 24,
+          width: "100%",
+          alignSelf: "start",
+          maxHeight: "calc(100vh - 48px)",
+          zIndex: 8,
+          overflowX: "hidden",
+          overflowY: "auto",
+          backdropFilter: "blur(14px)",
+          borderColor: alpha(tokens.white, 0.12),
+          boxShadow: `18px 0 60px ${alpha(tokens.ink, 0.18)}`,
+          "@media (prefers-reduced-motion: no-preference)": {
+            animation: "dashboardRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
+          },
+        }}
+      >
+        {renderRailContent({})}
+      </Panel>
+      <Drawer
+        open={mobileOpen}
+        onClose={onCloseMobile}
+        ModalProps={{ keepMounted: true }}
+        slotProps={{
+          paper: {
+            sx: {
+              ...railSurfaceSx,
+              width: { xs: "min(90vw, 332px)", sm: 340 },
+              maxWidth: "calc(100vw - 20px)",
+              height: "100dvh",
+              maxHeight: "100dvh",
+              display: "block",
+              borderRight: "1px solid",
+              borderColor: alpha(tokens.white, 0.12),
+              overflowX: "hidden",
+              overflowY: "auto",
+              WebkitOverflowScrolling: "touch",
+              overscrollBehaviorY: "contain",
+              scrollbarWidth: "thin",
+              scrollbarColor: `${alpha(tokens.white, 0.34)} transparent`,
+              "&::-webkit-scrollbar": {
+                display: "block",
+                width: 8,
+              },
+              "&::-webkit-scrollbar-thumb": {
+                borderRadius: 999,
+                bgcolor: alpha(tokens.white, 0.28),
+              },
+            },
+          },
+        }}
+      >
+        {renderRailContent({ inDrawer: true })}
+      </Drawer>
+    </>
   );
 }
 
@@ -2174,6 +2964,7 @@ function WorkspaceHeader({
   pendingPayments,
   needsMeasurements,
   openHandovers,
+  pendingMessages,
 }: {
   meta: DashboardPageMeta;
   canManage: boolean;
@@ -2186,6 +2977,7 @@ function WorkspaceHeader({
   pendingPayments: number;
   needsMeasurements: number;
   openHandovers: number;
+  pendingMessages: number;
 }) {
   return (
     <Panel
@@ -2279,6 +3071,14 @@ function WorkspaceHeader({
           >
             {meta.helper}
           </Typography>
+          <PriorityRibbon
+            canManage={canManage}
+            pendingPayments={pendingPayments}
+            needsMeasurements={needsMeasurements}
+            activeBookings={activeBookings}
+            openHandovers={openHandovers}
+            pendingMessages={pendingMessages}
+          />
         </Box>
         <Box
           sx={{
@@ -2375,6 +3175,141 @@ function HeaderSignal({
   );
 }
 
+function PriorityRibbon({
+  canManage,
+  pendingPayments,
+  needsMeasurements,
+  activeBookings,
+  openHandovers,
+  pendingMessages,
+}: {
+  canManage: boolean;
+  pendingPayments: number;
+  needsMeasurements: number;
+  activeBookings: number;
+  openHandovers: number;
+  pendingMessages: number;
+}) {
+  const items: PriorityRibbonItem[] = [
+    ...(canManage
+      ? [
+          {
+            label: "Draft pay",
+            value: pendingPayments,
+            href: "/dashboard/orders?orders=draft",
+            icon: <ReceiptLongRounded fontSize="small" />,
+            tone: tokens.warning,
+          },
+        ]
+      : []),
+    {
+      label: "Measurements",
+      value: needsMeasurements,
+      href: "/dashboard/orders?orders=confirmed",
+      icon: <StraightenRounded fontSize="small" />,
+      tone: tokens.burgundy,
+    },
+    {
+      label: "Visits",
+      value: activeBookings,
+      href: "/dashboard/visits",
+      icon: <CalendarMonthRounded fontSize="small" />,
+      tone: tokens.info,
+    },
+    {
+      label: "Handovers",
+      value: openHandovers,
+      href: "/dashboard/handovers",
+      icon: <LocalShippingRounded fontSize="small" />,
+      tone: tokens.warning,
+    },
+    {
+      label: "Messages",
+      value: pendingMessages,
+      href: "/dashboard/messages",
+      icon: <NotificationsRounded fontSize="small" />,
+      tone: tokens.success,
+    },
+  ];
+
+  return (
+    <Box
+      sx={{
+        mt: 2.25,
+        display: "grid",
+        gap: 0.8,
+        gridTemplateColumns: {
+          xs: "repeat(2, minmax(0, 1fr))",
+          md: `repeat(${items.length}, minmax(0, 1fr))`,
+        },
+      }}
+    >
+      {items.map((item) => (
+        <Button
+          key={item.href}
+          component={RouterLink}
+          to={item.href}
+          aria-label={`${item.label}: ${item.value}`}
+          sx={{
+            minHeight: 54,
+            p: 1,
+            justifyContent: "flex-start",
+            border: "1px solid",
+            borderColor: alpha(tokens.white, 0.13),
+            bgcolor: alpha(tokens.white, 0.08),
+            color: tokens.white,
+            overflow: "hidden",
+            "&:hover": {
+              bgcolor: alpha(item.tone, 0.24),
+              borderColor: alpha(item.tone, 0.42),
+              transform: "translateY(-1px)",
+            },
+          }}
+        >
+          <Stack direction="row" spacing={0.85} sx={{ alignItems: "center" }}>
+            <Box
+              component="span"
+              sx={{
+                width: 30,
+                height: 30,
+                borderRadius: 1,
+                display: "grid",
+                placeItems: "center",
+                color: item.tone,
+                bgcolor: alpha(item.tone, 0.18),
+                flexShrink: 0,
+              }}
+            >
+              {item.icon}
+            </Box>
+            <Box component="span" sx={{ minWidth: 0, textAlign: "left" }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontSize: 18, fontWeight: 900 }}
+              >
+                {item.value}
+              </Typography>
+              <Typography
+                component="span"
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: alpha(tokens.white, 0.66),
+                  fontWeight: 850,
+                  lineHeight: 1.05,
+                }}
+                noWrap
+              >
+                {item.label}
+              </Typography>
+            </Box>
+          </Stack>
+        </Button>
+      ))}
+    </Box>
+  );
+}
+
 function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
   return (
     <Panel
@@ -2400,8 +3335,12 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
         }}
       >
         {rooms.map((room) => (
-          <Box
+          <MuiLink
             key={room.href}
+            component={RouterLink}
+            to={room.href}
+            underline="none"
+            aria-label={`${room.actionLabel}: ${room.title}`}
             sx={{
               p: 1.65,
               border: "1px solid",
@@ -2409,11 +3348,13 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
               borderRadius: 2,
               bgcolor: alpha(tokens.white, 0.78),
               backgroundImage: `linear-gradient(135deg, ${alpha(room.tone, 0.08)}, transparent 48%)`,
+              color: "text.primary",
               minWidth: 0,
               display: "grid",
               gap: 1.25,
               position: "relative",
               overflow: "hidden",
+              textDecoration: "none",
               boxShadow: `0 14px 34px ${alpha(tokens.ink, 0.045)}`,
               transition:
                 "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
@@ -2432,6 +3373,11 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
                 transform: "translateY(-2px)",
                 borderColor: alpha(room.tone, 0.34),
                 boxShadow: `0 22px 50px ${alpha(tokens.ink, 0.075)}`,
+                "& .workspace-arrow": { transform: "translateX(2px)" },
+              },
+              "&:focus-visible": {
+                outline: `3px solid ${alpha(room.tone, 0.32)}`,
+                outlineOffset: 3,
               },
             }}
           >
@@ -2477,28 +3423,172 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
               }}
             >
               <ToneChip label={room.value} tone={room.tone} />
-              <Button
-                component={RouterLink}
-                to={room.href}
-                size="small"
-                variant="outlined"
-                endIcon={<ArrowForwardRounded />}
+              <Box
                 sx={{
+                  minHeight: 34,
+                  px: 1.15,
+                  borderRadius: 1,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  border: "1px solid",
                   bgcolor: alpha(tokens.white, 0.72),
                   borderColor: alpha(room.tone, 0.2),
                   color: room.tone,
-                  "&:hover": {
-                    bgcolor: alpha(room.tone, 0.08),
-                    borderColor: alpha(room.tone, 0.3),
-                  },
+                  fontSize: 13,
+                  fontWeight: 850,
+                  whiteSpace: "nowrap",
                 }}
               >
                 {room.actionLabel}
-              </Button>
+                <ArrowForwardRounded
+                  className="workspace-arrow"
+                  sx={{ fontSize: 17, transition: "transform 180ms ease" }}
+                />
+              </Box>
             </Stack>
-          </Box>
+          </MuiLink>
         ))}
       </Box>
+    </Panel>
+  );
+}
+
+function StoreReadinessPanel({
+  steps,
+  storefrontURL,
+}: {
+  steps: SetupStep[];
+  storefrontURL: string;
+}) {
+  const completed = steps.filter((step) => step.done).length;
+  const progress = steps.length === 0 ? 0 : (completed / steps.length) * 100;
+
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.075)}, transparent 48%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.74)})`,
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{
+          alignItems: { xs: "stretch", sm: "flex-start" },
+          justifyContent: "space-between",
+        }}
+      >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <VerifiedUserRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Store readiness</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              The essentials that make the storefront workable for customers and
+              staff.
+            </Typography>
+          </Box>
+        </Stack>
+        <ToneChip
+          label={`${completed}/${steps.length} ready`}
+          tone={completed === steps.length ? tokens.success : tokens.warning}
+        />
+      </Stack>
+
+      <Box
+        aria-hidden
+        sx={{
+          mt: 2,
+          height: 9,
+          borderRadius: 999,
+          bgcolor: alpha(tokens.ink, 0.08),
+          overflow: "hidden",
+        }}
+      >
+        <Box
+          sx={{
+            width: `${progress}%`,
+            height: "100%",
+            borderRadius: 999,
+            bgcolor: completed === steps.length ? tokens.success : tokens.gold,
+            transition: "width 180ms ease",
+          }}
+        />
+      </Box>
+
+      <Stack spacing={1} sx={{ mt: 1.75 }}>
+        {steps.map((step) => (
+          <MuiLink
+            key={step.label}
+            component={RouterLink}
+            to={step.href}
+            underline="none"
+            sx={{
+              p: 1.25,
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: "32px minmax(0, 1fr) auto",
+              alignItems: "center",
+              border: "1px solid",
+              borderColor: step.done
+                ? alpha(tokens.success, 0.22)
+                : alpha(tokens.warning, 0.22),
+              borderRadius: 2,
+              color: "text.primary",
+              bgcolor: step.done
+                ? alpha(tokens.success, 0.045)
+                : alpha(tokens.white, 0.72),
+              "&:hover": {
+                bgcolor: step.done
+                  ? alpha(tokens.success, 0.075)
+                  : alpha(tokens.warning, 0.075),
+              },
+            }}
+          >
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: 1,
+                display: "grid",
+                placeItems: "center",
+                color: step.done ? tokens.success : tokens.warning,
+                bgcolor: step.done
+                  ? alpha(tokens.success, 0.1)
+                  : alpha(tokens.warning, 0.12),
+              }}
+            >
+              {step.done ? <CheckCircleRounded /> : step.icon}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {step.label}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+              >
+                {step.helper}
+              </Typography>
+            </Box>
+            <ArrowForwardRounded fontSize="small" />
+          </MuiLink>
+        ))}
+      </Stack>
+
+      <Button
+        href={storefrontURL}
+        target="_blank"
+        rel="noreferrer"
+        fullWidth
+        variant="outlined"
+        startIcon={<StorefrontRounded />}
+        sx={{ mt: 1.5 }}
+      >
+        Open storefront
+      </Button>
     </Panel>
   );
 }
@@ -2583,6 +3673,7 @@ function TodayFocusPanel({
             to="/dashboard/orders?orders=draft"
             size="small"
             variant="contained"
+            startIcon={<ReceiptLongRounded />}
             sx={{ bgcolor: tokens.white, color: tokens.ink }}
           >
             Drafts
@@ -2592,6 +3683,7 @@ function TodayFocusPanel({
             to="/dashboard/visits"
             size="small"
             variant="outlined"
+            startIcon={<CalendarMonthRounded />}
             sx={{
               color: tokens.white,
               borderColor: alpha(tokens.white, 0.22),
@@ -2605,6 +3697,7 @@ function TodayFocusPanel({
             to="/dashboard/handovers"
             size="small"
             variant="outlined"
+            startIcon={<LocalShippingRounded />}
             sx={{
               color: tokens.white,
               borderColor: alpha(tokens.white, 0.22),
@@ -2683,9 +3776,18 @@ function OrderCard({
   const canAdvance = order.status === "confirmed";
   const measurementSource = measurementSourceFor(order);
   const showMeasurementCapture = Boolean(measurementSource);
+  const targetMinor = orderTargetMinor(order);
+  const balanceDueMinor = orderBalanceDueMinor(order);
+  const canCollectBalance =
+    showMoneyDetails &&
+    balanceDueMinor > 0 &&
+    ["confirmed", "fulfilled"].includes(order.status);
 
   return (
-    <Panel id={`order-${order.order_id}`} sx={{ p: { xs: 2, md: 2.5 } }}>
+    <Panel
+      id={`order-${order.order_id}`}
+      sx={{ height: "100%", p: { xs: 2, md: 2.5 } }}
+    >
       <Stack spacing={2.25}>
         <Stack
           direction={{ xs: "column", md: "row" }}
@@ -2801,6 +3903,86 @@ function OrderCard({
             helper={order.customer_email || "No email captured"}
           />
         </Box>
+
+        {showMoneyDetails ? (
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.14),
+              borderRadius: 2,
+              p: 1.25,
+              bgcolor: alpha(tokens.white, 0.72),
+              backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.055)}, transparent 48%)`,
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", lg: "row" }}
+              spacing={1}
+              sx={{ alignItems: { xs: "stretch", lg: "center" } }}
+            >
+              <Form method="post" style={{ flex: 1 }}>
+                <input type="hidden" name="intent" value="set_agreed_total" />
+                <input type="hidden" name="order_id" value={order.order_id} />
+                <input type="hidden" name="return_to" value={returnTo} />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <TextField
+                    name="agreed_total_ghs"
+                    label="Agreed total"
+                    size="small"
+                    defaultValue={moneyInputValue(targetMinor)}
+                    fullWidth
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="outlined"
+                    startIcon={<SaveRounded />}
+                    sx={{ minWidth: 112 }}
+                  >
+                    Save
+                  </Button>
+                </Stack>
+              </Form>
+              <Form method="post">
+                <input type="hidden" name="intent" value="collect_balance" />
+                <input type="hidden" name="order_id" value={order.order_id} />
+                <input type="hidden" name="return_to" value={returnTo} />
+                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                  <TextField
+                    name="method"
+                    label="Balance method"
+                    select
+                    size="small"
+                    defaultValue="momo"
+                    disabled={!canCollectBalance}
+                    sx={{ minWidth: { sm: 150 } }}
+                  >
+                    <MenuItem value="momo">Mobile money</MenuItem>
+                    <MenuItem value="card">Card</MenuItem>
+                  </TextField>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={!canCollectBalance}
+                    startIcon={<PaymentsRounded />}
+                    sx={{ minWidth: 150 }}
+                  >
+                    {balanceDueMinor > 0
+                      ? `Collect ${formatGHS(balanceDueMinor)}`
+                      : "Paid"}
+                  </Button>
+                </Stack>
+              </Form>
+            </Stack>
+          </Box>
+        ) : null}
 
         <Stack
           direction={{ xs: "column", sm: "row" }}
@@ -2978,86 +4160,299 @@ function InfoStrip({
   );
 }
 
-function DesignRow({ design }: { design: Design }) {
+function DesignRow({
+  design,
+  collections,
+}: {
+  design: Design;
+  collections: CollectionSummary[];
+}) {
   const retired = design.status === "retired";
+  const image = design.images[0] || fallbackDesignImage(design);
+  const collectionName =
+    collections.find(
+      (collection) => collection.collection_id === design.collection_id,
+    )?.name ?? "No collection";
+  const lowestPriceMinor = design.prices.reduce<number | null>(
+    (lowest, price) =>
+      lowest === null ? price.price_minor : Math.min(lowest, price.price_minor),
+    null,
+  );
+  const priceSummary =
+    lowestPriceMinor === null
+      ? "No prices"
+      : design.prices.length === 1
+        ? formatGHS(lowestPriceMinor)
+        : `From ${formatGHS(lowestPriceMinor)}`;
   return (
     <Box
+      component="details"
       sx={{
-        display: "grid",
-        gap: 1.5,
-        gridTemplateColumns: {
-          xs: "64px minmax(0, 1fr)",
-          sm: "72px minmax(0, 1fr) auto",
-        },
-        alignItems: "center",
-        py: 1.5,
-        px: { xs: 2, md: 2.5 },
         borderTop: "1px solid",
         borderColor: "divider",
+        bgcolor: alpha(tokens.white, 0.42),
+        "&[open]": {
+          bgcolor: alpha(tokens.panel, 0.78),
+        },
       }}
     >
       <Box
-        aria-hidden
+        component="summary"
         sx={{
-          width: 58,
-          height: 74,
-          borderRadius: 1.5,
-          overflow: "hidden",
-          bgcolor: alpha(tokens.burgundy, 0.08),
-          color: "primary.main",
           display: "grid",
-          placeItems: "center",
+          gap: 1.5,
+          gridTemplateColumns: {
+            xs: "64px minmax(0, 1fr)",
+            sm: "72px minmax(0, 1fr) auto",
+          },
+          alignItems: "center",
+          py: 1.5,
+          px: { xs: 2, md: 2.5 },
+          cursor: "pointer",
+          listStyle: "none",
+          "&::-webkit-details-marker": { display: "none" },
+          "&:hover": { bgcolor: alpha(tokens.burgundy, 0.035) },
         }}
       >
-        {design.images[0] ? (
+        <Box
+          aria-hidden
+          sx={{
+            width: 58,
+            height: 74,
+            borderRadius: 1.5,
+            overflow: "hidden",
+            bgcolor: alpha(tokens.burgundy, 0.08),
+            color: "primary.main",
+            display: "grid",
+            placeItems: "center",
+          }}
+        >
           <Box
             component="img"
-            src={design.images[0]}
+            src={image}
             alt=""
-            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              filter: design.images[0]
+                ? "none"
+                : "saturate(0.9) contrast(1.04)",
+            }}
           />
-        ) : (
-          <DesignServicesRounded />
-        )}
-      </Box>
-      <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 800 }} noWrap>
-          {design.title}
-        </Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
-          {design.description || "No description yet"}
-        </Typography>
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800 }} noWrap>
+            {design.title}
+          </Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+            {design.description || "No description yet"}
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ mt: 0.85, alignItems: "center", flexWrap: "wrap" }}
+          >
+            <ToneChip
+              label={design.status}
+              tone={retired ? tokens.mutedText : tokens.success}
+            />
+            <Chip size="small" variant="outlined" label={collectionName} />
+            <Chip size="small" variant="outlined" label={priceSummary} />
+            {design.customisation_allowed ? (
+              <Chip size="small" variant="outlined" label="Customisable" />
+            ) : null}
+          </Stack>
+        </Box>
         <Stack
           direction="row"
           spacing={1}
-          sx={{ mt: 0.85, alignItems: "center", flexWrap: "wrap" }}
+          sx={{
+            display: { xs: "none", sm: "flex" },
+            alignItems: "center",
+            justifyContent: "flex-end",
+          }}
         >
-          <ToneChip
-            label={design.status}
-            tone={retired ? tokens.mutedText : tokens.success}
-          />
-          {design.customisation_allowed ? (
-            <Chip size="small" variant="outlined" label="Customisable" />
-          ) : null}
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", fontWeight: 900 }}
+          >
+            Edit
+          </Typography>
+          <ArrowForwardRounded fontSize="small" />
         </Stack>
       </Box>
-      <Form method="post">
-        <input type="hidden" name="id" value={design.design_id} />
-        <input
-          type="hidden"
-          name="intent"
-          value={retired ? "restore" : "retire"}
-        />
-        <Button
-          type="submit"
-          size="small"
-          variant="outlined"
-          color={retired ? "primary" : "inherit"}
-          fullWidth
+
+      <Box
+        sx={{
+          px: { xs: 2, md: 2.5 },
+          pb: { xs: 2, md: 2.5 },
+          borderTop: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Form method="post">
+          <input type="hidden" name="intent" value="update_design" />
+          <input type="hidden" name="design_id" value={design.design_id} />
+          <Box
+            sx={{
+              pt: 2,
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(0, 1fr) minmax(180px, 0.4fr)",
+              },
+            }}
+          >
+            <TextField
+              name="title"
+              label="Title"
+              defaultValue={design.title}
+              size="small"
+              required
+            />
+            <TextField
+              name="collection_id"
+              label="Collection"
+              select
+              defaultValue={design.collection_id ?? ""}
+              size="small"
+            >
+              <MenuItem value="">No collection</MenuItem>
+              {collections
+                .filter((collection) => collection.status === "active")
+                .map((collection) => (
+                  <MenuItem
+                    key={collection.collection_id}
+                    value={collection.collection_id}
+                  >
+                    {collection.name}
+                  </MenuItem>
+                ))}
+            </TextField>
+            <TextField
+              name="description"
+              label="Description"
+              defaultValue={design.description}
+              size="small"
+              multiline
+              minRows={2}
+              sx={{ gridColumn: { md: "1 / -1" } }}
+            />
+            <TextField
+              name="image_urls"
+              label="Image URLs"
+              defaultValue={design.images.join("\n")}
+              size="small"
+              multiline
+              minRows={2}
+              placeholder="https://..."
+              helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
+              sx={{ gridColumn: { md: "1 / -1" } }}
+            />
+            <TextField
+              name="sequence"
+              label="Display order"
+              type="number"
+              defaultValue={design.sequence}
+              size="small"
+              required
+              slotProps={{ htmlInput: { min: 0 } }}
+            />
+            <TextField
+              name="deposit_ghs"
+              label="Custom deposit"
+              defaultValue={moneyInputValue(design.deposit_override_minor)}
+              size="small"
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">GHS</InputAdornment>
+                  ),
+                },
+                htmlInput: { inputMode: "decimal" },
+              }}
+            />
+          </Box>
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{
+              mt: 1.5,
+              alignItems: { xs: "stretch", sm: "center" },
+              justifyContent: "space-between",
+            }}
+          >
+            <FormControlLabel
+              control={
+                <Checkbox
+                  name="customisation"
+                  defaultChecked={design.customisation_allowed}
+                />
+              }
+              label="Allow customisation"
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<SaveRounded />}
+            >
+              Save design
+            </Button>
+          </Stack>
+        </Form>
+
+        <Divider sx={{ my: 1.75 }} />
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{
+            alignItems: { xs: "stretch", sm: "center" },
+            justifyContent: "space-between",
+          }}
         >
-          {retired ? "Restore" : "Retire"}
-        </Button>
-      </Form>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Retire hides the piece from customers. Remove deletes it from the
+            dashboard list.
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: "flex-end" }}
+          >
+            <Form method="post">
+              <input type="hidden" name="id" value={design.design_id} />
+              <input
+                type="hidden"
+                name="intent"
+                value={retired ? "restore" : "retire"}
+              />
+              <Button
+                type="submit"
+                size="small"
+                variant="outlined"
+                color={retired ? "primary" : "inherit"}
+              >
+                {retired ? "Restore" : "Retire"}
+              </Button>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="id" value={design.design_id} />
+              <input type="hidden" name="intent" value="delete_design" />
+              <Button
+                type="submit"
+                size="small"
+                variant="outlined"
+                color="error"
+                startIcon={<DeleteOutlineRounded />}
+              >
+                Remove
+              </Button>
+            </Form>
+          </Stack>
+        </Stack>
+      </Box>
     </Box>
   );
 }
@@ -3648,7 +5043,8 @@ function ReportsPanel({
                   </Box>
                 </Stack>
                 <Button
-                  href={item.href}
+                  component={RouterLink}
+                  to={item.href}
                   size="small"
                   variant="outlined"
                   endIcon={<ArrowForwardRounded />}
@@ -3722,13 +5118,28 @@ function StaffTaskPanel({
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            <Button href="/dashboard/orders" size="small" variant="contained">
+            <Button
+              component={RouterLink}
+              to="/dashboard/orders"
+              size="small"
+              variant="contained"
+            >
               Orders
             </Button>
-            <Button href="/dashboard/visits" size="small" variant="outlined">
+            <Button
+              component={RouterLink}
+              to="/dashboard/visits"
+              size="small"
+              variant="outlined"
+            >
               Visits
             </Button>
-            <Button href="/dashboard/handovers" size="small" variant="outlined">
+            <Button
+              component={RouterLink}
+              to="/dashboard/handovers"
+              size="small"
+              variant="outlined"
+            >
               Handovers
             </Button>
           </Stack>
@@ -3934,7 +5345,12 @@ function StaffTaskPanel({
                     {item.helper}
                   </Typography>
                 </Box>
-                <Button href={item.href} size="small" variant="outlined">
+                <Button
+                  component={RouterLink}
+                  to={item.href}
+                  size="small"
+                  variant="outlined"
+                >
                   {item.meta}
                 </Button>
               </Box>
@@ -4146,6 +5562,1253 @@ function MoneyPanel({
         )}
       </Box>
     </Panel>
+  );
+}
+
+function WalkInOrderPanel({
+  designs,
+  sizeBands,
+  error,
+}: {
+  designs: Design[];
+  sizeBands: SizeBand[];
+  error?: string;
+}) {
+  const activeDesigns = designs.filter((design) => design.status === "active");
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.success, 0.07)}, transparent 50%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.72)})`,
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", lg: "row" }}
+        spacing={2}
+        sx={{
+          alignItems: { xs: "stretch", lg: "flex-start" },
+          justifyContent: "space-between",
+        }}
+      >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <AddRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Log a walk-in</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Create an in-studio order for a customer who calls or walks in.
+            </Typography>
+          </Box>
+        </Stack>
+        <ToneChip
+          label={`${activeDesigns.length} active designs`}
+          tone={activeDesigns.length > 0 ? tokens.success : tokens.warning}
+        />
+      </Stack>
+
+      {error ? (
+        <Alert severity="warning" sx={{ mt: 2 }}>
+          {error}
+        </Alert>
+      ) : null}
+
+      <Form method="post">
+        <input type="hidden" name="intent" value="create_walk_in_order" />
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "minmax(0, 1.2fr) minmax(0, 0.8fr)",
+              xl: "minmax(0, 1fr) minmax(0, 0.72fr) minmax(0, 0.72fr)",
+            },
+          }}
+        >
+          <TextField
+            name="design_id"
+            label="Design"
+            select
+            size="small"
+            defaultValue={activeDesigns[0]?.design_id ?? ""}
+            disabled={activeDesigns.length === 0}
+            required
+          >
+            {activeDesigns.length === 0 ? (
+              <MenuItem value="">Add an active design first</MenuItem>
+            ) : null}
+            {activeDesigns.map((design) => (
+              <MenuItem key={design.design_id} value={design.design_id}>
+                {design.title}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            name="size_band_id"
+            label="Size"
+            select
+            size="small"
+            defaultValue=""
+          >
+            <MenuItem value="">No size yet</MenuItem>
+            {sizeBands.map((band) => (
+              <MenuItem key={band.size_band_id} value={band.size_band_id}>
+                {band.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            name="agreed_total_ghs"
+            label="Agreed total"
+            size="small"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { inputMode: "decimal" },
+            }}
+          />
+          <TextField
+            name="customer_name"
+            label="Customer name"
+            size="small"
+            required
+          />
+          <TextField name="customer_phone" label="Phone" size="small" />
+          <TextField
+            name="customer_email"
+            label="Email"
+            type="email"
+            size="small"
+          />
+        </Box>
+        <Button
+          type="submit"
+          variant="contained"
+          startIcon={<AddRounded />}
+          disabled={activeDesigns.length === 0}
+          sx={{ mt: 1.5 }}
+        >
+          Create walk-in order
+        </Button>
+      </Form>
+    </Panel>
+  );
+}
+
+function DesignImageUploadPanel({
+  designs,
+  error,
+}: {
+  designs: Design[];
+  error?: string;
+}) {
+  const uploadableDesigns = designs.filter(
+    (design) => design.status !== "deleted",
+  );
+
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.07)}, transparent 50%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.74)})`,
+      }}
+    >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+        <Box sx={{ color: "primary.main" }}>
+          <CloudUploadRounded />
+        </Box>
+        <Box>
+          <Typography sx={{ fontWeight: 900 }}>Upload design image</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Attach a photo to an existing catalogue piece.
+          </Typography>
+        </Box>
+      </Stack>
+
+      {error ? (
+        <Alert severity="warning" sx={{ mt: 1.5 }}>
+          {error}
+        </Alert>
+      ) : null}
+
+      <Form method="post" encType="multipart/form-data">
+        <input type="hidden" name="intent" value="upload_design_image" />
+        <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+          <TextField
+            name="design_id"
+            label="Design"
+            select
+            defaultValue={uploadableDesigns[0]?.design_id ?? ""}
+            disabled={uploadableDesigns.length === 0}
+            required
+            size="small"
+          >
+            {uploadableDesigns.length === 0 ? (
+              <MenuItem value="">Add a design first</MenuItem>
+            ) : null}
+            {uploadableDesigns.map((design) => (
+              <MenuItem key={design.design_id} value={design.design_id}>
+                {design.title}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            name="image_file"
+            label="Image file"
+            type="file"
+            size="small"
+            required
+            disabled={uploadableDesigns.length === 0}
+            helperText="JPG, PNG, or WebP up to 10 MB. The uploaded image becomes the first catalogue image."
+            slotProps={{ htmlInput: { accept: "image/*" } }}
+          />
+          <Button
+            type="submit"
+            variant="outlined"
+            startIcon={<CloudUploadRounded />}
+            disabled={uploadableDesigns.length === 0}
+          >
+            Upload and attach
+          </Button>
+        </Stack>
+      </Form>
+    </Panel>
+  );
+}
+
+function StoreSettingsPanel({
+  settings,
+  profile,
+  error,
+}: {
+  settings: StoreSettings;
+  profile: Profile;
+  error?: string;
+}) {
+  const featureSwitches = [
+    {
+      name: "bespoke_enabled",
+      label: "Bespoke orders",
+      helper: "Let customers request custom work from eligible designs.",
+      checked: settings.bespoke_enabled,
+    },
+    {
+      name: "measurements_enabled",
+      label: "Measurements",
+      helper: "Show measurement-led ordering and fitting flows.",
+      checked: settings.measurements_enabled,
+    },
+    {
+      name: "customisation_enabled",
+      label: "Customisation",
+      helper: "Allow customers to ask for alterations to catalogue pieces.",
+      checked: settings.customisation_enabled,
+    },
+    {
+      name: "collections_enabled",
+      label: "Collections",
+      helper: "Organise designs into public storefront collections.",
+      checked: settings.collections_enabled,
+    },
+    {
+      name: "delivery_enabled",
+      label: "Delivery",
+      helper: "Show delivery as a fulfilment option where available.",
+      checked: settings.delivery_enabled,
+    },
+    {
+      name: "dispatch_enabled",
+      label: "Dispatch desk",
+      helper: "Let the team manage pickup and delivery handovers.",
+      checked: settings.dispatch_enabled,
+    },
+  ];
+
+  return (
+    <Panel id="settings">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            alignItems: { xs: "stretch", md: "flex-start" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <SettingsRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>
+                Storefront settings
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Shape what customers see and which request paths are available.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={`${enabledStoreSettings(settings)} features on`}
+            tone={tokens.burgundy}
+          />
+        </Stack>
+
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <Form method="post">
+          <input type="hidden" name="intent" value="save_store_settings" />
+          <Box
+            sx={{
+              mt: 2,
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: { xs: "1fr", lg: "320px minmax(0, 1fr)" },
+            }}
+          >
+            <Box
+              sx={{
+                p: 2,
+                border: "1px solid",
+                borderColor: alpha(tokens.burgundy, 0.18),
+                borderRadius: 2,
+                bgcolor: alpha(tokens.white, 0.76),
+                backgroundImage: `linear-gradient(135deg, ${alpha(settings.brand_color || tokens.burgundy, 0.11)}, transparent 52%)`,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center" }}
+              >
+                <Box
+                  sx={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 1.5,
+                    display: "grid",
+                    placeItems: "center",
+                    color: tokens.white,
+                    bgcolor: settings.brand_color || tokens.burgundy,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.12),
+                  }}
+                >
+                  <PaletteRounded />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {profile.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Public colour and store switches
+                  </Typography>
+                </Box>
+              </Stack>
+              <TextField
+                name="brand_color"
+                label="Brand colour"
+                type="color"
+                defaultValue={settings.brand_color || tokens.burgundy}
+                fullWidth
+                sx={{ mt: 2 }}
+              />
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                This colour is used on the public store header and customer
+                trust moments.
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+              }}
+            >
+              {featureSwitches.map((feature) => (
+                <Box
+                  key={feature.name}
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: feature.checked
+                      ? alpha(tokens.burgundy, 0.24)
+                      : "divider",
+                    borderRadius: 2,
+                    bgcolor: feature.checked
+                      ? alpha(tokens.burgundy, 0.055)
+                      : alpha(tokens.white, 0.72),
+                  }}
+                >
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        name={feature.name}
+                        defaultChecked={feature.checked}
+                      />
+                    }
+                    label={feature.label}
+                    sx={{
+                      m: 0,
+                      "& .MuiFormControlLabel-label": { fontWeight: 900 },
+                    }}
+                  />
+                  <Typography
+                    variant="body2"
+                    sx={{ mt: 0.45, color: "text.secondary" }}
+                  >
+                    {feature.helper}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+          </Box>
+          <Button
+            type="submit"
+            variant="contained"
+            startIcon={<SaveRounded />}
+            sx={{ mt: 2 }}
+          >
+            Save storefront settings
+          </Button>
+        </Form>
+      </Box>
+    </Panel>
+  );
+}
+
+function CatalogueSetupPanel({
+  collections,
+  sizeBands,
+  collectionError,
+  sizeBandError,
+}: {
+  collections: CollectionSummary[];
+  sizeBands: SizeBand[];
+  collectionError?: string;
+  sizeBandError?: string;
+}) {
+  const nextCollectionSequence =
+    collections.length === 0
+      ? 1
+      : Math.max(...collections.map((collection) => collection.sequence)) + 1;
+  const nextSizeBandSequence =
+    sizeBands.length === 0
+      ? 1
+      : Math.max(...sizeBands.map((band) => band.sequence)) + 1;
+
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+      }}
+    >
+      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <StorefrontRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Collections</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Group pieces for the public store.
+            </Typography>
+          </Box>
+        </Stack>
+        {collectionError ? (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            {collectionError}
+          </Alert>
+        ) : null}
+        <Form method="post">
+          <input type="hidden" name="intent" value="create_collection" />
+          <Box
+            sx={{
+              mt: 1.5,
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
+            }}
+          >
+            <TextField
+              name="name"
+              label="Collection name"
+              size="small"
+              required
+            />
+            <TextField
+              name="sequence"
+              label="Order"
+              type="number"
+              size="small"
+              defaultValue={nextCollectionSequence}
+              slotProps={{ htmlInput: { min: 0 } }}
+              required
+            />
+          </Box>
+          <TextField
+            name="theme"
+            label="Theme"
+            size="small"
+            fullWidth
+            sx={{ mt: 1 }}
+            placeholder="Wedding, Friday wear, Ready now"
+          />
+          <Button
+            type="submit"
+            variant="outlined"
+            startIcon={<AddRounded />}
+            sx={{ mt: 1.25 }}
+          >
+            Add collection
+          </Button>
+        </Form>
+        <Divider sx={{ my: 1.75 }} />
+        <Stack spacing={1}>
+          {collections.length === 0 ? (
+            <InlineEmptyState
+              icon={<StorefrontRounded sx={{ fontSize: 34 }} />}
+              title="No collections yet"
+              helper="Collections help customers browse by occasion or drop."
+            />
+          ) : (
+            collections.map((collection) => (
+              <Stack
+                key={collection.collection_id}
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{
+                  p: 1.25,
+                  alignItems: { xs: "stretch", sm: "center" },
+                  justifyContent: "space-between",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  bgcolor: alpha(tokens.white, 0.72),
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {collection.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {collection.theme || collection.handle} · #
+                    {collection.sequence}
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={0.75}>
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value={
+                        collection.status === "active"
+                          ? "retire_collection"
+                          : "restore_collection"
+                      }
+                    />
+                    <input
+                      type="hidden"
+                      name="collection_id"
+                      value={collection.collection_id}
+                    />
+                    <Button type="submit" size="small" variant="outlined">
+                      {collection.status === "active" ? "Retire" : "Restore"}
+                    </Button>
+                  </Form>
+                  {collection.status !== "active" ? (
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="delete_collection"
+                      />
+                      <input
+                        type="hidden"
+                        name="collection_id"
+                        value={collection.collection_id}
+                      />
+                      <Tooltip title="Remove collection">
+                        <IconButton
+                          type="submit"
+                          color="error"
+                          aria-label={`Remove ${collection.name}`}
+                        >
+                          <DeleteOutlineRounded />
+                        </IconButton>
+                      </Tooltip>
+                    </Form>
+                  ) : null}
+                </Stack>
+              </Stack>
+            ))
+          )}
+        </Stack>
+      </Panel>
+
+      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <StraightenRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Size bands</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Sizes become price rows for standard checkout.
+            </Typography>
+          </Box>
+        </Stack>
+        {sizeBandError ? (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            {sizeBandError}
+          </Alert>
+        ) : null}
+        <Form method="post">
+          <input type="hidden" name="intent" value="create_size_band" />
+          <Box
+            sx={{
+              mt: 1.5,
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
+            }}
+          >
+            <TextField
+              name="label"
+              label="Size label"
+              size="small"
+              placeholder="M, L, XL, Custom"
+              required
+            />
+            <TextField
+              name="sequence"
+              label="Order"
+              type="number"
+              size="small"
+              defaultValue={nextSizeBandSequence}
+              slotProps={{ htmlInput: { min: 0 } }}
+              required
+            />
+          </Box>
+          <Button
+            type="submit"
+            variant="outlined"
+            startIcon={<AddRounded />}
+            sx={{ mt: 1.25 }}
+          >
+            Add size band
+          </Button>
+        </Form>
+        <Divider sx={{ my: 1.75 }} />
+        {sizeBands.length === 0 ? (
+          <InlineEmptyState
+            icon={<StraightenRounded sx={{ fontSize: 34 }} />}
+            title="No size bands yet"
+            helper="Add sizes before setting per-design prices."
+          />
+        ) : (
+          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+            {sizeBands.map((band) => (
+              <ToneChip
+                key={band.size_band_id}
+                label={`${band.label} · #${band.sequence}`}
+                tone={tokens.info}
+              />
+            ))}
+          </Stack>
+        )}
+      </Panel>
+    </Box>
+  );
+}
+
+function PriceBoardPanel({
+  designs,
+  sizeBands,
+  error,
+}: {
+  designs: Design[];
+  sizeBands: SizeBand[];
+  error?: string;
+}) {
+  return (
+    <Panel>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { xs: "stretch", md: "flex-start" },
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <PriceCheckRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Price board</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Set standard checkout prices for every design and size band.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={`${designs.reduce((total, design) => total + design.prices.length, 0)} prices`}
+            tone={tokens.success}
+          />
+        </Stack>
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 1.5 }}>
+            {error}
+          </Alert>
+        ) : null}
+      </Box>
+
+      {designs.length === 0 || sizeBands.length === 0 ? (
+        <Box sx={{ px: 2.5, pb: 2.5 }}>
+          <InlineEmptyState
+            icon={<PriceCheckRounded sx={{ fontSize: 38 }} />}
+            title="Prices need designs and sizes"
+            helper="Add at least one design and one size band, then set public checkout prices here."
+          />
+        </Box>
+      ) : (
+        <Stack
+          spacing={0}
+          sx={{ borderTop: "1px solid", borderColor: "divider" }}
+        >
+          {designs.map((design) => (
+            <Box
+              key={design.design_id}
+              sx={{
+                px: { xs: 2, md: 2.5 },
+                py: 1.6,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Stack spacing={1.25}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: { xs: "flex-start", sm: "center" },
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {design.title}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {design.status} · {design.prices.length} prices set
+                    </Typography>
+                  </Box>
+                  <ToneChip
+                    label={design.status === "active" ? "Public" : "Hidden"}
+                    tone={
+                      design.status === "active"
+                        ? tokens.success
+                        : tokens.warning
+                    }
+                  />
+                </Stack>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "repeat(2, minmax(0, 1fr))",
+                      xl: "repeat(3, minmax(0, 1fr))",
+                    },
+                  }}
+                >
+                  {sizeBands.map((band) => {
+                    const price = findBandPrice(design, band.size_band_id);
+                    return (
+                      <Form method="post" key={band.size_band_id}>
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="set_design_price"
+                        />
+                        <input
+                          type="hidden"
+                          name="design_id"
+                          value={design.design_id}
+                        />
+                        <input
+                          type="hidden"
+                          name="size_band_id"
+                          value={band.size_band_id}
+                        />
+                        <Stack
+                          direction="row"
+                          spacing={0.85}
+                          sx={{
+                            p: 1,
+                            border: "1px solid",
+                            borderColor: price
+                              ? alpha(tokens.success, 0.22)
+                              : "divider",
+                            borderRadius: 2,
+                            bgcolor: price
+                              ? alpha(tokens.success, 0.045)
+                              : alpha(tokens.white, 0.72),
+                            alignItems: "center",
+                          }}
+                        >
+                          <TextField
+                            name="price_ghs"
+                            label={band.label}
+                            size="small"
+                            defaultValue={moneyInputValue(price?.price_minor)}
+                            fullWidth
+                            slotProps={{
+                              input: {
+                                startAdornment: (
+                                  <InputAdornment position="start">
+                                    GHS
+                                  </InputAdornment>
+                                ),
+                              },
+                              htmlInput: { inputMode: "decimal" },
+                            }}
+                          />
+                          <Tooltip title="Save price">
+                            <IconButton
+                              type="submit"
+                              color="primary"
+                              aria-label={`Save ${band.label} price for ${design.title}`}
+                            >
+                              <SaveRounded />
+                            </IconButton>
+                          </Tooltip>
+                        </Stack>
+                      </Form>
+                    );
+                  })}
+                </Box>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
+function TeamPanel({
+  users,
+  currentUser,
+  error,
+}: {
+  users: BusinessUser[];
+  currentUser: CurrentUser;
+  error?: string;
+}) {
+  const activeUsers = users.filter((user) => user.is_active).length;
+  const adminUsers = users.filter((user) => user.role === "admin").length;
+  const staffUsers = users.filter((user) => user.role === "staff").length;
+  const inactiveUsers = users.filter((user) => !user.is_active).length;
+
+  return (
+    <Panel id="team">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            alignItems: { xs: "stretch", md: "flex-start" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <PeopleAltRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Team access</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Admins can manage the studio; staff can work assigned production
+                desks.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip label={`${activeUsers} active`} tone={tokens.success} />
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+          }}
+        >
+          <MiniStat
+            icon={<CheckCircleRounded fontSize="small" />}
+            label="Active"
+            value={String(activeUsers)}
+            helper={`${users.length} total accounts`}
+            tone={tokens.success}
+          />
+          <MiniStat
+            icon={<VerifiedUserRounded fontSize="small" />}
+            label="Admins"
+            value={String(adminUsers)}
+            helper="Can manage workspace settings"
+            tone={tokens.info}
+          />
+          <MiniStat
+            icon={<PeopleAltRounded fontSize="small" />}
+            label="Staff"
+            value={String(staffUsers)}
+            helper="Production desk access"
+            tone={tokens.burgundy}
+          />
+          <MiniStat
+            icon={<WarningAmberRounded fontSize="small" />}
+            label="Inactive"
+            value={String(inactiveUsers)}
+            helper="Blocked from signing in"
+            tone={tokens.warning}
+          />
+        </Box>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "minmax(300px, 0.42fr) minmax(0, 0.58fr)",
+            },
+          }}
+        >
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.25 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: alpha(tokens.white, 0.72),
+              backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.06)}, transparent 48%)`,
+            }}
+          >
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Box sx={{ color: "primary.main" }}>
+                <AddRounded />
+              </Box>
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Create access</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Add an admin or staff sign-in.
+                </Typography>
+              </Box>
+            </Stack>
+            <Form method="post">
+              <input type="hidden" name="intent" value="create_business_user" />
+              <Stack spacing={1.5} sx={{ mt: 2 }}>
+                {error ? <Alert severity="warning">{error}</Alert> : null}
+                <TextField
+                  name="display_name"
+                  label="Name"
+                  size="small"
+                  required
+                  fullWidth
+                />
+                <TextField
+                  name="email"
+                  label="Email"
+                  type="email"
+                  size="small"
+                  required
+                  fullWidth
+                />
+                <TextField
+                  name="password"
+                  label="Temporary password"
+                  type="password"
+                  size="small"
+                  required
+                  fullWidth
+                  slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
+                />
+                <TextField
+                  name="role"
+                  label="Role"
+                  select
+                  defaultValue="staff"
+                  size="small"
+                >
+                  {businessUserRoleOptions.map((role) => (
+                    <MenuItem key={role.value} value={role.value}>
+                      {role.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<AddRounded />}
+                >
+                  Add team member
+                </Button>
+              </Stack>
+            </Form>
+          </Box>
+
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: alpha(tokens.white, 0.72),
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              sx={{
+                p: { xs: 2, md: 2.25 },
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 2,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Accounts</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {users.length} people with business access
+                </Typography>
+              </Box>
+              <ToneChip
+                label={`${inactiveUsers} inactive`}
+                tone={inactiveUsers > 0 ? tokens.warning : tokens.success}
+              />
+            </Box>
+            {users.length === 0 ? (
+              <Box sx={{ px: 2.5, pb: 2.5 }}>
+                <InlineEmptyState
+                  icon={<PeopleAltRounded sx={{ fontSize: 38 }} />}
+                  title="No team accounts"
+                  helper="The owner account will appear here after the API returns business users."
+                />
+              </Box>
+            ) : (
+              users.map((user) => (
+                <BusinessUserRow
+                  key={user.business_user_id}
+                  user={user}
+                  currentUser={currentUser}
+                />
+              ))
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Panel>
+  );
+}
+
+function BusinessUserRow({
+  user,
+  currentUser,
+}: {
+  user: BusinessUser;
+  currentUser: CurrentUser;
+}) {
+  const isOwner = user.role === "owner";
+  const isCurrentUser = user.business_user_id === currentUser.user_id;
+  const tone = roleTone(user.role);
+
+  return (
+    <Box
+      sx={{
+        px: { xs: 2, md: 2.5 },
+        py: 1.6,
+        borderTop: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      <Stack spacing={1.4}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.5}
+          sx={{
+            alignItems: { xs: "stretch", md: "center" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 1.5,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                bgcolor: alpha(tone, 0.1),
+                color: tone,
+                fontWeight: 900,
+                border: "1px solid",
+                borderColor: alpha(tone, 0.18),
+              }}
+            >
+              {businessUserInitials(user)}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {user.display_name || user.email}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+              >
+                {user.email}
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={0.8}
+                sx={{ mt: 0.85, flexWrap: "wrap" }}
+              >
+                <ToneChip label={roleLabel(user.role)} tone={tone} />
+                <ToneChip
+                  label={user.is_active ? "Active" : "Inactive"}
+                  tone={user.is_active ? tokens.success : tokens.warning}
+                />
+                {isCurrentUser ? (
+                  <Chip size="small" variant="outlined" label="You" />
+                ) : null}
+              </Stack>
+            </Box>
+          </Stack>
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+              fontWeight: 800,
+              textAlign: { xs: "left", md: "right" },
+            }}
+          >
+            {businessUserJoinedLabel(user)}
+          </Typography>
+        </Stack>
+
+        {isOwner ? (
+          <InfoStrip
+            icon={<VerifiedUserRounded />}
+            tone={tokens.burgundy}
+            title="Protected owner account"
+            helper="Owner role changes stay outside this team desk."
+          />
+        ) : (
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "1fr",
+                lg: "minmax(0, 1fr) 130px auto auto",
+              },
+              alignItems: "center",
+            }}
+          >
+            <Form method="post" style={{ display: "contents" }}>
+              <input type="hidden" name="intent" value="update_business_user" />
+              <input
+                type="hidden"
+                name="business_user_id"
+                value={user.business_user_id}
+              />
+              <input
+                type="hidden"
+                name="is_active"
+                value={user.is_active ? "true" : "false"}
+              />
+              <TextField
+                name="display_name"
+                label="Name"
+                size="small"
+                defaultValue={user.display_name}
+                required
+              />
+              <TextField
+                name="role"
+                label="Role"
+                select
+                size="small"
+                defaultValue={user.role === "admin" ? "admin" : "staff"}
+              >
+                {businessUserRoleOptions.map((role) => (
+                  <MenuItem key={role.value} value={role.value}>
+                    {role.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Button
+                type="submit"
+                variant="outlined"
+                startIcon={<SaveRounded />}
+              >
+                Save
+              </Button>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="intent" value="update_business_user" />
+              <input
+                type="hidden"
+                name="business_user_id"
+                value={user.business_user_id}
+              />
+              <input
+                type="hidden"
+                name="display_name"
+                value={user.display_name}
+              />
+              <input
+                type="hidden"
+                name="role"
+                value={user.role === "admin" ? "admin" : "staff"}
+              />
+              <input
+                type="hidden"
+                name="is_active"
+                value={user.is_active ? "false" : "true"}
+              />
+              <Button
+                type="submit"
+                variant="outlined"
+                color={user.is_active ? "error" : "success"}
+                disabled={isCurrentUser}
+                fullWidth
+              >
+                {user.is_active ? "Deactivate" : "Reactivate"}
+              </Button>
+            </Form>
+          </Box>
+        )}
+      </Stack>
+    </Box>
   );
 }
 
@@ -4743,10 +7406,15 @@ export default function Dashboard({
     handovers,
     notifications,
     availabilityWindows,
+    businessUsers,
+    storeSettings,
+    collections,
+    sizeBands,
     section,
     orderFilter,
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const verified = profile.verification_status === "verified";
   const canManage = canManageDashboard(currentUser.role);
   const workspaceItems = canManage ? managementWorkspaceNav : staffWorkspaceNav;
@@ -4809,6 +7477,86 @@ export default function Dashboard({
   const activeDesigns = designs.filter(
     (design) => design.status === "active",
   ).length;
+  const activeTeamUsers = businessUsers.filter((user) => user.is_active).length;
+  const publishedCollections = collections.filter(
+    (collection) => collection.status === "active",
+  ).length;
+  const activeStoreSettings = enabledStoreSettings(storeSettings);
+  const cataloguePriceCount = designs.reduce(
+    (total, design) => total + design.prices.length,
+    0,
+  );
+  const setupSteps: SetupStep[] = [
+    {
+      label: "Business verified",
+      helper: verified
+        ? "Store can operate with the verified business profile."
+        : "Verification is still pending before customers can fully trust checkout.",
+      href: "/dashboard/settings",
+      done: verified,
+      icon: <VerifiedUserRounded fontSize="small" />,
+    },
+    {
+      label: "Catalogue live",
+      helper:
+        activeDesigns > 0
+          ? `${activeDesigns} active storefront pieces are available.`
+          : "Add at least one active design with imagery.",
+      href: "/dashboard/catalogue",
+      done: activeDesigns > 0,
+      icon: <DesignServicesRounded fontSize="small" />,
+    },
+    {
+      label: "Checkout pricing",
+      helper:
+        cataloguePriceCount > 0
+          ? `${cataloguePriceCount} design prices are configured.`
+          : "Add size bands and prices before standard checkout feels complete.",
+      href: "/dashboard/catalogue",
+      done: sizeBands.length > 0 && cataloguePriceCount > 0,
+      icon: <PriceCheckRounded fontSize="small" />,
+    },
+    {
+      label: "Request paths",
+      helper:
+        activeStoreSettings > 0
+          ? `${activeStoreSettings} storefront switches are enabled.`
+          : "Turn on the customer request paths this business accepts.",
+      href: "/dashboard/settings",
+      done: activeStoreSettings > 0,
+      icon: <SettingsRounded fontSize="small" />,
+    },
+    {
+      label: "Measurements",
+      helper:
+        measurementFields.length > 0
+          ? `${measurementFields.length} measurement fields are ready for staff.`
+          : "Define the fitting fields staff record on orders.",
+      href: "/dashboard/measurements",
+      done: !storeSettings.measurements_enabled || measurementFields.length > 0,
+      icon: <StraightenRounded fontSize="small" />,
+    },
+    {
+      label: "Visit availability",
+      helper:
+        availabilityWindows.length > 0
+          ? `${availabilityWindows.length} visit windows are configured.`
+          : "Add appointment windows for home visit and fitting work.",
+      href: "/dashboard/availability",
+      done: availabilityWindows.length > 0,
+      icon: <CalendarMonthRounded fontSize="small" />,
+    },
+    {
+      label: "Team access",
+      helper:
+        activeTeamUsers > 1
+          ? `${activeTeamUsers} active users can operate the workspace.`
+          : "Invite at least one admin or staff account for daily operations.",
+      href: "/dashboard/team",
+      done: activeTeamUsers > 1,
+      icon: <PeopleAltRounded fontSize="small" />,
+    },
+  ];
   const overviewRooms: OverviewRoom[] = [
     {
       title: "Reports",
@@ -4864,6 +7612,24 @@ export default function Dashboard({
       icon: <DesignServicesRounded />,
       tone: tokens.burgundy,
     },
+    {
+      title: "Settings",
+      helper: "Storefront switches, brand colour, and request controls.",
+      href: "/dashboard/settings",
+      value: `${activeStoreSettings} on`,
+      actionLabel: "Open settings",
+      icon: <SettingsRounded />,
+      tone: tokens.gold,
+    },
+    {
+      title: "Team",
+      helper: "Admin and staff access for the studio workspace.",
+      href: "/dashboard/team",
+      value: `${activeTeamUsers} active`,
+      actionLabel: "Open team",
+      icon: <PeopleAltRounded />,
+      tone: tokens.info,
+    },
   ];
   const railBadges: Partial<Record<DashboardSection, string | undefined>> =
     canManage
@@ -4877,6 +7643,8 @@ export default function Dashboard({
           catalogue: railBadge(activeDesigns),
           measurements: railBadge(needsMeasurements),
           availability: railBadge(availabilityWindows.length),
+          settings: railBadge(activeStoreSettings),
+          team: railBadge(activeTeamUsers),
           messages: railBadge(pendingMessages),
         }
       : {
@@ -4894,6 +7662,7 @@ export default function Dashboard({
         bgcolor: "background.default",
         backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
         backgroundSize: "36px 36px",
+        overflowX: "hidden",
         "@keyframes dashboardRailSlide": {
           from: { opacity: 0, transform: "translateX(-16px)" },
           to: { opacity: 1, transform: "translateX(0)" },
@@ -4917,17 +7686,71 @@ export default function Dashboard({
       <Box
         sx={{
           maxWidth: 1500,
+          width: "100%",
+          boxSizing: "border-box",
           mx: "auto",
           px: { xs: 1.5, sm: 2.5, lg: 3 },
           py: { xs: 1.5, lg: 3 },
           display: "grid",
           gap: { xs: 2, lg: 3 },
           gridTemplateColumns: {
-            xs: "1fr",
-            lg: `${dashboardRailWidth}px minmax(0, 1fr)`,
+            xs: "minmax(0, 1fr)",
+            md: `${dashboardRailWidth}px minmax(0, 1fr)`,
           },
         }}
       >
+        <Box
+          sx={{
+            display: { xs: "flex", md: "none" },
+            position: "sticky",
+            top: 8,
+            zIndex: 20,
+            alignItems: "center",
+            gap: 1,
+            p: 1,
+            minWidth: 0,
+            border: "1px solid",
+            borderColor: alpha(tokens.ink, 0.1),
+            borderRadius: 2,
+            bgcolor: alpha(tokens.white, 0.92),
+            backdropFilter: "blur(14px)",
+            boxShadow: `0 18px 42px ${alpha(tokens.ink, 0.08)}`,
+          }}
+        >
+          <IconButton
+            aria-label="Open workspace navigation"
+            onClick={() => setMobileNavOpen(true)}
+            sx={{
+              color: tokens.burgundy,
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.18),
+              bgcolor: alpha(tokens.burgundy, 0.08),
+              flexShrink: 0,
+            }}
+          >
+            <MenuRounded />
+          </IconButton>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
+              {profile.name}
+            </Typography>
+            <Typography sx={{ fontWeight: 950, lineHeight: 1.1 }} noWrap>
+              {pageMeta.title}
+            </Typography>
+          </Box>
+          <Chip
+            size="small"
+            icon={verified ? <VerifiedUserRounded /> : <WarningAmberRounded />}
+            label={verified ? "Verified" : "Review"}
+            sx={{
+              display: { xs: "none", sm: "inline-flex" },
+              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.12),
+              color: verified ? tokens.success : tokens.warning,
+              fontWeight: 900,
+              flexShrink: 0,
+            }}
+          />
+        </Box>
         <WorkspaceRail
           profile={profile}
           currentUser={currentUser}
@@ -4936,11 +7759,15 @@ export default function Dashboard({
           section={section}
           storefrontURL={storefrontURL}
           badges={railBadges}
+          mobileOpen={mobileNavOpen}
+          onCloseMobile={() => setMobileNavOpen(false)}
         />
 
         <Box
           sx={{
             minWidth: 0,
+            maxWidth: "100%",
+            overflowX: "hidden",
             "@media (prefers-reduced-motion: no-preference)": {
               animation: "dashboardSurfaceIn 500ms ease both",
             },
@@ -4958,6 +7785,7 @@ export default function Dashboard({
             pendingPayments={pendingPayments}
             needsMeasurements={needsMeasurements}
             openHandovers={openHandovers}
+            pendingMessages={pendingMessages}
           />
 
           {action.permissionError ? (
@@ -5093,7 +7921,14 @@ export default function Dashboard({
                         <Stack
                           direction="row"
                           spacing={1}
-                          sx={{ flexWrap: "wrap" }}
+                          sx={{
+                            maxWidth: "100%",
+                            flexWrap: { xs: "nowrap", sm: "wrap" },
+                            overflowX: { xs: "auto", sm: "visible" },
+                            pb: { xs: 0.4, sm: 0 },
+                            scrollbarWidth: "none",
+                            "&::-webkit-scrollbar": { display: "none" },
+                          }}
                         >
                           {orderFilters.map((filter) => (
                             <Button
@@ -5106,6 +7941,13 @@ export default function Dashboard({
                                   ? "contained"
                                   : "outlined"
                               }
+                              sx={{
+                                flexShrink: 0,
+                                bgcolor:
+                                  orderFilter === filter.value
+                                    ? undefined
+                                    : alpha(tokens.white, 0.72),
+                              }}
                             >
                               {filter.label} (
                               {countOrders(orders, filter.value)})
@@ -5114,6 +7956,58 @@ export default function Dashboard({
                         </Stack>
                       }
                     />
+
+                    {canManage ? (
+                      <Box sx={{ mt: 2 }}>
+                        <WalkInOrderPanel
+                          designs={designs}
+                          sizeBands={sizeBands}
+                          error={action.walkInError}
+                        />
+                      </Box>
+                    ) : null}
+
+                    <Box
+                      sx={{
+                        mt: 2,
+                        display: "grid",
+                        gap: 1.25,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          xl: "repeat(4, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <MiniStat
+                        icon={<ReceiptLongRounded fontSize="small" />}
+                        label="In this view"
+                        value={String(filteredOrders.length)}
+                        helper={`${orders.length} total orders`}
+                        tone={tokens.burgundy}
+                      />
+                      <MiniStat
+                        icon={<PaymentsRounded fontSize="small" />}
+                        label="Draft pay"
+                        value={String(pendingPayments)}
+                        helper="Waiting for checkout"
+                        tone={tokens.warning}
+                      />
+                      <MiniStat
+                        icon={<StraightenRounded fontSize="small" />}
+                        label="Measurements"
+                        value={String(needsMeasurements)}
+                        helper="Visit or shop captures"
+                        tone={tokens.info}
+                      />
+                      <MiniStat
+                        icon={<LocalShippingRounded fontSize="small" />}
+                        label="Ready handover"
+                        value={String(readyForHandover)}
+                        helper="Fulfilled and waiting"
+                        tone={tokens.success}
+                      />
+                    </Box>
 
                     <Stack spacing={1.5} sx={{ mt: 2 }}>
                       {action.orderError ? (
@@ -5131,15 +8025,27 @@ export default function Dashboard({
                           helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
                         />
                       ) : (
-                        filteredOrders.map((order) => (
-                          <OrderCard
-                            key={order.order_id}
-                            order={order}
-                            returnTo={returnTo}
-                            measurementFields={measurementFields}
-                            showMoneyDetails={canManage}
-                          />
-                        ))
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1.75,
+                            alignItems: "stretch",
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              lg: "repeat(auto-fit, minmax(min(430px, 100%), 1fr))",
+                            },
+                          }}
+                        >
+                          {filteredOrders.map((order) => (
+                            <OrderCard
+                              key={order.order_id}
+                              order={order}
+                              returnTo={returnTo}
+                              measurementFields={measurementFields}
+                              showMoneyDetails={canManage}
+                            />
+                          ))}
+                        </Box>
                       )}
                     </Stack>
                   </Box>
@@ -5164,6 +8070,54 @@ export default function Dashboard({
                       sx={{
                         mt: 2,
                         display: "grid",
+                        gap: 1.25,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          xl: "repeat(4, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <MiniStat
+                        icon={<StorefrontRounded fontSize="small" />}
+                        label="Active pieces"
+                        value={String(
+                          designs.filter((design) => design.status === "active")
+                            .length,
+                        )}
+                        helper={`${designs.length} total designs`}
+                        tone={tokens.success}
+                      />
+                      <MiniStat
+                        icon={<VisibilityRounded fontSize="small" />}
+                        label="Collections"
+                        value={String(publishedCollections)}
+                        helper={`${collections.length} total collections`}
+                        tone={tokens.info}
+                      />
+                      <MiniStat
+                        icon={<ContentCutRounded fontSize="small" />}
+                        label="Customisable"
+                        value={String(
+                          designs.filter(
+                            (design) => design.customisation_allowed,
+                          ).length,
+                        )}
+                        helper="Available for bespoke requests"
+                        tone={tokens.burgundy}
+                      />
+                      <MiniStat
+                        icon={<StraightenRounded fontSize="small" />}
+                        label="Size bands"
+                        value={String(sizeBands.length)}
+                        helper={`${cataloguePriceCount} prices set`}
+                        tone={tokens.warning}
+                      />
+                    </Box>
+                    <Box
+                      sx={{
+                        mt: 2,
+                        display: "grid",
                         gap: 2,
                         gridTemplateColumns: {
                           xs: "1fr",
@@ -5171,77 +8125,140 @@ export default function Dashboard({
                         },
                       }}
                     >
-                      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <Stack
-                          direction="row"
-                          spacing={1.25}
-                          sx={{ alignItems: "center", mb: 2 }}
-                        >
-                          <Box sx={{ color: "primary.main" }}>
-                            <ContentCutRounded />
-                          </Box>
-                          <Box>
-                            <Typography sx={{ fontWeight: 900 }}>
-                              Add a design
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              Publish a new piece to the storefront.
-                            </Typography>
-                          </Box>
-                        </Stack>
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="create" />
-                          <Stack spacing={1.75}>
-                            {action.designError ? (
-                              <Alert severity="error">
-                                {action.designError}
-                              </Alert>
-                            ) : null}
-                            <TextField
-                              name="title"
-                              label="Title"
-                              required
-                              fullWidth
-                            />
-                            <TextField
-                              name="description"
-                              label="Description"
-                              fullWidth
-                              multiline
-                              minRows={3}
-                            />
-                            <TextField
-                              name="image_url"
-                              label="Image URL"
-                              fullWidth
-                              placeholder="https://..."
-                              slotProps={{
-                                input: {
-                                  startAdornment: (
-                                    <InputAdornment position="start">
-                                      <DesignServicesRounded fontSize="small" />
-                                    </InputAdornment>
-                                  ),
-                                },
-                              }}
-                            />
-                            <FormControlLabel
-                              control={<Checkbox name="customisation" />}
-                              label="Allow customisation"
-                            />
-                            <Button
-                              type="submit"
-                              variant="contained"
-                              startIcon={<AddRounded />}
-                            >
-                              Add design
-                            </Button>
+                      <Stack spacing={2}>
+                        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+                          <Stack
+                            direction="row"
+                            spacing={1.25}
+                            sx={{ alignItems: "center", mb: 2 }}
+                          >
+                            <Box sx={{ color: "primary.main" }}>
+                              <ContentCutRounded />
+                            </Box>
+                            <Box>
+                              <Typography sx={{ fontWeight: 900 }}>
+                                Add a design
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                Publish a new piece to the storefront.
+                              </Typography>
+                            </Box>
                           </Stack>
-                        </Form>
-                      </Panel>
+                          <Form method="post">
+                            <input type="hidden" name="intent" value="create" />
+                            <Stack spacing={1.75}>
+                              {action.designError ? (
+                                <Alert severity="error">
+                                  {action.designError}
+                                </Alert>
+                              ) : null}
+                              <TextField
+                                name="title"
+                                label="Title"
+                                required
+                                fullWidth
+                              />
+                              <TextField
+                                name="collection_id"
+                                label="Collection"
+                                select
+                                defaultValue=""
+                                fullWidth
+                              >
+                                <MenuItem value="">No collection</MenuItem>
+                                {collections
+                                  .filter(
+                                    (collection) =>
+                                      collection.status === "active",
+                                  )
+                                  .map((collection) => (
+                                    <MenuItem
+                                      key={collection.collection_id}
+                                      value={collection.collection_id}
+                                    >
+                                      {collection.name}
+                                    </MenuItem>
+                                  ))}
+                              </TextField>
+                              <TextField
+                                name="description"
+                                label="Description"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                              />
+                              <TextField
+                                name="image_url"
+                                label="Image URLs"
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                placeholder="https://..."
+                                helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
+                                slotProps={{
+                                  input: {
+                                    startAdornment: (
+                                      <InputAdornment position="start">
+                                        <DesignServicesRounded fontSize="small" />
+                                      </InputAdornment>
+                                    ),
+                                  },
+                                }}
+                              />
+                              <Box
+                                sx={{
+                                  display: "grid",
+                                  gap: 1.25,
+                                  gridTemplateColumns: {
+                                    xs: "1fr",
+                                    sm: "repeat(2, 1fr)",
+                                  },
+                                }}
+                              >
+                                <TextField
+                                  name="sequence"
+                                  label="Display order"
+                                  type="number"
+                                  defaultValue={designs.length + 1}
+                                  slotProps={{ htmlInput: { min: 0 } }}
+                                />
+                                <TextField
+                                  name="deposit_ghs"
+                                  label="Custom deposit"
+                                  slotProps={{
+                                    input: {
+                                      startAdornment: (
+                                        <InputAdornment position="start">
+                                          GHS
+                                        </InputAdornment>
+                                      ),
+                                    },
+                                    htmlInput: { inputMode: "decimal" },
+                                  }}
+                                />
+                              </Box>
+                              <FormControlLabel
+                                control={<Checkbox name="customisation" />}
+                                label="Allow customisation"
+                              />
+                              <Button
+                                type="submit"
+                                variant="contained"
+                                startIcon={<AddRounded />}
+                              >
+                                Add design
+                              </Button>
+                            </Stack>
+                          </Form>
+                        </Panel>
+                        <DesignImageUploadPanel
+                          designs={designs}
+                          error={action.mediaError}
+                        />
+                      </Stack>
 
                       <Panel>
                         <Box
@@ -5280,10 +8297,29 @@ export default function Dashboard({
                           </Box>
                         ) : (
                           designs.map((design) => (
-                            <DesignRow key={design.design_id} design={design} />
+                            <DesignRow
+                              key={design.design_id}
+                              design={design}
+                              collections={collections}
+                            />
                           ))
                         )}
                       </Panel>
+                    </Box>
+                    <Box sx={{ mt: 2 }}>
+                      <CatalogueSetupPanel
+                        collections={collections}
+                        sizeBands={sizeBands}
+                        collectionError={action.collectionError}
+                        sizeBandError={action.sizeBandError}
+                      />
+                    </Box>
+                    <Box sx={{ mt: 2 }}>
+                      <PriceBoardPanel
+                        designs={designs}
+                        sizeBands={sizeBands}
+                        error={action.priceError}
+                      />
                     </Box>
                   </Box>
                 ) : null}
@@ -5401,17 +8437,39 @@ export default function Dashboard({
                 />
               ) : null}
 
+              {canManage && section === "settings" ? (
+                <StoreSettingsPanel
+                  settings={storeSettings}
+                  profile={profile}
+                  error={action.settingsError}
+                />
+              ) : null}
+
+              {canManage && section === "team" ? (
+                <TeamPanel
+                  users={businessUsers}
+                  currentUser={currentUser}
+                  error={action.teamError}
+                />
+              ) : null}
+
               {section === "messages" ? (
                 <NotificationPanel notifications={notifications} />
               ) : null}
 
               {canManage && section === "overview" ? (
-                <TodayFocusPanel
-                  pendingPayments={pendingPayments}
-                  needsMeasurements={needsMeasurements}
-                  openHandovers={openHandovers}
-                  pendingMessages={pendingMessages}
-                />
+                <>
+                  <StoreReadinessPanel
+                    steps={setupSteps}
+                    storefrontURL={storefrontURL}
+                  />
+                  <TodayFocusPanel
+                    pendingPayments={pendingPayments}
+                    needsMeasurements={needsMeasurements}
+                    openHandovers={openHandovers}
+                    pendingMessages={pendingMessages}
+                  />
+                </>
               ) : null}
             </Stack>
           </Box>

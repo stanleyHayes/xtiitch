@@ -76,13 +76,14 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 }
 
 type InitiateChargeCommand struct {
-	Scope         common.TenantScope
-	OrderID       *common.ID
-	BookingID     *common.ID
-	Purpose       money.PaymentPurpose
-	AmountMinor   int64
-	Method        money.PaymentMethod
-	CustomerEmail string
+	Scope                   common.TenantScope
+	OrderID                 *common.ID
+	BookingID               *common.ID
+	Purpose                 money.PaymentPurpose
+	AmountMinor             int64
+	CommissionMinorOverride *int64
+	Method                  money.PaymentMethod
+	CustomerEmail           string
 }
 
 type ChargeResult struct {
@@ -109,6 +110,12 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 	}
 
 	commission := money.Commission(cmd.AmountMinor, info.CommissionBps)
+	if cmd.CommissionMinorOverride != nil {
+		if *cmd.CommissionMinorOverride < 0 || *cmd.CommissionMinorOverride > cmd.AmountMinor {
+			return ChargeResult{}, ErrInvalidCharge
+		}
+		commission = *cmd.CommissionMinorOverride
+	}
 	reference := "xt_" + s.ids.NewID().String()
 
 	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{

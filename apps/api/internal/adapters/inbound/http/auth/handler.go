@@ -12,8 +12,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 type Service interface {
@@ -21,6 +23,9 @@ type Service interface {
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
 	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
 	Logout(ctx context.Context, command authapp.LogoutCommand) error
+	ListBusinessUsers(ctx context.Context, command authapp.ListBusinessUsersCommand) ([]ports.BusinessUserRecord, error)
+	CreateBusinessUser(ctx context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error)
+	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
 }
 
 type Handler struct {
@@ -41,6 +46,9 @@ func (handler Handler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Get("/auth/business/me", handler.me)
+		protected.Get("/auth/business/users", handler.listBusinessUsers)
+		protected.Post("/auth/business/users", handler.createBusinessUser)
+		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
 	})
 }
 
@@ -66,10 +74,34 @@ type logoutRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
+type createBusinessUserRequest struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	Password    string `json:"password"`
+	Role        string `json:"role"`
+}
+
+type updateBusinessUserRequest struct {
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+	IsActive    bool   `json:"is_active"`
+}
+
 type meResponse struct {
 	BusinessID string `json:"business_id"`
 	UserID     string `json:"user_id"`
 	Role       string `json:"role"`
+}
+
+type businessUserResponse struct {
+	UserID      string `json:"business_user_id"`
+	BusinessID  string `json:"business_id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"display_name"`
+	Role        string `json:"role"`
+	IsActive    bool   `json:"is_active"`
+	CreatedAt   string `json:"created_at"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 type authResponse struct {
@@ -183,6 +215,90 @@ func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (handler Handler) listBusinessUsers(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	users, err := handler.service.ListBusinessUsers(r.Context(), authapp.ListBusinessUsersCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]businessUserResponse, 0, len(users))
+	for _, user := range users {
+		out = append(out, newBusinessUserResponse(user))
+	}
+	writeJSON(w, http.StatusOK, map[string][]businessUserResponse{"users": out})
+}
+
+func (handler Handler) createBusinessUser(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request createBusinessUserRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	user, err := handler.service.CreateBusinessUser(r.Context(), authapp.CreateBusinessUserCommand{
+		Scope:       principal.TenantScope(),
+		ActorRole:   principal.Role,
+		DisplayName: request.DisplayName,
+		Email:       request.Email,
+		Password:    request.Password,
+		Role:        business.UserRole(request.Role),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newBusinessUserResponse(user))
+}
+
+func (handler Handler) updateBusinessUser(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request updateBusinessUserRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	user, err := handler.service.UpdateBusinessUser(r.Context(), authapp.UpdateBusinessUserCommand{
+		Scope:       principal.TenantScope(),
+		ActorRole:   principal.Role,
+		UserID:      common.ID(chi.URLParam(r, "id")),
+		DisplayName: request.DisplayName,
+		Role:        business.UserRole(request.Role),
+		IsActive:    request.IsActive,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newBusinessUserResponse(user))
+}
+
 func decodeJSON(r *http.Request, value any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -209,14 +325,33 @@ func newAuthResponse(result authapp.AuthResult) authResponse {
 	}
 }
 
+func newBusinessUserResponse(user ports.BusinessUserRecord) businessUserResponse {
+	return businessUserResponse{
+		UserID:      user.UserID.String(),
+		BusinessID:  user.BusinessID.String(),
+		Email:       user.Email,
+		DisplayName: user.DisplayName,
+		Role:        string(user.Role),
+		IsActive:    user.IsActive,
+		CreatedAt:   user.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:   user.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
 func authError(err error) (int, string) {
 	switch {
 	case errors.Is(err, authdomain.ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_input"
 	case errors.Is(err, authdomain.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid_credentials"
+	case errors.Is(err, authdomain.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, business.ErrHandleTaken):
 		return http.StatusConflict, "handle_taken"
+	case errors.Is(err, business.ErrUserEmailTaken):
+		return http.StatusConflict, "user_email_taken"
+	case errors.Is(err, ports.ErrNotFound):
+		return http.StatusNotFound, "not_found"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

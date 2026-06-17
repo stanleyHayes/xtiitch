@@ -196,7 +196,12 @@ func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 // is (a draft stays recoverable; a confirmed order keeps its balance owed).
 func applyPaymentFailure(ctx context.Context, tx pgx.Tx, payment scopedPayment) error {
 	if payment.purpose == "booking_deposit" && payment.bookingID.Valid {
-		return releaseBooking(ctx, tx, payment.businessID, payment.bookingID.String, payment.orderID.String)
+		if err := releaseBooking(ctx, tx, payment.businessID, payment.bookingID.String, payment.orderID.String); err != nil {
+			return err
+		}
+	}
+	if payment.orderID.Valid {
+		return voidPendingPromotionRedemptionsForOrder(ctx, tx, payment.businessID, payment.orderID.String)
 	}
 	return nil
 }
@@ -315,9 +320,31 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 		return err
 	}
 
+	if err := applyPendingPromotionRedemptionsForOrder(ctx, tx, businessID, orderID); err != nil {
+		return err
+	}
+
 	// The order is now confirmed; in the same transaction, record the intent to
 	// tell the customer. The dedup key makes a redelivered webhook a no-op.
 	return enqueueOrderNotification(ctx, tx, businessID, orderID, notification.KindOrderConfirmed)
+}
+
+func applyPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		update promotion_redemptions
+		set status = 'applied', redeemed_at = now(), updated_at = now()
+		where business_id = $1 and order_id = $2 and status = 'pending'
+	`, businessID, orderID)
+	return err
+}
+
+func voidPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		update promotion_redemptions
+		set status = 'void', updated_at = now()
+		where business_id = $1 and order_id = $2 and status = 'pending'
+	`, businessID, orderID)
+	return err
 }
 
 func (repo PaymentRepository) ListByBusiness(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error) {

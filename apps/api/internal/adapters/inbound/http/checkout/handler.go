@@ -44,6 +44,7 @@ type placeOrderBody struct {
 	CustomerPhone string `json:"customer_phone"`
 	CustomerEmail string `json:"customer_email"`
 	Method        string `json:"method"`
+	PromoCode     string `json:"promo_code"`
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -61,6 +62,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		CustomerPhone: body.CustomerPhone,
 		CustomerEmail: body.CustomerEmail,
 		Method:        money.PaymentMethod(body.Method),
+		PromoCode:     body.PromoCode,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -68,7 +70,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor)
 }
 
 type placeCustomOrderBody struct {
@@ -78,6 +80,7 @@ type placeCustomOrderBody struct {
 	CustomerPhone string            `json:"customer_phone"`
 	CustomerEmail string            `json:"customer_email"`
 	Method        string            `json:"method"`
+	PromoCode     string            `json:"promo_code"`
 	Measurements  map[string]string `json:"measurements"`
 }
 
@@ -96,6 +99,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		CustomerPhone: body.CustomerPhone,
 		CustomerEmail: body.CustomerEmail,
 		Method:        money.PaymentMethod(body.Method),
+		PromoCode:     body.PromoCode,
 		Measurements:  body.Measurements,
 	})
 	if err != nil {
@@ -104,7 +108,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor)
 }
 
 type placeBookingBody struct {
@@ -145,15 +149,16 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
 }
 
-func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64) {
+func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64, discountMinor int64) {
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"order_id":          orderID,
 		"reference":         reference,
 		"authorization_url": authorizationURL,
 		"amount_minor":      amountMinor,
+		"discount_minor":    discountMinor,
 	})
 }
 
@@ -168,6 +173,8 @@ func checkoutError(err error) (int, string) {
 		return http.StatusConflict, "store_not_verified"
 	case errors.Is(err, checkoutapp.ErrBespokeDisabled), errors.Is(err, checkoutapp.ErrMeasurementsDisabled):
 		return http.StatusConflict, "store_cannot_take_order"
+	case errors.Is(err, checkoutapp.ErrPromotionUnavailable):
+		return http.StatusConflict, "promotion_unavailable"
 	case errors.Is(err, ports.ErrSlotTaken), errors.Is(err, ports.ErrNoAvailability):
 		return http.StatusConflict, "slot_unavailable"
 	default:

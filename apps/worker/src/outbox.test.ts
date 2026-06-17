@@ -6,6 +6,7 @@ import {
   errorMessage,
   retryDelayMs,
   type NotificationSender,
+  type NotificationSendResult,
   type OutboundMessage,
   type OutboxStore,
 } from "./outbox";
@@ -22,6 +23,10 @@ test("drainOutbox marks successful sends as sent", async () => {
   const sender: NotificationSender = {
     async send(sentMessage) {
       assert.equal(sentMessage.messageId, message.messageId);
+      return {
+        providerMessageId: "provider-1",
+        providerResponse: { id: "provider-1" },
+      };
     },
   };
 
@@ -34,7 +39,15 @@ test("drainOutbox marks successful sends as sent", async () => {
   });
 
   assert.deepEqual(summary, { claimed: 1, sent: 1, failed: 0, dead: 0 });
-  assert.deepEqual(store.sentMessageIds, [message.messageId]);
+  assert.deepEqual(store.sent, [
+    {
+      messageId: message.messageId,
+      result: {
+        providerMessageId: "provider-1",
+        providerResponse: { id: "provider-1" },
+      },
+    },
+  ]);
   assert.equal(store.failures.length, 0);
 });
 
@@ -91,7 +104,7 @@ test("errorMessage handles non-error throws", () => {
 });
 
 class MemoryOutboxStore implements OutboxStore {
-  readonly sentMessageIds: string[] = [];
+  readonly sent: { messageId: string; result?: NotificationSendResult }[] = [];
   readonly failures: {
     messageId: string;
     error: string;
@@ -105,8 +118,8 @@ class MemoryOutboxStore implements OutboxStore {
     return this.messages.splice(0, batchSize);
   }
 
-  async markSent(messageId: string): Promise<void> {
-    this.sentMessageIds.push(messageId);
+  async markSent(messageId: string, result?: NotificationSendResult): Promise<void> {
+    this.sent.push({ messageId, result });
   }
 
   async markFailed(

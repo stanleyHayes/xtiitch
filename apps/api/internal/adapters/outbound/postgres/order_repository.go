@@ -136,6 +136,38 @@ func (repo OrderRepository) DiscardDraftOrder(ctx context.Context, scope common.
 	return tx.Commit(ctx)
 }
 
+func (repo OrderRepository) SetDraftOrderAgreedTotal(
+	ctx context.Context,
+	scope common.TenantScope,
+	orderID common.ID,
+	agreedTotalMinor int64,
+) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		update orders
+		set agreed_total_minor = $3, updated_at = now()
+		where order_id = $1 and business_id = $2
+			and order_type = 'standard' and status = 'draft'
+	`, orderID.String(), scope.BusinessID.String(), agreedTotalMinor)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrInvalidOrderState
+	}
+
+	return tx.Commit(ctx)
+}
+
 func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.TenantScope, input ports.CreateCustomOrderInput) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

@@ -35,9 +35,18 @@ const muiIcons = [
   "ArrowForwardRounded",
   "CheckCircleRounded",
   "Circle",
+  "CollectionsBookmarkRounded",
+  "ContentCutRounded",
+  "CreditCardRounded",
+  "HomeWorkRounded",
+  "LocalShippingRounded",
+  "PointOfSaleRounded",
   "RadioButtonUncheckedRounded",
   "SearchRounded",
+  "SecurityRounded",
+  "StorefrontRounded",
   "StorefrontOutlined",
+  "StraightenRounded",
   "VerifiedRounded",
 ].map((name) => `@mui/icons-material/${name}`);
 
@@ -50,7 +59,13 @@ export default defineConfig({
     allowedHosts: [".localhost", ".xtiitch.com"],
   },
   resolve: {
-    dedupe: ["react", "react-dom", "@emotion/react", "@emotion/styled", "@emotion/cache"],
+    dedupe: [
+      "react",
+      "react-dom",
+      "@emotion/react",
+      "@emotion/styled",
+      "@emotion/cache",
+    ],
   },
   optimizeDeps: {
     include: [

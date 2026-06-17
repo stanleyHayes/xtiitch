@@ -1,0 +1,2202 @@
+package adminauth
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+)
+
+func TestBootstrapAdminNormalizesAndHashesUser(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"admin-1"})
+
+	user, err := service.BootstrapAdmin(context.Background(), BootstrapAdminCommand{
+		Email:       "OWNER@xtiitch.com",
+		DisplayName: "  Xtiitch Owner  ",
+		Password:    "AdminPass123!",
+		Role:        admindomain.RoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("bootstrap admin: %v", err)
+	}
+	if users.bootstrapped.Email != "owner@xtiitch.com" || users.bootstrapped.DisplayName != "Xtiitch Owner" {
+		t.Fatalf("expected normalized bootstrap user, got %+v", users.bootstrapped)
+	}
+	if users.bootstrapped.PasswordHash != "hashed:AdminPass123!" {
+		t.Fatalf("expected password hash, got %q", users.bootstrapped.PasswordHash)
+	}
+	if user.UserID != "admin-1" || user.Role != admindomain.RoleOwner {
+		t.Fatalf("unexpected bootstrap user response: %+v", user)
+	}
+}
+
+func TestLoginIssuesAdminSessionForValidCredentials(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	users := &fakeAdminUsers{
+		credentials: ports.AdminUserCredentials{
+			UserID:       "admin-1",
+			Email:        "owner@xtiitch.com",
+			DisplayName:  "Owner",
+			PasswordHash: "hashed:AdminPass123!",
+			Role:         admindomain.RoleOwner,
+			IsActive:     true,
+		},
+	}
+	sessions := &fakeAdminSessions{}
+	service := newTestService(users, sessions, now, []common.ID{"session-1", "audit-1"})
+
+	result, err := service.Login(context.Background(), LoginCommand{
+		Email:     "OWNER@xtiitch.com",
+		Password:  "AdminPass123!",
+		UserAgent: "test-agent",
+		IPAddress: "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("login admin: %v", err)
+	}
+	if users.lookupEmail != "owner@xtiitch.com" || users.loginUserID != "admin-1" {
+		t.Fatalf("expected lookup and login recording, got email=%q login=%q", users.lookupEmail, users.loginUserID)
+	}
+	if result.AccessToken != "admin-access:admin-1:owner" || result.RefreshToken != "refresh-token" {
+		t.Fatalf("unexpected auth tokens: %+v", result)
+	}
+	if sessions.created.AdminUserID != "admin-1" || sessions.created.RefreshTokenHash != "hash:refresh-token" {
+		t.Fatalf("expected persisted admin session, got %+v", sessions.created)
+	}
+}
+
+func TestLoginEqualizesTimingForUnknownAdmin(t *testing.T) {
+	t.Parallel()
+
+	hasher := &countingPasswordHasher{}
+	users := &fakeAdminUsers{findErr: errors.New("not found")}
+	service := Service{
+		users:         users,
+		sessions:      &fakeAdminSessions{},
+		passwords:     hasher,
+		accessTokens:  fakeAdminTokenIssuer{},
+		refreshTokens: fakeRefreshTokens{},
+		ids:           &sequenceIDs{ids: []common.ID{"session-1"}},
+		clock:         fixedClock{now: time.Now()},
+	}
+
+	_, err := service.Login(context.Background(), LoginCommand{
+		Email:    "missing@xtiitch.com",
+		Password: "AdminPass123!",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidCredentials) {
+		t.Fatalf("expected invalid credentials, got %v", err)
+	}
+	if hasher.hashCalls != 1 {
+		t.Fatalf("expected one equalising hash call, got %d", hasher.hashCalls)
+	}
+}
+
+func TestRefreshRotatesAdminSession(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	session := ports.AdminSessionWithUser{
+		SessionID:    "session-1",
+		AdminUserID:  "admin-1",
+		Email:        "owner@xtiitch.com",
+		DisplayName:  "Owner",
+		Role:         admindomain.RoleOwner,
+		UserIsActive: true,
+		ExpiresAt:    now.Add(time.Hour),
+	}
+	sessions := &fakeAdminSessions{session: session}
+	service := newTestService(&fakeAdminUsers{}, sessions, now, []common.ID{"session-2"})
+
+	result, err := service.Refresh(context.Background(), RefreshCommand{RefreshToken: "old-refresh"})
+	if err != nil {
+		t.Fatalf("refresh admin session: %v", err)
+	}
+	if result.AdminUserID != "admin-1" || result.RefreshToken == "" {
+		t.Fatalf("unexpected refresh result: %+v", result)
+	}
+	if len(sessions.revoked) != 1 || sessions.revoked[0] != "session-1" {
+		t.Fatalf("expected old session revoked, got %v", sessions.revoked)
+	}
+	if sessions.created.SessionID != "session-2" {
+		t.Fatalf("expected rotated session id, got %+v", sessions.created)
+	}
+}
+
+func TestMeRejectsInactiveAdmin(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{
+		record: ports.AdminUserRecord{UserID: "admin-1", IsActive: false},
+	}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	_, err := service.Me(context.Background(), "admin-1")
+	if !errors.Is(err, authdomain.ErrInvalidCredentials) {
+		t.Fatalf("expected inactive admin to be rejected, got %v", err)
+	}
+}
+
+func TestListUsersRequiresOwner(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{
+		users: []ports.AdminUserRecord{{UserID: "admin-1", Email: "owner@xtiitch.com", Role: admindomain.RoleOwner, IsActive: true}},
+	}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	result, err := service.ListUsers(context.Background(), ListUsersCommand{ActorRole: admindomain.RoleOwner})
+	if err != nil {
+		t.Fatalf("list users: %v", err)
+	}
+	if len(result) != 1 || !users.listCalled {
+		t.Fatalf("expected owner to list users, got result=%+v listCalled=%v", result, users.listCalled)
+	}
+
+	_, err = service.ListUsers(context.Background(), ListUsersCommand{ActorRole: admindomain.RoleOperator})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected operator to be forbidden, got %v", err)
+	}
+}
+
+func TestProfileSettingsLoadsActiveAdminAndPreferences(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
+	users := &fakeAdminUsers{
+		record: ports.AdminUserRecord{
+			UserID:      "admin-1",
+			Email:       "owner@xtiitch.com",
+			DisplayName: "Owner",
+			Role:        admindomain.RoleOwner,
+			IsActive:    true,
+		},
+		preferences: ports.AdminPreferencesRecord{
+			UserID:          "admin-1",
+			Timezone:        "Africa/Accra",
+			NotifyEmail:     true,
+			DailyDigestTime: "08:00",
+			UpdatedAt:       now,
+		},
+	}
+	service := newTestService(users, &fakeAdminSessions{}, now, []common.ID{"unused"})
+
+	result, err := service.GetProfileSettings(context.Background(), "admin-1")
+	if err != nil {
+		t.Fatalf("profile settings: %v", err)
+	}
+	if result.User.Email != "owner@xtiitch.com" || result.Preferences.UserID != "admin-1" {
+		t.Fatalf("unexpected profile settings: %+v", result)
+	}
+	if users.preferencesUserID != "admin-1" {
+		t.Fatalf("expected preferences lookup for admin-1, got %q", users.preferencesUserID)
+	}
+}
+
+func TestUpdateProfileNormalizesSelfProfile(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	user, err := service.UpdateProfile(context.Background(), UpdateProfileCommand{
+		ActorUserID: "admin-1",
+		DisplayName: "  Operations Owner  ",
+		Email:       "OWNER@xtiitch.com",
+	})
+	if err != nil {
+		t.Fatalf("update profile: %v", err)
+	}
+	if users.updatedProfile.UserID != "admin-1" ||
+		users.updatedProfile.DisplayName != "Operations Owner" ||
+		users.updatedProfile.Email != "owner@xtiitch.com" {
+		t.Fatalf("expected normalized profile update, got %+v", users.updatedProfile)
+	}
+	if user.Email != "owner@xtiitch.com" || user.DisplayName != "Operations Owner" {
+		t.Fatalf("unexpected updated profile response: %+v", user)
+	}
+
+	_, err = service.UpdateProfile(context.Background(), UpdateProfileCommand{
+		ActorUserID: "admin-1",
+		DisplayName: "",
+		Email:       "owner@xtiitch.com",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid display name, got %v", err)
+	}
+}
+
+func TestUpdatePreferencesNormalizesAndValidatesInput(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	preferences, err := service.UpdatePreferences(context.Background(), UpdatePreferencesCommand{
+		ActorUserID:        "admin-1",
+		ActorRole:          admindomain.RoleOwner,
+		Timezone:           "  Africa/Accra  ",
+		PhoneNumber:        "  +233501234567  ",
+		NotifyEmail:        true,
+		NotifySMS:          true,
+		AlertVerifications: true,
+		AlertMoneyRails:    true,
+		AlertRisk:          true,
+		AlertSupport:       false,
+		DailyDigestTime:    "",
+	})
+	if err != nil {
+		t.Fatalf("update preferences: %v", err)
+	}
+	if users.updatedPreferences.UserID != "admin-1" ||
+		users.updatedPreferences.Timezone != "Africa/Accra" ||
+		users.updatedPreferences.PhoneNumber != "+233501234567" ||
+		users.updatedPreferences.DailyDigestTime != "08:00" {
+		t.Fatalf("expected normalized preferences, got %+v", users.updatedPreferences)
+	}
+	if !preferences.NotifySMS || preferences.AlertSupport {
+		t.Fatalf("unexpected preferences response: %+v", preferences)
+	}
+
+	_, err = service.UpdatePreferences(context.Background(), UpdatePreferencesCommand{
+		ActorUserID:     "admin-1",
+		ActorRole:       admindomain.RoleOwner,
+		DailyDigestTime: "25:30",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid digest time, got %v", err)
+	}
+}
+
+func TestUpdatePlatformSettingsRequiresManageSettings(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	settings, err := service.UpdatePlatformSettings(context.Background(), UpdatePlatformSettingsCommand{
+		ActorUserID:                  "owner-1",
+		ActorRole:                    admindomain.RoleOwner,
+		PlatformName:                 "  Xtiitch Console  ",
+		SupportEmail:                 "SUPPORT@xtiitch.com",
+		VerificationSLAHours:         36,
+		PayoutReviewThresholdPesewas: 750000,
+		MaintenanceMode:              true,
+	})
+	if err != nil {
+		t.Fatalf("update platform settings: %v", err)
+	}
+	if users.updatedPlatformSettings.PlatformName != "Xtiitch Console" ||
+		users.updatedPlatformSettings.SupportEmail != "support@xtiitch.com" ||
+		users.updatedPlatformSettings.VerificationSLAHours != 36 ||
+		users.updatedPlatformSettings.PayoutReviewThresholdPesewas != 750000 ||
+		!users.updatedPlatformSettings.MaintenanceMode {
+		t.Fatalf("expected normalized platform settings, got %+v", users.updatedPlatformSettings)
+	}
+	if settings.SupportEmail != "support@xtiitch.com" || !settings.MaintenanceMode {
+		t.Fatalf("unexpected platform settings response: %+v", settings)
+	}
+
+	_, err = service.UpdatePlatformSettings(context.Background(), UpdatePlatformSettingsCommand{
+		ActorUserID:                  "support-1",
+		ActorRole:                    admindomain.RoleSupport,
+		PlatformName:                 "Xtiitch",
+		SupportEmail:                 "support@xtiitch.com",
+		VerificationSLAHours:         24,
+		PayoutReviewThresholdPesewas: 500000,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestUpdateRolePermissionsRequiresManageRolesAndNormalizes(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	record, err := service.UpdateRolePermissions(context.Background(), UpdateRolePermissionsCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		Role:        admindomain.RoleOperator,
+		Permissions: []admindomain.Permission{
+			admindomain.PermissionViewAudit,
+			admindomain.PermissionManageSupport,
+			admindomain.PermissionViewAudit,
+		},
+	})
+	if err != nil {
+		t.Fatalf("update role permissions: %v", err)
+	}
+	expected := []admindomain.Permission{
+		admindomain.PermissionManageSupport,
+		admindomain.PermissionViewAudit,
+	}
+	if users.updatedRolePermissions.Role != admindomain.RoleOperator {
+		t.Fatalf("expected operator update, got %+v", users.updatedRolePermissions)
+	}
+	if !samePermissions(users.updatedRolePermissions.Permissions, expected) {
+		t.Fatalf("expected normalized permissions %v, got %v", expected, users.updatedRolePermissions.Permissions)
+	}
+	if !samePermissions(record.Permissions, expected) {
+		t.Fatalf("unexpected role response: %+v", record)
+	}
+
+	_, err = service.UpdateRolePermissions(context.Background(), UpdateRolePermissionsCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		Role:        admindomain.RoleOperator,
+		Permissions: expected,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestUpdateRolePermissionsProtectsOwnerRecoveryGrants(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	_, err := service.UpdateRolePermissions(context.Background(), UpdateRolePermissionsCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		Role:        admindomain.RoleOwner,
+		Permissions: []admindomain.Permission{
+			admindomain.PermissionManageRoles,
+			admindomain.PermissionViewAudit,
+		},
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected missing owner recovery grant to be invalid, got %v", err)
+	}
+	if users.updatedRolePermissions.Role != "" {
+		t.Fatalf("expected no role update, got %+v", users.updatedRolePermissions)
+	}
+}
+
+func TestCreateUserNormalizesAndHashesInput(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"admin-2", "audit-1"})
+
+	user, err := service.CreateUser(context.Background(), CreateUserCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		DisplayName: "  Support Lead  ",
+		Email:       "SUPPORT@xtiitch.com",
+		Password:    "AdminPass123!",
+		Role:        admindomain.RoleSupport,
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if users.created.UserID != "admin-2" || users.created.Email != "support@xtiitch.com" {
+		t.Fatalf("expected generated normalized user, got %+v", users.created)
+	}
+	if users.created.DisplayName != "Support Lead" || users.created.PasswordHash != "hashed:AdminPass123!" {
+		t.Fatalf("expected normalized display and hash, got %+v", users.created)
+	}
+	if user.UserID != "admin-2" || user.Role != admindomain.RoleSupport {
+		t.Fatalf("unexpected created user response: %+v", user)
+	}
+}
+
+func TestCreateUserRejectsInvalidRoleAndWeakPassword(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"admin-2"})
+
+	_, err := service.CreateUser(context.Background(), CreateUserCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		DisplayName: "Bad Role",
+		Email:       "bad@xtiitch.com",
+		Password:    "short",
+		Role:        admindomain.Role("bad"),
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid input, got %v", err)
+	}
+	if users.created.UserID != "" {
+		t.Fatalf("expected no user to be created, got %+v", users.created)
+	}
+}
+
+func TestUpdateUserProtectsOwnerFromSelfDemotion(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	_, err := service.UpdateUser(context.Background(), UpdateUserCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		UserID:      "owner-1",
+		DisplayName: "Owner",
+		Role:        admindomain.RoleOperator,
+		IsActive:    true,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected self-demotion to be forbidden, got %v", err)
+	}
+
+	user, err := service.UpdateUser(context.Background(), UpdateUserCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		UserID:      "admin-2",
+		DisplayName: "  Ops Lead  ",
+		Role:        admindomain.RoleOperator,
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("update user: %v", err)
+	}
+	if users.updated.UserID != "admin-2" || users.updated.DisplayName != "Ops Lead" || users.updated.IsActive {
+		t.Fatalf("expected normalized inactive update, got %+v", users.updated)
+	}
+	if user.UserID != "admin-2" || user.Role != admindomain.RoleOperator || user.IsActive {
+		t.Fatalf("unexpected updated user response: %+v", user)
+	}
+}
+
+func TestCreateUserWritesAuditEvent(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service, audits := newTestServiceWithAudits(users, &fakeAdminSessions{}, time.Now(), []common.ID{"admin-2", "audit-1"})
+
+	_, err := service.CreateUser(context.Background(), CreateUserCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		DisplayName: "Support Lead",
+		Email:       "support@xtiitch.com",
+		Password:    "AdminPass123!",
+		Role:        admindomain.RoleSupport,
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.AuditEventID != "audit-1" ||
+		event.ActorUserID != "owner-1" ||
+		event.Action != "Created admin user" ||
+		event.TargetID != "admin-2" ||
+		event.Severity != admindomain.AuditSeverityWarning {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+	if event.Metadata["role"] != string(admindomain.RoleSupport) {
+		t.Fatalf("expected role metadata, got %+v", event.Metadata)
+	}
+}
+
+func TestListAuditEventsRequiresViewAudit(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{
+		rolePermissions: []ports.AdminRolePermissionsRecord{
+			{
+				Role:        admindomain.RoleOwner,
+				Permissions: admindomain.RoleOwner.Permissions(),
+			},
+			{
+				Role:        admindomain.RoleOperator,
+				Permissions: admindomain.RoleOperator.Permissions(),
+			},
+			{
+				Role:        admindomain.RoleSupport,
+				Permissions: []admindomain.Permission{admindomain.PermissionManageSupport},
+			},
+		},
+	}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	_, err := service.ListAuditEvents(context.Background(), ListAuditEventsCommand{ActorRole: admindomain.RoleSupport})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support without view audit to be forbidden, got %v", err)
+	}
+}
+
+func TestListBusinessVerificationsRequiresReviewPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		cases: []ports.AdminVerificationCaseRecord{
+			{BusinessID: "business-1", BusinessName: "Ama Stitches"},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	result, err := service.ListBusinessVerifications(
+		context.Background(),
+		ListBusinessVerificationsCommand{ActorRole: admindomain.RoleOperator},
+	)
+	if err != nil {
+		t.Fatalf("list business verifications: %v", err)
+	}
+	if len(result) != 1 || !businesses.listCalled {
+		t.Fatalf("expected operator to list verification cases, got result=%+v listCalled=%v", result, businesses.listCalled)
+	}
+
+	_, err = service.ListBusinessVerifications(
+		context.Background(),
+		ListBusinessVerificationsCommand{ActorRole: admindomain.RoleSupport},
+	)
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestDecideBusinessVerificationUpdatesStatusAndWritesAudit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.DecideBusinessVerification(context.Background(), DecideBusinessVerificationCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Decision:    BusinessVerificationDecisionApproved,
+		Note:        "  owner and settlement account match  ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("decide business verification: %v", err)
+	}
+	if businesses.decided.BusinessID != "business-1" ||
+		businesses.decided.Status != business.VerificationStatusVerified {
+		t.Fatalf("expected approved status update, got %+v", businesses.decided)
+	}
+	if record.BusinessID != "business-1" || record.VerificationStatus != business.VerificationStatusVerified {
+		t.Fatalf("unexpected decision result: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Approved business verification" ||
+		event.TargetID != "business-1" ||
+		event.Severity != admindomain.AuditSeverityInfo ||
+		event.Metadata["operator_note"] != "owner and settlement account match" {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+
+	_, err = service.DecideBusinessVerification(context.Background(), DecideBusinessVerificationCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Decision:    BusinessVerificationDecision("bad"),
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid decision to be rejected, got %v", err)
+	}
+}
+
+func TestUpdateBusinessStatusSuspendsAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.UpdateBusinessStatus(context.Background(), UpdateBusinessStatusCommand{
+		ActorUserID:       "operator-1",
+		ActorRole:         admindomain.RoleOperator,
+		BusinessID:        "business-1",
+		OperationalStatus: business.OperationalStatusSuspended,
+		Reason:            " chargeback pattern under review ",
+		UserAgent:         "test-agent",
+		IPAddress:         "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update business status: %v", err)
+	}
+	if businesses.statusUpdate.BusinessID != "business-1" ||
+		businesses.statusUpdate.OperationalStatus != business.OperationalStatusSuspended ||
+		businesses.statusUpdate.SuspensionReason != "chargeback pattern under review" ||
+		businesses.statusUpdate.SuspendedByAdminUser != "operator-1" {
+		t.Fatalf("expected normalized suspension update, got %+v", businesses.statusUpdate)
+	}
+	if record.BusinessID != "business-1" || record.OperationalStatus != business.OperationalStatusSuspended {
+		t.Fatalf("unexpected status response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Suspended business" ||
+		event.TargetID != "business-1" ||
+		event.Severity != admindomain.AuditSeverityCritical ||
+		event.Metadata["reason"] != "chargeback pattern under review" {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+
+	_, err = service.UpdateBusinessStatus(context.Background(), UpdateBusinessStatusCommand{
+		ActorUserID:       "support-1",
+		ActorRole:         admindomain.RoleSupport,
+		BusinessID:        "business-1",
+		OperationalStatus: business.OperationalStatusActive,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestGetPlatformMetricsRequiresReviewPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		metrics: ports.AdminPlatformMetricsRecord{
+			GMVMonthMinor:        18420000,
+			ActiveBusinesses:     12,
+			PendingVerifications: 2,
+			PaymentHealthBPS:     9910,
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	metrics, err := service.GetPlatformMetrics(context.Background(), GetPlatformMetricsCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("get platform metrics: %v", err)
+	}
+	if metrics.GMVMonthMinor != 18420000 || metrics.PaymentHealthBPS != 9910 {
+		t.Fatalf("unexpected platform metrics: %+v", metrics)
+	}
+
+	_, err = service.GetPlatformMetrics(context.Background(), GetPlatformMetricsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestGetMoneyRailsRequiresMoneyPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		moneyRails: ports.AdminMoneyRailsRecord{
+			WebhookEvents: []ports.AdminMoneyWebhookEventRecord{
+				{ID: "payment-1", ProviderReference: "xt_ref_1", Status: "verified"},
+			},
+			PayoutReviews: []ports.AdminMoneyPayoutReviewRecord{
+				{ID: "business-1", BusinessName: "Ama Stitches", Status: "ready"},
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	moneyRails, err := service.GetMoneyRails(context.Background(), GetMoneyRailsCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("get money rails: %v", err)
+	}
+	if len(moneyRails.WebhookEvents) != 1 || len(moneyRails.PayoutReviews) != 1 {
+		t.Fatalf("unexpected money rails response: %+v", moneyRails)
+	}
+
+	_, err = service.GetMoneyRails(context.Background(), GetMoneyRailsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestListSubscriptionsRequiresSubscriptionPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{SubscriptionID: "subscription-1", BusinessID: "business-1", BusinessName: "Ama Stitches"},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	subscriptions, err := service.ListSubscriptions(context.Background(), ListSubscriptionsCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list subscriptions: %v", err)
+	}
+	if len(subscriptions) != 1 || subscriptions[0].BusinessID != "business-1" {
+		t.Fatalf("unexpected subscriptions: %+v", subscriptions)
+	}
+
+	_, err = service.ListSubscriptions(context.Background(), ListSubscriptionsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestUpdateSubscriptionRequiresPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.UpdateSubscription(context.Background(), UpdateSubscriptionCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Status:      " grace_period ",
+		BillingMode: " payment_link ",
+		Reason:      " card failed twice ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update subscription: %v", err)
+	}
+	if businesses.subscriptionUpdate.Status != "grace_period" ||
+		businesses.subscriptionUpdate.BillingMode != "payment_link" ||
+		businesses.subscriptionUpdate.Reason != "card failed twice" {
+		t.Fatalf("expected normalized subscription update, got %+v", businesses.subscriptionUpdate)
+	}
+	if record.BusinessID != "business-1" || record.Status != "grace_period" {
+		t.Fatalf("unexpected subscription response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Updated subscription" ||
+		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
+		audits.created[0].Metadata["billing_mode"] != "payment_link" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.UpdateSubscription(context.Background(), UpdateSubscriptionCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		BusinessID:  "business-1",
+		Status:      "active",
+		BillingMode: "manual",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-create", "audit-update", "audit-archive"},
+	)
+
+	plans, err := service.ListPlans(context.Background(), ListPlansCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list plans: %v", err)
+	}
+	if len(plans) != 1 || plans[0].Code != "growth" {
+		t.Fatalf("unexpected plans: %+v", plans)
+	}
+
+	designLimit := 25
+	created, err := service.CreatePlan(context.Background(), CreatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		Code:            " Pro-Plus ",
+		Name:            "  Pro   Plus  ",
+		MonthlyFeeMinor: 15000,
+		CommissionBPS:   75,
+		DesignLimit:     &designLimit,
+		UserAgent:       "test-agent",
+		IPAddress:       "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create plan: %v", err)
+	}
+	if businesses.createdPlan.Code != "pro-plus" ||
+		businesses.createdPlan.Name != "Pro Plus" ||
+		*businesses.createdPlan.DesignLimit != 25 {
+		t.Fatalf("expected normalized create input, got %+v", businesses.createdPlan)
+	}
+	if created.Code != "pro-plus" {
+		t.Fatalf("unexpected created plan: %+v", created)
+	}
+
+	updated, err := service.UpdatePlan(context.Background(), UpdatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		PlanID:          "plan-growth",
+		Name:            "Growth Plus",
+		MonthlyFeeMinor: 18000,
+		CommissionBPS:   50,
+		IsActive:        true,
+		UserAgent:       "test-agent",
+		IPAddress:       "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update plan: %v", err)
+	}
+	if businesses.updatedPlan.Name != "Growth Plus" || businesses.updatedPlan.IsActive != true {
+		t.Fatalf("expected normalized update input, got %+v", businesses.updatedPlan)
+	}
+	if updated.Name != "Growth Plus" {
+		t.Fatalf("unexpected updated plan: %+v", updated)
+	}
+
+	archived, err := service.ArchivePlan(context.Background(), ArchivePlanCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		PlanID:      "plan-growth",
+		Reason:      " replaced by pro ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("archive plan: %v", err)
+	}
+	if businesses.archivedPlan.PlanID != "plan-growth" || archived.IsActive {
+		t.Fatalf("expected archived plan, got input=%+v record=%+v", businesses.archivedPlan, archived)
+	}
+	if len(audits.created) != 3 {
+		t.Fatalf("expected three audit events, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Created plan package" ||
+		audits.created[1].Action != "Updated plan package" ||
+		audits.created[2].Action != "Archived plan package" {
+		t.Fatalf("unexpected audit events: %+v", audits.created)
+	}
+
+	_, err = service.CreatePlan(context.Background(), CreatePlanCommand{
+		ActorUserID:     "support-1",
+		ActorRole:       admindomain.RoleSupport,
+		Code:            "support-plan",
+		Name:            "Support Plan",
+		MonthlyFeeMinor: 1000,
+		CommissionBPS:   100,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestPlanPackageValidation(t *testing.T) {
+	t.Parallel()
+
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		&fakeAdminBusinesses{},
+		time.Now(),
+		[]common.ID{"audit"},
+	)
+
+	_, err := service.CreatePlan(context.Background(), CreatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		Code:            "bad code",
+		Name:            "Bad",
+		MonthlyFeeMinor: 1000,
+		CommissionBPS:   100,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid code, got %v", err)
+	}
+
+	negativeLimit := -1
+	_, err = service.UpdatePlan(context.Background(), UpdatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		PlanID:          "plan-growth",
+		Name:            "Growth",
+		MonthlyFeeMinor: 1000,
+		CommissionBPS:   10001,
+		DesignLimit:     &negativeLimit,
+		IsActive:        true,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid economics, got %v", err)
+	}
+}
+
+func TestPromotionsRequirePermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	businessID := common.ID("business-1")
+	maxDiscount := int64(5000)
+	globalLimit := 100
+	perCustomerLimit := 1
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"promotion-created", "audit-create", "audit-update", "audit-archive"},
+	)
+
+	promotions, err := service.ListPromotions(context.Background(), ListPromotionsCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list promotions: %v", err)
+	}
+	if len(promotions) != 1 || promotions[0].Code != "WELCOME10" {
+		t.Fatalf("unexpected promotions: %+v", promotions)
+	}
+
+	created, err := service.CreatePromotion(context.Background(), CreatePromotionCommand{
+		ActorUserID:           "operator-1",
+		ActorRole:             admindomain.RoleOperator,
+		BusinessID:            &businessID,
+		Code:                  " welcome10 ",
+		Title:                 "  Welcome   Ten  ",
+		Description:           "  first order  ",
+		DiscountType:          "percentage",
+		DiscountValue:         1000,
+		MaxDiscountMinor:      &maxDiscount,
+		MinSpendMinor:         10000,
+		UsageLimitGlobal:      &globalLimit,
+		UsageLimitPerCustomer: &perCustomerLimit,
+		FundingSource:         "split",
+		Scope:                 "store",
+		Status:                "active",
+		UserAgent:             "test-agent",
+		IPAddress:             "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create promotion: %v", err)
+	}
+	if created.PromotionID != "promotion-created" ||
+		businesses.createdPromotion.Code != "WELCOME10" ||
+		businesses.createdPromotion.Title != "Welcome Ten" ||
+		businesses.createdPromotion.Description != "first order" ||
+		*businesses.createdPromotion.MaxDiscountMinor != 5000 ||
+		*businesses.createdPromotion.UsageLimitGlobal != 100 {
+		t.Fatalf("expected normalized create input, got input=%+v record=%+v", businesses.createdPromotion, created)
+	}
+
+	updated, err := service.UpdatePromotion(context.Background(), UpdatePromotionCommand{
+		ActorUserID:   "operator-1",
+		ActorRole:     admindomain.RoleOperator,
+		PromotionID:   "promotion-created",
+		Code:          "WELCOME10",
+		Title:         "Welcome Ten Paused",
+		DiscountType:  "fixed",
+		DiscountValue: 1500,
+		MinSpendMinor: 5000,
+		FundingSource: "business",
+		Scope:         "store",
+		Status:        "paused",
+		UserAgent:     "test-agent",
+		IPAddress:     "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update promotion: %v", err)
+	}
+	if businesses.updatedPromotion.Status != "paused" || updated.Status != "paused" {
+		t.Fatalf("expected paused update, got input=%+v record=%+v", businesses.updatedPromotion, updated)
+	}
+
+	archived, err := service.ArchivePromotion(context.Background(), ArchivePromotionCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		PromotionID: "promotion-created",
+		Reason:      " campaign ended ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("archive promotion: %v", err)
+	}
+	if businesses.archivedPromotion.PromotionID != "promotion-created" || archived.Status != "archived" {
+		t.Fatalf("expected archived promotion, got input=%+v record=%+v", businesses.archivedPromotion, archived)
+	}
+	if len(audits.created) != 3 {
+		t.Fatalf("expected three audit events, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Created promotion" ||
+		audits.created[1].Action != "Updated promotion" ||
+		audits.created[2].Action != "Archived promotion" ||
+		audits.created[0].Metadata["code"] != "WELCOME10" {
+		t.Fatalf("unexpected audit events: %+v", audits.created)
+	}
+
+	_, err = service.CreatePromotion(context.Background(), CreatePromotionCommand{
+		ActorUserID:   "support-1",
+		ActorRole:     admindomain.RoleSupport,
+		Code:          "NOPE",
+		Title:         "Nope",
+		DiscountType:  "fixed",
+		DiscountValue: 100,
+		FundingSource: "business",
+		Scope:         "store",
+		Status:        "active",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestPromotionValidation(t *testing.T) {
+	t.Parallel()
+
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		&fakeAdminBusinesses{},
+		time.Now(),
+		[]common.ID{"promotion", "audit"},
+	)
+
+	_, err := service.CreatePromotion(context.Background(), CreatePromotionCommand{
+		ActorUserID:   "operator-1",
+		ActorRole:     admindomain.RoleOperator,
+		Code:          "bad code",
+		Title:         "Bad",
+		DiscountType:  "percentage",
+		DiscountValue: 1000,
+		FundingSource: "business",
+		Scope:         "store",
+		Status:        "active",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid promotion code/cap, got %v", err)
+	}
+
+	negativeLimit := -1
+	_, err = service.CreatePromotion(context.Background(), CreatePromotionCommand{
+		ActorUserID:      "operator-1",
+		ActorRole:        admindomain.RoleOperator,
+		Code:             "FIXED10",
+		Title:            "Fixed",
+		DiscountType:     "fixed",
+		DiscountValue:    1000,
+		UsageLimitGlobal: &negativeLimit,
+		FundingSource:    "business",
+		Scope:            "store",
+		Status:           "active",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid promotion limit, got %v", err)
+	}
+}
+
+func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"replay-1", "audit-1"},
+	)
+
+	record, err := service.QueueMoneyReplay(context.Background(), QueueMoneyReplayCommand{
+		ActorUserID:       "operator-1",
+		ActorRole:         admindomain.RoleOperator,
+		ProviderReference: " xt_ref_1 ",
+		Reason:            " customer says checkout was charged ",
+		UserAgent:         "test-agent",
+		IPAddress:         "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("queue money replay: %v", err)
+	}
+	if businesses.replay.ProviderReference != "xt_ref_1" ||
+		businesses.replay.ReplayRequestID != "replay-1" ||
+		businesses.replay.Reason != "customer says checkout was charged" {
+		t.Fatalf("expected normalized replay request, got %+v", businesses.replay)
+	}
+	if record.ReplayRequestID != "replay-1" || record.ProviderReference != "xt_ref_1" {
+		t.Fatalf("unexpected replay response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Queued money replay" ||
+		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
+		audits.created[0].Metadata["reason"] != "customer says checkout was charged" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.QueueMoneyReplay(context.Background(), QueueMoneyReplayCommand{
+		ActorUserID:       "support-1",
+		ActorRole:         admindomain.RoleSupport,
+		ProviderReference: "xt_ref_1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestSetSettlementReviewHoldRequiresMoneyPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.SetSettlementReviewHold(context.Background(), SetSettlementReviewHoldCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Hold:        true,
+		Reason:      " webhook mismatch needs review ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("set settlement hold: %v", err)
+	}
+	if businesses.hold.BusinessID != "business-1" ||
+		!businesses.hold.Hold ||
+		businesses.hold.Reason != "webhook mismatch needs review" {
+		t.Fatalf("expected normalized hold input, got %+v", businesses.hold)
+	}
+	if !record.HoldActive || record.Status != "blocked" {
+		t.Fatalf("unexpected hold response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Placed settlement review hold" ||
+		audits.created[0].Severity != admindomain.AuditSeverityCritical ||
+		audits.created[0].Metadata["hold_active"] != "true" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.SetSettlementReviewHold(context.Background(), SetSettlementReviewHoldCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		BusinessID:  "business-1",
+		Hold:        false,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestListRiskReviewsRequiresRiskPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		riskReviews: []ports.AdminRiskReviewRecord{
+			{ReviewKey: "payment_failures:business-1", BusinessName: "Ama Stitches", Level: "high", Status: "open"},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	reviews, err := service.ListRiskReviews(context.Background(), ListRiskReviewsCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list risk reviews: %v", err)
+	}
+	if len(reviews) != 1 || reviews[0].ReviewKey != "payment_failures:business-1" {
+		t.Fatalf("unexpected risk review response: %+v", reviews)
+	}
+
+	_, err = service.ListRiskReviews(context.Background(), ListRiskReviewsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestSetRiskReviewStatusRequiresRiskPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.SetRiskReviewStatus(context.Background(), SetRiskReviewStatusCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		ReviewKey:   " payment_failures:business-1 ",
+		Status:      "closed",
+		Reason:      " issue reconciled with provider ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("set risk review status: %v", err)
+	}
+	if businesses.riskUpdate.ReviewKey != "payment_failures:business-1" ||
+		businesses.riskUpdate.Status != "closed" ||
+		businesses.riskUpdate.Reason != "issue reconciled with provider" {
+		t.Fatalf("expected normalized risk update, got %+v", businesses.riskUpdate)
+	}
+	if record.Status != "closed" || record.ReviewKey != "payment_failures:business-1" {
+		t.Fatalf("unexpected risk review response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Closed risk review" ||
+		audits.created[0].Severity != admindomain.AuditSeverityInfo ||
+		audits.created[0].Metadata["status"] != "closed" ||
+		audits.created[0].Metadata["reason"] != "issue reconciled with provider" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.SetRiskReviewStatus(context.Background(), SetRiskReviewStatusCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		ReviewKey:   "payment_failures:business-1",
+		Status:      "open",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestListSupportTicketsRequiresSupportPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		supportTickets: []ports.AdminSupportTicketRecord{
+			{TicketKey: "failed_payment:payment-1", BusinessName: "Ama Stitches", Priority: "urgent", Status: "open"},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	tickets, err := service.ListSupportTickets(context.Background(), ListSupportTicketsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if err != nil {
+		t.Fatalf("list support tickets: %v", err)
+	}
+	if len(tickets) != 1 || tickets[0].TicketKey != "failed_payment:payment-1" {
+		t.Fatalf("unexpected support ticket response: %+v", tickets)
+	}
+
+	_, err = service.ListSupportTickets(context.Background(), ListSupportTicketsCommand{
+		ActorRole: "viewer",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected invalid role to be forbidden, got %v", err)
+	}
+}
+
+func TestUpdateSupportTicketRequiresSupportPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.UpdateSupportTicket(context.Background(), UpdateSupportTicketCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		TicketKey:   " failed_payment:payment-1 ",
+		Status:      "open",
+		Assignment:  "self",
+		Note:        " taking this one ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update support ticket: %v", err)
+	}
+	if businesses.supportUpdate.TicketKey != "failed_payment:payment-1" ||
+		businesses.supportUpdate.Assignment != "self" ||
+		businesses.supportUpdate.Note != "taking this one" {
+		t.Fatalf("expected normalized support update, got %+v", businesses.supportUpdate)
+	}
+	if record.Status != "open" || record.AssignedAdminUserID != "support-1" {
+		t.Fatalf("unexpected support ticket response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Assigned support ticket" ||
+		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
+		audits.created[0].Metadata["assignment"] != "self" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.UpdateSupportTicket(context.Background(), UpdateSupportTicketCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		TicketKey:   "failed_payment:payment-1",
+		Status:      "invalid",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid status, got %v", err)
+	}
+}
+
+func newTestService(users *fakeAdminUsers, sessions *fakeAdminSessions, now time.Time, ids []common.ID) Service {
+	service, _ := newTestServiceWithAudits(users, sessions, now, ids)
+	return service
+}
+
+func newTestServiceWithAudits(
+	users *fakeAdminUsers,
+	sessions *fakeAdminSessions,
+	now time.Time,
+	ids []common.ID,
+) (Service, *fakeAdminAudits) {
+	return newTestServiceWithBusinesses(users, sessions, &fakeAdminBusinesses{}, now, ids)
+}
+
+func newTestServiceWithBusinesses(
+	users *fakeAdminUsers,
+	sessions *fakeAdminSessions,
+	businesses *fakeAdminBusinesses,
+	now time.Time,
+	ids []common.ID,
+) (Service, *fakeAdminAudits) {
+	audits := &fakeAdminAudits{}
+	return NewService(Dependencies{
+		Users:         users,
+		Sessions:      sessions,
+		Audits:        audits,
+		Businesses:    businesses,
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeAdminTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: ids},
+		Clock:         fixedClock{now: now},
+	}), audits
+}
+
+type fakeAdminUsers struct {
+	bootstrapped            ports.CreateAdminUserInput
+	credentials             ports.AdminUserCredentials
+	findErr                 error
+	lookupEmail             string
+	loginUserID             common.ID
+	record                  ports.AdminUserRecord
+	users                   []ports.AdminUserRecord
+	listCalled              bool
+	created                 ports.CreateAdminUserInput
+	updated                 ports.UpdateAdminUserInput
+	updatedProfile          ports.UpdateAdminProfileInput
+	preferencesUserID       common.ID
+	preferences             ports.AdminPreferencesRecord
+	updatedPreferences      ports.UpdateAdminPreferencesInput
+	platformSettings        ports.AdminPlatformSettingsRecord
+	updatedPlatformSettings ports.UpdateAdminPlatformSettingsInput
+	rolePermissions         []ports.AdminRolePermissionsRecord
+	updatedRolePermissions  ports.UpdateAdminRolePermissionsInput
+}
+
+func (repo *fakeAdminUsers) EnsureBootstrapUser(_ context.Context, input ports.CreateAdminUserInput) (ports.AdminUserRecord, error) {
+	repo.bootstrapped = input
+	return ports.AdminUserRecord{
+		UserID:      input.UserID,
+		Email:       input.Email,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+		IsActive:    true,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) FindByEmail(_ context.Context, email string) (ports.AdminUserCredentials, error) {
+	repo.lookupEmail = email
+	if repo.findErr != nil {
+		return ports.AdminUserCredentials{}, repo.findErr
+	}
+	return repo.credentials, nil
+}
+
+func (repo *fakeAdminUsers) FindByID(_ context.Context, _ common.ID) (ports.AdminUserRecord, error) {
+	return repo.record, nil
+}
+
+func (repo *fakeAdminUsers) ListAdminUsers(_ context.Context) ([]ports.AdminUserRecord, error) {
+	repo.listCalled = true
+	return repo.users, nil
+}
+
+func (repo *fakeAdminUsers) CreateAdminUser(_ context.Context, input ports.CreateAdminUserInput) (ports.AdminUserRecord, error) {
+	repo.created = input
+	return ports.AdminUserRecord{
+		UserID:      input.UserID,
+		Email:       input.Email,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+		IsActive:    true,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) UpdateAdminUser(_ context.Context, input ports.UpdateAdminUserInput) (ports.AdminUserRecord, error) {
+	repo.updated = input
+	return ports.AdminUserRecord{
+		UserID:      input.UserID,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+		IsActive:    input.IsActive,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) UpdateAdminProfile(_ context.Context, input ports.UpdateAdminProfileInput) (ports.AdminUserRecord, error) {
+	repo.updatedProfile = input
+	return ports.AdminUserRecord{
+		UserID:      input.UserID,
+		Email:       input.Email,
+		DisplayName: input.DisplayName,
+		Role:        admindomain.RoleOwner,
+		IsActive:    true,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) ListAdminRolePermissions(_ context.Context) ([]ports.AdminRolePermissionsRecord, error) {
+	if repo.rolePermissions != nil {
+		return repo.rolePermissions, nil
+	}
+	return defaultTestRolePermissions(), nil
+}
+
+func (repo *fakeAdminUsers) GetAdminPreferences(_ context.Context, userID common.ID) (ports.AdminPreferencesRecord, error) {
+	repo.preferencesUserID = userID
+	if repo.preferences.UserID != "" {
+		return repo.preferences, nil
+	}
+	return ports.AdminPreferencesRecord{
+		UserID:          userID,
+		Timezone:        "Africa/Accra",
+		NotifyEmail:     true,
+		DailyDigestTime: "08:00",
+	}, nil
+}
+
+func (repo *fakeAdminUsers) UpdateAdminPreferences(
+	_ context.Context,
+	input ports.UpdateAdminPreferencesInput,
+) (ports.AdminPreferencesRecord, error) {
+	repo.updatedPreferences = input
+	return ports.AdminPreferencesRecord{
+		UserID:             input.UserID,
+		Timezone:           input.Timezone,
+		PhoneNumber:        input.PhoneNumber,
+		NotifyEmail:        input.NotifyEmail,
+		NotifySMS:          input.NotifySMS,
+		AlertVerifications: input.AlertVerifications,
+		AlertMoneyRails:    input.AlertMoneyRails,
+		AlertRisk:          input.AlertRisk,
+		AlertSupport:       input.AlertSupport,
+		DailyDigestTime:    input.DailyDigestTime,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) GetAdminPlatformSettings(context.Context) (ports.AdminPlatformSettingsRecord, error) {
+	if repo.platformSettings.PlatformName != "" {
+		return repo.platformSettings, nil
+	}
+	return ports.AdminPlatformSettingsRecord{
+		PlatformName:                 "Xtiitch",
+		SupportEmail:                 "support@xtiitch.com",
+		VerificationSLAHours:         24,
+		PayoutReviewThresholdPesewas: 500000,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) UpdateAdminPlatformSettings(
+	_ context.Context,
+	input ports.UpdateAdminPlatformSettingsInput,
+) (ports.AdminPlatformSettingsRecord, error) {
+	repo.updatedPlatformSettings = input
+	return ports.AdminPlatformSettingsRecord{
+		PlatformName:                 input.PlatformName,
+		SupportEmail:                 input.SupportEmail,
+		VerificationSLAHours:         input.VerificationSLAHours,
+		PayoutReviewThresholdPesewas: input.PayoutReviewThresholdPesewas,
+		MaintenanceMode:              input.MaintenanceMode,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) ReplaceAdminRolePermissions(
+	_ context.Context,
+	input ports.UpdateAdminRolePermissionsInput,
+) (ports.AdminRolePermissionsRecord, error) {
+	repo.updatedRolePermissions = input
+	return ports.AdminRolePermissionsRecord{
+		Role:        input.Role,
+		Permissions: input.Permissions,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) RecordLogin(_ context.Context, userID common.ID) error {
+	repo.loginUserID = userID
+	return nil
+}
+
+func defaultTestRolePermissions() []ports.AdminRolePermissionsRecord {
+	out := make([]ports.AdminRolePermissionsRecord, 0, len(admindomain.RoleCatalog()))
+	for _, role := range admindomain.RoleCatalog() {
+		out = append(out, ports.AdminRolePermissionsRecord{
+			Role:        role,
+			Permissions: role.Permissions(),
+		})
+	}
+	return out
+}
+
+func samePermissions(left []admindomain.Permission, right []admindomain.Permission) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
+type fakeAdminBusinesses struct {
+	cases              []ports.AdminVerificationCaseRecord
+	listCalled         bool
+	decided            ports.AdminBusinessVerificationDecisionInput
+	businesses         []ports.AdminBusinessRecord
+	statusUpdate       ports.UpdateAdminBusinessStatusInput
+	metrics            ports.AdminPlatformMetricsRecord
+	moneyRails         ports.AdminMoneyRailsRecord
+	subscriptions      []ports.AdminSubscriptionRecord
+	subscriptionUpdate ports.UpdateAdminSubscriptionInput
+	plans              []ports.AdminPlanRecord
+	createdPlan        ports.CreateAdminPlanInput
+	updatedPlan        ports.UpdateAdminPlanInput
+	archivedPlan       ports.ArchiveAdminPlanInput
+	promotions         []ports.AdminPromotionRecord
+	createdPromotion   ports.CreateAdminPromotionInput
+	updatedPromotion   ports.UpdateAdminPromotionInput
+	archivedPromotion  ports.ArchiveAdminPromotionInput
+	replay             ports.QueueAdminMoneyReplayInput
+	hold               ports.SetAdminSettlementReviewHoldInput
+	riskReviews        []ports.AdminRiskReviewRecord
+	riskUpdate         ports.SetAdminRiskReviewStatusInput
+	supportTickets     []ports.AdminSupportTicketRecord
+	supportUpdate      ports.UpdateAdminSupportTicketInput
+}
+
+func (repo *fakeAdminBusinesses) ListAdminVerificationCases(context.Context) ([]ports.AdminVerificationCaseRecord, error) {
+	repo.listCalled = true
+	return repo.cases, nil
+}
+
+func (repo *fakeAdminBusinesses) DecideAdminBusinessVerification(
+	_ context.Context,
+	input ports.AdminBusinessVerificationDecisionInput,
+) (ports.AdminVerificationCaseRecord, error) {
+	repo.decided = input
+	return ports.AdminVerificationCaseRecord{
+		BusinessID:         input.BusinessID,
+		BusinessName:       "Ama Stitches",
+		Handle:             "ama-stitches",
+		OwnerName:          "Ama Owner",
+		OwnerEmail:         "ama@example.com",
+		PlanName:           "Growth",
+		PlanCode:           "growth",
+		VerificationStatus: input.Status,
+		SubmittedAt:        time.Now(),
+		UpdatedAt:          time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminBusinesses(context.Context) ([]ports.AdminBusinessRecord, error) {
+	if repo.businesses != nil {
+		return repo.businesses, nil
+	}
+	return []ports.AdminBusinessRecord{
+		{
+			BusinessID:         "business-1",
+			Name:               "Ama Stitches",
+			Handle:             "ama-stitches",
+			OwnerName:          "Ama Owner",
+			OwnerEmail:         "ama@example.com",
+			PlanName:           "Growth",
+			PlanCode:           "growth",
+			VerificationStatus: business.VerificationStatusVerified,
+			OperationalStatus:  business.OperationalStatusActive,
+			LastActiveAt:       time.Now(),
+			CreatedAt:          time.Now(),
+			UpdatedAt:          time.Now(),
+		},
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminBusinessStatus(
+	_ context.Context,
+	input ports.UpdateAdminBusinessStatusInput,
+) (ports.AdminBusinessRecord, error) {
+	repo.statusUpdate = input
+	return ports.AdminBusinessRecord{
+		BusinessID:         input.BusinessID,
+		Name:               "Ama Stitches",
+		Handle:             "ama-stitches",
+		OwnerName:          "Ama Owner",
+		OwnerEmail:         "ama@example.com",
+		PlanName:           "Growth",
+		PlanCode:           "growth",
+		VerificationStatus: business.VerificationStatusVerified,
+		OperationalStatus:  input.OperationalStatus,
+		SuspensionReason:   input.SuspensionReason,
+		LastActiveAt:       time.Now(),
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) GetAdminPlatformMetrics(context.Context) (ports.AdminPlatformMetricsRecord, error) {
+	if repo.metrics.UpdatedAt.IsZero() {
+		repo.metrics.UpdatedAt = time.Now()
+	}
+	return repo.metrics, nil
+}
+
+func (repo *fakeAdminBusinesses) GetAdminMoneyRails(context.Context) (ports.AdminMoneyRailsRecord, error) {
+	if repo.moneyRails.UpdatedAt.IsZero() {
+		repo.moneyRails.UpdatedAt = time.Now()
+	}
+	return repo.moneyRails, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminSubscriptions(context.Context) ([]ports.AdminSubscriptionRecord, error) {
+	if repo.subscriptions != nil {
+		return repo.subscriptions, nil
+	}
+	return []ports.AdminSubscriptionRecord{
+		{
+			SubscriptionID:     "subscription-1",
+			BusinessID:         "business-1",
+			BusinessName:       "Ama Stitches",
+			Handle:             "ama-stitches",
+			PlanCode:           "growth",
+			PlanName:           "Growth",
+			Status:             "active",
+			BillingMode:        "manual",
+			CurrentPeriodStart: time.Now(),
+			CurrentPeriodEnd:   time.Now().Add(30 * 24 * time.Hour),
+			UpdatedAt:          time.Now(),
+		},
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminSubscription(
+	_ context.Context,
+	input ports.UpdateAdminSubscriptionInput,
+) (ports.AdminSubscriptionRecord, error) {
+	repo.subscriptionUpdate = input
+	return ports.AdminSubscriptionRecord{
+		SubscriptionID:     "subscription-1",
+		BusinessID:         input.BusinessID,
+		BusinessName:       "Ama Stitches",
+		Handle:             "ama-stitches",
+		PlanCode:           "growth",
+		PlanName:           "Growth",
+		Status:             input.Status,
+		BillingMode:        input.BillingMode,
+		CurrentPeriodStart: time.Now(),
+		CurrentPeriodEnd:   time.Now().Add(30 * 24 * time.Hour),
+		UpdatedAt:          time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminPlans(context.Context) ([]ports.AdminPlanRecord, error) {
+	if repo.plans != nil {
+		return repo.plans, nil
+	}
+	return []ports.AdminPlanRecord{fakeAdminPlanRecord(
+		"plan-growth",
+		"growth",
+		"Growth",
+		12000,
+		50,
+		nil,
+		true,
+	)}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminPlan(
+	_ context.Context,
+	input ports.CreateAdminPlanInput,
+) (ports.AdminPlanRecord, error) {
+	repo.createdPlan = input
+	return fakeAdminPlanRecord(
+		"plan-created",
+		input.Code,
+		input.Name,
+		input.MonthlyFeeMinor,
+		input.CommissionBPS,
+		input.DesignLimit,
+		true,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminPlan(
+	_ context.Context,
+	input ports.UpdateAdminPlanInput,
+) (ports.AdminPlanRecord, error) {
+	repo.updatedPlan = input
+	return fakeAdminPlanRecord(
+		input.PlanID,
+		"growth",
+		input.Name,
+		input.MonthlyFeeMinor,
+		input.CommissionBPS,
+		input.DesignLimit,
+		input.IsActive,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) ArchiveAdminPlan(
+	_ context.Context,
+	input ports.ArchiveAdminPlanInput,
+) (ports.AdminPlanRecord, error) {
+	repo.archivedPlan = input
+	return fakeAdminPlanRecord(
+		input.PlanID,
+		"growth",
+		"Growth",
+		12000,
+		50,
+		nil,
+		false,
+	), nil
+}
+
+func fakeAdminPlanRecord(
+	planID common.ID,
+	code string,
+	name string,
+	monthlyFeeMinor int64,
+	commissionBPS int,
+	designLimit *int,
+	isActive bool,
+) ports.AdminPlanRecord {
+	return ports.AdminPlanRecord{
+		PlanID:                  planID,
+		Code:                    code,
+		Name:                    name,
+		MonthlyFeeMinor:         monthlyFeeMinor,
+		CommissionBPS:           commissionBPS,
+		DesignLimit:             designLimit,
+		IsActive:                isActive,
+		BusinessCount:           2,
+		ActiveSubscriptionCount: 1,
+		EstimatedMRRMinor:       monthlyFeeMinor,
+		CreatedAt:               time.Now(),
+		UpdatedAt:               time.Now(),
+	}
+}
+
+func (repo *fakeAdminBusinesses) ListAdminPromotions(context.Context) ([]ports.AdminPromotionRecord, error) {
+	if repo.promotions != nil {
+		return repo.promotions, nil
+	}
+	return []ports.AdminPromotionRecord{fakeAdminPromotionRecord(
+		"promotion-1",
+		nil,
+		"WELCOME10",
+		"Welcome Ten",
+		"percentage",
+		1000,
+		int64Ptr(5000),
+		"active",
+	)}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminPromotion(
+	_ context.Context,
+	input ports.CreateAdminPromotionInput,
+) (ports.AdminPromotionRecord, error) {
+	repo.createdPromotion = input
+	return fakeAdminPromotionRecord(
+		input.PromotionID,
+		input.BusinessID,
+		input.Code,
+		input.Title,
+		input.DiscountType,
+		input.DiscountValue,
+		input.MaxDiscountMinor,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminPromotion(
+	_ context.Context,
+	input ports.UpdateAdminPromotionInput,
+) (ports.AdminPromotionRecord, error) {
+	repo.updatedPromotion = input
+	return fakeAdminPromotionRecord(
+		input.PromotionID,
+		input.BusinessID,
+		input.Code,
+		input.Title,
+		input.DiscountType,
+		input.DiscountValue,
+		input.MaxDiscountMinor,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) ArchiveAdminPromotion(
+	_ context.Context,
+	input ports.ArchiveAdminPromotionInput,
+) (ports.AdminPromotionRecord, error) {
+	repo.archivedPromotion = input
+	return fakeAdminPromotionRecord(
+		input.PromotionID,
+		nil,
+		"WELCOME10",
+		"Welcome Ten",
+		"percentage",
+		1000,
+		int64Ptr(5000),
+		"archived",
+	), nil
+}
+
+func fakeAdminPromotionRecord(
+	promotionID common.ID,
+	businessID *common.ID,
+	code string,
+	title string,
+	discountType string,
+	discountValue int64,
+	maxDiscountMinor *int64,
+	status string,
+) ports.AdminPromotionRecord {
+	record := ports.AdminPromotionRecord{
+		PromotionID:           promotionID,
+		BusinessID:            businessID,
+		Code:                  code,
+		Title:                 title,
+		Description:           "first order",
+		DiscountType:          discountType,
+		DiscountValue:         discountValue,
+		MaxDiscountMinor:      maxDiscountMinor,
+		MinSpendMinor:         10000,
+		UsageLimitGlobal:      intPtr(100),
+		UsageLimitPerCustomer: intPtr(1),
+		FundingSource:         "business",
+		Scope:                 "store",
+		Status:                status,
+		RedemptionCount:       2,
+		DiscountRedeemedMinor: 2500,
+		CreatedAt:             time.Now(),
+		UpdatedAt:             time.Now(),
+	}
+	if businessID != nil {
+		record.BusinessName = "Ama Stitches"
+		record.BusinessHandle = "ama-stitches"
+	}
+	return record
+}
+
+func intPtr(value int) *int {
+	return &value
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
+}
+
+func (repo *fakeAdminBusinesses) QueueAdminMoneyReplay(
+	_ context.Context,
+	input ports.QueueAdminMoneyReplayInput,
+) (ports.AdminMoneyReplayRequestRecord, error) {
+	repo.replay = input
+	return ports.AdminMoneyReplayRequestRecord{
+		ReplayRequestID:   input.ReplayRequestID,
+		ProviderReference: input.ProviderReference,
+		PaymentID:         "payment-1",
+		BusinessName:      "Ama Stitches",
+		Reason:            input.Reason,
+		Status:            "queued",
+		CreatedAt:         time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) SetAdminSettlementReviewHold(
+	_ context.Context,
+	input ports.SetAdminSettlementReviewHoldInput,
+) (ports.AdminMoneyPayoutReviewRecord, error) {
+	repo.hold = input
+	return ports.AdminMoneyPayoutReviewRecord{
+		ID:              input.BusinessID.String(),
+		BusinessName:    "Ama Stitches",
+		SubaccountRef:   "DEV_SUB_1",
+		Status:          "blocked",
+		SettlementMinor: 10000,
+		CommissionMinor: 300,
+		NextAction:      input.Reason,
+		HoldActive:      input.Hold,
+		HoldReason:      input.Reason,
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminRiskReviews(context.Context) ([]ports.AdminRiskReviewRecord, error) {
+	return repo.riskReviews, nil
+}
+
+func (repo *fakeAdminBusinesses) SetAdminRiskReviewStatus(
+	_ context.Context,
+	input ports.SetAdminRiskReviewStatusInput,
+) (ports.AdminRiskReviewRecord, error) {
+	repo.riskUpdate = input
+	return ports.AdminRiskReviewRecord{
+		ReviewKey:    input.ReviewKey,
+		BusinessID:   "business-1",
+		Title:        "Payment failure spike",
+		BusinessName: "Ama Stitches",
+		Level:        "high",
+		Reason:       "3 failed payment(s) in the last 30 days.",
+		Owner:        "Money rails",
+		Status:       input.Status,
+		UpdatedAt:    time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminSupportTickets(context.Context) ([]ports.AdminSupportTicketRecord, error) {
+	return repo.supportTickets, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminSupportTicket(
+	_ context.Context,
+	input ports.UpdateAdminSupportTicketInput,
+) (ports.AdminSupportTicketRecord, error) {
+	repo.supportUpdate = input
+	assigned := common.ID("")
+	if input.Assignment == "self" {
+		assigned = input.ActorAdminUser
+	}
+	return ports.AdminSupportTicketRecord{
+		TicketKey:           input.TicketKey,
+		BusinessID:          "business-1",
+		Subject:             "Customer payment needs follow-up",
+		BusinessName:        "Ama Stitches",
+		Priority:            "urgent",
+		Summary:             "Payment failed.",
+		Category:            "Payments",
+		Status:              input.Status,
+		AssignedAdminUserID: assigned,
+		AssignedAdminEmail:  "support@example.com",
+		AssignedAdminName:   "Support Agent",
+		CreatedAt:           time.Now(),
+		UpdatedAt:           time.Now(),
+	}, nil
+}
+
+type fakeAdminSessions struct {
+	created ports.CreateAdminSessionInput
+	session ports.AdminSessionWithUser
+	findErr error
+	revoked []common.ID
+}
+
+type fakeAdminAudits struct {
+	created []ports.CreateAdminAuditEventInput
+	events  []ports.AdminAuditEventRecord
+}
+
+func (repo *fakeAdminAudits) CreateAdminAuditEvent(
+	_ context.Context,
+	input ports.CreateAdminAuditEventInput,
+) (ports.AdminAuditEventRecord, error) {
+	repo.created = append(repo.created, input)
+	return ports.AdminAuditEventRecord{
+		AuditEventID: input.AuditEventID,
+		ActorUserID:  input.ActorUserID,
+		ActorRole:    input.ActorRole,
+		Action:       input.Action,
+		TargetType:   input.TargetType,
+		TargetID:     input.TargetID,
+		TargetLabel:  input.TargetLabel,
+		Summary:      input.Summary,
+		Severity:     input.Severity,
+		Metadata:     input.Metadata,
+		IPAddress:    input.IPAddress,
+		UserAgent:    input.UserAgent,
+	}, nil
+}
+
+func (repo *fakeAdminAudits) ListAdminAuditEvents(
+	context.Context,
+	ports.ListAdminAuditEventsInput,
+) ([]ports.AdminAuditEventRecord, error) {
+	return repo.events, nil
+}
+
+func (repo *fakeAdminSessions) Create(_ context.Context, input ports.CreateAdminSessionInput) error {
+	repo.created = input
+	return nil
+}
+
+func (repo *fakeAdminSessions) FindByRefreshTokenHash(_ context.Context, _ string) (ports.AdminSessionWithUser, error) {
+	if repo.findErr != nil {
+		return ports.AdminSessionWithUser{}, repo.findErr
+	}
+	return repo.session, nil
+}
+
+func (repo *fakeAdminSessions) Revoke(_ context.Context, sessionID common.ID) error {
+	repo.revoked = append(repo.revoked, sessionID)
+	return nil
+}
+
+type fakePasswordHasher struct{}
+
+func (fakePasswordHasher) Hash(password string) (string, error) {
+	return "hashed:" + password, nil
+}
+
+func (fakePasswordHasher) Compare(hash string, password string) error {
+	if hash != "hashed:"+password {
+		return errors.New("password mismatch")
+	}
+	return nil
+}
+
+type countingPasswordHasher struct {
+	hashCalls int
+}
+
+func (h *countingPasswordHasher) Hash(password string) (string, error) {
+	h.hashCalls++
+	return "hashed:" + password, nil
+}
+
+func (h *countingPasswordHasher) Compare(hash string, password string) error {
+	if hash != "hashed:"+password {
+		return errors.New("password mismatch")
+	}
+	return nil
+}
+
+type fakeAdminTokenIssuer struct{}
+
+func (fakeAdminTokenIssuer) IssueAdminAccessToken(_ context.Context, input ports.AdminAccessTokenInput) (string, error) {
+	return "admin-access:" + input.Subject.String() + ":" + string(input.Role), nil
+}
+
+type fakeRefreshTokens struct{}
+
+func (fakeRefreshTokens) NewRefreshToken() (string, error) {
+	return "refresh-token", nil
+}
+
+func (fakeRefreshTokens) HashRefreshToken(token string) string {
+	return "hash:" + token
+}
+
+type sequenceIDs struct {
+	ids []common.ID
+}
+
+func (seq *sequenceIDs) NewID() common.ID {
+	id := seq.ids[0]
+	seq.ids = seq.ids[1:]
+	return id
+}
+
+type fixedClock struct {
+	now time.Time
+}
+
+func (clock fixedClock) Now() time.Time {
+	return clock.now
+}

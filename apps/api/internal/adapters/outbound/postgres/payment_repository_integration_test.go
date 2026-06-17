@@ -32,10 +32,14 @@ const (
 	itOrderFail = "00000000-0000-0000-0000-0000000000a1"
 	itPayFail   = "00000000-0000-0000-0000-0000000000b1"
 	itRefFail   = "xt_it_ref_fail"
+	itPromoFail = "77777777-0000-0000-0000-0000000000a1"
+	itRedFail   = "77777777-0000-0000-0000-0000000000b1"
 
 	itOrderOK = "00000000-0000-0000-0000-0000000000a2"
 	itPayOK   = "00000000-0000-0000-0000-0000000000b2"
 	itRefOK   = "xt_it_ref_ok"
+	itPromoOK = "77777777-0000-0000-0000-0000000000a2"
+	itRedOK   = "77777777-0000-0000-0000-0000000000b2"
 
 	itPayCross = "00000000-0000-0000-0000-0000000000c1"
 	itRefCross = "xt_it_ref_cross"
@@ -129,6 +133,30 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 				values ($1, $2, $3, 'standard_full', $4, 'GHS', $5, 'initiated', true, 500)
 			`, o.pay, itBizA, o.order, itAmount, o.ref)
 		}
+		for _, promo := range []struct {
+			promotion  string
+			redemption string
+			order      string
+			code       string
+		}{
+			{itPromoFail, itRedFail, itOrderFail, "ITFAIL10"},
+			{itPromoOK, itRedOK, itOrderOK, "ITOK10"},
+		} {
+			mustExec(t, tx, `
+				insert into promotions (
+					promotion_id, business_id, code, title, description,
+					discount_type, discount_value, funding_source, scope, status
+				)
+				values ($1, $2, $3, 'IT Promo', '', 'fixed', 5000, 'business', 'store', 'active')
+			`, promo.promotion, itBizA, promo.code)
+			mustExec(t, tx, `
+				insert into promotion_redemptions (
+					promotion_redemption_id, promotion_id, business_id, order_id,
+					customer_id, discount_minor, status
+				)
+				values ($1, $2, $3, $4, $5, 5000, 'pending')
+			`, promo.redemption, promo.promotion, itBizA, promo.order, itCustA)
+		}
 	})
 }
 
@@ -174,6 +202,22 @@ func readOrderState(t *testing.T, pool *pgxpool.Pool, orderID string) orderState
 	return st
 }
 
+func readPromotionRedemptionStatus(t *testing.T, pool *pgxpool.Pool, redemptionID string) (string, bool) {
+	t.Helper()
+	var status string
+	var redeemed bool
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(context.Background(), `
+			select status, redeemed_at is not null
+			from promotion_redemptions
+			where promotion_redemption_id = $1
+		`, redemptionID).Scan(&status, &redeemed); err != nil {
+			t.Fatalf("read promotion redemption %s: %v", redemptionID, err)
+		}
+	})
+	return status, redeemed
+}
+
 // TestConfirmFromProviderFailedThenSuccessDoesNotSettle is the finding-1
 // regression: a charge.failed then a charge.success for the same payment must
 // never settle the order, because the success update moves zero rows.
@@ -203,6 +247,10 @@ func TestConfirmFromProviderFailedThenSuccessDoesNotSettle(t *testing.T) {
 	order := readOrderState(t, pool, itOrderFail)
 	if order.status != "draft" || order.settled != 0 || order.stageIsSet {
 		t.Fatalf("order must not settle on a non-succeeded payment, got %+v", order)
+	}
+	status, redeemed := readPromotionRedemptionStatus(t, pool, itRedFail)
+	if status != "void" || redeemed {
+		t.Fatalf("failed payment must void pending promotion redemption, status=%q redeemed=%v", status, redeemed)
 	}
 }
 
@@ -246,6 +294,10 @@ func TestConfirmFromProviderSuccessConfirmsAndIsIdempotent(t *testing.T) {
 	}
 	if order := readOrderState(t, pool, itOrderOK); order.settled != itAmount {
 		t.Fatalf("settled amount must not double, got %d", order.settled)
+	}
+	status, redeemed := readPromotionRedemptionStatus(t, pool, itRedOK)
+	if status != "applied" || !redeemed {
+		t.Fatalf("successful payment must apply pending promotion redemption, status=%q redeemed=%v", status, redeemed)
 	}
 }
 

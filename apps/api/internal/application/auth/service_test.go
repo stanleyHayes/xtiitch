@@ -394,13 +394,171 @@ func TestLogoutIsIdempotentForUnknownToken(t *testing.T) {
 	}
 }
 
+func TestListBusinessUsersRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		users: []ports.BusinessUserRecord{{UserID: "owner-1", BusinessID: "business-1", Role: business.UserRoleOwner}},
+	}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"unused"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	users, err := service.ListBusinessUsers(context.Background(), ListBusinessUsersCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("list business users: %v", err)
+	}
+	if len(users) != 1 || businesses.listScope.BusinessID != "business-1" {
+		t.Fatalf("expected scoped user list, got users=%v scope=%q", users, businesses.listScope.BusinessID)
+	}
+
+	_, err = service.ListBusinessUsers(context.Background(), ListBusinessUsersCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleStaff,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff users to be forbidden, got %v", err)
+	}
+}
+
+func TestCreateBusinessUserNormalizesAndHashesInput(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"user-2"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	user, err := service.CreateBusinessUser(context.Background(), CreateBusinessUserCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleAdmin,
+		DisplayName: "  Kofi Admin  ",
+		Email:       "KOFI@example.com",
+		Password:    "strong-password",
+		Role:        business.UserRoleAdmin,
+	})
+	if err != nil {
+		t.Fatalf("create business user: %v", err)
+	}
+	if businesses.createdUser.UserID != "user-2" || businesses.createdUser.BusinessID != "business-1" {
+		t.Fatalf("expected generated scoped user id, got %+v", businesses.createdUser)
+	}
+	if businesses.createdUser.Email != "kofi@example.com" || businesses.createdUser.DisplayName != "Kofi Admin" {
+		t.Fatalf("expected normalized identity, got %+v", businesses.createdUser)
+	}
+	if businesses.createdUser.PasswordHash != "hashed:strong-password" {
+		t.Fatalf("expected password hash, got %q", businesses.createdUser.PasswordHash)
+	}
+	if user.UserID != "user-2" || user.Role != business.UserRoleAdmin {
+		t.Fatalf("unexpected created user response: %+v", user)
+	}
+}
+
+func TestCreateBusinessUserRejectsOwnerRole(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"user-2"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	_, err := service.CreateBusinessUser(context.Background(), CreateBusinessUserCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
+		DisplayName: "Second Owner",
+		Email:       "owner2@example.com",
+		Password:    "strong-password",
+		Role:        business.UserRoleOwner,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected owner role to be rejected, got %v", err)
+	}
+	if businesses.createdUser.UserID != "" {
+		t.Fatalf("expected no user to be created, got %+v", businesses.createdUser)
+	}
+}
+
+func TestUpdateBusinessUserPassesManageableRoleAndActiveState(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"unused"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	user, err := service.UpdateBusinessUser(context.Background(), UpdateBusinessUserCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
+		UserID:      "user-2",
+		DisplayName: "  Kofi Staff  ",
+		Role:        business.UserRoleStaff,
+		IsActive:    false,
+	})
+	if err != nil {
+		t.Fatalf("update business user: %v", err)
+	}
+	if businesses.updatedUser.UserID != "user-2" || businesses.updatedUser.DisplayName != "Kofi Staff" || businesses.updatedUser.IsActive {
+		t.Fatalf("expected normalized inactive update, got %+v", businesses.updatedUser)
+	}
+	if user.UserID != "user-2" || user.IsActive {
+		t.Fatalf("unexpected updated user response: %+v", user)
+	}
+
+	_, err = service.UpdateBusinessUser(context.Background(), UpdateBusinessUserCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleStaff,
+		UserID:      "user-2",
+		DisplayName: "Kofi",
+		Role:        business.UserRoleStaff,
+		IsActive:    true,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff update to be forbidden, got %v", err)
+	}
+}
+
 type fakeBusinessIdentityRepository struct {
-	created      ports.CreateBusinessWithOwnerInput
-	createErr    error
-	credentials  ports.BusinessUserCredentials
-	findErr      error
-	lookupHandle string
-	lookupEmail  string
+	created       ports.CreateBusinessWithOwnerInput
+	createErr     error
+	credentials   ports.BusinessUserCredentials
+	findErr       error
+	lookupHandle  string
+	lookupEmail   string
+	users         []ports.BusinessUserRecord
+	listScope     common.TenantScope
+	listErr       error
+	createdUser   ports.CreateBusinessUserInput
+	createUserErr error
+	updatedUser   ports.UpdateBusinessUserInput
+	updateScope   common.TenantScope
+	updateUserErr error
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
@@ -422,6 +580,45 @@ func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ c
 		return ports.BusinessUserCredentials{}, repo.findErr
 	}
 	return repo.credentials, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) ListBusinessUsers(_ context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
+	repo.listScope = scope
+	if repo.listErr != nil {
+		return nil, repo.listErr
+	}
+	return repo.users, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) CreateBusinessUser(_ context.Context, scope common.TenantScope, input ports.CreateBusinessUserInput) (ports.BusinessUserRecord, error) {
+	repo.listScope = scope
+	repo.createdUser = input
+	if repo.createUserErr != nil {
+		return ports.BusinessUserRecord{}, repo.createUserErr
+	}
+	return ports.BusinessUserRecord{
+		UserID:      input.UserID,
+		BusinessID:  input.BusinessID,
+		Email:       input.Email,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+		IsActive:    true,
+	}, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserInput) (ports.BusinessUserRecord, error) {
+	repo.updateScope = scope
+	repo.updatedUser = input
+	if repo.updateUserErr != nil {
+		return ports.BusinessUserRecord{}, repo.updateUserErr
+	}
+	return ports.BusinessUserRecord{
+		UserID:      input.UserID,
+		BusinessID:  scope.BusinessID,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+		IsActive:    input.IsActive,
+	}, nil
 }
 
 type countingPasswordHasher struct {

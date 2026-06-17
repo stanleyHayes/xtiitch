@@ -1,0 +1,2563 @@
+package adminauth
+
+import (
+	"context"
+	"errors"
+	"net/mail"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+)
+
+const (
+	minPasswordLength = 8
+	maxPasswordLength = 72
+	accessTokenTTL    = 15 * time.Minute
+	refreshTokenTTL   = 30 * 24 * time.Hour
+)
+
+type Service struct {
+	users         ports.AdminUserRepository
+	sessions      ports.AdminSessionRepository
+	audits        ports.AdminAuditRepository
+	businesses    ports.AdminBusinessRepository
+	passwords     ports.PasswordHasher
+	accessTokens  ports.AdminTokenIssuer
+	refreshTokens ports.RefreshTokenIssuer
+	ids           ports.IDGenerator
+	clock         ports.Clock
+}
+
+type Dependencies struct {
+	Users         ports.AdminUserRepository
+	Sessions      ports.AdminSessionRepository
+	Audits        ports.AdminAuditRepository
+	Businesses    ports.AdminBusinessRepository
+	Passwords     ports.PasswordHasher
+	AccessTokens  ports.AdminTokenIssuer
+	RefreshTokens ports.RefreshTokenIssuer
+	IDs           ports.IDGenerator
+	Clock         ports.Clock
+}
+
+func NewService(deps Dependencies) Service {
+	return Service{
+		users:         deps.Users,
+		sessions:      deps.Sessions,
+		audits:        deps.Audits,
+		businesses:    deps.Businesses,
+		passwords:     deps.Passwords,
+		accessTokens:  deps.AccessTokens,
+		refreshTokens: deps.RefreshTokens,
+		ids:           deps.IDs,
+		clock:         deps.Clock,
+	}
+}
+
+type BootstrapAdminCommand struct {
+	Email       string
+	DisplayName string
+	Password    string
+	Role        admindomain.Role
+}
+
+type LoginCommand struct {
+	Email     string
+	Password  string
+	UserAgent string
+	IPAddress string
+}
+
+type RefreshCommand struct {
+	RefreshToken string
+	UserAgent    string
+	IPAddress    string
+}
+
+type LogoutCommand struct {
+	RefreshToken string
+	UserAgent    string
+	IPAddress    string
+}
+
+type ListUsersCommand struct {
+	ActorRole admindomain.Role
+}
+
+type ListAuditEventsCommand struct {
+	ActorRole admindomain.Role
+	Severity  admindomain.AuditSeverity
+	Limit     int
+}
+
+type BusinessVerificationDecision string
+
+const (
+	BusinessVerificationDecisionApproved BusinessVerificationDecision = "approved"
+	BusinessVerificationDecisionRejected BusinessVerificationDecision = "rejected"
+	BusinessVerificationDecisionHeld     BusinessVerificationDecision = "held"
+)
+
+type ListBusinessVerificationsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type ListBusinessesCommand struct {
+	ActorRole admindomain.Role
+}
+
+type GetPlatformMetricsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type GetMoneyRailsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type ListSubscriptionsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type UpdateSubscriptionCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	Status      string
+	BillingMode string
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type ListPlansCommand struct {
+	ActorRole admindomain.Role
+}
+
+type CreatePlanCommand struct {
+	ActorUserID     common.ID
+	ActorRole       admindomain.Role
+	Code            string
+	Name            string
+	MonthlyFeeMinor int64
+	CommissionBPS   int
+	DesignLimit     *int
+	UserAgent       string
+	IPAddress       string
+}
+
+type UpdatePlanCommand struct {
+	ActorUserID     common.ID
+	ActorRole       admindomain.Role
+	PlanID          common.ID
+	Name            string
+	MonthlyFeeMinor int64
+	CommissionBPS   int
+	DesignLimit     *int
+	IsActive        bool
+	UserAgent       string
+	IPAddress       string
+}
+
+type ArchivePlanCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	PlanID      common.ID
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type ListPromotionsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type CreatePromotionCommand struct {
+	ActorUserID           common.ID
+	ActorRole             admindomain.Role
+	BusinessID            *common.ID
+	Code                  string
+	Title                 string
+	Description           string
+	DiscountType          string
+	DiscountValue         int64
+	MaxDiscountMinor      *int64
+	MinSpendMinor         int64
+	UsageLimitGlobal      *int
+	UsageLimitPerCustomer *int
+	FundingSource         string
+	Scope                 string
+	Status                string
+	StartsAt              *time.Time
+	EndsAt                *time.Time
+	UserAgent             string
+	IPAddress             string
+}
+
+type UpdatePromotionCommand struct {
+	ActorUserID           common.ID
+	ActorRole             admindomain.Role
+	PromotionID           common.ID
+	BusinessID            *common.ID
+	Code                  string
+	Title                 string
+	Description           string
+	DiscountType          string
+	DiscountValue         int64
+	MaxDiscountMinor      *int64
+	MinSpendMinor         int64
+	UsageLimitGlobal      *int
+	UsageLimitPerCustomer *int
+	FundingSource         string
+	Scope                 string
+	Status                string
+	StartsAt              *time.Time
+	EndsAt                *time.Time
+	UserAgent             string
+	IPAddress             string
+}
+
+type ArchivePromotionCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	PromotionID common.ID
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type QueueMoneyReplayCommand struct {
+	ActorUserID       common.ID
+	ActorRole         admindomain.Role
+	ProviderReference string
+	Reason            string
+	UserAgent         string
+	IPAddress         string
+}
+
+type SetSettlementReviewHoldCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	Hold        bool
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type ListRiskReviewsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type SetRiskReviewStatusCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	ReviewKey   string
+	Status      string
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type ListSupportTicketsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type UpdateSupportTicketCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	TicketKey   string
+	Status      string
+	Assignment  string
+	Note        string
+	UserAgent   string
+	IPAddress   string
+}
+
+type UpdateBusinessStatusCommand struct {
+	ActorUserID       common.ID
+	ActorRole         admindomain.Role
+	BusinessID        common.ID
+	OperationalStatus business.OperationalStatus
+	Reason            string
+	UserAgent         string
+	IPAddress         string
+}
+
+type DecideBusinessVerificationCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	Decision    BusinessVerificationDecision
+	Note        string
+	UserAgent   string
+	IPAddress   string
+}
+
+type UpdateProfileCommand struct {
+	ActorUserID common.ID
+	DisplayName string
+	Email       string
+	UserAgent   string
+	IPAddress   string
+}
+
+type UpdatePreferencesCommand struct {
+	ActorUserID        common.ID
+	ActorRole          admindomain.Role
+	Timezone           string
+	PhoneNumber        string
+	NotifyEmail        bool
+	NotifySMS          bool
+	AlertVerifications bool
+	AlertMoneyRails    bool
+	AlertRisk          bool
+	AlertSupport       bool
+	DailyDigestTime    string
+	UserAgent          string
+	IPAddress          string
+}
+
+type UpdatePlatformSettingsCommand struct {
+	ActorUserID                  common.ID
+	ActorRole                    admindomain.Role
+	PlatformName                 string
+	SupportEmail                 string
+	VerificationSLAHours         int
+	PayoutReviewThresholdPesewas int
+	MaintenanceMode              bool
+	UserAgent                    string
+	IPAddress                    string
+}
+
+type UpdateRolePermissionsCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Role        admindomain.Role
+	Permissions []admindomain.Permission
+	UserAgent   string
+	IPAddress   string
+}
+
+type CreateUserCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	DisplayName string
+	Email       string
+	Password    string
+	Role        admindomain.Role
+	UserAgent   string
+	IPAddress   string
+}
+
+type UpdateUserCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	UserID      common.ID
+	DisplayName string
+	Role        admindomain.Role
+	IsActive    bool
+	UserAgent   string
+	IPAddress   string
+}
+
+type AuthResult struct {
+	AdminUserID      common.ID
+	Email            string
+	DisplayName      string
+	Role             admindomain.Role
+	AccessToken      string
+	RefreshToken     string
+	AccessExpiresAt  time.Time
+	RefreshExpiresAt time.Time
+}
+
+type ProfileSettingsResult struct {
+	User        ports.AdminUserRecord
+	Preferences ports.AdminPreferencesRecord
+}
+
+func (s Service) BootstrapAdmin(ctx context.Context, cmd BootstrapAdminCommand) (ports.AdminUserRecord, error) {
+	email, displayName, role, err := normalizeBootstrap(cmd)
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	passwordHash, err := s.passwords.Hash(cmd.Password)
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	return s.users.EnsureBootstrapUser(ctx, ports.CreateAdminUserInput{
+		UserID:       s.ids.NewID(),
+		Email:        email,
+		DisplayName:  displayName,
+		PasswordHash: passwordHash,
+		Role:         role,
+	})
+}
+
+func (s Service) Login(ctx context.Context, cmd LoginCommand) (AuthResult, error) {
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	credentials, err := s.users.FindByEmail(ctx, email)
+	if err != nil || !credentials.IsActive {
+		_, _ = s.passwords.Hash(cmd.Password)
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+	if err := s.passwords.Compare(credentials.PasswordHash, cmd.Password); err != nil {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+	if err := s.users.RecordLogin(ctx, credentials.UserID); err != nil {
+		return AuthResult{}, err
+	}
+
+	result, err := s.issueSession(ctx, issueSessionInput{
+		AdminUserID: credentials.UserID,
+		Email:       credentials.Email,
+		DisplayName: credentials.DisplayName,
+		Role:        credentials.Role,
+		UserAgent:   cmd.UserAgent,
+		IPAddress:   cmd.IPAddress,
+	})
+	if err != nil {
+		return AuthResult{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: credentials.UserID,
+		ActorRole:   credentials.Role,
+		Action:      "Signed in",
+		TargetType:  "admin_user",
+		TargetID:    credentials.UserID.String(),
+		TargetLabel: credentials.Email,
+		Summary:     "Operator signed into the admin console.",
+		Severity:    admindomain.AuditSeverityInfo,
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	}); err != nil {
+		return AuthResult{}, err
+	}
+
+	return result, nil
+}
+
+func (s Service) Refresh(ctx context.Context, cmd RefreshCommand) (AuthResult, error) {
+	token := strings.TrimSpace(cmd.RefreshToken)
+	if token == "" {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	session, err := s.sessions.FindByRefreshTokenHash(ctx, s.refreshTokens.HashRefreshToken(token))
+	if err != nil {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+	if session.Revoked || !session.UserIsActive || !s.clock.Now().Before(session.ExpiresAt) {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+	if err := s.sessions.Revoke(ctx, session.SessionID); err != nil {
+		return AuthResult{}, err
+	}
+
+	return s.issueSession(ctx, issueSessionInput{
+		AdminUserID: session.AdminUserID,
+		Email:       session.Email,
+		DisplayName: session.DisplayName,
+		Role:        session.Role,
+		UserAgent:   cmd.UserAgent,
+		IPAddress:   cmd.IPAddress,
+	})
+}
+
+func (s Service) Logout(ctx context.Context, cmd LogoutCommand) error {
+	token := strings.TrimSpace(cmd.RefreshToken)
+	if token == "" {
+		return nil
+	}
+
+	session, err := s.sessions.FindByRefreshTokenHash(ctx, s.refreshTokens.HashRefreshToken(token))
+	if err != nil {
+		return nil
+	}
+
+	if err := s.sessions.Revoke(ctx, session.SessionID); err != nil {
+		return err
+	}
+
+	return s.recordAudit(ctx, auditInput{
+		ActorUserID: session.AdminUserID,
+		ActorRole:   session.Role,
+		Action:      "Signed out",
+		TargetType:  "admin_session",
+		TargetID:    session.SessionID.String(),
+		TargetLabel: session.Email,
+		Summary:     "Operator signed out of the admin console.",
+		Severity:    admindomain.AuditSeverityInfo,
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	})
+}
+
+func (s Service) Me(ctx context.Context, adminUserID common.ID) (ports.AdminUserRecord, error) {
+	if adminUserID.IsZero() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidCredentials
+	}
+
+	user, err := s.users.FindByID(ctx, adminUserID)
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+	if !user.IsActive {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidCredentials
+	}
+
+	return user, nil
+}
+
+func (s Service) ListUsers(ctx context.Context, cmd ListUsersCommand) ([]ports.AdminUserRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageAdminUsers); err != nil {
+		return nil, err
+	}
+
+	return s.users.ListAdminUsers(ctx)
+}
+
+func (s Service) ListAuditEvents(ctx context.Context, cmd ListAuditEventsCommand) ([]ports.AdminAuditEventRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionViewAudit); err != nil {
+		return nil, err
+	}
+	if cmd.Severity != "" && !cmd.Severity.Valid() {
+		return nil, authdomain.ErrInvalidInput
+	}
+
+	return s.audits.ListAdminAuditEvents(ctx, ports.ListAdminAuditEventsInput{
+		Limit:    cmd.Limit,
+		Severity: cmd.Severity,
+	})
+}
+
+func (s Service) ListBusinessVerifications(
+	ctx context.Context,
+	cmd ListBusinessVerificationsCommand,
+) ([]ports.AdminVerificationCaseRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminVerificationCases(ctx)
+}
+
+func (s Service) DecideBusinessVerification(
+	ctx context.Context,
+	cmd DecideBusinessVerificationCommand,
+) (ports.AdminVerificationCaseRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return ports.AdminVerificationCaseRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return ports.AdminVerificationCaseRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminVerificationCaseRecord{}, authdomain.ErrForbidden
+	}
+
+	status, err := statusForBusinessVerificationDecision(cmd.Decision)
+	if err != nil {
+		return ports.AdminVerificationCaseRecord{}, err
+	}
+
+	record, err := s.businesses.DecideAdminBusinessVerification(
+		ctx,
+		ports.AdminBusinessVerificationDecisionInput{
+			BusinessID: cmd.BusinessID,
+			Status:     status,
+		},
+	)
+	if err != nil {
+		return ports.AdminVerificationCaseRecord{}, err
+	}
+
+	note := normalizeOperatorNote(cmd.Note)
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      verificationDecisionAction(cmd.Decision),
+		TargetType:  "business",
+		TargetID:    record.BusinessID.String(),
+		TargetLabel: record.BusinessName,
+		Summary:     verificationDecisionSummary(cmd.Decision, note),
+		Severity:    verificationDecisionSeverity(cmd.Decision),
+		Metadata: map[string]string{
+			"decision":            string(cmd.Decision),
+			"verification_status": string(record.VerificationStatus),
+			"handle":              record.Handle,
+			"operator_note":       note,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminVerificationCaseRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ListBusinesses(ctx context.Context, cmd ListBusinessesCommand) ([]ports.AdminBusinessRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminBusinesses(ctx)
+}
+
+func (s Service) GetPlatformMetrics(ctx context.Context, cmd GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return ports.AdminPlatformMetricsRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPlatformMetricsRecord{}, authdomain.ErrForbidden
+	}
+
+	return s.businesses.GetAdminPlatformMetrics(ctx)
+}
+
+func (s Service) GetMoneyRails(ctx context.Context, cmd GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageMoneyRails); err != nil {
+		return ports.AdminMoneyRailsRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminMoneyRailsRecord{}, authdomain.ErrForbidden
+	}
+
+	return s.businesses.GetAdminMoneyRails(ctx)
+}
+
+func (s Service) ListSubscriptions(
+	ctx context.Context,
+	cmd ListSubscriptionsCommand,
+) ([]ports.AdminSubscriptionRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminSubscriptions(ctx)
+}
+
+func (s Service) UpdateSubscription(
+	ctx context.Context,
+	cmd UpdateSubscriptionCommand,
+) (ports.AdminSubscriptionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrForbidden
+	}
+
+	status, err := normalizeSubscriptionStatus(cmd.Status)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	billingMode, err := normalizeSubscriptionBillingMode(cmd.BillingMode)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = subscriptionUpdateSummary(status, billingMode)
+	}
+
+	record, err := s.businesses.UpdateAdminSubscription(ctx, ports.UpdateAdminSubscriptionInput{
+		BusinessID:     cmd.BusinessID,
+		Status:         status,
+		BillingMode:    billingMode,
+		Reason:         reason,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated subscription",
+		TargetType:  "business_subscription",
+		TargetID:    record.BusinessID.String(),
+		TargetLabel: record.BusinessName,
+		Summary:     subscriptionUpdateSummary(status, billingMode),
+		Severity:    subscriptionUpdateSeverity(status),
+		Metadata: map[string]string{
+			"status":       status,
+			"billing_mode": billingMode,
+			"plan":         record.PlanCode,
+			"reason":       reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ListPlans(
+	ctx context.Context,
+	cmd ListPlansCommand,
+) ([]ports.AdminPlanRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePlans); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminPlans(ctx)
+}
+
+func (s Service) CreatePlan(
+	ctx context.Context,
+	cmd CreatePlanCommand,
+) (ports.AdminPlanRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminPlanRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePlans); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPlanRecord{}, authdomain.ErrForbidden
+	}
+
+	input, err := normalizeCreatePlanInput(cmd)
+	if err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	record, err := s.businesses.CreateAdminPlan(ctx, input)
+	if err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Created plan package",
+		TargetType:  "plan",
+		TargetID:    record.PlanID.String(),
+		TargetLabel: record.Name,
+		Summary:     planAuditSummary(record),
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"code":              record.Code,
+			"monthly_fee_minor": strconv.FormatInt(record.MonthlyFeeMinor, 10),
+			"commission_bps":    strconv.Itoa(record.CommissionBPS),
+			"is_active":         boolString(record.IsActive),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) UpdatePlan(
+	ctx context.Context,
+	cmd UpdatePlanCommand,
+) (ports.AdminPlanRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.PlanID.IsZero() {
+		return ports.AdminPlanRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePlans); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPlanRecord{}, authdomain.ErrForbidden
+	}
+
+	input, err := normalizeUpdatePlanInput(cmd)
+	if err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	record, err := s.businesses.UpdateAdminPlan(ctx, input)
+	if err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated plan package",
+		TargetType:  "plan",
+		TargetID:    record.PlanID.String(),
+		TargetLabel: record.Name,
+		Summary:     planAuditSummary(record),
+		Severity:    planAuditSeverity(record.IsActive),
+		Metadata: map[string]string{
+			"code":              record.Code,
+			"monthly_fee_minor": strconv.FormatInt(record.MonthlyFeeMinor, 10),
+			"commission_bps":    strconv.Itoa(record.CommissionBPS),
+			"is_active":         boolString(record.IsActive),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ArchivePlan(
+	ctx context.Context,
+	cmd ArchivePlanCommand,
+) (ports.AdminPlanRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.PlanID.IsZero() {
+		return ports.AdminPlanRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePlans); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPlanRecord{}, authdomain.ErrForbidden
+	}
+
+	record, err := s.businesses.ArchiveAdminPlan(ctx, ports.ArchiveAdminPlanInput{
+		PlanID: cmd.PlanID,
+	})
+	if err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Plan package archived."
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Archived plan package",
+		TargetType:  "plan",
+		TargetID:    record.PlanID.String(),
+		TargetLabel: record.Name,
+		Summary:     reason,
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"code":      record.Code,
+			"is_active": boolString(record.IsActive),
+			"reason":    reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ListPromotions(
+	ctx context.Context,
+	cmd ListPromotionsCommand,
+) ([]ports.AdminPromotionRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePromotions); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminPromotions(ctx)
+}
+
+func (s Service) CreatePromotion(
+	ctx context.Context,
+	cmd CreatePromotionCommand,
+) (ports.AdminPromotionRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminPromotionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePromotions); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPromotionRecord{}, authdomain.ErrForbidden
+	}
+
+	input, err := normalizeCreatePromotionInput(cmd, s.ids.NewID())
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	record, err := s.businesses.CreateAdminPromotion(ctx, input)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Created promotion",
+		TargetType:  "promotion",
+		TargetID:    record.PromotionID.String(),
+		TargetLabel: record.Title,
+		Summary:     promotionAuditSummary(record),
+		Severity:    promotionAuditSeverity(record.Status),
+		Metadata:    promotionAuditMetadata(record),
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) UpdatePromotion(
+	ctx context.Context,
+	cmd UpdatePromotionCommand,
+) (ports.AdminPromotionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.PromotionID.IsZero() {
+		return ports.AdminPromotionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePromotions); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPromotionRecord{}, authdomain.ErrForbidden
+	}
+
+	input, err := normalizeUpdatePromotionInput(cmd)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	record, err := s.businesses.UpdateAdminPromotion(ctx, input)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated promotion",
+		TargetType:  "promotion",
+		TargetID:    record.PromotionID.String(),
+		TargetLabel: record.Title,
+		Summary:     promotionAuditSummary(record),
+		Severity:    promotionAuditSeverity(record.Status),
+		Metadata:    promotionAuditMetadata(record),
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ArchivePromotion(
+	ctx context.Context,
+	cmd ArchivePromotionCommand,
+) (ports.AdminPromotionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.PromotionID.IsZero() {
+		return ports.AdminPromotionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManagePromotions); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminPromotionRecord{}, authdomain.ErrForbidden
+	}
+
+	record, err := s.businesses.ArchiveAdminPromotion(ctx, ports.ArchiveAdminPromotionInput{
+		PromotionID:    cmd.PromotionID,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Promotion archived."
+	}
+
+	metadata := promotionAuditMetadata(record)
+	metadata["reason"] = reason
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Archived promotion",
+		TargetType:  "promotion",
+		TargetID:    record.PromotionID.String(),
+		TargetLabel: record.Title,
+		Summary:     reason,
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata:    metadata,
+		IPAddress:   cmd.IPAddress,
+		UserAgent:   cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) QueueMoneyReplay(
+	ctx context.Context,
+	cmd QueueMoneyReplayCommand,
+) (ports.AdminMoneyReplayRequestRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminMoneyReplayRequestRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageMoneyRails); err != nil {
+		return ports.AdminMoneyReplayRequestRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminMoneyReplayRequestRecord{}, authdomain.ErrForbidden
+	}
+
+	providerReference := strings.TrimSpace(cmd.ProviderReference)
+	if providerReference == "" {
+		return ports.AdminMoneyReplayRequestRecord{}, authdomain.ErrInvalidInput
+	}
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Operator queued provider event for money-rails review."
+	}
+
+	record, err := s.businesses.QueueAdminMoneyReplay(ctx, ports.QueueAdminMoneyReplayInput{
+		ReplayRequestID:   s.ids.NewID(),
+		ProviderReference: providerReference,
+		RequestedByUserID: cmd.ActorUserID,
+		Reason:            reason,
+	})
+	if err != nil {
+		return ports.AdminMoneyReplayRequestRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Queued money replay",
+		TargetType:  "payment_provider_reference",
+		TargetID:    record.ProviderReference,
+		TargetLabel: fallbackString(record.BusinessName, record.ProviderReference),
+		Summary:     "Operator queued a payment provider reference for money-rails replay review.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"provider_reference": record.ProviderReference,
+			"payment_id":         record.PaymentID.String(),
+			"reason":             reason,
+			"status":             record.Status,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminMoneyReplayRequestRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) SetSettlementReviewHold(
+	ctx context.Context,
+	cmd SetSettlementReviewHoldCommand,
+) (ports.AdminMoneyPayoutReviewRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return ports.AdminMoneyPayoutReviewRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageMoneyRails); err != nil {
+		return ports.AdminMoneyPayoutReviewRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminMoneyPayoutReviewRecord{}, authdomain.ErrForbidden
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		if cmd.Hold {
+			reason = "Operator placed settlement review hold."
+		} else {
+			reason = "Operator released settlement review hold."
+		}
+	}
+
+	record, err := s.businesses.SetAdminSettlementReviewHold(ctx, ports.SetAdminSettlementReviewHoldInput{
+		BusinessID:     cmd.BusinessID,
+		Hold:           cmd.Hold,
+		Reason:         reason,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminMoneyPayoutReviewRecord{}, err
+	}
+
+	action := "Released settlement review hold"
+	severity := admindomain.AuditSeverityInfo
+	if cmd.Hold {
+		action = "Placed settlement review hold"
+		severity = admindomain.AuditSeverityCritical
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      action,
+		TargetType:  "business",
+		TargetID:    record.ID,
+		TargetLabel: record.BusinessName,
+		Summary:     action + ". Reason: " + reason,
+		Severity:    severity,
+		Metadata: map[string]string{
+			"hold_active":      boolString(record.HoldActive),
+			"settlement_minor": intString64(record.SettlementMinor),
+			"commission_minor": intString64(record.CommissionMinor),
+			"reason":           reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminMoneyPayoutReviewRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ListRiskReviews(ctx context.Context, cmd ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageRisk); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminRiskReviews(ctx)
+}
+
+func (s Service) SetRiskReviewStatus(
+	ctx context.Context,
+	cmd SetRiskReviewStatusCommand,
+) (ports.AdminRiskReviewRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminRiskReviewRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageRisk); err != nil {
+		return ports.AdminRiskReviewRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminRiskReviewRecord{}, authdomain.ErrForbidden
+	}
+
+	reviewKey := strings.TrimSpace(cmd.ReviewKey)
+	if reviewKey == "" {
+		return ports.AdminRiskReviewRecord{}, authdomain.ErrInvalidInput
+	}
+
+	status := strings.TrimSpace(cmd.Status)
+	if status != "open" && status != "closed" {
+		return ports.AdminRiskReviewRecord{}, authdomain.ErrInvalidInput
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		if status == "closed" {
+			reason = "Operator closed risk review."
+		} else {
+			reason = "Operator reopened risk review."
+		}
+	}
+
+	record, err := s.businesses.SetAdminRiskReviewStatus(ctx, ports.SetAdminRiskReviewStatusInput{
+		ReviewKey:      reviewKey,
+		Status:         status,
+		Reason:         reason,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminRiskReviewRecord{}, err
+	}
+
+	action := "Reopened risk review"
+	severity := admindomain.AuditSeverityWarning
+	if status == "closed" {
+		action = "Closed risk review"
+		severity = admindomain.AuditSeverityInfo
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      action,
+		TargetType:  "risk_review",
+		TargetID:    record.ReviewKey,
+		TargetLabel: fallbackString(record.BusinessName, record.Title),
+		Summary:     action + ". Reason: " + reason,
+		Severity:    severity,
+		Metadata: map[string]string{
+			"business_id": record.BusinessID.String(),
+			"level":       record.Level,
+			"reason":      reason,
+			"status":      record.Status,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminRiskReviewRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ListSupportTickets(
+	ctx context.Context,
+	cmd ListSupportTicketsCommand,
+) ([]ports.AdminSupportTicketRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSupport); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminSupportTickets(ctx)
+}
+
+func (s Service) UpdateSupportTicket(
+	ctx context.Context,
+	cmd UpdateSupportTicketCommand,
+) (ports.AdminSupportTicketRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminSupportTicketRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSupport); err != nil {
+		return ports.AdminSupportTicketRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminSupportTicketRecord{}, authdomain.ErrForbidden
+	}
+
+	ticketKey := strings.TrimSpace(cmd.TicketKey)
+	if ticketKey == "" {
+		return ports.AdminSupportTicketRecord{}, authdomain.ErrInvalidInput
+	}
+
+	status := strings.TrimSpace(cmd.Status)
+	if status == "" {
+		status = "open"
+	}
+	if status != "open" && status != "resolved" {
+		return ports.AdminSupportTicketRecord{}, authdomain.ErrInvalidInput
+	}
+
+	assignment := strings.TrimSpace(cmd.Assignment)
+	if assignment == "" {
+		assignment = "unchanged"
+	}
+	if assignment != "self" && assignment != "unassigned" && assignment != "unchanged" {
+		return ports.AdminSupportTicketRecord{}, authdomain.ErrInvalidInput
+	}
+
+	note := normalizeOperatorNote(cmd.Note)
+	if note == "" {
+		switch {
+		case status == "resolved":
+			note = "Operator resolved support ticket."
+		case assignment == "self":
+			note = "Operator assigned support ticket to self."
+		case assignment == "unassigned":
+			note = "Operator removed support assignment."
+		default:
+			note = "Operator reopened support ticket."
+		}
+	}
+
+	record, err := s.businesses.UpdateAdminSupportTicket(ctx, ports.UpdateAdminSupportTicketInput{
+		TicketKey:      ticketKey,
+		Status:         status,
+		Assignment:     assignment,
+		Note:           note,
+		ActorAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminSupportTicketRecord{}, err
+	}
+
+	action := supportTicketAction(status, assignment)
+	severity := admindomain.AuditSeverityInfo
+	if record.Priority == "urgent" && status == "open" {
+		severity = admindomain.AuditSeverityWarning
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      action,
+		TargetType:  "support_ticket",
+		TargetID:    record.TicketKey,
+		TargetLabel: fallbackString(record.BusinessName, record.Subject),
+		Summary:     action + ". Note: " + note,
+		Severity:    severity,
+		Metadata: map[string]string{
+			"assignment":  assignment,
+			"business_id": record.BusinessID.String(),
+			"category":    record.Category,
+			"priority":    record.Priority,
+			"status":      record.Status,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminSupportTicketRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) UpdateBusinessStatus(
+	ctx context.Context,
+	cmd UpdateBusinessStatusCommand,
+) (ports.AdminBusinessRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return ports.AdminBusinessRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return ports.AdminBusinessRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminBusinessRecord{}, authdomain.ErrForbidden
+	}
+	if !cmd.OperationalStatus.Valid() {
+		return ports.AdminBusinessRecord{}, authdomain.ErrInvalidInput
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if cmd.OperationalStatus == business.OperationalStatusSuspended && reason == "" {
+		reason = "Operator suspended tenant activity pending review."
+	}
+	if cmd.OperationalStatus == business.OperationalStatusActive && reason == "" {
+		reason = "Operator reactivated tenant activity after review."
+	}
+
+	record, err := s.businesses.UpdateAdminBusinessStatus(ctx, ports.UpdateAdminBusinessStatusInput{
+		BusinessID:           cmd.BusinessID,
+		OperationalStatus:    cmd.OperationalStatus,
+		SuspensionReason:     reason,
+		SuspendedByAdminUser: cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminBusinessRecord{}, err
+	}
+
+	action := "Reactivated business"
+	summary := "Operator reactivated tenant activity."
+	severity := admindomain.AuditSeverityInfo
+	if cmd.OperationalStatus == business.OperationalStatusSuspended {
+		action = "Suspended business"
+		summary = "Operator suspended tenant activity."
+		severity = admindomain.AuditSeverityCritical
+	}
+	if reason != "" {
+		summary += " Reason: " + reason
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      action,
+		TargetType:  "business",
+		TargetID:    record.BusinessID.String(),
+		TargetLabel: record.Name,
+		Summary:     summary,
+		Severity:    severity,
+		Metadata: map[string]string{
+			"operational_status":  string(record.OperationalStatus),
+			"verification_status": string(record.VerificationStatus),
+			"handle":              record.Handle,
+			"reason":              reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminBusinessRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) GetProfileSettings(ctx context.Context, adminUserID common.ID) (ProfileSettingsResult, error) {
+	user, err := s.Me(ctx, adminUserID)
+	if err != nil {
+		return ProfileSettingsResult{}, err
+	}
+
+	preferences, err := s.users.GetAdminPreferences(ctx, adminUserID)
+	if err != nil {
+		return ProfileSettingsResult{}, err
+	}
+
+	return ProfileSettingsResult{User: user, Preferences: preferences}, nil
+}
+
+func (s Service) UpdateProfile(ctx context.Context, cmd UpdateProfileCommand) (ports.AdminUserRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return ports.AdminUserRecord{}, errors.Join(authdomain.ErrInvalidInput, err)
+	}
+
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	user, err := s.users.UpdateAdminProfile(ctx, ports.UpdateAdminProfileInput{
+		UserID:      cmd.ActorUserID,
+		Email:       email,
+		DisplayName: displayName,
+	})
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   user.Role,
+		Action:      "Updated profile",
+		TargetType:  "admin_user",
+		TargetID:    user.UserID.String(),
+		TargetLabel: user.Email,
+		Summary:     "Operator updated their admin profile.",
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"display_name": user.DisplayName,
+			"email":        user.Email,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	return user, nil
+}
+
+func (s Service) UpdatePreferences(
+	ctx context.Context,
+	cmd UpdatePreferencesCommand,
+) (ports.AdminPreferencesRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminPreferencesRecord{}, authdomain.ErrInvalidInput
+	}
+	if !cmd.ActorRole.Valid() {
+		return ports.AdminPreferencesRecord{}, authdomain.ErrInvalidInput
+	}
+
+	normalized, err := normalizePreferences(cmd)
+	if err != nil {
+		return ports.AdminPreferencesRecord{}, err
+	}
+
+	preferences, err := s.users.UpdateAdminPreferences(ctx, normalized)
+	if err != nil {
+		return ports.AdminPreferencesRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated notification preferences",
+		TargetType:  "admin_preferences",
+		TargetID:    cmd.ActorUserID.String(),
+		TargetLabel: preferences.Timezone,
+		Summary:     "Operator updated their notification preferences.",
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"timezone":          preferences.Timezone,
+			"daily_digest_time": preferences.DailyDigestTime,
+			"notify_email":      boolString(preferences.NotifyEmail),
+			"notify_sms":        boolString(preferences.NotifySMS),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPreferencesRecord{}, err
+	}
+
+	return preferences, nil
+}
+
+func (s Service) GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error) {
+	return s.users.GetAdminPlatformSettings(ctx)
+}
+
+func (s Service) UpdatePlatformSettings(
+	ctx context.Context,
+	cmd UpdatePlatformSettingsCommand,
+) (ports.AdminPlatformSettingsRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminPlatformSettingsRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSettings); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	normalized, err := normalizePlatformSettings(cmd)
+	if err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	settings, err := s.users.UpdateAdminPlatformSettings(ctx, normalized)
+	if err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated platform settings",
+		TargetType:  "admin_platform_settings",
+		TargetID:    "platform",
+		TargetLabel: settings.PlatformName,
+		Summary:     "Operator updated platform-wide admin settings.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"support_email":                   settings.SupportEmail,
+			"verification_sla_hours":          intString(settings.VerificationSLAHours),
+			"payout_review_threshold_pesewas": intString(settings.PayoutReviewThresholdPesewas),
+			"maintenance_mode":                boolString(settings.MaintenanceMode),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	return settings, nil
+}
+
+func (s Service) ListRolePermissions(ctx context.Context) ([]ports.AdminRolePermissionsRecord, error) {
+	records, err := s.users.ListAdminRolePermissions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return normalizeRolePermissionRecords(records)
+}
+
+func (s Service) UpdateRolePermissions(
+	ctx context.Context,
+	cmd UpdateRolePermissionsCommand,
+) (ports.AdminRolePermissionsRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminRolePermissionsRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageRoles); err != nil {
+		return ports.AdminRolePermissionsRecord{}, err
+	}
+	if !cmd.Role.Valid() {
+		return ports.AdminRolePermissionsRecord{}, authdomain.ErrInvalidInput
+	}
+
+	permissions, err := normalizePermissionSet(cmd.Role, cmd.Permissions)
+	if err != nil {
+		return ports.AdminRolePermissionsRecord{}, err
+	}
+
+	record, err := s.users.ReplaceAdminRolePermissions(ctx, ports.UpdateAdminRolePermissionsInput{
+		Role:        cmd.Role,
+		Permissions: permissions,
+	})
+	if err != nil {
+		return ports.AdminRolePermissionsRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated role permissions",
+		TargetType:  "admin_role",
+		TargetID:    string(record.Role),
+		TargetLabel: string(record.Role),
+		Summary:     "Operator changed admin role permission grants.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"permissions": permissionsString(record.Permissions),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminRolePermissionsRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) CreateUser(ctx context.Context, cmd CreateUserCommand) (ports.AdminUserRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageAdminUsers); err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	normalized, err := normalizeUserCreation(cmd)
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	passwordHash, err := s.passwords.Hash(normalized.Password)
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	user, err := s.users.CreateAdminUser(ctx, ports.CreateAdminUserInput{
+		UserID:       s.ids.NewID(),
+		Email:        normalized.Email,
+		DisplayName:  normalized.DisplayName,
+		PasswordHash: passwordHash,
+		Role:         normalized.Role,
+	})
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Created admin user",
+		TargetType:  "admin_user",
+		TargetID:    user.UserID.String(),
+		TargetLabel: user.Email,
+		Summary:     "Operator created a new admin user.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"role":         string(user.Role),
+			"display_name": user.DisplayName,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	return user, nil
+}
+
+func (s Service) UpdateUser(ctx context.Context, cmd UpdateUserCommand) (ports.AdminUserRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageAdminUsers); err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+	if cmd.UserID.IsZero() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" || !cmd.Role.Valid() {
+		return ports.AdminUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	if cmd.UserID == cmd.ActorUserID && (!cmd.IsActive || cmd.Role != admindomain.RoleOwner) {
+		return ports.AdminUserRecord{}, authdomain.ErrForbidden
+	}
+
+	user, err := s.users.UpdateAdminUser(ctx, ports.UpdateAdminUserInput{
+		UserID:      cmd.UserID,
+		DisplayName: displayName,
+		Role:        cmd.Role,
+		IsActive:    cmd.IsActive,
+	})
+	if err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated admin user",
+		TargetType:  "admin_user",
+		TargetID:    user.UserID.String(),
+		TargetLabel: user.Email,
+		Summary:     "Operator updated an admin user account.",
+		Severity:    admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"role":         string(user.Role),
+			"display_name": user.DisplayName,
+			"is_active":    boolString(user.IsActive),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminUserRecord{}, err
+	}
+
+	return user, nil
+}
+
+type issueSessionInput struct {
+	AdminUserID common.ID
+	Email       string
+	DisplayName string
+	Role        admindomain.Role
+	UserAgent   string
+	IPAddress   string
+}
+
+type auditInput struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Action      string
+	TargetType  string
+	TargetID    string
+	TargetLabel string
+	Summary     string
+	Severity    admindomain.AuditSeverity
+	Metadata    map[string]string
+	IPAddress   string
+	UserAgent   string
+}
+
+func (s Service) recordAudit(ctx context.Context, input auditInput) error {
+	if s.audits == nil {
+		return nil
+	}
+	if input.ActorUserID.IsZero() || !input.ActorRole.Valid() {
+		return authdomain.ErrInvalidInput
+	}
+
+	action := strings.TrimSpace(input.Action)
+	summary := strings.TrimSpace(input.Summary)
+	if action == "" || summary == "" {
+		return authdomain.ErrInvalidInput
+	}
+
+	severity := input.Severity
+	if severity == "" {
+		severity = admindomain.AuditSeverityInfo
+	}
+	if !severity.Valid() {
+		return authdomain.ErrInvalidInput
+	}
+
+	metadata := input.Metadata
+	if metadata == nil {
+		metadata = map[string]string{}
+	}
+
+	_, err := s.audits.CreateAdminAuditEvent(ctx, ports.CreateAdminAuditEventInput{
+		AuditEventID: s.ids.NewID(),
+		ActorUserID:  input.ActorUserID,
+		ActorRole:    input.ActorRole,
+		Action:       action,
+		TargetType:   strings.TrimSpace(input.TargetType),
+		TargetID:     strings.TrimSpace(input.TargetID),
+		TargetLabel:  strings.TrimSpace(input.TargetLabel),
+		Summary:      summary,
+		Severity:     severity,
+		Metadata:     metadata,
+		IPAddress:    strings.TrimSpace(input.IPAddress),
+		UserAgent:    strings.TrimSpace(input.UserAgent),
+	})
+	return err
+}
+
+func (s Service) issueSession(ctx context.Context, input issueSessionInput) (AuthResult, error) {
+	now := s.clock.Now()
+	accessExpiresAt := now.Add(accessTokenTTL)
+	refreshExpiresAt := now.Add(refreshTokenTTL)
+
+	accessToken, err := s.accessTokens.IssueAdminAccessToken(ctx, ports.AdminAccessTokenInput{
+		Subject:   input.AdminUserID,
+		Role:      input.Role,
+		IssuedAt:  now,
+		ExpiresAt: accessExpiresAt,
+	})
+	if err != nil {
+		return AuthResult{}, err
+	}
+
+	refreshToken, err := s.refreshTokens.NewRefreshToken()
+	if err != nil {
+		return AuthResult{}, err
+	}
+
+	if err := s.sessions.Create(ctx, ports.CreateAdminSessionInput{
+		SessionID:        s.ids.NewID(),
+		AdminUserID:      input.AdminUserID,
+		RefreshTokenHash: s.refreshTokens.HashRefreshToken(refreshToken),
+		UserAgent:        strings.TrimSpace(input.UserAgent),
+		IPAddress:        strings.TrimSpace(input.IPAddress),
+		ExpiresAt:        refreshExpiresAt,
+	}); err != nil {
+		return AuthResult{}, err
+	}
+
+	return AuthResult{
+		AdminUserID:      input.AdminUserID,
+		Email:            input.Email,
+		DisplayName:      input.DisplayName,
+		Role:             input.Role,
+		AccessToken:      accessToken,
+		RefreshToken:     refreshToken,
+		AccessExpiresAt:  accessExpiresAt,
+		RefreshExpiresAt: refreshExpiresAt,
+	}, nil
+}
+
+func normalizeBootstrap(cmd BootstrapAdminCommand) (string, string, admindomain.Role, error) {
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return "", "", "", errors.Join(authdomain.ErrInvalidInput, err)
+	}
+
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" {
+		displayName = "Xtiitch Owner"
+	}
+
+	role := cmd.Role
+	if role == "" {
+		role = admindomain.RoleOwner
+	}
+	if !role.Valid() {
+		return "", "", "", authdomain.ErrInvalidInput
+	}
+
+	if len(cmd.Password) < minPasswordLength || len(cmd.Password) > maxPasswordLength {
+		return "", "", "", authdomain.ErrInvalidInput
+	}
+
+	return email, displayName, role, nil
+}
+
+type normalizedUserCreation struct {
+	DisplayName string
+	Email       string
+	Password    string
+	Role        admindomain.Role
+}
+
+func normalizeUserCreation(cmd CreateUserCommand) (normalizedUserCreation, error) {
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return normalizedUserCreation{}, errors.Join(authdomain.ErrInvalidInput, err)
+	}
+
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" || !cmd.Role.Valid() {
+		return normalizedUserCreation{}, authdomain.ErrInvalidInput
+	}
+	if len(cmd.Password) < minPasswordLength || len(cmd.Password) > maxPasswordLength {
+		return normalizedUserCreation{}, authdomain.ErrInvalidInput
+	}
+
+	return normalizedUserCreation{
+		DisplayName: displayName,
+		Email:       email,
+		Password:    cmd.Password,
+		Role:        cmd.Role,
+	}, nil
+}
+
+func normalizePreferences(cmd UpdatePreferencesCommand) (ports.UpdateAdminPreferencesInput, error) {
+	timezone := strings.TrimSpace(cmd.Timezone)
+	if timezone == "" {
+		timezone = "Africa/Accra"
+	}
+	if len(timezone) > 80 {
+		return ports.UpdateAdminPreferencesInput{}, authdomain.ErrInvalidInput
+	}
+
+	phoneNumber := strings.TrimSpace(cmd.PhoneNumber)
+	if len(phoneNumber) > 32 {
+		return ports.UpdateAdminPreferencesInput{}, authdomain.ErrInvalidInput
+	}
+
+	digestTime := strings.TrimSpace(cmd.DailyDigestTime)
+	if digestTime == "" {
+		digestTime = "08:00"
+	}
+	if _, err := time.Parse("15:04", digestTime); err != nil {
+		return ports.UpdateAdminPreferencesInput{}, authdomain.ErrInvalidInput
+	}
+
+	return ports.UpdateAdminPreferencesInput{
+		UserID:             cmd.ActorUserID,
+		Timezone:           timezone,
+		PhoneNumber:        phoneNumber,
+		NotifyEmail:        cmd.NotifyEmail,
+		NotifySMS:          cmd.NotifySMS,
+		AlertVerifications: cmd.AlertVerifications,
+		AlertMoneyRails:    cmd.AlertMoneyRails,
+		AlertRisk:          cmd.AlertRisk,
+		AlertSupport:       cmd.AlertSupport,
+		DailyDigestTime:    digestTime,
+	}, nil
+}
+
+func normalizePlatformSettings(
+	cmd UpdatePlatformSettingsCommand,
+) (ports.UpdateAdminPlatformSettingsInput, error) {
+	platformName := strings.TrimSpace(cmd.PlatformName)
+	if platformName == "" || len(platformName) > 80 {
+		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
+	}
+
+	supportEmail, err := normalizeEmail(cmd.SupportEmail)
+	if err != nil {
+		return ports.UpdateAdminPlatformSettingsInput{}, errors.Join(authdomain.ErrInvalidInput, err)
+	}
+
+	if cmd.VerificationSLAHours < 1 || cmd.VerificationSLAHours > 168 {
+		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
+	}
+	if cmd.PayoutReviewThresholdPesewas < 0 {
+		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
+	}
+
+	return ports.UpdateAdminPlatformSettingsInput{
+		PlatformName:                 platformName,
+		SupportEmail:                 supportEmail,
+		VerificationSLAHours:         cmd.VerificationSLAHours,
+		PayoutReviewThresholdPesewas: cmd.PayoutReviewThresholdPesewas,
+		MaintenanceMode:              cmd.MaintenanceMode,
+	}, nil
+}
+
+func statusForBusinessVerificationDecision(decision BusinessVerificationDecision) (business.VerificationStatus, error) {
+	switch decision {
+	case BusinessVerificationDecisionApproved:
+		return business.VerificationStatusVerified, nil
+	case BusinessVerificationDecisionRejected:
+		return business.VerificationStatusRejected, nil
+	case BusinessVerificationDecisionHeld:
+		return business.VerificationStatusPending, nil
+	default:
+		return "", authdomain.ErrInvalidInput
+	}
+}
+
+func verificationDecisionAction(decision BusinessVerificationDecision) string {
+	switch decision {
+	case BusinessVerificationDecisionApproved:
+		return "Approved business verification"
+	case BusinessVerificationDecisionRejected:
+		return "Rejected business verification"
+	default:
+		return "Held business verification"
+	}
+}
+
+func verificationDecisionSummary(decision BusinessVerificationDecision, note string) string {
+	base := "Operator held the business verification for follow-up."
+	switch decision {
+	case BusinessVerificationDecisionApproved:
+		base = "Operator approved the business verification."
+	case BusinessVerificationDecisionRejected:
+		base = "Operator rejected the business verification."
+	}
+	if note == "" {
+		return base
+	}
+	return base + " Note: " + note
+}
+
+func verificationDecisionSeverity(decision BusinessVerificationDecision) admindomain.AuditSeverity {
+	switch decision {
+	case BusinessVerificationDecisionApproved:
+		return admindomain.AuditSeverityInfo
+	case BusinessVerificationDecisionRejected:
+		return admindomain.AuditSeverityCritical
+	default:
+		return admindomain.AuditSeverityWarning
+	}
+}
+
+func normalizeOperatorNote(value string) string {
+	note := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	runes := []rune(note)
+	if len(runes) > 600 {
+		return string(runes[:600])
+	}
+	return note
+}
+
+func normalizeEmail(value string) (string, error) {
+	parsed, err := mail.ParseAddress(strings.TrimSpace(value))
+	if err != nil {
+		return "", err
+	}
+
+	return strings.ToLower(parsed.Address), nil
+}
+
+func (s Service) authorizePermission(
+	ctx context.Context,
+	role admindomain.Role,
+	permission admindomain.Permission,
+) error {
+	permissions, err := s.permissionsForRole(ctx, role)
+	if err != nil {
+		return err
+	}
+	for _, candidate := range permissions {
+		if candidate == permission {
+			return nil
+		}
+	}
+	return authdomain.ErrForbidden
+}
+
+func (s Service) permissionsForRole(ctx context.Context, role admindomain.Role) ([]admindomain.Permission, error) {
+	records, err := s.ListRolePermissions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, record := range records {
+		if record.Role == role {
+			return record.Permissions, nil
+		}
+	}
+	return nil, authdomain.ErrForbidden
+}
+
+func normalizeRolePermissionRecords(records []ports.AdminRolePermissionsRecord) ([]ports.AdminRolePermissionsRecord, error) {
+	byRole := make(map[admindomain.Role][]admindomain.Permission, len(admindomain.RoleCatalog()))
+	for _, record := range records {
+		if !record.Role.Valid() {
+			return nil, authdomain.ErrInvalidInput
+		}
+		byRole[record.Role] = append(byRole[record.Role], record.Permissions...)
+	}
+
+	out := make([]ports.AdminRolePermissionsRecord, 0, len(admindomain.RoleCatalog()))
+	for _, role := range admindomain.RoleCatalog() {
+		permissions, err := normalizePermissionSet(role, byRole[role])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ports.AdminRolePermissionsRecord{
+			Role:        role,
+			Permissions: permissions,
+		})
+	}
+
+	return out, nil
+}
+
+func normalizePermissionSet(
+	role admindomain.Role,
+	permissions []admindomain.Permission,
+) ([]admindomain.Permission, error) {
+	if !role.Valid() {
+		return nil, authdomain.ErrInvalidInput
+	}
+
+	selected := make(map[admindomain.Permission]bool, len(permissions))
+	for _, permission := range permissions {
+		if !permission.Valid() {
+			return nil, authdomain.ErrInvalidInput
+		}
+		selected[permission] = true
+	}
+
+	if role == admindomain.RoleOwner {
+		for _, permission := range requiredOwnerPermissions() {
+			if !selected[permission] {
+				return nil, authdomain.ErrInvalidInput
+			}
+		}
+	}
+
+	out := make([]admindomain.Permission, 0, len(selected))
+	for _, permission := range admindomain.PermissionCatalog() {
+		if selected[permission] {
+			out = append(out, permission)
+		}
+	}
+	return out, nil
+}
+
+func requiredOwnerPermissions() []admindomain.Permission {
+	return []admindomain.Permission{
+		admindomain.PermissionManageAdminUsers,
+		admindomain.PermissionManageRoles,
+	}
+}
+
+func normalizeSubscriptionStatus(value string) (string, error) {
+	switch strings.TrimSpace(value) {
+	case "active", "trialing", "past_due", "grace_period", "cancel_at_period_end", "canceled":
+		return strings.TrimSpace(value), nil
+	default:
+		return "", authdomain.ErrInvalidInput
+	}
+}
+
+func normalizeSubscriptionBillingMode(value string) (string, error) {
+	switch strings.TrimSpace(value) {
+	case "manual", "payment_link", "recurring":
+		return strings.TrimSpace(value), nil
+	default:
+		return "", authdomain.ErrInvalidInput
+	}
+}
+
+func subscriptionUpdateSummary(status string, billingMode string) string {
+	return "Subscription moved to " + strings.ReplaceAll(status, "_", " ") +
+		" using " + strings.ReplaceAll(billingMode, "_", " ") + " billing."
+}
+
+func subscriptionUpdateSeverity(status string) admindomain.AuditSeverity {
+	switch status {
+	case "past_due", "grace_period", "cancel_at_period_end":
+		return admindomain.AuditSeverityWarning
+	case "canceled":
+		return admindomain.AuditSeverityCritical
+	default:
+		return admindomain.AuditSeverityInfo
+	}
+}
+
+func normalizeCreatePlanInput(cmd CreatePlanCommand) (ports.CreateAdminPlanInput, error) {
+	code := normalizePlanCode(cmd.Code)
+	if !validPlanCode(code) {
+		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
+	}
+	name := normalizePlanName(cmd.Name)
+	if name == "" {
+		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
+	}
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
+	}
+	return ports.CreateAdminPlanInput{
+		Code:            code,
+		Name:            name,
+		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
+		CommissionBPS:   cmd.CommissionBPS,
+		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
+	}, nil
+}
+
+func normalizeUpdatePlanInput(cmd UpdatePlanCommand) (ports.UpdateAdminPlanInput, error) {
+	name := normalizePlanName(cmd.Name)
+	if name == "" {
+		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
+	}
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
+	}
+	return ports.UpdateAdminPlanInput{
+		PlanID:          cmd.PlanID,
+		Name:            name,
+		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
+		CommissionBPS:   cmd.CommissionBPS,
+		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
+		IsActive:        cmd.IsActive,
+	}, nil
+}
+
+func normalizePlanCode(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func normalizePlanName(value string) string {
+	name := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	runes := []rune(name)
+	if len(runes) > 80 {
+		return string(runes[:80])
+	}
+	return name
+}
+
+func validPlanCode(value string) bool {
+	if len(value) < 2 || len(value) > 32 {
+		return false
+	}
+	for index, char := range value {
+		valid := (char >= 'a' && char <= 'z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' ||
+			char == '_'
+		if !valid {
+			return false
+		}
+		if index == 0 && !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+			return false
+		}
+	}
+	last := value[len(value)-1]
+	return (last >= 'a' && last <= 'z') || (last >= '0' && last <= '9')
+}
+
+func validPlanEconomics(monthlyFeeMinor int64, commissionBPS int, designLimit *int) bool {
+	if monthlyFeeMinor < 0 || commissionBPS < 0 || commissionBPS > 10000 {
+		return false
+	}
+	if designLimit != nil && *designLimit < 0 {
+		return false
+	}
+	return true
+}
+
+func copyOptionalInt(value *int) *int {
+	if value == nil {
+		return nil
+	}
+	out := *value
+	return &out
+}
+
+func planAuditSummary(record ports.AdminPlanRecord) string {
+	fee := "free"
+	if record.MonthlyFeeMinor > 0 {
+		fee = "GHS " + strconv.FormatFloat(float64(record.MonthlyFeeMinor)/100, 'f', 2, 64)
+	}
+	return record.Code + " package set to " + fee +
+		" and " + strconv.FormatFloat(float64(record.CommissionBPS)/100, 'f', 2, 64) +
+		"% commission."
+}
+
+func planAuditSeverity(active bool) admindomain.AuditSeverity {
+	if active {
+		return admindomain.AuditSeverityInfo
+	}
+	return admindomain.AuditSeverityWarning
+}
+
+func normalizeCreatePromotionInput(cmd CreatePromotionCommand, promotionID common.ID) (ports.CreateAdminPromotionInput, error) {
+	normalized, err := normalizePromotionFields(promotionFields{
+		BusinessID:            cmd.BusinessID,
+		Code:                  cmd.Code,
+		Title:                 cmd.Title,
+		Description:           cmd.Description,
+		DiscountType:          cmd.DiscountType,
+		DiscountValue:         cmd.DiscountValue,
+		MaxDiscountMinor:      cmd.MaxDiscountMinor,
+		MinSpendMinor:         cmd.MinSpendMinor,
+		UsageLimitGlobal:      cmd.UsageLimitGlobal,
+		UsageLimitPerCustomer: cmd.UsageLimitPerCustomer,
+		FundingSource:         cmd.FundingSource,
+		Scope:                 cmd.Scope,
+		Status:                cmd.Status,
+		StartsAt:              cmd.StartsAt,
+		EndsAt:                cmd.EndsAt,
+	})
+	if err != nil {
+		return ports.CreateAdminPromotionInput{}, err
+	}
+	return ports.CreateAdminPromotionInput{
+		PromotionID:           promotionID,
+		BusinessID:            normalized.BusinessID,
+		Code:                  normalized.Code,
+		Title:                 normalized.Title,
+		Description:           normalized.Description,
+		DiscountType:          normalized.DiscountType,
+		DiscountValue:         normalized.DiscountValue,
+		MaxDiscountMinor:      normalized.MaxDiscountMinor,
+		MinSpendMinor:         normalized.MinSpendMinor,
+		UsageLimitGlobal:      normalized.UsageLimitGlobal,
+		UsageLimitPerCustomer: normalized.UsageLimitPerCustomer,
+		FundingSource:         normalized.FundingSource,
+		Scope:                 normalized.Scope,
+		Status:                normalized.Status,
+		StartsAt:              normalized.StartsAt,
+		EndsAt:                normalized.EndsAt,
+		ActorAdminUser:        cmd.ActorUserID,
+	}, nil
+}
+
+func normalizeUpdatePromotionInput(cmd UpdatePromotionCommand) (ports.UpdateAdminPromotionInput, error) {
+	normalized, err := normalizePromotionFields(promotionFields{
+		BusinessID:            cmd.BusinessID,
+		Code:                  cmd.Code,
+		Title:                 cmd.Title,
+		Description:           cmd.Description,
+		DiscountType:          cmd.DiscountType,
+		DiscountValue:         cmd.DiscountValue,
+		MaxDiscountMinor:      cmd.MaxDiscountMinor,
+		MinSpendMinor:         cmd.MinSpendMinor,
+		UsageLimitGlobal:      cmd.UsageLimitGlobal,
+		UsageLimitPerCustomer: cmd.UsageLimitPerCustomer,
+		FundingSource:         cmd.FundingSource,
+		Scope:                 cmd.Scope,
+		Status:                cmd.Status,
+		StartsAt:              cmd.StartsAt,
+		EndsAt:                cmd.EndsAt,
+	})
+	if err != nil {
+		return ports.UpdateAdminPromotionInput{}, err
+	}
+	return ports.UpdateAdminPromotionInput{
+		PromotionID:           cmd.PromotionID,
+		BusinessID:            normalized.BusinessID,
+		Code:                  normalized.Code,
+		Title:                 normalized.Title,
+		Description:           normalized.Description,
+		DiscountType:          normalized.DiscountType,
+		DiscountValue:         normalized.DiscountValue,
+		MaxDiscountMinor:      normalized.MaxDiscountMinor,
+		MinSpendMinor:         normalized.MinSpendMinor,
+		UsageLimitGlobal:      normalized.UsageLimitGlobal,
+		UsageLimitPerCustomer: normalized.UsageLimitPerCustomer,
+		FundingSource:         normalized.FundingSource,
+		Scope:                 normalized.Scope,
+		Status:                normalized.Status,
+		StartsAt:              normalized.StartsAt,
+		EndsAt:                normalized.EndsAt,
+		ActorAdminUser:        cmd.ActorUserID,
+	}, nil
+}
+
+type promotionFields struct {
+	BusinessID            *common.ID
+	Code                  string
+	Title                 string
+	Description           string
+	DiscountType          string
+	DiscountValue         int64
+	MaxDiscountMinor      *int64
+	MinSpendMinor         int64
+	UsageLimitGlobal      *int
+	UsageLimitPerCustomer *int
+	FundingSource         string
+	Scope                 string
+	Status                string
+	StartsAt              *time.Time
+	EndsAt                *time.Time
+}
+
+func normalizePromotionFields(input promotionFields) (promotionFields, error) {
+	businessID := copyOptionalID(input.BusinessID)
+	if businessID != nil && businessID.IsZero() {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	code := normalizePromotionCode(input.Code)
+	if code != "" && !validPromotionCode(code) {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	title := normalizePromotionTitle(input.Title)
+	if title == "" {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	description := normalizeOperatorNote(input.Description)
+	discountType := normalizePromotionOption(input.DiscountType, "percentage")
+	if discountType != "percentage" && discountType != "fixed" {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	if !validPromotionDiscount(discountType, input.DiscountValue, input.MaxDiscountMinor) {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	if input.MinSpendMinor < 0 ||
+		(input.UsageLimitGlobal != nil && *input.UsageLimitGlobal <= 0) ||
+		(input.UsageLimitPerCustomer != nil && *input.UsageLimitPerCustomer <= 0) {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	fundingSource := normalizePromotionOption(input.FundingSource, "business")
+	if fundingSource != "business" && fundingSource != "platform" && fundingSource != "split" {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	scope := normalizePromotionOption(input.Scope, "store")
+	if scope != "store" && scope != "collection" && scope != "design" {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	status := normalizePromotionOption(input.Status, "active")
+	if status != "active" && status != "paused" {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	if input.StartsAt != nil && input.EndsAt != nil && !input.EndsAt.After(*input.StartsAt) {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	return promotionFields{
+		BusinessID:            businessID,
+		Code:                  code,
+		Title:                 title,
+		Description:           description,
+		DiscountType:          discountType,
+		DiscountValue:         input.DiscountValue,
+		MaxDiscountMinor:      copyOptionalInt64(input.MaxDiscountMinor),
+		MinSpendMinor:         input.MinSpendMinor,
+		UsageLimitGlobal:      copyOptionalInt(input.UsageLimitGlobal),
+		UsageLimitPerCustomer: copyOptionalInt(input.UsageLimitPerCustomer),
+		FundingSource:         fundingSource,
+		Scope:                 scope,
+		Status:                status,
+		StartsAt:              copyOptionalTime(input.StartsAt),
+		EndsAt:                copyOptionalTime(input.EndsAt),
+	}, nil
+}
+
+func normalizePromotionCode(value string) string {
+	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func normalizePromotionTitle(value string) string {
+	title := strings.Join(strings.Fields(strings.TrimSpace(value)), " ")
+	runes := []rune(title)
+	if len(runes) > 96 {
+		return string(runes[:96])
+	}
+	return title
+}
+
+func normalizePromotionOption(value string, fallback string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	if normalized == "" {
+		return fallback
+	}
+	return normalized
+}
+
+func validPromotionCode(value string) bool {
+	if len(value) < 3 || len(value) > 32 {
+		return false
+	}
+	for index, char := range value {
+		valid := (char >= 'A' && char <= 'Z') ||
+			(char >= '0' && char <= '9') ||
+			char == '-' ||
+			char == '_'
+		if !valid {
+			return false
+		}
+		if index == 0 && !((char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')) {
+			return false
+		}
+	}
+	last := value[len(value)-1]
+	return (last >= 'A' && last <= 'Z') || (last >= '0' && last <= '9')
+}
+
+func validPromotionDiscount(discountType string, value int64, maxDiscountMinor *int64) bool {
+	if discountType == "percentage" {
+		return value > 0 && value <= 10000 && maxDiscountMinor != nil && *maxDiscountMinor > 0
+	}
+	return value > 0 && (maxDiscountMinor == nil || *maxDiscountMinor >= 0)
+}
+
+func copyOptionalID(value *common.ID) *common.ID {
+	if value == nil {
+		return nil
+	}
+	out := *value
+	return &out
+}
+
+func copyOptionalInt64(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	out := *value
+	return &out
+}
+
+func copyOptionalTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	out := *value
+	return &out
+}
+
+func promotionAuditSummary(record ports.AdminPromotionRecord) string {
+	discount := formatPromotionDiscount(record)
+	scope := "platform-wide"
+	if record.BusinessName != "" {
+		scope = record.BusinessName
+	}
+	return record.Title + " gives " + discount + " for " + scope + "."
+}
+
+func promotionAuditMetadata(record ports.AdminPromotionRecord) map[string]string {
+	metadata := map[string]string{
+		"code":             record.Code,
+		"discount_type":    record.DiscountType,
+		"discount_value":   strconv.FormatInt(record.DiscountValue, 10),
+		"funding_source":   record.FundingSource,
+		"scope":            record.Scope,
+		"status":           record.Status,
+		"min_spend_minor":  strconv.FormatInt(record.MinSpendMinor, 10),
+		"redemption_count": strconv.Itoa(record.RedemptionCount),
+	}
+	if record.BusinessID != nil {
+		metadata["business_id"] = record.BusinessID.String()
+	}
+	if record.MaxDiscountMinor != nil {
+		metadata["max_discount_minor"] = strconv.FormatInt(*record.MaxDiscountMinor, 10)
+	}
+	return metadata
+}
+
+func promotionAuditSeverity(status string) admindomain.AuditSeverity {
+	if status == "active" {
+		return admindomain.AuditSeverityInfo
+	}
+	return admindomain.AuditSeverityWarning
+}
+
+func formatPromotionDiscount(record ports.AdminPromotionRecord) string {
+	if record.DiscountType == "percentage" {
+		return strconv.FormatFloat(float64(record.DiscountValue)/100, 'f', 2, 64) + "%"
+	}
+	return "GHS " + strconv.FormatFloat(float64(record.DiscountValue)/100, 'f', 2, 64)
+}
+
+func boolString(value bool) string {
+	return strconv.FormatBool(value)
+}
+
+func supportTicketAction(status string, assignment string) string {
+	if status == "resolved" {
+		return "Resolved support ticket"
+	}
+	if assignment == "self" {
+		return "Assigned support ticket"
+	}
+	if assignment == "unassigned" {
+		return "Unassigned support ticket"
+	}
+	return "Reopened support ticket"
+}
+
+func intString(value int) string {
+	return strconv.Itoa(value)
+}
+
+func intString64(value int64) string {
+	return strconv.FormatInt(value, 10)
+}
+
+func fallbackString(value string, fallback string) string {
+	if strings.TrimSpace(value) == "" {
+		return fallback
+	}
+	return value
+}
+
+func permissionsString(permissions []admindomain.Permission) string {
+	out := make([]string, 0, len(permissions))
+	for _, permission := range permissions {
+		out = append(out, string(permission))
+	}
+	return strings.Join(out, ",")
+}

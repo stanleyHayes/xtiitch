@@ -18,8 +18,20 @@ export const tokens = {
   gold: "#c58b2c",
 } as const;
 
-const fontStack = [
-  "Manrope",
+const bodyFontStack = [
+  "Instrument Sans",
+  "Roboto",
+  "system-ui",
+  "-apple-system",
+  "Segoe UI",
+  "Helvetica",
+  "Arial",
+  "sans-serif",
+].join(", ");
+
+const displayFontStack = [
+  "DM Serif Display",
+  "Instrument Sans",
   "Roboto",
   "system-ui",
   "-apple-system",
@@ -45,19 +57,34 @@ export const theme: Theme = createTheme({
   },
   shape: { borderRadius: 8 },
   typography: {
-    fontFamily: fontStack,
-    h1: { fontWeight: 800, letterSpacing: 0 },
-    h2: { fontWeight: 800, letterSpacing: 0 },
-    h3: { fontWeight: 780, letterSpacing: 0 },
-    h4: { fontWeight: 760, letterSpacing: 0 },
-    h5: { fontWeight: 740, letterSpacing: 0 },
-    h6: { fontWeight: 720, letterSpacing: 0 },
+    fontFamily: bodyFontStack,
+    h1: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h2: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h3: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h4: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h5: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h6: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
     button: { textTransform: "none", fontWeight: 760 },
   },
   components: {
     MuiButton: {
       defaultProps: { disableElevation: true },
       styleOverrides: { root: { borderRadius: 8, minHeight: 42 } },
+    },
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          backgroundColor: tokens.cream,
+          textRendering: "optimizeLegibility",
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+          scrollbarColor: `${tokens.burgundy} ${tokens.cream}`,
+        },
+        "::selection": {
+          backgroundColor: "rgba(128, 0, 32, 0.18)",
+          color: tokens.ink,
+        },
+      },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },

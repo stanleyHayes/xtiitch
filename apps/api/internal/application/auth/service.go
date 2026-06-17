@@ -212,6 +212,83 @@ func (s Service) Logout(ctx context.Context, cmd LogoutCommand) error {
 	return s.sessions.Revoke(ctx, session.BusinessID, session.SessionID)
 }
 
+type ListBusinessUsersCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+}
+
+func (s Service) ListBusinessUsers(ctx context.Context, cmd ListBusinessUsersCommand) ([]ports.BusinessUserRecord, error) {
+	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return nil, err
+	}
+
+	return s.businesses.ListBusinessUsers(ctx, cmd.Scope)
+}
+
+type CreateBusinessUserCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	DisplayName string
+	Email       string
+	Password    string
+	Role        business.UserRole
+}
+
+func (s Service) CreateBusinessUser(ctx context.Context, cmd CreateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	normalized, err := normalizeBusinessUserCreation(cmd)
+	if err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	passwordHash, err := s.passwords.Hash(normalized.Password)
+	if err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	return s.businesses.CreateBusinessUser(ctx, cmd.Scope, ports.CreateBusinessUserInput{
+		UserID:       s.ids.NewID(),
+		BusinessID:   cmd.Scope.BusinessID,
+		Email:        normalized.Email,
+		DisplayName:  normalized.DisplayName,
+		PasswordHash: passwordHash,
+		Role:         normalized.Role,
+	})
+}
+
+type UpdateBusinessUserCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	UserID      common.ID
+	DisplayName string
+	Role        business.UserRole
+	IsActive    bool
+}
+
+func (s Service) UpdateBusinessUser(ctx context.Context, cmd UpdateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+	if cmd.UserID.IsZero() {
+		return ports.BusinessUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	if displayName == "" || !isManageableBusinessUserRole(cmd.Role) {
+		return ports.BusinessUserRecord{}, authdomain.ErrInvalidInput
+	}
+
+	return s.businesses.UpdateBusinessUser(ctx, cmd.Scope, ports.UpdateBusinessUserInput{
+		UserID:      cmd.UserID,
+		DisplayName: displayName,
+		Role:        cmd.Role,
+		IsActive:    cmd.IsActive,
+	})
+}
+
 type normalizedRegistration struct {
 	BusinessName     string
 	BusinessHandle   string
@@ -245,6 +322,50 @@ func normalizeRegistration(cmd RegisterBusinessCommand) (normalizedRegistration,
 		OwnerEmail:       email,
 		OwnerPassword:    cmd.OwnerPassword,
 	}, nil
+}
+
+type normalizedBusinessUserCreation struct {
+	DisplayName string
+	Email       string
+	Password    string
+	Role        business.UserRole
+}
+
+func normalizeBusinessUserCreation(cmd CreateBusinessUserCommand) (normalizedBusinessUserCreation, error) {
+	displayName := strings.TrimSpace(cmd.DisplayName)
+	email, err := normalizeEmail(cmd.Email)
+	if err != nil {
+		return normalizedBusinessUserCreation{}, errors.Join(authdomain.ErrInvalidInput, err)
+	}
+	if displayName == "" || !isManageableBusinessUserRole(cmd.Role) {
+		return normalizedBusinessUserCreation{}, authdomain.ErrInvalidInput
+	}
+	if len(cmd.Password) < minPasswordLength || len(cmd.Password) > maxPasswordLength {
+		return normalizedBusinessUserCreation{}, authdomain.ErrInvalidInput
+	}
+
+	return normalizedBusinessUserCreation{
+		DisplayName: displayName,
+		Email:       email,
+		Password:    cmd.Password,
+		Role:        cmd.Role,
+	}, nil
+}
+
+func authorizeBusinessUserManagement(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	switch role {
+	case business.UserRoleOwner, business.UserRoleAdmin:
+		return nil
+	default:
+		return authdomain.ErrForbidden
+	}
+}
+
+func isManageableBusinessUserRole(role business.UserRole) bool {
+	return role == business.UserRoleAdmin || role == business.UserRoleStaff
 }
 
 func normalizeEmail(value string) (string, error) {

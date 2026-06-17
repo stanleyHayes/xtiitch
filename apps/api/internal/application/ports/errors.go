@@ -28,6 +28,10 @@ var ErrInvalidOrderState = errors.New("invalid order state")
 // backstop against double-charging a customer.
 var ErrPaymentInFlight = errors.New("an equivalent payment is already in flight")
 
+// ErrPromotionUnavailable is returned when a checkout promotion code does not
+// resolve to a currently redeemable voucher for the tenant/order context.
+var ErrPromotionUnavailable = errors.New("promotion unavailable")
+
 // ErrSlotTaken is returned when a home-visit slot cannot be held because it is
 // already held/booked, or is not an offerable open slot. The partial unique
 // index on bookings makes this race-proof.
