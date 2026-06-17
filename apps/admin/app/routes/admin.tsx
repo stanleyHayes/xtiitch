@@ -3046,6 +3046,8 @@ function ReportsSection({
   adminBusinesses,
   verificationCases,
   moneyRails,
+  subscriptions,
+  promotions,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3056,6 +3058,8 @@ function ReportsSection({
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
+  subscriptions: AdminSubscription[];
+  promotions: AdminPromotion[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3074,6 +3078,39 @@ function ReportsSection({
   const failedWebhooks =
     moneyRails?.webhookEvents.filter((event) => event.status === "failed") ??
     [];
+  const subscriptionsNeedingAttention = subscriptions.filter(
+    (subscription) =>
+      subscription.status === "past_due" ||
+      subscription.status === "grace_period" ||
+      subscription.status === "cancel_at_period_end" ||
+      (typeof subscription.designLimit === "number" &&
+        subscription.designCount > subscription.designLimit),
+  );
+  const overDesignLimitSubscriptions = subscriptions.filter(
+    (subscription) =>
+      typeof subscription.designLimit === "number" &&
+      subscription.designCount > subscription.designLimit,
+  );
+  const activeSubscriptionMrrMinor = subscriptions.reduce(
+    (total, subscription) =>
+      subscription.status !== "canceled" ? total + subscription.monthlyFeeMinor : total,
+    0,
+  );
+  const activePromotions = promotions.filter(
+    (promotion) => promotion.status === "active",
+  );
+  const pendingPromotionRedemptions = promotions.reduce(
+    (total, promotion) =>
+      total +
+      promotion.recentRedemptions.filter(
+        (redemption) => redemption.status === "pending",
+      ).length,
+    0,
+  );
+  const promotionRedeemedMinor = promotions.reduce(
+    (total, promotion) => total + promotion.discountRedeemedMinor,
+    0,
+  );
   const openRisks = riskReviews.filter((review) => review.status === "open");
   const urgentSupport = supportTickets.filter(
     (ticket) => ticket.priority === "urgent" && ticket.status === "open",
@@ -3117,6 +3154,39 @@ function ReportsSection({
           : "ready",
       target: "money",
       targetLabel: "Open money",
+    },
+    {
+      id: "subscriptions",
+      label: "Subscription billing",
+      value: `${subscriptionsNeedingAttention.length} signals`,
+      helper:
+        subscriptionsNeedingAttention.length > 0
+          ? `${overDesignLimitSubscriptions.length} businesses are over plan usage · ${formatGHS(activeSubscriptionMrrMinor)} active MRR snapshot.`
+          : `${formatGHS(activeSubscriptionMrrMinor)} active MRR snapshot with no billing alerts.`,
+      status:
+        subscriptions.some(
+          (subscription) =>
+            subscription.status === "past_due" ||
+            subscription.status === "grace_period",
+        ) || overDesignLimitSubscriptions.length > 0
+          ? "blocked"
+          : subscriptionsNeedingAttention.length > 0
+            ? "watch"
+            : "ready",
+      target: "subscriptions",
+      targetLabel: "Open subscriptions",
+    },
+    {
+      id: "promotions",
+      label: "Promotion activity",
+      value: `${pendingPromotionRedemptions} pending`,
+      helper:
+        pendingPromotionRedemptions > 0
+          ? `${activePromotions.length} active offers · ${formatGHS(promotionRedeemedMinor)} redeemed discount needs review.`
+          : `${activePromotions.length} active offers · ${formatGHS(promotionRedeemedMinor)} redeemed discount.`,
+      status: pendingPromotionRedemptions > 0 ? "watch" : "ready",
+      target: "promotions",
+      targetLabel: "Open promotions",
     },
     {
       id: "risk",
@@ -8822,6 +8892,8 @@ export default function AdminDashboard({
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
+              subscriptions={subscriptions}
+              promotions={promotions}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
