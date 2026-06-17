@@ -208,6 +208,20 @@ export type AdminPromotionFundingSource = "business" | "platform" | "split";
 export type AdminPromotionScope = "store" | "collection" | "design";
 export type AdminPromotionStatus = "active" | "paused" | "archived";
 
+export type AdminPromotionRedemption = {
+  promotionRedemptionId: string;
+  promotionId: string;
+  businessId: string;
+  orderId?: string;
+  customerId?: string;
+  customerName: string;
+  discountMinor: number;
+  status: "pending" | "applied" | "void";
+  redeemedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminPromotion = {
   promotionId: string;
   businessId?: string;
@@ -229,6 +243,7 @@ export type AdminPromotion = {
   endsAt?: string;
   redemptionCount: number;
   discountRedeemedMinor: number;
+  recentRedemptions: AdminPromotionRedemption[];
   createdAt: string;
   updatedAt: string;
 };
@@ -547,6 +562,19 @@ type AdminPromotionPayload = {
   ends_at?: string;
   redemption_count: number;
   discount_redeemed_minor: number;
+  recent_redemptions: {
+    promotion_redemption_id: string;
+    promotion_id: string;
+    business_id: string;
+    order_id?: string;
+    customer_id?: string;
+    customer_name: string;
+    discount_minor: number;
+    status: "pending" | "applied" | "void";
+    redeemed_at?: string;
+    created_at: string;
+    updated_at: string;
+  }[];
   created_at: string;
   updated_at: string;
 };
@@ -929,6 +957,19 @@ function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
     endsAt: payload.ends_at,
     redemptionCount: payload.redemption_count,
     discountRedeemedMinor: payload.discount_redeemed_minor,
+    recentRedemptions: (payload.recent_redemptions ?? []).map((redemption) => ({
+      promotionRedemptionId: redemption.promotion_redemption_id,
+      promotionId: redemption.promotion_id,
+      businessId: redemption.business_id,
+      orderId: redemption.order_id,
+      customerId: redemption.customer_id,
+      customerName: redemption.customer_name,
+      discountMinor: redemption.discount_minor,
+      status: redemption.status,
+      redeemedAt: redemption.redeemed_at,
+      createdAt: redemption.created_at,
+      updatedAt: redemption.updated_at,
+    })),
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };

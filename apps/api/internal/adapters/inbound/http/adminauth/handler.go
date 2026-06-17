@@ -507,26 +507,41 @@ type planResponse struct {
 }
 
 type promotionResponse struct {
+	PromotionID           string                        `json:"promotion_id"`
+	BusinessID            string                        `json:"business_id,omitempty"`
+	BusinessName          string                        `json:"business_name"`
+	BusinessHandle        string                        `json:"business_handle"`
+	Code                  string                        `json:"code"`
+	Title                 string                        `json:"title"`
+	Description           string                        `json:"description"`
+	DiscountType          string                        `json:"discount_type"`
+	DiscountValue         int64                         `json:"discount_value"`
+	MaxDiscountMinor      *int64                        `json:"max_discount_minor,omitempty"`
+	MinSpendMinor         int64                         `json:"min_spend_minor"`
+	UsageLimitGlobal      *int                          `json:"usage_limit_global,omitempty"`
+	UsageLimitPerCustomer *int                          `json:"usage_limit_per_customer,omitempty"`
+	FundingSource         string                        `json:"funding_source"`
+	Scope                 string                        `json:"scope"`
+	Status                string                        `json:"status"`
+	StartsAt              string                        `json:"starts_at,omitempty"`
+	EndsAt                string                        `json:"ends_at,omitempty"`
+	RedemptionCount       int                           `json:"redemption_count"`
+	DiscountRedeemedMinor int64                         `json:"discount_redeemed_minor"`
+	RecentRedemptions     []promotionRedemptionResponse `json:"recent_redemptions"`
+	CreatedAt             string                        `json:"created_at"`
+	UpdatedAt             string                        `json:"updated_at"`
+}
+
+type promotionRedemptionResponse struct {
+	PromotionRedemptionID string `json:"promotion_redemption_id"`
 	PromotionID           string `json:"promotion_id"`
-	BusinessID            string `json:"business_id,omitempty"`
-	BusinessName          string `json:"business_name"`
-	BusinessHandle        string `json:"business_handle"`
-	Code                  string `json:"code"`
-	Title                 string `json:"title"`
-	Description           string `json:"description"`
-	DiscountType          string `json:"discount_type"`
-	DiscountValue         int64  `json:"discount_value"`
-	MaxDiscountMinor      *int64 `json:"max_discount_minor,omitempty"`
-	MinSpendMinor         int64  `json:"min_spend_minor"`
-	UsageLimitGlobal      *int   `json:"usage_limit_global,omitempty"`
-	UsageLimitPerCustomer *int   `json:"usage_limit_per_customer,omitempty"`
-	FundingSource         string `json:"funding_source"`
-	Scope                 string `json:"scope"`
+	BusinessID            string `json:"business_id"`
+	OrderID               string `json:"order_id,omitempty"`
+	CustomerID            string `json:"customer_id,omitempty"`
+	CustomerName          string `json:"customer_name"`
+	DiscountMinor         int64  `json:"discount_minor"`
 	Status                string `json:"status"`
-	StartsAt              string `json:"starts_at,omitempty"`
-	EndsAt                string `json:"ends_at,omitempty"`
-	RedemptionCount       int    `json:"redemption_count"`
-	DiscountRedeemedMinor int64  `json:"discount_redeemed_minor"`
+	RedeemedAt            string `json:"redeemed_at,omitempty"`
 	CreatedAt             string `json:"created_at"`
 	UpdatedAt             string `json:"updated_at"`
 }
@@ -2237,6 +2252,30 @@ func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {
 	if record.BusinessID != nil {
 		businessID = record.BusinessID.String()
 	}
+	redemptions := make([]promotionRedemptionResponse, 0, len(record.RecentRedemptions))
+	for _, redemption := range record.RecentRedemptions {
+		orderID := ""
+		if redemption.OrderID != nil {
+			orderID = redemption.OrderID.String()
+		}
+		customerID := ""
+		if redemption.CustomerID != nil {
+			customerID = redemption.CustomerID.String()
+		}
+		redemptions = append(redemptions, promotionRedemptionResponse{
+			PromotionRedemptionID: redemption.PromotionRedemptionID.String(),
+			PromotionID:           redemption.PromotionID.String(),
+			BusinessID:            redemption.BusinessID.String(),
+			OrderID:               orderID,
+			CustomerID:            customerID,
+			CustomerName:          redemption.CustomerName,
+			DiscountMinor:         redemption.DiscountMinor,
+			Status:                redemption.Status,
+			RedeemedAt:            optionalTimeString(redemption.RedeemedAt),
+			CreatedAt:             redemption.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:             redemption.UpdatedAt.Format(time.RFC3339),
+		})
+	}
 	return promotionResponse{
 		PromotionID:           record.PromotionID.String(),
 		BusinessID:            businessID,
@@ -2258,6 +2297,7 @@ func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {
 		EndsAt:                optionalTimeString(record.EndsAt),
 		RedemptionCount:       record.RedemptionCount,
 		DiscountRedeemedMinor: record.DiscountRedeemedMinor,
+		RecentRedemptions:     redemptions,
 		CreatedAt:             record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:             record.UpdatedAt.Format(time.RFC3339),
 	}

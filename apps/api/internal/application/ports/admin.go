@@ -453,6 +453,21 @@ type AdminPromotionRecord struct {
 	EndsAt                *time.Time
 	RedemptionCount       int
 	DiscountRedeemedMinor int64
+	RecentRedemptions     []AdminPromotionRedemptionRecord
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+}
+
+type AdminPromotionRedemptionRecord struct {
+	PromotionRedemptionID common.ID
+	PromotionID           common.ID
+	BusinessID            common.ID
+	OrderID               *common.ID
+	CustomerID            *common.ID
+	CustomerName          string
+	DiscountMinor         int64
+	Status                string
+	RedeemedAt            *time.Time
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 }

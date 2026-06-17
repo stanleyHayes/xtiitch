@@ -2256,6 +2256,14 @@ func (repo AdminAuthRepository) ListAdminPromotions(ctx context.Context) ([]port
 		return nil, err
 	}
 
+	redemptionsByPromotion, err := listAdminPromotionRedemptions(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		records[index].RecentRedemptions = redemptionsByPromotion[records[index].PromotionID]
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -2350,6 +2358,12 @@ func (repo AdminAuthRepository) CreateAdminPromotion(
 		return ports.AdminPromotionRecord{}, err
 	}
 
+	redemptionsByPromotion, err := listAdminPromotionRedemptions(ctx, tx)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	record.RecentRedemptions = redemptionsByPromotion[record.PromotionID]
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminPromotionRecord{}, err
 	}
@@ -2423,6 +2437,12 @@ func (repo AdminAuthRepository) UpdateAdminPromotion(
 		return ports.AdminPromotionRecord{}, err
 	}
 
+	redemptionsByPromotion, err := listAdminPromotionRedemptions(ctx, tx)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	record.RecentRedemptions = redemptionsByPromotion[record.PromotionID]
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminPromotionRecord{}, err
 	}
@@ -2461,6 +2481,12 @@ func (repo AdminAuthRepository) ArchiveAdminPromotion(
 		}
 		return ports.AdminPromotionRecord{}, err
 	}
+
+	redemptionsByPromotion, err := listAdminPromotionRedemptions(ctx, tx)
+	if err != nil {
+		return ports.AdminPromotionRecord{}, err
+	}
+	record.RecentRedemptions = redemptionsByPromotion[record.PromotionID]
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminPromotionRecord{}, err
@@ -3163,6 +3189,81 @@ func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
 	return record, nil
 }
 
+func listAdminPromotionRedemptions(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminPromotionRedemptionRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			pr.promotion_redemption_id::text,
+			pr.promotion_id::text,
+			pr.business_id::text,
+			pr.order_id::text,
+			pr.customer_id::text,
+			coalesce(c.display_name, ''),
+			pr.discount_minor::bigint,
+			pr.status,
+			pr.redeemed_at,
+			pr.created_at,
+			pr.updated_at
+		from (
+			select
+				pr.*,
+				row_number() over (
+					partition by pr.promotion_id
+					order by pr.created_at desc, pr.promotion_redemption_id
+				) as redemption_rank
+			from promotion_redemptions pr
+		) pr
+		left join customers c on c.customer_id = pr.customer_id
+		where pr.redemption_rank <= 5
+		order by pr.promotion_id, pr.created_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	redemptions := map[common.ID][]ports.AdminPromotionRedemptionRecord{}
+	for rows.Next() {
+		record, err := scanAdminPromotionRedemptionRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		redemptions[record.PromotionID] = append(redemptions[record.PromotionID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return redemptions, nil
+}
+
+func scanAdminPromotionRedemptionRecord(row pgx.Row) (ports.AdminPromotionRedemptionRecord, error) {
+	var record ports.AdminPromotionRedemptionRecord
+	var orderID pgtype.Text
+	var customerID pgtype.Text
+	var redeemedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&record.PromotionRedemptionID,
+		&record.PromotionID,
+		&record.BusinessID,
+		&orderID,
+		&customerID,
+		&record.CustomerName,
+		&record.DiscountMinor,
+		&record.Status,
+		&redeemedAt,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminPromotionRedemptionRecord{}, err
+	}
+	record.OrderID = commonIDPtr(orderID)
+	record.CustomerID = commonIDPtr(customerID)
+	record.RedeemedAt = timestamptzPtr(redeemedAt)
+	return record, nil
+}
+
 func scanAdminAuditEventRecord(row pgx.Row) (ports.AdminAuditEventRecord, error) {
 	var record ports.AdminAuditEventRecord
 	var actorUserID string
@@ -3452,6 +3553,14 @@ func insertAdminSubscriptionEvent(
 		values ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb)
 	`, subscriptionID.String(), businessID.String(), actorAdminUserID.String(), eventType, summary, string(metadataJSON))
 	return err
+}
+
+func commonIDPtr(value pgtype.Text) *common.ID {
+	if !value.Valid {
+		return nil
+	}
+	id := common.ID(value.String)
+	return &id
 }
 
 func int4Ptr(value pgtype.Int4) *int {
