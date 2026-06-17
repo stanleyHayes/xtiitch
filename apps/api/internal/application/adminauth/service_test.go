@@ -804,20 +804,24 @@ func TestUpdateSubscriptionRequiresPermissionAndAudits(t *testing.T) {
 	)
 
 	record, err := service.UpdateSubscription(context.Background(), UpdateSubscriptionCommand{
-		ActorUserID: "operator-1",
-		ActorRole:   admindomain.RoleOperator,
-		BusinessID:  "business-1",
-		Status:      " grace_period ",
-		BillingMode: " payment_link ",
-		Reason:      " card failed twice ",
-		UserAgent:   "test-agent",
-		IPAddress:   "127.0.0.1",
+		ActorUserID:             "operator-1",
+		ActorRole:               admindomain.RoleOperator,
+		BusinessID:              "business-1",
+		Status:                  " grace_period ",
+		BillingMode:             " recurring ",
+		ProviderCustomerRef:     " CUS_123 ",
+		ProviderSubscriptionRef: " SUB_123 ",
+		Reason:                  " card failed twice ",
+		UserAgent:               "test-agent",
+		IPAddress:               "127.0.0.1",
 	})
 	if err != nil {
 		t.Fatalf("update subscription: %v", err)
 	}
 	if businesses.subscriptionUpdate.Status != "grace_period" ||
-		businesses.subscriptionUpdate.BillingMode != "payment_link" ||
+		businesses.subscriptionUpdate.BillingMode != "recurring" ||
+		businesses.subscriptionUpdate.ProviderCustomerRef != "CUS_123" ||
+		businesses.subscriptionUpdate.ProviderSubscriptionRef != "SUB_123" ||
 		businesses.subscriptionUpdate.Reason != "card failed twice" {
 		t.Fatalf("expected normalized subscription update, got %+v", businesses.subscriptionUpdate)
 	}
@@ -829,8 +833,20 @@ func TestUpdateSubscriptionRequiresPermissionAndAudits(t *testing.T) {
 	}
 	if audits.created[0].Action != "Updated subscription" ||
 		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
-		audits.created[0].Metadata["billing_mode"] != "payment_link" {
+		audits.created[0].Metadata["billing_mode"] != "recurring" ||
+		audits.created[0].Metadata["provider_subscription_ref"] != "SUB_123" {
 		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.UpdateSubscription(context.Background(), UpdateSubscriptionCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Status:      "active",
+		BillingMode: "recurring",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected recurring billing to require a subscription ref, got %v", err)
 	}
 
 	_, err = service.UpdateSubscription(context.Background(), UpdateSubscriptionCommand{
@@ -1932,17 +1948,19 @@ func (repo *fakeAdminBusinesses) UpdateAdminSubscription(
 ) (ports.AdminSubscriptionRecord, error) {
 	repo.subscriptionUpdate = input
 	return ports.AdminSubscriptionRecord{
-		SubscriptionID:     "subscription-1",
-		BusinessID:         input.BusinessID,
-		BusinessName:       "Ama Stitches",
-		Handle:             "ama-stitches",
-		PlanCode:           "growth",
-		PlanName:           "Growth",
-		Status:             input.Status,
-		BillingMode:        input.BillingMode,
-		CurrentPeriodStart: time.Now(),
-		CurrentPeriodEnd:   time.Now().Add(30 * 24 * time.Hour),
-		UpdatedAt:          time.Now(),
+		SubscriptionID:          "subscription-1",
+		BusinessID:              input.BusinessID,
+		BusinessName:            "Ama Stitches",
+		Handle:                  "ama-stitches",
+		PlanCode:                "growth",
+		PlanName:                "Growth",
+		Status:                  input.Status,
+		BillingMode:             input.BillingMode,
+		ProviderCustomerRef:     input.ProviderCustomerRef,
+		ProviderSubscriptionRef: input.ProviderSubscriptionRef,
+		CurrentPeriodStart:      time.Now(),
+		CurrentPeriodEnd:        time.Now().Add(30 * 24 * time.Hour),
+		UpdatedAt:               time.Now(),
 	}, nil
 }
 

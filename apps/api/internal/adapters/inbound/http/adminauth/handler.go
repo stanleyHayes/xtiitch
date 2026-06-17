@@ -201,9 +201,11 @@ type settlementReviewHoldRequest struct {
 }
 
 type subscriptionUpdateRequest struct {
-	Status      string `json:"status"`
-	BillingMode string `json:"billing_mode"`
-	Reason      string `json:"reason"`
+	Status                  string `json:"status"`
+	BillingMode             string `json:"billing_mode"`
+	ProviderCustomerRef     string `json:"provider_customer_ref"`
+	ProviderSubscriptionRef string `json:"provider_subscription_ref"`
+	Reason                  string `json:"reason"`
 }
 
 type subscriptionInvoiceIssueRequest struct {
@@ -923,14 +925,16 @@ func (handler Handler) updateSubscription(w http.ResponseWriter, r *http.Request
 	}
 
 	record, err := handler.service.UpdateSubscription(r.Context(), adminauthapp.UpdateSubscriptionCommand{
-		ActorUserID: principal.AdminUserID,
-		ActorRole:   principal.Role,
-		BusinessID:  common.ID(chi.URLParam(r, "id")),
-		Status:      request.Status,
-		BillingMode: request.BillingMode,
-		Reason:      request.Reason,
-		UserAgent:   r.UserAgent(),
-		IPAddress:   requestIP(r),
+		ActorUserID:             principal.AdminUserID,
+		ActorRole:               principal.Role,
+		BusinessID:              common.ID(chi.URLParam(r, "id")),
+		Status:                  request.Status,
+		BillingMode:             request.BillingMode,
+		ProviderCustomerRef:     request.ProviderCustomerRef,
+		ProviderSubscriptionRef: request.ProviderSubscriptionRef,
+		Reason:                  request.Reason,
+		UserAgent:               r.UserAgent(),
+		IPAddress:               requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)

@@ -1178,6 +1178,8 @@ export const adminApi = {
     input: {
       status: AdminSubscriptionStatus;
       billingMode: AdminSubscriptionBillingMode;
+      providerCustomerRef: string;
+      providerSubscriptionRef: string;
       reason: string;
     },
   ) =>
@@ -1189,6 +1191,8 @@ export const adminApi = {
         body: JSON.stringify({
           status: input.status,
           billing_mode: input.billingMode,
+          provider_customer_ref: input.providerCustomerRef,
+          provider_subscription_ref: input.providerSubscriptionRef,
           reason: input.reason,
         }),
       },

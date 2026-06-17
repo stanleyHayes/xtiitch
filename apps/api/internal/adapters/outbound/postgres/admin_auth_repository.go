@@ -1448,6 +1448,8 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 				status = $2,
 				billing_mode = $3,
 				provider = case when $3 = 'manual' then 'manual' else 'paystack' end,
+				provider_customer_ref = $4,
+				provider_subscription_ref = $5,
 				grace_ends_at = case
 					when $2 = 'grace_period' then coalesce(s.grace_ends_at, now() + interval '7 days')
 					else null
@@ -1540,7 +1542,12 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			order by u.created_at
 			limit 1
 		) owner on true
-	`, input.BusinessID.String(), input.Status, input.BillingMode))
+	`, input.BusinessID.String(),
+		input.Status,
+		input.BillingMode,
+		input.ProviderCustomerRef,
+		input.ProviderSubscriptionRef,
+	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.AdminSubscriptionRecord{}, ErrNotFound
@@ -1566,7 +1573,9 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			jsonb_build_object(
 				'status', $6::text,
 				'billing_mode', $7::text,
-				'reason', $8::text
+				'provider_customer_ref', $8::text,
+				'provider_subscription_ref', $9::text,
+				'reason', $10::text
 			)
 		)
 	`, record.SubscriptionID.String(),
@@ -1576,6 +1585,8 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		input.Reason,
 		input.Status,
 		input.BillingMode,
+		input.ProviderCustomerRef,
+		input.ProviderSubscriptionRef,
 		input.Reason,
 	); err != nil {
 		return ports.AdminSubscriptionRecord{}, err

@@ -330,11 +330,13 @@ type AdminSubscriptionEventRecord struct {
 }
 
 type UpdateAdminSubscriptionInput struct {
-	BusinessID     common.ID
-	Status         string
-	BillingMode    string
-	Reason         string
-	ActorAdminUser common.ID
+	BusinessID              common.ID
+	Status                  string
+	BillingMode             string
+	ProviderCustomerRef     string
+	ProviderSubscriptionRef string
+	Reason                  string
+	ActorAdminUser          common.ID
 }
 
 type AdminSubscriptionInvoiceRecord struct {

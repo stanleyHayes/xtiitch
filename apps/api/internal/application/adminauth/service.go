@@ -126,14 +126,16 @@ type ListSubscriptionsCommand struct {
 }
 
 type UpdateSubscriptionCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
-	BusinessID  common.ID
-	Status      string
-	BillingMode string
-	Reason      string
-	UserAgent   string
-	IPAddress   string
+	ActorUserID             common.ID
+	ActorRole               admindomain.Role
+	BusinessID              common.ID
+	Status                  string
+	BillingMode             string
+	ProviderCustomerRef     string
+	ProviderSubscriptionRef string
+	Reason                  string
+	UserAgent               string
+	IPAddress               string
 }
 
 type IssueSubscriptionInvoiceCommand struct {
@@ -720,17 +722,27 @@ func (s Service) UpdateSubscription(
 	if err != nil {
 		return ports.AdminSubscriptionRecord{}, err
 	}
+	providerCustomerRef, providerSubscriptionRef, err := normalizeSubscriptionProviderRefs(
+		billingMode,
+		cmd.ProviderCustomerRef,
+		cmd.ProviderSubscriptionRef,
+	)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
 	reason := normalizeOperatorNote(cmd.Reason)
 	if reason == "" {
 		reason = subscriptionUpdateSummary(status, billingMode)
 	}
 
 	record, err := s.businesses.UpdateAdminSubscription(ctx, ports.UpdateAdminSubscriptionInput{
-		BusinessID:     cmd.BusinessID,
-		Status:         status,
-		BillingMode:    billingMode,
-		Reason:         reason,
-		ActorAdminUser: cmd.ActorUserID,
+		BusinessID:              cmd.BusinessID,
+		Status:                  status,
+		BillingMode:             billingMode,
+		ProviderCustomerRef:     providerCustomerRef,
+		ProviderSubscriptionRef: providerSubscriptionRef,
+		Reason:                  reason,
+		ActorAdminUser:          cmd.ActorUserID,
 	})
 	if err != nil {
 		return ports.AdminSubscriptionRecord{}, err
@@ -746,10 +758,12 @@ func (s Service) UpdateSubscription(
 		Summary:     subscriptionUpdateSummary(status, billingMode),
 		Severity:    subscriptionUpdateSeverity(status),
 		Metadata: map[string]string{
-			"status":       status,
-			"billing_mode": billingMode,
-			"plan":         record.PlanCode,
-			"reason":       reason,
+			"status":                    status,
+			"billing_mode":              billingMode,
+			"plan":                      record.PlanCode,
+			"provider_customer_ref":     providerCustomerRef,
+			"provider_subscription_ref": providerSubscriptionRef,
+			"reason":                    reason,
 		},
 		IPAddress: cmd.IPAddress,
 		UserAgent: cmd.UserAgent,
@@ -2384,6 +2398,40 @@ func normalizeSubscriptionBillingMode(value string) (string, error) {
 	default:
 		return "", authdomain.ErrInvalidInput
 	}
+}
+
+func normalizeSubscriptionProviderRefs(
+	billingMode string,
+	customerRef string,
+	subscriptionRef string,
+) (string, string, error) {
+	if billingMode == "manual" {
+		return "", "", nil
+	}
+
+	normalizedCustomerRef, err := normalizeProviderReference(customerRef)
+	if err != nil {
+		return "", "", err
+	}
+	normalizedSubscriptionRef, err := normalizeProviderReference(subscriptionRef)
+	if err != nil {
+		return "", "", err
+	}
+	if billingMode == "recurring" && normalizedSubscriptionRef == "" {
+		return "", "", authdomain.ErrInvalidInput
+	}
+	return normalizedCustomerRef, normalizedSubscriptionRef, nil
+}
+
+func normalizeProviderReference(value string) (string, error) {
+	ref := strings.TrimSpace(value)
+	if ref == "" {
+		return "", nil
+	}
+	if len([]rune(ref)) > 160 || strings.ContainsAny(ref, " \t\r\n") {
+		return "", authdomain.ErrInvalidInput
+	}
+	return ref, nil
 }
 
 func subscriptionUpdateSummary(status string, billingMode string) string {

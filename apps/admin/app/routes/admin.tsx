@@ -747,6 +747,10 @@ export async function action({ request }: Route.ActionArgs) {
         {
           status,
           billingMode,
+          providerCustomerRef: String(form.get("provider_customer_ref") ?? ""),
+          providerSubscriptionRef: String(
+            form.get("provider_subscription_ref") ?? "",
+          ),
           reason: String(form.get("reason") ?? ""),
         },
       );
@@ -5180,6 +5184,32 @@ function SubscriptionsSection({
                         </Button>
                       </Stack>
                     </Stack>
+                    <Box
+                      sx={{
+                        mt: 1.25,
+                        display: "grid",
+                        gap: 1,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "repeat(2, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <TextField
+                        size="small"
+                        label="Paystack customer ref"
+                        name="provider_customer_ref"
+                        defaultValue={subscription.providerCustomerRef}
+                        placeholder="CUS_..."
+                      />
+                      <TextField
+                        size="small"
+                        label="Paystack subscription ref"
+                        name="provider_subscription_ref"
+                        defaultValue={subscription.providerSubscriptionRef}
+                        placeholder="SUB_..."
+                      />
+                    </Box>
                   </Form>
 
                   <Divider sx={{ my: 1.5 }} />
