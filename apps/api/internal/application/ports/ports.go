@@ -255,9 +255,10 @@ type ConfirmPaymentInput struct {
 }
 
 type ConfirmPaymentResult struct {
-	AlreadyProcessed bool
-	PaymentFound     bool
-	BusinessID       common.ID
+	AlreadyProcessed         bool
+	PaymentFound             bool
+	SubscriptionInvoiceFound bool
+	BusinessID               common.ID
 }
 
 type PaymentRecord struct {

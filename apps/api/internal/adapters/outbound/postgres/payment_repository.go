@@ -87,7 +87,15 @@ func (repo PaymentRepository) ConfirmFromProvider(ctx context.Context, input por
 		return ports.ConfirmPaymentResult{}, err
 	}
 	if !found {
-		return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{PaymentFound: false})
+		invoice, invoiceFound, err := reconcileSubscriptionInvoiceFromProvider(ctx, tx, input)
+		if err != nil {
+			return ports.ConfirmPaymentResult{}, err
+		}
+		return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{
+			PaymentFound:             false,
+			SubscriptionInvoiceFound: invoiceFound,
+			BusinessID:               common.ID(invoice.businessID),
+		})
 	}
 
 	if err := applyConfirmation(ctx, tx, input, payment); err != nil {
@@ -105,6 +113,14 @@ type scopedPayment struct {
 	bookingID   sql.NullString
 	amountMinor int64
 	purpose     string
+}
+
+type subscriptionInvoiceProviderMatch struct {
+	invoiceID      string
+	subscriptionID string
+	businessID     string
+	invoiceRef     string
+	status         string
 }
 
 // recordProviderEvent writes the idempotency row and reports whether this was a
@@ -136,6 +152,227 @@ func lookupPaymentByReference(ctx context.Context, tx pgx.Tx, providerReference 
 		return scopedPayment{}, false, err
 	}
 	return payment, true, nil
+}
+
+// reconcileSubscriptionInvoiceFromProvider applies Paystack payment-link or
+// recurring invoice webhooks that do not correspond to customer order payments.
+// It starts from the RLS bypass lookup, then narrows back to the matched
+// business before mutating invoice/subscription rows.
+func reconcileSubscriptionInvoiceFromProvider(
+	ctx context.Context,
+	tx pgx.Tx,
+	input ports.ConfirmPaymentInput,
+) (subscriptionInvoiceProviderMatch, bool, error) {
+	invoice, found, err := lookupSubscriptionInvoiceByProviderReference(ctx, tx, input.ProviderReference)
+	if err != nil || !found {
+		return subscriptionInvoiceProviderMatch{}, found, err
+	}
+
+	if err := clearTenantBypass(ctx, tx); err != nil {
+		return subscriptionInvoiceProviderMatch{}, false, err
+	}
+	if err := setTenantScope(ctx, tx, common.TenantScope{BusinessID: common.ID(invoice.businessID)}); err != nil {
+		return subscriptionInvoiceProviderMatch{}, false, err
+	}
+
+	if input.Succeeded {
+		if invoice.status != "issued" && invoice.status != "failed" {
+			return invoice, true, nil
+		}
+		return invoice, true, markSubscriptionInvoicePaidFromProvider(ctx, tx, invoice, input)
+	}
+
+	if invoice.status != "issued" {
+		return invoice, true, nil
+	}
+	return invoice, true, markSubscriptionInvoiceFailedFromProvider(ctx, tx, invoice, input)
+}
+
+func lookupSubscriptionInvoiceByProviderReference(
+	ctx context.Context,
+	tx pgx.Tx,
+	providerReference string,
+) (subscriptionInvoiceProviderMatch, bool, error) {
+	var invoice subscriptionInvoiceProviderMatch
+	err := tx.QueryRow(ctx, `
+		select invoice_id::text, subscription_id::text, business_id::text, invoice_ref, status
+		from business_subscription_invoices
+		where provider = 'paystack'
+			and (provider_invoice_ref = $1 or invoice_ref = $1)
+		order by created_at desc
+		limit 1
+	`, providerReference).Scan(
+		&invoice.invoiceID,
+		&invoice.subscriptionID,
+		&invoice.businessID,
+		&invoice.invoiceRef,
+		&invoice.status,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return subscriptionInvoiceProviderMatch{}, false, nil
+	}
+	if err != nil {
+		return subscriptionInvoiceProviderMatch{}, false, err
+	}
+	return invoice, true, nil
+}
+
+func markSubscriptionInvoicePaidFromProvider(
+	ctx context.Context,
+	tx pgx.Tx,
+	invoice subscriptionInvoiceProviderMatch,
+	input ports.ConfirmPaymentInput,
+) error {
+	tag, err := tx.Exec(ctx, `
+		with paid_invoice as (
+			update business_subscription_invoices i
+			set
+				status = 'paid',
+				paid_at = coalesce(i.paid_at, now()),
+				failed_at = null,
+				failure_reason = '',
+				updated_at = now()
+			where i.invoice_id = $1::uuid
+				and i.business_id = $2::uuid
+				and i.status in ('issued', 'failed')
+			returning i.*
+		),
+		updated as (
+			update business_subscriptions s
+			set
+				status = 'active',
+				failed_payment_count = 0,
+				grace_ends_at = null,
+				cancel_at_period_end = false,
+				last_invoice_ref = i.invoice_ref,
+				last_payment_at = now(),
+				current_period_start = i.period_start,
+				current_period_end = i.period_end,
+				next_billing_at = i.period_end,
+				billing_mode = i.billing_mode,
+				provider = i.provider,
+				updated_at = now()
+			from paid_invoice i
+			where s.subscription_id = i.subscription_id
+				and s.business_id = i.business_id
+			returning 1
+		)
+		select 1 from updated
+	`, invoice.invoiceID, invoice.businessID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+
+	_, err = tx.Exec(ctx, `
+		insert into business_subscription_events (
+			subscription_id,
+			business_id,
+			event_type,
+			summary,
+			metadata
+		)
+		values (
+			$1::uuid,
+			$2::uuid,
+			'subscription.invoice_paid',
+			'Paystack webhook confirmed subscription invoice payment.',
+			jsonb_build_object(
+				'invoice_id', $3::text,
+				'invoice_ref', $4::text,
+				'provider_reference', $5::text,
+				'event_type', $6::text,
+				'source', 'paystack_webhook'
+			)
+		)
+	`, invoice.subscriptionID, invoice.businessID, invoice.invoiceID, invoice.invoiceRef, input.ProviderReference, input.EventType)
+	return err
+}
+
+func markSubscriptionInvoiceFailedFromProvider(
+	ctx context.Context,
+	tx pgx.Tx,
+	invoice subscriptionInvoiceProviderMatch,
+	input ports.ConfirmPaymentInput,
+) error {
+	reason := subscriptionWebhookFailureReason(input)
+	tag, err := tx.Exec(ctx, `
+		with failed_invoice as (
+			update business_subscription_invoices i
+			set
+				status = 'failed',
+				failed_at = coalesce(i.failed_at, now()),
+				failure_reason = $3,
+				updated_at = now()
+			where i.invoice_id = $1::uuid
+				and i.business_id = $2::uuid
+				and i.status = 'issued'
+			returning i.*
+		),
+		updated as (
+			update business_subscriptions s
+			set
+				status = case
+					when s.failed_payment_count + 1 >= 2 then 'grace_period'
+					else 'past_due'
+				end,
+				failed_payment_count = s.failed_payment_count + 1,
+				grace_ends_at = case
+					when s.failed_payment_count + 1 >= 2 then coalesce(s.grace_ends_at, now() + interval '7 days')
+					else null
+				end,
+				last_invoice_ref = i.invoice_ref,
+				next_billing_at = now() + interval '1 day',
+				billing_mode = i.billing_mode,
+				provider = i.provider,
+				updated_at = now()
+			from failed_invoice i
+			where s.subscription_id = i.subscription_id
+				and s.business_id = i.business_id
+			returning 1
+		)
+		select 1 from updated
+	`, invoice.invoiceID, invoice.businessID, reason)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil
+	}
+
+	_, err = tx.Exec(ctx, `
+		insert into business_subscription_events (
+			subscription_id,
+			business_id,
+			event_type,
+			summary,
+			metadata
+		)
+		values (
+			$1::uuid,
+			$2::uuid,
+			'subscription.invoice_failed',
+			$3,
+			jsonb_build_object(
+				'invoice_id', $4::text,
+				'invoice_ref', $5::text,
+				'provider_reference', $6::text,
+				'event_type', $7::text,
+				'source', 'paystack_webhook',
+				'reason', $3::text
+			)
+		)
+	`, invoice.subscriptionID, invoice.businessID, reason, invoice.invoiceID, invoice.invoiceRef, input.ProviderReference, input.EventType)
+	return err
+}
+
+func subscriptionWebhookFailureReason(input ports.ConfirmPaymentInput) string {
+	if input.EventType == "" {
+		return "Paystack webhook reported subscription invoice payment failure."
+	}
+	return "Paystack webhook reported " + input.EventType + "."
 }
 
 // applyConfirmation advances the payment and, on a genuine success transition,
