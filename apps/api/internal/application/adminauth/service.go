@@ -328,6 +328,10 @@ type ListAffiliatesCommand struct {
 	ActorRole admindomain.Role
 }
 
+type ListAffiliateAttributionCommand struct {
+	ActorRole admindomain.Role
+}
+
 type CreateAffiliateCommand struct {
 	ActorUserID      common.ID
 	ActorRole        admindomain.Role
@@ -1629,6 +1633,20 @@ func (s Service) ListAffiliates(
 	}
 
 	return s.businesses.ListAdminAffiliates(ctx)
+}
+
+func (s Service) ListAffiliateAttribution(
+	ctx context.Context,
+	cmd ListAffiliateAttributionCommand,
+) ([]ports.AdminAffiliateAttributionRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminAffiliateAttribution(ctx)
 }
 
 func (s Service) CreateAffiliate(

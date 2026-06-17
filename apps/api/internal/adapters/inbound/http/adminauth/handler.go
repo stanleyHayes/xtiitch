@@ -58,6 +58,7 @@ type Service interface {
 	UpdateAdCampaign(ctx context.Context, command adminauthapp.UpdateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
+	ListAffiliateAttribution(ctx context.Context, command adminauthapp.ListAffiliateAttributionCommand) ([]ports.AdminAffiliateAttributionRecord, error)
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
@@ -124,6 +125,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/ad-campaigns/{id}", handler.updateAdCampaign)
 		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
 		protected.Get("/admin/affiliates", handler.affiliates)
+		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
 		protected.Post("/admin/affiliates", handler.createAffiliate)
 		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)
 		protected.Post("/admin/affiliates/{id}/archive", handler.archiveAffiliate)
@@ -677,6 +679,37 @@ type affiliateResponse struct {
 	PayoutReference  string `json:"payout_reference"`
 	Status           string `json:"status"`
 	Notes            string `json:"notes"`
+	CreatedAt        string `json:"created_at"`
+	UpdatedAt        string `json:"updated_at"`
+}
+
+type affiliateAttributionResponse struct {
+	AffiliateID             string                        `json:"affiliate_id"`
+	Code                    string                        `json:"code"`
+	DisplayName             string                        `json:"display_name"`
+	ClickCount              int64                         `json:"click_count"`
+	ConversionCount         int64                         `json:"conversion_count"`
+	PendingConversionCount  int64                         `json:"pending_conversion_count"`
+	ApprovedConversionCount int64                         `json:"approved_conversion_count"`
+	SettledConversionCount  int64                         `json:"settled_conversion_count"`
+	ReversedConversionCount int64                         `json:"reversed_conversion_count"`
+	GrossMinor              int64                         `json:"gross_minor"`
+	CommissionMinor         int64                         `json:"commission_minor"`
+	RecentConversions       []affiliateConversionResponse `json:"recent_conversions"`
+	LastActivityAt          string                        `json:"last_activity_at,omitempty"`
+}
+
+type affiliateConversionResponse struct {
+	ConversionID     string `json:"conversion_id"`
+	AffiliateID      string `json:"affiliate_id"`
+	BusinessID       string `json:"business_id"`
+	BusinessName     string `json:"business_name"`
+	OrderID          string `json:"order_id"`
+	GrossMinor       int64  `json:"gross_minor"`
+	CommissionMinor  int64  `json:"commission_minor"`
+	Status           string `json:"status"`
+	AttributionModel string `json:"attribution_model"`
+	HoldUntil        string `json:"hold_until,omitempty"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
 }
@@ -1654,6 +1687,29 @@ func (handler Handler) affiliates(w http.ResponseWriter, r *http.Request) {
 		out = append(out, newAffiliateResponse(record))
 	}
 	writeJSON(w, http.StatusOK, map[string][]affiliateResponse{"affiliates": out})
+}
+
+func (handler Handler) affiliateAttribution(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListAffiliateAttribution(r.Context(), adminauthapp.ListAffiliateAttributionCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]affiliateAttributionResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newAffiliateAttributionResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]affiliateAttributionResponse{"attribution": out})
 }
 
 func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {
@@ -3120,6 +3176,50 @@ func newAffiliateResponse(record ports.AdminAffiliateRecord) affiliateResponse {
 		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
 	}
+}
+
+func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecord) affiliateAttributionResponse {
+	response := affiliateAttributionResponse{
+		AffiliateID:             record.AffiliateID.String(),
+		Code:                    record.Code,
+		DisplayName:             record.DisplayName,
+		ClickCount:              record.ClickCount,
+		ConversionCount:         record.ConversionCount,
+		PendingConversionCount:  record.PendingConversionCount,
+		ApprovedConversionCount: record.ApprovedConversionCount,
+		SettledConversionCount:  record.SettledConversionCount,
+		ReversedConversionCount: record.ReversedConversionCount,
+		GrossMinor:              record.GrossMinor,
+		CommissionMinor:         record.CommissionMinor,
+		RecentConversions:       make([]affiliateConversionResponse, 0, len(record.RecentConversions)),
+	}
+	if record.LastActivityAt != nil {
+		response.LastActivityAt = record.LastActivityAt.Format(time.RFC3339)
+	}
+	for _, conversion := range record.RecentConversions {
+		response.RecentConversions = append(response.RecentConversions, newAffiliateConversionResponse(conversion))
+	}
+	return response
+}
+
+func newAffiliateConversionResponse(record ports.AdminAffiliateConversionRecord) affiliateConversionResponse {
+	response := affiliateConversionResponse{
+		ConversionID:     record.ConversionID.String(),
+		AffiliateID:      record.AffiliateID.String(),
+		BusinessID:       record.BusinessID.String(),
+		BusinessName:     record.BusinessName,
+		OrderID:          record.OrderID.String(),
+		GrossMinor:       record.GrossMinor,
+		CommissionMinor:  record.CommissionMinor,
+		Status:           record.Status,
+		AttributionModel: record.AttributionModel,
+		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
+	}
+	if record.HoldUntil != nil {
+		response.HoldUntil = record.HoldUntil.Format(time.RFC3339)
+	}
+	return response
 }
 
 func newReferralProgrammeResponse(record ports.AdminReferralProgrammeRecord) referralProgrammeResponse {

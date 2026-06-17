@@ -2840,6 +2840,112 @@ func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]port
 	return records, nil
 }
 
+func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Context) ([]ports.AdminAffiliateAttributionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		with click_stats as (
+			select
+				affiliate_id,
+				count(*)::bigint as click_count,
+				max(clicked_at) as last_clicked_at
+			from affiliate_clicks
+			group by affiliate_id
+		),
+		conversion_stats as (
+			select
+				affiliate_id,
+				count(*)::bigint as conversion_count,
+				count(*) filter (where status = 'pending')::bigint as pending_count,
+				count(*) filter (where status = 'approved')::bigint as approved_count,
+				count(*) filter (where status = 'settled')::bigint as settled_count,
+				count(*) filter (where status = 'reversed')::bigint as reversed_count,
+				coalesce(sum(gross_minor), 0)::bigint as gross_minor,
+				coalesce(sum(commission_minor), 0)::bigint as commission_minor,
+				max(updated_at) as last_conversion_at
+			from affiliate_conversions
+			group by affiliate_id
+		)
+		select
+			a.affiliate_id::text,
+			a.code,
+			a.display_name,
+			coalesce(click_stats.click_count, 0)::bigint,
+			coalesce(conversion_stats.conversion_count, 0)::bigint,
+			coalesce(conversion_stats.pending_count, 0)::bigint,
+			coalesce(conversion_stats.approved_count, 0)::bigint,
+			coalesce(conversion_stats.settled_count, 0)::bigint,
+			coalesce(conversion_stats.reversed_count, 0)::bigint,
+			coalesce(conversion_stats.gross_minor, 0)::bigint,
+			coalesce(conversion_stats.commission_minor, 0)::bigint,
+			greatest(
+				a.updated_at,
+				coalesce(click_stats.last_clicked_at, 'epoch'::timestamptz),
+				coalesce(conversion_stats.last_conversion_at, 'epoch'::timestamptz)
+			)
+		from affiliates a
+		left join click_stats on click_stats.affiliate_id = a.affiliate_id
+		left join conversion_stats on conversion_stats.affiliate_id = a.affiliate_id
+		order by
+			coalesce(conversion_stats.conversion_count, 0) desc,
+			coalesce(click_stats.click_count, 0) desc,
+			a.updated_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminAffiliateAttributionRecord{}
+	for rows.Next() {
+		var record ports.AdminAffiliateAttributionRecord
+		var lastActivityAt time.Time
+		if err := rows.Scan(
+			&record.AffiliateID,
+			&record.Code,
+			&record.DisplayName,
+			&record.ClickCount,
+			&record.ConversionCount,
+			&record.PendingConversionCount,
+			&record.ApprovedConversionCount,
+			&record.SettledConversionCount,
+			&record.ReversedConversionCount,
+			&record.GrossMinor,
+			&record.CommissionMinor,
+			&lastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		record.LastActivityAt = &lastActivityAt
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	conversions, err := listAdminAffiliateConversions(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		records[index].RecentConversions = conversions[records[index].AffiliateID]
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
 func (repo AdminAuthRepository) CreateAdminAffiliate(
 	ctx context.Context,
 	input ports.CreateAdminAffiliateInput,
@@ -4032,6 +4138,73 @@ func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 		return ports.AdminAffiliateRecord{}, err
 	}
 	return record, nil
+}
+
+func listAdminAffiliateConversions(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminAffiliateConversionRecord, error) {
+	rows, err := tx.Query(ctx, `
+		with ranked as (
+			select
+				affiliate_conversions.*,
+				row_number() over (
+					partition by affiliate_id
+					order by updated_at desc, created_at desc
+				) as rank
+			from affiliate_conversions
+		)
+		select
+			r.affiliate_conversion_id::text,
+			r.affiliate_id::text,
+			r.business_id::text,
+			coalesce(b.name, '') as business_name,
+			r.order_id::text,
+			r.gross_minor,
+			r.commission_minor,
+			r.status,
+			r.attribution_model,
+			r.hold_until,
+			r.created_at,
+			r.updated_at
+		from ranked r
+		left join businesses b on b.business_id = r.business_id
+		where r.rank <= 5
+		order by r.affiliate_id, r.updated_at desc, r.created_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[common.ID][]ports.AdminAffiliateConversionRecord{}
+	for rows.Next() {
+		var record ports.AdminAffiliateConversionRecord
+		var holdUntil pgtype.Timestamptz
+		if err := rows.Scan(
+			&record.ConversionID,
+			&record.AffiliateID,
+			&record.BusinessID,
+			&record.BusinessName,
+			&record.OrderID,
+			&record.GrossMinor,
+			&record.CommissionMinor,
+			&record.Status,
+			&record.AttributionModel,
+			&holdUntil,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		record.HoldUntil = timestamptzPtr(holdUntil)
+		out[record.AffiliateID] = append(out[record.AffiliateID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, nil
 }
 
 func scanAdminReferralProgrammeRecord(row pgx.Row) (ports.AdminReferralProgrammeRecord, error) {

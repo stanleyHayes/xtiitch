@@ -67,6 +67,7 @@ import {
   type AdminAdPlacementType,
   type AdminAdPricingModel,
   type AdminAffiliate,
+  type AdminAffiliateAttribution,
   type AdminAffiliateCommissionModel,
   type AdminAffiliateEntityType,
   type AdminAffiliatePayoutMode,
@@ -413,6 +414,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let adCampaignsError: string | null = null;
   let affiliates: AdminAffiliate[] = [];
   let affiliatesError: string | null = null;
+  let affiliateAttribution: AdminAffiliateAttribution[] = [];
+  let affiliateAttributionError: string | null = null;
   let referralProgrammes: AdminReferralProgramme[] = [];
   let referralProgrammesError: string | null = null;
   let riskReviews: AdminRiskReview[] = [];
@@ -524,6 +527,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
+    affiliateAttribution = await adminApi.affiliateAttribution(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      affiliateAttributionError =
+        "Your role cannot view affiliate performance.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
     referralProgrammes = await adminApi.referralProgrammes(accessToken);
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
@@ -592,6 +606,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     adCampaignsError,
     affiliates,
     affiliatesError,
+    affiliateAttribution,
+    affiliateAttributionError,
     referralProgrammes,
     referralProgrammesError,
     riskReviews,
@@ -8483,10 +8499,14 @@ function AdsSection({
 function AffiliatesSection({
   affiliates,
   affiliatesError,
+  affiliateAttribution,
+  affiliateAttributionError,
   actionData,
 }: {
   affiliates: AdminAffiliate[];
   affiliatesError: string | null;
+  affiliateAttribution: AdminAffiliateAttribution[];
+  affiliateAttributionError: string | null;
   actionData?: AdminActionFeedback;
 }) {
   const pendingAffiliates = affiliates.filter(
@@ -8497,6 +8517,29 @@ function AffiliatesSection({
   );
   const archivedAffiliates = affiliates.filter(
     (affiliate) => affiliate.status === "archived",
+  );
+  const attributionByAffiliate = useMemo(
+    () =>
+      new Map(
+        affiliateAttribution.map((item) => [item.affiliateId, item] as const),
+      ),
+    [affiliateAttribution],
+  );
+  const totalClicks = affiliateAttribution.reduce(
+    (total, item) => total + item.clickCount,
+    0,
+  );
+  const totalConversions = affiliateAttribution.reduce(
+    (total, item) => total + item.conversionCount,
+    0,
+  );
+  const pendingCommissionMinor = affiliateAttribution.reduce(
+    (total, item) =>
+      total +
+      item.recentConversions
+        .filter((conversion) => conversion.status === "pending")
+        .reduce((subtotal, conversion) => subtotal + conversion.commissionMinor, 0),
+    0,
   );
 
   return (
@@ -8514,6 +8557,9 @@ function AffiliatesSection({
       ) : null}
       {affiliatesError ? (
         <Alert severity="warning">{affiliatesError}</Alert>
+      ) : null}
+      {affiliateAttributionError ? (
+        <Alert severity="warning">{affiliateAttributionError}</Alert>
       ) : null}
 
       <Box
@@ -8550,6 +8596,18 @@ function AffiliatesSection({
           )}
           helper="Split or transfer mode"
           trend="No held funds"
+        />
+        <MetricCard
+          label="Tracked clicks"
+          value={String(totalClicks)}
+          helper="Recorded affiliate visits"
+          trend={`${totalConversions} conversions`}
+        />
+        <MetricCard
+          label="Pending commission"
+          value={formatGHS(pendingCommissionMinor)}
+          helper="Recent pending rows"
+          trend="Awaiting approval"
         />
       </Box>
 
@@ -8664,6 +8722,7 @@ function AffiliatesSection({
           {affiliates.map((affiliate) => {
             const color = affiliateStatusColor(affiliate.status);
             const archived = affiliate.status === "archived";
+            const performance = attributionByAffiliate.get(affiliate.affiliateId);
             return (
               <Panel
                 key={affiliate.affiliateId}
@@ -8718,7 +8777,86 @@ function AffiliatesSection({
                       label="Contact"
                       value={affiliate.email || affiliate.phone || "No contact"}
                     />
+                    <DetailLine
+                      label="Tracked clicks"
+                      value={String(performance?.clickCount ?? 0)}
+                    />
+                    <DetailLine
+                      label="Conversions"
+                      value={`${performance?.conversionCount ?? 0} total · ${
+                        performance?.pendingConversionCount ?? 0
+                      } pending`}
+                    />
+                    <DetailLine
+                      label="Gross attributed"
+                      value={formatGHS(performance?.grossMinor ?? 0)}
+                    />
+                    <DetailLine
+                      label="Commission"
+                      value={formatGHS(performance?.commissionMinor ?? 0)}
+                    />
                   </Box>
+
+                  {performance?.recentConversions.length ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.info, 0.14),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.white, 0.7),
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary", fontWeight: 900 }}
+                      >
+                        Recent conversions
+                      </Typography>
+                      <Stack spacing={0.75} sx={{ mt: 1 }}>
+                        {performance.recentConversions.map((conversion) => (
+                          <Stack
+                            key={conversion.conversionId}
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                            sx={{
+                              justifyContent: "space-between",
+                              p: 1,
+                              borderRadius: 1,
+                              bgcolor: alpha(tokens.panel, 0.76),
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 900 }}>
+                                {conversion.businessName || "Unknown business"}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {shortID(conversion.orderId)} ·{" "}
+                                {conversion.attributionModel.replace("_", " ")}
+                              </Typography>
+                            </Box>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ alignItems: "center", flexWrap: "wrap" }}
+                            >
+                              <Chip
+                                size="small"
+                                label={conversion.status}
+                                variant="outlined"
+                              />
+                              <Typography sx={{ fontWeight: 900 }}>
+                                {formatGHS(conversion.commissionMinor)}
+                              </Typography>
+                            </Stack>
+                          </Stack>
+                        ))}
+                      </Stack>
+                    </Box>
+                  ) : null}
 
                   {affiliate.notes || affiliate.payoutReference ? (
                     <Box
@@ -11380,6 +11518,8 @@ export default function AdminDashboard({
     adCampaignsError,
     affiliates,
     affiliatesError,
+    affiliateAttribution,
+    affiliateAttributionError,
     referralProgrammes,
     referralProgrammesError,
     riskReviews,
@@ -11895,6 +12035,8 @@ export default function AdminDashboard({
             <AffiliatesSection
               affiliates={affiliates}
               affiliatesError={affiliatesError}
+              affiliateAttribution={affiliateAttribution}
+              affiliateAttributionError={affiliateAttributionError}
               actionData={actionFeedback}
             />
           ) : null}

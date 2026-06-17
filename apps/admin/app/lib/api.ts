@@ -321,6 +321,37 @@ export type AdminAffiliate = {
   updatedAt: string;
 };
 
+export type AdminAffiliateAttribution = {
+  affiliateId: string;
+  code: string;
+  displayName: string;
+  clickCount: number;
+  conversionCount: number;
+  pendingConversionCount: number;
+  approvedConversionCount: number;
+  settledConversionCount: number;
+  reversedConversionCount: number;
+  grossMinor: number;
+  commissionMinor: number;
+  recentConversions: AdminAffiliateConversion[];
+  lastActivityAt?: string;
+};
+
+export type AdminAffiliateConversion = {
+  conversionId: string;
+  affiliateId: string;
+  businessId: string;
+  businessName: string;
+  orderId: string;
+  grossMinor: number;
+  commissionMinor: number;
+  status: "pending" | "approved" | "settled" | "reversed";
+  attributionModel: "last_click" | "manual";
+  holdUntil?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminReferralAudience = "customers" | "businesses" | "mixed";
 export type AdminReferralRewardKind =
   | "voucher"
@@ -729,6 +760,37 @@ type AdminAffiliatePayload = {
   payout_reference: string;
   status: AdminAffiliateStatus;
   notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAffiliateAttributionPayload = {
+  affiliate_id: string;
+  code: string;
+  display_name: string;
+  click_count: number;
+  conversion_count: number;
+  pending_conversion_count: number;
+  approved_conversion_count: number;
+  settled_conversion_count: number;
+  reversed_conversion_count: number;
+  gross_minor: number;
+  commission_minor: number;
+  recent_conversions: AdminAffiliateConversionPayload[];
+  last_activity_at?: string;
+};
+
+type AdminAffiliateConversionPayload = {
+  conversion_id: string;
+  affiliate_id: string;
+  business_id: string;
+  business_name: string;
+  order_id: string;
+  gross_minor: number;
+  commission_minor: number;
+  status: AdminAffiliateConversion["status"];
+  attribution_model: AdminAffiliateConversion["attributionModel"];
+  hold_until?: string;
   created_at: string;
   updated_at: string;
 };
@@ -1196,6 +1258,45 @@ function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
     payoutReference: payload.payout_reference,
     status: payload.status,
     notes: payload.notes,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAffiliateAttribution(
+  payload: AdminAffiliateAttributionPayload,
+): AdminAffiliateAttribution {
+  return {
+    affiliateId: payload.affiliate_id,
+    code: payload.code,
+    displayName: payload.display_name,
+    clickCount: payload.click_count,
+    conversionCount: payload.conversion_count,
+    pendingConversionCount: payload.pending_conversion_count,
+    approvedConversionCount: payload.approved_conversion_count,
+    settledConversionCount: payload.settled_conversion_count,
+    reversedConversionCount: payload.reversed_conversion_count,
+    grossMinor: payload.gross_minor,
+    commissionMinor: payload.commission_minor,
+    recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
+    lastActivityAt: payload.last_activity_at,
+  };
+}
+
+function mapAffiliateConversion(
+  payload: AdminAffiliateConversionPayload,
+): AdminAffiliateConversion {
+  return {
+    conversionId: payload.conversion_id,
+    affiliateId: payload.affiliate_id,
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    orderId: payload.order_id,
+    grossMinor: payload.gross_minor,
+    commissionMinor: payload.commission_minor,
+    status: payload.status,
+    attributionModel: payload.attribution_model,
+    holdUntil: payload.hold_until,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -1832,6 +1933,15 @@ export const adminApi = {
       },
     );
     return payload.affiliates.map(mapAffiliate);
+  },
+  affiliateAttribution: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      attribution: AdminAffiliateAttributionPayload[];
+    }>("/admin/affiliate-attribution", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.attribution.map(mapAffiliateAttribution);
   },
   createAffiliate: (
     accessToken: string,

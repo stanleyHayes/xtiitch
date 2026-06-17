@@ -1605,6 +1605,44 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestAffiliateAttributionRequiresGrowthPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		affiliateAttribution: []ports.AdminAffiliateAttributionRecord{
+			fakeAdminAffiliateAttributionRecord("affiliate-1", "SEWINGPRO", "Sewing Pro Partners"),
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	records, err := service.ListAffiliateAttribution(context.Background(), ListAffiliateAttributionCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list affiliate attribution: %v", err)
+	}
+	if len(records) != 1 ||
+		records[0].Code != "SEWINGPRO" ||
+		records[0].ClickCount != 12 ||
+		records[0].ConversionCount != 2 ||
+		len(records[0].RecentConversions) != 1 {
+		t.Fatalf("unexpected affiliate attribution records: %+v", records)
+	}
+
+	_, err = service.ListAffiliateAttribution(context.Background(), ListAffiliateAttributionCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -2273,6 +2311,7 @@ type fakeAdminBusinesses struct {
 	createdAffiliate          ports.CreateAdminAffiliateInput
 	updatedAffiliate          ports.UpdateAdminAffiliateInput
 	archivedAffiliate         ports.ArchiveAdminAffiliateInput
+	affiliateAttribution      []ports.AdminAffiliateAttributionRecord
 	referralProgrammes        []ports.AdminReferralProgrammeRecord
 	createdReferralProgramme  ports.CreateAdminReferralProgrammeInput
 	updatedReferralProgramme  ports.UpdateAdminReferralProgrammeInput
@@ -2802,6 +2841,15 @@ func (repo *fakeAdminBusinesses) ListAdminAffiliates(context.Context) ([]ports.A
 	)}, nil
 }
 
+func (repo *fakeAdminBusinesses) ListAdminAffiliateAttribution(context.Context) ([]ports.AdminAffiliateAttributionRecord, error) {
+	if repo.affiliateAttribution != nil {
+		return repo.affiliateAttribution, nil
+	}
+	return []ports.AdminAffiliateAttributionRecord{
+		fakeAdminAffiliateAttributionRecord("affiliate-1", "SEWINGPRO", "Sewing Pro Partners"),
+	}, nil
+}
+
 func (repo *fakeAdminBusinesses) CreateAdminAffiliate(
 	_ context.Context,
 	input ports.CreateAdminAffiliateInput,
@@ -2866,6 +2914,41 @@ func fakeAdminAffiliateRecord(
 		Notes:            "reviewed",
 		CreatedAt:        now,
 		UpdatedAt:        now,
+	}
+}
+
+func fakeAdminAffiliateAttributionRecord(
+	affiliateID common.ID,
+	code string,
+	displayName string,
+) ports.AdminAffiliateAttributionRecord {
+	now := time.Now()
+	return ports.AdminAffiliateAttributionRecord{
+		AffiliateID:             affiliateID,
+		Code:                    code,
+		DisplayName:             displayName,
+		ClickCount:              12,
+		ConversionCount:         2,
+		PendingConversionCount:  1,
+		ApprovedConversionCount: 1,
+		GrossMinor:              25000,
+		CommissionMinor:         2500,
+		LastActivityAt:          &now,
+		RecentConversions: []ports.AdminAffiliateConversionRecord{
+			{
+				ConversionID:     "conversion-1",
+				AffiliateID:      affiliateID,
+				BusinessID:       "business-1",
+				BusinessName:     "Ama Stitches",
+				OrderID:          "order-1",
+				GrossMinor:       15000,
+				CommissionMinor:  1500,
+				Status:           "pending",
+				AttributionModel: "last_click",
+				CreatedAt:        now,
+				UpdatedAt:        now,
+			},
+		},
 	}
 }
 
