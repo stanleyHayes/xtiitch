@@ -129,6 +129,8 @@ type AdminNotificationTone = "critical" | "warning" | "info" | "success";
 type AdminNotificationCategory =
   | "verification"
   | "money"
+  | "subscriptions"
+  | "promotions"
   | "risk"
   | "support"
   | "platform"
@@ -1550,6 +1552,10 @@ function notificationCategoryLabel(
       return "Verification";
     case "money":
       return "Money rails";
+    case "subscriptions":
+      return "Subscriptions";
+    case "promotions":
+      return "Promotions";
     case "risk":
       return "Risk";
     case "support":
@@ -1608,6 +1614,8 @@ function buildAdminNotifications({
   moneyRails,
   platformMetrics,
   platformSettings,
+  subscriptions,
+  promotions,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -1616,6 +1624,8 @@ function buildAdminNotifications({
   moneyRails: AdminMoneyRails | null;
   platformMetrics: AdminPlatformMetrics | null;
   platformSettings: AdminPlatformSettings;
+  subscriptions: AdminSubscription[];
+  promotions: AdminPromotion[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -1673,6 +1683,68 @@ function buildAdminNotifications({
         source: review.subaccountRef,
         target: "money",
         targetLabel: "Review payout",
+      });
+    });
+
+  subscriptions
+    .filter((subscription) => {
+      const overDesignLimit =
+        typeof subscription.designLimit === "number" &&
+        subscription.designCount > subscription.designLimit;
+      return (
+        overDesignLimit ||
+        subscription.status === "past_due" ||
+        subscription.status === "grace_period" ||
+        subscription.status === "cancel_at_period_end"
+      );
+    })
+    .slice(0, 4)
+    .forEach((subscription) => {
+      const overDesignLimit =
+        typeof subscription.designLimit === "number" &&
+        subscription.designCount > subscription.designLimit;
+      notifications.push({
+        id: `subscription-${subscription.businessId}`,
+        tone:
+          overDesignLimit ||
+          subscription.status === "past_due" ||
+          subscription.status === "grace_period"
+            ? "critical"
+            : "warning",
+        category: "subscriptions",
+        title: overDesignLimit
+          ? `${subscription.businessName} is over plan usage`
+          : `${subscription.businessName} billing needs attention`,
+        helper: overDesignLimit
+          ? `${subscription.designCount}/${subscription.designLimit} designs on ${subscription.planName}.`
+          : `${subscriptionStatusLabel(subscription.status)} · ${billingModeLabel(subscription.billingMode)} · ${formatGHS(subscription.monthlyFeeMinor)}`,
+        meta: subscription.nextBillingAt
+          ? `Next billing ${shortTime(subscription.nextBillingAt)}`
+          : `Updated ${shortTime(subscription.updatedAt)}`,
+        source: subscription.handle,
+        target: "subscriptions",
+        targetLabel: "Open subscriptions",
+      });
+    });
+
+  promotions
+    .flatMap((promotion) =>
+      promotion.recentRedemptions
+        .filter((redemption) => redemption.status === "pending")
+        .map((redemption) => ({ promotion, redemption })),
+    )
+    .slice(0, 4)
+    .forEach(({ promotion, redemption }) => {
+      notifications.push({
+        id: `promotion-redemption-${redemption.promotionRedemptionId}`,
+        tone: "warning",
+        category: "promotions",
+        title: `${promotion.title} has a pending redemption`,
+        helper: `${redemption.customerName || "Unknown customer"} · ${formatGHS(redemption.discountMinor)} discount`,
+        meta: `Created ${shortTime(redemption.createdAt)}`,
+        source: promotion.businessName || "Platform-wide",
+        target: "promotions",
+        targetLabel: "Open promotions",
       });
     });
 
@@ -2536,6 +2608,8 @@ function NotificationsSection({
     { value: "all", label: "All" },
     { value: "verification", label: "Verification" },
     { value: "money", label: "Money" },
+    { value: "subscriptions", label: "Subscriptions" },
+    { value: "promotions", label: "Promotions" },
     { value: "risk", label: "Risk" },
     { value: "support", label: "Support" },
     { value: "platform", label: "Platform" },
@@ -8414,6 +8488,8 @@ export default function AdminDashboard({
     moneyRails,
     platformMetrics,
     platformSettings,
+    subscriptions,
+    promotions,
     riskReviews,
     supportTickets,
     auditEvents,
