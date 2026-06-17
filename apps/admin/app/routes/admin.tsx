@@ -3549,11 +3549,11 @@ function ExportsSection({
   adminBusinesses,
   verificationCases,
   moneyRails,
+  subscriptions,
+  promotions,
   riskReviews,
   supportTickets,
   auditEvents,
-  subscriptions,
-  promotions,
   onSelect,
 }: {
   platformMetrics: AdminPlatformMetrics | null;
@@ -3562,11 +3562,11 @@ function ExportsSection({
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
+  subscriptions: AdminSubscription[];
+  promotions: AdminPromotion[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
-  subscriptions: AdminSubscription[];
-  promotions: AdminPromotion[];
   onSelect: (section: Section) => void;
 }) {
   const timeOrFallback = (value?: string) => (value ? shortTime(value) : "");
@@ -4149,6 +4149,8 @@ function HealthSection({
   adminBusinesses,
   verificationCases,
   moneyRails,
+  subscriptions,
+  promotions,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -4160,6 +4162,8 @@ function HealthSection({
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
+  subscriptions: AdminSubscription[];
+  promotions: AdminPromotion[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -4191,6 +4195,27 @@ function HealthSection({
     (event) => event.severity === "critical",
   );
   const inactiveUsers = adminUsers.filter((user) => !user.isActive);
+  const subscriptionsAtRisk = subscriptions.filter(
+    (subscription) =>
+      subscription.status === "past_due" ||
+      subscription.status === "grace_period" ||
+      (typeof subscription.designLimit === "number" &&
+        subscription.designCount > subscription.designLimit),
+  );
+  const subscriptionsOnWatch = subscriptions.filter(
+    (subscription) => subscription.status === "cancel_at_period_end",
+  );
+  const activePromotions = promotions.filter(
+    (promotion) => promotion.status === "active",
+  );
+  const pendingPromotionRedemptions = promotions.reduce(
+    (total, promotion) =>
+      total +
+      promotion.recentRedemptions.filter(
+        (redemption) => redemption.status === "pending",
+      ).length,
+    0,
+  );
   const paymentHealth = platformMetrics?.paymentHealthBps ?? 0;
   const healthSignals: AdminReportItem[] = [
     {
@@ -4209,6 +4234,35 @@ function HealthSection({
             : "ready",
       target: "money",
       targetLabel: "Open money rails",
+    },
+    {
+      id: "subscriptions",
+      label: "Subscription health",
+      value: `${subscriptionsAtRisk.length} at risk`,
+      helper:
+        subscriptionsAtRisk.length > 0
+          ? "Past-due, grace-period, or over-plan businesses need follow-up."
+          : `${subscriptionsOnWatch.length} subscriptions are scheduled to cancel at period end.`,
+      status:
+        subscriptionsAtRisk.length > 0
+          ? "blocked"
+          : subscriptionsOnWatch.length > 0
+            ? "watch"
+            : "ready",
+      target: "subscriptions",
+      targetLabel: "Open subscriptions",
+    },
+    {
+      id: "promotions",
+      label: "Promotion controls",
+      value: `${activePromotions.length} active`,
+      helper:
+        pendingPromotionRedemptions > 0
+          ? `${pendingPromotionRedemptions} pending redemptions need operator review.`
+          : "No pending promotion redemptions are visible.",
+      status: pendingPromotionRedemptions > 0 ? "watch" : "ready",
+      target: "promotions",
+      targetLabel: "Open promotions",
     },
     {
       id: "kyc",
@@ -8909,11 +8963,11 @@ export default function AdminDashboard({
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
+              subscriptions={subscriptions}
+              promotions={promotions}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
-              subscriptions={subscriptions}
-              promotions={promotions}
               onSelect={setSection}
             />
           ) : null}
@@ -8926,6 +8980,8 @@ export default function AdminDashboard({
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
+              subscriptions={subscriptions}
+              promotions={promotions}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
