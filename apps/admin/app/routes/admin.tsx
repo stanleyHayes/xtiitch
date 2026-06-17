@@ -4256,6 +4256,15 @@ function planDesignLimitLabel(plan: Pick<AdminPlan, "designLimit">): string {
     : "Unlimited";
 }
 
+function subscriptionDesignUsageLabel(
+  subscription: Pick<AdminSubscription, "designCount" | "designLimit">,
+): string {
+  if (typeof subscription.designLimit === "number") {
+    return `${subscription.designCount}/${subscription.designLimit} active designs`;
+  }
+  return `${subscription.designCount} active designs`;
+}
+
 function planMonthlyFeeDefault(
   plan: Pick<AdminPlan, "monthlyFeeMinor">,
 ): string {
@@ -4483,12 +4492,19 @@ function SubscriptionsSection({
       subscription.gmvMinor >= 50000
     );
   });
+  const overDesignLimitRows = subscriptions.filter(
+    (subscription) =>
+      typeof subscription.designLimit === "number" &&
+      subscription.designCount > subscription.designLimit,
+  );
   const attentionRows = subscriptions
     .filter(
       (subscription) =>
         subscription.status === "past_due" ||
         subscription.status === "grace_period" ||
         subscription.status === "cancel_at_period_end" ||
+        (typeof subscription.designLimit === "number" &&
+          subscription.designCount > subscription.designLimit) ||
         (subscription.monthlyFeeMinor > 0 &&
           subscription.billingMode !== "recurring") ||
         (subscription.planCode === "free" && subscription.gmvMinor >= 50000),
@@ -4581,8 +4597,14 @@ function SubscriptionsSection({
         <MetricCard
           label="Lifecycle attention"
           value={String(attentionRows.length)}
-          helper="Past due, grace, manual paid billing, and upgrades"
+          helper="Past due, grace, package limits, billing, and upgrades"
           trend={pastDueCount ? `${pastDueCount} due` : "Clear"}
+        />
+        <MetricCard
+          label="Over design limit"
+          value={String(overDesignLimitRows.length)}
+          helper="Active designs above package cap"
+          trend={overDesignLimitRows.length ? "Review" : "Clear"}
         />
         <MetricCard
           label="Free upgrade candidates"
@@ -5126,6 +5148,15 @@ function SubscriptionsSection({
                               textTransform: "capitalize",
                             }}
                           />
+                          {typeof subscription.designLimit === "number" &&
+                          subscription.designCount > subscription.designLimit ? (
+                            <Chip
+                              size="small"
+                              label="Over limit"
+                              color="warning"
+                              variant="outlined"
+                            />
+                          ) : null}
                         </Stack>
                         <Typography
                           variant="body2"
@@ -5140,6 +5171,20 @@ function SubscriptionsSection({
                           {subscription.nextBillingAt
                             ? `Next billing ${shortTime(subscription.nextBillingAt)}`
                             : "No scheduled billing date"}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            mt: 0.55,
+                            color:
+                              typeof subscription.designLimit === "number" &&
+                              subscription.designCount >
+                                subscription.designLimit
+                                ? tokens.warning
+                                : "text.secondary",
+                          }}
+                        >
+                          {subscriptionDesignUsageLabel(subscription)}
                         </Typography>
                       </Box>
                       <Stack

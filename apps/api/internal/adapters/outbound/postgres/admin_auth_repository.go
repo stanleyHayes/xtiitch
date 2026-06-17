@@ -1280,6 +1280,14 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			from orders
 			group by business_id
 		),
+		design_stats as (
+			select
+				business_id,
+				count(*)::int as design_count
+			from designs
+			where status = 'active'
+			group by business_id
+		),
 		money_stats as (
 			select
 				business_id,
@@ -1320,6 +1328,7 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			coalesce(s.last_invoice_ref, ''),
 			s.last_payment_at,
 			s.next_billing_at,
+			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
 			coalesce(ms.commission_minor, 0),
@@ -1328,6 +1337,7 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 		join plans p on p.plan_id = b.plan_id
 		left join business_subscriptions s on s.business_id = b.business_id
 		left join plans sp on sp.plan_id = s.plan_id
+		left join design_stats ds on ds.business_id = b.business_id
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
@@ -1491,6 +1501,14 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			where business_id = $1::uuid
 			group by business_id
 		),
+		design_stats as (
+			select
+				business_id,
+				count(*)::int as design_count
+			from designs
+			where business_id = $1::uuid and status = 'active'
+			group by business_id
+		),
 		money_stats as (
 			select
 				business_id,
@@ -1526,6 +1544,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			s.last_invoice_ref,
 			s.last_payment_at,
 			s.next_billing_at,
+			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
 			coalesce(ms.commission_minor, 0),
@@ -1533,6 +1552,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		from updated s
 		join businesses b on b.business_id = s.business_id
 		join plans p on p.plan_id = s.plan_id
+		left join design_stats ds on ds.business_id = b.business_id
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
@@ -3068,6 +3088,7 @@ func scanAdminSubscriptionRecord(row pgx.Row) (ports.AdminSubscriptionRecord, er
 		&record.LastInvoiceRef,
 		&lastPaymentAt,
 		&nextBillingAt,
+		&record.DesignCount,
 		&record.OrdersCount,
 		&record.GMVMinor,
 		&record.CommissionMinor,
@@ -3453,6 +3474,14 @@ func getAdminSubscriptionRecordByBusiness(
 			where business_id = $1::uuid
 			group by business_id
 		),
+		design_stats as (
+			select
+				business_id,
+				count(*)::int as design_count
+			from designs
+			where business_id = $1::uuid and status = 'active'
+			group by business_id
+		),
 		money_stats as (
 			select
 				business_id,
@@ -3488,6 +3517,7 @@ func getAdminSubscriptionRecordByBusiness(
 			s.last_invoice_ref,
 			s.last_payment_at,
 			s.next_billing_at,
+			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
 			coalesce(ms.commission_minor, 0),
@@ -3495,6 +3525,7 @@ func getAdminSubscriptionRecordByBusiness(
 		from business_subscriptions s
 		join businesses b on b.business_id = s.business_id
 		join plans p on p.plan_id = s.plan_id
+		left join design_stats ds on ds.business_id = b.business_id
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (

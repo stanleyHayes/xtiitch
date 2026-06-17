@@ -297,6 +297,7 @@ type AdminSubscriptionRecord struct {
 	MonthlyFeeMinor         int64
 	CommissionBPS           int
 	DesignLimit             *int
+	DesignCount             int
 	Status                  string
 	BillingMode             string
 	Provider                string

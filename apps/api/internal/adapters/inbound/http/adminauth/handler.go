@@ -440,6 +440,7 @@ type subscriptionResponse struct {
 	MonthlyFeeMinor         int64                         `json:"monthly_fee_minor"`
 	CommissionBPS           int                           `json:"commission_bps"`
 	DesignLimit             *int                          `json:"design_limit,omitempty"`
+	DesignCount             int                           `json:"design_count"`
 	Status                  string                        `json:"status"`
 	BillingMode             string                        `json:"billing_mode"`
 	Provider                string                        `json:"provider"`
@@ -2195,6 +2196,7 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		MonthlyFeeMinor:         record.MonthlyFeeMinor,
 		CommissionBPS:           record.CommissionBPS,
 		DesignLimit:             record.DesignLimit,
+		DesignCount:             record.DesignCount,
 		Status:                  record.Status,
 		BillingMode:             record.BillingMode,
 		Provider:                record.Provider,

@@ -158,6 +158,7 @@ export type AdminSubscription = {
   monthlyFeeMinor: number;
   commissionBps: number;
   designLimit?: number;
+  designCount: number;
   status: AdminSubscriptionStatus;
   billingMode: AdminSubscriptionBillingMode;
   provider: string;
@@ -496,6 +497,7 @@ type AdminSubscriptionPayload = {
   monthly_fee_minor: number;
   commission_bps: number;
   design_limit?: number;
+  design_count?: number;
   status: AdminSubscriptionStatus;
   billing_mode: AdminSubscriptionBillingMode;
   provider: string;
@@ -858,6 +860,7 @@ function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
     monthlyFeeMinor: payload.monthly_fee_minor,
     commissionBps: payload.commission_bps,
     designLimit: payload.design_limit,
+    designCount: payload.design_count ?? 0,
     status: payload.status,
     billingMode: payload.billing_mode,
     provider: payload.provider,
