@@ -53,6 +53,10 @@ type Service interface {
 	CreatePromotion(ctx context.Context, command adminauthapp.CreatePromotionCommand) (ports.AdminPromotionRecord, error)
 	UpdatePromotion(ctx context.Context, command adminauthapp.UpdatePromotionCommand) (ports.AdminPromotionRecord, error)
 	ArchivePromotion(ctx context.Context, command adminauthapp.ArchivePromotionCommand) (ports.AdminPromotionRecord, error)
+	ListAdCampaigns(ctx context.Context, command adminauthapp.ListAdCampaignsCommand) ([]ports.AdminAdCampaignRecord, error)
+	CreateAdCampaign(ctx context.Context, command adminauthapp.CreateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
+	UpdateAdCampaign(ctx context.Context, command adminauthapp.UpdateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
+	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
@@ -107,6 +111,10 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/promotions", handler.createPromotion)
 		protected.Patch("/admin/promotions/{id}", handler.updatePromotion)
 		protected.Post("/admin/promotions/{id}/archive", handler.archivePromotion)
+		protected.Get("/admin/ad-campaigns", handler.adCampaigns)
+		protected.Post("/admin/ad-campaigns", handler.createAdCampaign)
+		protected.Patch("/admin/ad-campaigns/{id}", handler.updateAdCampaign)
+		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
@@ -264,6 +272,25 @@ type promotionUpsertRequest struct {
 }
 
 type promotionArchiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+type adCampaignUpsertRequest struct {
+	BusinessID    string     `json:"business_id"`
+	PlacementType string     `json:"placement_type"`
+	TargetRefID   string     `json:"target_ref_id"`
+	Headline      string     `json:"headline"`
+	Description   string     `json:"description"`
+	Status        string     `json:"status"`
+	PricingModel  string     `json:"pricing_model"`
+	BudgetMinor   int64      `json:"budget_minor"`
+	DailyCapMinor *int64     `json:"daily_cap_minor"`
+	StartsAt      *time.Time `json:"starts_at"`
+	EndsAt        *time.Time `json:"ends_at"`
+	ReviewNote    string     `json:"review_note"`
+}
+
+type adCampaignArchiveRequest struct {
 	Reason string `json:"reason"`
 }
 
@@ -549,6 +576,31 @@ type promotionRedemptionResponse struct {
 	RedeemedAt            string `json:"redeemed_at,omitempty"`
 	CreatedAt             string `json:"created_at"`
 	UpdatedAt             string `json:"updated_at"`
+}
+
+type adCampaignResponse struct {
+	CampaignID      string `json:"campaign_id"`
+	BusinessID      string `json:"business_id"`
+	BusinessName    string `json:"business_name"`
+	BusinessHandle  string `json:"business_handle"`
+	PlacementType   string `json:"placement_type"`
+	TargetRefID     string `json:"target_ref_id"`
+	TargetLabel     string `json:"target_label"`
+	Headline        string `json:"headline"`
+	Description     string `json:"description"`
+	Status          string `json:"status"`
+	PricingModel    string `json:"pricing_model"`
+	BudgetMinor     int64  `json:"budget_minor"`
+	SpendMinor      int64  `json:"spend_minor"`
+	DailyCapMinor   *int64 `json:"daily_cap_minor,omitempty"`
+	StartsAt        string `json:"starts_at"`
+	EndsAt          string `json:"ends_at"`
+	ImpressionCount int    `json:"impression_count"`
+	ClickCount      int    `json:"click_count"`
+	ClickRateBPS    int    `json:"click_rate_bps"`
+	ReviewNote      string `json:"review_note"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type subscriptionEventResponse struct {
@@ -1347,6 +1399,140 @@ func (handler Handler) archivePromotion(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, newPromotionResponse(record))
+}
+
+func (handler Handler) adCampaigns(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListAdCampaigns(r.Context(), adminauthapp.ListAdCampaignsCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]adCampaignResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newAdCampaignResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]adCampaignResponse{"campaigns": out})
+}
+
+func (handler Handler) createAdCampaign(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request adCampaignUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.CreateAdCampaign(r.Context(), adminauthapp.CreateAdCampaignCommand{
+		ActorUserID:   principal.AdminUserID,
+		ActorRole:     principal.Role,
+		BusinessID:    common.ID(strings.TrimSpace(request.BusinessID)),
+		PlacementType: request.PlacementType,
+		TargetRefID:   request.TargetRefID,
+		Headline:      request.Headline,
+		Description:   request.Description,
+		Status:        request.Status,
+		PricingModel:  request.PricingModel,
+		BudgetMinor:   request.BudgetMinor,
+		DailyCapMinor: request.DailyCapMinor,
+		StartsAt:      request.StartsAt,
+		EndsAt:        request.EndsAt,
+		ReviewNote:    request.ReviewNote,
+		UserAgent:     r.UserAgent(),
+		IPAddress:     requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newAdCampaignResponse(record))
+}
+
+func (handler Handler) updateAdCampaign(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request adCampaignUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.UpdateAdCampaign(r.Context(), adminauthapp.UpdateAdCampaignCommand{
+		ActorUserID:   principal.AdminUserID,
+		ActorRole:     principal.Role,
+		CampaignID:    common.ID(chi.URLParam(r, "id")),
+		BusinessID:    common.ID(strings.TrimSpace(request.BusinessID)),
+		PlacementType: request.PlacementType,
+		TargetRefID:   request.TargetRefID,
+		Headline:      request.Headline,
+		Description:   request.Description,
+		Status:        request.Status,
+		PricingModel:  request.PricingModel,
+		BudgetMinor:   request.BudgetMinor,
+		DailyCapMinor: request.DailyCapMinor,
+		StartsAt:      request.StartsAt,
+		EndsAt:        request.EndsAt,
+		ReviewNote:    request.ReviewNote,
+		UserAgent:     r.UserAgent(),
+		IPAddress:     requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAdCampaignResponse(record))
+}
+
+func (handler Handler) archiveAdCampaign(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request adCampaignArchiveRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.ArchiveAdCampaign(r.Context(), adminauthapp.ArchiveAdCampaignCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		CampaignID:  common.ID(chi.URLParam(r, "id")),
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAdCampaignResponse(record))
 }
 
 func (handler Handler) queueMoneyReplay(w http.ResponseWriter, r *http.Request) {
@@ -2416,6 +2602,33 @@ func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {
 		RecentRedemptions:     redemptions,
 		CreatedAt:             record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:             record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newAdCampaignResponse(record ports.AdminAdCampaignRecord) adCampaignResponse {
+	return adCampaignResponse{
+		CampaignID:      record.CampaignID.String(),
+		BusinessID:      record.BusinessID.String(),
+		BusinessName:    record.BusinessName,
+		BusinessHandle:  record.BusinessHandle,
+		PlacementType:   record.PlacementType,
+		TargetRefID:     record.TargetRefID,
+		TargetLabel:     record.TargetLabel,
+		Headline:        record.Headline,
+		Description:     record.Description,
+		Status:          record.Status,
+		PricingModel:    record.PricingModel,
+		BudgetMinor:     record.BudgetMinor,
+		SpendMinor:      record.SpendMinor,
+		DailyCapMinor:   record.DailyCapMinor,
+		StartsAt:        record.StartsAt.Format(time.RFC3339),
+		EndsAt:          record.EndsAt.Format(time.RFC3339),
+		ImpressionCount: record.ImpressionCount,
+		ClickCount:      record.ClickCount,
+		ClickRateBPS:    record.ClickRateBPS,
+		ReviewNote:      record.ReviewNote,
+		CreatedAt:       record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

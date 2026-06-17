@@ -32,6 +32,7 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import AssignmentTurnedInRounded from "@mui/icons-material/AssignmentTurnedInRounded";
 import BlockRounded from "@mui/icons-material/BlockRounded";
 import CancelRounded from "@mui/icons-material/CancelRounded";
+import CampaignRounded from "@mui/icons-material/CampaignRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
@@ -61,6 +62,10 @@ import type { Route } from "./+types/admin";
 import {
   AdminApiError,
   adminApi,
+  type AdminAdCampaign,
+  type AdminAdCampaignStatus,
+  type AdminAdPlacementType,
+  type AdminAdPricingModel,
   type AdminAuditEvent,
   type AdminBusiness,
   type AdminBusinessOperationalStatus,
@@ -106,6 +111,7 @@ type Section =
   | "health"
   | "subscriptions"
   | "promotions"
+  | "ads"
   | "users"
   | "roles"
   | "verification"
@@ -131,6 +137,7 @@ type AdminNotificationCategory =
   | "money"
   | "subscriptions"
   | "promotions"
+  | "ads"
   | "risk"
   | "support"
   | "platform"
@@ -234,6 +241,12 @@ const navItems: AdminNavItem[] = [
     label: "Promotions",
     helper: "Vouchers and offers",
     icon: <LocalOfferRounded />,
+  },
+  {
+    id: "ads",
+    label: "Ads",
+    helper: "Sponsored placements",
+    icon: <CampaignRounded />,
   },
   {
     id: "users",
@@ -363,6 +376,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let plansError: string | null = null;
   let promotions: AdminPromotion[] = [];
   let promotionsError: string | null = null;
+  let adCampaigns: AdminAdCampaign[] = [];
+  let adCampaignsError: string | null = null;
   let riskReviews: AdminRiskReview[] = [];
   let riskReviewError: string | null = null;
   let supportTickets: AdminSupportTicket[] = [];
@@ -452,6 +467,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
+    adCampaigns = await adminApi.adCampaigns(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      adCampaignsError = "Your role cannot manage sponsored placements.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
     riskReviews = await adminApi.riskReviews(accessToken);
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
@@ -505,6 +530,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     plansError,
     promotions,
     promotionsError,
+    adCampaigns,
+    adCampaignsError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -996,6 +1023,70 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (
+    intent === "admin-ad-campaign:create" ||
+    intent === "admin-ad-campaign:update" ||
+    intent === "admin-ad-campaign:archive"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      if (intent === "admin-ad-campaign:archive") {
+        await adminApi.archiveAdCampaign(
+          accessToken,
+          String(form.get("campaign_id") ?? ""),
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "ads",
+          severity: "success",
+          message: "Sponsored placement archived.",
+        };
+      }
+
+      const payload = {
+        businessId: String(form.get("business_id") ?? ""),
+        placementType: readAdPlacementType(form.get("placement_type")),
+        targetRefId: String(form.get("target_ref_id") ?? ""),
+        headline: String(form.get("headline") ?? ""),
+        description: String(form.get("description") ?? ""),
+        status: readAdCampaignEditableStatus(form.get("status")),
+        pricingModel: readAdPricingModel(form.get("pricing_model")),
+        budgetMinor: readGhsPesewas(form.get("budget_ghs")),
+        dailyCapMinor: readOptionalGhsPesewas(form.get("daily_cap_ghs")),
+        startsAt: readOptionalDateTime(form.get("starts_at")),
+        endsAt: readOptionalDateTime(form.get("ends_at")),
+        reviewNote: String(form.get("review_note") ?? ""),
+      };
+
+      if (intent === "admin-ad-campaign:create") {
+        await adminApi.createAdCampaign(accessToken, payload);
+        return {
+          section: "ads",
+          severity: "success",
+          message: "Sponsored placement created.",
+        };
+      }
+
+      await adminApi.updateAdCampaign(
+        accessToken,
+        String(form.get("campaign_id") ?? ""),
+        payload,
+      );
+      return {
+        section: "ads",
+        severity: "success",
+        message: "Sponsored placement updated.",
+      };
+    } catch (error) {
+      return {
+        section: "ads",
+        severity: "error",
+        message: adminAdCampaignActionError(error),
+      };
+    }
+  }
+
   if (intent === "admin-risk-review:update") {
     const { accessToken } = await requireAdminContext(request);
     const status = readRiskReviewStatus(form.get("status"));
@@ -1182,6 +1273,36 @@ function readPromotionEditableStatus(
   value: FormDataEntryValue | null,
 ): Exclude<AdminPromotionStatus, "archived"> {
   return String(value ?? "") === "paused" ? "paused" : "active";
+}
+
+function readAdPlacementType(
+  value: FormDataEntryValue | null,
+): AdminAdPlacementType {
+  const placement = String(value ?? "");
+  if (placement === "promoted_design" || placement === "homepage_hero") {
+    return placement;
+  }
+  return "featured_business";
+}
+
+function readAdCampaignEditableStatus(
+  value: FormDataEntryValue | null,
+): Exclude<AdminAdCampaignStatus, "archived"> {
+  const status = String(value ?? "");
+  if (
+    status === "active" ||
+    status === "paused" ||
+    status === "completed"
+  ) {
+    return status;
+  }
+  return "pending_review";
+}
+
+function readAdPricingModel(
+  _value: FormDataEntryValue | null,
+): AdminAdPricingModel {
+  return "flat_time";
 }
 
 function readPromotionDiscountValue(
@@ -1438,6 +1559,22 @@ function adminPromotionActionError(error: unknown): string {
     }
   }
   return "The promotion change could not be saved.";
+}
+
+function adminAdCampaignActionError(error: unknown): string {
+  if (error instanceof AdminApiError) {
+    switch (error.code) {
+      case "forbidden":
+        return "Your role cannot manage sponsored placements.";
+      case "invalid_input":
+        return "Check the business, placement, headline, budget, and date window.";
+      case "not_found":
+        return "That campaign or eligible verified business could not be found.";
+      default:
+        return "The sponsored placement change could not be saved.";
+    }
+  }
+  return "The sponsored placement change could not be saved.";
 }
 
 function adminRiskActionError(error: unknown): string {
@@ -4817,6 +4954,22 @@ const promotionStatusOptions: {
   { value: "paused", label: "Paused" },
 ];
 
+const adPlacementOptions: { value: AdminAdPlacementType; label: string }[] = [
+  { value: "featured_business", label: "Featured business" },
+  { value: "promoted_design", label: "Promoted design" },
+  { value: "homepage_hero", label: "Homepage hero" },
+];
+
+const adCampaignStatusOptions: {
+  value: Exclude<AdminAdCampaignStatus, "archived">;
+  label: string;
+}[] = [
+  { value: "pending_review", label: "Pending review" },
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+  { value: "completed", label: "Completed" },
+];
+
 function subscriptionStatusLabel(status: AdminSubscriptionStatus): string {
   return (
     subscriptionStatusOptions.find((option) => option.value === status)
@@ -4891,6 +5044,33 @@ function promotionValueDefault(promotion: AdminPromotion): string {
     return (promotion.discountValue / 100).toString();
   }
   return (promotion.discountValue / 100).toFixed(2);
+}
+
+function adCampaignStatusLabel(status: AdminAdCampaignStatus): string {
+  return (
+    adCampaignStatusOptions.find((option) => option.value === status)?.label ??
+    (status === "archived" ? "Archived" : status)
+  );
+}
+
+function adPlacementLabel(value: AdminAdPlacementType): string {
+  return (
+    adPlacementOptions.find((option) => option.value === value)?.label ?? value
+  );
+}
+
+function adCampaignStatusColor(status: AdminAdCampaignStatus): string {
+  switch (status) {
+    case "active":
+      return tokens.success;
+    case "pending_review":
+    case "paused":
+      return tokens.warning;
+    case "completed":
+      return tokens.info;
+    default:
+      return tokens.mutedText;
+  }
 }
 
 function moneyInputDefault(value?: number): string {
@@ -6735,6 +6915,633 @@ function PromotionsSection({
                         name="reason"
                         size="small"
                         placeholder="Campaign ended"
+                        fullWidth
+                        disabled={archived}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        color="warning"
+                        disabled={archived}
+                        sx={{ minWidth: { sm: 140 } }}
+                      >
+                        Archive
+                      </Button>
+                    </Stack>
+                  </Form>
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
+function AdsSection({
+  campaigns,
+  adCampaignsError,
+  businesses,
+  actionData,
+}: {
+  campaigns: AdminAdCampaign[];
+  adCampaignsError: string | null;
+  businesses: AdminBusiness[];
+  actionData?: AdminActionFeedback;
+}) {
+  const eligibleBusinesses = businesses.filter(
+    (business) =>
+      business.verificationStatus === "verified" &&
+      business.operationalStatus === "active",
+  );
+  const pendingCampaigns = campaigns.filter(
+    (campaign) => campaign.status === "pending_review",
+  );
+  const activeCampaigns = campaigns.filter(
+    (campaign) => campaign.status === "active",
+  );
+  const completedCampaigns = campaigns.filter(
+    (campaign) => campaign.status === "completed",
+  );
+  const bookedMinor = campaigns.reduce(
+    (total, campaign) => total + campaign.budgetMinor,
+    0,
+  );
+  const impressions = campaigns.reduce(
+    (total, campaign) => total + campaign.impressionCount,
+    0,
+  );
+  const clicks = campaigns.reduce(
+    (total, campaign) => total + campaign.clickCount,
+    0,
+  );
+
+  return (
+    <Stack spacing={2.5}>
+      <SectionHeader
+        eyebrow="Growth controls"
+        title="Sponsored placements"
+        helper="Review paid featured businesses, promoted designs, homepage slots, date windows, and prepaid budgets."
+      />
+
+      {actionData?.section === "ads" && actionData.message ? (
+        <Alert severity={actionData.severity ?? "success"}>
+          {actionData.message}
+        </Alert>
+      ) : null}
+      {adCampaignsError ? (
+        <Alert severity="warning">{adCampaignsError}</Alert>
+      ) : null}
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" },
+        }}
+      >
+        <MetricCard
+          label="Pending review"
+          value={String(pendingCampaigns.length)}
+          helper="Needs operator decision"
+          trend={`${campaigns.length} total campaigns`}
+        />
+        <MetricCard
+          label="Active placements"
+          value={String(activeCampaigns.length)}
+          helper="Visible inside active windows"
+          trend={`${completedCampaigns.length} completed`}
+        />
+        <MetricCard
+          label="Booked budget"
+          value={formatGHS(bookedMinor)}
+          helper="Prepaid campaign value"
+          trend="Flat-time v1"
+        />
+        <MetricCard
+          label="Engagement"
+          value={formatPercentBps(impressions > 0 ? (clicks / impressions) * 10000 : 0)}
+          helper={`${impressions} impressions · ${clicks} clicks`}
+          trend="Server event rollup"
+        />
+      </Box>
+
+      {!adCampaignsError ? (
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-ad-campaign:create"
+            />
+            <input type="hidden" name="pricing_model" value="flat_time" />
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                sx={{ justifyContent: "space-between" }}
+              >
+                <Box>
+                  <Typography variant="h6">Create placement</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Only verified active businesses can be selected.
+                  </Typography>
+                </Box>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<CampaignRounded />}
+                  disabled={eligibleBusinesses.length === 0}
+                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                >
+                  Create placement
+                </Button>
+              </Stack>
+              {eligibleBusinesses.length === 0 ? (
+                <Alert severity="info">
+                  No verified active businesses are eligible for sponsored
+                  placement yet.
+                </Alert>
+              ) : null}
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "repeat(2, minmax(0, 1fr))",
+                    xl: "1.2fr 1fr 1fr 1fr",
+                  },
+                }}
+              >
+                <TextField
+                  select
+                  label="Business"
+                  name="business_id"
+                  size="small"
+                  required
+                  disabled={eligibleBusinesses.length === 0}
+                  defaultValue={eligibleBusinesses[0]?.id ?? ""}
+                >
+                  {eligibleBusinesses.map((business) => (
+                    <MenuItem key={business.id} value={business.id}>
+                      {business.name} · {business.handle}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Placement"
+                  name="placement_type"
+                  size="small"
+                  defaultValue="featured_business"
+                >
+                  {adPlacementOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Target ref"
+                  name="target_ref_id"
+                  size="small"
+                  placeholder="Design ID when promoted design"
+                />
+                <TextField
+                  select
+                  label="Status"
+                  name="status"
+                  size="small"
+                  defaultValue="pending_review"
+                >
+                  {adCampaignStatusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Headline"
+                  name="headline"
+                  size="small"
+                  required
+                />
+                <TextField
+                  label="Budget"
+                  name="budget_ghs"
+                  type="number"
+                  size="small"
+                  defaultValue="0.00"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">GHS</InputAdornment>
+                      ),
+                    },
+                    htmlInput: { min: 0, step: "0.01" },
+                  }}
+                />
+                <TextField
+                  label="Daily cap"
+                  name="daily_cap_ghs"
+                  type="number"
+                  size="small"
+                  placeholder="Optional"
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">GHS</InputAdornment>
+                      ),
+                    },
+                    htmlInput: { min: 0, step: "0.01" },
+                  }}
+                />
+                <TextField
+                  label="Starts"
+                  name="starts_at"
+                  type="datetime-local"
+                  size="small"
+                  required
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  label="Ends"
+                  name="ends_at"
+                  type="datetime-local"
+                  size="small"
+                  required
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <TextField
+                  label="Description"
+                  name="description"
+                  multiline
+                  minRows={2}
+                  size="small"
+                />
+                <TextField
+                  label="Review note"
+                  name="review_note"
+                  multiline
+                  minRows={2}
+                  size="small"
+                />
+              </Box>
+            </Stack>
+          </Form>
+        </Panel>
+      ) : null}
+
+      {!adCampaignsError && campaigns.length === 0 ? (
+        <Alert severity="info">
+          No sponsored placement campaigns are configured yet.
+        </Alert>
+      ) : null}
+
+      {!adCampaignsError && campaigns.length > 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+            alignItems: "start",
+          }}
+        >
+          {campaigns.map((campaign) => {
+            const archived = campaign.status === "archived";
+            const color = adCampaignStatusColor(campaign.status);
+            return (
+              <Panel
+                key={campaign.campaignId}
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  borderColor: alpha(color, archived ? 0.12 : 0.2),
+                  backgroundImage: `linear-gradient(180deg, ${alpha(
+                    color,
+                    archived ? 0.035 : 0.075,
+                  )}, transparent 42%)`,
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.25}
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: { sm: "flex-start" },
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography variant="h6">{campaign.headline}</Typography>
+                        <Chip
+                          size="small"
+                          label={adPlacementLabel(campaign.placementType)}
+                          variant="outlined"
+                        />
+                      </Stack>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.5, color: "text.secondary" }}
+                      >
+                        {campaign.businessName} · {campaign.businessHandle}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={adCampaignStatusLabel(campaign.status)}
+                      sx={{
+                        bgcolor: alpha(color, 0.12),
+                        color,
+                        fontWeight: 900,
+                      }}
+                    />
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+                    }}
+                  >
+                    <DetailLine label="Target" value={campaign.targetLabel} />
+                    <DetailLine
+                      label="Budget"
+                      value={`${formatGHS(campaign.spendMinor)} spent / ${formatGHS(
+                        campaign.budgetMinor,
+                      )}`}
+                    />
+                    <DetailLine
+                      label="Daily cap"
+                      value={
+                        typeof campaign.dailyCapMinor === "number"
+                          ? formatGHS(campaign.dailyCapMinor)
+                          : "No cap"
+                      }
+                    />
+                    <DetailLine
+                      label="Window"
+                      value={`${shortTime(campaign.startsAt)} - ${shortTime(
+                        campaign.endsAt,
+                      )}`}
+                    />
+                    <DetailLine
+                      label="Impressions"
+                      value={`${campaign.impressionCount} views`}
+                    />
+                    <DetailLine
+                      label="Clicks"
+                      value={`${campaign.clickCount} · ${formatPercentBps(
+                        campaign.clickRateBps,
+                      )}`}
+                    />
+                  </Box>
+
+                  {campaign.description || campaign.reviewNote ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.ink, 0.08),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.white, 0.7),
+                      }}
+                    >
+                      {campaign.description ? (
+                        <Typography sx={{ overflowWrap: "anywhere" }}>
+                          {campaign.description}
+                        </Typography>
+                      ) : null}
+                      {campaign.reviewNote ? (
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 0.5, color: "text.secondary" }}
+                        >
+                          Review: {campaign.reviewNote}
+                        </Typography>
+                      ) : null}
+                    </Box>
+                  ) : null}
+
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-ad-campaign:update"
+                    />
+                    <input
+                      type="hidden"
+                      name="campaign_id"
+                      value={campaign.campaignId}
+                    />
+                    <input type="hidden" name="pricing_model" value="flat_time" />
+                    <Stack spacing={1.25}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            md: "repeat(2, minmax(0, 1fr))",
+                          },
+                        }}
+                      >
+                        <TextField
+                          select
+                          label="Business"
+                          name="business_id"
+                          size="small"
+                          defaultValue={campaign.businessId}
+                          disabled={archived}
+                        >
+                          {!eligibleBusinesses.some(
+                            (business) => business.id === campaign.businessId,
+                          ) ? (
+                            <MenuItem value={campaign.businessId}>
+                              {campaign.businessName} · {campaign.businessHandle}
+                            </MenuItem>
+                          ) : null}
+                          {eligibleBusinesses.map((business) => (
+                            <MenuItem key={business.id} value={business.id}>
+                              {business.name} · {business.handle}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Placement"
+                          name="placement_type"
+                          size="small"
+                          defaultValue={campaign.placementType}
+                          disabled={archived}
+                        >
+                          {adPlacementOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Target ref"
+                          name="target_ref_id"
+                          size="small"
+                          defaultValue={campaign.targetRefId}
+                          disabled={archived}
+                        />
+                        <TextField
+                          select
+                          label="Status"
+                          name="status"
+                          size="small"
+                          defaultValue={
+                            campaign.status === "archived"
+                              ? "paused"
+                              : campaign.status
+                          }
+                          disabled={archived}
+                        >
+                          {adCampaignStatusOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Headline"
+                          name="headline"
+                          size="small"
+                          defaultValue={campaign.headline}
+                          required
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Budget"
+                          name="budget_ghs"
+                          type="number"
+                          size="small"
+                          defaultValue={moneyInputDefault(campaign.budgetMinor)}
+                          disabled={archived}
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  GHS
+                                </InputAdornment>
+                              ),
+                            },
+                            htmlInput: { min: 0, step: "0.01" },
+                          }}
+                        />
+                        <TextField
+                          label="Daily cap"
+                          name="daily_cap_ghs"
+                          type="number"
+                          size="small"
+                          defaultValue={moneyInputDefault(
+                            campaign.dailyCapMinor,
+                          )}
+                          disabled={archived}
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  GHS
+                                </InputAdornment>
+                              ),
+                            },
+                            htmlInput: { min: 0, step: "0.01" },
+                          }}
+                        />
+                        <TextField
+                          label="Starts"
+                          name="starts_at"
+                          type="datetime-local"
+                          size="small"
+                          defaultValue={datetimeLocalDefault(campaign.startsAt)}
+                          required
+                          disabled={archived}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                        <TextField
+                          label="Ends"
+                          name="ends_at"
+                          type="datetime-local"
+                          size="small"
+                          defaultValue={datetimeLocalDefault(campaign.endsAt)}
+                          required
+                          disabled={archived}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                        }}
+                      >
+                        <TextField
+                          label="Description"
+                          name="description"
+                          multiline
+                          minRows={2}
+                          size="small"
+                          defaultValue={campaign.description}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Review note"
+                          name="review_note"
+                          multiline
+                          minRows={2}
+                          size="small"
+                          defaultValue={campaign.reviewNote}
+                          disabled={archived}
+                        />
+                      </Box>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={archived}
+                        sx={{ alignSelf: "flex-start" }}
+                      >
+                        Save placement
+                      </Button>
+                    </Stack>
+                  </Form>
+
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-ad-campaign:archive"
+                    />
+                    <input
+                      type="hidden"
+                      name="campaign_id"
+                      value={campaign.campaignId}
+                    />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        label="Archive reason"
+                        name="reason"
+                        size="small"
+                        placeholder="Placement completed"
                         fullWidth
                         disabled={archived}
                       />
@@ -8698,6 +9505,8 @@ export default function AdminDashboard({
     plansError,
     promotions,
     promotionsError,
+    adCampaigns,
+    adCampaignsError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -8716,6 +9525,7 @@ export default function AdminDashboard({
       actionFeedback?.section === "health" ||
       actionFeedback?.section === "subscriptions" ||
       actionFeedback?.section === "promotions" ||
+      actionFeedback?.section === "ads" ||
       actionFeedback?.section === "verification" ||
       actionFeedback?.section === "businesses" ||
       actionFeedback?.section === "money" ||
@@ -9178,6 +9988,15 @@ export default function AdminDashboard({
             <PromotionsSection
               promotions={promotions}
               promotionsError={promotionsError}
+              businesses={adminBusinesses}
+              actionData={actionFeedback}
+            />
+          ) : null}
+
+          {section === "ads" ? (
+            <AdsSection
+              campaigns={adCampaigns}
+              adCampaignsError={adCampaignsError}
               businesses={adminBusinesses}
               actionData={actionFeedback}
             />

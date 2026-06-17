@@ -251,6 +251,43 @@ export type AdminPromotion = {
   updatedAt: string;
 };
 
+export type AdminAdPlacementType =
+  | "featured_business"
+  | "promoted_design"
+  | "homepage_hero";
+export type AdminAdCampaignStatus =
+  | "pending_review"
+  | "active"
+  | "paused"
+  | "completed"
+  | "archived";
+export type AdminAdPricingModel = "flat_time";
+
+export type AdminAdCampaign = {
+  campaignId: string;
+  businessId: string;
+  businessName: string;
+  businessHandle: string;
+  placementType: AdminAdPlacementType;
+  targetRefId: string;
+  targetLabel: string;
+  headline: string;
+  description: string;
+  status: AdminAdCampaignStatus;
+  pricingModel: AdminAdPricingModel;
+  budgetMinor: number;
+  spendMinor: number;
+  dailyCapMinor?: number;
+  startsAt: string;
+  endsAt: string;
+  impressionCount: number;
+  clickCount: number;
+  clickRateBps: number;
+  reviewNote: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminAuditSeverity = "info" | "warning" | "critical";
 
 export type AdminVerificationStatus =
@@ -581,6 +618,31 @@ type AdminPromotionPayload = {
     created_at: string;
     updated_at: string;
   }[];
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAdCampaignPayload = {
+  campaign_id: string;
+  business_id: string;
+  business_name: string;
+  business_handle: string;
+  placement_type: AdminAdPlacementType;
+  target_ref_id: string;
+  target_label: string;
+  headline: string;
+  description: string;
+  status: AdminAdCampaignStatus;
+  pricing_model: AdminAdPricingModel;
+  budget_minor: number;
+  spend_minor: number;
+  daily_cap_minor?: number;
+  starts_at: string;
+  ends_at: string;
+  impression_count: number;
+  click_count: number;
+  click_rate_bps: number;
+  review_note: string;
   created_at: string;
   updated_at: string;
 };
@@ -979,6 +1041,33 @@ function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
       createdAt: redemption.created_at,
       updatedAt: redemption.updated_at,
     })),
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAdCampaign(payload: AdminAdCampaignPayload): AdminAdCampaign {
+  return {
+    campaignId: payload.campaign_id,
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    businessHandle: payload.business_handle,
+    placementType: payload.placement_type,
+    targetRefId: payload.target_ref_id,
+    targetLabel: payload.target_label,
+    headline: payload.headline,
+    description: payload.description,
+    status: payload.status,
+    pricingModel: payload.pricing_model,
+    budgetMinor: payload.budget_minor,
+    spendMinor: payload.spend_minor,
+    dailyCapMinor: payload.daily_cap_minor,
+    startsAt: payload.starts_at,
+    endsAt: payload.ends_at,
+    impressionCount: payload.impression_count,
+    clickCount: payload.click_count,
+    clickRateBps: payload.click_rate_bps,
+    reviewNote: payload.review_note,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -1485,6 +1574,103 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapPromotion),
+  adCampaigns: async (accessToken: string) => {
+    const payload = await requestJSON<{ campaigns: AdminAdCampaignPayload[] }>(
+      "/admin/ad-campaigns",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.campaigns.map(mapAdCampaign);
+  },
+  createAdCampaign: (
+    accessToken: string,
+    input: {
+      businessId: string;
+      placementType: AdminAdPlacementType;
+      targetRefId: string;
+      headline: string;
+      description: string;
+      status: Exclude<AdminAdCampaignStatus, "archived">;
+      pricingModel: AdminAdPricingModel;
+      budgetMinor: number;
+      dailyCapMinor?: number;
+      startsAt?: string;
+      endsAt?: string;
+      reviewNote: string;
+    },
+  ) =>
+    requestJSON<AdminAdCampaignPayload>("/admin/ad-campaigns", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        business_id: input.businessId,
+        placement_type: input.placementType,
+        target_ref_id: input.targetRefId,
+        headline: input.headline,
+        description: input.description,
+        status: input.status,
+        pricing_model: input.pricingModel,
+        budget_minor: input.budgetMinor,
+        daily_cap_minor: input.dailyCapMinor,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        review_note: input.reviewNote,
+      }),
+    }).then(mapAdCampaign),
+  updateAdCampaign: (
+    accessToken: string,
+    campaignId: string,
+    input: {
+      businessId: string;
+      placementType: AdminAdPlacementType;
+      targetRefId: string;
+      headline: string;
+      description: string;
+      status: Exclude<AdminAdCampaignStatus, "archived">;
+      pricingModel: AdminAdPricingModel;
+      budgetMinor: number;
+      dailyCapMinor?: number;
+      startsAt?: string;
+      endsAt?: string;
+      reviewNote: string;
+    },
+  ) =>
+    requestJSON<AdminAdCampaignPayload>(
+      `/admin/ad-campaigns/${encodeURIComponent(campaignId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          business_id: input.businessId,
+          placement_type: input.placementType,
+          target_ref_id: input.targetRefId,
+          headline: input.headline,
+          description: input.description,
+          status: input.status,
+          pricing_model: input.pricingModel,
+          budget_minor: input.budgetMinor,
+          daily_cap_minor: input.dailyCapMinor,
+          starts_at: input.startsAt,
+          ends_at: input.endsAt,
+          review_note: input.reviewNote,
+        }),
+      },
+    ).then(mapAdCampaign),
+  archiveAdCampaign: (
+    accessToken: string,
+    campaignId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminAdCampaignPayload>(
+      `/admin/ad-campaigns/${encodeURIComponent(campaignId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapAdCampaign),
   queueMoneyReplay: (
     accessToken: string,
     input: { providerReference: string; reason: string },

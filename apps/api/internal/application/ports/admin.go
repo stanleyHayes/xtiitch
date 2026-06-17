@@ -52,6 +52,10 @@ type AdminBusinessRepository interface {
 	CreateAdminPromotion(ctx context.Context, input CreateAdminPromotionInput) (AdminPromotionRecord, error)
 	UpdateAdminPromotion(ctx context.Context, input UpdateAdminPromotionInput) (AdminPromotionRecord, error)
 	ArchiveAdminPromotion(ctx context.Context, input ArchiveAdminPromotionInput) (AdminPromotionRecord, error)
+	ListAdminAdCampaigns(ctx context.Context) ([]AdminAdCampaignRecord, error)
+	CreateAdminAdCampaign(ctx context.Context, input CreateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
+	UpdateAdminAdCampaign(ctx context.Context, input UpdateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
+	ArchiveAdminAdCampaign(ctx context.Context, input ArchiveAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
@@ -519,6 +523,70 @@ type UpdateAdminPromotionInput struct {
 
 type ArchiveAdminPromotionInput struct {
 	PromotionID    common.ID
+	ActorAdminUser common.ID
+}
+
+type AdminAdCampaignRecord struct {
+	CampaignID      common.ID
+	BusinessID      common.ID
+	BusinessName    string
+	BusinessHandle  string
+	PlacementType   string
+	TargetRefID     string
+	TargetLabel     string
+	Headline        string
+	Description     string
+	Status          string
+	PricingModel    string
+	BudgetMinor     int64
+	SpendMinor      int64
+	DailyCapMinor   *int64
+	StartsAt        time.Time
+	EndsAt          time.Time
+	ImpressionCount int
+	ClickCount      int
+	ClickRateBPS    int
+	ReviewNote      string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type CreateAdminAdCampaignInput struct {
+	CampaignID     common.ID
+	BusinessID     common.ID
+	PlacementType  string
+	TargetRefID    string
+	Headline       string
+	Description    string
+	Status         string
+	PricingModel   string
+	BudgetMinor    int64
+	DailyCapMinor  *int64
+	StartsAt       time.Time
+	EndsAt         time.Time
+	ReviewNote     string
+	ActorAdminUser common.ID
+}
+
+type UpdateAdminAdCampaignInput struct {
+	CampaignID     common.ID
+	BusinessID     common.ID
+	PlacementType  string
+	TargetRefID    string
+	Headline       string
+	Description    string
+	Status         string
+	PricingModel   string
+	BudgetMinor    int64
+	DailyCapMinor  *int64
+	StartsAt       time.Time
+	EndsAt         time.Time
+	ReviewNote     string
+	ActorAdminUser common.ID
+}
+
+type ArchiveAdminAdCampaignInput struct {
+	CampaignID     common.ID
 	ActorAdminUser common.ID
 }
 
