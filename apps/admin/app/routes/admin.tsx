@@ -3408,6 +3408,7 @@ function ExportsSection({
   riskReviews,
   supportTickets,
   auditEvents,
+  subscriptions,
   promotions,
   onSelect,
 }: {
@@ -3420,6 +3421,7 @@ function ExportsSection({
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
+  subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   onSelect: (section: Section) => void;
 }) {
@@ -3709,6 +3711,54 @@ function ExportsSection({
           user.isActive ? "Active" : "Inactive",
           timeOrFallback(user.createdAt),
           timeOrFallback(user.updatedAt),
+        ]),
+      ],
+    },
+    {
+      id: "subscriptions",
+      title: "Subscriptions",
+      helper: "Plan, billing state, invoices, usage, and renewal timing.",
+      source: "subscriptions",
+      sourceLabel: "Open subscriptions",
+      tone: subscriptions.some(
+        (subscription) =>
+          subscription.status === "past_due" ||
+          subscription.status === "grace_period",
+      )
+        ? "blocked"
+        : subscriptions.some(
+              (subscription) =>
+                subscription.status === "cancel_at_period_end" ||
+                subscription.status === "canceled",
+            )
+          ? "watch"
+          : "ready",
+      rows: [
+        [
+          "Business",
+          "Handle",
+          "Plan",
+          "Status",
+          "Billing mode",
+          "Monthly fee",
+          "Design usage",
+          "Last invoice",
+          "Last payment",
+          "Next billing",
+        ],
+        ...subscriptions.map((subscription) => [
+          subscription.businessName,
+          subscription.handle,
+          subscription.planName,
+          subscriptionStatusLabel(subscription.status),
+          billingModeLabel(subscription.billingMode),
+          formatGHS(subscription.monthlyFeeMinor),
+          typeof subscription.designLimit === "number"
+            ? `${subscription.designCount}/${subscription.designLimit}`
+            : `${subscription.designCount}/unlimited`,
+          subscription.lastInvoiceRef,
+          timeOrFallback(subscription.lastPaymentAt),
+          timeOrFallback(subscription.nextBillingAt),
         ]),
       ],
     },
@@ -8714,6 +8764,7 @@ export default function AdminDashboard({
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
+              subscriptions={subscriptions}
               promotions={promotions}
               onSelect={setSection}
             />
