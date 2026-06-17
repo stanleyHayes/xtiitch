@@ -32,6 +32,8 @@ export type AdminPreferences = {
   notifySms: boolean;
   alertVerifications: boolean;
   alertMoneyRails: boolean;
+  alertSubscriptions: boolean;
+  alertPromotions: boolean;
   alertRisk: boolean;
   alertSupport: boolean;
   dailyDigestTime: string;
@@ -383,6 +385,8 @@ type AdminPreferencesPayload = {
   notify_sms: boolean;
   alert_verifications: boolean;
   alert_money_rails: boolean;
+  alert_subscriptions: boolean;
+  alert_promotions: boolean;
   alert_risk: boolean;
   alert_support: boolean;
   daily_digest_time: string;
@@ -773,6 +777,8 @@ function mapPreferences(payload: AdminPreferencesPayload): AdminPreferences {
     notifySms: payload.notify_sms,
     alertVerifications: payload.alert_verifications,
     alertMoneyRails: payload.alert_money_rails,
+    alertSubscriptions: payload.alert_subscriptions,
+    alertPromotions: payload.alert_promotions,
     alertRisk: payload.alert_risk,
     alertSupport: payload.alert_support,
     dailyDigestTime: payload.daily_digest_time,
@@ -1146,6 +1152,8 @@ export const adminApi = {
       notifySms: boolean;
       alertVerifications: boolean;
       alertMoneyRails: boolean;
+      alertSubscriptions: boolean;
+      alertPromotions: boolean;
       alertRisk: boolean;
       alertSupport: boolean;
       dailyDigestTime: string;
@@ -1161,6 +1169,8 @@ export const adminApi = {
         notify_sms: input.notifySms,
         alert_verifications: input.alertVerifications,
         alert_money_rails: input.alertMoneyRails,
+        alert_subscriptions: input.alertSubscriptions,
+        alert_promotions: input.alertPromotions,
         alert_risk: input.alertRisk,
         alert_support: input.alertSupport,
         daily_digest_time: input.dailyDigestTime,

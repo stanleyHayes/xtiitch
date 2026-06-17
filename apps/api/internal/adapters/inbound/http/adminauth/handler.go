@@ -167,6 +167,8 @@ type updatePreferencesRequest struct {
 	NotifySMS          bool   `json:"notify_sms"`
 	AlertVerifications bool   `json:"alert_verifications"`
 	AlertMoneyRails    bool   `json:"alert_money_rails"`
+	AlertSubscriptions bool   `json:"alert_subscriptions"`
+	AlertPromotions    bool   `json:"alert_promotions"`
 	AlertRisk          bool   `json:"alert_risk"`
 	AlertSupport       bool   `json:"alert_support"`
 	DailyDigestTime    string `json:"daily_digest_time"`
@@ -304,6 +306,8 @@ type adminPreferencesResponse struct {
 	NotifySMS          bool   `json:"notify_sms"`
 	AlertVerifications bool   `json:"alert_verifications"`
 	AlertMoneyRails    bool   `json:"alert_money_rails"`
+	AlertSubscriptions bool   `json:"alert_subscriptions"`
+	AlertPromotions    bool   `json:"alert_promotions"`
 	AlertRisk          bool   `json:"alert_risk"`
 	AlertSupport       bool   `json:"alert_support"`
 	DailyDigestTime    string `json:"daily_digest_time"`
@@ -753,6 +757,8 @@ func (handler Handler) updatePreferences(w http.ResponseWriter, r *http.Request)
 		NotifySMS:          request.NotifySMS,
 		AlertVerifications: request.AlertVerifications,
 		AlertMoneyRails:    request.AlertMoneyRails,
+		AlertSubscriptions: request.AlertSubscriptions,
+		AlertPromotions:    request.AlertPromotions,
 		AlertRisk:          request.AlertRisk,
 		AlertSupport:       request.AlertSupport,
 		DailyDigestTime:    request.DailyDigestTime,
@@ -1805,6 +1811,8 @@ func (handler Handler) exportDatasetRows(
 			{"Notification preferences", "Daily digest", preferences.DailyDigestTime, preferences.Timezone},
 			{"Notification preferences", "Verification alerts", boolCSV(preferences.AlertVerifications, "Watched", "Muted"), "Business verification queue"},
 			{"Notification preferences", "Money rail alerts", boolCSV(preferences.AlertMoneyRails, "Watched", "Muted"), "Payment, payout, and webhook queue"},
+			{"Notification preferences", "Subscription alerts", boolCSV(preferences.AlertSubscriptions, "Watched", "Muted"), "Subscription billing and plan usage"},
+			{"Notification preferences", "Promotion alerts", boolCSV(preferences.AlertPromotions, "Watched", "Muted"), "Promotion redemption activity"},
 			{"Notification preferences", "Risk alerts", boolCSV(preferences.AlertRisk, "Watched", "Muted"), "Risk review queue"},
 			{"Notification preferences", "Support alerts", boolCSV(preferences.AlertSupport, "Watched", "Muted"), "Support queue"},
 			{"Platform policy", "Platform name", settings.PlatformName, settings.SupportEmail},
@@ -2099,6 +2107,8 @@ func newPreferencesResponse(preferences ports.AdminPreferencesRecord) adminPrefe
 		NotifySMS:          preferences.NotifySMS,
 		AlertVerifications: preferences.AlertVerifications,
 		AlertMoneyRails:    preferences.AlertMoneyRails,
+		AlertSubscriptions: preferences.AlertSubscriptions,
+		AlertPromotions:    preferences.AlertPromotions,
 		AlertRisk:          preferences.AlertRisk,
 		AlertSupport:       preferences.AlertSupport,
 		DailyDigestTime:    preferences.DailyDigestTime,

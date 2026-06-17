@@ -604,6 +604,8 @@ export async function action({ request }: Route.ActionArgs) {
           notifySms: readBoolean(form, "notify_sms"),
           alertVerifications: readBoolean(form, "alert_verifications"),
           alertMoneyRails: readBoolean(form, "alert_money_rails"),
+          alertSubscriptions: readBoolean(form, "alert_subscriptions"),
+          alertPromotions: readBoolean(form, "alert_promotions"),
           alertRisk: readBoolean(form, "alert_risk"),
           alertSupport: readBoolean(form, "alert_support"),
           dailyDigestTime: String(form.get("daily_digest_time") ?? ""),
@@ -1582,6 +1584,10 @@ function notificationCategoryWatched(
       return preferences.alertVerifications;
     case "money":
       return preferences.alertMoneyRails;
+    case "subscriptions":
+      return preferences.alertSubscriptions;
+    case "promotions":
+      return preferences.alertPromotions;
     case "risk":
       return preferences.alertRisk;
     case "support":
@@ -2677,6 +2683,16 @@ function NotificationsSection({
       label: "Money rails",
       value: preferences.alertMoneyRails ? "Watched" : "Muted",
       active: preferences.alertMoneyRails,
+    },
+    {
+      label: "Subscriptions",
+      value: preferences.alertSubscriptions ? "Watched" : "Muted",
+      active: preferences.alertSubscriptions,
+    },
+    {
+      label: "Promotions",
+      value: preferences.alertPromotions ? "Watched" : "Muted",
+      active: preferences.alertPromotions,
     },
     {
       label: "Risk",
@@ -3928,6 +3944,18 @@ function ExportsSection({
           "Daily digest",
           profileSettings.preferences.dailyDigestTime,
           profileSettings.preferences.timezone,
+        ],
+        [
+          "Notification preferences",
+          "Subscription alerts",
+          profileSettings.preferences.alertSubscriptions ? "Watched" : "Muted",
+          "Subscription billing and plan usage",
+        ],
+        [
+          "Notification preferences",
+          "Promotion alerts",
+          profileSettings.preferences.alertPromotions ? "Watched" : "Muted",
+          "Promotion redemption activity",
         ],
         [
           "Platform policy",
@@ -7793,6 +7821,18 @@ function SettingsSection({
                     label="Money rails"
                     helper="Webhook failures, payout reviews, and settlement holds."
                     defaultChecked={preferences.alertMoneyRails}
+                  />
+                  <BooleanPreference
+                    name="alert_subscriptions"
+                    label="Subscriptions"
+                    helper="Plan billing, grace periods, and package usage."
+                    defaultChecked={preferences.alertSubscriptions}
+                  />
+                  <BooleanPreference
+                    name="alert_promotions"
+                    label="Promotions"
+                    helper="Voucher rules and pending redemption activity."
+                    defaultChecked={preferences.alertPromotions}
                   />
                   <BooleanPreference
                     name="alert_risk"

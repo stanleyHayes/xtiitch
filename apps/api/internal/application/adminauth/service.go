@@ -357,6 +357,8 @@ type UpdatePreferencesCommand struct {
 	NotifySMS          bool
 	AlertVerifications bool
 	AlertMoneyRails    bool
+	AlertSubscriptions bool
+	AlertPromotions    bool
 	AlertRisk          bool
 	AlertSupport       bool
 	DailyDigestTime    string
@@ -2186,6 +2188,8 @@ func normalizePreferences(cmd UpdatePreferencesCommand) (ports.UpdateAdminPrefer
 		NotifySMS:          cmd.NotifySMS,
 		AlertVerifications: cmd.AlertVerifications,
 		AlertMoneyRails:    cmd.AlertMoneyRails,
+		AlertSubscriptions: cmd.AlertSubscriptions,
+		AlertPromotions:    cmd.AlertPromotions,
 		AlertRisk:          cmd.AlertRisk,
 		AlertSupport:       cmd.AlertSupport,
 		DailyDigestTime:    digestTime,

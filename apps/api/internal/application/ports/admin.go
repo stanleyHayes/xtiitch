@@ -109,6 +109,8 @@ type AdminPreferencesRecord struct {
 	NotifySMS          bool
 	AlertVerifications bool
 	AlertMoneyRails    bool
+	AlertSubscriptions bool
+	AlertPromotions    bool
 	AlertRisk          bool
 	AlertSupport       bool
 	DailyDigestTime    string
@@ -124,6 +126,8 @@ type UpdateAdminPreferencesInput struct {
 	NotifySMS          bool
 	AlertVerifications bool
 	AlertMoneyRails    bool
+	AlertSubscriptions bool
+	AlertPromotions    bool
 	AlertRisk          bool
 	AlertSupport       bool
 	DailyDigestTime    string
