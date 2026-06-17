@@ -146,6 +146,17 @@ type AdminNotification = {
   targetLabel: string;
 };
 type AdminReportStatus = "ready" | "watch" | "blocked";
+type AdminExportDatasetId =
+  | "report-posture"
+  | "businesses"
+  | "verification"
+  | "money"
+  | "risk"
+  | "support"
+  | "audit"
+  | "users"
+  | "subscriptions"
+  | "promotions";
 type AdminReportItem = {
   id: string;
   label: string;
@@ -156,7 +167,7 @@ type AdminReportItem = {
   targetLabel: string;
 };
 type AdminExportDataset = {
-  id: string;
+  id: AdminExportDatasetId;
   title: string;
   helper: string;
   source: Section;
@@ -288,6 +299,19 @@ const auditFilters: { value: AuditFilter; label: string }[] = [
   { value: "info", label: "Info" },
   { value: "warning", label: "Warning" },
   { value: "critical", label: "Critical" },
+];
+
+const serverExportDatasetIds: AdminExportDatasetId[] = [
+  "report-posture",
+  "businesses",
+  "verification",
+  "money",
+  "risk",
+  "support",
+  "audit",
+  "users",
+  "subscriptions",
+  "promotions",
 ];
 
 const ghs = new Intl.NumberFormat("en-GH", {
@@ -485,6 +509,20 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = String(form.get("intent") ?? "");
   if (intent === "logout") {
     return logOut(request);
+  }
+
+  if (intent === "admin-export:download") {
+    const { accessToken } = await requireAdminContext(request);
+    const dataset = readAdminExportDataset(form.get("dataset"));
+    const csv = await adminApi.exportDataset(accessToken, dataset);
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${adminExportFilename(
+          dataset,
+        )}"`,
+      },
+    });
   }
 
   if (intent === "admin-user:create" || intent === "admin-user:update") {
@@ -1016,6 +1054,21 @@ function readAdminPermissions(form: FormData): string[] {
   );
 }
 
+function readAdminExportDataset(
+  value: FormDataEntryValue | null,
+): AdminExportDatasetId {
+  const dataset = String(value ?? "").trim() as AdminExportDatasetId;
+  if (serverExportDatasetIds.includes(dataset)) {
+    return dataset;
+  }
+  return "report-posture";
+}
+
+function adminExportFilename(dataset: AdminExportDatasetId): string {
+  const safe = dataset.replace(/[^a-z0-9_-]/gi, "");
+  return `xtiitch-admin-${safe || "export"}.csv`;
+}
+
 function readVerificationDecision(value: FormDataEntryValue | null): Decision {
   const decision = String(value ?? "");
   if (
@@ -1516,18 +1569,6 @@ function shortTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function csvCell(value: string | number): string {
-  return `"${String(value).replaceAll('"', '""')}"`;
-}
-
-function buildCsv(rows: (string | number)[][]): string {
-  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
-}
-
-function csvHref(rows: (string | number)[][]): string {
-  return `data:text/csv;charset=utf-8,${encodeURIComponent(buildCsv(rows))}`;
 }
 
 function buildAdminNotifications({
@@ -3040,53 +3081,6 @@ function ReportsSection({
     (item) => item.status === "watch",
   ).length;
   const latestAuditEvents = auditEvents.slice(0, 5);
-  const reportCsvRows = [
-    ["Report", "Value", "Status", "Detail"],
-    ...reportItems.map((item) => [
-      item.label,
-      item.value,
-      item.status,
-      item.helper,
-    ]),
-    [
-      "GMV this month",
-      formatGHS(platformMetrics?.gmvMonthMinor ?? 0),
-      "metric",
-      "Succeeded platform payments",
-    ],
-    [
-      "Commission",
-      formatGHS(platformMetrics?.platformRevenueMonthMinor ?? 0),
-      "metric",
-      "Platform revenue month to date",
-    ],
-    ["Pending KYC", pendingKyc, "snapshot", "Business verification backlog"],
-    [
-      "Payout holds",
-      payoutReviews.length,
-      "snapshot",
-      "Settlement rows held or under review",
-    ],
-    [
-      "Failed webhooks",
-      failedWebhooks.length,
-      "snapshot",
-      "Provider events needing operator attention",
-    ],
-    [
-      "Open risks",
-      openRisks.length,
-      "snapshot",
-      "Trust and safety review queue",
-    ],
-    [
-      "Urgent support",
-      urgentSupport.length,
-      "snapshot",
-      "Urgent open support tickets",
-    ],
-  ];
-  const reportCsvHref = csvHref(reportCsvRows);
 
   return (
     <Stack spacing={2.5}>
@@ -3095,16 +3089,21 @@ function ReportsSection({
         title="Reports"
         helper="A compact posture view for compliance, money controls, platform policy, and operator follow-up."
       />
-      <Button
-        component="a"
-        href={reportCsvHref}
-        download="xtiitch-admin-report.csv"
-        variant="outlined"
-        startIcon={<FileDownloadRounded />}
-        sx={{ alignSelf: "flex-start" }}
+      <Form
+        method="post"
+        reloadDocument
+        style={{ alignSelf: "flex-start" }}
       >
-        Download CSV
-      </Button>
+        <input type="hidden" name="intent" value="admin-export:download" />
+        <input type="hidden" name="dataset" value="report-posture" />
+        <Button
+          type="submit"
+          variant="outlined"
+          startIcon={<FileDownloadRounded />}
+        >
+          Download CSV
+        </Button>
+      </Form>
 
       <Box
         sx={{
@@ -3796,15 +3795,21 @@ function ExportsSection({
                   spacing={1}
                   sx={{ flexWrap: "wrap" }}
                 >
-                  <Button
-                    component="a"
-                    href={csvHref(dataset.rows)}
-                    download={`xtiitch-admin-${dataset.id}.csv`}
-                    variant="contained"
-                    startIcon={<FileDownloadRounded />}
-                  >
-                    Download CSV
-                  </Button>
+                  <Form method="post" reloadDocument>
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-export:download"
+                    />
+                    <input type="hidden" name="dataset" value={dataset.id} />
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={<FileDownloadRounded />}
+                    >
+                      Download CSV
+                    </Button>
+                  </Form>
                   <Button
                     variant="outlined"
                     endIcon={<ArrowForwardRounded />}

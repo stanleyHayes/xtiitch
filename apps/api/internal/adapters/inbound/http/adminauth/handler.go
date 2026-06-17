@@ -1,9 +1,12 @@
 package adminauthhttp
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -111,6 +114,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/businesses", handler.businesses)
 		protected.Patch("/admin/businesses/{id}/status", handler.updateBusinessStatus)
 		protected.Get("/admin/audit-events", handler.auditEvents)
+		protected.Get("/admin/exports/{dataset}.csv", handler.exportDatasetCSV)
 		protected.Get("/admin/roles", handler.roles)
 		protected.Patch("/admin/roles/{role}", handler.updateRolePermissions)
 		protected.Get("/admin/users", handler.listUsers)
@@ -1546,6 +1550,186 @@ func (handler Handler) auditEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]auditEventResponse{"events": out})
 }
 
+func (handler Handler) exportDatasetCSV(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	dataset := strings.TrimSpace(chi.URLParam(r, "dataset"))
+	rows, err := handler.exportDatasetRows(r.Context(), principal, dataset)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	if len(rows) == 0 {
+		writeError(w, http.StatusNotFound, "not_found")
+		return
+	}
+
+	writeCSV(w, "xtiitch-admin-"+safeExportName(dataset)+".csv", rows)
+}
+
+func (handler Handler) exportDatasetRows(
+	ctx context.Context,
+	principal Principal,
+	dataset string,
+) ([][]string, error) {
+	switch dataset {
+	case "report-posture":
+		metrics, err := handler.service.GetPlatformMetrics(ctx, adminauthapp.GetPlatformMetricsCommand{
+			ActorRole: principal.Role,
+		})
+		if err != nil {
+			return nil, err
+		}
+		settings, err := handler.service.GetPlatformSettings(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return [][]string{
+			{"Metric", "Value", "Detail"},
+			{"GMV this month", moneyCSV(metrics.GMVMonthMinor), "Succeeded platform payments"},
+			{"Commission", moneyCSV(metrics.PlatformRevenueMonthMinor), "Platform revenue month to date"},
+			{"Active businesses", fmt.Sprint(metrics.ActiveBusinesses), fmt.Sprintf("%d total tenants", metrics.TotalBusinesses)},
+			{"Pending KYC", fmt.Sprint(metrics.PendingVerifications), "Business verification backlog"},
+			{"Suspended businesses", fmt.Sprint(metrics.SuspendedBusinesses), "Operational holds"},
+			{"Payment health", fmt.Sprintf("%.2f%%", float64(metrics.PaymentHealthBPS)/100), fmt.Sprintf("%d failed of %d payments in 30 days", metrics.FailedPayments30d, metrics.TotalPayments30d)},
+			{"Platform policy", boolCSV(!settings.MaintenanceMode, "Live", "Maintenance"), fmt.Sprintf("%dh verification SLA", settings.VerificationSLAHours)},
+			{"Payout review threshold", moneyCSV(int64(settings.PayoutReviewThresholdPesewas)), "Admin settlement review threshold"},
+		}, nil
+	case "businesses":
+		records, err := handler.service.ListBusinesses(ctx, adminauthapp.ListBusinessesCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Business", "Handle", "Owner", "Status", "Operational", "Plan", "Orders", "GMV", "Commission", "Risk", "Subaccount", "Last active"}}
+		for _, record := range records {
+			rows = append(rows, []string{
+				record.Name,
+				record.Handle,
+				fallbackText(record.OwnerEmail, record.OwnerName),
+				businessListStatus(record),
+				string(record.OperationalStatus),
+				fallbackText(record.PlanName, record.PlanCode),
+				fmt.Sprint(record.OrdersCount),
+				moneyCSV(record.GMVMinor),
+				moneyCSV(record.CommissionMinor),
+				businessRiskLevel(record),
+				record.SettlementSubaccount,
+				timeCSV(record.LastActiveAt),
+			})
+		}
+		return rows, nil
+	case "verification":
+		records, err := handler.service.ListBusinessVerifications(ctx, adminauthapp.ListBusinessVerificationsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Business", "Handle", "Owner", "Email", "Status", "Risk", "Plan", "Documents", "Submitted", "Updated", "Notes"}}
+		for _, record := range records {
+			rows = append(rows, []string{
+				record.BusinessName,
+				record.Handle,
+				record.OwnerName,
+				record.OwnerEmail,
+				string(record.VerificationStatus),
+				verificationRiskLevel(record),
+				fallbackText(record.PlanName, record.PlanCode),
+				strings.Join(verificationDocuments(record), "; "),
+				timeCSV(record.SubmittedAt),
+				timeCSV(record.UpdatedAt),
+				verificationNotes(record),
+			})
+		}
+		return rows, nil
+	case "money":
+		record, err := handler.service.GetMoneyRails(ctx, adminauthapp.GetMoneyRailsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Kind", "Business", "Reference", "Status", "Amount", "Attempts", "Received/Updated", "Note"}}
+		for _, event := range record.WebhookEvents {
+			rows = append(rows, []string{"Webhook", event.BusinessName, event.ProviderReference, event.Status, moneyCSV(event.AmountMinor), fmt.Sprint(event.Attempts), timeCSV(event.ReceivedAt), event.Note})
+		}
+		for _, review := range record.PayoutReviews {
+			status := review.Status
+			if review.HoldActive {
+				status = "held"
+			}
+			rows = append(rows, []string{"Settlement", review.BusinessName, review.SubaccountRef, status, moneyCSV(review.SettlementMinor), "", optionalTimeCSV(review.HoldUpdatedAt), fallbackText(review.HoldReason, review.NextAction)})
+		}
+		return rows, nil
+	case "risk":
+		records, err := handler.service.ListRiskReviews(ctx, adminauthapp.ListRiskReviewsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Title", "Business", "Level", "Status", "Owner", "Updated", "Reason"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.Title, record.BusinessName, record.Level, record.Status, record.Owner, timeCSV(record.UpdatedAt), record.Reason})
+		}
+		return rows, nil
+	case "support":
+		records, err := handler.service.ListSupportTickets(ctx, adminauthapp.ListSupportTicketsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Subject", "Business", "Category", "Priority", "Status", "Assigned", "Created", "Updated", "Summary"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.Subject, record.BusinessName, record.Category, record.Priority, record.Status, fallbackText(record.AssignedAdminName, record.AssignedAdminEmail), timeCSV(record.CreatedAt), timeCSV(record.UpdatedAt), record.Summary})
+		}
+		return rows, nil
+	case "audit":
+		records, err := handler.service.ListAuditEvents(ctx, adminauthapp.ListAuditEventsCommand{
+			ActorRole: principal.Role,
+			Limit:     500,
+		})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Action", "Actor", "Role", "Severity", "Target", "Created", "Detail"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.Action, record.ActorEmail, string(record.ActorRole), string(record.Severity), fallbackText(record.TargetLabel, record.TargetID), timeCSV(record.CreatedAt), record.Summary})
+		}
+		return rows, nil
+	case "users":
+		records, err := handler.service.ListUsers(ctx, adminauthapp.ListUsersCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Name", "Email", "Role", "Active", "Created", "Updated"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.DisplayName, record.Email, string(record.Role), boolCSV(record.IsActive, "Active", "Inactive"), timeCSV(record.CreatedAt), timeCSV(record.UpdatedAt)})
+		}
+		return rows, nil
+	case "subscriptions":
+		records, err := handler.service.ListSubscriptions(ctx, adminauthapp.ListSubscriptionsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Business", "Handle", "Plan", "Status", "Billing mode", "Monthly fee", "Last invoice", "Last payment", "Next billing"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.BusinessName, record.Handle, record.PlanName, record.Status, record.BillingMode, moneyCSV(record.MonthlyFeeMinor), record.LastInvoiceRef, optionalTimeCSV(record.LastPaymentAt), optionalTimeCSV(record.NextBillingAt)})
+		}
+		return rows, nil
+	case "promotions":
+		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Title", "Code", "Business", "Status", "Type", "Value", "Funding", "Scope", "Redemptions", "Discount redeemed"}}
+		for _, record := range records {
+			rows = append(rows, []string{record.Title, record.Code, fallbackText(record.BusinessName, "Platform-wide"), record.Status, record.DiscountType, fmt.Sprint(record.DiscountValue), record.FundingSource, record.Scope, fmt.Sprint(record.RedemptionCount), moneyCSV(record.DiscountRedeemedMinor)})
+		}
+		return rows, nil
+	default:
+		return nil, ports.ErrNotFound
+	}
+}
+
 func (handler Handler) roles(w http.ResponseWriter, r *http.Request) {
 	records, err := handler.service.ListRolePermissions(r.Context())
 	if err != nil {
@@ -2240,6 +2424,66 @@ func authError(err error) (int, string) {
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}
+}
+
+func writeCSV(w http.ResponseWriter, filename string, rows [][]string) {
+	var body bytes.Buffer
+	writer := csv.NewWriter(&body)
+	writer.WriteAll(rows)
+	if err := writer.Error(); err != nil {
+		writeError(w, http.StatusInternalServerError, "csv_error")
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body.Bytes())
+}
+
+func safeExportName(value string) string {
+	var builder strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z':
+			builder.WriteRune(r)
+		case r >= 'A' && r <= 'Z':
+			builder.WriteRune(r)
+		case r >= '0' && r <= '9':
+			builder.WriteRune(r)
+		case r == '-' || r == '_':
+			builder.WriteRune(r)
+		}
+	}
+	if builder.Len() == 0 {
+		return "export"
+	}
+	return builder.String()
+}
+
+func moneyCSV(value int64) string {
+	return fmt.Sprintf("GHS %.2f", float64(value)/100)
+}
+
+func timeCSV(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.Format(time.RFC3339)
+}
+
+func optionalTimeCSV(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return timeCSV(*value)
+}
+
+func boolCSV(value bool, trueLabel string, falseLabel string) string {
+	if value {
+		return trueLabel
+	}
+	return falseLabel
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

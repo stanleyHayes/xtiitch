@@ -670,6 +670,32 @@ async function requestJSON<T>(path: string, init: RequestInit): Promise<T> {
   return (await response.json()) as T;
 }
 
+async function requestText(path: string, init: RequestInit): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/v1${path}`, {
+      ...init,
+      headers: {
+        ...(init.headers ?? {}),
+      },
+    });
+  } catch {
+    throw new AdminApiError(503, "admin_api_unavailable");
+  }
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    throw new AdminApiError(
+      response.status,
+      payload?.error ?? "admin_api_error",
+    );
+  }
+
+  return response.text();
+}
+
 function mapAuth(payload: AdminAuthPayload): AdminAuthResult {
   return {
     adminUserId: payload.admin_user_id,
@@ -1466,6 +1492,14 @@ export const adminApi = {
     );
     return payload.events.map(mapAuditEvent);
   },
+  exportDataset: (accessToken: string, dataset: string) =>
+    requestText(`/admin/exports/${encodeURIComponent(dataset)}.csv`, {
+      method: "GET",
+      headers: {
+        Accept: "text/csv",
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }),
   verificationCases: async (accessToken: string) => {
     const payload = await requestJSON<{
       cases: AdminVerificationCasePayload[];
