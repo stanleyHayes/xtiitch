@@ -137,7 +137,7 @@ Uncommitted responsive shell correction: the business dashboard mobile navigatio
 
 How to run + verify (dev):
 
-- Demo Postgres runs in docker container `xtiitch-demo-pg` on `localhost:5450` (db/owner `xtiitch`/`xtiitch`, app role `xtiitch_app`). Migrations `000001`–`000025` are applied locally.
+- Demo Postgres runs in docker container `xtiitch-demo-pg` on `localhost:5450` (db/owner `xtiitch`/`xtiitch`, app role `xtiitch_app`). Migrations `000001`–`000026` are applied locally.
 - The local demo database now contains `operator@xtiitch.com` with the standard local smoke password. On a fresh database, seed it by setting `ADMIN_BOOTSTRAP_EXTRA_USERS_JSON='[{"email":"operator@xtiitch.com","display_name":"Xtiitch Operator","password":"AdminPass123!","role":"operator"}]'` before starting the API.
 - Integration tests need `XTIITCH_TEST_DATABASE_URL=postgres://xtiitch_app:xtiitch_app@localhost:5450/xtiitch?sslmode=disable`; without it they skip. Run from `apps/api`: `go build ./... && go vet ./... && go test ./...` (currently 23 packages green).
 - New migrations: the goose split-file tooling panics on the `.up.sql`/`.down.sql` convention, so apply by hand as the owner: `docker exec -i xtiitch-demo-pg psql -U xtiitch -d xtiitch -v ON_ERROR_STOP=1 < infra/migrations/0000NN_x.up.sql`.
