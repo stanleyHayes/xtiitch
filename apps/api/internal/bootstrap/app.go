@@ -17,6 +17,7 @@ import (
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
+	growthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/growth"
 	measurementhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/measurement"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
@@ -33,6 +34,7 @@ import (
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
+	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
 	measurementapp "github.com/xcreativs/xtiitch/apps/api/internal/application/measurement"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	notifyapp "github.com/xcreativs/xtiitch/apps/api/internal/application/notification"
@@ -167,6 +169,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:       ids.UUIDGenerator{},
 	})
 
+	growthService := growthapp.NewService(growthapp.Dependencies{
+		Affiliates: postgres.NewAffiliateRepository(db),
+		IDs:        ids.UUIDGenerator{},
+	})
+
 	measurementService := measurementapp.NewService(measurementapp.Dependencies{
 		Measurements: postgres.NewMeasurementRepository(db),
 		IDs:          ids.UUIDGenerator{},
@@ -196,6 +203,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		mediahttp.NewHandler(mediaService, authenticator),
 		orderhttp.NewHandler(orderService, authenticator),
 		checkouthttp.NewHandler(checkoutService),
+		growthhttp.NewHandler(growthService),
 		availabilityhttp.NewHandler(availabilityService, authenticator),
 		bookinghttp.NewHandler(bookingService, authenticator),
 		deliveryhttp.NewHandler(deliveryService, authenticator),
