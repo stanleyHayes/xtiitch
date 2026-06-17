@@ -166,6 +166,14 @@ type MarkSubscriptionInvoiceFailedCommand struct {
 	IPAddress   string
 }
 
+type RunSubscriptionBillingSweepCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
 type ListPlansCommand struct {
 	ActorRole admindomain.Role
 }
@@ -915,6 +923,63 @@ func (s Service) MarkSubscriptionInvoiceFailed(
 		UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) RunSubscriptionBillingSweep(
+	ctx context.Context,
+	cmd RunSubscriptionBillingSweepCommand,
+) (ports.AdminSubscriptionBillingSweepRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminSubscriptionBillingSweepRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return ports.AdminSubscriptionBillingSweepRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminSubscriptionBillingSweepRecord{}, authdomain.ErrForbidden
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Operator billing sweep."
+	}
+
+	record, err := s.businesses.RunAdminSubscriptionBillingSweep(ctx, ports.RunAdminSubscriptionBillingSweepInput{
+		ActorAdminUser: cmd.ActorUserID,
+		Reason:         reason,
+	})
+	if err != nil {
+		return ports.AdminSubscriptionBillingSweepRecord{}, err
+	}
+
+	severity := admindomain.AuditSeverityInfo
+	if record.OverdueInvoicesFailed > 0 || record.SubscriptionsCanceled > 0 {
+		severity = admindomain.AuditSeverityWarning
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Ran subscription billing sweep",
+		TargetType:  "business_subscription",
+		TargetID:    "billing_sweep",
+		TargetLabel: "Subscription billing sweep",
+		Summary: "Billing sweep failed " + strconv.Itoa(record.OverdueInvoicesFailed) +
+			" overdue invoices and canceled " + strconv.Itoa(record.SubscriptionsCanceled) +
+			" expired grace subscriptions.",
+		Severity: severity,
+		Metadata: map[string]string{
+			"overdue_invoices_failed": strconv.Itoa(record.OverdueInvoicesFailed),
+			"subscriptions_canceled":  strconv.Itoa(record.SubscriptionsCanceled),
+			"businesses_touched":      strconv.Itoa(record.BusinessesTouched),
+			"reason":                  reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminSubscriptionBillingSweepRecord{}, err
 	}
 
 	return record, nil

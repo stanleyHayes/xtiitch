@@ -933,6 +933,64 @@ func TestSubscriptionInvoicesRequirePermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestRunSubscriptionBillingSweepRequiresPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	businesses := &fakeAdminBusinesses{
+		sweepResult: ports.AdminSubscriptionBillingSweepRecord{
+			OverdueInvoicesFailed: 2,
+			SubscriptionsCanceled: 1,
+			BusinessesTouched:     2,
+			RanAt:                 now,
+		},
+	}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-sweep"},
+	)
+
+	record, err := service.RunSubscriptionBillingSweep(context.Background(), RunSubscriptionBillingSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		Reason:      " retry overdue links ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("run billing sweep: %v", err)
+	}
+	if businesses.sweepInput.ActorAdminUser != "operator-1" ||
+		businesses.sweepInput.Reason != "retry overdue links" {
+		t.Fatalf("expected normalized sweep input, got %+v", businesses.sweepInput)
+	}
+	if record.OverdueInvoicesFailed != 2 ||
+		record.SubscriptionsCanceled != 1 ||
+		record.BusinessesTouched != 2 {
+		t.Fatalf("unexpected sweep record: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Ran subscription billing sweep" ||
+		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
+		audits.created[0].Metadata["overdue_invoices_failed"] != "2" ||
+		audits.created[0].Metadata["subscriptions_canceled"] != "1" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.RunSubscriptionBillingSweep(context.Background(), RunSubscriptionBillingSweepCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -1747,6 +1805,8 @@ type fakeAdminBusinesses struct {
 	issuedSubscriptionInvoice ports.IssueAdminSubscriptionInvoiceInput
 	paidSubscriptionInvoice   ports.MarkAdminSubscriptionInvoicePaidInput
 	failedSubscriptionInvoice ports.MarkAdminSubscriptionInvoiceFailedInput
+	sweepInput                ports.RunAdminSubscriptionBillingSweepInput
+	sweepResult               ports.AdminSubscriptionBillingSweepRecord
 	plans                     []ports.AdminPlanRecord
 	createdPlan               ports.CreateAdminPlanInput
 	updatedPlan               ports.UpdateAdminPlanInput
@@ -1970,6 +2030,19 @@ func (repo *fakeAdminBusinesses) MarkAdminSubscriptionInvoiceFailed(
 		CurrentPeriodStart: now,
 		CurrentPeriodEnd:   now.Add(30 * 24 * time.Hour),
 		UpdatedAt:          now,
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) RunAdminSubscriptionBillingSweep(
+	_ context.Context,
+	input ports.RunAdminSubscriptionBillingSweepInput,
+) (ports.AdminSubscriptionBillingSweepRecord, error) {
+	repo.sweepInput = input
+	if !repo.sweepResult.RanAt.IsZero() {
+		return repo.sweepResult, nil
+	}
+	return ports.AdminSubscriptionBillingSweepRecord{
+		RanAt: time.Now(),
 	}, nil
 }
 

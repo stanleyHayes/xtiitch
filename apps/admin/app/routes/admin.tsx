@@ -764,6 +764,28 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-subscription-billing:sweep") {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      const result = await adminApi.runSubscriptionBillingSweep(
+        accessToken,
+        String(form.get("reason") ?? ""),
+      );
+      return {
+        section: "subscriptions",
+        severity: "success",
+        message: `Billing sweep complete: ${result.overdueInvoicesFailed} overdue invoices failed, ${result.subscriptionsCanceled} expired grace subscriptions canceled.`,
+      };
+    } catch (error) {
+      return {
+        section: "subscriptions",
+        severity: "error",
+        message: adminSubscriptionActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-subscription-invoice:issue" ||
     intent === "admin-subscription-invoice:paid" ||
@@ -4485,6 +4507,23 @@ function SubscriptionsSection({
       subscription.status === "past_due" ||
       subscription.status === "grace_period",
   ).length;
+  const nowMs = Date.now();
+  const overdueIssuedInvoiceCount = subscriptions.reduce(
+    (total, subscription) =>
+      total +
+      subscription.invoices.filter(
+        (invoice) =>
+          invoice.status === "issued" &&
+          new Date(invoice.dueAt).getTime() <= nowMs,
+      ).length,
+    0,
+  );
+  const expiredGraceCount = subscriptions.filter(
+    (subscription) =>
+      subscription.status === "grace_period" &&
+      subscription.graceEndsAt &&
+      new Date(subscription.graceEndsAt).getTime() <= nowMs,
+  ).length;
 
   return (
     <Stack spacing={2.5}>
@@ -4544,6 +4583,80 @@ function SubscriptionsSection({
           trend="Review"
         />
       </Box>
+
+      <Panel
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          borderColor: alpha(
+            overdueIssuedInvoiceCount || expiredGraceCount
+              ? tokens.warning
+              : tokens.success,
+            0.22,
+          ),
+          backgroundImage: `linear-gradient(90deg, ${alpha(
+            overdueIssuedInvoiceCount || expiredGraceCount
+              ? tokens.warning
+              : tokens.success,
+            0.08,
+          )}, transparent 44%)`,
+        }}
+      >
+        <Stack
+          direction={{ xs: "column", lg: "row" }}
+          spacing={1.5}
+          sx={{ justifyContent: "space-between", alignItems: { lg: "center" } }}
+        >
+          <Box>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap" }}
+            >
+              <Typography variant="h6">Billing sweep</Typography>
+              <Chip
+                size="small"
+                label={`${overdueIssuedInvoiceCount} overdue invoices`}
+                color={overdueIssuedInvoiceCount ? "warning" : "success"}
+                variant={overdueIssuedInvoiceCount ? "filled" : "outlined"}
+              />
+              <Chip
+                size="small"
+                label={`${expiredGraceCount} expired grace`}
+                color={expiredGraceCount ? "warning" : "success"}
+                variant={expiredGraceCount ? "filled" : "outlined"}
+              />
+            </Stack>
+            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+              Fail overdue package invoices and cancel subscriptions whose grace
+              window has expired. No funds are moved by this action.
+            </Typography>
+          </Box>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-subscription-billing:sweep"
+            />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <TextField
+                size="small"
+                name="reason"
+                label="Sweep note"
+                defaultValue="Operator billing sweep"
+                sx={{ minWidth: { sm: 260 } }}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SyncRounded />}
+                sx={{ minWidth: 170 }}
+              >
+                Run sweep
+              </Button>
+            </Stack>
+          </Form>
+        </Stack>
+      </Panel>
 
       <Stack spacing={1}>
         <Typography variant="h6">Package controls</Typography>

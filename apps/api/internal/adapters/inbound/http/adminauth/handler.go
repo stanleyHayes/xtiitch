@@ -44,6 +44,7 @@ type Service interface {
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
 	MarkSubscriptionInvoicePaid(ctx context.Context, command adminauthapp.MarkSubscriptionInvoicePaidCommand) (ports.AdminSubscriptionRecord, error)
 	MarkSubscriptionInvoiceFailed(ctx context.Context, command adminauthapp.MarkSubscriptionInvoiceFailedCommand) (ports.AdminSubscriptionRecord, error)
+	RunSubscriptionBillingSweep(ctx context.Context, command adminauthapp.RunSubscriptionBillingSweepCommand) (ports.AdminSubscriptionBillingSweepRecord, error)
 	ListPlans(ctx context.Context, command adminauthapp.ListPlansCommand) ([]ports.AdminPlanRecord, error)
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
@@ -93,6 +94,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/platform-metrics", handler.platformMetrics)
 		protected.Get("/admin/money-rails", handler.moneyRails)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
+		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Patch("/admin/subscriptions/businesses/{id}", handler.updateSubscription)
 		protected.Post("/admin/subscriptions/businesses/{id}/invoices", handler.issueSubscriptionInvoice)
 		protected.Post("/admin/subscriptions/invoices/{id}/paid", handler.markSubscriptionInvoicePaid)
@@ -212,6 +214,10 @@ type subscriptionInvoiceIssueRequest struct {
 }
 
 type subscriptionInvoiceDecisionRequest struct {
+	Reason string `json:"reason"`
+}
+
+type subscriptionBillingSweepRequest struct {
 	Reason string `json:"reason"`
 }
 
@@ -474,6 +480,13 @@ type subscriptionInvoiceResponse struct {
 	FailureReason      string `json:"failure_reason"`
 	CreatedAt          string `json:"created_at"`
 	UpdatedAt          string `json:"updated_at"`
+}
+
+type subscriptionBillingSweepResponse struct {
+	OverdueInvoicesFailed int    `json:"overdue_invoices_failed"`
+	SubscriptionsCanceled int    `json:"subscriptions_canceled"`
+	BusinessesTouched     int    `json:"businesses_touched"`
+	RanAt                 string `json:"ran_at"`
 }
 
 type planResponse struct {
@@ -1019,6 +1032,35 @@ func (handler Handler) markSubscriptionInvoiceFailed(w http.ResponseWriter, r *h
 	}
 
 	writeJSON(w, http.StatusOK, newSubscriptionResponse(record))
+}
+
+func (handler Handler) runSubscriptionBillingSweep(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionBillingSweepRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.RunSubscriptionBillingSweep(r.Context(), adminauthapp.RunSubscriptionBillingSweepCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionBillingSweepResponse(record))
 }
 
 func (handler Handler) plans(w http.ResponseWriter, r *http.Request) {
@@ -2155,6 +2197,17 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		UpdatedAt:               record.UpdatedAt.Format(time.RFC3339),
 		Events:                  events,
 		Invoices:                invoices,
+	}
+}
+
+func newSubscriptionBillingSweepResponse(
+	record ports.AdminSubscriptionBillingSweepRecord,
+) subscriptionBillingSweepResponse {
+	return subscriptionBillingSweepResponse{
+		OverdueInvoicesFailed: record.OverdueInvoicesFailed,
+		SubscriptionsCanceled: record.SubscriptionsCanceled,
+		BusinessesTouched:     record.BusinessesTouched,
+		RanAt:                 record.RanAt.Format(time.RFC3339),
 	}
 }
 

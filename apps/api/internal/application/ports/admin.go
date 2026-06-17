@@ -43,6 +43,7 @@ type AdminBusinessRepository interface {
 	IssueAdminSubscriptionInvoice(ctx context.Context, input IssueAdminSubscriptionInvoiceInput) (AdminSubscriptionRecord, error)
 	MarkAdminSubscriptionInvoicePaid(ctx context.Context, input MarkAdminSubscriptionInvoicePaidInput) (AdminSubscriptionRecord, error)
 	MarkAdminSubscriptionInvoiceFailed(ctx context.Context, input MarkAdminSubscriptionInvoiceFailedInput) (AdminSubscriptionRecord, error)
+	RunAdminSubscriptionBillingSweep(ctx context.Context, input RunAdminSubscriptionBillingSweepInput) (AdminSubscriptionBillingSweepRecord, error)
 	ListAdminPlans(ctx context.Context) ([]AdminPlanRecord, error)
 	CreateAdminPlan(ctx context.Context, input CreateAdminPlanInput) (AdminPlanRecord, error)
 	UpdateAdminPlan(ctx context.Context, input UpdateAdminPlanInput) (AdminPlanRecord, error)
@@ -379,6 +380,18 @@ type MarkAdminSubscriptionInvoiceFailedInput struct {
 	InvoiceID      common.ID
 	ActorAdminUser common.ID
 	Reason         string
+}
+
+type RunAdminSubscriptionBillingSweepInput struct {
+	ActorAdminUser common.ID
+	Reason         string
+}
+
+type AdminSubscriptionBillingSweepRecord struct {
+	OverdueInvoicesFailed int
+	SubscriptionsCanceled int
+	BusinessesTouched     int
+	RanAt                 time.Time
 }
 
 type AdminPlanRecord struct {

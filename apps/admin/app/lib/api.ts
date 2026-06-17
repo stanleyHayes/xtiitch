@@ -181,6 +181,13 @@ export type AdminSubscription = {
   invoices: AdminSubscriptionInvoice[];
 };
 
+export type AdminSubscriptionBillingSweep = {
+  overdueInvoicesFailed: number;
+  subscriptionsCanceled: number;
+  businessesTouched: number;
+  ranAt: string;
+};
+
 export type AdminPlan = {
   planId: string;
   code: string;
@@ -495,6 +502,13 @@ type AdminSubscriptionPayload = {
   updated_at: string;
   events: AdminSubscriptionEventPayload[];
   invoices: AdminSubscriptionInvoicePayload[];
+};
+
+type AdminSubscriptionBillingSweepPayload = {
+  overdue_invoices_failed: number;
+  subscriptions_canceled: number;
+  businesses_touched: number;
+  ran_at: string;
 };
 
 type AdminPlanPayload = {
@@ -865,6 +879,17 @@ function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
   };
 }
 
+function mapSubscriptionBillingSweep(
+  payload: AdminSubscriptionBillingSweepPayload,
+): AdminSubscriptionBillingSweep {
+  return {
+    overdueInvoicesFailed: payload.overdue_invoices_failed,
+    subscriptionsCanceled: payload.subscriptions_canceled,
+    businessesTouched: payload.businesses_touched,
+    ranAt: payload.ran_at,
+  };
+}
+
 function mapPlan(payload: AdminPlanPayload): AdminPlan {
   return {
     planId: payload.plan_id,
@@ -1219,6 +1244,15 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapSubscription),
+  runSubscriptionBillingSweep: (accessToken: string, reason: string) =>
+    requestJSON<AdminSubscriptionBillingSweepPayload>(
+      "/admin/subscriptions/billing-sweeps",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapSubscriptionBillingSweep),
   plans: async (accessToken: string) => {
     const payload = await requestJSON<{ plans: AdminPlanPayload[] }>(
       "/admin/plans",
