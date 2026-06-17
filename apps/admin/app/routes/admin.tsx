@@ -144,6 +144,7 @@ type AdminNotificationCategory =
   | "subscriptions"
   | "promotions"
   | "ads"
+  | "affiliates"
   | "risk"
   | "support"
   | "platform"
@@ -176,6 +177,7 @@ type AdminExportDatasetId =
   | "subscriptions"
   | "promotions"
   | "ad-campaigns"
+  | "affiliates"
   | "promotion-redemptions";
 type AdminReportItem = {
   id: string;
@@ -348,6 +350,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "subscriptions",
   "promotions",
   "ad-campaigns",
+  "affiliates",
   "promotion-redemptions",
 ];
 
@@ -1872,6 +1875,8 @@ function notificationCategoryLabel(
       return "Promotions";
     case "ads":
       return "Sponsored placements";
+    case "affiliates":
+      return "Affiliate programmes";
     case "risk":
       return "Risk";
     case "support":
@@ -1897,6 +1902,8 @@ function notificationCategoryWatched(
     case "promotions":
       return preferences.alertPromotions;
     case "ads":
+      return preferences.alertPromotions;
+    case "affiliates":
       return preferences.alertPromotions;
     case "risk":
       return preferences.alertRisk;
@@ -1939,6 +1946,7 @@ function buildAdminNotifications({
   subscriptions,
   promotions,
   adCampaigns,
+  affiliates,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -1950,6 +1958,7 @@ function buildAdminNotifications({
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
+  affiliates: AdminAffiliate[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -2091,6 +2100,25 @@ function buildAdminNotifications({
       });
     });
 
+  affiliates
+    .filter((affiliate) => affiliate.status === "pending_review")
+    .slice(0, 4)
+    .forEach((affiliate) => {
+      notifications.push({
+        id: `affiliate-${affiliate.affiliateId}`,
+        tone: "warning",
+        category: "affiliates",
+        title: `${affiliate.displayName} needs affiliate review`,
+        helper: `${affiliate.code} · ${affiliateCommissionLabel(
+          affiliate,
+        )} · ${affiliatePayoutLabel(affiliate.payoutMode)}`,
+        meta: `${affiliate.cookieWindowDays} day cookie window`,
+        source: affiliate.email || affiliate.phone || affiliate.entityType,
+        target: "affiliates",
+        targetLabel: "Open affiliates",
+      });
+    });
+
   riskReviews
     .filter((review) => review.status === "open")
     .slice(0, 4)
@@ -2178,7 +2206,7 @@ function buildAdminNotifications({
       category: "platform",
       title: "No admin alerts waiting",
       helper:
-        "Verification, money rails, ads, risk, and support are clear right now.",
+        "Verification, money rails, ads, affiliates, risk, and support are clear right now.",
       meta: "Live queue",
       source: "Admin console",
       target: "overview",
@@ -3402,6 +3430,7 @@ function ReportsSection({
   subscriptions,
   promotions,
   adCampaigns,
+  affiliates,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3415,6 +3444,7 @@ function ReportsSection({
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
+  affiliates: AdminAffiliate[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3478,6 +3508,15 @@ function ReportsSection({
   const adSpendMinor = adCampaigns.reduce(
     (total, campaign) => total + campaign.spendMinor,
     0,
+  );
+  const pendingAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "pending_review",
+  );
+  const activeAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "active",
+  );
+  const paystackAffiliates = affiliates.filter((affiliate) =>
+    affiliate.payoutMode.startsWith("paystack"),
   );
   const openRisks = riskReviews.filter((review) => review.status === "open");
   const urgentSupport = supportTickets.filter(
@@ -3567,6 +3606,18 @@ function ReportsSection({
       status: pendingAdCampaigns.length > 0 ? "watch" : "ready",
       target: "ads",
       targetLabel: "Open ads",
+    },
+    {
+      id: "affiliates",
+      label: "Affiliate programmes",
+      value: `${pendingAffiliates.length} pending`,
+      helper:
+        pendingAffiliates.length > 0
+          ? `${activeAffiliates.length} active partners · ${paystackAffiliates.length} Paystack-ready payout rails.`
+          : `${activeAffiliates.length} active partners with no pending review.`,
+      status: pendingAffiliates.length > 0 ? "watch" : "ready",
+      target: "affiliates",
+      targetLabel: "Open affiliates",
     },
     {
       id: "risk",
@@ -3935,6 +3986,7 @@ function ExportsSection({
   subscriptions,
   promotions,
   adCampaigns,
+  affiliates,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3952,6 +4004,7 @@ function ExportsSection({
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
+  affiliates: AdminAffiliate[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3968,6 +4021,9 @@ function ExportsSection({
   );
   const pendingAdCampaigns = adCampaigns.filter(
     (campaign) => campaign.status === "pending_review",
+  );
+  const pendingAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "pending_review",
   );
   const exportDatasets: AdminExportDataset[] = [
     {
@@ -4514,6 +4570,49 @@ function ExportsSection({
       ],
     },
     {
+      id: "affiliates",
+      title: "Affiliate programmes",
+      helper:
+        "Partner codes, contact details, commission terms, payout rails, cookie windows, and status.",
+      source: "affiliates",
+      sourceLabel: "Open affiliates",
+      tone: pendingAffiliates.length > 0 ? "watch" : "ready",
+      rows: [
+        [
+          "Affiliate",
+          "Code",
+          "Entity",
+          "Contact",
+          "Email",
+          "Phone",
+          "Website",
+          "Commission",
+          "Cookie window",
+          "Payout mode",
+          "Payout reference",
+          "Status",
+          "Notes",
+          "Updated",
+        ],
+        ...affiliates.map((affiliate) => [
+          affiliate.displayName,
+          affiliate.code,
+          affiliateEntityLabel(affiliate.entityType),
+          affiliate.contactName,
+          affiliate.email,
+          affiliate.phone,
+          affiliate.websiteUrl,
+          affiliateCommissionLabel(affiliate),
+          `${affiliate.cookieWindowDays} days`,
+          affiliatePayoutLabel(affiliate.payoutMode),
+          affiliate.payoutReference,
+          affiliateStatusLabel(affiliate.status),
+          affiliate.notes,
+          shortTime(affiliate.updatedAt),
+        ]),
+      ],
+    },
+    {
       id: "promotion-redemptions",
       title: "Recent promotion redemptions",
       helper:
@@ -4721,6 +4820,7 @@ function HealthSection({
   subscriptions,
   promotions,
   adCampaigns,
+  affiliates,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -4735,6 +4835,7 @@ function HealthSection({
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
   adCampaigns: AdminAdCampaign[];
+  affiliates: AdminAffiliate[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -4792,6 +4893,15 @@ function HealthSection({
   );
   const activeAdCampaigns = adCampaigns.filter(
     (campaign) => campaign.status === "active",
+  );
+  const pendingAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "pending_review",
+  );
+  const activeAffiliates = affiliates.filter(
+    (affiliate) => affiliate.status === "active",
+  );
+  const manualPayoutAffiliates = affiliates.filter(
+    (affiliate) => affiliate.payoutMode === "manual",
   );
   const paymentHealth = platformMetrics?.paymentHealthBps ?? 0;
   const healthSignals: AdminReportItem[] = [
@@ -4852,6 +4962,21 @@ function HealthSection({
       status: pendingAdCampaigns.length > 0 ? "watch" : "ready",
       target: "ads",
       targetLabel: "Open ads",
+    },
+    {
+      id: "affiliates",
+      label: "Affiliate programmes",
+      value: `${pendingAffiliates.length} pending`,
+      helper:
+        pendingAffiliates.length > 0
+          ? `${pendingAffiliates.length} partners need operator review before attribution.`
+          : `${activeAffiliates.length} active partners · ${manualPayoutAffiliates.length} manual payout rails.`,
+      status:
+        pendingAffiliates.length > 0 || manualPayoutAffiliates.length > 0
+          ? "watch"
+          : "ready",
+      target: "affiliates",
+      targetLabel: "Open affiliates",
     },
     {
       id: "kyc",
@@ -10359,6 +10484,7 @@ export default function AdminDashboard({
     subscriptions,
     promotions,
     adCampaigns,
+    affiliates,
     riskReviews,
     supportTickets,
     auditEvents,
@@ -10694,6 +10820,7 @@ export default function AdminDashboard({
               subscriptions={subscriptions}
               promotions={promotions}
               adCampaigns={adCampaigns}
+              affiliates={affiliates}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -10715,6 +10842,7 @@ export default function AdminDashboard({
               subscriptions={subscriptions}
               promotions={promotions}
               adCampaigns={adCampaigns}
+              affiliates={affiliates}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -10733,6 +10861,7 @@ export default function AdminDashboard({
               subscriptions={subscriptions}
               promotions={promotions}
               adCampaigns={adCampaigns}
+              affiliates={affiliates}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}

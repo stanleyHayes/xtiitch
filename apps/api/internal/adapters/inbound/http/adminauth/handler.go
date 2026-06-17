@@ -2271,6 +2271,35 @@ func (handler Handler) exportDatasetRows(
 			})
 		}
 		return rows, nil
+	case "affiliates":
+		records, err := handler.service.ListAffiliates(ctx, adminauthapp.ListAffiliatesCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Affiliate", "Code", "Entity", "Contact", "Email", "Phone", "Website", "Commission", "Cookie window", "Payout mode", "Payout reference", "Status", "Notes", "Updated"}}
+		for _, record := range records {
+			commission := moneyCSV(record.CommissionRate)
+			if record.CommissionModel == "percentage" {
+				commission = fmt.Sprintf("%.2f%%", float64(record.CommissionRate)/100)
+			}
+			rows = append(rows, []string{
+				record.DisplayName,
+				record.Code,
+				record.EntityType,
+				record.ContactName,
+				record.Email,
+				record.Phone,
+				record.WebsiteURL,
+				commission,
+				fmt.Sprintf("%d days", record.CookieWindowDays),
+				record.PayoutMode,
+				record.PayoutReference,
+				record.Status,
+				record.Notes,
+				timeCSV(record.UpdatedAt),
+			})
+		}
+		return rows, nil
 	case "promotion-redemptions":
 		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
 		if err != nil {
