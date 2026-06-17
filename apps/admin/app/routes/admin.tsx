@@ -169,6 +169,7 @@ type AdminExportDatasetId =
   | "plans"
   | "subscriptions"
   | "promotions"
+  | "ad-campaigns"
   | "promotion-redemptions";
 type AdminReportItem = {
   id: string;
@@ -334,6 +335,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "plans",
   "subscriptions",
   "promotions",
+  "ad-campaigns",
   "promotion-redemptions",
 ];
 
@@ -1701,6 +1703,8 @@ function notificationCategoryLabel(
       return "Subscriptions";
     case "promotions":
       return "Promotions";
+    case "ads":
+      return "Sponsored placements";
     case "risk":
       return "Risk";
     case "support":
@@ -1724,6 +1728,8 @@ function notificationCategoryWatched(
     case "subscriptions":
       return preferences.alertSubscriptions;
     case "promotions":
+      return preferences.alertPromotions;
+    case "ads":
       return preferences.alertPromotions;
     case "risk":
       return preferences.alertRisk;
@@ -1765,6 +1771,7 @@ function buildAdminNotifications({
   platformSettings,
   subscriptions,
   promotions,
+  adCampaigns,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -1775,6 +1782,7 @@ function buildAdminNotifications({
   platformSettings: AdminPlatformSettings;
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
+  adCampaigns: AdminAdCampaign[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -1897,6 +1905,25 @@ function buildAdminNotifications({
       });
     });
 
+  adCampaigns
+    .filter((campaign) => campaign.status === "pending_review")
+    .slice(0, 4)
+    .forEach((campaign) => {
+      notifications.push({
+        id: `ad-campaign-${campaign.campaignId}`,
+        tone: "warning",
+        category: "ads",
+        title: `${campaign.headline} needs placement review`,
+        helper: `${campaign.businessName} · ${adPlacementLabel(
+          campaign.placementType,
+        )} · ${formatGHS(campaign.budgetMinor)} budget`,
+        meta: `Starts ${shortTime(campaign.startsAt)}`,
+        source: campaign.businessHandle,
+        target: "ads",
+        targetLabel: "Open ads",
+      });
+    });
+
   riskReviews
     .filter((review) => review.status === "open")
     .slice(0, 4)
@@ -1984,7 +2011,7 @@ function buildAdminNotifications({
       category: "platform",
       title: "No admin alerts waiting",
       helper:
-        "Verification, money rails, risk, and support are clear right now.",
+        "Verification, money rails, ads, risk, and support are clear right now.",
       meta: "Live queue",
       source: "Admin console",
       target: "overview",
@@ -3207,6 +3234,7 @@ function ReportsSection({
   moneyRails,
   subscriptions,
   promotions,
+  adCampaigns,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3219,6 +3247,7 @@ function ReportsSection({
   moneyRails: AdminMoneyRails | null;
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
+  adCampaigns: AdminAdCampaign[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3268,6 +3297,19 @@ function ReportsSection({
   );
   const promotionRedeemedMinor = promotions.reduce(
     (total, promotion) => total + promotion.discountRedeemedMinor,
+    0,
+  );
+  const pendingAdCampaigns = adCampaigns.filter(
+    (campaign) => campaign.status === "pending_review",
+  );
+  const activeAdCampaigns = adCampaigns.filter(
+    (campaign) => campaign.status === "active",
+  );
+  const adBookedMinor = adCampaigns
+    .filter((campaign) => campaign.status !== "archived")
+    .reduce((total, campaign) => total + campaign.budgetMinor, 0);
+  const adSpendMinor = adCampaigns.reduce(
+    (total, campaign) => total + campaign.spendMinor,
     0,
   );
   const openRisks = riskReviews.filter((review) => review.status === "open");
@@ -3346,6 +3388,18 @@ function ReportsSection({
       status: pendingPromotionRedemptions > 0 ? "watch" : "ready",
       target: "promotions",
       targetLabel: "Open promotions",
+    },
+    {
+      id: "ads",
+      label: "Sponsored placements",
+      value: `${pendingAdCampaigns.length} pending`,
+      helper:
+        pendingAdCampaigns.length > 0
+          ? `${activeAdCampaigns.length} active placements · ${formatGHS(adBookedMinor)} booked ad budget.`
+          : `${activeAdCampaigns.length} active placements · ${formatGHS(adSpendMinor)} spent so far.`,
+      status: pendingAdCampaigns.length > 0 ? "watch" : "ready",
+      target: "ads",
+      targetLabel: "Open ads",
     },
     {
       id: "risk",
@@ -3713,6 +3767,7 @@ function ExportsSection({
   plans,
   subscriptions,
   promotions,
+  adCampaigns,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -3729,6 +3784,7 @@ function ExportsSection({
   plans: AdminPlan[];
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
+  adCampaigns: AdminAdCampaign[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -3742,6 +3798,9 @@ function ExportsSection({
       promotion,
       redemption,
     })),
+  );
+  const pendingAdCampaigns = adCampaigns.filter(
+    (campaign) => campaign.status === "pending_review",
   );
   const exportDatasets: AdminExportDataset[] = [
     {
@@ -4237,6 +4296,57 @@ function ExportsSection({
       ],
     },
     {
+      id: "ad-campaigns",
+      title: "Sponsored placements",
+      helper:
+        "Campaign status, advertiser, placement, budget, spend, and engagement.",
+      source: "ads",
+      sourceLabel: "Open ads",
+      tone: pendingAdCampaigns.length > 0 ? "watch" : "ready",
+      rows: [
+        [
+          "Campaign",
+          "Business",
+          "Handle",
+          "Placement",
+          "Target",
+          "Status",
+          "Pricing",
+          "Budget",
+          "Spend",
+          "Daily cap",
+          "Starts",
+          "Ends",
+          "Impressions",
+          "Clicks",
+          "CTR",
+          "Review note",
+          "Updated",
+        ],
+        ...adCampaigns.map((campaign) => [
+          campaign.headline,
+          campaign.businessName,
+          campaign.businessHandle,
+          adPlacementLabel(campaign.placementType),
+          campaign.targetLabel || campaign.targetRefId || "Business storefront",
+          adCampaignStatusLabel(campaign.status),
+          campaign.pricingModel,
+          formatGHS(campaign.budgetMinor),
+          formatGHS(campaign.spendMinor),
+          typeof campaign.dailyCapMinor === "number"
+            ? formatGHS(campaign.dailyCapMinor)
+            : "",
+          shortTime(campaign.startsAt),
+          shortTime(campaign.endsAt),
+          campaign.impressionCount,
+          campaign.clickCount,
+          formatPercentBps(campaign.clickRateBps),
+          campaign.reviewNote,
+          shortTime(campaign.updatedAt),
+        ]),
+      ],
+    },
+    {
       id: "promotion-redemptions",
       title: "Recent promotion redemptions",
       helper:
@@ -4443,6 +4553,7 @@ function HealthSection({
   moneyRails,
   subscriptions,
   promotions,
+  adCampaigns,
   riskReviews,
   supportTickets,
   auditEvents,
@@ -4456,6 +4567,7 @@ function HealthSection({
   moneyRails: AdminMoneyRails | null;
   subscriptions: AdminSubscription[];
   promotions: AdminPromotion[];
+  adCampaigns: AdminAdCampaign[];
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
@@ -4508,6 +4620,12 @@ function HealthSection({
       ).length,
     0,
   );
+  const pendingAdCampaigns = adCampaigns.filter(
+    (campaign) => campaign.status === "pending_review",
+  );
+  const activeAdCampaigns = adCampaigns.filter(
+    (campaign) => campaign.status === "active",
+  );
   const paymentHealth = platformMetrics?.paymentHealthBps ?? 0;
   const healthSignals: AdminReportItem[] = [
     {
@@ -4555,6 +4673,18 @@ function HealthSection({
       status: pendingPromotionRedemptions > 0 ? "watch" : "ready",
       target: "promotions",
       targetLabel: "Open promotions",
+    },
+    {
+      id: "ads",
+      label: "Sponsored placements",
+      value: `${pendingAdCampaigns.length} pending`,
+      helper:
+        pendingAdCampaigns.length > 0
+          ? `${pendingAdCampaigns.length} advertiser placements need operator approval.`
+          : `${activeAdCampaigns.length} active placements are cleared for approved windows.`,
+      status: pendingAdCampaigns.length > 0 ? "watch" : "ready",
+      target: "ads",
+      targetLabel: "Open ads",
     },
     {
       id: "kyc",
@@ -9594,6 +9724,7 @@ export default function AdminDashboard({
     platformSettings,
     subscriptions,
     promotions,
+    adCampaigns,
     riskReviews,
     supportTickets,
     auditEvents,
@@ -9928,6 +10059,7 @@ export default function AdminDashboard({
               moneyRails={moneyRails}
               subscriptions={subscriptions}
               promotions={promotions}
+              adCampaigns={adCampaigns}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -9948,6 +10080,7 @@ export default function AdminDashboard({
               plans={plans}
               subscriptions={subscriptions}
               promotions={promotions}
+              adCampaigns={adCampaigns}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
@@ -9965,6 +10098,7 @@ export default function AdminDashboard({
               moneyRails={moneyRails}
               subscriptions={subscriptions}
               promotions={promotions}
+              adCampaigns={adCampaigns}
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}

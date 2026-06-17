@@ -2052,6 +2052,38 @@ func (handler Handler) exportDatasetRows(
 			rows = append(rows, []string{record.Title, record.Code, fallbackText(record.BusinessName, "Platform-wide"), record.Status, record.DiscountType, fmt.Sprint(record.DiscountValue), record.FundingSource, record.Scope, fmt.Sprint(record.RedemptionCount), moneyCSV(record.DiscountRedeemedMinor)})
 		}
 		return rows, nil
+	case "ad-campaigns":
+		records, err := handler.service.ListAdCampaigns(ctx, adminauthapp.ListAdCampaignsCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Campaign", "Business", "Handle", "Placement", "Target", "Status", "Pricing", "Budget", "Spend", "Daily cap", "Starts", "Ends", "Impressions", "Clicks", "CTR", "Review note", "Updated"}}
+		for _, record := range records {
+			dailyCap := ""
+			if record.DailyCapMinor != nil {
+				dailyCap = moneyCSV(*record.DailyCapMinor)
+			}
+			rows = append(rows, []string{
+				record.Headline,
+				record.BusinessName,
+				record.BusinessHandle,
+				record.PlacementType,
+				fallbackText(record.TargetLabel, record.TargetRefID),
+				record.Status,
+				record.PricingModel,
+				moneyCSV(record.BudgetMinor),
+				moneyCSV(record.SpendMinor),
+				dailyCap,
+				timeCSV(record.StartsAt),
+				timeCSV(record.EndsAt),
+				fmt.Sprint(record.ImpressionCount),
+				fmt.Sprint(record.ClickCount),
+				fmt.Sprintf("%.2f%%", float64(record.ClickRateBPS)/100),
+				record.ReviewNote,
+				timeCSV(record.UpdatedAt),
+			})
+		}
+		return rows, nil
 	case "promotion-redemptions":
 		records, err := handler.service.ListPromotions(ctx, adminauthapp.ListPromotionsCommand{ActorRole: principal.Role})
 		if err != nil {
