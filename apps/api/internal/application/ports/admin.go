@@ -60,6 +60,10 @@ type AdminBusinessRepository interface {
 	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	ArchiveAdminAffiliate(ctx context.Context, input ArchiveAdminAffiliateInput) (AdminAffiliateRecord, error)
+	ListAdminReferralProgrammes(ctx context.Context) ([]AdminReferralProgrammeRecord, error)
+	CreateAdminReferralProgramme(ctx context.Context, input CreateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
+	UpdateAdminReferralProgramme(ctx context.Context, input UpdateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
+	ArchiveAdminReferralProgramme(ctx context.Context, input ArchiveAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
@@ -654,6 +658,69 @@ type UpdateAdminAffiliateInput struct {
 
 type ArchiveAdminAffiliateInput struct {
 	AffiliateID    common.ID
+	ActorAdminUser common.ID
+}
+
+type AdminReferralProgrammeRecord struct {
+	ProgrammeID             common.ID
+	Title                   string
+	CodePrefix              string
+	Audience                string
+	ReferrerRewardKind      string
+	RefereeRewardKind       string
+	RewardType              string
+	RewardValue             int64
+	MaxRewardMinor          *int64
+	QualifyingOrderMinMinor int64
+	RewardHoldDays          int
+	Status                  string
+	StartsAt                *time.Time
+	EndsAt                  *time.Time
+	Notes                   string
+	CreatedAt               time.Time
+	UpdatedAt               time.Time
+}
+
+type CreateAdminReferralProgrammeInput struct {
+	ProgrammeID             common.ID
+	Title                   string
+	CodePrefix              string
+	Audience                string
+	ReferrerRewardKind      string
+	RefereeRewardKind       string
+	RewardType              string
+	RewardValue             int64
+	MaxRewardMinor          *int64
+	QualifyingOrderMinMinor int64
+	RewardHoldDays          int
+	Status                  string
+	StartsAt                *time.Time
+	EndsAt                  *time.Time
+	Notes                   string
+	ActorAdminUser          common.ID
+}
+
+type UpdateAdminReferralProgrammeInput struct {
+	ProgrammeID             common.ID
+	Title                   string
+	CodePrefix              string
+	Audience                string
+	ReferrerRewardKind      string
+	RefereeRewardKind       string
+	RewardType              string
+	RewardValue             int64
+	MaxRewardMinor          *int64
+	QualifyingOrderMinMinor int64
+	RewardHoldDays          int
+	Status                  string
+	StartsAt                *time.Time
+	EndsAt                  *time.Time
+	Notes                   string
+	ActorAdminUser          common.ID
+}
+
+type ArchiveAdminReferralProgrammeInput struct {
+	ProgrammeID    common.ID
 	ActorAdminUser common.ID
 }
 

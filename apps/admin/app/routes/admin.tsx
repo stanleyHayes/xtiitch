@@ -88,6 +88,12 @@ import {
   type AdminPromotionScope,
   type AdminPromotionStatus,
   type AdminProfileSettings,
+  type AdminReferralAudience,
+  type AdminReferralProgramme,
+  type AdminReferralProgrammeStatus,
+  type AdminReferralRefereeRewardKind,
+  type AdminReferralRewardKind,
+  type AdminReferralRewardType,
   type AdminRiskLevel,
   type AdminRiskReview,
   type AdminRiskReviewStatus,
@@ -118,6 +124,7 @@ type Section =
   | "promotions"
   | "ads"
   | "affiliates"
+  | "referrals"
   | "users"
   | "roles"
   | "verification"
@@ -264,6 +271,12 @@ const navItems: AdminNavItem[] = [
     icon: <WorkspacePremiumRounded />,
   },
   {
+    id: "referrals",
+    label: "Referrals",
+    helper: "Two-sided growth",
+    icon: <LocalOfferRounded />,
+  },
+  {
     id: "users",
     label: "Users",
     helper: "Operators and roles",
@@ -397,6 +410,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let adCampaignsError: string | null = null;
   let affiliates: AdminAffiliate[] = [];
   let affiliatesError: string | null = null;
+  let referralProgrammes: AdminReferralProgramme[] = [];
+  let referralProgrammesError: string | null = null;
   let riskReviews: AdminRiskReview[] = [];
   let riskReviewError: string | null = null;
   let supportTickets: AdminSupportTicket[] = [];
@@ -506,6 +521,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
+    referralProgrammes = await adminApi.referralProgrammes(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      referralProgrammesError =
+        "Your role cannot manage referral programmes.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
     riskReviews = await adminApi.riskReviews(accessToken);
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
@@ -563,6 +589,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     adCampaignsError,
     affiliates,
     affiliatesError,
+    referralProgrammes,
+    referralProgrammesError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -1189,6 +1217,82 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (
+    intent === "admin-referral-programme:create" ||
+    intent === "admin-referral-programme:update" ||
+    intent === "admin-referral-programme:archive"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      if (intent === "admin-referral-programme:archive") {
+        await adminApi.archiveReferralProgramme(
+          accessToken,
+          String(form.get("programme_id") ?? ""),
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "referrals",
+          severity: "success",
+          message: "Referral programme archived.",
+        };
+      }
+
+      const rewardType = readReferralRewardType(form.get("reward_type"));
+      const payload = {
+        title: String(form.get("title") ?? ""),
+        codePrefix: String(form.get("code_prefix") ?? ""),
+        audience: readReferralAudience(form.get("audience")),
+        referrerRewardKind: readReferralRewardKind(
+          form.get("referrer_reward_kind"),
+        ),
+        refereeRewardKind: readReferralRefereeRewardKind(
+          form.get("referee_reward_kind"),
+        ),
+        rewardType,
+        rewardValue: readReferralRewardValue(
+          rewardType,
+          form.get("reward_value"),
+        ),
+        maxRewardMinor: readOptionalGhsPesewas(form.get("max_reward_ghs")),
+        qualifyingOrderMinMinor: readGhsPesewas(
+          form.get("qualifying_order_min_ghs"),
+        ),
+        rewardHoldDays: readInt(form.get("reward_hold_days"), 14),
+        status: readReferralEditableStatus(form.get("status")),
+        startsAt: readOptionalDateTime(form.get("starts_at")),
+        endsAt: readOptionalDateTime(form.get("ends_at")),
+        notes: String(form.get("notes") ?? ""),
+      };
+
+      if (intent === "admin-referral-programme:create") {
+        await adminApi.createReferralProgramme(accessToken, payload);
+        return {
+          section: "referrals",
+          severity: "success",
+          message: "Referral programme created.",
+        };
+      }
+
+      await adminApi.updateReferralProgramme(
+        accessToken,
+        String(form.get("programme_id") ?? ""),
+        payload,
+      );
+      return {
+        section: "referrals",
+        severity: "success",
+        message: "Referral programme updated.",
+      };
+    } catch (error) {
+      return {
+        section: "referrals",
+        severity: "error",
+        message: adminReferralProgrammeActionError(error),
+      };
+    }
+  }
+
   if (intent === "admin-risk-review:update") {
     const { accessToken } = await requireAdminContext(request);
     const status = readRiskReviewStatus(form.get("status"));
@@ -1447,11 +1551,63 @@ function readAffiliateEditableStatus(
   return "pending_review";
 }
 
+function readReferralAudience(
+  value: FormDataEntryValue | null,
+): AdminReferralAudience {
+  const audience = String(value ?? "");
+  if (audience === "businesses" || audience === "mixed") {
+    return audience;
+  }
+  return "customers";
+}
+
+function readReferralRewardKind(
+  value: FormDataEntryValue | null,
+): AdminReferralRewardKind {
+  const kind = String(value ?? "");
+  if (kind === "commission_rebate" || kind === "none") {
+    return kind;
+  }
+  return "voucher";
+}
+
+function readReferralRefereeRewardKind(
+  value: FormDataEntryValue | null,
+): AdminReferralRefereeRewardKind {
+  return String(value ?? "") === "none" ? "none" : "voucher";
+}
+
+function readReferralRewardType(
+  value: FormDataEntryValue | null,
+): AdminReferralRewardType {
+  return String(value ?? "") === "fixed" ? "fixed" : "percentage";
+}
+
+function readReferralEditableStatus(
+  value: FormDataEntryValue | null,
+): Exclude<AdminReferralProgrammeStatus, "archived"> {
+  const status = String(value ?? "");
+  if (status === "active" || status === "paused") {
+    return status;
+  }
+  return "draft";
+}
+
 function readAffiliateCommissionValue(
   modelValue: FormDataEntryValue | null,
   value: FormDataEntryValue | null,
 ): number {
   if (readAffiliateCommissionModel(modelValue) === "percentage") {
+    return Math.round(readNumber(value, 0) * 100);
+  }
+  return readGhsPesewas(value);
+}
+
+function readReferralRewardValue(
+  rewardType: AdminReferralRewardType,
+  value: FormDataEntryValue | null,
+): number {
+  if (rewardType === "percentage") {
     return Math.round(readNumber(value, 0) * 100);
   }
   return readGhsPesewas(value);
@@ -1747,6 +1903,22 @@ function adminAffiliateActionError(error: unknown): string {
     }
   }
   return "The affiliate programme change could not be saved.";
+}
+
+function adminReferralProgrammeActionError(error: unknown): string {
+  if (error instanceof AdminApiError) {
+    switch (error.code) {
+      case "forbidden":
+        return "Your role cannot manage referral programmes.";
+      case "invalid_input":
+        return "Check the code prefix, rewards, limits, status, and date window.";
+      case "not_found":
+        return "That referral programme could not be found.";
+      default:
+        return "The referral programme change could not be saved.";
+    }
+  }
+  return "The referral programme change could not be saved.";
 }
 
 function adminRiskActionError(error: unknown): string {
@@ -5428,6 +5600,49 @@ const affiliateStatusOptions: {
   { value: "paused", label: "Paused" },
 ];
 
+const referralAudienceOptions: {
+  value: AdminReferralAudience;
+  label: string;
+}[] = [
+  { value: "customers", label: "Customers" },
+  { value: "businesses", label: "Businesses" },
+  { value: "mixed", label: "Customers and businesses" },
+];
+
+const referralRewardKindOptions: {
+  value: AdminReferralRewardKind;
+  label: string;
+}[] = [
+  { value: "voucher", label: "Voucher" },
+  { value: "commission_rebate", label: "Commission rebate" },
+  { value: "none", label: "No referrer reward" },
+];
+
+const referralRefereeRewardKindOptions: {
+  value: AdminReferralRefereeRewardKind;
+  label: string;
+}[] = [
+  { value: "voucher", label: "Voucher" },
+  { value: "none", label: "No new-customer reward" },
+];
+
+const referralRewardTypeOptions: {
+  value: AdminReferralRewardType;
+  label: string;
+}[] = [
+  { value: "percentage", label: "Percentage" },
+  { value: "fixed", label: "Fixed amount" },
+];
+
+const referralStatusOptions: {
+  value: Exclude<AdminReferralProgrammeStatus, "archived">;
+  label: string;
+}[] = [
+  { value: "draft", label: "Draft" },
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+];
+
 function subscriptionStatusLabel(status: AdminSubscriptionStatus): string {
   return (
     subscriptionStatusOptions.find((option) => option.value === status)
@@ -5570,6 +5785,75 @@ function affiliateCommissionDefault(affiliate: AdminAffiliate): string {
     return (affiliate.commissionRate / 100).toString();
   }
   return (affiliate.commissionRate / 100).toFixed(2);
+}
+
+function referralAudienceLabel(value: AdminReferralAudience): string {
+  return (
+    referralAudienceOptions.find((option) => option.value === value)?.label ??
+    value
+  );
+}
+
+function referralRewardKindLabel(value: AdminReferralRewardKind): string {
+  return (
+    referralRewardKindOptions.find((option) => option.value === value)?.label ??
+    value
+  );
+}
+
+function referralRefereeRewardKindLabel(
+  value: AdminReferralRefereeRewardKind,
+): string {
+  return (
+    referralRefereeRewardKindOptions.find((option) => option.value === value)
+      ?.label ?? value
+  );
+}
+
+function referralStatusLabel(status: AdminReferralProgrammeStatus): string {
+  return (
+    referralStatusOptions.find((option) => option.value === status)?.label ??
+    (status === "archived" ? "Archived" : status)
+  );
+}
+
+function referralStatusColor(status: AdminReferralProgrammeStatus): string {
+  switch (status) {
+    case "active":
+      return tokens.success;
+    case "draft":
+    case "paused":
+      return tokens.warning;
+    default:
+      return tokens.mutedText;
+  }
+}
+
+function referralRewardLabel(programme: AdminReferralProgramme): string {
+  const value =
+    programme.rewardType === "percentage"
+      ? `${(programme.rewardValue / 100).toFixed(1)}%`
+      : formatGHS(programme.rewardValue);
+  const cap =
+    programme.rewardType === "percentage" &&
+    typeof programme.maxRewardMinor === "number"
+      ? ` capped at ${formatGHS(programme.maxRewardMinor)}`
+      : "";
+  return `${value}${cap}`;
+}
+
+function referralRewardDefault(programme: AdminReferralProgramme): string {
+  if (programme.rewardType === "percentage") {
+    return (programme.rewardValue / 100).toString();
+  }
+  return (programme.rewardValue / 100).toFixed(2);
+}
+
+function referralRewardTypeLabel(value: AdminReferralRewardType): string {
+  return (
+    referralRewardTypeOptions.find((option) => option.value === value)?.label ??
+    value
+  );
 }
 
 function moneyInputDefault(value?: number): string {
@@ -8449,6 +8733,576 @@ function AffiliatesSection({
   );
 }
 
+function ReferralsSection({
+  programmes,
+  referralProgrammesError,
+  actionData,
+}: {
+  programmes: AdminReferralProgramme[];
+  referralProgrammesError: string | null;
+  actionData?: AdminActionFeedback;
+}) {
+  const activeProgrammes = programmes.filter(
+    (programme) => programme.status === "active",
+  );
+  const draftProgrammes = programmes.filter(
+    (programme) => programme.status === "draft",
+  );
+  const pausedProgrammes = programmes.filter(
+    (programme) => programme.status === "paused",
+  );
+  const archivedProgrammes = programmes.filter(
+    (programme) => programme.status === "archived",
+  );
+
+  return (
+    <Stack spacing={2.5}>
+      <SectionHeader
+        eyebrow="Growth controls"
+        title="Referral programmes"
+        helper="Create two-sided referral programmes, control reward economics, qualifying order minimums, payout holds, date windows, and lifecycle state."
+      />
+
+      {actionData?.section === "referrals" && actionData.message ? (
+        <Alert severity={actionData.severity ?? "success"}>
+          {actionData.message}
+        </Alert>
+      ) : null}
+      {referralProgrammesError ? (
+        <Alert severity="warning">{referralProgrammesError}</Alert>
+      ) : null}
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(4, minmax(0, 1fr))" },
+        }}
+      >
+        <MetricCard
+          label="Active programmes"
+          value={String(activeProgrammes.length)}
+          helper="Eligible for referral links"
+          trend={`${programmes.length} total`}
+        />
+        <MetricCard
+          label="Draft"
+          value={String(draftProgrammes.length)}
+          helper="Not visible to customers"
+          trend="Setup queue"
+        />
+        <MetricCard
+          label="Paused"
+          value={String(pausedProgrammes.length)}
+          helper="Temporarily disabled"
+          trend="No new rewards"
+        />
+        <MetricCard
+          label="Archived"
+          value={String(archivedProgrammes.length)}
+          helper="Closed programmes"
+          trend="Audit retained"
+        />
+      </Box>
+
+      {!referralProgrammesError ? (
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-referral-programme:create"
+            />
+            <Stack spacing={2}>
+              <Stack
+                direction={{ xs: "column", md: "row" }}
+                spacing={1.5}
+                sx={{ justifyContent: "space-between" }}
+              >
+                <Box>
+                  <Typography variant="h6">Create referral programme</Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Define the code prefix and the rewards for both sides of the invitation.
+                  </Typography>
+                </Box>
+                <Button type="submit" variant="contained">
+                  Create programme
+                </Button>
+              </Stack>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                }}
+              >
+                <TextField label="Title" name="title" required />
+                <TextField
+                  label="Code prefix"
+                  name="code_prefix"
+                  required
+                  placeholder="REF"
+                />
+                <TextField select label="Audience" name="audience" defaultValue="customers">
+                  {referralAudienceOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Referrer reward"
+                  name="referrer_reward_kind"
+                  defaultValue="voucher"
+                >
+                  {referralRewardKindOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="New customer reward"
+                  name="referee_reward_kind"
+                  defaultValue="voucher"
+                >
+                  {referralRefereeRewardKindOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Reward type"
+                  name="reward_type"
+                  defaultValue="fixed"
+                >
+                  {referralRewardTypeOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Reward value"
+                  name="reward_value"
+                  type="number"
+                  required
+                  defaultValue={25}
+                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                />
+                <TextField
+                  label="Percentage cap (GHS)"
+                  name="max_reward_ghs"
+                  type="number"
+                  defaultValue={50}
+                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                />
+                <TextField
+                  label="Minimum order (GHS)"
+                  name="qualifying_order_min_ghs"
+                  type="number"
+                  defaultValue={150}
+                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                />
+                <TextField
+                  label="Reward hold days"
+                  name="reward_hold_days"
+                  type="number"
+                  defaultValue={14}
+                  slotProps={{ htmlInput: { min: 0, max: 180, step: 1 } }}
+                />
+                <TextField select label="Status" name="status" defaultValue="draft">
+                  {referralStatusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <TextField
+                  label="Starts"
+                  name="starts_at"
+                  type="datetime-local"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+                <TextField
+                  label="Ends"
+                  name="ends_at"
+                  type="datetime-local"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                />
+              </Box>
+              <TextField label="Notes" name="notes" multiline minRows={2} />
+            </Stack>
+          </Form>
+        </Panel>
+      ) : null}
+
+      {!referralProgrammesError && programmes.length === 0 ? (
+        <Alert severity="info">No referral programmes are registered yet.</Alert>
+      ) : null}
+
+      {!referralProgrammesError && programmes.length > 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          {programmes.map((programme) => {
+            const color = referralStatusColor(programme.status);
+            const archived = programme.status === "archived";
+            const windowText =
+              programme.startsAt || programme.endsAt
+                ? `${programme.startsAt ? shortTime(programme.startsAt) : "Now"} to ${
+                    programme.endsAt ? shortTime(programme.endsAt) : "open"
+                  }`
+                : "Always available";
+
+            return (
+              <Panel
+                key={programme.programmeId}
+                sx={{
+                  p: { xs: 2, md: 2.5 },
+                  borderColor: alpha(color, archived ? 0.12 : 0.2),
+                  backgroundImage: `linear-gradient(180deg, ${alpha(
+                    color,
+                    archived ? 0.035 : 0.075,
+                  )}, transparent 42%)`,
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.25}
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: { sm: "flex-start" },
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography variant="h6">{programme.title}</Typography>
+                        <Chip
+                          size="small"
+                          label={programme.codePrefix}
+                          variant="outlined"
+                        />
+                      </Stack>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.5, color: "text.secondary" }}
+                      >
+                        {referralAudienceLabel(programme.audience)} ·{" "}
+                        {referralRewardTypeLabel(programme.rewardType)}
+                      </Typography>
+                    </Box>
+                    <Chip
+                      size="small"
+                      label={referralStatusLabel(programme.status)}
+                      sx={{ bgcolor: alpha(color, 0.12), color, fontWeight: 900 }}
+                    />
+                  </Stack>
+
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+                    }}
+                  >
+                    <DetailLine label="Reward" value={referralRewardLabel(programme)} />
+                    <DetailLine
+                      label="Reward route"
+                      value={`${referralRewardKindLabel(
+                        programme.referrerRewardKind,
+                      )} / ${referralRefereeRewardKindLabel(
+                        programme.refereeRewardKind,
+                      )}`}
+                    />
+                    <DetailLine
+                      label="Minimum order"
+                      value={formatGHS(programme.qualifyingOrderMinMinor)}
+                    />
+                    <DetailLine
+                      label="Hold"
+                      value={`${programme.rewardHoldDays} days`}
+                    />
+                    <DetailLine label="Window" value={windowText} />
+                    <DetailLine
+                      label="Updated"
+                      value={shortTime(programme.updatedAt)}
+                    />
+                  </Box>
+
+                  {programme.notes ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.ink, 0.08),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.white, 0.7),
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        Notes
+                      </Typography>
+                      <Typography sx={{ overflowWrap: "anywhere" }}>
+                        {programme.notes}
+                      </Typography>
+                    </Box>
+                  ) : null}
+
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-referral-programme:update"
+                    />
+                    <input
+                      type="hidden"
+                      name="programme_id"
+                      value={programme.programmeId}
+                    />
+                    <Stack spacing={1.25}>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1.25,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            md: "repeat(2, minmax(0, 1fr))",
+                          },
+                        }}
+                      >
+                        <TextField
+                          label="Title"
+                          name="title"
+                          size="small"
+                          defaultValue={programme.title}
+                          required
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Code prefix"
+                          name="code_prefix"
+                          size="small"
+                          defaultValue={programme.codePrefix}
+                          required
+                          disabled={archived}
+                        />
+                        <TextField
+                          select
+                          label="Audience"
+                          name="audience"
+                          size="small"
+                          defaultValue={programme.audience}
+                          disabled={archived}
+                        >
+                          {referralAudienceOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Referrer reward"
+                          name="referrer_reward_kind"
+                          size="small"
+                          defaultValue={programme.referrerRewardKind}
+                          disabled={archived}
+                        >
+                          {referralRewardKindOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="New customer reward"
+                          name="referee_reward_kind"
+                          size="small"
+                          defaultValue={programme.refereeRewardKind}
+                          disabled={archived}
+                        >
+                          {referralRefereeRewardKindOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          select
+                          label="Reward type"
+                          name="reward_type"
+                          size="small"
+                          defaultValue={programme.rewardType}
+                          disabled={archived}
+                        >
+                          {referralRewardTypeOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Reward value"
+                          name="reward_value"
+                          type="number"
+                          size="small"
+                          defaultValue={referralRewardDefault(programme)}
+                          required
+                          disabled={archived}
+                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                        />
+                        <TextField
+                          label="Percentage cap (GHS)"
+                          name="max_reward_ghs"
+                          type="number"
+                          size="small"
+                          defaultValue={moneyInputDefault(programme.maxRewardMinor)}
+                          disabled={archived}
+                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                        />
+                        <TextField
+                          label="Minimum order (GHS)"
+                          name="qualifying_order_min_ghs"
+                          type="number"
+                          size="small"
+                          defaultValue={moneyInputDefault(
+                            programme.qualifyingOrderMinMinor,
+                          )}
+                          disabled={archived}
+                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                        />
+                        <TextField
+                          label="Reward hold days"
+                          name="reward_hold_days"
+                          type="number"
+                          size="small"
+                          defaultValue={programme.rewardHoldDays}
+                          disabled={archived}
+                          slotProps={{
+                            htmlInput: { min: 0, max: 180, step: 1 },
+                          }}
+                        />
+                        <TextField
+                          select
+                          label="Status"
+                          name="status"
+                          size="small"
+                          defaultValue={
+                            programme.status === "archived"
+                              ? "paused"
+                              : programme.status
+                          }
+                          disabled={archived}
+                        >
+                          {referralStatusOptions.map((option) => (
+                            <MenuItem key={option.value} value={option.value}>
+                              {option.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <TextField
+                          label="Starts"
+                          name="starts_at"
+                          type="datetime-local"
+                          size="small"
+                          defaultValue={datetimeLocalDefault(programme.startsAt)}
+                          disabled={archived}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                        <TextField
+                          label="Ends"
+                          name="ends_at"
+                          type="datetime-local"
+                          size="small"
+                          defaultValue={datetimeLocalDefault(programme.endsAt)}
+                          disabled={archived}
+                          slotProps={{ inputLabel: { shrink: true } }}
+                        />
+                      </Box>
+                      <TextField
+                        label="Notes"
+                        name="notes"
+                        multiline
+                        minRows={2}
+                        size="small"
+                        defaultValue={programme.notes}
+                        disabled={archived}
+                      />
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={archived}
+                        sx={{ alignSelf: "flex-start" }}
+                      >
+                        Save programme
+                      </Button>
+                    </Stack>
+                  </Form>
+
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-referral-programme:archive"
+                    />
+                    <input
+                      type="hidden"
+                      name="programme_id"
+                      value={programme.programmeId}
+                    />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                      <TextField
+                        label="Archive reason"
+                        name="reason"
+                        size="small"
+                        placeholder="Campaign ended"
+                        fullWidth
+                        disabled={archived}
+                      />
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        color="warning"
+                        disabled={archived}
+                        sx={{ minWidth: { sm: 140 } }}
+                      >
+                        Archive
+                      </Button>
+                    </Stack>
+                  </Form>
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
 const permissionLabels: Record<string, string> = {
   manage_admin_users: "Manage admin users",
   manage_roles: "Manage roles",
@@ -10395,6 +11249,8 @@ export default function AdminDashboard({
     adCampaignsError,
     affiliates,
     affiliatesError,
+    referralProgrammes,
+    referralProgrammesError,
     riskReviews,
     riskReviewError,
     supportTickets,
@@ -10415,6 +11271,7 @@ export default function AdminDashboard({
       actionFeedback?.section === "promotions" ||
       actionFeedback?.section === "ads" ||
       actionFeedback?.section === "affiliates" ||
+      actionFeedback?.section === "referrals" ||
       actionFeedback?.section === "verification" ||
       actionFeedback?.section === "businesses" ||
       actionFeedback?.section === "money" ||
@@ -10903,6 +11760,14 @@ export default function AdminDashboard({
             <AffiliatesSection
               affiliates={affiliates}
               affiliatesError={affiliatesError}
+              actionData={actionFeedback}
+            />
+          ) : null}
+
+          {section === "referrals" ? (
+            <ReferralsSection
+              programmes={referralProgrammes}
+              referralProgrammesError={referralProgrammesError}
               actionData={actionFeedback}
             />
           ) : null}

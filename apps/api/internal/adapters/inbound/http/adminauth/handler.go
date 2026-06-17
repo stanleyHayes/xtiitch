@@ -61,6 +61,10 @@ type Service interface {
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
+	ListReferralProgrammes(ctx context.Context, command adminauthapp.ListReferralProgrammesCommand) ([]ports.AdminReferralProgrammeRecord, error)
+	CreateReferralProgramme(ctx context.Context, command adminauthapp.CreateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
+	UpdateReferralProgramme(ctx context.Context, command adminauthapp.UpdateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
+	ArchiveReferralProgramme(ctx context.Context, command adminauthapp.ArchiveReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
@@ -123,6 +127,10 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/affiliates", handler.createAffiliate)
 		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)
 		protected.Post("/admin/affiliates/{id}/archive", handler.archiveAffiliate)
+		protected.Get("/admin/referral-programmes", handler.referralProgrammes)
+		protected.Post("/admin/referral-programmes", handler.createReferralProgramme)
+		protected.Patch("/admin/referral-programmes/{id}", handler.updateReferralProgramme)
+		protected.Post("/admin/referral-programmes/{id}/archive", handler.archiveReferralProgramme)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
@@ -320,6 +328,27 @@ type affiliateUpsertRequest struct {
 }
 
 type affiliateArchiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+type referralProgrammeUpsertRequest struct {
+	Title                   string     `json:"title"`
+	CodePrefix              string     `json:"code_prefix"`
+	Audience                string     `json:"audience"`
+	ReferrerRewardKind      string     `json:"referrer_reward_kind"`
+	RefereeRewardKind       string     `json:"referee_reward_kind"`
+	RewardType              string     `json:"reward_type"`
+	RewardValue             int64      `json:"reward_value"`
+	MaxRewardMinor          *int64     `json:"max_reward_minor"`
+	QualifyingOrderMinMinor int64      `json:"qualifying_order_min_minor"`
+	RewardHoldDays          int        `json:"reward_hold_days"`
+	Status                  string     `json:"status"`
+	StartsAt                *time.Time `json:"starts_at"`
+	EndsAt                  *time.Time `json:"ends_at"`
+	Notes                   string     `json:"notes"`
+}
+
+type referralProgrammeArchiveRequest struct {
 	Reason string `json:"reason"`
 }
 
@@ -650,6 +679,26 @@ type affiliateResponse struct {
 	Notes            string `json:"notes"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
+}
+
+type referralProgrammeResponse struct {
+	ProgrammeID             string `json:"programme_id"`
+	Title                   string `json:"title"`
+	CodePrefix              string `json:"code_prefix"`
+	Audience                string `json:"audience"`
+	ReferrerRewardKind      string `json:"referrer_reward_kind"`
+	RefereeRewardKind       string `json:"referee_reward_kind"`
+	RewardType              string `json:"reward_type"`
+	RewardValue             int64  `json:"reward_value"`
+	MaxRewardMinor          *int64 `json:"max_reward_minor,omitempty"`
+	QualifyingOrderMinMinor int64  `json:"qualifying_order_min_minor"`
+	RewardHoldDays          int    `json:"reward_hold_days"`
+	Status                  string `json:"status"`
+	StartsAt                string `json:"starts_at,omitempty"`
+	EndsAt                  string `json:"ends_at,omitempty"`
+	Notes                   string `json:"notes"`
+	CreatedAt               string `json:"created_at"`
+	UpdatedAt               string `json:"updated_at"`
 }
 
 type subscriptionEventResponse struct {
@@ -1720,6 +1769,144 @@ func (handler Handler) archiveAffiliate(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, newAffiliateResponse(record))
+}
+
+func (handler Handler) referralProgrammes(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListReferralProgrammes(r.Context(), adminauthapp.ListReferralProgrammesCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]referralProgrammeResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newReferralProgrammeResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]referralProgrammeResponse{"programmes": out})
+}
+
+func (handler Handler) createReferralProgramme(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request referralProgrammeUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.CreateReferralProgramme(r.Context(), adminauthapp.CreateReferralProgrammeCommand{
+		ActorUserID:             principal.AdminUserID,
+		ActorRole:               principal.Role,
+		Title:                   request.Title,
+		CodePrefix:              request.CodePrefix,
+		Audience:                request.Audience,
+		ReferrerRewardKind:      request.ReferrerRewardKind,
+		RefereeRewardKind:       request.RefereeRewardKind,
+		RewardType:              request.RewardType,
+		RewardValue:             request.RewardValue,
+		MaxRewardMinor:          request.MaxRewardMinor,
+		QualifyingOrderMinMinor: request.QualifyingOrderMinMinor,
+		RewardHoldDays:          request.RewardHoldDays,
+		Status:                  request.Status,
+		StartsAt:                request.StartsAt,
+		EndsAt:                  request.EndsAt,
+		Notes:                   request.Notes,
+		UserAgent:               r.UserAgent(),
+		IPAddress:               requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newReferralProgrammeResponse(record))
+}
+
+func (handler Handler) updateReferralProgramme(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request referralProgrammeUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.UpdateReferralProgramme(r.Context(), adminauthapp.UpdateReferralProgrammeCommand{
+		ActorUserID:             principal.AdminUserID,
+		ActorRole:               principal.Role,
+		ProgrammeID:             common.ID(chi.URLParam(r, "id")),
+		Title:                   request.Title,
+		CodePrefix:              request.CodePrefix,
+		Audience:                request.Audience,
+		ReferrerRewardKind:      request.ReferrerRewardKind,
+		RefereeRewardKind:       request.RefereeRewardKind,
+		RewardType:              request.RewardType,
+		RewardValue:             request.RewardValue,
+		MaxRewardMinor:          request.MaxRewardMinor,
+		QualifyingOrderMinMinor: request.QualifyingOrderMinMinor,
+		RewardHoldDays:          request.RewardHoldDays,
+		Status:                  request.Status,
+		StartsAt:                request.StartsAt,
+		EndsAt:                  request.EndsAt,
+		Notes:                   request.Notes,
+		UserAgent:               r.UserAgent(),
+		IPAddress:               requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newReferralProgrammeResponse(record))
+}
+
+func (handler Handler) archiveReferralProgramme(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request referralProgrammeArchiveRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.ArchiveReferralProgramme(r.Context(), adminauthapp.ArchiveReferralProgrammeCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		ProgrammeID: common.ID(chi.URLParam(r, "id")),
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newReferralProgrammeResponse(record))
 }
 
 func (handler Handler) queueMoneyReplay(w http.ResponseWriter, r *http.Request) {
@@ -2900,6 +3087,33 @@ func newAffiliateResponse(record ports.AdminAffiliateRecord) affiliateResponse {
 		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
 	}
+}
+
+func newReferralProgrammeResponse(record ports.AdminReferralProgrammeRecord) referralProgrammeResponse {
+	response := referralProgrammeResponse{
+		ProgrammeID:             record.ProgrammeID.String(),
+		Title:                   record.Title,
+		CodePrefix:              record.CodePrefix,
+		Audience:                record.Audience,
+		ReferrerRewardKind:      record.ReferrerRewardKind,
+		RefereeRewardKind:       record.RefereeRewardKind,
+		RewardType:              record.RewardType,
+		RewardValue:             record.RewardValue,
+		MaxRewardMinor:          record.MaxRewardMinor,
+		QualifyingOrderMinMinor: record.QualifyingOrderMinMinor,
+		RewardHoldDays:          record.RewardHoldDays,
+		Status:                  record.Status,
+		Notes:                   record.Notes,
+		CreatedAt:               record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:               record.UpdatedAt.Format(time.RFC3339),
+	}
+	if record.StartsAt != nil {
+		response.StartsAt = record.StartsAt.Format(time.RFC3339)
+	}
+	if record.EndsAt != nil {
+		response.EndsAt = record.EndsAt.Format(time.RFC3339)
+	}
+	return response
 }
 
 func newRiskReviewResponse(record ports.AdminRiskReviewRecord) riskReviewResponse {

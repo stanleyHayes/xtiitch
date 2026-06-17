@@ -3039,6 +3039,245 @@ func (repo AdminAuthRepository) ArchiveAdminAffiliate(
 	return record, nil
 }
 
+func (repo AdminAuthRepository) ListAdminReferralProgrammes(ctx context.Context) ([]ports.AdminReferralProgrammeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, adminReferralProgrammesQuery()+`
+		order by
+			case status when 'draft' then 1 when 'active' then 2 when 'paused' then 3 else 4 end,
+			updated_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminReferralProgrammeRecord{}
+	for rows.Next() {
+		record, err := scanAdminReferralProgrammeRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminReferralProgramme(
+	ctx context.Context,
+	input ports.CreateAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	record, err := scanAdminReferralProgrammeRecord(tx.QueryRow(ctx, `
+		with inserted as (
+			insert into referral_programmes (
+				referral_programme_id,
+				title,
+				code_prefix,
+				audience,
+				referrer_reward_kind,
+				referee_reward_kind,
+				reward_type,
+				reward_value,
+				max_reward_minor,
+				qualifying_order_min_minor,
+				reward_hold_days,
+				status,
+				starts_at,
+				ends_at,
+				notes,
+				created_by_admin_user_id,
+				updated_by_admin_user_id
+			)
+			values (
+				$1::uuid,
+				$2,
+				$3,
+				$4,
+				$5,
+				$6,
+				$7,
+				$8,
+				$9,
+				$10,
+				$11,
+				$12,
+				$13,
+				$14,
+				$15,
+				$16::uuid,
+				$16::uuid
+			)
+			returning *
+		)
+		`+adminReferralProgrammeSelect("inserted")+`
+	`, input.ProgrammeID.String(),
+		input.Title,
+		input.CodePrefix,
+		input.Audience,
+		input.ReferrerRewardKind,
+		input.RefereeRewardKind,
+		input.RewardType,
+		input.RewardValue,
+		nullableInt64Arg(input.MaxRewardMinor),
+		input.QualifyingOrderMinMinor,
+		input.RewardHoldDays,
+		input.Status,
+		input.StartsAt,
+		input.EndsAt,
+		input.Notes,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if referralProgrammeCodeTaken(err) {
+			return ports.AdminReferralProgrammeRecord{}, authdomain.ErrInvalidInput
+		}
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) UpdateAdminReferralProgramme(
+	ctx context.Context,
+	input ports.UpdateAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	record, err := scanAdminReferralProgrammeRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update referral_programmes
+			set title = $2,
+				code_prefix = $3,
+				audience = $4,
+				referrer_reward_kind = $5,
+				referee_reward_kind = $6,
+				reward_type = $7,
+				reward_value = $8,
+				max_reward_minor = $9,
+				qualifying_order_min_minor = $10,
+				reward_hold_days = $11,
+				status = $12,
+				starts_at = $13,
+				ends_at = $14,
+				notes = $15,
+				updated_by_admin_user_id = $16::uuid,
+				updated_at = now()
+			where referral_programme_id = $1::uuid
+				and status <> 'archived'
+			returning *
+		)
+		`+adminReferralProgrammeSelect("updated")+`
+	`, input.ProgrammeID.String(),
+		input.Title,
+		input.CodePrefix,
+		input.Audience,
+		input.ReferrerRewardKind,
+		input.RefereeRewardKind,
+		input.RewardType,
+		input.RewardValue,
+		nullableInt64Arg(input.MaxRewardMinor),
+		input.QualifyingOrderMinMinor,
+		input.RewardHoldDays,
+		input.Status,
+		input.StartsAt,
+		input.EndsAt,
+		input.Notes,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if referralProgrammeCodeTaken(err) {
+			return ports.AdminReferralProgrammeRecord{}, authdomain.ErrInvalidInput
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminReferralProgrammeRecord{}, ErrNotFound
+		}
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) ArchiveAdminReferralProgramme(
+	ctx context.Context,
+	input ports.ArchiveAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	record, err := scanAdminReferralProgrammeRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update referral_programmes
+			set status = 'archived',
+				updated_by_admin_user_id = $2::uuid,
+				updated_at = now()
+			where referral_programme_id = $1::uuid
+			returning *
+		)
+		`+adminReferralProgrammeSelect("updated")+`
+	`, input.ProgrammeID.String(), input.ActorAdminUser.String()))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminReferralProgrammeRecord{}, ErrNotFound
+		}
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
 func (repo AdminAuthRepository) QueueAdminMoneyReplay(
 	ctx context.Context,
 	input ports.QueueAdminMoneyReplayInput,
@@ -3795,6 +4034,38 @@ func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 	return record, nil
 }
 
+func scanAdminReferralProgrammeRecord(row pgx.Row) (ports.AdminReferralProgrammeRecord, error) {
+	var record ports.AdminReferralProgrammeRecord
+	var maxRewardMinor pgtype.Int8
+	var startsAt pgtype.Timestamptz
+	var endsAt pgtype.Timestamptz
+	if err := row.Scan(
+		&record.ProgrammeID,
+		&record.Title,
+		&record.CodePrefix,
+		&record.Audience,
+		&record.ReferrerRewardKind,
+		&record.RefereeRewardKind,
+		&record.RewardType,
+		&record.RewardValue,
+		&maxRewardMinor,
+		&record.QualifyingOrderMinMinor,
+		&record.RewardHoldDays,
+		&record.Status,
+		&startsAt,
+		&endsAt,
+		&record.Notes,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	record.MaxRewardMinor = int8Ptr(maxRewardMinor)
+	record.StartsAt = timestamptzPtr(startsAt)
+	record.EndsAt = timestamptzPtr(endsAt)
+	return record, nil
+}
+
 func listAdminPromotionRedemptions(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -4359,6 +4630,34 @@ func adminAffiliateSelect(source string) string {
 	`
 }
 
+func adminReferralProgrammesQuery() string {
+	return adminReferralProgrammeSelect("referral_programmes")
+}
+
+func adminReferralProgrammeSelect(source string) string {
+	return `
+		select
+			r.referral_programme_id::text,
+			r.title,
+			r.code_prefix,
+			r.audience,
+			r.referrer_reward_kind,
+			r.referee_reward_kind,
+			r.reward_type,
+			r.reward_value::bigint,
+			r.max_reward_minor,
+			r.qualifying_order_min_minor::bigint,
+			r.reward_hold_days::int,
+			r.status,
+			r.starts_at,
+			r.ends_at,
+			r.notes,
+			r.created_at,
+			r.updated_at
+		from ` + source + ` r
+	`
+}
+
 func queryAdminMoneyPayoutReview(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -4883,6 +5182,11 @@ func promotionCodeTaken(err error) bool {
 func affiliateCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "affiliates_code_unique_idx"
+}
+
+func referralProgrammeCodeTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "referral_programmes_code_prefix_unique_idx"
 }
 
 func nullableTextArg(value string) any {

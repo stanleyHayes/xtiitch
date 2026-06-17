@@ -1605,6 +1605,147 @@ func TestAffiliatesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	startsAt := now.Add(24 * time.Hour)
+	endsAt := startsAt.Add(30 * 24 * time.Hour)
+	maxRewardMinor := int64(5000)
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"referral-created", "audit-create", "audit-update", "audit-archive", "referral-invalid"},
+	)
+
+	programmes, err := service.ListReferralProgrammes(context.Background(), ListReferralProgrammesCommand{
+		ActorRole: admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("list referral programmes: %v", err)
+	}
+	if len(programmes) != 1 || programmes[0].CodePrefix != "LAUNCH" {
+		t.Fatalf("unexpected referral programmes: %+v", programmes)
+	}
+
+	created, err := service.CreateReferralProgramme(context.Background(), CreateReferralProgrammeCommand{
+		ActorUserID:             "operator-1",
+		ActorRole:               admindomain.RoleOperator,
+		Title:                   "  Local   Launch Referrals ",
+		CodePrefix:              " ref-local ",
+		Audience:                " mixed ",
+		ReferrerRewardKind:      "voucher",
+		RefereeRewardKind:       "voucher",
+		RewardType:              "percentage",
+		RewardValue:             1250,
+		MaxRewardMinor:          &maxRewardMinor,
+		QualifyingOrderMinMinor: 20000,
+		RewardHoldDays:          21,
+		Status:                  "active",
+		StartsAt:                &startsAt,
+		EndsAt:                  &endsAt,
+		Notes:                   " launch cohort ",
+		UserAgent:               "test-agent",
+		IPAddress:               "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create referral programme: %v", err)
+	}
+	if created.ProgrammeID != "referral-created" ||
+		businesses.createdReferralProgramme.Title != "Local Launch Referrals" ||
+		businesses.createdReferralProgramme.CodePrefix != "REF-LOCAL" ||
+		businesses.createdReferralProgramme.Audience != "mixed" ||
+		businesses.createdReferralProgramme.RewardHoldDays != 21 ||
+		businesses.createdReferralProgramme.MaxRewardMinor == nil ||
+		*businesses.createdReferralProgramme.MaxRewardMinor != maxRewardMinor {
+		t.Fatalf("expected normalized referral create, got input=%+v record=%+v", businesses.createdReferralProgramme, created)
+	}
+
+	updated, err := service.UpdateReferralProgramme(context.Background(), UpdateReferralProgrammeCommand{
+		ActorUserID:             "operator-1",
+		ActorRole:               admindomain.RoleOperator,
+		ProgrammeID:             "referral-created",
+		Title:                   "Local Launch Referrals",
+		CodePrefix:              "REF-LOCAL",
+		Audience:                "customers",
+		ReferrerRewardKind:      "commission_rebate",
+		RefereeRewardKind:       "none",
+		RewardType:              "fixed",
+		RewardValue:             2500,
+		QualifyingOrderMinMinor: 10000,
+		RewardHoldDays:          7,
+		Status:                  "paused",
+		UserAgent:               "test-agent",
+		IPAddress:               "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("update referral programme: %v", err)
+	}
+	if businesses.updatedReferralProgramme.Status != "paused" ||
+		businesses.updatedReferralProgramme.RewardType != "fixed" ||
+		businesses.updatedReferralProgramme.MaxRewardMinor != nil ||
+		updated.Status != "paused" {
+		t.Fatalf("expected paused referral update, got input=%+v record=%+v", businesses.updatedReferralProgramme, updated)
+	}
+
+	archived, err := service.ArchiveReferralProgramme(context.Background(), ArchiveReferralProgrammeCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		ProgrammeID: "referral-created",
+		Reason:      " programme ended ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("archive referral programme: %v", err)
+	}
+	if businesses.archivedReferralProgramme.ProgrammeID != "referral-created" || archived.Status != "archived" {
+		t.Fatalf("expected archived referral programme, got input=%+v record=%+v", businesses.archivedReferralProgramme, archived)
+	}
+	if len(audits.created) != 3 {
+		t.Fatalf("expected three referral audit events, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Created referral programme" ||
+		audits.created[1].Action != "Updated referral programme" ||
+		audits.created[2].Action != "Archived referral programme" ||
+		audits.created[0].Metadata["code_prefix"] != "REF-LOCAL" {
+		t.Fatalf("unexpected referral audit events: %+v", audits.created)
+	}
+
+	_, err = service.CreateReferralProgramme(context.Background(), CreateReferralProgrammeCommand{
+		ActorUserID:             "support-1",
+		ActorRole:               admindomain.RoleSupport,
+		Title:                   "Nope",
+		CodePrefix:              "NOPE",
+		ReferrerRewardKind:      "voucher",
+		RefereeRewardKind:       "voucher",
+		RewardType:              "fixed",
+		RewardValue:             1000,
+		QualifyingOrderMinMinor: 0,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+
+	_, err = service.CreateReferralProgramme(context.Background(), CreateReferralProgrammeCommand{
+		ActorUserID:             "operator-1",
+		ActorRole:               admindomain.RoleOperator,
+		Title:                   "Bad",
+		CodePrefix:              "BAD",
+		ReferrerRewardKind:      "none",
+		RefereeRewardKind:       "none",
+		RewardType:              "percentage",
+		RewardValue:             10100,
+		QualifyingOrderMinMinor: -1,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid referral programme fields, got %v", err)
+	}
+}
+
 func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -2132,6 +2273,10 @@ type fakeAdminBusinesses struct {
 	createdAffiliate          ports.CreateAdminAffiliateInput
 	updatedAffiliate          ports.UpdateAdminAffiliateInput
 	archivedAffiliate         ports.ArchiveAdminAffiliateInput
+	referralProgrammes        []ports.AdminReferralProgrammeRecord
+	createdReferralProgramme  ports.CreateAdminReferralProgrammeInput
+	updatedReferralProgramme  ports.UpdateAdminReferralProgrammeInput
+	archivedReferralProgramme ports.ArchiveAdminReferralProgrammeInput
 	replay                    ports.QueueAdminMoneyReplayInput
 	hold                      ports.SetAdminSettlementReviewHoldInput
 	riskReviews               []ports.AdminRiskReviewRecord
@@ -2721,6 +2866,84 @@ func fakeAdminAffiliateRecord(
 		Notes:            "reviewed",
 		CreatedAt:        now,
 		UpdatedAt:        now,
+	}
+}
+
+func (repo *fakeAdminBusinesses) ListAdminReferralProgrammes(context.Context) ([]ports.AdminReferralProgrammeRecord, error) {
+	if repo.referralProgrammes != nil {
+		return repo.referralProgrammes, nil
+	}
+	return []ports.AdminReferralProgrammeRecord{fakeAdminReferralProgrammeRecord(
+		"referral-programme-1",
+		"Launch referrals",
+		"LAUNCH",
+		"active",
+	)}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminReferralProgramme(
+	_ context.Context,
+	input ports.CreateAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	repo.createdReferralProgramme = input
+	return fakeAdminReferralProgrammeRecord(
+		input.ProgrammeID,
+		input.Title,
+		input.CodePrefix,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminReferralProgramme(
+	_ context.Context,
+	input ports.UpdateAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	repo.updatedReferralProgramme = input
+	return fakeAdminReferralProgrammeRecord(
+		input.ProgrammeID,
+		input.Title,
+		input.CodePrefix,
+		input.Status,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) ArchiveAdminReferralProgramme(
+	_ context.Context,
+	input ports.ArchiveAdminReferralProgrammeInput,
+) (ports.AdminReferralProgrammeRecord, error) {
+	repo.archivedReferralProgramme = input
+	return fakeAdminReferralProgrammeRecord(
+		input.ProgrammeID,
+		"Launch referrals",
+		"LAUNCH",
+		"archived",
+	), nil
+}
+
+func fakeAdminReferralProgrammeRecord(
+	programmeID common.ID,
+	title string,
+	codePrefix string,
+	status string,
+) ports.AdminReferralProgrammeRecord {
+	now := time.Now()
+	maxReward := int64(10000)
+	return ports.AdminReferralProgrammeRecord{
+		ProgrammeID:             programmeID,
+		Title:                   title,
+		CodePrefix:              codePrefix,
+		Audience:                "customers",
+		ReferrerRewardKind:      "voucher",
+		RefereeRewardKind:       "voucher",
+		RewardType:              "percentage",
+		RewardValue:             1000,
+		MaxRewardMinor:          &maxReward,
+		QualifyingOrderMinMinor: 50000,
+		RewardHoldDays:          14,
+		Status:                  status,
+		Notes:                   "launch referral programme",
+		CreatedAt:               now,
+		UpdatedAt:               now,
 	}
 }
 

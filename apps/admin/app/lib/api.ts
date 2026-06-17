@@ -321,6 +321,39 @@ export type AdminAffiliate = {
   updatedAt: string;
 };
 
+export type AdminReferralAudience = "customers" | "businesses" | "mixed";
+export type AdminReferralRewardKind =
+  | "voucher"
+  | "commission_rebate"
+  | "none";
+export type AdminReferralRefereeRewardKind = "voucher" | "none";
+export type AdminReferralRewardType = "percentage" | "fixed";
+export type AdminReferralProgrammeStatus =
+  | "draft"
+  | "active"
+  | "paused"
+  | "archived";
+
+export type AdminReferralProgramme = {
+  programmeId: string;
+  title: string;
+  codePrefix: string;
+  audience: AdminReferralAudience;
+  referrerRewardKind: AdminReferralRewardKind;
+  refereeRewardKind: AdminReferralRefereeRewardKind;
+  rewardType: AdminReferralRewardType;
+  rewardValue: number;
+  maxRewardMinor?: number;
+  qualifyingOrderMinMinor: number;
+  rewardHoldDays: number;
+  status: AdminReferralProgrammeStatus;
+  startsAt?: string;
+  endsAt?: string;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminAuditSeverity = "info" | "warning" | "critical";
 
 export type AdminVerificationStatus =
@@ -695,6 +728,26 @@ type AdminAffiliatePayload = {
   payout_mode: AdminAffiliatePayoutMode;
   payout_reference: string;
   status: AdminAffiliateStatus;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminReferralProgrammePayload = {
+  programme_id: string;
+  title: string;
+  code_prefix: string;
+  audience: AdminReferralAudience;
+  referrer_reward_kind: AdminReferralRewardKind;
+  referee_reward_kind: AdminReferralRefereeRewardKind;
+  reward_type: AdminReferralRewardType;
+  reward_value: number;
+  max_reward_minor?: number;
+  qualifying_order_min_minor: number;
+  reward_hold_days: number;
+  status: AdminReferralProgrammeStatus;
+  starts_at?: string;
+  ends_at?: string;
   notes: string;
   created_at: string;
   updated_at: string;
@@ -1142,6 +1195,30 @@ function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
     payoutMode: payload.payout_mode,
     payoutReference: payload.payout_reference,
     status: payload.status,
+    notes: payload.notes,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapReferralProgramme(
+  payload: AdminReferralProgrammePayload,
+): AdminReferralProgramme {
+  return {
+    programmeId: payload.programme_id,
+    title: payload.title,
+    codePrefix: payload.code_prefix,
+    audience: payload.audience,
+    referrerRewardKind: payload.referrer_reward_kind,
+    refereeRewardKind: payload.referee_reward_kind,
+    rewardType: payload.reward_type,
+    rewardValue: payload.reward_value,
+    maxRewardMinor: payload.max_reward_minor,
+    qualifyingOrderMinMinor: payload.qualifying_order_min_minor,
+    rewardHoldDays: payload.reward_hold_days,
+    status: payload.status,
+    startsAt: payload.starts_at,
+    endsAt: payload.ends_at,
     notes: payload.notes,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
@@ -1851,6 +1928,110 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapAffiliate),
+  referralProgrammes: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      programmes: AdminReferralProgrammePayload[];
+    }>("/admin/referral-programmes", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.programmes.map(mapReferralProgramme);
+  },
+  createReferralProgramme: (
+    accessToken: string,
+    input: {
+      title: string;
+      codePrefix: string;
+      audience: AdminReferralAudience;
+      referrerRewardKind: AdminReferralRewardKind;
+      refereeRewardKind: AdminReferralRefereeRewardKind;
+      rewardType: AdminReferralRewardType;
+      rewardValue: number;
+      maxRewardMinor?: number;
+      qualifyingOrderMinMinor: number;
+      rewardHoldDays: number;
+      status: Exclude<AdminReferralProgrammeStatus, "archived">;
+      startsAt?: string;
+      endsAt?: string;
+      notes: string;
+    },
+  ) =>
+    requestJSON<AdminReferralProgrammePayload>("/admin/referral-programmes", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        title: input.title,
+        code_prefix: input.codePrefix,
+        audience: input.audience,
+        referrer_reward_kind: input.referrerRewardKind,
+        referee_reward_kind: input.refereeRewardKind,
+        reward_type: input.rewardType,
+        reward_value: input.rewardValue,
+        max_reward_minor: input.maxRewardMinor,
+        qualifying_order_min_minor: input.qualifyingOrderMinMinor,
+        reward_hold_days: input.rewardHoldDays,
+        status: input.status,
+        starts_at: input.startsAt,
+        ends_at: input.endsAt,
+        notes: input.notes,
+      }),
+    }).then(mapReferralProgramme),
+  updateReferralProgramme: (
+    accessToken: string,
+    programmeId: string,
+    input: {
+      title: string;
+      codePrefix: string;
+      audience: AdminReferralAudience;
+      referrerRewardKind: AdminReferralRewardKind;
+      refereeRewardKind: AdminReferralRefereeRewardKind;
+      rewardType: AdminReferralRewardType;
+      rewardValue: number;
+      maxRewardMinor?: number;
+      qualifyingOrderMinMinor: number;
+      rewardHoldDays: number;
+      status: Exclude<AdminReferralProgrammeStatus, "archived">;
+      startsAt?: string;
+      endsAt?: string;
+      notes: string;
+    },
+  ) =>
+    requestJSON<AdminReferralProgrammePayload>(
+      `/admin/referral-programmes/${encodeURIComponent(programmeId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          title: input.title,
+          code_prefix: input.codePrefix,
+          audience: input.audience,
+          referrer_reward_kind: input.referrerRewardKind,
+          referee_reward_kind: input.refereeRewardKind,
+          reward_type: input.rewardType,
+          reward_value: input.rewardValue,
+          max_reward_minor: input.maxRewardMinor,
+          qualifying_order_min_minor: input.qualifyingOrderMinMinor,
+          reward_hold_days: input.rewardHoldDays,
+          status: input.status,
+          starts_at: input.startsAt,
+          ends_at: input.endsAt,
+          notes: input.notes,
+        }),
+      },
+    ).then(mapReferralProgramme),
+  archiveReferralProgramme: (
+    accessToken: string,
+    programmeId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminReferralProgrammePayload>(
+      `/admin/referral-programmes/${encodeURIComponent(programmeId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapReferralProgramme),
   queueMoneyReplay: (
     accessToken: string,
     input: { providerReference: string; reason: string },
