@@ -32,6 +32,14 @@ var ErrPaymentInFlight = errors.New("an equivalent payment is already in flight"
 // resolve to a currently redeemable voucher for the tenant/order context.
 var ErrPromotionUnavailable = errors.New("promotion unavailable")
 
+// ErrSubscriptionBillingUnavailable is returned when an admin billing action is
+// attempted for a free, canceled, or otherwise non-billable subscription.
+var ErrSubscriptionBillingUnavailable = errors.New("subscription billing unavailable")
+
+// ErrSubscriptionInvoiceOpen is returned when an admin tries to issue another
+// subscription invoice while one is still open.
+var ErrSubscriptionInvoiceOpen = errors.New("subscription invoice already open")
+
 // ErrSlotTaken is returned when a home-visit slot cannot be held because it is
 // already held/booked, or is not an offerable open slot. The partial unique
 // index on bookings makes this race-proof.

@@ -727,6 +727,64 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (
+    intent === "admin-subscription-invoice:issue" ||
+    intent === "admin-subscription-invoice:paid" ||
+    intent === "admin-subscription-invoice:failed"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      if (intent === "admin-subscription-invoice:issue") {
+        await adminApi.issueSubscriptionInvoice(
+          accessToken,
+          String(form.get("business_id") ?? ""),
+          {
+            providerInvoiceRef: String(form.get("provider_invoice_ref") ?? ""),
+            paymentUrl: String(form.get("payment_url") ?? ""),
+            dueAt: readOptionalDateTime(form.get("due_at")),
+            reason: String(form.get("reason") ?? ""),
+          },
+        );
+        return {
+          section: "subscriptions",
+          severity: "success",
+          message: "Subscription invoice issued.",
+        };
+      }
+
+      if (intent === "admin-subscription-invoice:paid") {
+        await adminApi.markSubscriptionInvoicePaid(
+          accessToken,
+          String(form.get("invoice_id") ?? ""),
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "subscriptions",
+          severity: "success",
+          message: "Subscription invoice marked paid.",
+        };
+      }
+
+      await adminApi.markSubscriptionInvoiceFailed(
+        accessToken,
+        String(form.get("invoice_id") ?? ""),
+        String(form.get("reason") ?? ""),
+      );
+      return {
+        section: "subscriptions",
+        severity: "success",
+        message: "Subscription invoice marked failed.",
+      };
+    } catch (error) {
+      return {
+        section: "subscriptions",
+        severity: "error",
+        message: adminSubscriptionActionError(error),
+      };
+    }
+  }
+
+  if (
     intent === "admin-plan:create" ||
     intent === "admin-plan:update" ||
     intent === "admin-plan:archive"
@@ -1245,9 +1303,13 @@ function adminSubscriptionActionError(error: unknown): string {
       case "forbidden":
         return "Your role cannot manage subscriptions.";
       case "invalid_input":
-        return "Choose a valid subscription status and billing mode.";
+        return "Choose valid subscription billing details.";
       case "not_found":
-        return "That business subscription could not be found.";
+        return "That subscription or invoice could not be found.";
+      case "subscription_billing_unavailable":
+        return "That subscription is not currently billable.";
+      case "subscription_invoice_open":
+        return "That subscription already has an open invoice.";
       default:
         return "The subscription change could not be saved.";
     }
@@ -4231,6 +4293,21 @@ function billingModeLabel(mode: AdminSubscriptionBillingMode): string {
   );
 }
 
+function invoiceStatusLabel(status: string): string {
+  switch (status) {
+    case "issued":
+      return "Issued";
+    case "paid":
+      return "Paid";
+    case "failed":
+      return "Failed";
+    case "void":
+      return "Void";
+    default:
+      return status;
+  }
+}
+
 function subscriptionStatusColor(status: AdminSubscriptionStatus): string {
   switch (status) {
     case "active":
@@ -4864,28 +4941,37 @@ function SubscriptionsSection({
             ) : null}
             {lifecycleRows.map((subscription) => {
               const color = subscriptionStatusColor(subscription.status);
+              const openInvoice = subscription.invoices.find(
+                (invoice) => invoice.status === "issued",
+              );
+              const latestInvoice = subscription.invoices[0];
+              const canIssueInvoice =
+                subscription.monthlyFeeMinor > 0 &&
+                subscription.status !== "canceled" &&
+                !openInvoice;
               return (
-                <Form key={subscription.businessId} method="post">
-                  <input
-                    type="hidden"
-                    name="intent"
-                    value="admin-subscription:update"
-                  />
-                  <input
-                    type="hidden"
-                    name="business_id"
-                    value={subscription.businessId}
-                  />
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      border: "1px solid",
-                      borderColor: alpha(color, 0.2),
-                      borderRadius: 1.5,
-                      bgcolor: alpha(tokens.white, 0.72),
-                      backgroundImage: `linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%)`,
-                    }}
-                  >
+                <Box
+                  key={subscription.businessId}
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: alpha(color, 0.2),
+                    borderRadius: 1.5,
+                    bgcolor: alpha(tokens.white, 0.72),
+                    backgroundImage: `linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%)`,
+                  }}
+                >
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-subscription:update"
+                    />
+                    <input
+                      type="hidden"
+                      name="business_id"
+                      value={subscription.businessId}
+                    />
                     <Stack
                       direction={{ xs: "column", lg: "row" }}
                       spacing={1.25}
@@ -4976,8 +5062,193 @@ function SubscriptionsSection({
                         </Button>
                       </Stack>
                     </Stack>
-                  </Box>
-                </Form>
+                  </Form>
+
+                  <Divider sx={{ my: 1.5 }} />
+                  <Stack spacing={1.25}>
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1}
+                      sx={{
+                        justifyContent: "space-between",
+                        alignItems: { md: "center" },
+                      }}
+                    >
+                      <Box>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          Invoice control
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {latestInvoice
+                            ? `${latestInvoice.invoiceRef} · ${invoiceStatusLabel(
+                                latestInvoice.status,
+                              )} · ${formatGHS(latestInvoice.amountMinor)}`
+                            : "No package invoice has been issued yet."}
+                        </Typography>
+                      </Box>
+                      {latestInvoice ? (
+                        <Chip
+                          size="small"
+                          label={`Due ${shortTime(latestInvoice.dueAt)}`}
+                          color={
+                            latestInvoice.status === "issued"
+                              ? "warning"
+                              : latestInvoice.status === "paid"
+                                ? "success"
+                                : "default"
+                          }
+                          variant={
+                            latestInvoice.status === "paid"
+                              ? "filled"
+                              : "outlined"
+                          }
+                          sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                        />
+                      ) : null}
+                    </Stack>
+
+                    {openInvoice ? (
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            lg: "repeat(2, minmax(0, 1fr))",
+                          },
+                        }}
+                      >
+                        <Form method="post">
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="admin-subscription-invoice:paid"
+                          />
+                          <input
+                            type="hidden"
+                            name="invoice_id"
+                            value={openInvoice.invoiceId}
+                          />
+                          <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                          >
+                            <TextField
+                              size="small"
+                              name="reason"
+                              label="Paid note"
+                              placeholder="Paystack payment confirmed"
+                              fullWidth
+                            />
+                            <Button
+                              type="submit"
+                              variant="outlined"
+                              color="success"
+                              sx={{ minWidth: 130 }}
+                            >
+                              Mark paid
+                            </Button>
+                          </Stack>
+                        </Form>
+                        <Form method="post">
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="admin-subscription-invoice:failed"
+                          />
+                          <input
+                            type="hidden"
+                            name="invoice_id"
+                            value={openInvoice.invoiceId}
+                          />
+                          <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                          >
+                            <TextField
+                              size="small"
+                              name="reason"
+                              label="Failure note"
+                              placeholder="Card failed or link expired"
+                              fullWidth
+                            />
+                            <Button
+                              type="submit"
+                              variant="outlined"
+                              color="warning"
+                              sx={{ minWidth: 130 }}
+                            >
+                              Mark failed
+                            </Button>
+                          </Stack>
+                        </Form>
+                      </Box>
+                    ) : null}
+
+                    {canIssueInvoice ? (
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-subscription-invoice:issue"
+                        />
+                        <input
+                          type="hidden"
+                          name="business_id"
+                          value={subscription.businessId}
+                        />
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              md: "repeat(2, minmax(0, 1fr))",
+                              xl: "repeat(4, minmax(0, 1fr))",
+                            },
+                          }}
+                        >
+                          <TextField
+                            size="small"
+                            name="provider_invoice_ref"
+                            label="Provider ref"
+                            placeholder="Paystack invoice/link id"
+                          />
+                          <TextField
+                            size="small"
+                            name="payment_url"
+                            label="Payment link"
+                            placeholder="https://paystack.com/pay/..."
+                          />
+                          <TextField
+                            size="small"
+                            name="due_at"
+                            label="Due date"
+                            type="datetime-local"
+                            slotProps={{ inputLabel: { shrink: true } }}
+                          />
+                          <TextField
+                            size="small"
+                            name="reason"
+                            label="Issue note"
+                            placeholder="Monthly package billing"
+                          />
+                        </Box>
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          startIcon={<WorkspacePremiumRounded />}
+                          sx={{ mt: 1, alignSelf: "flex-start" }}
+                        >
+                          Issue invoice
+                        </Button>
+                      </Form>
+                    ) : null}
+                  </Stack>
+                </Box>
               );
             })}
           </Stack>

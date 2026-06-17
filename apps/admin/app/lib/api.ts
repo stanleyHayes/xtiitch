@@ -120,6 +120,33 @@ export type AdminSubscriptionEvent = {
   createdAt: string;
 };
 
+export type AdminSubscriptionInvoiceStatus =
+  | "issued"
+  | "paid"
+  | "failed"
+  | "void";
+
+export type AdminSubscriptionInvoice = {
+  invoiceId: string;
+  subscriptionId: string;
+  invoiceRef: string;
+  status: AdminSubscriptionInvoiceStatus;
+  billingMode: AdminSubscriptionBillingMode;
+  provider: string;
+  providerInvoiceRef: string;
+  paymentUrl: string;
+  amountMinor: number;
+  currency: string;
+  periodStart: string;
+  periodEnd: string;
+  dueAt: string;
+  paidAt?: string;
+  failedAt?: string;
+  failureReason: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type AdminSubscription = {
   subscriptionId?: string;
   businessId: string;
@@ -151,6 +178,7 @@ export type AdminSubscription = {
   commissionMinor: number;
   updatedAt: string;
   events: AdminSubscriptionEvent[];
+  invoices: AdminSubscriptionInvoice[];
 };
 
 export type AdminPlan = {
@@ -414,6 +442,27 @@ type AdminSubscriptionEventPayload = {
   created_at: string;
 };
 
+type AdminSubscriptionInvoicePayload = {
+  invoice_id: string;
+  subscription_id: string;
+  invoice_ref: string;
+  status: AdminSubscriptionInvoiceStatus;
+  billing_mode: AdminSubscriptionBillingMode;
+  provider: string;
+  provider_invoice_ref: string;
+  payment_url: string;
+  amount_minor: number;
+  currency: string;
+  period_start: string;
+  period_end: string;
+  due_at: string;
+  paid_at?: string;
+  failed_at?: string;
+  failure_reason: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type AdminSubscriptionPayload = {
   subscription_id?: string;
   business_id: string;
@@ -445,6 +494,7 @@ type AdminSubscriptionPayload = {
   commission_minor: number;
   updated_at: string;
   events: AdminSubscriptionEventPayload[];
+  invoices: AdminSubscriptionInvoicePayload[];
 };
 
 type AdminPlanPayload = {
@@ -766,6 +816,26 @@ function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
       actorEmail: event.actor_email,
       createdAt: event.created_at,
     })),
+    invoices: payload.invoices.map((invoice) => ({
+      invoiceId: invoice.invoice_id,
+      subscriptionId: invoice.subscription_id,
+      invoiceRef: invoice.invoice_ref,
+      status: invoice.status,
+      billingMode: invoice.billing_mode,
+      provider: invoice.provider,
+      providerInvoiceRef: invoice.provider_invoice_ref,
+      paymentUrl: invoice.payment_url,
+      amountMinor: invoice.amount_minor,
+      currency: invoice.currency,
+      periodStart: invoice.period_start,
+      periodEnd: invoice.period_end,
+      dueAt: invoice.due_at,
+      paidAt: invoice.paid_at,
+      failedAt: invoice.failed_at,
+      failureReason: invoice.failure_reason,
+      createdAt: invoice.created_at,
+      updatedAt: invoice.updated_at,
+    })),
   };
 }
 
@@ -1070,6 +1140,57 @@ export const adminApi = {
           billing_mode: input.billingMode,
           reason: input.reason,
         }),
+      },
+    ).then(mapSubscription),
+  issueSubscriptionInvoice: (
+    accessToken: string,
+    businessId: string,
+    input: {
+      providerInvoiceRef: string;
+      paymentUrl: string;
+      dueAt?: string;
+      reason: string;
+    },
+  ) =>
+    requestJSON<AdminSubscriptionPayload>(
+      `/admin/subscriptions/businesses/${encodeURIComponent(
+        businessId,
+      )}/invoices`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          provider_invoice_ref: input.providerInvoiceRef,
+          payment_url: input.paymentUrl,
+          due_at: input.dueAt,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapSubscription),
+  markSubscriptionInvoicePaid: (
+    accessToken: string,
+    invoiceId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminSubscriptionPayload>(
+      `/admin/subscriptions/invoices/${encodeURIComponent(invoiceId)}/paid`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapSubscription),
+  markSubscriptionInvoiceFailed: (
+    accessToken: string,
+    invoiceId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminSubscriptionPayload>(
+      `/admin/subscriptions/invoices/${encodeURIComponent(invoiceId)}/failed`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
       },
     ).then(mapSubscription),
   plans: async (accessToken: string) => {

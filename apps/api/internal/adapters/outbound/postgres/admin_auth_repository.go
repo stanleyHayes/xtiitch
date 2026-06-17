@@ -1370,8 +1370,13 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 	if err != nil {
 		return nil, err
 	}
+	invoicesByBusiness, err := listAdminSubscriptionInvoices(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for index := range records {
 		records[index].Events = eventsByBusiness[records[index].BusinessID]
+		records[index].Invoices = invoicesByBusiness[records[index].BusinessID]
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -1561,8 +1566,300 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 	if err != nil {
 		return ports.AdminSubscriptionRecord{}, err
 	}
+	invoicesByBusiness, err := listAdminSubscriptionInvoices(ctx, tx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
 	record.Events = eventsByBusiness[record.BusinessID]
+	record.Invoices = invoicesByBusiness[record.BusinessID]
 
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) IssueAdminSubscriptionInvoice(
+	ctx context.Context,
+	input ports.IssueAdminSubscriptionInvoiceInput,
+) (ports.AdminSubscriptionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if err := ensureAdminSubscription(ctx, tx, input.BusinessID); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	var businessID common.ID
+	var subscriptionID common.ID
+	if err := tx.QueryRow(ctx, `
+		with candidate as (
+			select
+				s.subscription_id,
+				s.business_id,
+				s.plan_id,
+				s.billing_mode,
+				s.current_period_end,
+				p.monthly_fee_minor
+			from business_subscriptions s
+			join plans p on p.plan_id = s.plan_id
+			where s.business_id = $2::uuid
+				and s.status <> 'canceled'
+				and p.monthly_fee_minor > 0
+		),
+		inserted as (
+			insert into business_subscription_invoices (
+				invoice_id,
+				subscription_id,
+				business_id,
+				plan_id,
+				invoice_ref,
+				status,
+				billing_mode,
+				provider,
+				provider_invoice_ref,
+				payment_url,
+				amount_minor,
+				currency,
+				period_start,
+				period_end,
+				due_at,
+				issued_by_admin_user_id
+			)
+			select
+				$1::uuid,
+				c.subscription_id,
+				c.business_id,
+				c.plan_id,
+				$3,
+				'issued',
+				c.billing_mode,
+				case when c.billing_mode = 'manual' then 'manual' else 'paystack' end,
+				$4,
+				$5,
+				c.monthly_fee_minor,
+				'GHS',
+				greatest(c.current_period_end, now()),
+				greatest(c.current_period_end, now()) + interval '1 month',
+				$6,
+				$7::uuid
+			from candidate c
+			returning subscription_id, business_id, invoice_ref, provider
+		),
+		updated as (
+			update business_subscriptions s
+			set
+				last_invoice_ref = i.invoice_ref,
+				next_billing_at = $6,
+				provider = i.provider,
+				updated_at = now()
+			from inserted i
+			where s.subscription_id = i.subscription_id
+			returning s.business_id, s.subscription_id
+		)
+		select business_id::text, subscription_id::text from updated
+	`, input.InvoiceID.String(),
+		input.BusinessID.String(),
+		input.InvoiceRef,
+		input.ProviderInvoiceRef,
+		input.PaymentURL,
+		input.DueAt,
+		input.ActorAdminUser.String(),
+	).Scan(&businessID, &subscriptionID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionRecord{}, ports.ErrSubscriptionBillingUnavailable
+		}
+		if subscriptionInvoiceOpen(err) {
+			return ports.AdminSubscriptionRecord{}, ports.ErrSubscriptionInvoiceOpen
+		}
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	if err := insertAdminSubscriptionEvent(ctx, tx, subscriptionID, businessID, input.ActorAdminUser,
+		"subscription.invoice_issued",
+		input.Reason,
+		map[string]string{
+			"invoice_id":           input.InvoiceID.String(),
+			"invoice_ref":          input.InvoiceRef,
+			"provider_invoice_ref": input.ProviderInvoiceRef,
+			"payment_url":          input.PaymentURL,
+			"due_at":               input.DueAt.Format(time.RFC3339),
+		},
+	); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	record, err := getAdminSubscriptionRecordByBusiness(ctx, tx, businessID)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) MarkAdminSubscriptionInvoicePaid(
+	ctx context.Context,
+	input ports.MarkAdminSubscriptionInvoicePaidInput,
+) (ports.AdminSubscriptionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	var businessID common.ID
+	var subscriptionID common.ID
+	var invoiceRef string
+	if err := tx.QueryRow(ctx, `
+		with paid_invoice as (
+			update business_subscription_invoices i
+			set
+				status = 'paid',
+				paid_at = coalesce(i.paid_at, now()),
+				failed_at = null,
+				failure_reason = '',
+				updated_at = now()
+			where i.invoice_id = $1::uuid
+				and i.status in ('issued', 'failed')
+			returning i.*
+		),
+		updated as (
+			update business_subscriptions s
+			set
+				status = 'active',
+				failed_payment_count = 0,
+				grace_ends_at = null,
+				cancel_at_period_end = false,
+				last_invoice_ref = i.invoice_ref,
+				last_payment_at = now(),
+				current_period_start = i.period_start,
+				current_period_end = i.period_end,
+				next_billing_at = i.period_end,
+				billing_mode = i.billing_mode,
+				provider = i.provider,
+				updated_at = now()
+			from paid_invoice i
+			where s.subscription_id = i.subscription_id
+			returning s.business_id, s.subscription_id, i.invoice_ref
+		)
+		select business_id::text, subscription_id::text, invoice_ref from updated
+	`, input.InvoiceID.String()).Scan(&businessID, &subscriptionID, &invoiceRef); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionRecord{}, ports.ErrNotFound
+		}
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	if err := insertAdminSubscriptionEvent(ctx, tx, subscriptionID, businessID, input.ActorAdminUser,
+		"subscription.invoice_paid",
+		input.Reason,
+		map[string]string{
+			"invoice_id":  input.InvoiceID.String(),
+			"invoice_ref": invoiceRef,
+		},
+	); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	record, err := getAdminSubscriptionRecordByBusiness(ctx, tx, businessID)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) MarkAdminSubscriptionInvoiceFailed(
+	ctx context.Context,
+	input ports.MarkAdminSubscriptionInvoiceFailedInput,
+) (ports.AdminSubscriptionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	var businessID common.ID
+	var subscriptionID common.ID
+	var invoiceRef string
+	if err := tx.QueryRow(ctx, `
+		with failed_invoice as (
+			update business_subscription_invoices i
+			set
+				status = 'failed',
+				failed_at = coalesce(i.failed_at, now()),
+				failure_reason = $2,
+				updated_at = now()
+			where i.invoice_id = $1::uuid
+				and i.status = 'issued'
+			returning i.*
+		),
+		updated as (
+			update business_subscriptions s
+			set
+				status = case
+					when s.failed_payment_count + 1 >= 2 then 'grace_period'
+					else 'past_due'
+				end,
+				failed_payment_count = s.failed_payment_count + 1,
+				grace_ends_at = case
+					when s.failed_payment_count + 1 >= 2 then coalesce(s.grace_ends_at, now() + interval '7 days')
+					else null
+				end,
+				last_invoice_ref = i.invoice_ref,
+				next_billing_at = now() + interval '1 day',
+				billing_mode = i.billing_mode,
+				provider = i.provider,
+				updated_at = now()
+			from failed_invoice i
+			where s.subscription_id = i.subscription_id
+			returning s.business_id, s.subscription_id, i.invoice_ref
+		)
+		select business_id::text, subscription_id::text, invoice_ref from updated
+	`, input.InvoiceID.String(), input.Reason).Scan(&businessID, &subscriptionID, &invoiceRef); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionRecord{}, ports.ErrNotFound
+		}
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	if err := insertAdminSubscriptionEvent(ctx, tx, subscriptionID, businessID, input.ActorAdminUser,
+		"subscription.invoice_failed",
+		input.Reason,
+		map[string]string{
+			"invoice_id":  input.InvoiceID.String(),
+			"invoice_ref": invoiceRef,
+			"reason":      input.Reason,
+		},
+	); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	record, err := getAdminSubscriptionRecordByBusiness(ctx, tx, businessID)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminSubscriptionRecord{}, err
 	}
@@ -2575,6 +2872,40 @@ func scanAdminSubscriptionRecord(row pgx.Row) (ports.AdminSubscriptionRecord, er
 	record.LastPaymentAt = timestamptzPtr(lastPaymentAt)
 	record.NextBillingAt = timestamptzPtr(nextBillingAt)
 	record.Events = []ports.AdminSubscriptionEventRecord{}
+	record.Invoices = []ports.AdminSubscriptionInvoiceRecord{}
+
+	return record, nil
+}
+
+func scanAdminSubscriptionInvoiceRecord(row pgx.Row) (ports.AdminSubscriptionInvoiceRecord, error) {
+	var record ports.AdminSubscriptionInvoiceRecord
+	var paidAt pgtype.Timestamptz
+	var failedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&record.BusinessID,
+		&record.InvoiceID,
+		&record.SubscriptionID,
+		&record.InvoiceRef,
+		&record.Status,
+		&record.BillingMode,
+		&record.Provider,
+		&record.ProviderInvoiceRef,
+		&record.PaymentURL,
+		&record.AmountMinor,
+		&record.Currency,
+		&record.PeriodStart,
+		&record.PeriodEnd,
+		&record.DueAt,
+		&paidAt,
+		&failedAt,
+		&record.FailureReason,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminSubscriptionInvoiceRecord{}, err
+	}
+	record.PaidAt = timestamptzPtr(paidAt)
+	record.FailedAt = timestamptzPtr(failedAt)
 
 	return record, nil
 }
@@ -2732,6 +3063,211 @@ func listAdminSubscriptionEvents(
 	}
 
 	return events, nil
+}
+
+func listAdminSubscriptionInvoices(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminSubscriptionInvoiceRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			i.business_id::text,
+			i.invoice_id::text,
+			i.subscription_id::text,
+			i.invoice_ref,
+			i.status,
+			i.billing_mode,
+			i.provider,
+			i.provider_invoice_ref,
+			i.payment_url,
+			i.amount_minor,
+			i.currency,
+			i.period_start,
+			i.period_end,
+			i.due_at,
+			i.paid_at,
+			i.failed_at,
+			i.failure_reason,
+			i.created_at,
+			i.updated_at
+		from business_subscription_invoices i
+		order by
+			case i.status
+				when 'issued' then 1
+				when 'failed' then 2
+				when 'paid' then 3
+				else 4
+			end,
+			i.created_at desc
+		limit 300
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	invoices := map[common.ID][]ports.AdminSubscriptionInvoiceRecord{}
+	for rows.Next() {
+		record, err := scanAdminSubscriptionInvoiceRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		if len(invoices[record.BusinessID]) < 5 {
+			invoices[record.BusinessID] = append(invoices[record.BusinessID], record)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return invoices, nil
+}
+
+func ensureAdminSubscription(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	_, err := tx.Exec(ctx, `
+		insert into business_subscriptions (
+			business_id,
+			plan_id,
+			status,
+			billing_mode,
+			provider,
+			current_period_start,
+			current_period_end,
+			trial_ends_at,
+			next_billing_at
+		)
+		select
+			b.business_id,
+			b.plan_id,
+			case when p.monthly_fee_minor = 0 then 'active' else 'trialing' end,
+			'manual',
+			'manual',
+			now(),
+			now() + interval '1 month',
+			case when p.monthly_fee_minor > 0 then now() + interval '14 days' end,
+			case when p.monthly_fee_minor > 0 then now() + interval '14 days' end
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1::uuid
+		on conflict (business_id) do nothing
+	`, businessID.String())
+	return err
+}
+
+func getAdminSubscriptionRecordByBusiness(
+	ctx context.Context,
+	tx pgx.Tx,
+	businessID common.ID,
+) (ports.AdminSubscriptionRecord, error) {
+	record, err := scanAdminSubscriptionRecord(tx.QueryRow(ctx, `
+		with order_stats as (
+			select
+				business_id,
+				count(*)::int as orders_count
+			from orders
+			where business_id = $1::uuid
+			group by business_id
+		),
+		money_stats as (
+			select
+				business_id,
+				coalesce(sum(amount_minor) filter (where status = 'succeeded'), 0)::bigint as gmv_minor,
+				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor
+			from payments
+			where business_id = $1::uuid
+			group by business_id
+		)
+		select
+			s.subscription_id::text,
+			b.business_id::text,
+			b.name,
+			b.handle,
+			coalesce(owner.email, ''),
+			p.code,
+			p.name,
+			p.monthly_fee_minor::bigint,
+			p.commission_bps::int,
+			p.design_limit,
+			s.status,
+			s.billing_mode,
+			s.provider,
+			s.provider_customer_ref,
+			s.provider_subscription_ref,
+			s.current_period_start,
+			s.current_period_end,
+			s.trial_ends_at,
+			s.grace_ends_at,
+			s.cancel_at_period_end,
+			s.canceled_at,
+			s.failed_payment_count,
+			s.last_invoice_ref,
+			s.last_payment_at,
+			s.next_billing_at,
+			coalesce(os.orders_count, 0),
+			coalesce(ms.gmv_minor, 0),
+			coalesce(ms.commission_minor, 0),
+			s.updated_at
+		from business_subscriptions s
+		join businesses b on b.business_id = s.business_id
+		join plans p on p.plan_id = s.plan_id
+		left join order_stats os on os.business_id = b.business_id
+		left join money_stats ms on ms.business_id = b.business_id
+		left join lateral (
+			select u.email
+			from business_users u
+			where u.business_id = b.business_id and u.role = 'owner'
+			order by u.created_at
+			limit 1
+		) owner on true
+		where s.business_id = $1::uuid
+	`, businessID.String()))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionRecord{}, ErrNotFound
+		}
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	eventsByBusiness, err := listAdminSubscriptionEvents(ctx, tx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	invoicesByBusiness, err := listAdminSubscriptionInvoices(ctx, tx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	record.Events = eventsByBusiness[record.BusinessID]
+	record.Invoices = invoicesByBusiness[record.BusinessID]
+
+	return record, nil
+}
+
+func insertAdminSubscriptionEvent(
+	ctx context.Context,
+	tx pgx.Tx,
+	subscriptionID common.ID,
+	businessID common.ID,
+	actorAdminUserID common.ID,
+	eventType string,
+	summary string,
+	metadata map[string]string,
+) error {
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `
+		insert into business_subscription_events (
+			subscription_id,
+			business_id,
+			actor_admin_user_id,
+			event_type,
+			summary,
+			metadata
+		)
+		values ($1::uuid, $2::uuid, $3::uuid, $4, $5, $6::jsonb)
+	`, subscriptionID.String(), businessID.String(), actorAdminUserID.String(), eventType, summary, string(metadataJSON))
+	return err
 }
 
 func int4Ptr(value pgtype.Int4) *int {
@@ -3343,6 +3879,13 @@ func adminEmailTaken(err error) bool {
 func planCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "plans_code_key"
+}
+
+func subscriptionInvoiceOpen(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "business_subscription_invoices_one_open_idx"
 }
 
 func promotionCodeTaken(err error) bool {

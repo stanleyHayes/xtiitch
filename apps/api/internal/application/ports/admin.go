@@ -40,6 +40,9 @@ type AdminBusinessRepository interface {
 	GetAdminMoneyRails(ctx context.Context) (AdminMoneyRailsRecord, error)
 	ListAdminSubscriptions(ctx context.Context) ([]AdminSubscriptionRecord, error)
 	UpdateAdminSubscription(ctx context.Context, input UpdateAdminSubscriptionInput) (AdminSubscriptionRecord, error)
+	IssueAdminSubscriptionInvoice(ctx context.Context, input IssueAdminSubscriptionInvoiceInput) (AdminSubscriptionRecord, error)
+	MarkAdminSubscriptionInvoicePaid(ctx context.Context, input MarkAdminSubscriptionInvoicePaidInput) (AdminSubscriptionRecord, error)
+	MarkAdminSubscriptionInvoiceFailed(ctx context.Context, input MarkAdminSubscriptionInvoiceFailedInput) (AdminSubscriptionRecord, error)
 	ListAdminPlans(ctx context.Context) ([]AdminPlanRecord, error)
 	CreateAdminPlan(ctx context.Context, input CreateAdminPlanInput) (AdminPlanRecord, error)
 	UpdateAdminPlan(ctx context.Context, input UpdateAdminPlanInput) (AdminPlanRecord, error)
@@ -313,6 +316,7 @@ type AdminSubscriptionRecord struct {
 	CommissionMinor         int64
 	UpdatedAt               time.Time
 	Events                  []AdminSubscriptionEventRecord
+	Invoices                []AdminSubscriptionInvoiceRecord
 }
 
 type AdminSubscriptionEventRecord struct {
@@ -330,6 +334,51 @@ type UpdateAdminSubscriptionInput struct {
 	BillingMode    string
 	Reason         string
 	ActorAdminUser common.ID
+}
+
+type AdminSubscriptionInvoiceRecord struct {
+	InvoiceID          common.ID
+	SubscriptionID     common.ID
+	BusinessID         common.ID
+	InvoiceRef         string
+	Status             string
+	BillingMode        string
+	Provider           string
+	ProviderInvoiceRef string
+	PaymentURL         string
+	AmountMinor        int64
+	Currency           string
+	PeriodStart        time.Time
+	PeriodEnd          time.Time
+	DueAt              time.Time
+	PaidAt             *time.Time
+	FailedAt           *time.Time
+	FailureReason      string
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
+}
+
+type IssueAdminSubscriptionInvoiceInput struct {
+	InvoiceID          common.ID
+	BusinessID         common.ID
+	InvoiceRef         string
+	ProviderInvoiceRef string
+	PaymentURL         string
+	DueAt              time.Time
+	ActorAdminUser     common.ID
+	Reason             string
+}
+
+type MarkAdminSubscriptionInvoicePaidInput struct {
+	InvoiceID      common.ID
+	ActorAdminUser common.ID
+	Reason         string
+}
+
+type MarkAdminSubscriptionInvoiceFailedInput struct {
+	InvoiceID      common.ID
+	ActorAdminUser common.ID
+	Reason         string
 }
 
 type AdminPlanRecord struct {

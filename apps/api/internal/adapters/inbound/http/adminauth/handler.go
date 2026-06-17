@@ -38,6 +38,9 @@ type Service interface {
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
+	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
+	MarkSubscriptionInvoicePaid(ctx context.Context, command adminauthapp.MarkSubscriptionInvoicePaidCommand) (ports.AdminSubscriptionRecord, error)
+	MarkSubscriptionInvoiceFailed(ctx context.Context, command adminauthapp.MarkSubscriptionInvoiceFailedCommand) (ports.AdminSubscriptionRecord, error)
 	ListPlans(ctx context.Context, command adminauthapp.ListPlansCommand) ([]ports.AdminPlanRecord, error)
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
@@ -88,6 +91,9 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/money-rails", handler.moneyRails)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Patch("/admin/subscriptions/businesses/{id}", handler.updateSubscription)
+		protected.Post("/admin/subscriptions/businesses/{id}/invoices", handler.issueSubscriptionInvoice)
+		protected.Post("/admin/subscriptions/invoices/{id}/paid", handler.markSubscriptionInvoicePaid)
+		protected.Post("/admin/subscriptions/invoices/{id}/failed", handler.markSubscriptionInvoiceFailed)
 		protected.Get("/admin/plans", handler.plans)
 		protected.Post("/admin/plans", handler.createPlan)
 		protected.Patch("/admin/plans/{id}", handler.updatePlan)
@@ -192,6 +198,17 @@ type subscriptionUpdateRequest struct {
 	Status      string `json:"status"`
 	BillingMode string `json:"billing_mode"`
 	Reason      string `json:"reason"`
+}
+
+type subscriptionInvoiceIssueRequest struct {
+	ProviderInvoiceRef string     `json:"provider_invoice_ref"`
+	PaymentURL         string     `json:"payment_url"`
+	DueAt              *time.Time `json:"due_at"`
+	Reason             string     `json:"reason"`
+}
+
+type subscriptionInvoiceDecisionRequest struct {
+	Reason string `json:"reason"`
 }
 
 type planCreateRequest struct {
@@ -401,36 +418,58 @@ type moneyReplayRequestResponse struct {
 }
 
 type subscriptionResponse struct {
-	SubscriptionID          string                      `json:"subscription_id,omitempty"`
-	BusinessID              string                      `json:"business_id"`
-	BusinessName            string                      `json:"business_name"`
-	Handle                  string                      `json:"handle"`
-	OwnerEmail              string                      `json:"owner_email"`
-	PlanCode                string                      `json:"plan_code"`
-	PlanName                string                      `json:"plan_name"`
-	MonthlyFeeMinor         int64                       `json:"monthly_fee_minor"`
-	CommissionBPS           int                         `json:"commission_bps"`
-	DesignLimit             *int                        `json:"design_limit,omitempty"`
-	Status                  string                      `json:"status"`
-	BillingMode             string                      `json:"billing_mode"`
-	Provider                string                      `json:"provider"`
-	ProviderCustomerRef     string                      `json:"provider_customer_ref"`
-	ProviderSubscriptionRef string                      `json:"provider_subscription_ref"`
-	CurrentPeriodStart      string                      `json:"current_period_start"`
-	CurrentPeriodEnd        string                      `json:"current_period_end"`
-	TrialEndsAt             string                      `json:"trial_ends_at,omitempty"`
-	GraceEndsAt             string                      `json:"grace_ends_at,omitempty"`
-	CancelAtPeriodEnd       bool                        `json:"cancel_at_period_end"`
-	CanceledAt              string                      `json:"canceled_at,omitempty"`
-	FailedPaymentCount      int                         `json:"failed_payment_count"`
-	LastInvoiceRef          string                      `json:"last_invoice_ref"`
-	LastPaymentAt           string                      `json:"last_payment_at,omitempty"`
-	NextBillingAt           string                      `json:"next_billing_at,omitempty"`
-	Orders                  int                         `json:"orders"`
-	GMVMinor                int64                       `json:"gmv_minor"`
-	CommissionMinor         int64                       `json:"commission_minor"`
-	UpdatedAt               string                      `json:"updated_at"`
-	Events                  []subscriptionEventResponse `json:"events"`
+	SubscriptionID          string                        `json:"subscription_id,omitempty"`
+	BusinessID              string                        `json:"business_id"`
+	BusinessName            string                        `json:"business_name"`
+	Handle                  string                        `json:"handle"`
+	OwnerEmail              string                        `json:"owner_email"`
+	PlanCode                string                        `json:"plan_code"`
+	PlanName                string                        `json:"plan_name"`
+	MonthlyFeeMinor         int64                         `json:"monthly_fee_minor"`
+	CommissionBPS           int                           `json:"commission_bps"`
+	DesignLimit             *int                          `json:"design_limit,omitempty"`
+	Status                  string                        `json:"status"`
+	BillingMode             string                        `json:"billing_mode"`
+	Provider                string                        `json:"provider"`
+	ProviderCustomerRef     string                        `json:"provider_customer_ref"`
+	ProviderSubscriptionRef string                        `json:"provider_subscription_ref"`
+	CurrentPeriodStart      string                        `json:"current_period_start"`
+	CurrentPeriodEnd        string                        `json:"current_period_end"`
+	TrialEndsAt             string                        `json:"trial_ends_at,omitempty"`
+	GraceEndsAt             string                        `json:"grace_ends_at,omitempty"`
+	CancelAtPeriodEnd       bool                          `json:"cancel_at_period_end"`
+	CanceledAt              string                        `json:"canceled_at,omitempty"`
+	FailedPaymentCount      int                           `json:"failed_payment_count"`
+	LastInvoiceRef          string                        `json:"last_invoice_ref"`
+	LastPaymentAt           string                        `json:"last_payment_at,omitempty"`
+	NextBillingAt           string                        `json:"next_billing_at,omitempty"`
+	Orders                  int                           `json:"orders"`
+	GMVMinor                int64                         `json:"gmv_minor"`
+	CommissionMinor         int64                         `json:"commission_minor"`
+	UpdatedAt               string                        `json:"updated_at"`
+	Events                  []subscriptionEventResponse   `json:"events"`
+	Invoices                []subscriptionInvoiceResponse `json:"invoices"`
+}
+
+type subscriptionInvoiceResponse struct {
+	InvoiceID          string `json:"invoice_id"`
+	SubscriptionID     string `json:"subscription_id"`
+	InvoiceRef         string `json:"invoice_ref"`
+	Status             string `json:"status"`
+	BillingMode        string `json:"billing_mode"`
+	Provider           string `json:"provider"`
+	ProviderInvoiceRef string `json:"provider_invoice_ref"`
+	PaymentURL         string `json:"payment_url"`
+	AmountMinor        int64  `json:"amount_minor"`
+	Currency           string `json:"currency"`
+	PeriodStart        string `json:"period_start"`
+	PeriodEnd          string `json:"period_end"`
+	DueAt              string `json:"due_at"`
+	PaidAt             string `json:"paid_at,omitempty"`
+	FailedAt           string `json:"failed_at,omitempty"`
+	FailureReason      string `json:"failure_reason"`
+	CreatedAt          string `json:"created_at"`
+	UpdatedAt          string `json:"updated_at"`
 }
 
 type planResponse struct {
@@ -872,6 +911,99 @@ func (handler Handler) updateSubscription(w http.ResponseWriter, r *http.Request
 		BusinessID:  common.ID(chi.URLParam(r, "id")),
 		Status:      request.Status,
 		BillingMode: request.BillingMode,
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionResponse(record))
+}
+
+func (handler Handler) issueSubscriptionInvoice(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionInvoiceIssueRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.IssueSubscriptionInvoice(r.Context(), adminauthapp.IssueSubscriptionInvoiceCommand{
+		ActorUserID:        principal.AdminUserID,
+		ActorRole:          principal.Role,
+		BusinessID:         common.ID(chi.URLParam(r, "id")),
+		ProviderInvoiceRef: request.ProviderInvoiceRef,
+		PaymentURL:         request.PaymentURL,
+		DueAt:              request.DueAt,
+		Reason:             request.Reason,
+		UserAgent:          r.UserAgent(),
+		IPAddress:          requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newSubscriptionResponse(record))
+}
+
+func (handler Handler) markSubscriptionInvoicePaid(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionInvoiceDecisionRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.MarkSubscriptionInvoicePaid(r.Context(), adminauthapp.MarkSubscriptionInvoicePaidCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		InvoiceID:   common.ID(chi.URLParam(r, "id")),
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionResponse(record))
+}
+
+func (handler Handler) markSubscriptionInvoiceFailed(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionInvoiceDecisionRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.MarkSubscriptionInvoiceFailed(r.Context(), adminauthapp.MarkSubscriptionInvoiceFailedCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		InvoiceID:   common.ID(chi.URLParam(r, "id")),
 		Reason:      request.Reason,
 		UserAgent:   r.UserAgent(),
 		IPAddress:   requestIP(r),
@@ -1783,6 +1915,29 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 			CreatedAt:           event.CreatedAt.Format(time.RFC3339),
 		})
 	}
+	invoices := make([]subscriptionInvoiceResponse, 0, len(record.Invoices))
+	for _, invoice := range record.Invoices {
+		invoices = append(invoices, subscriptionInvoiceResponse{
+			InvoiceID:          invoice.InvoiceID.String(),
+			SubscriptionID:     invoice.SubscriptionID.String(),
+			InvoiceRef:         invoice.InvoiceRef,
+			Status:             invoice.Status,
+			BillingMode:        invoice.BillingMode,
+			Provider:           invoice.Provider,
+			ProviderInvoiceRef: invoice.ProviderInvoiceRef,
+			PaymentURL:         invoice.PaymentURL,
+			AmountMinor:        invoice.AmountMinor,
+			Currency:           invoice.Currency,
+			PeriodStart:        invoice.PeriodStart.Format(time.RFC3339),
+			PeriodEnd:          invoice.PeriodEnd.Format(time.RFC3339),
+			DueAt:              invoice.DueAt.Format(time.RFC3339),
+			PaidAt:             optionalTimeString(invoice.PaidAt),
+			FailedAt:           optionalTimeString(invoice.FailedAt),
+			FailureReason:      invoice.FailureReason,
+			CreatedAt:          invoice.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:          invoice.UpdatedAt.Format(time.RFC3339),
+		})
+	}
 
 	return subscriptionResponse{
 		SubscriptionID:          record.SubscriptionID.String(),
@@ -1815,6 +1970,7 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		CommissionMinor:         record.CommissionMinor,
 		UpdatedAt:               record.UpdatedAt.Format(time.RFC3339),
 		Events:                  events,
+		Invoices:                invoices,
 	}
 }
 
@@ -2075,6 +2231,10 @@ func authError(err error) (int, string) {
 		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, admindomain.ErrUserEmailTaken):
 		return http.StatusConflict, "admin_user_email_taken"
+	case errors.Is(err, ports.ErrSubscriptionBillingUnavailable):
+		return http.StatusConflict, "subscription_billing_unavailable"
+	case errors.Is(err, ports.ErrSubscriptionInvoiceOpen):
+		return http.StatusConflict, "subscription_invoice_open"
 	case errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	default:
