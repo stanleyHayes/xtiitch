@@ -1431,9 +1431,20 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 	}
 
 	record, err := scanAdminSubscriptionRecord(tx.QueryRow(ctx, `
-		with updated as (
+		with free_plan as (
+			select plan_id
+			from plans
+			where code = 'free' and is_active = true
+			order by created_at
+			limit 1
+		),
+		updated as (
 			update business_subscriptions s
 			set
+				plan_id = case
+					when $2 = 'canceled' then coalesce((select plan_id from free_plan), s.plan_id)
+					else s.plan_id
+				end,
 				status = $2,
 				billing_mode = $3,
 				provider = case when $3 = 'manual' then 'manual' else 'paystack' end,
@@ -1461,6 +1472,14 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			where s.business_id = $1::uuid
 				and p.plan_id = s.plan_id
 			returning s.*
+		),
+		downgraded_business as (
+			update businesses b
+			set plan_id = s.plan_id, updated_at = now()
+			from updated s
+			where $2 = 'canceled'
+				and b.business_id = s.business_id
+			returning 1
 		),
 		order_stats as (
 			select
@@ -1883,7 +1902,14 @@ func (repo AdminAuthRepository) RunAdminSubscriptionBillingSweep(
 
 	var record ports.AdminSubscriptionBillingSweepRecord
 	if err := tx.QueryRow(ctx, `
-		with failed_invoices as (
+		with free_plan as (
+			select plan_id
+			from plans
+			where code = 'free' and is_active = true
+			order by created_at
+			limit 1
+		),
+		failed_invoices as (
 			update business_subscription_invoices i
 			set
 				status = 'failed',
@@ -1948,6 +1974,7 @@ func (repo AdminAuthRepository) RunAdminSubscriptionBillingSweep(
 		canceled_subscriptions as (
 			update business_subscriptions s
 			set
+				plan_id = coalesce((select plan_id from free_plan), s.plan_id),
 				status = 'canceled',
 				canceled_at = coalesce(s.canceled_at, now()),
 				cancel_at_period_end = false,
@@ -1956,7 +1983,14 @@ func (repo AdminAuthRepository) RunAdminSubscriptionBillingSweep(
 			where s.status = 'grace_period'
 				and s.grace_ends_at is not null
 				and s.grace_ends_at <= now()
-			returning s.subscription_id, s.business_id
+			returning s.subscription_id, s.business_id, s.plan_id
+		),
+		downgraded_businesses as (
+			update businesses b
+			set plan_id = c.plan_id, updated_at = now()
+			from canceled_subscriptions c
+			where b.business_id = c.business_id
+			returning 1
 		),
 		canceled_events as (
 			insert into business_subscription_events (
