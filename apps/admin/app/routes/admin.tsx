@@ -413,319 +413,291 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
+type AdminLoadResult<T> = {
+  data: T;
+  error: string | null;
+};
+
+async function loadAdminResource<T>(
+  load: () => Promise<T>,
+  fallback: T,
+  permissionMessage: string,
+  unavailableMessage: string,
+): Promise<AdminLoadResult<T>> {
+  try {
+    return { data: await load(), error: null };
+  } catch (error) {
+    if (!(error instanceof AdminApiError)) {
+      throw error;
+    }
+
+    return {
+      data: fallback,
+      error: adminLoaderErrorMessage(
+        error,
+        permissionMessage,
+        unavailableMessage,
+      ),
+    };
+  }
+}
+
+function adminLoaderErrorMessage(
+  error: AdminApiError,
+  permissionMessage: string,
+  unavailableMessage: string,
+): string {
+  if (error.status === 401) {
+    throw redirect("/login");
+  }
+  if (error.status === 403) {
+    return permissionMessage;
+  }
+  if (error.code === "admin_api_unavailable") {
+    return "Admin API is unavailable. The console shell is open, but this section could not load yet.";
+  }
+
+  return unavailableMessage;
+}
+
+function fallbackProfileSettings(admin: AdminSession): AdminProfileSettings {
+  return {
+    user: {
+      adminUserId: admin.adminUserId,
+      email: admin.adminEmail,
+      displayName: admin.adminDisplayName,
+      role: admin.adminRole,
+      isActive: true,
+    },
+    preferences: {
+      timezone: "Africa/Accra",
+      phoneNumber: "",
+      notifyEmail: true,
+      notifySms: false,
+      alertVerifications: true,
+      alertMoneyRails: true,
+      alertSubscriptions: true,
+      alertPromotions: true,
+      alertRisk: true,
+      alertSupport: true,
+      dailyDigestTime: "08:00",
+    },
+  };
+}
+
+function fallbackPlatformSettings(): AdminPlatformSettings {
+  return {
+    platformName: "Xtiitch",
+    supportEmail: "support@xtiitch.com",
+    verificationSlaHours: 24,
+    payoutReviewThresholdPesewas: 500000,
+    maintenanceMode: false,
+  };
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
   const { admin, accessToken } = await requireAdminContext(request);
-  const [profileSettings, platformSettings] = await Promise.all([
-    adminApi.profileSettings(accessToken),
-    adminApi.platformSettings(accessToken),
+  const [profileSettingsResult, platformSettingsResult] = await Promise.all([
+    loadAdminResource(
+      () => adminApi.profileSettings(accessToken),
+      fallbackProfileSettings(admin),
+      "Your role cannot view profile settings.",
+      "Profile settings could not be loaded. The console is using your signed-in session details.",
+    ),
+    loadAdminResource(
+      () => adminApi.platformSettings(accessToken),
+      fallbackPlatformSettings(),
+      "Your role cannot view platform settings.",
+      "Platform settings could not be loaded. The console is using default policy values.",
+    ),
   ]);
   const accessCatalog = await adminApi.roles(accessToken).catch(() => ({
     roles: [] as AdminRoleDefinition[],
     permissions: defaultPermissionCatalog(),
   }));
-  let adminUsers: AdminUser[] = [];
-  let userManagementError: string | null = null;
-  let verificationCases: AdminVerificationCase[] = [];
-  let verificationQueueError: string | null = null;
-  let adminBusinesses: AdminBusiness[] = [];
-  let businessManagementError: string | null = null;
-  let adminCustomers: AdminCustomer[] = [];
-  let customerDirectoryError: string | null = null;
-  let platformMetrics: AdminPlatformMetrics | null = null;
-  let platformMetricsError: string | null = null;
-  let operationsHealth: AdminOperationsHealth | null = null;
-  let operationsHealthError: string | null = null;
-  let backendNotifications: AdminNotification[] = [];
-  let backendNotificationsError: string | null = null;
-  let backendReportItems: AdminReportItem[] = [];
-  let backendReportsError: string | null = null;
-  let launchReadiness: AdminLaunchReadiness | null = null;
-  let launchReadinessError: string | null = null;
-  let moneyRails: AdminMoneyRails | null = null;
-  let moneyRailsError: string | null = null;
-  let subscriptions: AdminSubscription[] = [];
-  let subscriptionsError: string | null = null;
-  let plans: AdminPlan[] = [];
-  let plansError: string | null = null;
-  let promotions: AdminPromotion[] = [];
-  let promotionsError: string | null = null;
-  let adCampaigns: AdminAdCampaign[] = [];
-  let adCampaignsError: string | null = null;
-  let affiliates: AdminAffiliate[] = [];
-  let affiliatesError: string | null = null;
-  let affiliateAttribution: AdminAffiliateAttribution[] = [];
-  let affiliateAttributionError: string | null = null;
-  let referralProgrammes: AdminReferralProgramme[] = [];
-  let referralProgrammesError: string | null = null;
-  let riskReviews: AdminRiskReview[] = [];
-  let riskReviewError: string | null = null;
-  let supportTickets: AdminSupportTicket[] = [];
-  let supportQueueError: string | null = null;
-  let auditEvents: AuditEvent[] = [];
-  let auditLogError: string | null = null;
-
-  try {
-    adminUsers = await adminApi.listUsers(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      userManagementError = "Only platform owners can manage operator access.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    verificationCases = await adminApi.verificationCases(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      verificationQueueError =
-        "Your role cannot review business verifications.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    adminBusinesses = await adminApi.businesses(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      businessManagementError = "Your role cannot manage business accounts.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    adminCustomers = await adminApi.customers(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      customerDirectoryError = "Your role cannot view the customer directory.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    platformMetrics = await adminApi.platformMetrics(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      platformMetricsError = "Your role cannot view platform-wide metrics.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    operationsHealth = await adminApi.operationsHealth(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      operationsHealthError =
-        "Your role cannot view the backend health summary.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    const notificationFeed = await adminApi.adminNotifications(accessToken);
-    backendNotifications = notificationFeed.notifications.map(
-      (notification) => ({
+  const adminUsersResult = await loadAdminResource(
+    () => adminApi.listUsers(accessToken),
+    [] as AdminUser[],
+    "Only platform owners can manage operator access.",
+    "Operator access could not be loaded right now.",
+  );
+  const verificationCasesResult = await loadAdminResource(
+    () => adminApi.verificationCases(accessToken),
+    [] as AdminVerificationCase[],
+    "Your role cannot review business verifications.",
+    "Business verification cases could not be loaded right now.",
+  );
+  const adminBusinessesResult = await loadAdminResource(
+    () => adminApi.businesses(accessToken),
+    [] as AdminBusiness[],
+    "Your role cannot manage business accounts.",
+    "Business accounts could not be loaded right now.",
+  );
+  const adminCustomersResult = await loadAdminResource(
+    () => adminApi.customers(accessToken),
+    [] as AdminCustomer[],
+    "Your role cannot view the customer directory.",
+    "Customer directory could not be loaded right now.",
+  );
+  const platformMetricsResult = await loadAdminResource(
+    () => adminApi.platformMetrics(accessToken),
+    null as AdminPlatformMetrics | null,
+    "Your role cannot view platform-wide metrics.",
+    "Platform metrics could not be loaded right now.",
+  );
+  const operationsHealthResult = await loadAdminResource(
+    () => adminApi.operationsHealth(accessToken),
+    null as AdminOperationsHealth | null,
+    "Your role cannot view the backend health summary.",
+    "Operations health could not be loaded right now.",
+  );
+  const backendNotificationsResult = await loadAdminResource(
+    async () => {
+      const notificationFeed = await adminApi.adminNotifications(accessToken);
+      return notificationFeed.notifications.map((notification) => ({
         ...notification,
         target: notification.target as Section,
-      }),
-    );
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      backendNotificationsError =
-        "Your role cannot view the backend notification feed.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    const reportFeed = await adminApi.adminReports(accessToken);
-    backendReportItems = reportFeed.items.map((item) => ({
-      ...item,
-      target: item.target as Section,
-    }));
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      backendReportsError = "Your role cannot view the backend report feed.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    launchReadiness = await adminApi.launchReadiness(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      launchReadinessError = "Your role cannot view launch readiness.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    moneyRails = await adminApi.moneyRails(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      moneyRailsError = "Your role cannot manage money rails.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    subscriptions = await adminApi.subscriptions(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      subscriptionsError = "Your role cannot manage subscriptions.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    plans = await adminApi.plans(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      plansError = "Your role cannot manage plan packages.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    promotions = await adminApi.promotions(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      promotionsError = "Your role cannot manage promotions.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    adCampaigns = await adminApi.adCampaigns(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      adCampaignsError = "Your role cannot manage sponsored placements.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    affiliates = await adminApi.affiliates(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      affiliatesError = "Your role cannot manage affiliate programmes.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    affiliateAttribution = await adminApi.affiliateAttribution(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      affiliateAttributionError =
-        "Your role cannot view affiliate performance.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    referralProgrammes = await adminApi.referralProgrammes(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      referralProgrammesError = "Your role cannot manage referral programmes.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    riskReviews = await adminApi.riskReviews(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      riskReviewError = "Your role cannot manage risk reviews.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    supportTickets = await adminApi.supportTickets(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      supportQueueError = "Your role cannot manage the support queue.";
-    } else {
-      throw error;
-    }
-  }
-
-  try {
-    auditEvents = await adminApi.auditEvents(accessToken);
-  } catch (error) {
-    if (error instanceof AdminApiError && error.status === 403) {
-      auditLogError = "Your role cannot view the durable audit trail.";
-    } else {
-      throw error;
-    }
-  }
+      }));
+    },
+    [] as AdminNotification[],
+    "Your role cannot view the backend notification feed.",
+    "Backend notifications could not be loaded right now.",
+  );
+  const backendReportItemsResult = await loadAdminResource(
+    async () => {
+      const reportFeed = await adminApi.adminReports(accessToken);
+      return reportFeed.items.map((item) => ({
+        ...item,
+        target: item.target as Section,
+      }));
+    },
+    [] as AdminReportItem[],
+    "Your role cannot view the backend report feed.",
+    "Backend reports could not be loaded right now.",
+  );
+  const launchReadinessResult = await loadAdminResource(
+    () => adminApi.launchReadiness(accessToken),
+    null as AdminLaunchReadiness | null,
+    "Your role cannot view launch readiness.",
+    "Launch readiness could not be loaded right now.",
+  );
+  const moneyRailsResult = await loadAdminResource(
+    () => adminApi.moneyRails(accessToken),
+    null as AdminMoneyRails | null,
+    "Your role cannot manage money rails.",
+    "Money rails could not be loaded right now.",
+  );
+  const subscriptionsResult = await loadAdminResource(
+    () => adminApi.subscriptions(accessToken),
+    [] as AdminSubscription[],
+    "Your role cannot manage subscriptions.",
+    "Subscriptions could not be loaded right now.",
+  );
+  const plansResult = await loadAdminResource(
+    () => adminApi.plans(accessToken),
+    [] as AdminPlan[],
+    "Your role cannot manage plan packages.",
+    "Plan packages could not be loaded right now.",
+  );
+  const promotionsResult = await loadAdminResource(
+    () => adminApi.promotions(accessToken),
+    [] as AdminPromotion[],
+    "Your role cannot manage promotions.",
+    "Promotions could not be loaded right now.",
+  );
+  const adCampaignsResult = await loadAdminResource(
+    () => adminApi.adCampaigns(accessToken),
+    [] as AdminAdCampaign[],
+    "Your role cannot manage sponsored placements.",
+    "Sponsored placements could not be loaded right now.",
+  );
+  const affiliatesResult = await loadAdminResource(
+    () => adminApi.affiliates(accessToken),
+    [] as AdminAffiliate[],
+    "Your role cannot manage affiliate programmes.",
+    "Affiliate programmes could not be loaded right now.",
+  );
+  const affiliateAttributionResult = await loadAdminResource(
+    () => adminApi.affiliateAttribution(accessToken),
+    [] as AdminAffiliateAttribution[],
+    "Your role cannot view affiliate performance.",
+    "Affiliate performance could not be loaded right now.",
+  );
+  const referralProgrammesResult = await loadAdminResource(
+    () => adminApi.referralProgrammes(accessToken),
+    [] as AdminReferralProgramme[],
+    "Your role cannot manage referral programmes.",
+    "Referral programmes could not be loaded right now.",
+  );
+  const riskReviewsResult = await loadAdminResource(
+    () => adminApi.riskReviews(accessToken),
+    [] as AdminRiskReview[],
+    "Your role cannot manage risk reviews.",
+    "Risk reviews could not be loaded right now.",
+  );
+  const supportTicketsResult = await loadAdminResource(
+    () => adminApi.supportTickets(accessToken),
+    [] as AdminSupportTicket[],
+    "Your role cannot manage the support queue.",
+    "Support tickets could not be loaded right now.",
+  );
+  const auditEventsResult = await loadAdminResource(
+    () => adminApi.auditEvents(accessToken),
+    [] as AuditEvent[],
+    "Your role cannot view the durable audit trail.",
+    "Audit events could not be loaded right now.",
+  );
 
   return {
     admin,
-    profileSettings,
-    platformSettings,
-    adminUsers,
+    profileSettings: profileSettingsResult.data,
+    profileSettingsError: profileSettingsResult.error,
+    platformSettings: platformSettingsResult.data,
+    platformSettingsError: platformSettingsResult.error,
+    adminUsers: adminUsersResult.data,
     roleCatalog: accessCatalog.roles,
     permissionCatalog: accessCatalog.permissions.length
       ? accessCatalog.permissions
       : defaultPermissionCatalog(),
-    userManagementError,
-    verificationCases,
-    verificationQueueError,
-    adminBusinesses,
-    businessManagementError,
-    adminCustomers,
-    customerDirectoryError,
-    platformMetrics,
-    platformMetricsError,
-    operationsHealth,
-    operationsHealthError,
-    backendNotifications,
-    backendNotificationsError,
-    backendReportItems,
-    backendReportsError,
-    launchReadiness,
-    launchReadinessError,
-    moneyRails,
-    moneyRailsError,
-    subscriptions,
-    subscriptionsError,
-    plans,
-    plansError,
-    promotions,
-    promotionsError,
-    adCampaigns,
-    adCampaignsError,
-    affiliates,
-    affiliatesError,
-    affiliateAttribution,
-    affiliateAttributionError,
-    referralProgrammes,
-    referralProgrammesError,
-    riskReviews,
-    riskReviewError,
-    supportTickets,
-    supportQueueError,
-    auditEvents,
-    auditLogError,
+    userManagementError: adminUsersResult.error,
+    verificationCases: verificationCasesResult.data,
+    verificationQueueError: verificationCasesResult.error,
+    adminBusinesses: adminBusinessesResult.data,
+    businessManagementError: adminBusinessesResult.error,
+    adminCustomers: adminCustomersResult.data,
+    customerDirectoryError: adminCustomersResult.error,
+    platformMetrics: platformMetricsResult.data,
+    platformMetricsError: platformMetricsResult.error,
+    operationsHealth: operationsHealthResult.data,
+    operationsHealthError: operationsHealthResult.error,
+    backendNotifications: backendNotificationsResult.data,
+    backendNotificationsError: backendNotificationsResult.error,
+    backendReportItems: backendReportItemsResult.data,
+    backendReportsError: backendReportItemsResult.error,
+    launchReadiness: launchReadinessResult.data,
+    launchReadinessError: launchReadinessResult.error,
+    moneyRails: moneyRailsResult.data,
+    moneyRailsError: moneyRailsResult.error,
+    subscriptions: subscriptionsResult.data,
+    subscriptionsError: subscriptionsResult.error,
+    plans: plansResult.data,
+    plansError: plansResult.error,
+    promotions: promotionsResult.data,
+    promotionsError: promotionsResult.error,
+    adCampaigns: adCampaignsResult.data,
+    adCampaignsError: adCampaignsResult.error,
+    affiliates: affiliatesResult.data,
+    affiliatesError: affiliatesResult.error,
+    affiliateAttribution: affiliateAttributionResult.data,
+    affiliateAttributionError: affiliateAttributionResult.error,
+    referralProgrammes: referralProgrammesResult.data,
+    referralProgrammesError: referralProgrammesResult.error,
+    riskReviews: riskReviewsResult.data,
+    riskReviewError: riskReviewsResult.error,
+    supportTickets: supportTicketsResult.data,
+    supportQueueError: supportTicketsResult.error,
+    auditEvents: auditEventsResult.data,
+    auditLogError: auditEventsResult.error,
   };
 }
 
@@ -12611,13 +12583,17 @@ function BooleanPreference({
 function SettingsSection({
   admin,
   profileSettings,
+  profileSettingsError,
   platformSettings,
+  platformSettingsError,
   roles,
   actionData,
 }: {
   admin: AdminSession;
   profileSettings: AdminProfileSettings;
+  profileSettingsError: string | null;
   platformSettings: AdminPlatformSettings;
+  platformSettingsError: string | null;
   roles: AdminRoleDefinition[];
   actionData?: AdminActionFeedback;
 }) {
@@ -12639,6 +12615,12 @@ function SettingsSection({
         <Alert severity={actionData.severity ?? "success"}>
           {actionData.message}
         </Alert>
+      ) : null}
+      {profileSettingsError ? (
+        <Alert severity="warning">{profileSettingsError}</Alert>
+      ) : null}
+      {platformSettingsError ? (
+        <Alert severity="warning">{platformSettingsError}</Alert>
       ) : null}
 
       <Box
@@ -13143,6 +13125,9 @@ function AdminRail({
       sx={{
         minHeight: "100%",
         p: compact ? 1 : { xs: 1.25, sm: 1.5 },
+        pb: compact
+          ? 1
+          : "calc(12px + env(safe-area-inset-bottom))",
       }}
     >
       <Box
@@ -13464,7 +13449,7 @@ function AdminRail({
           position: "fixed",
           inset: "0 auto 0 0",
           width: collapsed ? adminRailCollapsedWidth : adminRailWidth,
-          height: "100vh",
+          height: "100dvh",
           zIndex: 10,
           boxShadow: `18px 0 55px ${alpha(tokens.ink, 0.22)}`,
           transition: "width 220ms ease",
@@ -13485,9 +13470,23 @@ function AdminRail({
               ...railSx,
               width: { xs: "min(90vw, 320px)", sm: 328 },
               maxWidth: "calc(100vw - 20px)",
+              height: "100dvh",
+              maxHeight: "100dvh",
+              display: "block",
               borderRight: "1px solid",
               borderColor: alpha(tokens.white, 0.12),
+              WebkitOverflowScrolling: "touch",
               overscrollBehavior: "contain",
+              scrollbarWidth: "thin",
+              scrollbarColor: `${alpha(tokens.white, 0.34)} transparent`,
+              "&::-webkit-scrollbar": {
+                display: "block",
+                width: 8,
+              },
+              "&::-webkit-scrollbar-thumb": {
+                borderRadius: 999,
+                bgcolor: alpha(tokens.white, 0.28),
+              },
             },
           },
         }}
@@ -13781,7 +13780,9 @@ export default function AdminDashboard({
   const {
     admin,
     profileSettings,
+    profileSettingsError,
     platformSettings,
+    platformSettingsError,
     adminUsers,
     roleCatalog,
     permissionCatalog,
@@ -14099,6 +14100,17 @@ export default function AdminDashboard({
             "& form": { minWidth: 0 },
           }}
         >
+          {profileSettingsError || platformSettingsError ? (
+            <Stack spacing={1.25} sx={{ mb: 2.5 }}>
+              {profileSettingsError ? (
+                <Alert severity="warning">{profileSettingsError}</Alert>
+              ) : null}
+              {platformSettingsError ? (
+                <Alert severity="warning">{platformSettingsError}</Alert>
+              ) : null}
+            </Stack>
+          ) : null}
+
           {section === "overview" ? (
             <Stack spacing={3}>
               <Box
@@ -14421,7 +14433,9 @@ export default function AdminDashboard({
             <SettingsSection
               admin={admin}
               profileSettings={profileSettings}
+              profileSettingsError={profileSettingsError}
               platformSettings={platformSettings}
+              platformSettingsError={platformSettingsError}
               roles={roleCatalog}
               actionData={actionFeedback}
             />

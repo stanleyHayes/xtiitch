@@ -1,7 +1,7 @@
 // Server-side client for the Xtiitch public catalogue API. Storefront loaders
 // call these; nothing here runs in the browser. The base URL points at the Go
 // API and is overridable per environment.
-const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
+import { fetchApi } from "./api-base";
 
 export type StoreSettings = {
   bespoke_enabled: boolean;
@@ -67,7 +67,7 @@ export type CollectionPage = {
 };
 
 async function getJSON<T>(path: string): Promise<T | null> {
-  const response = await fetch(`${API_BASE}/v1${path}`);
+  const response = await fetchApi(path);
   if (response.status === 404) {
     return null;
   }
@@ -100,7 +100,7 @@ export type PlaceOrderResponse =
   | { ok: false; status: number; error: string };
 
 async function postJSON<T>(path: string, body: unknown): Promise<{ ok: true; result: T } | { ok: false; status: number; error: string }> {
-  const response = await fetch(`${API_BASE}/v1${path}`, {
+  const response = await fetchApi(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),

@@ -19,7 +19,7 @@ import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
 import type { Route } from "./+types/login";
-import { API_BASE } from "../lib/auth";
+import { fetchApi } from "../lib/api-base";
 import { commitSession, getSession } from "../lib/session";
 import { tokens } from "../theme";
 
@@ -36,15 +36,22 @@ export async function action({ request }: Route.ActionArgs) {
   const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
 
-  const response = await fetch(`${API_BASE}/v1/auth/business/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      business_handle: handle,
-      owner_email: email,
-      owner_password: password,
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetchApi("/auth/business/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        business_handle: handle,
+        owner_email: email,
+        owner_password: password,
+      }),
+    });
+  } catch {
+    return {
+      error: "Dashboard API is unavailable. Try again after a moment.",
+    };
+  }
   if (!response.ok) {
     return {
       error:

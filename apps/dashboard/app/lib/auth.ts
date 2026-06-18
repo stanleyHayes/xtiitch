@@ -1,7 +1,6 @@
 import { redirect } from "react-router";
+import { fetchApi } from "./api-base";
 import { destroySession, getSession } from "./session";
-
-export const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
 
 // apiFetch calls the protected API with the session's access token. Without a
 // session, or on a rejected token, it throws a redirect to the login page
@@ -17,7 +16,15 @@ export async function apiFetch(request: Request, path: string, init?: RequestIni
   const headers = new Headers(init?.headers);
   headers.set("Authorization", `Bearer ${access}`);
 
-  const response = await fetch(`${API_BASE}/v1${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetchApi(path, { ...init, headers });
+  } catch {
+    return new Response(JSON.stringify({ error: "dashboard_api_unavailable" }), {
+      status: 503,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
   if (response.status === 401) {
     throw redirect("/login", { headers: { "Set-Cookie": await destroySession(session) } });
   }

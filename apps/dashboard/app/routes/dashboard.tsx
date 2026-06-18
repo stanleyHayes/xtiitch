@@ -309,6 +309,11 @@ type DashboardPageMeta = {
   tone: string;
 };
 
+type DashboardJSONResult<T> = {
+  data: T;
+  warning: string | null;
+};
+
 type OverviewRoom = {
   title: string;
   helper: string;
@@ -364,6 +369,13 @@ const defaultStoreSettings: StoreSettings = {
   delivery_enabled: false,
   dispatch_enabled: false,
   brand_color: tokens.burgundy,
+};
+
+const defaultMoneySummary: MoneySummary = {
+  through_platform_minor: 0,
+  commission_minor: 0,
+  manual_takings_minor: 0,
+  net_income_minor: 0,
 };
 
 const orderFilters: { value: OrderFilter; label: string }[] = [
@@ -593,54 +605,130 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
+function dashboardUpstreamStatus(status: number): number {
+  return status >= 500 || status === 0 ? 503 : status;
+}
+
+function isRedirectResponse(error: unknown): error is Response {
+  return (
+    error instanceof Response && error.status >= 300 && error.status < 400
+  );
+}
+
+async function readDashboardJSON<T>(
+  request: Request,
+  path: string,
+  failureMessage: string,
+): Promise<T> {
+  const response = await apiFetch(request, path);
+
+  if (!response.ok) {
+    throw new Response(failureMessage, {
+      status: dashboardUpstreamStatus(response.status),
+    });
+  }
+
+  try {
+    return (await response.json()) as T;
+  } catch {
+    throw new Response(failureMessage, { status: 502 });
+  }
+}
+
+async function loadDashboardJSON<T>(
+  request: Request,
+  path: string,
+  fallback: T,
+  warning: string,
+): Promise<DashboardJSONResult<T>> {
+  try {
+    return {
+      data: await readDashboardJSON<T>(request, path, warning),
+      warning: null,
+    };
+  } catch (error) {
+    if (isRedirectResponse(error)) {
+      throw error;
+    }
+    return { data: fallback, warning };
+  }
+}
+
+function uniqueDashboardWarnings(warnings: string[]): string[] {
+  return [...new Set(warnings.filter(Boolean))];
+}
+
 export async function loader({ request, params }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
-  const [profileResponse, currentUserResponse] = await Promise.all([
-    apiFetch(request, "/businesses/me"),
-    apiFetch(request, "/auth/business/me"),
+  const [profile, currentUser] = await Promise.all([
+    readDashboardJSON<Profile>(
+      request,
+      "/businesses/me",
+      "The business dashboard API is unavailable. Start the API and refresh this dashboard.",
+    ),
+    readDashboardJSON<CurrentUser>(
+      request,
+      "/auth/business/me",
+      "The signed-in business user could not be loaded. Start the API and refresh this dashboard.",
+    ),
   ]);
-  const profile = (await profileResponse.json()) as Profile;
-  const currentUser = (await currentUserResponse.json()) as CurrentUser;
   const canManage = canManageDashboard(currentUser.role);
   const section = parseDashboardSection(params.section, canManage);
+  const dataWarnings: string[] = [];
+  const readResult = <T,>(result: DashboardJSONResult<T>): T => {
+    if (result.warning) {
+      dataWarnings.push(result.warning);
+    }
+    return result.data;
+  };
 
   const [
-    ordersResponse,
-    fieldsResponse,
-    bookingsResponse,
-    handoversResponse,
-    notificationsResponse,
+    ordersResult,
+    fieldsResult,
+    bookingsResult,
+    handoversResult,
+    notificationsResult,
   ] = await Promise.all([
-    apiFetch(request, "/orders"),
-    apiFetch(request, "/measurement-fields"),
-    apiFetch(request, "/bookings"),
-    apiFetch(request, "/handovers"),
-    apiFetch(request, "/notifications"),
+    loadDashboardJSON<{ orders: OrderSummary[] }>(
+      request,
+      "/orders",
+      { orders: [] },
+      "Orders could not be loaded right now.",
+    ),
+    loadDashboardJSON<{ fields: MeasurementField[] }>(
+      request,
+      "/measurement-fields",
+      { fields: [] },
+      "Measurement fields could not be loaded right now.",
+    ),
+    loadDashboardJSON<{ bookings: BookingSummary[] }>(
+      request,
+      "/bookings",
+      { bookings: [] },
+      "Visit bookings could not be loaded right now.",
+    ),
+    loadDashboardJSON<{ handovers: HandoverSummary[] }>(
+      request,
+      "/handovers",
+      { handovers: [] },
+      "Handovers could not be loaded right now.",
+    ),
+    loadDashboardJSON<{ notifications: NotificationSummary[] }>(
+      request,
+      "/notifications",
+      { notifications: [] },
+      "Dashboard messages could not be loaded right now.",
+    ),
   ]);
-  const ordersData = (await ordersResponse.json()) as {
-    orders: OrderSummary[];
-  };
-  const fieldsData = (await fieldsResponse.json()) as {
-    fields: MeasurementField[];
-  };
-  const bookingsData = (await bookingsResponse.json()) as {
-    bookings: BookingSummary[];
-  };
-  const handoversData = (await handoversResponse.json()) as {
-    handovers: HandoverSummary[];
-  };
-  const notificationsData = (await notificationsResponse.json()) as {
-    notifications: NotificationSummary[];
-  };
+  const ordersData = readResult(ordersResult);
+  const fieldsData = readResult(fieldsResult);
+  const bookingsData = readResult(bookingsResult);
+  const handoversData = readResult(handoversResult);
+  const notificationsData = readResult(notificationsResult);
 
   let designs: Design[] = [];
-  let moneySummary: MoneySummary = {
-    through_platform_minor: 0,
-    commission_minor: 0,
-    manual_takings_minor: 0,
-    net_income_minor: 0,
-  };
+  let moneySummary: MoneySummary = defaultMoneySummary;
   let manualTakings: ManualTaking[] = [];
   let availabilityWindows: AvailabilityWindow[] = [];
   let businessUsers: BusinessUser[] = [];
@@ -652,64 +740,101 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   if (canManage) {
     const [
-      designsResponse,
-      moneySummaryResponse,
-      takingsResponse,
-      availabilityResponse,
-      businessUsersResponse,
-      settingsResponse,
-      collectionsResponse,
-      sizeBandsResponse,
-      promotionsResponse,
+      designsResult,
+      moneySummaryResult,
+      takingsResult,
+      availabilityResult,
+      businessUsersResult,
+      settingsResult,
+      collectionsResult,
+      sizeBandsResult,
+      promotionsResult,
     ] = await Promise.all([
-      apiFetch(request, "/designs"),
-      apiFetch(request, "/money/summary"),
-      apiFetch(request, "/money/takings"),
-      apiFetch(request, "/availability"),
-      apiFetch(request, "/auth/business/users"),
-      apiFetch(request, "/store-settings"),
-      apiFetch(request, "/collections"),
-      apiFetch(request, "/size-bands"),
-      apiFetch(request, "/promotions"),
+      loadDashboardJSON<{ designs: Design[] }>(
+        request,
+        "/designs",
+        { designs: [] },
+        "Catalogue designs could not be loaded right now.",
+      ),
+      loadDashboardJSON<MoneySummary>(
+        request,
+        "/money/summary",
+        defaultMoneySummary,
+        "Money summary could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ takings: ManualTaking[] }>(
+        request,
+        "/money/takings",
+        { takings: [] },
+        "Manual takings could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ windows: AvailabilityWindow[] }>(
+        request,
+        "/availability",
+        { windows: [] },
+        "Availability windows could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ users: BusinessUser[] }>(
+        request,
+        "/auth/business/users",
+        { users: [] },
+        "Team access could not be loaded right now.",
+      ),
+      loadDashboardJSON<StoreSettings>(
+        request,
+        "/store-settings",
+        defaultStoreSettings,
+        "Store settings could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ collections: CollectionSummary[] }>(
+        request,
+        "/collections",
+        { collections: [] },
+        "Collections could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ size_bands: SizeBand[] }>(
+        request,
+        "/size-bands",
+        { size_bands: [] },
+        "Size bands could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ promotions: BusinessPromotion[] }>(
+        request,
+        "/promotions",
+        { promotions: [] },
+        "Promotions could not be loaded right now.",
+      ),
     ]);
-    const designsData = (await designsResponse.json()) as {
-      designs: Design[];
-    };
-    const moneySummaryData =
-      (await moneySummaryResponse.json()) as MoneySummary;
-    const takingsData = (await takingsResponse.json()) as {
-      takings: ManualTaking[];
-    };
-    const availabilityData = (await availabilityResponse.json()) as {
-      windows: AvailabilityWindow[];
-    };
-    const businessUsersData = (await businessUsersResponse.json()) as {
-      users: BusinessUser[];
-    };
-    const settingsData = (await settingsResponse.json()) as StoreSettings;
-    const collectionsData = (await collectionsResponse.json()) as {
-      collections: CollectionSummary[];
-    };
-    const sizeBandsData = (await sizeBandsResponse.json()) as {
-      size_bands: SizeBand[];
-    };
-    const promotionsData = (await promotionsResponse.json()) as {
-      promotions: BusinessPromotion[];
-    };
+    const designsData = readResult(designsResult);
+    const moneySummaryData = readResult(moneySummaryResult);
+    const takingsData = readResult(takingsResult);
+    const availabilityData = readResult(availabilityResult);
+    const businessUsersData = readResult(businessUsersResult);
+    const settingsData = readResult(settingsResult);
+    const collectionsData = readResult(collectionsResult);
+    const sizeBandsData = readResult(sizeBandsResult);
+    const promotionsData = readResult(promotionsResult);
 
     const listedDesigns = designsData.designs ?? [];
+    let designPriceWarning = false;
     designs = await Promise.all(
       listedDesigns.map(async (design) => {
-        const pricesResponse = await apiFetch(
+        const pricesResult = await loadDashboardJSON<{ prices: BandPrice[] }>(
           request,
           `/designs/${encodeURIComponent(design.design_id)}/prices`,
+          { prices: [] },
+          "Some design prices could not be loaded right now.",
         );
-        const pricesData = (await pricesResponse.json()) as {
-          prices: BandPrice[];
-        };
+        if (pricesResult.warning) {
+          designPriceWarning = true;
+        }
+        const pricesData = pricesResult.data;
         return { ...design, prices: pricesData.prices ?? [] };
       }),
     );
+    if (designPriceWarning) {
+      dataWarnings.push("Some design prices could not be loaded right now.");
+    }
     moneySummary = {
       through_platform_minor: moneySummaryData.through_platform_minor ?? 0,
       commission_minor: moneySummaryData.commission_minor ?? 0,
@@ -744,6 +869,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     promotions,
     section,
     orderFilter,
+    dataWarnings: uniqueDashboardWarnings(dataWarnings),
   };
 }
 
@@ -2981,10 +3107,12 @@ function WorkspaceRail({
     <Stack
       spacing={{ xs: 1.2, lg: 1.6 }}
       sx={{
-        minHeight: inDrawer ? "auto" : "100%",
+        minHeight: inDrawer ? "100dvh" : "100%",
         width: "100%",
         p: { xs: 1.25, sm: 1.5 },
-        pb: inDrawer ? 2 : { xs: 1.25, sm: 1.5 },
+        pb: inDrawer
+          ? "calc(16px + env(safe-area-inset-bottom))"
+          : { xs: 1.25, sm: 1.5 },
       }}
     >
       <Box
@@ -3244,12 +3372,12 @@ function WorkspaceRail({
           ...railSurfaceSx,
           display: { xs: "none", md: "block" },
           p: 0,
-          position: "sticky",
-          top: 24,
-          width: "100%",
-          alignSelf: "start",
-          maxHeight: "calc(100vh - 48px)",
-          zIndex: 8,
+          position: "fixed",
+          top: { md: 16, lg: 24 },
+          bottom: { md: 16, lg: 24 },
+          left: { md: 16, lg: 24 },
+          width: dashboardRailWidth,
+          zIndex: 18,
           overflowX: "hidden",
           overflowY: "auto",
           backdropFilter: "blur(14px)",
@@ -8710,6 +8838,7 @@ export default function Dashboard({
     promotions,
     section,
     orderFilter,
+    dataWarnings,
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -9005,12 +9134,18 @@ export default function Dashboard({
           boxSizing: "border-box",
           mx: "auto",
           px: { xs: 1.5, sm: 2.5, lg: 3 },
+          pl: {
+            xs: 1.5,
+            sm: 2.5,
+            md: `calc(${dashboardRailWidth}px + 40px)`,
+            lg: `calc(${dashboardRailWidth}px + 56px)`,
+          },
           py: { xs: 1.5, lg: 3 },
           display: "grid",
           gap: { xs: 2, lg: 3 },
           gridTemplateColumns: {
             xs: "minmax(0, 1fr)",
-            md: `${dashboardRailWidth}px minmax(0, 1fr)`,
+            md: "minmax(0, 1fr)",
           },
         }}
       >
@@ -9111,6 +9246,15 @@ export default function Dashboard({
             <Alert severity="warning" sx={{ mb: 2.5 }}>
               {action.permissionError}
             </Alert>
+          ) : null}
+          {dataWarnings.length > 0 ? (
+            <Stack spacing={1} sx={{ mb: 2.5 }}>
+              {dataWarnings.slice(0, 5).map((warning) => (
+                <Alert key={warning} severity="warning">
+                  {warning}
+                </Alert>
+              ))}
+            </Stack>
           ) : null}
 
           <Box

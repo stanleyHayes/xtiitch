@@ -60,10 +60,18 @@ export default function App() {
 
 export function ErrorBoundary({ error }: { error: unknown }) {
   const is404 = isRouteErrorResponse(error) && error.status === 404;
-  const title = is404 ? "Not found" : "Something went wrong";
+  const isAPIUnavailable =
+    isRouteErrorResponse(error) && [502, 503].includes(error.status);
+  const title = is404
+    ? "Not found"
+    : isAPIUnavailable
+      ? "Dashboard API unavailable"
+      : "Something went wrong";
   const message = is404
     ? "This store or design is not available. The link may be wrong, or the item may have been removed."
-    : "We hit an unexpected error. Please try again in a moment.";
+    : isAPIUnavailable
+      ? "The dashboard app is running, but the API did not respond with the business session data it needs. Start the API, then refresh."
+      : "We hit an unexpected error. Please try again in a moment.";
 
   return (
     <Box
@@ -79,7 +87,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
           variant="overline"
           sx={{ color: "primary.main", fontWeight: 700 }}
         >
-          {is404 ? "404" : "Error"}
+          {is404 ? "404" : isAPIUnavailable ? "503" : "Error"}
         </Typography>
         <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
           {title}

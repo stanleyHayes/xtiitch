@@ -1,5 +1,6 @@
 import { reactRouter } from "@react-router/dev/vite";
-import { defineConfig } from "vite";
+import type { IncomingMessage, ServerResponse } from "node:http";
+import { defineConfig, type Plugin } from "vite";
 
 // Pre-declare client dependencies so Vite optimizes them once at startup rather
 // than discovering them per route (which causes reload churn and un-hydrated
@@ -74,8 +75,30 @@ const muiIcons = [
   "WarningAmberRounded",
 ].map((name) => `@mui/icons-material/${name}`);
 
+function reactRouterCriticalCssFallback(): Plugin {
+  return {
+    name: "xtiitch-react-router-critical-css-fallback",
+    configureServer(server) {
+      server.middlewares.use((
+        request: IncomingMessage,
+        response: ServerResponse,
+        next: () => void,
+      ) => {
+        if (request.url?.startsWith("/@react-router/critical.css")) {
+          response.statusCode = 200;
+          response.setHeader("Content-Type", "text/css");
+          response.end("");
+          return;
+        }
+
+        next();
+      });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [reactRouter()],
+  plugins: [reactRouterCriticalCssFallback(), reactRouter()],
   server: {
     port: 3100,
   },
