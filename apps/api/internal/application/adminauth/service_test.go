@@ -1716,6 +1716,71 @@ func TestUpdateAffiliateConversionStatusRequiresGrowthPermissionAndAudit(t *test
 	}
 }
 
+func TestCreateAffiliatePayoutRequiresGrowthPermissionAndAudit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"payout-1", "audit-1"},
+	)
+
+	record, err := service.CreateAffiliatePayout(
+		context.Background(),
+		CreateAffiliatePayoutCommand{
+			ActorUserID:     "operator-1",
+			ActorRole:       admindomain.RoleOperator,
+			AffiliateID:     "affiliate-1",
+			PayoutReference: "  TRF_123  ",
+			Notes:           "  sent from settled commission  ",
+			UserAgent:       "test-agent",
+			IPAddress:       "127.0.0.1",
+		},
+	)
+	if err != nil {
+		t.Fatalf("create affiliate payout: %v", err)
+	}
+	if businesses.createdAffiliatePayout.PayoutBatchID != "payout-1" ||
+		businesses.createdAffiliatePayout.AffiliateID != "affiliate-1" ||
+		businesses.createdAffiliatePayout.PayoutReference != "TRF_123" ||
+		businesses.createdAffiliatePayout.Notes != "sent from settled commission" {
+		t.Fatalf("expected normalized payout input, got %+v", businesses.createdAffiliatePayout)
+	}
+	if record.PayoutBatchID != "payout-1" ||
+		record.Status != "settled" ||
+		record.ConversionCount != 2 ||
+		record.CommissionMinor != 2500 {
+		t.Fatalf("unexpected payout response: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Reconciled affiliate payout" ||
+		event.TargetID != "payout-1" ||
+		event.Metadata["affiliate_id"] != "affiliate-1" ||
+		event.Metadata["conversion_count"] != "2" ||
+		event.Metadata["commission_minor"] != "2500" ||
+		event.Metadata["payout_reference"] != "TRF_123" {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+
+	_, err = service.CreateAffiliatePayout(
+		context.Background(),
+		CreateAffiliatePayoutCommand{
+			ActorUserID: "support-1",
+			ActorRole:   admindomain.RoleSupport,
+			AffiliateID: "affiliate-1",
+		},
+	)
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -2386,6 +2451,7 @@ type fakeAdminBusinesses struct {
 	archivedAffiliate          ports.ArchiveAdminAffiliateInput
 	affiliateAttribution       []ports.AdminAffiliateAttributionRecord
 	updatedAffiliateConversion ports.UpdateAdminAffiliateConversionStatusInput
+	createdAffiliatePayout     ports.CreateAdminAffiliatePayoutInput
 	referralProgrammes         []ports.AdminReferralProgrammeRecord
 	createdReferralProgramme   ports.CreateAdminReferralProgrammeInput
 	updatedReferralProgramme   ports.UpdateAdminReferralProgrammeInput
@@ -2939,6 +3005,28 @@ func (repo *fakeAdminBusinesses) UpdateAdminAffiliateConversionStatus(
 	return record, nil
 }
 
+func (repo *fakeAdminBusinesses) CreateAdminAffiliatePayout(
+	_ context.Context,
+	input ports.CreateAdminAffiliatePayoutInput,
+) (ports.AdminAffiliatePayoutRecord, error) {
+	repo.createdAffiliatePayout = input
+	now := time.Now()
+	return ports.AdminAffiliatePayoutRecord{
+		PayoutBatchID:   input.PayoutBatchID,
+		AffiliateID:     input.AffiliateID,
+		DisplayName:     "Sewing Pro Partners",
+		PayoutMode:      "paystack_transfer",
+		PayoutReference: input.PayoutReference,
+		ConversionCount: 2,
+		GrossMinor:      25000,
+		CommissionMinor: 2500,
+		Status:          "settled",
+		Notes:           input.Notes,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}, nil
+}
+
 func (repo *fakeAdminBusinesses) CreateAdminAffiliate(
 	_ context.Context,
 	input ports.CreateAdminAffiliateInput,
@@ -3036,6 +3124,22 @@ func fakeAdminAffiliateAttributionRecord(
 				AttributionModel: "last_click",
 				CreatedAt:        now,
 				UpdatedAt:        now,
+			},
+		},
+		RecentPayouts: []ports.AdminAffiliatePayoutRecord{
+			{
+				PayoutBatchID:   "payout-1",
+				AffiliateID:     affiliateID,
+				DisplayName:     displayName,
+				PayoutMode:      "paystack_transfer",
+				PayoutReference: "TRF_123",
+				ConversionCount: 2,
+				GrossMinor:      25000,
+				CommissionMinor: 2500,
+				Status:          "settled",
+				Notes:           "sent from settled commission",
+				CreatedAt:       now,
+				UpdatedAt:       now,
 			},
 		},
 	}

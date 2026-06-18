@@ -59,6 +59,7 @@ type AdminBusinessRepository interface {
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
 	UpdateAdminAffiliateConversionStatus(ctx context.Context, input UpdateAdminAffiliateConversionStatusInput) (AdminAffiliateConversionRecord, error)
+	CreateAdminAffiliatePayout(ctx context.Context, input CreateAdminAffiliatePayoutInput) (AdminAffiliatePayoutRecord, error)
 	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	ArchiveAdminAffiliate(ctx context.Context, input ArchiveAdminAffiliateInput) (AdminAffiliateRecord, error)
@@ -676,6 +677,7 @@ type AdminAffiliateAttributionRecord struct {
 	GrossMinor              int64
 	CommissionMinor         int64
 	RecentConversions       []AdminAffiliateConversionRecord
+	RecentPayouts           []AdminAffiliatePayoutRecord
 	LastActivityAt          *time.Time
 }
 
@@ -699,6 +701,29 @@ type UpdateAdminAffiliateConversionStatusInput struct {
 	Status         string
 	Reason         string
 	ActorAdminUser common.ID
+}
+
+type AdminAffiliatePayoutRecord struct {
+	PayoutBatchID   common.ID
+	AffiliateID     common.ID
+	DisplayName     string
+	PayoutMode      string
+	PayoutReference string
+	ConversionCount int
+	GrossMinor      int64
+	CommissionMinor int64
+	Status          string
+	Notes           string
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type CreateAdminAffiliatePayoutInput struct {
+	PayoutBatchID   common.ID
+	AffiliateID     common.ID
+	PayoutReference string
+	Notes           string
+	ActorAdminUser  common.ID
 }
 
 type AdminReferralProgrammeRecord struct {

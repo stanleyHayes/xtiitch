@@ -1264,6 +1264,32 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-affiliate-payout:create") {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      await adminApi.createAffiliatePayout(
+        accessToken,
+        String(form.get("affiliate_id") ?? ""),
+        {
+          payoutReference: String(form.get("payout_reference") ?? ""),
+          notes: String(form.get("notes") ?? ""),
+        },
+      );
+      return {
+        section: "affiliates",
+        severity: "success",
+        message: "Affiliate payout reconciled.",
+      };
+    } catch (error) {
+      return {
+        section: "affiliates",
+        severity: "error",
+        message: adminAffiliateActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-referral-programme:create" ||
     intent === "admin-referral-programme:update" ||
@@ -8612,6 +8638,23 @@ function AffiliatesSection({
         .reduce((subtotal, conversion) => subtotal + conversion.commissionMinor, 0),
     0,
   );
+  const approvedCommissionMinor = affiliateAttribution.reduce(
+    (total, item) =>
+      total +
+      item.recentConversions
+        .filter((conversion) => conversion.status === "approved")
+        .reduce((subtotal, conversion) => subtotal + conversion.commissionMinor, 0),
+    0,
+  );
+  const reconciledCommissionMinor = affiliateAttribution.reduce(
+    (total, item) =>
+      total +
+      item.recentPayouts.reduce(
+        (subtotal, payout) => subtotal + payout.commissionMinor,
+        0,
+      ),
+    0,
+  );
 
   return (
     <Stack spacing={2.5}>
@@ -8679,6 +8722,18 @@ function AffiliatesSection({
           value={formatGHS(pendingCommissionMinor)}
           helper="Recent pending rows"
           trend="Awaiting approval"
+        />
+        <MetricCard
+          label="Approved commission"
+          value={formatGHS(approvedCommissionMinor)}
+          helper="Recent approved rows"
+          trend="Ready to reconcile"
+        />
+        <MetricCard
+          label="Reconciled payouts"
+          value={formatGHS(reconciledCommissionMinor)}
+          helper="Recent payout batches"
+          trend="Settled from commission"
         />
       </Box>
 
@@ -8794,6 +8849,12 @@ function AffiliatesSection({
             const color = affiliateStatusColor(affiliate.status);
             const archived = affiliate.status === "archived";
             const performance = attributionByAffiliate.get(affiliate.affiliateId);
+            const approvedConversionCount = performance?.approvedConversionCount ?? 0;
+            const recentApprovedCommissionMinor =
+              performance?.recentConversions
+                .filter((conversion) => conversion.status === "approved")
+                .reduce((total, conversion) => total + conversion.commissionMinor, 0) ?? 0;
+            const lastPayout = performance?.recentPayouts[0];
             return (
               <Panel
                 key={affiliate.affiliateId}
@@ -8865,6 +8926,22 @@ function AffiliatesSection({
                     <DetailLine
                       label="Commission"
                       value={formatGHS(performance?.commissionMinor ?? 0)}
+                    />
+                    <DetailLine
+                      label="Approved"
+                      value={`${approvedConversionCount} · ${formatGHS(
+                        recentApprovedCommissionMinor,
+                      )}`}
+                    />
+                    <DetailLine
+                      label="Last payout"
+                      value={
+                        lastPayout
+                          ? `${formatGHS(lastPayout.commissionMinor)} · ${shortTime(
+                              lastPayout.createdAt,
+                            )}`
+                          : "None"
+                      }
                     />
                   </Box>
 
@@ -8981,6 +9058,137 @@ function AffiliatesSection({
                             </Stack>
                           );
                         })}
+                      </Stack>
+                    </Box>
+                  ) : null}
+
+                  {approvedConversionCount > 0 && !archived ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.success, 0.18),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.success, 0.06),
+                      }}
+                    >
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-affiliate-payout:create"
+                        />
+                        <input
+                          type="hidden"
+                          name="affiliate_id"
+                          value={affiliate.affiliateId}
+                        />
+                        <Stack spacing={1}>
+                          <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                            sx={{
+                              justifyContent: "space-between",
+                              alignItems: { sm: "center" },
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 900 }}>
+                                Approved payout
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {approvedConversionCount} rows ·{" "}
+                                {formatGHS(recentApprovedCommissionMinor)}
+                              </Typography>
+                            </Box>
+                            <Button type="submit" size="small" variant="contained">
+                              Reconcile payout
+                            </Button>
+                          </Stack>
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 1,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "minmax(0, 1fr) minmax(0, 1.2fr)",
+                              },
+                            }}
+                          >
+                            <TextField
+                              label="Payout reference"
+                              name="payout_reference"
+                              size="small"
+                              defaultValue={affiliate.payoutReference}
+                            />
+                            <TextField
+                              label="Notes"
+                              name="notes"
+                              size="small"
+                              defaultValue="Settled from approved affiliate commission."
+                            />
+                          </Box>
+                        </Stack>
+                      </Form>
+                    </Box>
+                  ) : null}
+
+                  {performance?.recentPayouts.length ? (
+                    <Box
+                      sx={{
+                        p: 1.25,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.success, 0.14),
+                        borderRadius: 1,
+                        bgcolor: alpha(tokens.white, 0.7),
+                      }}
+                    >
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary", fontWeight: 900 }}
+                      >
+                        Recent payouts
+                      </Typography>
+                      <Stack spacing={0.75} sx={{ mt: 1 }}>
+                        {performance.recentPayouts.map((payout) => (
+                          <Stack
+                            key={payout.payoutBatchId}
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                            sx={{
+                              p: 1,
+                              borderRadius: 1,
+                              bgcolor: alpha(tokens.panel, 0.76),
+                              justifyContent: "space-between",
+                              alignItems: { sm: "center" },
+                            }}
+                          >
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 900 }}>
+                                {formatGHS(payout.commissionMinor)}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+                              >
+                                {payout.payoutReference || shortID(payout.payoutBatchId)}
+                              </Typography>
+                            </Box>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{ alignItems: "center", flexWrap: "wrap" }}
+                            >
+                              <Chip size="small" label={payout.status} variant="outlined" />
+                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                                {payout.conversionCount} rows · {shortTime(payout.createdAt)}
+                              </Typography>
+                            </Stack>
+                          </Stack>
+                        ))}
                       </Stack>
                     </Box>
                   ) : null}

@@ -342,6 +342,16 @@ type UpdateAffiliateConversionStatusCommand struct {
 	IPAddress    string
 }
 
+type CreateAffiliatePayoutCommand struct {
+	ActorUserID     common.ID
+	ActorRole       admindomain.Role
+	AffiliateID     common.ID
+	PayoutReference string
+	Notes           string
+	UserAgent       string
+	IPAddress       string
+}
+
 type CreateAffiliateCommand struct {
 	ActorUserID      common.ID
 	ActorRole        admindomain.Role
@@ -1719,6 +1729,64 @@ func (s Service) UpdateAffiliateConversionStatus(
 		UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) CreateAffiliatePayout(
+	ctx context.Context,
+	cmd CreateAffiliatePayoutCommand,
+) (ports.AdminAffiliatePayoutRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.AffiliateID.IsZero() {
+		return ports.AdminAffiliatePayoutRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminAffiliatePayoutRecord{}, authdomain.ErrForbidden
+	}
+
+	notes := normalizeOperatorNote(cmd.Notes)
+	if notes == "" {
+		notes = "Operator reconciled approved affiliate payout."
+	}
+	reference := normalizeOperatorNote(cmd.PayoutReference)
+
+	record, err := s.businesses.CreateAdminAffiliatePayout(ctx, ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID:   s.ids.NewID(),
+		AffiliateID:     cmd.AffiliateID,
+		PayoutReference: reference,
+		Notes:           notes,
+		ActorAdminUser:  cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Reconciled affiliate payout",
+		TargetType:  "affiliate_payout",
+		TargetID:    record.PayoutBatchID.String(),
+		TargetLabel: fallbackString(record.DisplayName, record.AffiliateID.String()),
+		Summary: "Settled " + intString(record.ConversionCount) +
+			" approved affiliate conversions for " + moneySummary(record.CommissionMinor) + ".",
+		Severity: admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"affiliate_id":     record.AffiliateID.String(),
+			"conversion_count": intString(record.ConversionCount),
+			"commission_minor": intString64(record.CommissionMinor),
+			"payout_reference": record.PayoutReference,
+			"payout_mode":      record.PayoutMode,
+			"status":           record.Status,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
 	}
 
 	return record, nil
@@ -4205,6 +4273,10 @@ func intString(value int) string {
 
 func intString64(value int64) string {
 	return strconv.FormatInt(value, 10)
+}
+
+func moneySummary(value int64) string {
+	return "GHS " + strconv.FormatFloat(float64(value)/100, 'f', 2, 64)
 }
 
 func fallbackString(value string, fallback string) string {

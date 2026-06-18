@@ -334,6 +334,7 @@ export type AdminAffiliateAttribution = {
   grossMinor: number;
   commissionMinor: number;
   recentConversions: AdminAffiliateConversion[];
+  recentPayouts: AdminAffiliatePayout[];
   lastActivityAt?: string;
 };
 
@@ -348,6 +349,21 @@ export type AdminAffiliateConversion = {
   status: "pending" | "approved" | "settled" | "reversed";
   attributionModel: "last_click" | "manual";
   holdUntil?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminAffiliatePayout = {
+  payoutBatchId: string;
+  affiliateId: string;
+  displayName: string;
+  payoutMode: AdminAffiliatePayoutMode;
+  payoutReference: string;
+  conversionCount: number;
+  grossMinor: number;
+  commissionMinor: number;
+  status: "settled" | "void";
+  notes: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -777,6 +793,7 @@ type AdminAffiliateAttributionPayload = {
   gross_minor: number;
   commission_minor: number;
   recent_conversions: AdminAffiliateConversionPayload[];
+  recent_payouts: AdminAffiliatePayoutPayload[];
   last_activity_at?: string;
 };
 
@@ -791,6 +808,21 @@ type AdminAffiliateConversionPayload = {
   status: AdminAffiliateConversion["status"];
   attribution_model: AdminAffiliateConversion["attributionModel"];
   hold_until?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAffiliatePayoutPayload = {
+  payout_batch_id: string;
+  affiliate_id: string;
+  display_name: string;
+  payout_mode: AdminAffiliatePayoutMode;
+  payout_reference: string;
+  conversion_count: number;
+  gross_minor: number;
+  commission_minor: number;
+  status: AdminAffiliatePayout["status"];
+  notes: string;
   created_at: string;
   updated_at: string;
 };
@@ -1279,6 +1311,7 @@ function mapAffiliateAttribution(
     grossMinor: payload.gross_minor,
     commissionMinor: payload.commission_minor,
     recentConversions: payload.recent_conversions.map(mapAffiliateConversion),
+    recentPayouts: (payload.recent_payouts ?? []).map(mapAffiliatePayout),
     lastActivityAt: payload.last_activity_at,
   };
 }
@@ -1297,6 +1330,23 @@ function mapAffiliateConversion(
     status: payload.status,
     attributionModel: payload.attribution_model,
     holdUntil: payload.hold_until,
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAffiliatePayout(payload: AdminAffiliatePayoutPayload): AdminAffiliatePayout {
+  return {
+    payoutBatchId: payload.payout_batch_id,
+    affiliateId: payload.affiliate_id,
+    displayName: payload.display_name,
+    payoutMode: payload.payout_mode,
+    payoutReference: payload.payout_reference,
+    conversionCount: payload.conversion_count,
+    grossMinor: payload.gross_minor,
+    commissionMinor: payload.commission_minor,
+    status: payload.status,
+    notes: payload.notes,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -1962,6 +2012,25 @@ export const adminApi = {
         }),
       },
     ).then(mapAffiliateConversion),
+  createAffiliatePayout: (
+    accessToken: string,
+    affiliateId: string,
+    input: {
+      payoutReference: string;
+      notes: string;
+    },
+  ) =>
+    requestJSON<AdminAffiliatePayoutPayload>(
+      `/admin/affiliates/${encodeURIComponent(affiliateId)}/payouts`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          payout_reference: input.payoutReference,
+          notes: input.notes,
+        }),
+      },
+    ).then(mapAffiliatePayout),
   createAffiliate: (
     accessToken: string,
     input: {

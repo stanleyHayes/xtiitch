@@ -29,6 +29,7 @@ const (
 	itAdminAffOrder      = "cccccccc-9999-9999-9999-999999999981"
 	itAdminAffAffiliate  = "dddddddd-9999-9999-9999-999999999981"
 	itAdminAffConversion = "eeeeeeee-9999-9999-9999-999999999981"
+	itAdminAffPayout     = "ffffffff-9999-9999-9999-999999999981"
 	itAdminAffAdmin      = "77777777-7777-7777-7777-777777777772"
 )
 
@@ -158,6 +159,94 @@ func TestUpdateAdminAffiliateConversionStatusPersistsTransition(t *testing.T) {
 	})
 	if !errors.Is(err, authdomain.ErrInvalidInput) {
 		t.Fatalf("expected settled conversion to be terminal, got %v", err)
+	}
+}
+
+func TestCreateAdminAffiliatePayoutSettlesApprovedConversions(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminAffiliateConversionFixture(t, pool)
+	defer cleanupAdminAffiliateConversionFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+
+	if _, err := repo.UpdateAdminAffiliateConversionStatus(ctx, ports.UpdateAdminAffiliateConversionStatusInput{
+		ConversionID:   itAdminAffConversion,
+		Status:         "approved",
+		Reason:         "Ready for payout.",
+		ActorAdminUser: itAdminAffAdmin,
+	}); err != nil {
+		t.Fatalf("approve affiliate conversion: %v", err)
+	}
+
+	payout, err := repo.CreateAdminAffiliatePayout(ctx, ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID:   itAdminAffPayout,
+		AffiliateID:     itAdminAffAffiliate,
+		PayoutReference: "TRF_IT_AFF",
+		Notes:           "Integration payout reconciliation.",
+		ActorAdminUser:  itAdminAffAdmin,
+	})
+	if err != nil {
+		t.Fatalf("create affiliate payout: %v", err)
+	}
+	if payout.PayoutBatchID != common.ID(itAdminAffPayout) ||
+		payout.AffiliateID != common.ID(itAdminAffAffiliate) ||
+		payout.PayoutReference != "TRF_IT_AFF" ||
+		payout.ConversionCount != 1 ||
+		payout.CommissionMinor != 2500 ||
+		payout.Status != "settled" {
+		t.Fatalf("unexpected affiliate payout: %+v", payout)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var status string
+		var payoutBatchID string
+		var payoutReference string
+		if err := tx.QueryRow(context.Background(), `
+			select
+				status,
+				payout_batch_id::text,
+				metadata->>'payout_reference'
+			from affiliate_conversions
+			where affiliate_conversion_id = $1
+		`, itAdminAffConversion).Scan(&status, &payoutBatchID, &payoutReference); err != nil {
+			t.Fatalf("read affiliate conversion payout state: %v", err)
+		}
+		if status != "settled" ||
+			payoutBatchID != itAdminAffPayout ||
+			payoutReference != "TRF_IT_AFF" {
+			t.Fatalf("expected settled conversion linked to payout, status=%q batch=%q ref=%q",
+				status, payoutBatchID, payoutReference)
+		}
+	})
+
+	records, err := repo.ListAdminAffiliateAttribution(ctx)
+	if err != nil {
+		t.Fatalf("list affiliate attribution: %v", err)
+	}
+	var found ports.AdminAffiliateAttributionRecord
+	for _, record := range records {
+		if record.AffiliateID == common.ID(itAdminAffAffiliate) {
+			found = record
+			break
+		}
+	}
+	if found.AffiliateID.IsZero() ||
+		len(found.RecentPayouts) != 1 ||
+		found.RecentPayouts[0].PayoutBatchID != common.ID(itAdminAffPayout) {
+		t.Fatalf("expected payout in attribution read model, got %+v", found)
+	}
+
+	_, err = repo.CreateAdminAffiliatePayout(ctx, ports.CreateAdminAffiliatePayoutInput{
+		PayoutBatchID:   "ffffffff-9999-9999-9999-999999999982",
+		AffiliateID:     itAdminAffAffiliate,
+		PayoutReference: "TRF_EMPTY",
+		Notes:           "No approved rows remain.",
+		ActorAdminUser:  itAdminAffAdmin,
+	})
+	if !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected no approved conversions after payout, got %v", err)
 	}
 }
 

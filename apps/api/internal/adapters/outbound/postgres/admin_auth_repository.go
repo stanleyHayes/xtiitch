@@ -2935,8 +2935,13 @@ func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Contex
 	if err != nil {
 		return nil, err
 	}
+	payouts, err := listAdminAffiliatePayouts(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for index := range records {
 		records[index].RecentConversions = conversions[records[index].AffiliateID]
+		records[index].RecentPayouts = payouts[records[index].AffiliateID]
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -3005,6 +3010,127 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAffiliateConversionRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
+	ctx context.Context,
+	input ports.CreateAdminAffiliatePayoutInput,
+) (ports.AdminAffiliatePayoutRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
+
+	record, err := scanAdminAffiliatePayoutRecord(tx.QueryRow(ctx, `
+		with affiliate as (
+			select
+				affiliate_id,
+				display_name,
+				payout_mode,
+				payout_reference
+			from affiliates
+			where affiliate_id = $2::uuid
+				and status <> 'archived'
+		),
+		eligible as (
+			select
+				affiliate_conversion_id,
+				gross_minor,
+				commission_minor
+			from affiliate_conversions
+			where affiliate_id = $2::uuid
+				and status = 'approved'
+			order by approved_at nulls last, updated_at, affiliate_conversion_id
+			for update
+		),
+		totals as (
+			select
+				count(*)::int as conversion_count,
+				coalesce(sum(gross_minor), 0)::bigint as gross_minor,
+				coalesce(sum(commission_minor), 0)::bigint as commission_minor
+			from eligible
+			having count(*) > 0
+		),
+		inserted as (
+			insert into affiliate_payout_batches (
+				payout_batch_id,
+				affiliate_id,
+				payout_mode,
+				payout_reference,
+				conversion_count,
+				gross_minor,
+				commission_minor,
+				status,
+				notes,
+				created_by_admin_user_id
+			)
+			select
+				$1::uuid,
+				affiliate.affiliate_id,
+				affiliate.payout_mode,
+				coalesce(nullif($3::text, ''), affiliate.payout_reference),
+				totals.conversion_count,
+				totals.gross_minor,
+				totals.commission_minor,
+				'settled',
+				$4::text,
+				$5::uuid
+			from affiliate
+			join totals on true
+			returning *
+		),
+		updated as (
+			update affiliate_conversions ac
+			set status = 'settled',
+				settled_at = coalesce(settled_at, now()),
+				payout_batch_id = (select payout_batch_id from inserted),
+				metadata = metadata || jsonb_build_object(
+					'payout_batch_id', (select payout_batch_id::text from inserted),
+					'payout_reference', (select payout_reference from inserted),
+					'payout_reconciled_by', $5::text,
+					'payout_reconciled_at', now(),
+					'payout_note', $4::text
+				),
+				updated_at = now()
+			from eligible
+			where ac.affiliate_conversion_id = eligible.affiliate_conversion_id
+			returning 1
+		)
+		select
+			inserted.payout_batch_id::text,
+			inserted.affiliate_id::text,
+			affiliate.display_name,
+			inserted.payout_mode,
+			inserted.payout_reference,
+			inserted.conversion_count,
+			inserted.gross_minor,
+			inserted.commission_minor,
+			inserted.status,
+			inserted.notes,
+			inserted.created_at,
+			inserted.updated_at
+		from inserted
+		join affiliate on affiliate.affiliate_id = inserted.affiliate_id
+	`, input.PayoutBatchID.String(),
+		input.AffiliateID.String(),
+		input.PayoutReference,
+		input.Notes,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAffiliatePayoutRecord{}, err
 	}
 
 	return record, nil
@@ -4271,6 +4397,58 @@ func listAdminAffiliateConversions(
 	return out, nil
 }
 
+func listAdminAffiliatePayouts(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminAffiliatePayoutRecord, error) {
+	rows, err := tx.Query(ctx, `
+		with ranked as (
+			select
+				affiliate_payout_batches.*,
+				row_number() over (
+					partition by affiliate_id
+					order by created_at desc, updated_at desc
+				) as rank
+			from affiliate_payout_batches
+		)
+		select
+			r.payout_batch_id::text,
+			r.affiliate_id::text,
+			coalesce(a.display_name, '') as display_name,
+			r.payout_mode,
+			r.payout_reference,
+			r.conversion_count,
+			r.gross_minor,
+			r.commission_minor,
+			r.status,
+			r.notes,
+			r.created_at,
+			r.updated_at
+		from ranked r
+		left join affiliates a on a.affiliate_id = r.affiliate_id
+		where r.rank <= 3
+		order by r.affiliate_id, r.created_at desc, r.updated_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := map[common.ID][]ports.AdminAffiliatePayoutRecord{}
+	for rows.Next() {
+		record, err := scanAdminAffiliatePayoutRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[record.AffiliateID] = append(out[record.AffiliateID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return out, nil
+}
+
 func queryAdminAffiliateConversion(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -4319,6 +4497,30 @@ func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConver
 		return ports.AdminAffiliateConversionRecord{}, err
 	}
 	record.HoldUntil = timestamptzPtr(holdUntil)
+	return record, nil
+}
+
+func scanAdminAffiliatePayoutRecord(row pgx.Row) (ports.AdminAffiliatePayoutRecord, error) {
+	var record ports.AdminAffiliatePayoutRecord
+	if err := row.Scan(
+		&record.PayoutBatchID,
+		&record.AffiliateID,
+		&record.DisplayName,
+		&record.PayoutMode,
+		&record.PayoutReference,
+		&record.ConversionCount,
+		&record.GrossMinor,
+		&record.CommissionMinor,
+		&record.Status,
+		&record.Notes,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAffiliatePayoutRecord{}, ErrNotFound
+		}
+		return ports.AdminAffiliatePayoutRecord{}, err
+	}
 	return record, nil
 }
 

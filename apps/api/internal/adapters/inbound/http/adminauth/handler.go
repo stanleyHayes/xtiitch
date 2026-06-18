@@ -60,6 +60,7 @@ type Service interface {
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
 	ListAffiliateAttribution(ctx context.Context, command adminauthapp.ListAffiliateAttributionCommand) ([]ports.AdminAffiliateAttributionRecord, error)
 	UpdateAffiliateConversionStatus(ctx context.Context, command adminauthapp.UpdateAffiliateConversionStatusCommand) (ports.AdminAffiliateConversionRecord, error)
+	CreateAffiliatePayout(ctx context.Context, command adminauthapp.CreateAffiliatePayoutCommand) (ports.AdminAffiliatePayoutRecord, error)
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
@@ -128,6 +129,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/affiliates", handler.affiliates)
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
 		protected.Patch("/admin/affiliate-conversions/{id}/status", handler.updateAffiliateConversionStatus)
+		protected.Post("/admin/affiliates/{id}/payouts", handler.createAffiliatePayout)
 		protected.Post("/admin/affiliates", handler.createAffiliate)
 		protected.Patch("/admin/affiliates/{id}", handler.updateAffiliate)
 		protected.Post("/admin/affiliates/{id}/archive", handler.archiveAffiliate)
@@ -338,6 +340,11 @@ type affiliateArchiveRequest struct {
 type affiliateConversionStatusRequest struct {
 	Status string `json:"status"`
 	Reason string `json:"reason"`
+}
+
+type affiliatePayoutRequest struct {
+	PayoutReference string `json:"payout_reference"`
+	Notes           string `json:"notes"`
 }
 
 type referralProgrammeUpsertRequest struct {
@@ -703,6 +710,7 @@ type affiliateAttributionResponse struct {
 	GrossMinor              int64                         `json:"gross_minor"`
 	CommissionMinor         int64                         `json:"commission_minor"`
 	RecentConversions       []affiliateConversionResponse `json:"recent_conversions"`
+	RecentPayouts           []affiliatePayoutResponse     `json:"recent_payouts"`
 	LastActivityAt          string                        `json:"last_activity_at,omitempty"`
 }
 
@@ -719,6 +727,21 @@ type affiliateConversionResponse struct {
 	HoldUntil        string `json:"hold_until,omitempty"`
 	CreatedAt        string `json:"created_at"`
 	UpdatedAt        string `json:"updated_at"`
+}
+
+type affiliatePayoutResponse struct {
+	PayoutBatchID   string `json:"payout_batch_id"`
+	AffiliateID     string `json:"affiliate_id"`
+	DisplayName     string `json:"display_name"`
+	PayoutMode      string `json:"payout_mode"`
+	PayoutReference string `json:"payout_reference"`
+	ConversionCount int    `json:"conversion_count"`
+	GrossMinor      int64  `json:"gross_minor"`
+	CommissionMinor int64  `json:"commission_minor"`
+	Status          string `json:"status"`
+	Notes           string `json:"notes"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type referralProgrammeResponse struct {
@@ -1751,6 +1774,40 @@ func (handler Handler) updateAffiliateConversionStatus(w http.ResponseWriter, r 
 	}
 
 	writeJSON(w, http.StatusOK, newAffiliateConversionResponse(record))
+}
+
+func (handler Handler) createAffiliatePayout(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request affiliatePayoutRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.CreateAffiliatePayout(
+		r.Context(),
+		adminauthapp.CreateAffiliatePayoutCommand{
+			ActorUserID:     principal.AdminUserID,
+			ActorRole:       principal.Role,
+			AffiliateID:     common.ID(chi.URLParam(r, "id")),
+			PayoutReference: request.PayoutReference,
+			Notes:           request.Notes,
+			UserAgent:       r.UserAgent(),
+			IPAddress:       requestIP(r),
+		},
+	)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newAffiliatePayoutResponse(record))
 }
 
 func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {
@@ -3233,12 +3290,16 @@ func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecor
 		GrossMinor:              record.GrossMinor,
 		CommissionMinor:         record.CommissionMinor,
 		RecentConversions:       make([]affiliateConversionResponse, 0, len(record.RecentConversions)),
+		RecentPayouts:           make([]affiliatePayoutResponse, 0, len(record.RecentPayouts)),
 	}
 	if record.LastActivityAt != nil {
 		response.LastActivityAt = record.LastActivityAt.Format(time.RFC3339)
 	}
 	for _, conversion := range record.RecentConversions {
 		response.RecentConversions = append(response.RecentConversions, newAffiliateConversionResponse(conversion))
+	}
+	for _, payout := range record.RecentPayouts {
+		response.RecentPayouts = append(response.RecentPayouts, newAffiliatePayoutResponse(payout))
 	}
 	return response
 }
@@ -3261,6 +3322,23 @@ func newAffiliateConversionResponse(record ports.AdminAffiliateConversionRecord)
 		response.HoldUntil = record.HoldUntil.Format(time.RFC3339)
 	}
 	return response
+}
+
+func newAffiliatePayoutResponse(record ports.AdminAffiliatePayoutRecord) affiliatePayoutResponse {
+	return affiliatePayoutResponse{
+		PayoutBatchID:   record.PayoutBatchID.String(),
+		AffiliateID:     record.AffiliateID.String(),
+		DisplayName:     record.DisplayName,
+		PayoutMode:      record.PayoutMode,
+		PayoutReference: record.PayoutReference,
+		ConversionCount: record.ConversionCount,
+		GrossMinor:      record.GrossMinor,
+		CommissionMinor: record.CommissionMinor,
+		Status:          record.Status,
+		Notes:           record.Notes,
+		CreatedAt:       record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:       record.UpdatedAt.Format(time.RFC3339),
+	}
 }
 
 func newReferralProgrammeResponse(record ports.AdminReferralProgrammeRecord) referralProgrammeResponse {
