@@ -116,8 +116,35 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.Settings.CustomisationEnabled, &store.Settings.CollectionsEnabled,
 		&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
 	)
+	if err != nil {
+		return store, err
+	}
+	store.MeasurementFields, err = loadMeasurementFields(ctx, tx, store.BusinessID)
 	store.Settings.BrandColor = store.BrandColor
 	return store, err
+}
+
+func loadMeasurementFields(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]ports.MeasurementField, error) {
+	rows, err := tx.Query(ctx, `
+		select field_id, label, unit, sequence
+		from measurement_fields
+		where business_id = $1
+		order by sequence, label
+	`, businessID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	fields := []ports.MeasurementField{}
+	for rows.Next() {
+		var field ports.MeasurementField
+		if err := rows.Scan(&field.FieldID, &field.Label, &field.Unit, &field.Sequence); err != nil {
+			return nil, err
+		}
+		fields = append(fields, field)
+	}
+	return fields, rows.Err()
 }
 
 func (repo StorefrontRepository) ListActiveCollections(ctx context.Context, businessID common.ID) ([]catalogue.Collection, error) {

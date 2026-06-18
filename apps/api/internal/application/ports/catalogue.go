@@ -100,10 +100,19 @@ type Storefront struct {
 	Handle     string
 	BrandColor string
 	// DefaultDepositMinor is the business's store-default custom-order deposit in
-	// GHS pesewas (always >= the platform floor). It feeds deposit resolution and
-	// is never surfaced in any public storefront response.
+	// GHS pesewas (always >= the platform floor). Public storefront clients can
+	// display it as the expected deposit before checkout; the backend remains the
+	// source of truth when the order is created.
 	DefaultDepositMinor int64
+	MeasurementFields   []MeasurementField
 	Settings            StoreSettings
+}
+
+type MeasurementField struct {
+	FieldID  common.ID
+	Label    string
+	Unit     string
+	Sequence int
 }
 
 type StorefrontDesign struct {

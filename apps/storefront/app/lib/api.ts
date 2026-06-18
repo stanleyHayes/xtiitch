@@ -13,10 +13,19 @@ export type StoreSettings = {
   brand_color: string;
 };
 
+export type MeasurementField = {
+  field_id: string;
+  label: string;
+  unit: "cm" | "in";
+  sequence: number;
+};
+
 export type StoreSummary = {
   name: string;
   handle: string;
   brand_color: string;
+  default_deposit_minor: number;
+  measurement_fields: MeasurementField[];
   settings: StoreSettings;
 };
 
@@ -88,6 +97,18 @@ export type PlaceOrderInput = {
   method: "momo" | "card";
 };
 
+export type CustomSizeMode = "self_measure" | "home_visit" | "come_to_shop";
+
+export type PlaceCustomOrderInput = {
+  design_handle: string;
+  size_mode: CustomSizeMode;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  method?: "momo" | "card";
+  measurements?: Record<string, string>;
+};
+
 export type PlaceOrderResult = {
   order_id: string;
   reference: string;
@@ -139,4 +160,6 @@ export const api = {
   collection: (handle: string) => getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
   placeOrder: (storeHandle: string, input: PlaceOrderInput) =>
     postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/orders`, input),
+  placeCustomOrder: (storeHandle: string, input: PlaceCustomOrderInput) =>
+    postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/custom-orders`, input),
 };

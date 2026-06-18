@@ -8,19 +8,40 @@ import (
 )
 
 type storeSummary struct {
-	Name       string       `json:"name"`
-	Handle     string       `json:"handle"`
-	BrandColor string       `json:"brand_color"`
-	Settings   settingsBody `json:"settings"`
+	Name                string                    `json:"name"`
+	Handle              string                    `json:"handle"`
+	BrandColor          string                    `json:"brand_color"`
+	DefaultDepositMinor int64                     `json:"default_deposit_minor"`
+	MeasurementFields   []measurementFieldSummary `json:"measurement_fields"`
+	Settings            settingsBody              `json:"settings"`
+}
+
+type measurementFieldSummary struct {
+	FieldID  string `json:"field_id"`
+	Label    string `json:"label"`
+	Unit     string `json:"unit"`
+	Sequence int    `json:"sequence"`
 }
 
 func toStoreSummary(store ports.Storefront) storeSummary {
 	return storeSummary{
-		Name:       store.Name,
-		Handle:     store.Handle,
-		BrandColor: store.BrandColor,
-		Settings:   toSettingsBody(store.Settings),
+		Name:                store.Name,
+		Handle:              store.Handle,
+		BrandColor:          store.BrandColor,
+		DefaultDepositMinor: store.DefaultDepositMinor,
+		MeasurementFields:   toMeasurementFieldSummaries(store.MeasurementFields),
+		Settings:            toSettingsBody(store.Settings),
 	}
+}
+
+func toMeasurementFieldSummaries(fields []ports.MeasurementField) []measurementFieldSummary {
+	out := make([]measurementFieldSummary, 0, len(fields))
+	for _, field := range fields {
+		out = append(out, measurementFieldSummary{
+			FieldID: field.FieldID.String(), Label: field.Label, Unit: field.Unit, Sequence: field.Sequence,
+		})
+	}
+	return out
 }
 
 func toStorefrontDesigns(designs []ports.StorefrontDesign) []designResponse {
