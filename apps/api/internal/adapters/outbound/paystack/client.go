@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -91,6 +92,59 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 	}, nil
 }
 
+func (c Client) InitializeAuthorization(ctx context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	var response struct {
+		Status bool `json:"status"`
+		Data   struct {
+			RedirectURL string `json:"redirect_url"`
+			AccessCode  string `json:"access_code"`
+			Reference   string `json:"reference"`
+		} `json:"data"`
+	}
+	body := map[string]any{
+		"email":   input.CustomerEmail,
+		"channel": "direct_debit",
+	}
+	if input.CallbackURL != "" {
+		body["callback_url"] = input.CallbackURL
+	}
+	if err := c.post(ctx, "/customer/authorization/initialize", body, &response); err != nil {
+		return ports.InitializeAuthorizationResult{}, err
+	}
+	return ports.InitializeAuthorizationResult{
+		RedirectURL: response.Data.RedirectURL,
+		AccessCode:  response.Data.AccessCode,
+		Reference:   response.Data.Reference,
+	}, nil
+}
+
+func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	var response struct {
+		Status bool `json:"status"`
+		Data   struct {
+			AuthorizationCode string `json:"authorization_code"`
+			Channel           string `json:"channel"`
+			Bank              string `json:"bank"`
+			Active            bool   `json:"active"`
+			Customer          struct {
+				Code  string `json:"code"`
+				Email string `json:"email"`
+			} `json:"customer"`
+		} `json:"data"`
+	}
+	if err := c.get(ctx, "/customer/authorization/verify/"+url.PathEscape(input.Reference), &response); err != nil {
+		return ports.VerifyAuthorizationResult{}, err
+	}
+	return ports.VerifyAuthorizationResult{
+		AuthorizationCode: response.Data.AuthorizationCode,
+		CustomerCode:      response.Data.Customer.Code,
+		CustomerEmail:     response.Data.Customer.Email,
+		Channel:           response.Data.Channel,
+		Bank:              response.Data.Bank,
+		Active:            response.Data.Active,
+	}, nil
+}
+
 func (c Client) ChargeAuthorization(ctx context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
 	var response struct {
 		Status bool `json:"status"`
@@ -125,6 +179,26 @@ func (c Client) ChargeAuthorization(ctx context.Context, input ports.ChargeAutho
 		AmountMinor:       response.Data.Amount,
 		Currency:          currency,
 	}, nil
+}
+
+func (c Client) get(ctx context.Context, path string, out any) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	if err != nil {
+		return err
+	}
+	request.Header.Set("Authorization", "Bearer "+c.secretKey)
+
+	response, err := c.httpClient.Do(request)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = response.Body.Close() }()
+
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		return fmt.Errorf("paystack %s: unexpected status %d", path, response.StatusCode)
+	}
+
+	return json.NewDecoder(response.Body).Decode(out)
 }
 
 func (c Client) post(ctx context.Context, path string, body any, out any) error {

@@ -205,6 +205,15 @@ export type AdminSubscriptionRecurringSweep = {
   ranAt: string;
 };
 
+export type AdminSubscriptionAuthorizationLink = {
+  businessId: string;
+  businessName: string;
+  ownerEmail: string;
+  redirectUrl: string;
+  accessCode: string;
+  reference: string;
+};
+
 export type AdminPlan = {
   planId: string;
   code: string;
@@ -762,6 +771,15 @@ type AdminSubscriptionRecurringSweepPayload = {
   charges_failed: number;
   charges_skipped: number;
   ran_at: string;
+};
+
+type AdminSubscriptionAuthorizationLinkPayload = {
+  business_id: string;
+  business_name: string;
+  owner_email: string;
+  redirect_url: string;
+  access_code: string;
+  reference: string;
 };
 
 type AdminPlanPayload = {
@@ -1328,6 +1346,19 @@ function mapSubscriptionRecurringSweep(
     chargesFailed: payload.charges_failed,
     chargesSkipped: payload.charges_skipped,
     ranAt: payload.ran_at,
+  };
+}
+
+function mapSubscriptionAuthorizationLink(
+  payload: AdminSubscriptionAuthorizationLinkPayload,
+): AdminSubscriptionAuthorizationLink {
+  return {
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    ownerEmail: payload.owner_email,
+    redirectUrl: payload.redirect_url,
+    accessCode: payload.access_code,
+    reference: payload.reference,
   };
 }
 
@@ -1900,6 +1931,42 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapSubscriptionRecurringSweep),
+  initializeSubscriptionAuthorization: (
+    accessToken: string,
+    businessId: string,
+    input: { callbackUrl: string; reason: string },
+  ) =>
+    requestJSON<AdminSubscriptionAuthorizationLinkPayload>(
+      `/admin/subscriptions/businesses/${encodeURIComponent(
+        businessId,
+      )}/authorization-link`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          callback_url: input.callbackUrl,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapSubscriptionAuthorizationLink),
+  verifySubscriptionAuthorization: (
+    accessToken: string,
+    businessId: string,
+    input: { reference: string; reason: string },
+  ) =>
+    requestJSON<AdminSubscriptionPayload>(
+      `/admin/subscriptions/businesses/${encodeURIComponent(
+        businessId,
+      )}/authorization-verifications`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          reference: input.reference,
+          reason: input.reason,
+        }),
+      },
+    ).then(mapSubscription),
   plans: async (accessToken: string) => {
     const payload = await requestJSON<{ plans: AdminPlanPayload[] }>(
       "/admin/plans",

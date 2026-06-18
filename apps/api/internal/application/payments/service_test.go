@@ -265,6 +265,14 @@ func (p *fakeProvider) InitializeTransaction(_ context.Context, input ports.Init
 	return p.initResult, nil
 }
 
+func (p *fakeProvider) InitializeAuthorization(context.Context, ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	return ports.InitializeAuthorizationResult{}, nil
+}
+
+func (p *fakeProvider) VerifyAuthorization(context.Context, ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	return ports.VerifyAuthorizationResult{}, nil
+}
+
 func (p *fakeProvider) ChargeAuthorization(context.Context, ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
 	return ports.ChargeAuthorizationResult{}, nil
 }

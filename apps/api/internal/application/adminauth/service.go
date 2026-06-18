@@ -187,6 +187,35 @@ type RunSubscriptionRecurringSweepCommand struct {
 	IPAddress   string
 }
 
+type InitializeSubscriptionAuthorizationCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	CallbackURL string
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
+type SubscriptionAuthorizationLinkResult struct {
+	BusinessID   common.ID
+	BusinessName string
+	OwnerEmail   string
+	RedirectURL  string
+	AccessCode   string
+	Reference    string
+}
+
+type VerifySubscriptionAuthorizationCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BusinessID  common.ID
+	Reference   string
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
 type ListPlansCommand struct {
 	ActorRole admindomain.Role
 }
@@ -1243,6 +1272,164 @@ func (s Service) RunSubscriptionBillingSweep(
 		UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminSubscriptionBillingSweepRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) InitializeSubscriptionAuthorization(
+	ctx context.Context,
+	cmd InitializeSubscriptionAuthorizationCommand,
+) (SubscriptionAuthorizationLinkResult, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return SubscriptionAuthorizationLinkResult{}, err
+	}
+	if s.businesses == nil || s.payments == nil {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrForbidden
+	}
+
+	callbackURL, err := normalizePaymentURL(cmd.CallbackURL)
+	if err != nil {
+		return SubscriptionAuthorizationLinkResult{}, err
+	}
+	subscription, err := s.adminSubscriptionByBusiness(ctx, cmd.BusinessID)
+	if err != nil {
+		return SubscriptionAuthorizationLinkResult{}, err
+	}
+	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
+	}
+	ownerEmail, err := normalizeEmail(subscription.OwnerEmail)
+	if err != nil {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
+	}
+
+	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
+		BusinessID:    subscription.BusinessID,
+		CustomerEmail: ownerEmail,
+		CallbackURL:   callbackURL,
+	})
+	if err != nil {
+		return SubscriptionAuthorizationLinkResult{}, err
+	}
+	if result.RedirectURL == "" || result.Reference == "" {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Initialized Paystack recurring authorization."
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Initialized subscription authorization",
+		TargetType:  "business_subscription",
+		TargetID:    subscription.BusinessID.String(),
+		TargetLabel: subscription.BusinessName,
+		Summary:     "Initialized a Paystack recurring authorization link for " + subscription.BusinessName + ".",
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"business_id":  subscription.BusinessID.String(),
+			"owner_email":  ownerEmail,
+			"reference":    result.Reference,
+			"callback_url": callbackURL,
+			"reason":       reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return SubscriptionAuthorizationLinkResult{}, err
+	}
+
+	return SubscriptionAuthorizationLinkResult{
+		BusinessID:   subscription.BusinessID,
+		BusinessName: subscription.BusinessName,
+		OwnerEmail:   ownerEmail,
+		RedirectURL:  result.RedirectURL,
+		AccessCode:   result.AccessCode,
+		Reference:    result.Reference,
+	}, nil
+}
+
+func (s Service) VerifySubscriptionAuthorization(
+	ctx context.Context,
+	cmd VerifySubscriptionAuthorizationCommand,
+) (ports.AdminSubscriptionRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.BusinessID.IsZero() {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if s.businesses == nil || s.payments == nil {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrForbidden
+	}
+	reference := strings.TrimSpace(cmd.Reference)
+	if reference == "" || len([]rune(reference)) > 160 || strings.ContainsAny(reference, " \t\r\n") {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
+
+	subscription, err := s.adminSubscriptionByBusiness(ctx, cmd.BusinessID)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
+	result, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	if !result.Active ||
+		strings.TrimSpace(result.AuthorizationCode) == "" ||
+		strings.TrimSpace(result.CustomerCode) == "" {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Verified Paystack recurring authorization."
+	}
+	record, err := s.businesses.UpdateAdminSubscription(ctx, ports.UpdateAdminSubscriptionInput{
+		BusinessID:              subscription.BusinessID,
+		Status:                  subscription.Status,
+		BillingMode:             "recurring",
+		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
+		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
+		Reason:                  reason,
+		ActorAdminUser:          cmd.ActorUserID,
+	})
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Verified subscription authorization",
+		TargetType:  "business_subscription",
+		TargetID:    record.BusinessID.String(),
+		TargetLabel: record.BusinessName,
+		Summary:     "Verified and stored a Paystack recurring authorization for " + record.BusinessName + ".",
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"business_id":             record.BusinessID.String(),
+			"reference":               reference,
+			"provider_customer_ref":   strings.TrimSpace(result.CustomerCode),
+			"provider_authorization":  strings.TrimSpace(result.AuthorizationCode),
+			"provider_customer_email": strings.TrimSpace(result.CustomerEmail),
+			"channel":                 strings.TrimSpace(result.Channel),
+			"bank":                    strings.TrimSpace(result.Bank),
+			"reason":                  reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminSubscriptionRecord{}, err
 	}
 
 	return record, nil
@@ -3521,6 +3708,22 @@ func normalizeOperatorNote(value string) string {
 		return string(runes[:600])
 	}
 	return note
+}
+
+func (s Service) adminSubscriptionByBusiness(
+	ctx context.Context,
+	businessID common.ID,
+) (ports.AdminSubscriptionRecord, error) {
+	records, err := s.businesses.ListAdminSubscriptions(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionRecord{}, err
+	}
+	for _, record := range records {
+		if record.BusinessID == businessID {
+			return record, nil
+		}
+	}
+	return ports.AdminSubscriptionRecord{}, ports.ErrNotFound
 }
 
 func normalizeEmail(value string) (string, error) {

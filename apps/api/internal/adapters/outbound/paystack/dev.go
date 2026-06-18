@@ -33,6 +33,26 @@ func (p DevProvider) InitializeTransaction(_ context.Context, input ports.Initia
 	}, nil
 }
 
+func (p DevProvider) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	reference := "dev_auth_" + input.BusinessID.String()
+	return ports.InitializeAuthorizationResult{
+		RedirectURL: "https://dev.local/authorize/" + reference,
+		AccessCode:  "dev_access_" + reference,
+		Reference:   reference,
+	}, nil
+}
+
+func (p DevProvider) VerifyAuthorization(_ context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	return ports.VerifyAuthorizationResult{
+		AuthorizationCode: "AUTH_" + input.Reference,
+		CustomerCode:      "CUS_" + input.Reference,
+		CustomerEmail:     "owner@example.com",
+		Channel:           "direct_debit",
+		Bank:              "Dev Bank",
+		Active:            true,
+	}, nil
+}
+
 func (p DevProvider) ChargeAuthorization(_ context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
 	return ports.ChargeAuthorizationResult{
 		ProviderReference: input.Reference,

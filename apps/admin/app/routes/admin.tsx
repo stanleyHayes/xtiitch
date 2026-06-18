@@ -146,8 +146,11 @@ type AuditSeverity = AdminAuditSeverity;
 type AuditFilter = "all" | AuditSeverity;
 type AdminActionFeedback = {
   section?: Section;
-  severity?: "success" | "error";
+  severity?: "success" | "error" | "warning" | "info";
   message?: string;
+  detail?: string;
+  href?: string;
+  hrefLabel?: string;
 };
 type AdminNotificationTone = "critical" | "warning" | "info" | "success";
 type AdminNotificationCategory =
@@ -937,6 +940,51 @@ export async function action({ request }: Route.ActionArgs) {
         section: "subscriptions",
         severity: "success",
         message: `Billing sweep complete: ${result.overdueInvoicesFailed} overdue invoices failed, ${result.subscriptionsCanceled} expired grace subscriptions canceled.`,
+      };
+    } catch (error) {
+      return {
+        section: "subscriptions",
+        severity: "error",
+        message: adminSubscriptionActionError(error),
+      };
+    }
+  }
+
+  if (
+    intent === "admin-subscription-authorization:init" ||
+    intent === "admin-subscription-authorization:verify"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+    const businessId = String(form.get("business_id") ?? "");
+
+    try {
+      if (intent === "admin-subscription-authorization:init") {
+        const result = await adminApi.initializeSubscriptionAuthorization(
+          accessToken,
+          businessId,
+          {
+            callbackUrl: String(form.get("callback_url") ?? ""),
+            reason: String(form.get("reason") ?? ""),
+          },
+        );
+        return {
+          section: "subscriptions",
+          severity: "success",
+          message: `Authorization link created for ${result.businessName}.`,
+          detail: `Reference: ${result.reference} · owner ${result.ownerEmail}`,
+          href: result.redirectUrl,
+          hrefLabel: "Open Paystack authorization",
+        };
+      }
+
+      await adminApi.verifySubscriptionAuthorization(accessToken, businessId, {
+        reference: String(form.get("reference") ?? ""),
+        reason: String(form.get("reason") ?? ""),
+      });
+      return {
+        section: "subscriptions",
+        severity: "success",
+        message: "Recurring authorization verified and stored.",
       };
     } catch (error) {
       return {
@@ -6434,7 +6482,28 @@ function SubscriptionsSection({
 
       {actionData?.section === "subscriptions" && actionData.message ? (
         <Alert severity={actionData.severity ?? "success"}>
-          {actionData.message}
+          <Stack spacing={0.75}>
+            <span>{actionData.message}</span>
+            {actionData.detail ? (
+              <Typography variant="body2" sx={{ color: "inherit" }}>
+                {actionData.detail}
+              </Typography>
+            ) : null}
+            {actionData.href ? (
+              <Button
+                component="a"
+                href={actionData.href}
+                target="_blank"
+                rel="noreferrer"
+                size="small"
+                variant="outlined"
+                endIcon={<ArrowForwardRounded />}
+                sx={{ alignSelf: "flex-start" }}
+              >
+                {actionData.hrefLabel ?? "Open link"}
+              </Button>
+            ) : null}
+          </Stack>
         </Alert>
       ) : null}
       {subscriptionsError ? (
@@ -7039,6 +7108,9 @@ function SubscriptionsSection({
                 subscription.monthlyFeeMinor > 0 &&
                 subscription.status !== "canceled" &&
                 !openInvoice;
+              const canCaptureAuthorization =
+                subscription.monthlyFeeMinor > 0 &&
+                subscription.status !== "canceled";
               return (
                 <Box
                   key={subscription.businessId}
@@ -7202,6 +7274,100 @@ function SubscriptionsSection({
                       />
                     </Box>
                   </Form>
+
+                  {canCaptureAuthorization ? (
+                    <Box
+                      sx={{
+                        mt: 1.25,
+                        display: "grid",
+                        gap: 1,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          xl: "repeat(2, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-subscription-authorization:init"
+                        />
+                        <input
+                          type="hidden"
+                          name="business_id"
+                          value={subscription.businessId}
+                        />
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={1}
+                        >
+                          <TextField
+                            size="small"
+                            name="callback_url"
+                            label="Callback URL"
+                            placeholder="https://admin.xtiitch.com/admin?section=subscriptions"
+                            fullWidth
+                          />
+                          <TextField
+                            size="small"
+                            name="reason"
+                            label="Link note"
+                            defaultValue="Create recurring authorization link"
+                            fullWidth
+                          />
+                          <Button
+                            type="submit"
+                            variant="outlined"
+                            startIcon={<CreditCardRounded />}
+                            sx={{ minWidth: 160 }}
+                          >
+                            Create auth link
+                          </Button>
+                        </Stack>
+                      </Form>
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-subscription-authorization:verify"
+                        />
+                        <input
+                          type="hidden"
+                          name="business_id"
+                          value={subscription.businessId}
+                        />
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={1}
+                        >
+                          <TextField
+                            size="small"
+                            name="reference"
+                            label="Paystack reference"
+                            placeholder="authorization reference"
+                            fullWidth
+                          />
+                          <TextField
+                            size="small"
+                            name="reason"
+                            label="Verify note"
+                            defaultValue="Verify recurring authorization"
+                            fullWidth
+                          />
+                          <Button
+                            type="submit"
+                            variant="outlined"
+                            color="success"
+                            startIcon={<CheckCircleRounded />}
+                            sx={{ minWidth: 150 }}
+                          >
+                            Verify auth
+                          </Button>
+                        </Stack>
+                      </Form>
+                    </Box>
+                  ) : null}
 
                   <Divider sx={{ my: 1.5 }} />
                   <Stack spacing={1.25}>
@@ -10764,11 +10930,7 @@ function RolePermissionsSection({
 }: {
   roles: AdminRoleDefinition[];
   permissions: AdminPermissionDefinition[];
-  actionData?: {
-    section?: string;
-    severity?: "success" | "error";
-    message?: string;
-  };
+  actionData?: AdminActionFeedback;
 }) {
   const totalGrants = roles.reduce(
     (sum, role) => sum + role.permissions.length,
@@ -11022,11 +11184,7 @@ function AdminUsersSection({
   users: AdminUser[];
   roles: AdminRoleDefinition[];
   currentUserId: string;
-  actionData?: {
-    section?: string;
-    severity?: "success" | "error";
-    message?: string;
-  };
+  actionData?: AdminActionFeedback;
   error: string | null;
 }) {
   const activeCount = users.filter((user) => user.isActive).length;
@@ -11375,11 +11533,7 @@ function SettingsSection({
   profileSettings: AdminProfileSettings;
   platformSettings: AdminPlatformSettings;
   roles: AdminRoleDefinition[];
-  actionData?: {
-    section?: string;
-    severity?: "success" | "error";
-    message?: string;
-  };
+  actionData?: AdminActionFeedback;
 }) {
   const roleDefinition = roles.find((role) => role.role === admin.adminRole);
   const canManagePlatformSettings =

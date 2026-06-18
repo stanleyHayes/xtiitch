@@ -46,6 +46,8 @@ type Service interface {
 	MarkSubscriptionInvoiceFailed(ctx context.Context, command adminauthapp.MarkSubscriptionInvoiceFailedCommand) (ports.AdminSubscriptionRecord, error)
 	RunSubscriptionBillingSweep(ctx context.Context, command adminauthapp.RunSubscriptionBillingSweepCommand) (ports.AdminSubscriptionBillingSweepRecord, error)
 	RunSubscriptionRecurringSweep(ctx context.Context, command adminauthapp.RunSubscriptionRecurringSweepCommand) (ports.AdminSubscriptionRecurringSweepRecord, error)
+	InitializeSubscriptionAuthorization(ctx context.Context, command adminauthapp.InitializeSubscriptionAuthorizationCommand) (adminauthapp.SubscriptionAuthorizationLinkResult, error)
+	VerifySubscriptionAuthorization(ctx context.Context, command adminauthapp.VerifySubscriptionAuthorizationCommand) (ports.AdminSubscriptionRecord, error)
 	ListPlans(ctx context.Context, command adminauthapp.ListPlansCommand) ([]ports.AdminPlanRecord, error)
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
@@ -117,6 +119,8 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
 		protected.Patch("/admin/subscriptions/businesses/{id}", handler.updateSubscription)
+		protected.Post("/admin/subscriptions/businesses/{id}/authorization-link", handler.initializeSubscriptionAuthorization)
+		protected.Post("/admin/subscriptions/businesses/{id}/authorization-verifications", handler.verifySubscriptionAuthorization)
 		protected.Post("/admin/subscriptions/businesses/{id}/invoices", handler.issueSubscriptionInvoice)
 		protected.Post("/admin/subscriptions/invoices/{id}/paid", handler.markSubscriptionInvoicePaid)
 		protected.Post("/admin/subscriptions/invoices/{id}/failed", handler.markSubscriptionInvoiceFailed)
@@ -268,6 +272,16 @@ type subscriptionInvoiceDecisionRequest struct {
 
 type subscriptionBillingSweepRequest struct {
 	Reason string `json:"reason"`
+}
+
+type subscriptionAuthorizationInitRequest struct {
+	CallbackURL string `json:"callback_url"`
+	Reason      string `json:"reason"`
+}
+
+type subscriptionAuthorizationVerifyRequest struct {
+	Reference string `json:"reference"`
+	Reason    string `json:"reason"`
 }
 
 type planCreateRequest struct {
@@ -653,6 +667,15 @@ type subscriptionRecurringSweepResponse struct {
 	ChargesFailed    int    `json:"charges_failed"`
 	ChargesSkipped   int    `json:"charges_skipped"`
 	RanAt            string `json:"ran_at"`
+}
+
+type subscriptionAuthorizationLinkResponse struct {
+	BusinessID   string `json:"business_id"`
+	BusinessName string `json:"business_name"`
+	OwnerEmail   string `json:"owner_email"`
+	RedirectURL  string `json:"redirect_url"`
+	AccessCode   string `json:"access_code"`
+	Reference    string `json:"reference"`
 }
 
 type planResponse struct {
@@ -1442,6 +1465,74 @@ func (handler Handler) runSubscriptionRecurringSweep(w http.ResponseWriter, r *h
 	}
 
 	writeJSON(w, http.StatusOK, newSubscriptionRecurringSweepResponse(record))
+}
+
+func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionAuthorizationInitRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	result, err := handler.service.InitializeSubscriptionAuthorization(
+		r.Context(),
+		adminauthapp.InitializeSubscriptionAuthorizationCommand{
+			ActorUserID: principal.AdminUserID,
+			ActorRole:   principal.Role,
+			BusinessID:  common.ID(chi.URLParam(r, "id")),
+			CallbackURL: request.CallbackURL,
+			Reason:      request.Reason,
+			UserAgent:   r.UserAgent(),
+			IPAddress:   requestIP(r),
+		},
+	)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newSubscriptionAuthorizationLinkResponse(result))
+}
+
+func (handler Handler) verifySubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionAuthorizationVerifyRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.VerifySubscriptionAuthorization(
+		r.Context(),
+		adminauthapp.VerifySubscriptionAuthorizationCommand{
+			ActorUserID: principal.AdminUserID,
+			ActorRole:   principal.Role,
+			BusinessID:  common.ID(chi.URLParam(r, "id")),
+			Reference:   request.Reference,
+			Reason:      request.Reason,
+			UserAgent:   r.UserAgent(),
+			IPAddress:   requestIP(r),
+		},
+	)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionResponse(record))
 }
 
 func (handler Handler) plans(w http.ResponseWriter, r *http.Request) {
@@ -3462,6 +3553,19 @@ func newSubscriptionRecurringSweepResponse(
 		ChargesFailed:    record.ChargesFailed,
 		ChargesSkipped:   record.ChargesSkipped,
 		RanAt:            record.RanAt.Format(time.RFC3339),
+	}
+}
+
+func newSubscriptionAuthorizationLinkResponse(
+	result adminauthapp.SubscriptionAuthorizationLinkResult,
+) subscriptionAuthorizationLinkResponse {
+	return subscriptionAuthorizationLinkResponse{
+		BusinessID:   result.BusinessID.String(),
+		BusinessName: result.BusinessName,
+		OwnerEmail:   result.OwnerEmail,
+		RedirectURL:  result.RedirectURL,
+		AccessCode:   result.AccessCode,
+		Reference:    result.Reference,
 	}
 }
 

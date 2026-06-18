@@ -1153,6 +1153,120 @@ func TestRunSubscriptionRecurringSweepMarksProviderFailure(t *testing.T) {
 	}
 }
 
+func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	nextBilling := now.Add(30 * 24 * time.Hour)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:     "subscription-1",
+				BusinessID:         "business-1",
+				BusinessName:       "Ama Stitches",
+				Handle:             "ama-stitches",
+				OwnerEmail:         "Owner <Owner@Example.COM>",
+				PlanCode:           "growth",
+				PlanName:           "Growth",
+				MonthlyFeeMinor:    12000,
+				Status:             "active",
+				BillingMode:        "payment_link",
+				NextBillingAt:      &nextBilling,
+				CurrentPeriodStart: now,
+				CurrentPeriodEnd:   nextBilling,
+				UpdatedAt:          now,
+			},
+		},
+	}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-init", "audit-verify"},
+	)
+	provider := &fakePaymentProvider{
+		authorizationInitResult: ports.InitializeAuthorizationResult{
+			RedirectURL: "https://paystack.test/authorize/ref_123",
+			AccessCode:  "access_123",
+			Reference:   "ref_123",
+		},
+		authorizationVerifyResult: ports.VerifyAuthorizationResult{
+			AuthorizationCode: "AUTH_123",
+			CustomerCode:      "CUS_123",
+			CustomerEmail:     "owner@example.com",
+			Channel:           "direct_debit",
+			Bank:              "Test Bank",
+			Active:            true,
+		},
+	}
+	service.payments = provider
+
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		CallbackURL: " https://admin.xtiitch.com/admin?section=subscriptions ",
+		Reason:      " start recurring collection ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("initialize subscription authorization: %v", err)
+	}
+	if provider.authorizationInitialized.BusinessID != "business-1" ||
+		provider.authorizationInitialized.CustomerEmail != "owner@example.com" ||
+		provider.authorizationInitialized.CallbackURL != "https://admin.xtiitch.com/admin?section=subscriptions" {
+		t.Fatalf("expected normalized authorization init input, got %+v", provider.authorizationInitialized)
+	}
+	if link.RedirectURL != "https://paystack.test/authorize/ref_123" ||
+		link.Reference != "ref_123" ||
+		link.OwnerEmail != "owner@example.com" {
+		t.Fatalf("unexpected authorization link result: %+v", link)
+	}
+
+	record, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		BusinessID:  "business-1",
+		Reference:   " ref_123 ",
+		Reason:      " verified direct debit ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("verify subscription authorization: %v", err)
+	}
+	if provider.authorizationVerified.Reference != "ref_123" {
+		t.Fatalf("expected trimmed verify reference, got %+v", provider.authorizationVerified)
+	}
+	if businesses.subscriptionUpdate.BillingMode != "recurring" ||
+		businesses.subscriptionUpdate.ProviderCustomerRef != "CUS_123" ||
+		businesses.subscriptionUpdate.ProviderSubscriptionRef != "AUTH_123" ||
+		businesses.subscriptionUpdate.Reason != "verified direct debit" {
+		t.Fatalf("expected recurring subscription update, got %+v", businesses.subscriptionUpdate)
+	}
+	if record.BusinessID != "business-1" || record.BillingMode != "recurring" {
+		t.Fatalf("unexpected verified subscription record: %+v", record)
+	}
+	if len(audits.created) != 2 ||
+		audits.created[0].Action != "Initialized subscription authorization" ||
+		audits.created[0].Metadata["reference"] != "ref_123" ||
+		audits.created[1].Action != "Verified subscription authorization" ||
+		audits.created[1].Metadata["provider_authorization"] != "AUTH_123" {
+		t.Fatalf("unexpected audit events: %+v", audits.created)
+	}
+
+	_, err = service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		BusinessID:  "business-1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -3909,10 +4023,16 @@ func (fakeAdminTokenIssuer) IssueAdminAccessToken(_ context.Context, input ports
 }
 
 type fakePaymentProvider struct {
-	initialized  ports.InitializeTransactionInput
-	charged      []ports.ChargeAuthorizationInput
-	chargeResult ports.ChargeAuthorizationResult
-	chargeErr    error
+	initialized               ports.InitializeTransactionInput
+	authorizationInitialized  ports.InitializeAuthorizationInput
+	authorizationInitResult   ports.InitializeAuthorizationResult
+	authorizationInitErr      error
+	authorizationVerified     ports.VerifyAuthorizationInput
+	authorizationVerifyResult ports.VerifyAuthorizationResult
+	authorizationVerifyErr    error
+	charged                   []ports.ChargeAuthorizationInput
+	chargeResult              ports.ChargeAuthorizationResult
+	chargeErr                 error
 }
 
 func (fakePaymentProvider) CreateBusinessSubaccount(
@@ -3930,6 +4050,47 @@ func (provider *fakePaymentProvider) InitializeTransaction(
 	return ports.InitializeTransactionResult{
 		AuthorizationURL:  "https://paystack.test/" + input.Reference,
 		ProviderReference: "PAY_" + input.Reference,
+	}, nil
+}
+
+func (provider *fakePaymentProvider) InitializeAuthorization(
+	_ context.Context,
+	input ports.InitializeAuthorizationInput,
+) (ports.InitializeAuthorizationResult, error) {
+	provider.authorizationInitialized = input
+	if provider.authorizationInitErr != nil {
+		return ports.InitializeAuthorizationResult{}, provider.authorizationInitErr
+	}
+	if provider.authorizationInitResult.RedirectURL != "" ||
+		provider.authorizationInitResult.Reference != "" {
+		return provider.authorizationInitResult, nil
+	}
+	return ports.InitializeAuthorizationResult{
+		RedirectURL: "https://paystack.test/authorize/" + input.BusinessID.String(),
+		AccessCode:  "access_" + input.BusinessID.String(),
+		Reference:   "auth_ref_" + input.BusinessID.String(),
+	}, nil
+}
+
+func (provider *fakePaymentProvider) VerifyAuthorization(
+	_ context.Context,
+	input ports.VerifyAuthorizationInput,
+) (ports.VerifyAuthorizationResult, error) {
+	provider.authorizationVerified = input
+	if provider.authorizationVerifyErr != nil {
+		return ports.VerifyAuthorizationResult{}, provider.authorizationVerifyErr
+	}
+	if provider.authorizationVerifyResult.AuthorizationCode != "" ||
+		provider.authorizationVerifyResult.CustomerCode != "" {
+		return provider.authorizationVerifyResult, nil
+	}
+	return ports.VerifyAuthorizationResult{
+		AuthorizationCode: "AUTH_" + input.Reference,
+		CustomerCode:      "CUS_" + input.Reference,
+		CustomerEmail:     "owner@example.com",
+		Channel:           "direct_debit",
+		Bank:              "Test Bank",
+		Active:            true,
 	}, nil
 }
 
