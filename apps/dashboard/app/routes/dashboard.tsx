@@ -1,8 +1,15 @@
 import { Form, Link as RouterLink, redirect } from "react-router";
-import { useState, type ReactElement, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+  type ReactNode,
+} from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import ButtonBase from "@mui/material/ButtonBase";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
@@ -1703,6 +1710,28 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "create") {
     const sequence = parseSequence(form.get("sequence"));
     const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+
+    // The first catalogue image is uploaded from the user's device to Cloudinary
+    // (no link pasting); only the resulting URL is stored.
+    const file = form.get("image_file");
+    let images: string[] = [];
+    if (file instanceof File && file.size > 0) {
+      if (!file.type.startsWith("image/")) {
+        return { designError: "Upload an image file such as JPG, PNG, or WebP." };
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return { designError: "Keep design images under 10 MB." };
+      }
+      const imageUrl = await uploadDesignImage(request, file);
+      if (!imageUrl) {
+        return {
+          designError:
+            "Could not upload that image. Check Cloudinary setup or try another file.",
+        };
+      }
+      images = [imageUrl];
+    }
+
     const response = await apiFetch(request, "/designs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1713,7 +1742,7 @@ export async function action({ request }: Route.ActionArgs) {
         customisation_allowed: form.get("customisation") === "on",
         deposit_override_minor: depositOverrideMinor,
         sequence: sequence ?? 0,
-        images: parseImageURLs(form.get("image_url")),
+        images,
       }),
     });
     if (!response.ok) {
@@ -3975,76 +4004,97 @@ function PriorityRibbon({
     <Box
       sx={{
         mt: 2.25,
-        display: "grid",
-        gap: 0.8,
-        gridTemplateColumns: {
-          xs: "repeat(2, minmax(0, 1fr))",
-          md: `repeat(${items.length}, minmax(0, 1fr))`,
-        },
+        display: "flex",
+        flexWrap: "wrap",
+        gap: 1,
       }}
     >
-      {items.map((item) => (
-        <Button
-          key={item.href}
-          component={RouterLink}
-          to={item.href}
-          aria-label={`${item.label}: ${item.value}`}
-          sx={{
-            minHeight: 54,
-            p: 1,
-            justifyContent: "flex-start",
-            border: "1px solid",
-            borderColor: alpha(tokens.white, 0.13),
-            bgcolor: alpha(tokens.white, 0.08),
-            color: tokens.white,
-            overflow: "hidden",
-            "&:hover": {
-              bgcolor: alpha(item.tone, 0.24),
-              borderColor: alpha(item.tone, 0.42),
-              transform: "translateY(-1px)",
-            },
-          }}
-        >
-          <Stack direction="row" spacing={0.85} sx={{ alignItems: "center" }}>
-            <Box
-              component="span"
-              sx={{
-                width: 30,
-                height: 30,
-                borderRadius: 1,
-                display: "grid",
-                placeItems: "center",
-                color: item.tone,
-                bgcolor: alpha(item.tone, 0.18),
-                flexShrink: 0,
-              }}
+      {items.map((item) => {
+        const needsAction = item.value > 0;
+        return (
+          <Button
+            key={item.href}
+            component={RouterLink}
+            to={item.href}
+            aria-label={`${item.label}: ${item.value}`}
+            sx={{
+              flex: { xs: "1 1 calc(50% - 8px)", sm: "0 0 auto" },
+              minHeight: 42,
+              minWidth: 0,
+              pl: 1,
+              pr: 0.75,
+              py: 0.6,
+              borderRadius: 999,
+              justifyContent: "flex-start",
+              textTransform: "none",
+              color: tokens.white,
+              border: "1px solid",
+              borderColor: needsAction
+                ? alpha(item.tone, 0.5)
+                : alpha(tokens.white, 0.12),
+              bgcolor: needsAction
+                ? alpha(item.tone, 0.16)
+                : alpha(tokens.white, 0.05),
+              transition:
+                "background-color 160ms ease, border-color 160ms ease, transform 160ms ease",
+              "&:hover": {
+                bgcolor: alpha(item.tone, 0.26),
+                borderColor: alpha(item.tone, 0.55),
+                transform: "translateY(-1px)",
+              },
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={0.85}
+              sx={{ alignItems: "center", minWidth: 0 }}
             >
-              {item.icon}
-            </Box>
-            <Box component="span" sx={{ minWidth: 0, textAlign: "left" }}>
-              <Typography
+              <Box
                 component="span"
-                sx={{ display: "block", fontSize: 18, fontWeight: 900 }}
-              >
-                {item.value}
-              </Typography>
-              <Typography
-                component="span"
-                variant="caption"
                 sx={{
-                  display: "block",
-                  color: alpha(tokens.white, 0.66),
-                  fontWeight: 850,
-                  lineHeight: 1.05,
+                  color: item.tone,
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
                 }}
-                noWrap
+              >
+                {item.icon}
+              </Box>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: 13,
+                  fontWeight: 750,
+                  letterSpacing: "0.01em",
+                  color: alpha(tokens.white, 0.92),
+                  whiteSpace: "nowrap",
+                }}
               >
                 {item.label}
               </Typography>
-            </Box>
-          </Stack>
-        </Button>
-      ))}
+              <Box
+                component="span"
+                sx={{
+                  ml: 0.25,
+                  minWidth: 22,
+                  height: 22,
+                  px: 0.5,
+                  borderRadius: 999,
+                  display: "grid",
+                  placeItems: "center",
+                  fontSize: 12,
+                  fontWeight: 900,
+                  flexShrink: 0,
+                  color: needsAction ? tokens.white : alpha(tokens.white, 0.5),
+                  bgcolor: needsAction ? item.tone : alpha(tokens.white, 0.1),
+                }}
+              >
+                {item.value}
+              </Box>
+            </Stack>
+          </Button>
+        );
+      })}
     </Box>
   );
 }
@@ -4926,21 +4976,15 @@ function DesignCard({
         ? formatGHS(lowestPriceMinor)
         : `From ${formatGHS(lowestPriceMinor)}`;
   return (
-    <Box
-      component="button"
-      type="button"
+    <ButtonBase
       onClick={onOpen}
       aria-label={`Open ${design.title}`}
       sx={{
         textAlign: "left",
-        cursor: "pointer",
-        appearance: "none",
-        font: "inherit",
-        color: "inherit",
-        p: 0,
-        m: 0,
         display: "flex",
         flexDirection: "column",
+        alignItems: "stretch",
+        width: "100%",
         minHeight: "100%",
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
@@ -5023,7 +5067,7 @@ function DesignCard({
           ) : null}
         </Stack>
       </Box>
-    </Box>
+    </ButtonBase>
   );
 }
 
@@ -6570,6 +6614,169 @@ function WalkInOrderPanel({
   );
 }
 
+function ImageDropzone({
+  name,
+  helper,
+  required = false,
+  disabled = false,
+}: {
+  name: string;
+  helper?: string;
+  required?: boolean;
+  disabled?: boolean;
+}) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  useEffect(
+    () => () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    },
+    [previewUrl],
+  );
+
+  const applyFile = (file: File | null | undefined) => {
+    const isImage =
+      file !== null && file !== undefined && file.type.startsWith("image/");
+    setPreviewUrl((current) => {
+      if (current) {
+        URL.revokeObjectURL(current);
+      }
+      return isImage && file ? URL.createObjectURL(file) : null;
+    });
+    setFileName(isImage && file ? file.name : null);
+  };
+
+  return (
+    <Box
+      component="label"
+      onDragOver={(event) => {
+        event.preventDefault();
+        if (!disabled) {
+          setDragging(true);
+        }
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragging(false);
+        if (disabled) {
+          return;
+        }
+        const file = event.dataTransfer.files?.[0];
+        if (file && inputRef.current) {
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          inputRef.current.files = transfer.files;
+        }
+        applyFile(file);
+      }}
+      sx={{
+        display: "block",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        borderRadius: 2,
+        p: previewUrl ? 1.25 : 2.5,
+        border: "1.5px dashed",
+        borderColor: dragging ? tokens.burgundy : alpha(tokens.ink, 0.22),
+        bgcolor: dragging
+          ? alpha(tokens.burgundy, 0.05)
+          : alpha(tokens.burgundy, 0.02),
+        transition: "border-color 160ms ease, background-color 160ms ease",
+        "&:hover": disabled
+          ? {}
+          : {
+              borderColor: alpha(tokens.burgundy, 0.5),
+              bgcolor: alpha(tokens.burgundy, 0.04),
+            },
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="file"
+        name={name}
+        accept="image/*"
+        required={required}
+        disabled={disabled}
+        onChange={(event) => applyFile(event.currentTarget.files?.[0])}
+        style={{
+          position: "absolute",
+          width: 1,
+          height: 1,
+          padding: 0,
+          margin: "-1px",
+          overflow: "hidden",
+          clip: "rect(0 0 0 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      />
+      {previewUrl ? (
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+          <Box
+            component="img"
+            src={previewUrl}
+            alt=""
+            sx={{
+              width: 64,
+              height: 64,
+              borderRadius: 1.5,
+              objectFit: "cover",
+              flexShrink: 0,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.12),
+            }}
+          />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 800 }} noWrap>
+              {fileName}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: tokens.burgundy, fontWeight: 700 }}
+            >
+              Click or drop to replace
+            </Typography>
+          </Box>
+        </Stack>
+      ) : (
+        <Stack
+          spacing={0.75}
+          sx={{ alignItems: "center", textAlign: "center", py: 0.5 }}
+        >
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: "50%",
+              display: "grid",
+              placeItems: "center",
+              color: tokens.burgundy,
+              bgcolor: alpha(tokens.burgundy, 0.1),
+            }}
+          >
+            <CloudUploadRounded />
+          </Box>
+          <Typography sx={{ fontWeight: 800 }}>
+            {dragging
+              ? "Drop image to upload"
+              : "Drag & drop, or click to choose"}
+          </Typography>
+          {helper ? (
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {helper}
+            </Typography>
+          ) : null}
+        </Stack>
+      )}
+    </Box>
+  );
+}
+
 function DesignImageUploadPanel({
   designs,
   error,
@@ -6627,15 +6834,11 @@ function DesignImageUploadPanel({
               </MenuItem>
             ))}
           </TextField>
-          <TextField
+          <ImageDropzone
             name="image_file"
-            label="Image file"
-            type="file"
-            size="small"
             required
             disabled={uploadableDesigns.length === 0}
-            helperText="JPG, PNG, or WebP up to 10 MB. The uploaded image becomes the first catalogue image."
-            slotProps={{ htmlInput: { accept: "image/*" } }}
+            helper="JPG, PNG, or WebP up to 10 MB. Becomes the first catalogue image."
           />
           <Button
             type="submit"
@@ -10057,7 +10260,7 @@ export default function Dashboard({
                               </Typography>
                             </Box>
                           </Stack>
-                          <Form method="post">
+                          <Form method="post" encType="multipart/form-data">
                             <input type="hidden" name="intent" value="create" />
                             <Stack spacing={1.75}>
                               {action.designError ? (
@@ -10100,24 +10303,23 @@ export default function Dashboard({
                                 multiline
                                 minRows={3}
                               />
-                              <TextField
-                                name="image_url"
-                                label="Image URLs"
-                                fullWidth
-                                multiline
-                                minRows={2}
-                                placeholder="https://..."
-                                helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
-                                slotProps={{
-                                  input: {
-                                    startAdornment: (
-                                      <InputAdornment position="start">
-                                        <DesignServicesRounded fontSize="small" />
-                                      </InputAdornment>
-                                    ),
-                                  },
-                                }}
-                              />
+                              <Box>
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    color: "text.secondary",
+                                    fontWeight: 700,
+                                    display: "block",
+                                    mb: 0.5,
+                                  }}
+                                >
+                                  Design image
+                                </Typography>
+                                <ImageDropzone
+                                  name="image_file"
+                                  helper="JPG, PNG, or WebP up to 10 MB — uploaded to your gallery as the first catalogue image."
+                                />
+                              </Box>
                               <Box
                                 sx={{
                                   display: "grid",
@@ -10226,7 +10428,7 @@ export default function Dashboard({
                                 <DesignServicesRounded sx={{ fontSize: 38 }} />
                               }
                               title="No designs yet"
-                              helper="Add your first design with an image URL so customers can browse the store."
+                              helper="Add your first design with an uploaded image so customers can browse the store."
                             />
                             <Box
                               sx={{

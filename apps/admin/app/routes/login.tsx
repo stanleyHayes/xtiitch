@@ -26,7 +26,7 @@ import {
   getSession,
   setAdminSession,
 } from "../lib/session";
-import { AdminApiError, adminApi } from "../lib/api";
+import { AdminApiError, adminApi, adminApiBase } from "../lib/api";
 import { tokens } from "../theme";
 
 export function meta(): Route.MetaDescriptors {
@@ -74,7 +74,11 @@ export async function action({ request }: Route.ActionArgs) {
         return { error: "Those operator credentials are not valid." };
       }
       if (error.code === "admin_api_unavailable") {
-        return { error: "Admin API is unavailable. Try again after a moment." };
+        const message =
+          process.env.NODE_ENV === "production"
+            ? "Admin API is unavailable. Try again after a moment."
+            : `Admin API is unavailable. Start the API at ${adminApiBase} and try again.`;
+        return { error: message };
       }
     }
     return { error: "Admin sign in failed. Try again after a moment." };

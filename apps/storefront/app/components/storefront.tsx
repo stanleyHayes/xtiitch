@@ -811,7 +811,12 @@ function DesignImage({ design }: { design: Design }) {
         component="img"
         image={first}
         alt={design.title}
-        sx={{ aspectRatio: "4 / 5", objectFit: "cover" }}
+        sx={{
+          aspectRatio: { xs: "5 / 4", sm: "4 / 5" },
+          objectFit: "cover",
+          width: "100%",
+          transition: "transform 260ms ease, filter 260ms ease",
+        }}
       />
     );
   }
@@ -821,9 +826,11 @@ function DesignImage({ design }: { design: Design }) {
       image={fallbackDesignImage(design)}
       alt={`Studio preview for ${design.title}`}
       sx={{
-        aspectRatio: "4 / 5",
+        aspectRatio: { xs: "5 / 4", sm: "4 / 5" },
         objectFit: "cover",
+        width: "100%",
         filter: "saturate(0.92) contrast(1.02)",
+        transition: "transform 260ms ease, filter 260ms ease",
       }}
     />
   );
@@ -841,16 +848,19 @@ export function DesignCard({
       sx={{
         height: "100%",
         overflow: "hidden",
+        borderRadius: 1,
+        borderColor: alpha(tokens.ink, 0.1),
         transition:
           "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
         bgcolor: alpha(tokens.white, 0.98),
+        boxShadow: `0 14px 36px ${alpha(tokens.ink, 0.07)}`,
         "@media (prefers-reduced-motion: no-preference)": {
           animation: "storeSurfaceIn 420ms ease both",
           animationDelay: `${Math.min(index, 8) * 40}ms`,
         },
         "&:hover": {
           transform: "translateY(-4px)",
-          boxShadow: `0 18px 45px ${alpha(tokens.ink, 0.1)}`,
+          boxShadow: `0 22px 52px ${alpha(tokens.ink, 0.13)}`,
           borderColor: alpha(tokens.burgundy, 0.22),
         },
       }}
@@ -858,20 +868,48 @@ export function DesignCard({
       <CardActionArea
         component={RouterLink}
         to={`/d/${design.handle}`}
-        sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+        sx={{
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+          "&:hover img": {
+            transform: "scale(1.025)",
+            filter: "saturate(1) contrast(1.06)",
+          },
+        }}
       >
-        <Box sx={{ position: "relative", width: "100%" }}>
+        <Box
+          sx={{
+            position: "relative",
+            width: "100%",
+            overflow: "hidden",
+            bgcolor: alpha(tokens.cream, 0.72),
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              background: `linear-gradient(180deg, ${alpha(
+                tokens.ink,
+                0,
+              )} 42%, ${alpha(tokens.ink, 0.56)} 100%)`,
+              pointerEvents: "none",
+            },
+          }}
+        >
           <DesignImage design={design} />
           <Stack
             direction="row"
-            spacing={0.75}
             sx={{
               position: "absolute",
-              left: 10,
-              right: 10,
-              bottom: 10,
+              left: 12,
+              right: 12,
+              bottom: 12,
               alignItems: "center",
+              justifyContent: "space-between",
+              gap: 1,
               flexWrap: "wrap",
+              zIndex: 1,
             }}
           >
             <Chip
@@ -883,41 +921,117 @@ export function DesignCard({
                 color: tokens.burgundy,
                 fontWeight: 900,
                 backdropFilter: "blur(10px)",
+                boxShadow: `0 8px 22px ${alpha(tokens.ink, 0.16)}`,
+                maxWidth: "100%",
+                "& .MuiChip-label": {
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                },
               }}
             />
             {design.customisation_allowed ? (
               <Chip
                 size="small"
-                label="Custom"
+                label="Custom fit"
                 sx={{
-                  bgcolor: alpha(tokens.ink, 0.72),
+                  bgcolor: alpha(tokens.ink, 0.78),
                   color: tokens.white,
                   fontWeight: 900,
                   backdropFilter: "blur(10px)",
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.2),
                 }}
               />
             ) : null}
           </Stack>
         </Box>
-        <CardContent sx={{ width: "100%", flex: 1 }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 800 }} noWrap>
-            {design.title}
-          </Typography>
+        <CardContent
+          sx={{
+            width: "100%",
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            gap: 1.25,
+            p: { xs: 2, sm: 2.25 },
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
+          >
+            <Typography
+              variant="h6"
+              sx={{
+                fontSize: { xs: 24, sm: 22 },
+                lineHeight: 1.04,
+                color: tokens.ink,
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {design.title}
+            </Typography>
+            <Box
+              sx={{
+                width: 36,
+                height: 36,
+                borderRadius: 1,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                bgcolor: alpha(tokens.burgundy, 0.08),
+                color: tokens.burgundy,
+              }}
+              aria-hidden="true"
+            >
+              <ArrowForwardRounded fontSize="small" />
+            </Box>
+          </Stack>
           <Typography
             variant="body2"
             sx={{
-              mt: 0.75,
               color: "text.secondary",
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-              minHeight: 40,
+              minHeight: 42,
+              lineHeight: 1.5,
             }}
           >
             {design.description ||
               "A store-ready piece with order details handled on Xtiitch."}
           </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              alignItems: "center",
+              justifyContent: "space-between",
+              mt: "auto",
+              pt: 0.75,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: tokens.burgundy,
+                fontWeight: 900,
+                textTransform: "uppercase",
+              }}
+            >
+              View design
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", fontWeight: 800 }}
+            >
+              {design.prices.length > 0 ? "Size pricing" : "Request quote"}
+            </Typography>
+          </Stack>
         </CardContent>
       </CardActionArea>
     </Card>
@@ -952,11 +1066,11 @@ export function DesignGrid({ designs }: { designs: Design[] }) {
         display: "grid",
         gap: 3,
         gridTemplateColumns: {
-          xs: "1fr",
+          xs: "minmax(0, min(100%, 430px))",
           sm: "repeat(2, minmax(0, 1fr))",
           lg: "repeat(auto-fill, minmax(280px, 360px))",
         },
-        justifyContent: "start",
+        justifyContent: { xs: "center", sm: "start" },
       }}
     >
       {designs.map((design, index) => (

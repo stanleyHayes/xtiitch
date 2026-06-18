@@ -26,7 +26,7 @@ This is the intended product split. Keep new work aligned to these audience boun
 
 ## Handoff — 2026-06-16 (read this first if you are picking up)
 
-State of the backend and business dashboard (`apps/api`, Go hexagonal; `apps/dashboard`, React Router + MUI; money in integer pesewas; **Xtiitch never holds funds**). Latest feature commit on `main`: `8d95cb3`. Recently shipped this session, each as one verified+committed slice:
+State of the backend and business dashboard (`apps/api`, Go hexagonal; `apps/dashboard`, React Router + MUI; money in integer pesewas; **Xtiitch never holds funds**). Latest feature commit on `main` before this slice: `f0e15b3`. Recently shipped this session, each as one verified+committed slice:
 
 - Money tracker (`bd025f3`): manual takings + income summary.
 - Home-visit bookings (`20116f9`/`10c8178`) + booking management `GET/POST /v1/bookings…` cancel/reschedule (`92af171`).
@@ -59,6 +59,8 @@ Storefront feature-completion polish: `apps/storefront` now has a store-level "H
 Storefront hardening continuation: account-free promo/referral reward use now dedupes by email/phone as well as generated customer id, and `pnpm load:storefront` provides a local configurable load smoke for storefront/catalogue read paths.
 
 Storefront final reward/tracking pass: design-detail checkout now keeps submitted reward codes after validation errors and renders clear promo/referral/affiliate status cards, including promo checkout validation copy, referral preview/pending states, affiliate attribution capture, and a no-code state. Public tracking now accepts both order UUIDs and payment provider references, while malformed tracking keys return a clean 404 instead of a backend UUID parse failure. Verified with focused tracking integration tests, storefront typecheck/lint/test/build, live design-detail reward URL smokes, live `/track/{provider_reference}` 200, and live malformed tracking 404. Paystack/notification production sandbox validation remains blocked until real provider env values are loaded.
+
+Dashboard/storefront upload polish: business owners now create catalogue designs with a real image dropzone/upload instead of pasting an image link, the standalone attach-image panel shares the same file preview pattern, the dashboard design cards use accessible card buttons, and storefront catalogue cards/grid have tighter customer-facing image rhythm and hover treatment. Admin login now points local developers at the configured Admin API base when the API is unavailable, while production keeps the generic message. Verified with admin/dashboard/storefront typechecks, cross-app ESLint, focused dashboard/storefront tests, production builds, and `git diff --check`.
 
 Admin/business rail identity polish: the admin and business dashboard rails now share the richer Xtiitch identity card treatment, gold accent token, compact brand mark, role/status chips, and tighter DM Serif Display display treatment without changing route behavior. Verified with admin/dashboard typechecks, eslint, production builds, and `git diff --check`.
 

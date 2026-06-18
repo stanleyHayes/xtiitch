@@ -1,6 +1,8 @@
-const API_BASE = (
+export const adminApiBase = (
   process.env.XTIITCH_API_URL ?? "http://localhost:8080"
 ).replace(/\/+$/, "");
+
+const API_BASE = adminApiBase;
 
 export type AdminRole = "owner" | "operator" | "support";
 
