@@ -573,6 +573,42 @@ func TestListBusinessVerificationsRequiresReviewPermission(t *testing.T) {
 	}
 }
 
+func TestListCustomersRequiresReviewPermission(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		customers: []ports.AdminCustomerRecord{
+			{CustomerID: "customer-1", DisplayName: "Ama Customer"},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"unused"},
+	)
+
+	result, err := service.ListCustomers(
+		context.Background(),
+		ListCustomersCommand{ActorRole: admindomain.RoleOperator},
+	)
+	if err != nil {
+		t.Fatalf("list customers: %v", err)
+	}
+	if len(result) != 1 || !businesses.customersListed {
+		t.Fatalf("expected operator to list customers, got result=%+v listed=%v", result, businesses.customersListed)
+	}
+
+	_, err = service.ListCustomers(
+		context.Background(),
+		ListCustomersCommand{ActorRole: admindomain.RoleSupport},
+	)
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestDecideBusinessVerificationUpdatesStatusAndWritesAudit(t *testing.T) {
 	t.Parallel()
 
@@ -3168,6 +3204,8 @@ type fakeAdminBusinesses struct {
 	listCalled                 bool
 	decided                    ports.AdminBusinessVerificationDecisionInput
 	businesses                 []ports.AdminBusinessRecord
+	customers                  []ports.AdminCustomerRecord
+	customersListed            bool
 	statusUpdate               ports.UpdateAdminBusinessStatusInput
 	metrics                    ports.AdminPlatformMetricsRecord
 	moneyRails                 ports.AdminMoneyRailsRecord
@@ -3258,6 +3296,11 @@ func (repo *fakeAdminBusinesses) ListAdminBusinesses(context.Context) ([]ports.A
 			UpdatedAt:          time.Now(),
 		},
 	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminCustomers(context.Context) ([]ports.AdminCustomerRecord, error) {
+	repo.customersListed = true
+	return repo.customers, nil
 }
 
 func (repo *fakeAdminBusinesses) UpdateAdminBusinessStatus(

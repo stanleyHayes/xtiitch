@@ -896,6 +896,117 @@ func (repo AdminAuthRepository) ListAdminBusinesses(ctx context.Context) ([]port
 	return records, nil
 }
 
+func (repo AdminAuthRepository) ListAdminCustomers(ctx context.Context) ([]ports.AdminCustomerRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		with relationship_stats as (
+			select
+				customer_id,
+				count(distinct business_id)::int as tenant_count,
+				max(greatest(first_seen_at, updated_at)) as last_relationship_at
+			from customer_businesses
+			group by customer_id
+		),
+		order_stats as (
+			select
+				customer_id,
+				count(*)::int as order_count,
+				count(*) filter (where order_type = 'custom')::int as custom_order_count,
+				max(updated_at) as last_order_at
+			from orders
+			group by customer_id
+		),
+		payment_stats as (
+			select
+				o.customer_id,
+				coalesce(sum(p.amount_minor) filter (where p.status = 'succeeded'), 0)::bigint as gmv_minor,
+				max(p.updated_at) filter (where p.status = 'succeeded') as last_payment_at
+			from payments p
+			join orders o
+				on o.order_id = p.order_id
+				and o.business_id = p.business_id
+			group by o.customer_id
+		),
+		recent_order as (
+			select distinct on (o.customer_id)
+				o.customer_id,
+				b.name as business_name,
+				b.handle as business_handle
+			from orders o
+			join businesses b on b.business_id = o.business_id
+			order by o.customer_id, o.updated_at desc
+		),
+		recent_relationship as (
+			select distinct on (cb.customer_id)
+				cb.customer_id,
+				b.name as business_name,
+				b.handle as business_handle
+			from customer_businesses cb
+			join businesses b on b.business_id = cb.business_id
+			order by cb.customer_id, cb.updated_at desc
+		)
+		select
+			c.customer_id::text,
+			coalesce(c.email, ''),
+			coalesce(c.phone, ''),
+			coalesce(c.display_name, ''),
+			coalesce(rs.tenant_count, 0),
+			coalesce(os.order_count, 0),
+			coalesce(os.custom_order_count, 0),
+			coalesce(ps.gmv_minor, 0),
+			coalesce(ro.business_name, rr.business_name, ''),
+			coalesce(ro.business_handle, rr.business_handle, ''),
+			greatest(
+				c.updated_at,
+				coalesce(rs.last_relationship_at, c.updated_at),
+				coalesce(os.last_order_at, c.updated_at),
+				coalesce(ps.last_payment_at, c.updated_at)
+			) as last_active_at,
+			c.created_at,
+			c.updated_at
+		from customers c
+		left join relationship_stats rs on rs.customer_id = c.customer_id
+		left join order_stats os on os.customer_id = c.customer_id
+		left join payment_stats ps on ps.customer_id = c.customer_id
+		left join recent_order ro on ro.customer_id = c.customer_id
+		left join recent_relationship rr on rr.customer_id = c.customer_id
+		order by last_active_at desc, c.created_at desc
+		limit 250
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminCustomerRecord{}
+	for rows.Next() {
+		record, err := scanAdminCustomerRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
 func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 	ctx context.Context,
 	input ports.UpdateAdminBusinessStatusInput,
@@ -4854,6 +4965,29 @@ func scanAdminBusinessRecord(row pgx.Row) (ports.AdminBusinessRecord, error) {
 	if record.OperationalStatus == business.OperationalStatusSuspended {
 		record.SuspendedAt = &suspendedAt
 		record.SuspendedByAdminUser = common.ID(suspendedByAdminUserID)
+	}
+
+	return record, nil
+}
+
+func scanAdminCustomerRecord(row pgx.Row) (ports.AdminCustomerRecord, error) {
+	var record ports.AdminCustomerRecord
+	if err := row.Scan(
+		&record.CustomerID,
+		&record.Email,
+		&record.Phone,
+		&record.DisplayName,
+		&record.TenantCount,
+		&record.OrderCount,
+		&record.CustomOrderCount,
+		&record.GMVMinor,
+		&record.LastBusinessName,
+		&record.LastBusinessHandle,
+		&record.LastActiveAt,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminCustomerRecord{}, err
 	}
 
 	return record, nil

@@ -512,10 +512,7 @@ export type AdminAffiliatePayout = {
 };
 
 export type AdminReferralAudience = "customers" | "businesses" | "mixed";
-export type AdminReferralRewardKind =
-  | "voucher"
-  | "commission_rebate"
-  | "none";
+export type AdminReferralRewardKind = "voucher" | "commission_rebate" | "none";
 export type AdminReferralRefereeRewardKind = "voucher" | "none";
 export type AdminReferralRewardType = "percentage" | "fixed";
 export type AdminReferralProgrammeStatus =
@@ -617,6 +614,22 @@ export type AdminBusiness = {
   subaccountRef: string;
   suspensionReason: string;
   suspendedAt?: string;
+  updatedAt: string;
+};
+
+export type AdminCustomer = {
+  id: string;
+  email: string;
+  phone: string;
+  displayName: string;
+  tenantCount: number;
+  orderCount: number;
+  customOrderCount: number;
+  gmvMinor: number;
+  lastBusinessName: string;
+  lastBusinessHandle: string;
+  lastActive: string;
+  createdAt: string;
   updatedAt: string;
 };
 
@@ -1251,6 +1264,22 @@ type AdminBusinessPayload = {
   updated_at: string;
 };
 
+type AdminCustomerPayload = {
+  customer_id: string;
+  email: string;
+  phone: string;
+  display_name: string;
+  tenant_count: number;
+  order_count: number;
+  custom_order_count: number;
+  gmv_minor: number;
+  last_business_name: string;
+  last_business_handle: string;
+  last_active: string;
+  created_at: string;
+  updated_at: string;
+};
+
 type AdminRolePayload = {
   role: AdminRole;
   label: string;
@@ -1796,7 +1825,9 @@ function mapAffiliateConversion(
   };
 }
 
-function mapAffiliatePayout(payload: AdminAffiliatePayoutPayload): AdminAffiliatePayout {
+function mapAffiliatePayout(
+  payload: AdminAffiliatePayoutPayload,
+): AdminAffiliatePayout {
   return {
     payoutBatchId: payload.payout_batch_id,
     affiliateId: payload.affiliate_id,
@@ -1948,6 +1979,24 @@ function mapBusiness(payload: AdminBusinessPayload): AdminBusiness {
     subaccountRef: payload.subaccount_ref,
     suspensionReason: payload.suspension_reason,
     suspendedAt: payload.suspended_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapCustomer(payload: AdminCustomerPayload): AdminCustomer {
+  return {
+    id: payload.customer_id,
+    email: payload.email,
+    phone: payload.phone,
+    displayName: payload.display_name,
+    tenantCount: payload.tenant_count,
+    orderCount: payload.order_count,
+    customOrderCount: payload.custom_order_count,
+    gmvMinor: payload.gmv_minor,
+    lastBusinessName: payload.last_business_name,
+    lastBusinessHandle: payload.last_business_handle,
+    lastActive: payload.last_active,
+    createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
 }
@@ -2979,6 +3028,16 @@ export const adminApi = {
       },
     );
     return payload.businesses.map(mapBusiness);
+  },
+  customers: async (accessToken: string) => {
+    const payload = await requestJSON<{ customers: AdminCustomerPayload[] }>(
+      "/admin/customers",
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return payload.customers.map(mapCustomer);
   },
   updateBusinessStatus: (
     accessToken: string,

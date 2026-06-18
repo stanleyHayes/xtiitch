@@ -119,6 +119,10 @@ type ListBusinessesCommand struct {
 	ActorRole admindomain.Role
 }
 
+type ListCustomersCommand struct {
+	ActorRole admindomain.Role
+}
+
 type GetPlatformMetricsCommand struct {
 	ActorRole admindomain.Role
 }
@@ -1054,6 +1058,17 @@ func (s Service) ListBusinesses(ctx context.Context, cmd ListBusinessesCommand) 
 	}
 
 	return s.businesses.ListAdminBusinesses(ctx)
+}
+
+func (s Service) ListCustomers(ctx context.Context, cmd ListCustomersCommand) ([]ports.AdminCustomerRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return nil, err
+	}
+	if s.businesses == nil {
+		return nil, authdomain.ErrForbidden
+	}
+
+	return s.businesses.ListAdminCustomers(ctx)
 }
 
 func (s Service) GetPlatformMetrics(ctx context.Context, cmd GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error) {

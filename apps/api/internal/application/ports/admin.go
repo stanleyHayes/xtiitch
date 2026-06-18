@@ -35,6 +35,7 @@ type AdminBusinessRepository interface {
 	ListAdminVerificationCases(ctx context.Context) ([]AdminVerificationCaseRecord, error)
 	DecideAdminBusinessVerification(ctx context.Context, input AdminBusinessVerificationDecisionInput) (AdminVerificationCaseRecord, error)
 	ListAdminBusinesses(ctx context.Context) ([]AdminBusinessRecord, error)
+	ListAdminCustomers(ctx context.Context) ([]AdminCustomerRecord, error)
 	UpdateAdminBusinessStatus(ctx context.Context, input UpdateAdminBusinessStatusInput) (AdminBusinessRecord, error)
 	GetAdminPlatformMetrics(ctx context.Context) (AdminPlatformMetricsRecord, error)
 	GetAdminMoneyRails(ctx context.Context) (AdminMoneyRailsRecord, error)
@@ -257,6 +258,22 @@ type AdminBusinessRecord struct {
 	SuspensionReason     string
 	SuspendedAt          *time.Time
 	SuspendedByAdminUser common.ID
+}
+
+type AdminCustomerRecord struct {
+	CustomerID         common.ID
+	Email              string
+	Phone              string
+	DisplayName        string
+	TenantCount        int
+	OrderCount         int
+	CustomOrderCount   int
+	GMVMinor           int64
+	LastBusinessName   string
+	LastBusinessHandle string
+	LastActiveAt       time.Time
+	CreatedAt          time.Time
+	UpdatedAt          time.Time
 }
 
 type UpdateAdminBusinessStatusInput struct {

@@ -36,6 +36,7 @@ type Service interface {
 	ListBusinessVerifications(ctx context.Context, command adminauthapp.ListBusinessVerificationsCommand) ([]ports.AdminVerificationCaseRecord, error)
 	DecideBusinessVerification(ctx context.Context, command adminauthapp.DecideBusinessVerificationCommand) (ports.AdminVerificationCaseRecord, error)
 	ListBusinesses(ctx context.Context, command adminauthapp.ListBusinessesCommand) ([]ports.AdminBusinessRecord, error)
+	ListCustomers(ctx context.Context, command adminauthapp.ListCustomersCommand) ([]ports.AdminCustomerRecord, error)
 	UpdateBusinessStatus(ctx context.Context, command adminauthapp.UpdateBusinessStatusCommand) (ports.AdminBusinessRecord, error)
 	GetPlatformMetrics(ctx context.Context, command adminauthapp.GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error)
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
@@ -166,6 +167,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/support-tickets", handler.supportTickets)
 		protected.Patch("/admin/support-tickets/{key}", handler.updateSupportTicket)
 		protected.Get("/admin/businesses", handler.businesses)
+		protected.Get("/admin/customers", handler.customers)
 		protected.Patch("/admin/businesses/{id}/status", handler.updateBusinessStatus)
 		protected.Get("/admin/audit-events", handler.auditEvents)
 		protected.Get("/admin/exports/{dataset}.csv", handler.exportDatasetCSV)
@@ -531,6 +533,22 @@ type businessResponse struct {
 	SubaccountRef      string `json:"subaccount_ref"`
 	SuspensionReason   string `json:"suspension_reason"`
 	SuspendedAt        string `json:"suspended_at,omitempty"`
+	UpdatedAt          string `json:"updated_at"`
+}
+
+type customerResponse struct {
+	CustomerID         string `json:"customer_id"`
+	Email              string `json:"email"`
+	Phone              string `json:"phone"`
+	DisplayName        string `json:"display_name"`
+	TenantCount        int    `json:"tenant_count"`
+	OrderCount         int    `json:"order_count"`
+	CustomOrderCount   int    `json:"custom_order_count"`
+	GMVMinor           int64  `json:"gmv_minor"`
+	LastBusinessName   string `json:"last_business_name"`
+	LastBusinessHandle string `json:"last_business_handle"`
+	LastActive         string `json:"last_active"`
+	CreatedAt          string `json:"created_at"`
 	UpdatedAt          string `json:"updated_at"`
 }
 
@@ -2803,6 +2821,29 @@ func (handler Handler) businesses(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string][]businessResponse{"businesses": out})
 }
 
+func (handler Handler) customers(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListCustomers(r.Context(), adminauthapp.ListCustomersCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]customerResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newCustomerResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]customerResponse{"customers": out})
+}
+
 func (handler Handler) updateBusinessStatus(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -2949,6 +2990,27 @@ func (handler Handler) exportDatasetRows(
 				businessRiskLevel(record),
 				record.SettlementSubaccount,
 				timeCSV(record.LastActiveAt),
+			})
+		}
+		return rows, nil
+	case "customers":
+		records, err := handler.service.ListCustomers(ctx, adminauthapp.ListCustomersCommand{ActorRole: principal.Role})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Customer", "Email", "Phone", "Businesses", "Orders", "Custom orders", "GMV", "Last business", "Last active", "Created"}}
+		for _, record := range records {
+			rows = append(rows, []string{
+				fallbackText(record.DisplayName, record.CustomerID.String()),
+				record.Email,
+				record.Phone,
+				fmt.Sprint(record.TenantCount),
+				fmt.Sprint(record.OrderCount),
+				fmt.Sprint(record.CustomOrderCount),
+				moneyCSV(record.GMVMinor),
+				fallbackText(record.LastBusinessName, record.LastBusinessHandle),
+				timeCSV(record.LastActiveAt),
+				timeCSV(record.CreatedAt),
 			})
 		}
 		return rows, nil
@@ -3544,6 +3606,24 @@ func newBusinessResponse(record ports.AdminBusinessRecord) businessResponse {
 		SubaccountRef:      record.SettlementSubaccount,
 		SuspensionReason:   record.SuspensionReason,
 		SuspendedAt:        suspendedAt,
+		UpdatedAt:          record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newCustomerResponse(record ports.AdminCustomerRecord) customerResponse {
+	return customerResponse{
+		CustomerID:         record.CustomerID.String(),
+		Email:              record.Email,
+		Phone:              record.Phone,
+		DisplayName:        fallbackText(record.DisplayName, "Unnamed customer"),
+		TenantCount:        record.TenantCount,
+		OrderCount:         record.OrderCount,
+		CustomOrderCount:   record.CustomOrderCount,
+		GMVMinor:           record.GMVMinor,
+		LastBusinessName:   record.LastBusinessName,
+		LastBusinessHandle: record.LastBusinessHandle,
+		LastActive:         record.LastActiveAt.Format(time.RFC3339),
+		CreatedAt:          record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          record.UpdatedAt.Format(time.RFC3339),
 	}
 }

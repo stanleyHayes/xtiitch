@@ -48,6 +48,7 @@ import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotesRounded from "@mui/icons-material/NotesRounded";
 import NotificationsActiveRounded from "@mui/icons-material/NotificationsActiveRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
+import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
@@ -79,6 +80,7 @@ import {
   type AdminBusinessOperationalStatus,
   type AdminBusinessStatus,
   type AdminAuditSeverity,
+  type AdminCustomer,
   type AdminLaunchReadiness,
   type AdminMoneyPayoutStatus,
   type AdminMoneyRails,
@@ -137,6 +139,7 @@ type Section =
   | "roles"
   | "verification"
   | "businesses"
+  | "customers"
   | "money"
   | "risk"
   | "support"
@@ -185,6 +188,7 @@ type AdminExportDatasetId =
   | "report-posture"
   | "launch-readiness"
   | "businesses"
+  | "customers"
   | "verification"
   | "money"
   | "risk"
@@ -321,6 +325,12 @@ const navItems: AdminNavItem[] = [
     icon: <StorefrontRounded />,
   },
   {
+    id: "customers",
+    label: "Customers",
+    helper: "Client directory",
+    icon: <PeopleAltRounded />,
+  },
+  {
     id: "money",
     label: "Money rails",
     helper: "Paystack watch",
@@ -372,6 +382,7 @@ const serverExportDatasetIds: AdminExportDatasetId[] = [
   "report-posture",
   "launch-readiness",
   "businesses",
+  "customers",
   "verification",
   "money",
   "risk",
@@ -418,6 +429,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let verificationQueueError: string | null = null;
   let adminBusinesses: AdminBusiness[] = [];
   let businessManagementError: string | null = null;
+  let adminCustomers: AdminCustomer[] = [];
+  let customerDirectoryError: string | null = null;
   let platformMetrics: AdminPlatformMetrics | null = null;
   let platformMetricsError: string | null = null;
   let operationsHealth: AdminOperationsHealth | null = null;
@@ -477,6 +490,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
       businessManagementError = "Your role cannot manage business accounts.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    adminCustomers = await adminApi.customers(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      customerDirectoryError = "Your role cannot view the customer directory.";
     } else {
       throw error;
     }
@@ -619,8 +642,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     referralProgrammes = await adminApi.referralProgrammes(accessToken);
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
-      referralProgrammesError =
-        "Your role cannot manage referral programmes.";
+      referralProgrammesError = "Your role cannot manage referral programmes.";
     } else {
       throw error;
     }
@@ -670,6 +692,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     verificationQueueError,
     adminBusinesses,
     businessManagementError,
+    adminCustomers,
+    customerDirectoryError,
     platformMetrics,
     platformMetricsError,
     operationsHealth,
@@ -1789,11 +1813,7 @@ function readAdCampaignEditableStatus(
   value: FormDataEntryValue | null,
 ): Exclude<AdminAdCampaignStatus, "archived"> {
   const status = String(value ?? "");
-  if (
-    status === "active" ||
-    status === "paused" ||
-    status === "completed"
-  ) {
+  if (status === "active" || status === "paused" || status === "completed") {
     return status;
   }
   return "pending_review";
@@ -3165,6 +3185,215 @@ function VerificationCard({
   );
 }
 
+function CustomerDirectoryPanel({
+  customers,
+  visibleCustomers,
+  query,
+  error,
+  onQueryChange,
+}: {
+  customers: AdminCustomer[];
+  visibleCustomers: AdminCustomer[];
+  query: string;
+  error: string | null;
+  onQueryChange: (value: string) => void;
+}) {
+  const multiBusinessCustomers = customers.filter(
+    (customer) => customer.tenantCount > 1,
+  ).length;
+  const customOrderCustomers = customers.filter(
+    (customer) => customer.customOrderCount > 0,
+  ).length;
+  const totalGMVMinor = customers.reduce(
+    (sum, customer) => sum + customer.gmvMinor,
+    0,
+  );
+
+  return (
+    <Stack spacing={2.5}>
+      <SectionHeader
+        eyebrow="Customer operations"
+        title="Customers"
+        helper="Search client identities, cross-business relationships, custom-order volume, and payment activity."
+      />
+      {error ? <Alert severity="warning">{error}</Alert> : null}
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.5,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            xl: "repeat(4, minmax(0, 1fr))",
+          },
+        }}
+      >
+        <CustomerStat
+          label="Customers"
+          value={String(customers.length)}
+          helper={`${visibleCustomers.length} in current view`}
+        />
+        <CustomerStat
+          label="Multi-business"
+          value={String(multiBusinessCustomers)}
+          helper="Customers seen across tenants"
+        />
+        <CustomerStat
+          label="Custom orders"
+          value={String(customOrderCustomers)}
+          helper="Customers with bespoke demand"
+        />
+        <CustomerStat
+          label="Customer GMV"
+          value={formatGHS(totalGMVMinor)}
+          helper="Succeeded platform payments"
+        />
+      </Box>
+      <Panel sx={{ p: 2 }}>
+        <TextField
+          label="Search customer"
+          value={query}
+          onChange={(event) => onQueryChange(event.target.value)}
+          fullWidth
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchRounded />
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
+      </Panel>
+      <Stack spacing={1.5}>
+        {visibleCustomers.map((customer) => (
+          <CustomerRow key={customer.id} customer={customer} />
+        ))}
+        {!error && visibleCustomers.length === 0 ? (
+          <Panel sx={{ p: 3, textAlign: "center" }}>
+            <Typography sx={{ fontWeight: 800 }}>
+              No customers match this view.
+            </Typography>
+            <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+              Clear the search to return to the full customer directory.
+            </Typography>
+          </Panel>
+        ) : null}
+      </Stack>
+    </Stack>
+  );
+}
+
+function CustomerStat({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <Panel sx={{ p: 2 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {label}
+      </Typography>
+      <Typography variant="h5" sx={{ mt: 0.5 }}>
+        {value}
+      </Typography>
+      <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+        {helper}
+      </Typography>
+    </Panel>
+  );
+}
+
+function CustomerRow({ customer }: { customer: AdminCustomer }) {
+  const contact = customer.email || customer.phone || "No contact on file";
+  const lastBusiness = customer.lastBusinessName
+    ? `${customer.lastBusinessName} · ${customer.lastBusinessHandle}`
+    : "No linked business activity";
+
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.25 } }}>
+      <Stack
+        direction={{ xs: "column", lg: "row" }}
+        spacing={2}
+        sx={{ justifyContent: "space-between", alignItems: "stretch" }}
+      >
+        <Stack direction="row" spacing={1.5} sx={{ minWidth: 0 }}>
+          <Avatar
+            sx={{
+              bgcolor: alpha(tokens.burgundy, 0.12),
+              color: tokens.burgundy,
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.18),
+            }}
+          >
+            <PeopleAltRounded />
+          </Avatar>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h6" sx={{ overflowWrap: "anywhere" }}>
+              {customer.displayName || contact}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+            >
+              {contact}
+            </Typography>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ mt: 1, flexWrap: "wrap" }}
+            >
+              <Chip
+                size="small"
+                label={`${customer.tenantCount} businesses`}
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label={`${customer.orderCount} orders`}
+                variant="outlined"
+              />
+              {customer.customOrderCount > 0 ? (
+                <Chip
+                  size="small"
+                  label={`${customer.customOrderCount} custom`}
+                  sx={{
+                    bgcolor: alpha(tokens.warning, 0.16),
+                    color: tokens.ink,
+                  }}
+                />
+              ) : null}
+            </Stack>
+          </Box>
+        </Stack>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(3, minmax(0, 1fr))",
+            },
+            minWidth: { lg: 520 },
+          }}
+        >
+          <DetailLine label="GMV" value={formatGHS(customer.gmvMinor)} />
+          <DetailLine label="Last business" value={lastBusiness} />
+          <DetailLine
+            label="Last active"
+            value={shortTime(customer.lastActive)}
+          />
+        </Box>
+      </Stack>
+    </Panel>
+  );
+}
+
 function BusinessRow({
   business,
   selected,
@@ -4047,7 +4276,9 @@ function ReportsSection({
   );
   const activeSubscriptionMrrMinor = subscriptions.reduce(
     (total, subscription) =>
-      subscription.status !== "canceled" ? total + subscription.monthlyFeeMinor : total,
+      subscription.status !== "canceled"
+        ? total + subscription.monthlyFeeMinor
+        : total,
     0,
   );
   const activePromotions = promotions.filter(
@@ -4294,11 +4525,7 @@ function ReportsSection({
       {backendReportsError ? (
         <Alert severity="warning">{backendReportsError}</Alert>
       ) : null}
-      <Form
-        method="post"
-        reloadDocument
-        style={{ alignSelf: "flex-start" }}
-      >
+      <Form method="post" reloadDocument style={{ alignSelf: "flex-start" }}>
         <input type="hidden" name="intent" value="admin-export:download" />
         <input type="hidden" name="dataset" value="report-posture" />
         <Button
@@ -4578,6 +4805,7 @@ function ExportsSection({
   launchReadiness,
   adminUsers,
   adminBusinesses,
+  adminCustomers,
   verificationCases,
   moneyRails,
   roleCatalog,
@@ -4598,6 +4826,7 @@ function ExportsSection({
   launchReadiness: AdminLaunchReadiness | null;
   adminUsers: AdminUser[];
   adminBusinesses: AdminBusiness[];
+  adminCustomers: AdminCustomer[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
   roleCatalog: AdminRoleDefinition[];
@@ -4699,7 +4928,9 @@ function ExportsSection({
           check.detail,
           check.action,
           check.targetLabel,
-          launchReadiness?.updatedAt ? shortTime(launchReadiness.updatedAt) : "",
+          launchReadiness?.updatedAt
+            ? shortTime(launchReadiness.updatedAt)
+            : "",
         ]),
       ],
     },
@@ -4743,6 +4974,41 @@ function ExportsSection({
           business.riskLevel,
           business.subaccountRef || "Not provisioned",
           shortTime(business.lastActive),
+        ]),
+      ],
+    },
+    {
+      id: "customers",
+      title: "Customers",
+      helper:
+        "Client identity, contact, cross-tenant relationships, order volume, and GMV.",
+      source: "customers",
+      sourceLabel: "Open customers",
+      tone: adminCustomers.some((customer) => customer.tenantCount > 1)
+        ? "watch"
+        : "ready",
+      rows: [
+        [
+          "Customer",
+          "Email",
+          "Phone",
+          "Businesses",
+          "Orders",
+          "Custom orders",
+          "GMV",
+          "Last business",
+          "Last active",
+        ],
+        ...adminCustomers.map((customer) => [
+          customer.displayName || customer.id,
+          customer.email,
+          customer.phone,
+          customer.tenantCount,
+          customer.orderCount,
+          customer.customOrderCount,
+          formatGHS(customer.gmvMinor),
+          customer.lastBusinessName || customer.lastBusinessHandle,
+          shortTime(customer.lastActive),
         ]),
       ],
     },
@@ -5975,9 +6241,13 @@ function LaunchReadinessSection({
   const readinessScore =
     totalChecks > 0 ? Math.round((readyCount / totalChecks) * 100) : 0;
   const environment = readiness?.environment ?? "unavailable";
-  const updatedAt = readiness?.updatedAt ? shortTime(readiness.updatedAt) : "Not loaded";
+  const updatedAt = readiness?.updatedAt
+    ? shortTime(readiness.updatedAt)
+    : "Not loaded";
   const targetSection = (target: string): Section =>
-    navItems.some((item) => item.id === target) ? (target as Section) : "settings";
+    navItems.some((item) => item.id === target)
+      ? (target as Section)
+      : "settings";
 
   return (
     <Stack spacing={2.5}>
@@ -5986,7 +6256,9 @@ function LaunchReadinessSection({
         title="Launch readiness"
         helper="A production gate view for credentials, provider transports, legal review, quality scans, and owner-controlled configuration."
       />
-      {readinessError ? <Alert severity="warning">{readinessError}</Alert> : null}
+      {readinessError ? (
+        <Alert severity="warning">{readinessError}</Alert>
+      ) : null}
       {!readiness && !readinessError ? (
         <Alert severity="info">Launch readiness has not loaded yet.</Alert>
       ) : null}
@@ -6002,7 +6274,9 @@ function LaunchReadinessSection({
           label="Readiness score"
           value={`${readinessScore}%`}
           helper={`${readyCount}/${totalChecks} gates ready`}
-          trend={blockedCount > 0 ? "Blocked" : watchCount > 0 ? "Watch" : "Ready"}
+          trend={
+            blockedCount > 0 ? "Blocked" : watchCount > 0 ? "Watch" : "Ready"
+          }
         />
         <MetricCard
           label="Blocked gates"
@@ -6033,7 +6307,9 @@ function LaunchReadinessSection({
               : alpha(tokens.success, 0.22),
           backgroundImage: `
             linear-gradient(90deg, ${
-              blockedCount > 0 ? alpha(tokens.danger, 0.08) : alpha(tokens.success, 0.08)
+              blockedCount > 0
+                ? alpha(tokens.danger, 0.08)
+                : alpha(tokens.success, 0.08)
             }, transparent 38%),
             linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
           `,
@@ -6170,7 +6446,9 @@ function LaunchReadinessSection({
                     </Box>
                   </Stack>
                   <Button
-                    variant={check.status === "blocked" ? "contained" : "outlined"}
+                    variant={
+                      check.status === "blocked" ? "contained" : "outlined"
+                    }
                     endIcon={<ArrowForwardRounded />}
                     onClick={() => onSelect(targetSection(check.target))}
                     sx={{ alignSelf: { xs: "flex-start", sm: "center" } }}
@@ -6601,11 +6879,17 @@ function affiliateStatusLabel(status: AdminAffiliateStatus): string {
 }
 
 function affiliateEntityLabel(value: AdminAffiliateEntityType): string {
-  return affiliateEntityOptions.find((option) => option.value === value)?.label ?? value;
+  return (
+    affiliateEntityOptions.find((option) => option.value === value)?.label ??
+    value
+  );
 }
 
 function affiliatePayoutLabel(value: AdminAffiliatePayoutMode): string {
-  return affiliatePayoutOptions.find((option) => option.value === value)?.label ?? value;
+  return (
+    affiliatePayoutOptions.find((option) => option.value === value)?.label ??
+    value
+  );
 }
 
 function affiliateStatusColor(status: AdminAffiliateStatus): string {
@@ -6863,7 +7147,9 @@ function SubscriptionsSection({
     ) {
       return false;
     }
-    return !subscription.invoices.some((invoice) => invoice.status === "issued");
+    return !subscription.invoices.some(
+      (invoice) => invoice.status === "issued",
+    );
   });
   const recurringReadyRows = recurringDueRows.filter(
     (subscription) =>
@@ -7005,7 +7291,10 @@ function SubscriptionsSection({
                 variant={expiredGraceCount ? "filled" : "outlined"}
               />
             </Stack>
-            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.5, color: "text.secondary" }}
+            >
               Fail overdue package invoices and cancel subscriptions whose grace
               window has expired. No funds are moved by this action.
             </Typography>
@@ -7067,7 +7356,10 @@ function SubscriptionsSection({
                 variant="outlined"
               />
             </Stack>
-            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.5, color: "text.secondary" }}
+            >
               Charge due recurring subscriptions through Paystack saved
               authorizations, then settle package invoices from the provider
               result.
@@ -7564,7 +7856,8 @@ function SubscriptionsSection({
                             }}
                           />
                           {typeof subscription.designLimit === "number" &&
-                          subscription.designCount > subscription.designLimit ? (
+                          subscription.designCount >
+                            subscription.designLimit ? (
                             <Chip
                               size="small"
                               label="Over limit"
@@ -8246,7 +8539,11 @@ function PromotionsSection({
                   name="target_collection_id"
                   size="small"
                 />
-                <TextField label="Design ID" name="target_design_id" size="small" />
+                <TextField
+                  label="Design ID"
+                  name="target_design_id"
+                  size="small"
+                />
                 <TextField
                   select
                   label="Status"
@@ -8439,7 +8736,10 @@ function PromotionsSection({
                       sx={{
                         display: "grid",
                         gap: 1,
-                        gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "repeat(2, 1fr)",
+                        },
                       }}
                     >
                       {promotion.recentRedemptions.map((redemption) => (
@@ -8504,7 +8804,9 @@ function PromotionsSection({
                               color: "text.secondary",
                             }}
                           >
-                            {shortTime(redemption.redeemedAt ?? redemption.createdAt)}
+                            {shortTime(
+                              redemption.redeemedAt ?? redemption.createdAt,
+                            )}
                           </Typography>
                         </Box>
                       ))}
@@ -8830,8 +9132,7 @@ function AdsSection({
       total +
       campaign.payments.reduce(
         (paymentTotal, payment) =>
-          paymentTotal +
-          (payment.status === "paid" ? payment.amountMinor : 0),
+          paymentTotal + (payment.status === "paid" ? payment.amountMinor : 0),
         0,
       ),
     0,
@@ -8904,7 +9205,9 @@ function AdsSection({
         />
         <MetricCard
           label="Engagement"
-          value={formatPercentBps(impressions > 0 ? (clicks / impressions) * 10000 : 0)}
+          value={formatPercentBps(
+            impressions > 0 ? (clicks / impressions) * 10000 : 0,
+          )}
           helper={`${impressions} impressions · ${clicks} clicks`}
           trend="Server event rollup"
         />
@@ -9140,7 +9443,9 @@ function AdsSection({
                         spacing={1}
                         sx={{ alignItems: "center", flexWrap: "wrap" }}
                       >
-                        <Typography variant="h6">{campaign.headline}</Typography>
+                        <Typography variant="h6">
+                          {campaign.headline}
+                        </Typography>
                         <Chip
                           size="small"
                           label={adPlacementLabel(campaign.placementType)}
@@ -9333,7 +9638,10 @@ function AdsSection({
                           },
                         }}
                       >
-                        <DetailLine label="Collected" value={formatGHS(paidMinor)} />
+                        <DetailLine
+                          label="Collected"
+                          value={formatGHS(paidMinor)}
+                        />
                         <DetailLine label="Due" value={formatGHS(dueMinor)} />
                         <DetailLine
                           label="Open"
@@ -9357,7 +9665,10 @@ function AdsSection({
                                 direction={{ xs: "column", sm: "row" }}
                                 spacing={1}
                                 sx={{
-                                  alignItems: { xs: "flex-start", sm: "center" },
+                                  alignItems: {
+                                    xs: "flex-start",
+                                    sm: "center",
+                                  },
                                   justifyContent: "space-between",
                                   p: 1,
                                   border: "1px solid",
@@ -9422,13 +9733,17 @@ function AdsSection({
                             type="email"
                             placeholder="Defaults to business owner"
                             fullWidth
-                            disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                            disabled={
+                              archived || Boolean(openPayment) || dueMinor <= 0
+                            }
                           />
                           <Button
                             type="submit"
                             variant="contained"
                             startIcon={<PaymentsRounded />}
-                            disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                            disabled={
+                              archived || Boolean(openPayment) || dueMinor <= 0
+                            }
                             sx={{ minWidth: { sm: 170 } }}
                           >
                             Collect payment
@@ -9449,7 +9764,11 @@ function AdsSection({
                       name="campaign_id"
                       value={campaign.campaignId}
                     />
-                    <input type="hidden" name="pricing_model" value="flat_time" />
+                    <input
+                      type="hidden"
+                      name="pricing_model"
+                      value="flat_time"
+                    />
                     <Stack spacing={1.25}>
                       <Box
                         sx={{
@@ -9473,7 +9792,8 @@ function AdsSection({
                             (business) => business.id === campaign.businessId,
                           ) ? (
                             <MenuItem value={campaign.businessId}>
-                              {campaign.businessName} · {campaign.businessHandle}
+                              {campaign.businessName} ·{" "}
+                              {campaign.businessHandle}
                             </MenuItem>
                           ) : null}
                           {eligibleBusinesses.map((business) => (
@@ -9708,7 +10028,10 @@ function AffiliatesSection({
       total +
       item.recentConversions
         .filter((conversion) => conversion.status === "pending")
-        .reduce((subtotal, conversion) => subtotal + conversion.commissionMinor, 0),
+        .reduce(
+          (subtotal, conversion) => subtotal + conversion.commissionMinor,
+          0,
+        ),
     0,
   );
   const approvedCommissionMinor = affiliateAttribution.reduce(
@@ -9716,7 +10039,10 @@ function AffiliatesSection({
       total +
       item.recentConversions
         .filter((conversion) => conversion.status === "approved")
-        .reduce((subtotal, conversion) => subtotal + conversion.commissionMinor, 0),
+        .reduce(
+          (subtotal, conversion) => subtotal + conversion.commissionMinor,
+          0,
+        ),
     0,
   );
   const reconciledCommissionMinor = affiliateAttribution.reduce(
@@ -9823,7 +10149,8 @@ function AffiliatesSection({
                 <Box>
                   <Typography variant="h6">Register affiliate</Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Add a partner code and the commercial terms operators approve.
+                    Add a partner code and the commercial terms operators
+                    approve.
                   </Typography>
                 </Box>
                 <Button type="submit" variant="contained">
@@ -9837,14 +10164,24 @@ function AffiliatesSection({
                   gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
                 }}
               >
-                <TextField select label="Entity" name="entity_type" defaultValue="person">
+                <TextField
+                  select
+                  label="Entity"
+                  name="entity_type"
+                  defaultValue="person"
+                >
                   {affiliateEntityOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
                   ))}
                 </TextField>
-                <TextField label="Code" name="code" required placeholder="SEWINGPRO" />
+                <TextField
+                  label="Code"
+                  name="code"
+                  required
+                  placeholder="SEWINGPRO"
+                />
                 <TextField label="Display name" name="display_name" required />
                 <TextField label="Contact name" name="contact_name" />
                 <TextField label="Email" name="email" type="email" />
@@ -9876,14 +10213,24 @@ function AffiliatesSection({
                   defaultValue={30}
                   slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
                 />
-                <TextField select label="Payout mode" name="payout_mode" defaultValue="voucher">
+                <TextField
+                  select
+                  label="Payout mode"
+                  name="payout_mode"
+                  defaultValue="voucher"
+                >
                   {affiliatePayoutOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
                     </MenuItem>
                   ))}
                 </TextField>
-                <TextField select label="Status" name="status" defaultValue="pending_review">
+                <TextField
+                  select
+                  label="Status"
+                  name="status"
+                  defaultValue="pending_review"
+                >
                   {affiliateStatusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
@@ -9921,12 +10268,18 @@ function AffiliatesSection({
           {affiliates.map((affiliate) => {
             const color = affiliateStatusColor(affiliate.status);
             const archived = affiliate.status === "archived";
-            const performance = attributionByAffiliate.get(affiliate.affiliateId);
-            const approvedConversionCount = performance?.approvedConversionCount ?? 0;
+            const performance = attributionByAffiliate.get(
+              affiliate.affiliateId,
+            );
+            const approvedConversionCount =
+              performance?.approvedConversionCount ?? 0;
             const recentApprovedCommissionMinor =
               performance?.recentConversions
                 .filter((conversion) => conversion.status === "approved")
-                .reduce((total, conversion) => total + conversion.commissionMinor, 0) ?? 0;
+                .reduce(
+                  (total, conversion) => total + conversion.commissionMinor,
+                  0,
+                ) ?? 0;
             const lastPayout = performance?.recentPayouts[0];
             return (
               <Panel
@@ -9944,21 +10297,42 @@ function AffiliatesSection({
                   <Stack
                     direction={{ xs: "column", sm: "row" }}
                     spacing={1.25}
-                    sx={{ justifyContent: "space-between", alignItems: { sm: "flex-start" } }}
+                    sx={{
+                      justifyContent: "space-between",
+                      alignItems: { sm: "flex-start" },
+                    }}
                   >
                     <Box sx={{ minWidth: 0 }}>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-                        <Typography variant="h6">{affiliate.displayName}</Typography>
-                        <Chip size="small" label={affiliate.code} variant="outlined" />
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography variant="h6">
+                          {affiliate.displayName}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={affiliate.code}
+                          variant="outlined"
+                        />
                       </Stack>
-                      <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
-                        {affiliateEntityLabel(affiliate.entityType)} · {affiliate.contactName || "No contact"}
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.5, color: "text.secondary" }}
+                      >
+                        {affiliateEntityLabel(affiliate.entityType)} ·{" "}
+                        {affiliate.contactName || "No contact"}
                       </Typography>
                     </Box>
                     <Chip
                       size="small"
                       label={affiliateStatusLabel(affiliate.status)}
-                      sx={{ bgcolor: alpha(color, 0.12), color, fontWeight: 900 }}
+                      sx={{
+                        bgcolor: alpha(color, 0.12),
+                        color,
+                        fontWeight: 900,
+                      }}
                     />
                   </Stack>
 
@@ -9969,7 +10343,10 @@ function AffiliatesSection({
                       gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
                     }}
                   >
-                    <DetailLine label="Commission" value={affiliateCommissionLabel(affiliate)} />
+                    <DetailLine
+                      label="Commission"
+                      value={affiliateCommissionLabel(affiliate)}
+                    />
                     <DetailLine
                       label="Cookie window"
                       value={`${affiliate.cookieWindowDays} days`}
@@ -10059,20 +10436,27 @@ function AffiliatesSection({
                               >
                                 <Box sx={{ minWidth: 0 }}>
                                   <Typography sx={{ fontWeight: 900 }}>
-                                    {conversion.businessName || "Unknown business"}
+                                    {conversion.businessName ||
+                                      "Unknown business"}
                                   </Typography>
                                   <Typography
                                     variant="body2"
                                     sx={{ color: "text.secondary" }}
                                   >
                                     {shortID(conversion.orderId)} ·{" "}
-                                    {conversion.attributionModel.replace("_", " ")}
+                                    {conversion.attributionModel.replace(
+                                      "_",
+                                      " ",
+                                    )}
                                   </Typography>
                                 </Box>
                                 <Stack
                                   direction="row"
                                   spacing={1}
-                                  sx={{ alignItems: "center", flexWrap: "wrap" }}
+                                  sx={{
+                                    alignItems: "center",
+                                    flexWrap: "wrap",
+                                  }}
                                 >
                                   <Chip
                                     size="small"
@@ -10177,7 +10561,11 @@ function AffiliatesSection({
                                 {formatGHS(recentApprovedCommissionMinor)}
                               </Typography>
                             </Box>
-                            <Button type="submit" size="small" variant="contained">
+                            <Button
+                              type="submit"
+                              size="small"
+                              variant="contained"
+                            >
                               Reconcile payout
                             </Button>
                           </Stack>
@@ -10245,9 +10633,13 @@ function AffiliatesSection({
                               </Typography>
                               <Typography
                                 variant="body2"
-                                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+                                sx={{
+                                  color: "text.secondary",
+                                  overflowWrap: "anywhere",
+                                }}
                               >
-                                {payout.payoutReference || shortID(payout.payoutBatchId)}
+                                {payout.payoutReference ||
+                                  shortID(payout.payoutBatchId)}
                               </Typography>
                             </Box>
                             <Stack
@@ -10255,9 +10647,17 @@ function AffiliatesSection({
                               spacing={1}
                               sx={{ alignItems: "center", flexWrap: "wrap" }}
                             >
-                              <Chip size="small" label={payout.status} variant="outlined" />
-                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                                {payout.conversionCount} rows · {shortTime(payout.createdAt)}
+                              <Chip
+                                size="small"
+                                label={payout.status}
+                                variant="outlined"
+                              />
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {payout.conversionCount} rows ·{" "}
+                                {shortTime(payout.createdAt)}
                               </Typography>
                             </Stack>
                           </Stack>
@@ -10282,7 +10682,10 @@ function AffiliatesSection({
                         </Typography>
                       ) : null}
                       {affiliate.notes ? (
-                        <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 0.5, color: "text.secondary" }}
+                        >
                           Notes: {affiliate.notes}
                         </Typography>
                       ) : null}
@@ -10290,30 +10693,95 @@ function AffiliatesSection({
                   ) : null}
 
                   <Form method="post">
-                    <input type="hidden" name="intent" value="admin-affiliate:update" />
-                    <input type="hidden" name="affiliate_id" value={affiliate.affiliateId} />
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-affiliate:update"
+                    />
+                    <input
+                      type="hidden"
+                      name="affiliate_id"
+                      value={affiliate.affiliateId}
+                    />
                     <Stack spacing={1.25}>
                       <Box
                         sx={{
                           display: "grid",
                           gap: 1.25,
-                          gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            md: "repeat(2, minmax(0, 1fr))",
+                          },
                         }}
                       >
-                        <TextField select label="Entity" name="entity_type" size="small" defaultValue={affiliate.entityType} disabled={archived}>
+                        <TextField
+                          select
+                          label="Entity"
+                          name="entity_type"
+                          size="small"
+                          defaultValue={affiliate.entityType}
+                          disabled={archived}
+                        >
                           {affiliateEntityOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
                               {option.label}
                             </MenuItem>
                           ))}
                         </TextField>
-                        <TextField label="Code" name="code" size="small" defaultValue={affiliate.code} required disabled={archived} />
-                        <TextField label="Display name" name="display_name" size="small" defaultValue={affiliate.displayName} required disabled={archived} />
-                        <TextField label="Contact name" name="contact_name" size="small" defaultValue={affiliate.contactName} disabled={archived} />
-                        <TextField label="Email" name="email" type="email" size="small" defaultValue={affiliate.email} disabled={archived} />
-                        <TextField label="Phone" name="phone" size="small" defaultValue={affiliate.phone} disabled={archived} />
-                        <TextField label="Website" name="website_url" type="url" size="small" defaultValue={affiliate.websiteUrl} disabled={archived} />
-                        <TextField select label="Commission" name="commission_model" size="small" defaultValue={affiliate.commissionModel} disabled={archived}>
+                        <TextField
+                          label="Code"
+                          name="code"
+                          size="small"
+                          defaultValue={affiliate.code}
+                          required
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Display name"
+                          name="display_name"
+                          size="small"
+                          defaultValue={affiliate.displayName}
+                          required
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Contact name"
+                          name="contact_name"
+                          size="small"
+                          defaultValue={affiliate.contactName}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Email"
+                          name="email"
+                          type="email"
+                          size="small"
+                          defaultValue={affiliate.email}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Phone"
+                          name="phone"
+                          size="small"
+                          defaultValue={affiliate.phone}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Website"
+                          name="website_url"
+                          type="url"
+                          size="small"
+                          defaultValue={affiliate.websiteUrl}
+                          disabled={archived}
+                        />
+                        <TextField
+                          select
+                          label="Commission"
+                          name="commission_model"
+                          size="small"
+                          defaultValue={affiliate.commissionModel}
+                          disabled={archived}
+                        >
                           {affiliateCommissionOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
                               {option.label}
@@ -10337,9 +10805,18 @@ function AffiliatesSection({
                           size="small"
                           defaultValue={affiliate.cookieWindowDays}
                           disabled={archived}
-                          slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
+                          slotProps={{
+                            htmlInput: { min: 1, max: 365, step: 1 },
+                          }}
                         />
-                        <TextField select label="Payout mode" name="payout_mode" size="small" defaultValue={affiliate.payoutMode} disabled={archived}>
+                        <TextField
+                          select
+                          label="Payout mode"
+                          name="payout_mode"
+                          size="small"
+                          defaultValue={affiliate.payoutMode}
+                          disabled={archived}
+                        >
                           {affiliatePayoutOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
                               {option.label}
@@ -10351,7 +10828,11 @@ function AffiliatesSection({
                           label="Status"
                           name="status"
                           size="small"
-                          defaultValue={affiliate.status === "archived" ? "paused" : affiliate.status}
+                          defaultValue={
+                            affiliate.status === "archived"
+                              ? "paused"
+                              : affiliate.status
+                          }
                           disabled={archived}
                         >
                           {affiliateStatusOptions.map((option) => (
@@ -10368,18 +10849,45 @@ function AffiliatesSection({
                           gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                         }}
                       >
-                        <TextField label="Payout reference" name="payout_reference" size="small" defaultValue={affiliate.payoutReference} disabled={archived} />
-                        <TextField label="Notes" name="notes" multiline minRows={2} size="small" defaultValue={affiliate.notes} disabled={archived} />
+                        <TextField
+                          label="Payout reference"
+                          name="payout_reference"
+                          size="small"
+                          defaultValue={affiliate.payoutReference}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Notes"
+                          name="notes"
+                          multiline
+                          minRows={2}
+                          size="small"
+                          defaultValue={affiliate.notes}
+                          disabled={archived}
+                        />
                       </Box>
-                      <Button type="submit" variant="contained" disabled={archived} sx={{ alignSelf: "flex-start" }}>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        disabled={archived}
+                        sx={{ alignSelf: "flex-start" }}
+                      >
                         Save partner
                       </Button>
                     </Stack>
                   </Form>
 
                   <Form method="post">
-                    <input type="hidden" name="intent" value="admin-affiliate:archive" />
-                    <input type="hidden" name="affiliate_id" value={affiliate.affiliateId} />
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="admin-affiliate:archive"
+                    />
+                    <input
+                      type="hidden"
+                      name="affiliate_id"
+                      value={affiliate.affiliateId}
+                    />
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                       <TextField
                         label="Archive reason"
@@ -10508,9 +11016,12 @@ function ReferralsSection({
                 sx={{ justifyContent: "space-between" }}
               >
                 <Box>
-                  <Typography variant="h6">Create referral programme</Typography>
+                  <Typography variant="h6">
+                    Create referral programme
+                  </Typography>
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Define the code prefix and the rewards for both sides of the invitation.
+                    Define the code prefix and the rewards for both sides of the
+                    invitation.
                   </Typography>
                 </Box>
                 <Button type="submit" variant="contained">
@@ -10531,7 +11042,12 @@ function ReferralsSection({
                   required
                   placeholder="REF"
                 />
-                <TextField select label="Audience" name="audience" defaultValue="customers">
+                <TextField
+                  select
+                  label="Audience"
+                  name="audience"
+                  defaultValue="customers"
+                >
                   {referralAudienceOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
@@ -10603,7 +11119,12 @@ function ReferralsSection({
                   defaultValue={14}
                   slotProps={{ htmlInput: { min: 0, max: 180, step: 1 } }}
                 />
-                <TextField select label="Status" name="status" defaultValue="draft">
+                <TextField
+                  select
+                  label="Status"
+                  name="status"
+                  defaultValue="draft"
+                >
                   {referralStatusOptions.map((option) => (
                     <MenuItem key={option.value} value={option.value}>
                       {option.label}
@@ -10638,7 +11159,9 @@ function ReferralsSection({
       ) : null}
 
       {!referralProgrammesError && programmes.length === 0 ? (
-        <Alert severity="info">No referral programmes are registered yet.</Alert>
+        <Alert severity="info">
+          No referral programmes are registered yet.
+        </Alert>
       ) : null}
 
       {!referralProgrammesError && programmes.length > 0 ? (
@@ -10704,7 +11227,11 @@ function ReferralsSection({
                     <Chip
                       size="small"
                       label={referralStatusLabel(programme.status)}
-                      sx={{ bgcolor: alpha(color, 0.12), color, fontWeight: 900 }}
+                      sx={{
+                        bgcolor: alpha(color, 0.12),
+                        color,
+                        fontWeight: 900,
+                      }}
                     />
                   </Stack>
 
@@ -10715,7 +11242,10 @@ function ReferralsSection({
                       gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
                     }}
                   >
-                    <DetailLine label="Reward" value={referralRewardLabel(programme)} />
+                    <DetailLine
+                      label="Reward"
+                      value={referralRewardLabel(programme)}
+                    />
                     <DetailLine
                       label="Reward route"
                       value={`${referralRewardKindLabel(
@@ -10749,7 +11279,10 @@ function ReferralsSection({
                         bgcolor: alpha(tokens.white, 0.7),
                       }}
                     >
-                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary" }}
+                      >
                         Notes
                       </Typography>
                       <Typography sx={{ overflowWrap: "anywhere" }}>
@@ -10777,10 +11310,16 @@ function ReferralsSection({
                         }}
                       >
                         <Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{ fontWeight: 900 }}
+                          >
                             Issued codes
                           </Typography>
-                          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                          >
                             {programme.codes.length
                               ? `${programme.codes.length} recent code${
                                   programme.codes.length === 1 ? "" : "s"
@@ -10818,7 +11357,10 @@ function ReferralsSection({
                             >
                               <Box sx={{ minWidth: 0 }}>
                                 <Typography
-                                  sx={{ fontWeight: 900, overflowWrap: "anywhere" }}
+                                  sx={{
+                                    fontWeight: 900,
+                                    overflowWrap: "anywhere",
+                                  }}
                                 >
                                   {code.code}
                                 </Typography>
@@ -10830,8 +11372,12 @@ function ReferralsSection({
                                   {shortTime(code.updatedAt)}
                                 </Typography>
                               </Box>
-                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                                {code.referralCount} total · {code.qualifiedCount} qualified
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {code.referralCount} total ·{" "}
+                                {code.qualifiedCount} qualified
                               </Typography>
                               <Chip
                                 size="small"
@@ -11057,7 +11603,9 @@ function ReferralsSection({
                           name="max_reward_ghs"
                           type="number"
                           size="small"
-                          defaultValue={moneyInputDefault(programme.maxRewardMinor)}
+                          defaultValue={moneyInputDefault(
+                            programme.maxRewardMinor,
+                          )}
                           disabled={archived}
                           slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
                         />
@@ -11106,7 +11654,9 @@ function ReferralsSection({
                           name="starts_at"
                           type="datetime-local"
                           size="small"
-                          defaultValue={datetimeLocalDefault(programme.startsAt)}
+                          defaultValue={datetimeLocalDefault(
+                            programme.startsAt,
+                          )}
                           disabled={archived}
                           slotProps={{ inputLabel: { shrink: true } }}
                         />
@@ -11212,8 +11762,7 @@ const permissionDescriptions: Record<string, string> = {
     "Create, pause, archive, and audit platform or business-funded promotions.",
   manage_ads:
     "Review, approve, pause, and audit sponsored marketing placements.",
-  manage_growth:
-    "Manage admin-run affiliate and referral programme controls.",
+  manage_growth: "Manage admin-run affiliate and referral programme controls.",
   manage_risk: "Close or reopen platform trust and safety reviews.",
   manage_support: "Assign and resolve customer or business support issues.",
   view_audit: "Read the operator action trail and sensitive change history.",
@@ -13105,6 +13654,8 @@ export default function AdminDashboard({
     verificationQueueError,
     adminBusinesses,
     businessManagementError,
+    adminCustomers,
+    customerDirectoryError,
     platformMetrics,
     platformMetricsError,
     operationsHealth,
@@ -13155,6 +13706,7 @@ export default function AdminDashboard({
       actionFeedback?.section === "referrals" ||
       actionFeedback?.section === "verification" ||
       actionFeedback?.section === "businesses" ||
+      actionFeedback?.section === "customers" ||
       actionFeedback?.section === "money" ||
       actionFeedback?.section === "risk" ||
       actionFeedback?.section === "support"
@@ -13165,6 +13717,7 @@ export default function AdminDashboard({
     Record<string, string>
   >({});
   const [businessQuery, setBusinessQuery] = useState("");
+  const [customerQuery, setCustomerQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedBusiness, setSelectedBusiness] =
     useState<AdminBusiness | null>(adminBusinesses[0] ?? null);
@@ -13254,6 +13807,22 @@ export default function AdminDashboard({
       return matchesStatus && matchesQuery;
     });
   }, [adminBusinesses, businessQuery, statusFilter]);
+
+  const filteredCustomers = useMemo(() => {
+    const query = customerQuery.trim().toLowerCase();
+    if (!query) {
+      return adminCustomers;
+    }
+    return adminCustomers.filter((customer) => {
+      return (
+        customer.displayName.toLowerCase().includes(query) ||
+        customer.email.toLowerCase().includes(query) ||
+        customer.phone.toLowerCase().includes(query) ||
+        customer.lastBusinessName.toLowerCase().includes(query) ||
+        customer.lastBusinessHandle.toLowerCase().includes(query)
+      );
+    });
+  }, [adminCustomers, customerQuery]);
 
   const filteredAuditLog = useMemo(() => {
     if (auditFilter === "all") {
@@ -13582,6 +14151,7 @@ export default function AdminDashboard({
               launchReadiness={launchReadiness}
               adminUsers={adminUsers}
               adminBusinesses={adminBusinesses}
+              adminCustomers={adminCustomers}
               verificationCases={verificationCases}
               moneyRails={moneyRails}
               roleCatalog={roleCatalog}
@@ -13831,6 +14401,16 @@ export default function AdminDashboard({
                 />
               </Box>
             </Stack>
+          ) : null}
+
+          {section === "customers" ? (
+            <CustomerDirectoryPanel
+              customers={adminCustomers}
+              visibleCustomers={filteredCustomers}
+              query={customerQuery}
+              error={customerDirectoryError}
+              onQueryChange={setCustomerQuery}
+            />
           ) : null}
 
           {section === "money" ? (
