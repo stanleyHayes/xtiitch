@@ -21,10 +21,11 @@ Use a pnpm monorepo with:
 - BullMQ and Redis worker app for background jobs.
 - Cloudinary, Resend, Expo Notifications, and Paystack adapters behind application ports.
 
+ADR 0004 records the frontend split in more detail: React Router/MUI for dedicated web surfaces, Expo/React Native for future native apps, and shared packages limited to platform-neutral contracts, schemas, tokens and helpers.
+
 ## Consequences
 
 - The backend can protect tenant and money rules centrally.
 - Client stacks stay idiomatic for their targets while sharing contracts, schemas, and design tokens.
 - Direct SQL keeps tenant filters and money queries explicit.
 - Go and Node both exist in the system because the API is Go while BullMQ is Node-based; queue boundaries must stay narrow and documented.
-
