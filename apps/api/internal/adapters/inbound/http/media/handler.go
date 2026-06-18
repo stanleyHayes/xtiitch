@@ -3,16 +3,18 @@ package mediahttp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
-	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 )
 
 type Service interface {
-	SignDesignUpload(ctx context.Context, scope common.TenantScope) (ports.SignedUpload, error)
+	SignDesignUpload(ctx context.Context, command mediaapp.SignDesignUploadCommand) (ports.SignedUpload, error)
 }
 
 type Handler struct {
@@ -46,9 +48,12 @@ func (handler Handler) signDesignUpload(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	signed, err := handler.service.SignDesignUpload(r.Context(), principal.TenantScope())
+	signed, err := handler.service.SignDesignUpload(r.Context(), mediaapp.SignDesignUploadCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal_error")
+		writeServiceError(w, err)
 		return
 	}
 
@@ -59,6 +64,17 @@ func (handler Handler) signDesignUpload(w http.ResponseWriter, r *http.Request) 
 		APIKey:    signed.APIKey,
 		Folder:    signed.Folder,
 	})
+}
+
+func writeServiceError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, authdomain.ErrInvalidInput):
+		writeError(w, http.StatusBadRequest, "invalid_input")
+	case errors.Is(err, authdomain.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
+	default:
+		writeError(w, http.StatusInternalServerError, "internal_error")
+	}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
