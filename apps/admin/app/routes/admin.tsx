@@ -81,6 +81,7 @@ import {
   type AdminAuditSeverity,
   type AdminMoneyPayoutStatus,
   type AdminMoneyRails,
+  type AdminOperationsHealth,
   type AdminPlan,
   type AdminMoneyWebhookStatus,
   type AdminPlatformMetrics,
@@ -409,6 +410,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let businessManagementError: string | null = null;
   let platformMetrics: AdminPlatformMetrics | null = null;
   let platformMetricsError: string | null = null;
+  let operationsHealth: AdminOperationsHealth | null = null;
+  let operationsHealthError: string | null = null;
   let moneyRails: AdminMoneyRails | null = null;
   let moneyRailsError: string | null = null;
   let subscriptions: AdminSubscription[] = [];
@@ -468,6 +471,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   } catch (error) {
     if (error instanceof AdminApiError && error.status === 403) {
       platformMetricsError = "Your role cannot view platform-wide metrics.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    operationsHealth = await adminApi.operationsHealth(accessToken);
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      operationsHealthError =
+        "Your role cannot view the backend health summary.";
     } else {
       throw error;
     }
@@ -601,6 +615,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     businessManagementError,
     platformMetrics,
     platformMetricsError,
+    operationsHealth,
+    operationsHealthError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -5376,6 +5392,8 @@ function HealthSection({
   riskReviews,
   supportTickets,
   auditEvents,
+  operationsHealth,
+  operationsHealthError,
   onSelect,
 }: {
   platformMetrics: AdminPlatformMetrics | null;
@@ -5392,6 +5410,8 @@ function HealthSection({
   riskReviews: AdminRiskReview[];
   supportTickets: AdminSupportTicket[];
   auditEvents: AuditEvent[];
+  operationsHealth: AdminOperationsHealth | null;
+  operationsHealthError: string | null;
   onSelect: (section: Section) => void;
 }) {
   const failedWebhooks =
@@ -5466,7 +5486,7 @@ function HealthSection({
     (programme) => programme.status === "paused",
   );
   const paymentHealth = platformMetrics?.paymentHealthBps ?? 0;
-  const healthSignals: AdminReportItem[] = [
+  const derivedHealthSignals: AdminReportItem[] = [
     {
       id: "payments",
       label: "Payment rails",
@@ -5649,13 +5669,38 @@ function HealthSection({
       targetLabel: "Open exports",
     },
   ];
-  const blockedCount = healthSignals.filter(
-    (signal) => signal.status === "blocked",
-  ).length;
-  const watchCount = healthSignals.filter(
-    (signal) => signal.status === "watch",
-  ).length;
-  const healthScore = Math.max(0, 100 - blockedCount * 15 - watchCount * 7);
+  const healthSignals: AdminReportItem[] =
+    operationsHealth?.signals.map((signal) => ({
+      id: signal.id,
+      label: signal.label,
+      value: signal.value,
+      helper: signal.helper,
+      status: signal.status,
+      target: signal.target as Section,
+      targetLabel: signal.targetLabel,
+    })) ?? derivedHealthSignals;
+  const blockedCount = operationsHealth
+    ? operationsHealth.blockedCount
+    : healthSignals.filter((signal) => signal.status === "blocked").length;
+  const watchCount = operationsHealth
+    ? operationsHealth.watchCount
+    : healthSignals.filter((signal) => signal.status === "watch").length;
+  const healthScore = operationsHealth
+    ? operationsHealth.healthScore
+    : Math.max(0, 100 - blockedCount * 15 - watchCount * 7);
+  const paymentHealthMetric =
+    operationsHealth?.paymentHealthBps ?? paymentHealth;
+  const failedWebhookMetric =
+    operationsHealth?.failedWebhooks ?? failedWebhooks.length;
+  const payoutHoldMetric = operationsHealth?.payoutHolds ?? payoutHolds.length;
+  const trustPressureMetric =
+    (operationsHealth?.openRiskReviews ?? openRisks.length) +
+    (operationsHealth?.openSupportTickets ?? openSupport.length);
+  const urgentSupportMetric =
+    operationsHealth?.urgentSupportTickets ?? urgentSupport.length;
+  const auditEventMetric = operationsHealth?.auditEvents ?? auditEvents.length;
+  const criticalAuditMetric =
+    operationsHealth?.criticalAuditEvents ?? criticalAudit.length;
 
   return (
     <Stack spacing={2.5}>
@@ -5664,6 +5709,9 @@ function HealthSection({
         title="Operations health"
         helper="A command view for payment posture, tenant exposure, support/risk pressure, audit coverage, and operator readiness."
       />
+      {operationsHealthError ? (
+        <Alert severity="warning">{operationsHealthError}</Alert>
+      ) : null}
 
       <Box
         sx={{
@@ -5680,21 +5728,21 @@ function HealthSection({
         />
         <MetricCard
           label="Payment health"
-          value={formatPercentBps(paymentHealth)}
-          helper={`${failedWebhooks.length} failed webhooks`}
-          trend={`${payoutHolds.length} holds`}
+          value={formatPercentBps(paymentHealthMetric)}
+          helper={`${failedWebhookMetric} failed webhooks`}
+          trend={`${payoutHoldMetric} holds`}
         />
         <MetricCard
           label="Trust pressure"
-          value={String(openRisks.length + openSupport.length)}
+          value={String(trustPressureMetric)}
           helper="Open risk and support rows"
-          trend={`${urgentSupport.length} urgent`}
+          trend={`${urgentSupportMetric} urgent`}
         />
         <MetricCard
           label="Audit events"
-          value={String(auditEvents.length)}
+          value={String(auditEventMetric)}
           helper="Loaded durable evidence"
-          trend={criticalAudit.length > 0 ? "Critical" : "Traceable"}
+          trend={criticalAuditMetric > 0 ? "Critical" : "Traceable"}
         />
       </Box>
 
@@ -12702,6 +12750,8 @@ export default function AdminDashboard({
     businessManagementError,
     platformMetrics,
     platformMetricsError,
+    operationsHealth,
+    operationsHealthError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -13193,6 +13243,8 @@ export default function AdminDashboard({
               riskReviews={riskReviews}
               supportTickets={supportTickets}
               auditEvents={auditEvents}
+              operationsHealth={operationsHealth}
+              operationsHealthError={operationsHealthError}
               onSelect={setSection}
             />
           ) : null}

@@ -124,6 +124,36 @@ type GetMoneyRailsCommand struct {
 	ActorRole admindomain.Role
 }
 
+type GetOperationsHealthCommand struct {
+	ActorRole admindomain.Role
+}
+
+type OperationsHealthResult struct {
+	HealthScore          int
+	BlockedCount         int
+	WatchCount           int
+	PaymentHealthBPS     int
+	FailedWebhooks       int
+	PayoutHolds          int
+	OpenRiskReviews      int
+	OpenSupportTickets   int
+	UrgentSupportTickets int
+	AuditEvents          int
+	CriticalAuditEvents  int
+	Signals              []OperationsHealthSignal
+	UpdatedAt            time.Time
+}
+
+type OperationsHealthSignal struct {
+	ID          string
+	Label       string
+	Value       string
+	Helper      string
+	Status      string
+	Target      string
+	TargetLabel string
+}
+
 type ListSubscriptionsCommand struct {
 	ActorRole admindomain.Role
 }
@@ -962,6 +992,363 @@ func (s Service) GetMoneyRails(ctx context.Context, cmd GetMoneyRailsCommand) (p
 	}
 
 	return s.businesses.GetAdminMoneyRails(ctx)
+}
+
+func (s Service) GetOperationsHealth(
+	ctx context.Context,
+	cmd GetOperationsHealthCommand,
+) (OperationsHealthResult, error) {
+	if !cmd.ActorRole.Valid() {
+		return OperationsHealthResult{}, authdomain.ErrForbidden
+	}
+	permissions, err := s.permissionsForRole(ctx, cmd.ActorRole)
+	if err != nil {
+		return OperationsHealthResult{}, err
+	}
+	allowed := adminPermissionSet(permissions)
+	result := OperationsHealthResult{
+		HealthScore: 100,
+		UpdatedAt:   s.clock.Now(),
+	}
+
+	if operationsHealthNeedsBusinessRepo(allowed) {
+		if s.businesses == nil {
+			return OperationsHealthResult{}, authdomain.ErrForbidden
+		}
+	}
+
+	var platformMetrics ports.AdminPlatformMetricsRecord
+	if allowed[admindomain.PermissionReviewBusinesses] {
+		platformMetrics, err = s.businesses.GetAdminPlatformMetrics(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		result.PaymentHealthBPS = platformMetrics.PaymentHealthBPS
+
+		verificationCases, err := s.businesses.ListAdminVerificationCases(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		pendingKYC := 0
+		for _, item := range verificationCases {
+			if item.VerificationStatus == business.VerificationStatusPending ||
+				item.VerificationStatus == business.VerificationStatusUnverified {
+				pendingKYC++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "kyc",
+			Label:       "Business verification",
+			Value:       intString(pendingKYC) + " pending",
+			Helper:      healthPlural(pendingKYC, "business verification case") + " waiting for operator review.",
+			Status:      healthStatus(pendingKYC > 0, false),
+			Target:      "verification",
+			TargetLabel: "Open KYC",
+		})
+
+		businesses, err := s.businesses.ListAdminBusinesses(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		suspended := 0
+		for _, record := range businesses {
+			if record.OperationalStatus == business.OperationalStatusSuspended {
+				suspended++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "tenants",
+			Label:       "Tenant operations",
+			Value:       intString(suspended) + " suspended",
+			Helper:      tenantOperationsHealthHelper(suspended),
+			Status:      healthStatus(false, suspended > 0),
+			Target:      "businesses",
+			TargetLabel: "Open businesses",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageMoneyRails] {
+		moneyRails, err := s.businesses.GetAdminMoneyRails(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		for _, event := range moneyRails.WebhookEvents {
+			if event.Status == "failed" {
+				result.FailedWebhooks++
+			}
+		}
+		for _, review := range moneyRails.PayoutReviews {
+			if review.HoldActive || review.Status == "blocked" {
+				result.PayoutHolds++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "payments",
+			Label:       "Payment rails",
+			Value:       percentBPSLabel(result.PaymentHealthBPS),
+			Helper:      paymentRailsHealthHelper(result.FailedWebhooks, platformMetrics.FailedPayments30d),
+			Status:      healthStatus(result.FailedWebhooks > 0 || result.PayoutHolds > 0, platformMetrics.FailedPayments30d > 0),
+			Target:      "money",
+			TargetLabel: "Open money rails",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageSubscriptions] {
+		subscriptions, err := s.businesses.ListAdminSubscriptions(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		atRisk := 0
+		onWatch := 0
+		for _, subscription := range subscriptions {
+			if subscription.Status == "past_due" ||
+				subscription.Status == "grace_period" ||
+				subscriptionOverDesignLimit(subscription) {
+				atRisk++
+				continue
+			}
+			if subscription.Status == "cancel_at_period_end" {
+				onWatch++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "subscriptions",
+			Label:       "Subscription health",
+			Value:       intString(atRisk) + " at risk",
+			Helper:      subscriptionHealthHelper(atRisk, onWatch),
+			Status:      healthStatus(atRisk > 0, onWatch > 0),
+			Target:      "subscriptions",
+			TargetLabel: "Open subscriptions",
+		})
+	}
+
+	if allowed[admindomain.PermissionManagePromotions] {
+		promotions, err := s.businesses.ListAdminPromotions(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		active := 0
+		pendingRedemptions := 0
+		for _, promotion := range promotions {
+			if promotion.Status == "active" {
+				active++
+			}
+			for _, redemption := range promotion.RecentRedemptions {
+				if redemption.Status == "pending" {
+					pendingRedemptions++
+				}
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "promotions",
+			Label:       "Promotion controls",
+			Value:       intString(active) + " active",
+			Helper:      promotionHealthHelper(pendingRedemptions),
+			Status:      healthStatus(false, pendingRedemptions > 0),
+			Target:      "promotions",
+			TargetLabel: "Open promotions",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageAds] {
+		campaigns, err := s.businesses.ListAdminAdCampaigns(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		pending := 0
+		active := 0
+		for _, campaign := range campaigns {
+			switch campaign.Status {
+			case "pending_review":
+				pending++
+			case "active":
+				active++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "ads",
+			Label:       "Sponsored placements",
+			Value:       intString(pending) + " pending",
+			Helper:      adHealthHelper(pending, active),
+			Status:      healthStatus(false, pending > 0),
+			Target:      "ads",
+			TargetLabel: "Open ads",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageGrowth] {
+		affiliates, err := s.businesses.ListAdminAffiliates(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		pendingAffiliates := 0
+		activeAffiliates := 0
+		manualPayoutAffiliates := 0
+		for _, affiliate := range affiliates {
+			switch affiliate.Status {
+			case "pending_review":
+				pendingAffiliates++
+			case "active":
+				activeAffiliates++
+			}
+			if affiliate.PayoutMode == "manual" {
+				manualPayoutAffiliates++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "affiliates",
+			Label:       "Affiliate programmes",
+			Value:       intString(pendingAffiliates) + " pending",
+			Helper:      affiliateHealthHelper(pendingAffiliates, activeAffiliates, manualPayoutAffiliates),
+			Status:      healthStatus(false, pendingAffiliates > 0 || manualPayoutAffiliates > 0),
+			Target:      "affiliates",
+			TargetLabel: "Open affiliates",
+		})
+
+		referralProgrammes, err := s.businesses.ListAdminReferralProgrammes(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		activeReferrals := 0
+		draftReferrals := 0
+		pausedReferrals := 0
+		for _, programme := range referralProgrammes {
+			switch programme.Status {
+			case "active":
+				activeReferrals++
+			case "draft":
+				draftReferrals++
+			case "paused":
+				pausedReferrals++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "referrals",
+			Label:       "Referral programmes",
+			Value:       intString(activeReferrals) + " active",
+			Helper:      referralHealthHelper(draftReferrals, pausedReferrals),
+			Status:      healthStatus(false, draftReferrals > 0),
+			Target:      "referrals",
+			TargetLabel: "Open referrals",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageRisk] {
+		riskReviews, err := s.businesses.ListAdminRiskReviews(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		for _, review := range riskReviews {
+			if review.Status != "open" {
+				continue
+			}
+			result.OpenRiskReviews++
+		}
+	}
+	if allowed[admindomain.PermissionManageSupport] {
+		supportTickets, err := s.businesses.ListAdminSupportTickets(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		for _, ticket := range supportTickets {
+			if ticket.Status != "open" {
+				continue
+			}
+			result.OpenSupportTickets++
+			if ticket.Priority == "urgent" {
+				result.UrgentSupportTickets++
+			}
+		}
+	}
+	if allowed[admindomain.PermissionManageRisk] || allowed[admindomain.PermissionManageSupport] {
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "trust",
+			Label:       "Risk and support",
+			Value:       intString(result.OpenRiskReviews+result.OpenSupportTickets) + " open",
+			Helper:      trustHealthHelper(result.OpenRiskReviews, result.OpenSupportTickets, result.UrgentSupportTickets),
+			Status:      healthStatus(result.UrgentSupportTickets > 0, result.OpenRiskReviews+result.OpenSupportTickets > 0),
+			Target:      trustHealthTarget(result.OpenRiskReviews, result.OpenSupportTickets),
+			TargetLabel: "Open queue",
+		})
+	}
+
+	if allowed[admindomain.PermissionViewAudit] {
+		if s.audits == nil {
+			return OperationsHealthResult{}, authdomain.ErrForbidden
+		}
+		auditEvents, err := s.audits.ListAdminAuditEvents(ctx, ports.ListAdminAuditEventsInput{Limit: 200})
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		result.AuditEvents = len(auditEvents)
+		for _, event := range auditEvents {
+			if event.Severity == admindomain.AuditSeverityCritical {
+				result.CriticalAuditEvents++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "audit",
+			Label:       "Audit evidence",
+			Value:       intString(result.AuditEvents) + " events",
+			Helper:      auditHealthHelper(result.CriticalAuditEvents),
+			Status:      healthStatus(result.CriticalAuditEvents > 0, result.AuditEvents == 0),
+			Target:      "audit",
+			TargetLabel: "Open audit",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageSettings] {
+		settings, err := s.users.GetAdminPlatformSettings(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "policy",
+			Label:       "Platform policy",
+			Value:       platformPolicyValue(settings.MaintenanceMode),
+			Helper:      platformPolicyHelper(settings.VerificationSLAHours),
+			Status:      healthStatus(false, settings.MaintenanceMode),
+			Target:      "settings",
+			TargetLabel: "Open settings",
+		})
+	}
+
+	if allowed[admindomain.PermissionManageAdminUsers] {
+		users, err := s.users.ListAdminUsers(ctx)
+		if err != nil {
+			return OperationsHealthResult{}, err
+		}
+		inactiveUsers := 0
+		for _, user := range users {
+			if !user.IsActive {
+				inactiveUsers++
+			}
+		}
+		addHealthSignal(&result, OperationsHealthSignal{
+			ID:          "access",
+			Label:       "Operator access",
+			Value:       intString(len(users)) + " users",
+			Helper:      operatorAccessHealthHelper(inactiveUsers),
+			Status:      healthStatus(false, inactiveUsers > 0),
+			Target:      "users",
+			TargetLabel: "Open users",
+		})
+	}
+
+	if len(result.Signals) == 0 {
+		return OperationsHealthResult{}, authdomain.ErrForbidden
+	}
+	addHealthSignal(&result, OperationsHealthSignal{
+		ID:          "exports",
+		Label:       "Export readiness",
+		Value:       "Ready",
+		Helper:      "CSV snapshots are available for report posture and admin queues.",
+		Status:      "ready",
+		Target:      "exports",
+		TargetLabel: "Open exports",
+	})
+	finalizeOperationsHealth(&result)
+	return result, nil
 }
 
 func (s Service) ListSubscriptions(
@@ -3935,6 +4322,184 @@ func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecor
 func subscriptionRecurringChargeReady(subscription ports.AdminSubscriptionRecord) bool {
 	return strings.TrimSpace(subscription.OwnerEmail) != "" &&
 		strings.TrimSpace(subscription.ProviderSubscriptionRef) != ""
+}
+
+func adminPermissionSet(permissions []admindomain.Permission) map[admindomain.Permission]bool {
+	out := make(map[admindomain.Permission]bool, len(permissions))
+	for _, permission := range permissions {
+		out[permission] = true
+	}
+	return out
+}
+
+func operationsHealthNeedsBusinessRepo(allowed map[admindomain.Permission]bool) bool {
+	return allowed[admindomain.PermissionReviewBusinesses] ||
+		allowed[admindomain.PermissionManageMoneyRails] ||
+		allowed[admindomain.PermissionManageSubscriptions] ||
+		allowed[admindomain.PermissionManagePromotions] ||
+		allowed[admindomain.PermissionManageAds] ||
+		allowed[admindomain.PermissionManageGrowth] ||
+		allowed[admindomain.PermissionManageRisk] ||
+		allowed[admindomain.PermissionManageSupport]
+}
+
+func addHealthSignal(result *OperationsHealthResult, signal OperationsHealthSignal) {
+	signal.Status = healthStatusValue(signal.Status)
+	result.Signals = append(result.Signals, signal)
+}
+
+func finalizeOperationsHealth(result *OperationsHealthResult) {
+	result.BlockedCount = 0
+	result.WatchCount = 0
+	for _, signal := range result.Signals {
+		switch signal.Status {
+		case "blocked":
+			result.BlockedCount++
+		case "watch":
+			result.WatchCount++
+		}
+	}
+	score := 100 - result.BlockedCount*15 - result.WatchCount*7
+	if score < 0 {
+		score = 0
+	}
+	result.HealthScore = score
+}
+
+func healthStatus(blocked bool, watch bool) string {
+	if blocked {
+		return "blocked"
+	}
+	if watch {
+		return "watch"
+	}
+	return "ready"
+}
+
+func healthStatusValue(value string) string {
+	switch strings.TrimSpace(value) {
+	case "blocked", "watch":
+		return strings.TrimSpace(value)
+	default:
+		return "ready"
+	}
+}
+
+func healthPlural(count int, singular string) string {
+	if count == 1 {
+		return "1 " + singular
+	}
+	return intString(count) + " " + singular + "s"
+}
+
+func subscriptionOverDesignLimit(subscription ports.AdminSubscriptionRecord) bool {
+	return subscription.DesignLimit != nil && subscription.DesignCount > *subscription.DesignLimit
+}
+
+func percentBPSLabel(bps int) string {
+	if bps < 0 {
+		bps = 0
+	}
+	if bps > 10000 {
+		bps = 10000
+	}
+	whole := bps / 100
+	tenths := (bps % 100) / 10
+	if tenths == 0 {
+		return intString(whole) + "%"
+	}
+	return intString(whole) + "." + intString(tenths) + "%"
+}
+
+func paymentRailsHealthHelper(failedWebhooks int, failedPayments30d int) string {
+	if failedWebhooks > 0 {
+		return healthPlural(failedWebhooks, "failed webhook event") + " need review."
+	}
+	return healthPlural(failedPayments30d, "failed payment") + " in the last 30 days."
+}
+
+func tenantOperationsHealthHelper(suspended int) string {
+	if suspended > 0 {
+		return "Suspended businesses need follow-up notes or reactivation review."
+	}
+	return "No stores are suspended right now."
+}
+
+func subscriptionHealthHelper(atRisk int, onWatch int) string {
+	if atRisk > 0 {
+		return "Past-due, grace-period, or over-plan businesses need follow-up."
+	}
+	return healthPlural(onWatch, "subscription") + " scheduled to cancel at period end."
+}
+
+func promotionHealthHelper(pendingRedemptions int) string {
+	if pendingRedemptions > 0 {
+		return healthPlural(pendingRedemptions, "pending redemption") + " need operator review."
+	}
+	return "No pending promotion redemptions are visible."
+}
+
+func adHealthHelper(pending int, active int) string {
+	if pending > 0 {
+		return healthPlural(pending, "advertiser placement") + " need operator approval."
+	}
+	return healthPlural(active, "active placement") + " cleared for approved windows."
+}
+
+func affiliateHealthHelper(pending int, active int, manualPayout int) string {
+	if pending > 0 {
+		return healthPlural(pending, "partner") + " need operator review before attribution."
+	}
+	return intString(active) + " active partners; " + intString(manualPayout) + " manual payout rails."
+}
+
+func referralHealthHelper(draft int, paused int) string {
+	if draft > 0 {
+		return healthPlural(draft, "draft programme") + " need operator review before launch."
+	}
+	return healthPlural(paused, "paused programme") + " retained for audit and future relaunch."
+}
+
+func trustHealthHelper(openRisk int, openSupport int, urgentSupport int) string {
+	if urgentSupport > 0 {
+		return intString(openRisk) + " risk and " + intString(urgentSupport) + " urgent support signals are open."
+	}
+	return intString(openRisk+openSupport) + " trust/support signals are open."
+}
+
+func trustHealthTarget(openRisk int, openSupport int) string {
+	if openRisk > 0 {
+		return "risk"
+	}
+	if openSupport > 0 {
+		return "support"
+	}
+	return "support"
+}
+
+func auditHealthHelper(criticalAudit int) string {
+	if criticalAudit > 0 {
+		return healthPlural(criticalAudit, "critical audit event") + " visible."
+	}
+	return "Sensitive operator actions have durable trace coverage."
+}
+
+func platformPolicyValue(maintenanceMode bool) string {
+	if maintenanceMode {
+		return "Maintenance"
+	}
+	return "Live"
+}
+
+func platformPolicyHelper(verificationSLAHours int) string {
+	return intString(verificationSLAHours) + "h KYC SLA is configured for operator review."
+}
+
+func operatorAccessHealthHelper(inactiveUsers int) string {
+	if inactiveUsers > 0 {
+		return healthPlural(inactiveUsers, "inactive operator") + " remain visible for review."
+	}
+	return "All loaded operator accounts are active."
 }
 
 func normalizeProviderChargeStatus(status string) string {

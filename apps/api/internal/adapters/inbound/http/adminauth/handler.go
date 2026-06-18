@@ -39,6 +39,7 @@ type Service interface {
 	UpdateBusinessStatus(ctx context.Context, command adminauthapp.UpdateBusinessStatusCommand) (ports.AdminBusinessRecord, error)
 	GetPlatformMetrics(ctx context.Context, command adminauthapp.GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error)
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
+	GetOperationsHealth(ctx context.Context, command adminauthapp.GetOperationsHealthCommand) (adminauthapp.OperationsHealthResult, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
@@ -115,6 +116,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/business-verifications/{id}/decision", handler.decideBusinessVerification)
 		protected.Get("/admin/platform-metrics", handler.platformMetrics)
 		protected.Get("/admin/money-rails", handler.moneyRails)
+		protected.Get("/admin/operations-health", handler.operationsHealth)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
@@ -543,6 +545,32 @@ type moneyRailsResponse struct {
 	WebhookEvents []moneyWebhookEventResponse `json:"webhook_events"`
 	PayoutReviews []moneyPayoutReviewResponse `json:"payout_reviews"`
 	UpdatedAt     string                      `json:"updated_at"`
+}
+
+type operationsHealthResponse struct {
+	HealthScore          int                      `json:"health_score"`
+	BlockedCount         int                      `json:"blocked_count"`
+	WatchCount           int                      `json:"watch_count"`
+	PaymentHealthBPS     int                      `json:"payment_health_bps"`
+	FailedWebhooks       int                      `json:"failed_webhooks"`
+	PayoutHolds          int                      `json:"payout_holds"`
+	OpenRiskReviews      int                      `json:"open_risk_reviews"`
+	OpenSupportTickets   int                      `json:"open_support_tickets"`
+	UrgentSupportTickets int                      `json:"urgent_support_tickets"`
+	AuditEvents          int                      `json:"audit_events"`
+	CriticalAuditEvents  int                      `json:"critical_audit_events"`
+	Signals              []operationsHealthSignal `json:"signals"`
+	UpdatedAt            string                   `json:"updated_at"`
+}
+
+type operationsHealthSignal struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Value       string `json:"value"`
+	Helper      string `json:"helper"`
+	Status      string `json:"status"`
+	Target      string `json:"target"`
+	TargetLabel string `json:"target_label"`
 }
 
 type moneyWebhookEventResponse struct {
@@ -1257,6 +1285,25 @@ func (handler Handler) moneyRails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newMoneyRailsResponse(moneyRails))
+}
+
+func (handler Handler) operationsHealth(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	health, err := handler.service.GetOperationsHealth(r.Context(), adminauthapp.GetOperationsHealthCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newOperationsHealthResponse(health))
 }
 
 func (handler Handler) subscriptions(w http.ResponseWriter, r *http.Request) {
@@ -3404,6 +3451,38 @@ func newMoneyRailsResponse(record ports.AdminMoneyRailsRecord) moneyRailsRespons
 		WebhookEvents: webhookEvents,
 		PayoutReviews: payoutReviews,
 		UpdatedAt:     record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newOperationsHealthResponse(
+	record adminauthapp.OperationsHealthResult,
+) operationsHealthResponse {
+	signals := make([]operationsHealthSignal, 0, len(record.Signals))
+	for _, signal := range record.Signals {
+		signals = append(signals, operationsHealthSignal{
+			ID:          signal.ID,
+			Label:       signal.Label,
+			Value:       signal.Value,
+			Helper:      signal.Helper,
+			Status:      signal.Status,
+			Target:      signal.Target,
+			TargetLabel: signal.TargetLabel,
+		})
+	}
+	return operationsHealthResponse{
+		HealthScore:          record.HealthScore,
+		BlockedCount:         record.BlockedCount,
+		WatchCount:           record.WatchCount,
+		PaymentHealthBPS:     record.PaymentHealthBPS,
+		FailedWebhooks:       record.FailedWebhooks,
+		PayoutHolds:          record.PayoutHolds,
+		OpenRiskReviews:      record.OpenRiskReviews,
+		OpenSupportTickets:   record.OpenSupportTickets,
+		UrgentSupportTickets: record.UrgentSupportTickets,
+		AuditEvents:          record.AuditEvents,
+		CriticalAuditEvents:  record.CriticalAuditEvents,
+		Signals:              signals,
+		UpdatedAt:            record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

@@ -2703,6 +2703,133 @@ func TestUpdateSupportTicketRequiresSupportPermissionAndAudits(t *testing.T) {
 	}
 }
 
+func TestGetOperationsHealthSummarizesAllowedReadModels(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 18, 10, 0, 0, 0, time.UTC)
+	designLimit := 2
+	users := &fakeAdminUsers{
+		users: []ports.AdminUserRecord{
+			{UserID: "owner-1", Email: "owner@example.com", Role: admindomain.RoleOwner, IsActive: true},
+			{UserID: "operator-1", Email: "operator@example.com", Role: admindomain.RoleOperator, IsActive: false},
+		},
+		platformSettings: ports.AdminPlatformSettingsRecord{
+			PlatformName:         "Xtiitch",
+			SupportEmail:         "support@xtiitch.com",
+			VerificationSLAHours: 24,
+			MaintenanceMode:      true,
+		},
+	}
+	businesses := &fakeAdminBusinesses{
+		cases: []ports.AdminVerificationCaseRecord{
+			{BusinessID: "business-1", VerificationStatus: business.VerificationStatusPending},
+		},
+		businesses: []ports.AdminBusinessRecord{
+			{BusinessID: "business-1", Name: "Ama Stitches", OperationalStatus: business.OperationalStatusSuspended},
+		},
+		metrics: ports.AdminPlatformMetricsRecord{
+			PaymentHealthBPS:  9200,
+			FailedPayments30d: 1,
+			UpdatedAt:         now,
+		},
+		moneyRails: ports.AdminMoneyRailsRecord{
+			WebhookEvents: []ports.AdminMoneyWebhookEventRecord{
+				{ID: "event-1", Status: "failed"},
+			},
+			PayoutReviews: []ports.AdminMoneyPayoutReviewRecord{
+				{ID: "business-1", Status: "blocked", HoldActive: true},
+			},
+			UpdatedAt: now,
+		},
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{BusinessID: "business-1", BusinessName: "Ama Stitches", Status: "past_due", DesignLimit: &designLimit, DesignCount: 3},
+		},
+		promotions: []ports.AdminPromotionRecord{
+			{
+				PromotionID: "promotion-1",
+				Status:      "active",
+				RecentRedemptions: []ports.AdminPromotionRedemptionRecord{
+					{PromotionRedemptionID: "redemption-1", Status: "pending"},
+				},
+			},
+		},
+		adCampaigns: []ports.AdminAdCampaignRecord{
+			{CampaignID: "campaign-1", Status: "pending_review"},
+		},
+		affiliates: []ports.AdminAffiliateRecord{
+			{AffiliateID: "affiliate-1", Status: "pending_review", PayoutMode: "manual"},
+		},
+		referralProgrammes: []ports.AdminReferralProgrammeRecord{
+			{ProgrammeID: "programme-1", Status: "draft"},
+		},
+		riskReviews: []ports.AdminRiskReviewRecord{
+			{ReviewKey: "risk-1", Level: "high", Status: "open"},
+		},
+		supportTickets: []ports.AdminSupportTicketRecord{
+			{TicketKey: "ticket-1", Priority: "urgent", Status: "open"},
+		},
+	}
+	service, audits := newTestServiceWithBusinesses(
+		users,
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"unused"},
+	)
+	audits.events = []ports.AdminAuditEventRecord{
+		{AuditEventID: "audit-1", Severity: admindomain.AuditSeverityCritical},
+		{AuditEventID: "audit-2", Severity: admindomain.AuditSeverityInfo},
+	}
+
+	health, err := service.GetOperationsHealth(context.Background(), GetOperationsHealthCommand{
+		ActorRole: admindomain.RoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("get operations health: %v", err)
+	}
+	if health.HealthScore != 0 ||
+		health.BlockedCount != 5 ||
+		health.WatchCount != 7 ||
+		health.FailedWebhooks != 1 ||
+		health.PayoutHolds != 1 ||
+		health.UrgentSupportTickets != 1 ||
+		health.CriticalAuditEvents != 1 {
+		t.Fatalf("unexpected owner health summary: %+v", health)
+	}
+	if healthSignalStatus(health, "payments") != "blocked" ||
+		healthSignalStatus(health, "subscriptions") != "blocked" ||
+		healthSignalStatus(health, "access") != "watch" ||
+		healthSignalStatus(health, "exports") != "ready" {
+		t.Fatalf("unexpected owner health signals: %+v", health.Signals)
+	}
+
+	supportHealth, err := service.GetOperationsHealth(context.Background(), GetOperationsHealthCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if err != nil {
+		t.Fatalf("get support operations health: %v", err)
+	}
+	if healthSignalStatus(supportHealth, "payments") != "" ||
+		healthSignalStatus(supportHealth, "subscriptions") != "" ||
+		healthSignalStatus(supportHealth, "trust") != "blocked" ||
+		healthSignalStatus(supportHealth, "audit") != "blocked" ||
+		healthSignalStatus(supportHealth, "exports") != "ready" {
+		t.Fatalf("unexpected support-scoped health signals: %+v", supportHealth.Signals)
+	}
+}
+
+func healthSignalStatus(
+	record OperationsHealthResult,
+	id string,
+) string {
+	for _, signal := range record.Signals {
+		if signal.ID == id {
+			return signal.Status
+		}
+	}
+	return ""
+}
+
 func newTestService(users *fakeAdminUsers, sessions *fakeAdminSessions, now time.Time, ids []common.ID) Service {
 	service, _ := newTestServiceWithAudits(users, sessions, now, ids)
 	return service

@@ -67,6 +67,34 @@ export type AdminPlatformMetrics = {
   updatedAt: string;
 };
 
+export type AdminOperationsHealthStatus = "ready" | "watch" | "blocked";
+
+export type AdminOperationsHealthSignal = {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+  status: AdminOperationsHealthStatus;
+  target: string;
+  targetLabel: string;
+};
+
+export type AdminOperationsHealth = {
+  healthScore: number;
+  blockedCount: number;
+  watchCount: number;
+  paymentHealthBps: number;
+  failedWebhooks: number;
+  payoutHolds: number;
+  openRiskReviews: number;
+  openSupportTickets: number;
+  urgentSupportTickets: number;
+  auditEvents: number;
+  criticalAuditEvents: number;
+  signals: AdminOperationsHealthSignal[];
+  updatedAt: string;
+};
+
 export type AdminMoneyWebhookStatus =
   | "verified"
   | "failed"
@@ -632,6 +660,32 @@ type AdminPlatformMetricsPayload = {
   payment_health_bps: number;
   failed_payments_30d: number;
   total_payments_30d: number;
+  updated_at: string;
+};
+
+type AdminOperationsHealthSignalPayload = {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+  status: AdminOperationsHealthStatus;
+  target: string;
+  target_label: string;
+};
+
+type AdminOperationsHealthPayload = {
+  health_score: number;
+  blocked_count: number;
+  watch_count: number;
+  payment_health_bps: number;
+  failed_webhooks: number;
+  payout_holds: number;
+  open_risk_reviews: number;
+  open_support_tickets: number;
+  urgent_support_tickets: number;
+  audit_events: number;
+  critical_audit_events: number;
+  signals: AdminOperationsHealthSignalPayload[];
   updated_at: string;
 };
 
@@ -1233,6 +1287,34 @@ function mapPlatformMetrics(
   };
 }
 
+function mapOperationsHealth(
+  payload: AdminOperationsHealthPayload,
+): AdminOperationsHealth {
+  return {
+    healthScore: payload.health_score,
+    blockedCount: payload.blocked_count,
+    watchCount: payload.watch_count,
+    paymentHealthBps: payload.payment_health_bps,
+    failedWebhooks: payload.failed_webhooks,
+    payoutHolds: payload.payout_holds,
+    openRiskReviews: payload.open_risk_reviews,
+    openSupportTickets: payload.open_support_tickets,
+    urgentSupportTickets: payload.urgent_support_tickets,
+    auditEvents: payload.audit_events,
+    criticalAuditEvents: payload.critical_audit_events,
+    signals: payload.signals.map((signal) => ({
+      id: signal.id,
+      label: signal.label,
+      value: signal.value,
+      helper: signal.helper,
+      status: signal.status,
+      target: signal.target,
+      targetLabel: signal.target_label,
+    })),
+    updatedAt: payload.updated_at,
+  };
+}
+
 function mapMoneyRails(payload: AdminMoneyRailsPayload): AdminMoneyRails {
   return {
     webhookEvents: payload.webhook_events.map((event) => ({
@@ -1823,6 +1905,11 @@ export const adminApi = {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then(mapPlatformMetrics),
+  operationsHealth: (accessToken: string) =>
+    requestJSON<AdminOperationsHealthPayload>("/admin/operations-health", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapOperationsHealth),
   moneyRails: (accessToken: string) =>
     requestJSON<AdminMoneyRailsPayload>("/admin/money-rails", {
       method: "GET",
