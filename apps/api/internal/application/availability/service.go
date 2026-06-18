@@ -10,7 +10,9 @@ import (
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -48,10 +50,21 @@ type WindowInput struct {
 	SlotMinutes int
 }
 
+type DefineAvailabilityCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Windows   []WindowInput
+}
+
 // DefineAvailability replaces the business's weekly home-visit windows. Windows
 // are validated and may not overlap on the same weekday, so a slot start is
 // always defined by exactly one window (no duplicate or ambiguous slots).
-func (s Service) DefineAvailability(ctx context.Context, scope common.TenantScope, windows []WindowInput) error {
+func (s Service) DefineAvailability(ctx context.Context, command DefineAvailabilityCommand) error {
+	if err := authorizeAvailabilityManagement(command.ActorRole); err != nil {
+		return err
+	}
+
+	windows := command.Windows
 	for _, w := range windows {
 		if w.Weekday < 0 || w.Weekday > 6 ||
 			w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
@@ -73,7 +86,14 @@ func (s Service) DefineAvailability(ctx context.Context, scope common.TenantScop
 			SlotMinutes: w.SlotMinutes,
 		})
 	}
-	return s.availability.ReplaceWindows(ctx, scope, out)
+	return s.availability.ReplaceWindows(ctx, command.Scope, out)
+}
+
+func authorizeAvailabilityManagement(role business.UserRole) error {
+	if role == business.UserRoleOwner || role == business.UserRoleAdmin {
+		return nil
+	}
+	return authdomain.ErrForbidden
 }
 
 func windowsOverlap(windows []WindowInput) bool {

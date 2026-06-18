@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -39,26 +41,56 @@ func TestDefineAvailabilityRejectsOverlap(t *testing.T) {
 	scope := common.TenantScope{BusinessID: "b1"}
 
 	// Two windows on the same weekday that overlap (09:00–11:00 and 10:00–12:00).
-	if err := svc.DefineAvailability(context.Background(), scope, []WindowInput{
-		{Weekday: 2, StartMinute: 540, EndMinute: 660, SlotMinutes: 60},
-		{Weekday: 2, StartMinute: 600, EndMinute: 720, SlotMinutes: 30},
+	if err := svc.DefineAvailability(context.Background(), DefineAvailabilityCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleOwner,
+		Windows: []WindowInput{
+			{Weekday: 2, StartMinute: 540, EndMinute: 660, SlotMinutes: 60},
+			{Weekday: 2, StartMinute: 600, EndMinute: 720, SlotMinutes: 30},
+		},
 	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected overlapping windows rejected, got %v", err)
 	}
 
 	// Adjacent (non-overlapping) windows on the same weekday are allowed.
-	if err := svc.DefineAvailability(context.Background(), scope, []WindowInput{
-		{Weekday: 2, StartMinute: 540, EndMinute: 600, SlotMinutes: 60},
-		{Weekday: 2, StartMinute: 600, EndMinute: 720, SlotMinutes: 60},
+	if err := svc.DefineAvailability(context.Background(), DefineAvailabilityCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleAdmin,
+		Windows: []WindowInput{
+			{Weekday: 2, StartMinute: 540, EndMinute: 600, SlotMinutes: 60},
+			{Weekday: 2, StartMinute: 600, EndMinute: 720, SlotMinutes: 60},
+		},
 	}); err != nil {
 		t.Fatalf("adjacent windows should be allowed, got %v", err)
 	}
 
 	// An invalid window (end <= start) is rejected.
-	if err := svc.DefineAvailability(context.Background(), scope, []WindowInput{
-		{Weekday: 1, StartMinute: 600, EndMinute: 600, SlotMinutes: 60},
+	if err := svc.DefineAvailability(context.Background(), DefineAvailabilityCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleOwner,
+		Windows: []WindowInput{
+			{Weekday: 1, StartMinute: 600, EndMinute: 600, SlotMinutes: 60},
+		},
 	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected invalid window rejected, got %v", err)
+	}
+}
+
+func TestDefineAvailabilityRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(Dependencies{Availability: fakeAvailRepo{}, IDs: fakeIDs{}})
+	scope := common.TenantScope{BusinessID: "b1"}
+
+	err := svc.DefineAvailability(context.Background(), DefineAvailabilityCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleStaff,
+		Windows: []WindowInput{
+			{Weekday: 2, StartMinute: 540, EndMinute: 660, SlotMinutes: 60},
+		},
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff to be forbidden from defining availability, got %v", err)
 	}
 }
 

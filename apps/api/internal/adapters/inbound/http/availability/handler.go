@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -22,7 +23,7 @@ const (
 )
 
 type Service interface {
-	DefineAvailability(ctx context.Context, scope common.TenantScope, windows []availabilityapp.WindowInput) error
+	DefineAvailability(ctx context.Context, command availabilityapp.DefineAvailabilityCommand) error
 	ListWindows(ctx context.Context, scope common.TenantScope) ([]booking.Window, error)
 	ListStoreAvailability(ctx context.Context, handle string, from, to time.Time) ([]booking.Slot, error)
 }
@@ -105,7 +106,11 @@ func (handler Handler) defineWindows(w http.ResponseWriter, r *http.Request) {
 			SlotMinutes: win.SlotMinutes,
 		})
 	}
-	if err := handler.service.DefineAvailability(r.Context(), principal.TenantScope(), windows); err != nil {
+	if err := handler.service.DefineAvailability(r.Context(), availabilityapp.DefineAvailabilityCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		Windows:   windows,
+	}); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -147,6 +152,8 @@ func parseTimeOr(value string, fallback time.Time) time.Time {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, authdomain.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, availabilityapp.ErrInvalidInput):
 		writeError(w, http.StatusBadRequest, "invalid_input")
 	case errors.Is(err, availabilityapp.ErrStoreNotFound):
