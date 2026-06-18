@@ -29,6 +29,7 @@ import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
@@ -106,6 +107,31 @@ type SizeBand = {
   size_band_id: string;
   label: string;
   sequence: number;
+};
+
+type BusinessPromotion = {
+  promotion_id: string;
+  business_id: string;
+  code: string;
+  title: string;
+  description: string;
+  discount_type: "percentage" | "fixed" | string;
+  discount_value: number;
+  max_discount_minor: number | null;
+  min_spend_minor: number;
+  usage_limit_global: number | null;
+  usage_limit_per_customer: number | null;
+  funding_source: string;
+  scope: "store" | "collection" | "design" | string;
+  target_collection_id: string | null;
+  target_design_id: string | null;
+  status: "active" | "paused" | "archived" | string;
+  starts_at: string | null;
+  ends_at: string | null;
+  redemption_count: number;
+  discount_redeemed_minor: number;
+  created_at: string;
+  updated_at: string;
 };
 
 type OrderSummary = {
@@ -231,6 +257,7 @@ type DashboardSection =
   | "visits"
   | "handovers"
   | "catalogue"
+  | "promotions"
   | "measurements"
   | "availability"
   | "settings"
@@ -269,6 +296,7 @@ type DashboardActionData = {
   collectionError?: string;
   sizeBandError?: string;
   priceError?: string;
+  promotionError?: string;
   walkInError?: string;
 };
 
@@ -397,6 +425,13 @@ const managementWorkspaceNav: WorkspaceNavItem[] = [
     icon: <DesignServicesRounded />,
   },
   {
+    href: "/dashboard/promotions",
+    section: "promotions",
+    label: "Promotions",
+    helper: "Promo codes",
+    icon: <LocalOfferRounded />,
+  },
+  {
     href: "/dashboard/measurements",
     section: "measurements",
     label: "Measurements",
@@ -506,6 +541,9 @@ const dashboardActionIntents = new Set([
   "delete_collection",
   "create_size_band",
   "set_design_price",
+  "create_promotion",
+  "update_promotion",
+  "archive_promotion",
   "upload_design_image",
   "update_design",
   "delete_design",
@@ -608,6 +646,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   let storeSettings = defaultStoreSettings;
   let collections: CollectionSummary[] = [];
   let sizeBands: SizeBand[] = [];
+  let promotions: BusinessPromotion[] = [];
   const orders = ordersData.orders ?? [];
 
   if (canManage) {
@@ -620,6 +659,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       settingsResponse,
       collectionsResponse,
       sizeBandsResponse,
+      promotionsResponse,
     ] = await Promise.all([
       apiFetch(request, "/designs"),
       apiFetch(request, "/money/summary"),
@@ -629,6 +669,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       apiFetch(request, "/store-settings"),
       apiFetch(request, "/collections"),
       apiFetch(request, "/size-bands"),
+      apiFetch(request, "/promotions"),
     ]);
     const designsData = (await designsResponse.json()) as {
       designs: Design[];
@@ -650,6 +691,9 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     };
     const sizeBandsData = (await sizeBandsResponse.json()) as {
       size_bands: SizeBand[];
+    };
+    const promotionsData = (await promotionsResponse.json()) as {
+      promotions: BusinessPromotion[];
     };
 
     const listedDesigns = designsData.designs ?? [];
@@ -677,6 +721,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     storeSettings = settingsData;
     collections = collectionsData.collections ?? [];
     sizeBands = sizeBandsData.size_bands ?? [];
+    promotions = promotionsData.promotions ?? [];
   }
 
   return {
@@ -695,6 +740,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     storeSettings,
     collections,
     sizeBands,
+    promotions,
     section,
     orderFilter,
   };
@@ -1240,6 +1286,52 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/catalogue");
   }
 
+  if (intent === "create_promotion" || intent === "update_promotion") {
+    const parsed = promotionBodyFromForm(form);
+    if (!parsed.ok) {
+      return { promotionError: parsed.message };
+    }
+    const promotionID = String(form.get("promotion_id") ?? "").trim();
+    if (intent === "update_promotion" && !promotionID) {
+      return { promotionError: "That promotion could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      intent === "create_promotion"
+        ? "/promotions"
+        : `/promotions/${encodeURIComponent(promotionID)}`,
+      {
+        method: intent === "create_promotion" ? "POST" : "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(parsed.body),
+      },
+    );
+    if (!response.ok) {
+      return {
+        promotionError: promotionErrorMessage(response.status),
+      };
+    }
+    return redirect("/dashboard/promotions");
+  }
+
+  if (intent === "archive_promotion") {
+    const promotionID = String(form.get("promotion_id") ?? "").trim();
+    if (!promotionID) {
+      return { promotionError: "That promotion could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/promotions/${encodeURIComponent(promotionID)}/archive`,
+      { method: "POST" },
+    );
+    if (!response.ok) {
+      return {
+        promotionError: promotionErrorMessage(response.status),
+      };
+    }
+    return redirect("/dashboard/promotions");
+  }
+
   if (intent === "upload_design_image") {
     const designID = String(form.get("design_id") ?? "").trim();
     const file = form.get("image_file");
@@ -1444,6 +1536,7 @@ function isManagementSection(value: string): value is DashboardSection {
     "visits",
     "handovers",
     "catalogue",
+    "promotions",
     "measurements",
     "availability",
     "settings",
@@ -1609,6 +1702,15 @@ function dashboardPageMeta(section: DashboardSection): DashboardPageMeta {
         icon: <DesignServicesRounded />,
         tone: tokens.burgundy,
       };
+    case "promotions":
+      return {
+        eyebrow: "Growth",
+        title: "Promotion desk",
+        helper:
+          "Create business-funded promo codes for the whole store, one collection, or a specific design.",
+        icon: <LocalOfferRounded />,
+        tone: tokens.gold,
+      };
     case "measurements":
       return {
         eyebrow: "Fittings",
@@ -1700,6 +1802,185 @@ function parseMoneyMinor(value: FormDataEntryValue | null): number | null {
     return null;
   }
   return Math.round(amount * 100);
+}
+
+function parseOptionalMoneyMinor(value: FormDataEntryValue | null): number | null {
+  const entered = String(value ?? "")
+    .replaceAll(",", "")
+    .trim();
+  if (!entered) {
+    return 0;
+  }
+  const amount = Number.parseFloat(entered);
+  if (!Number.isFinite(amount) || amount < 0) {
+    return null;
+  }
+  return Math.round(amount * 100);
+}
+
+function parseOptionalPositiveInt(
+  value: FormDataEntryValue | null,
+): number | null | undefined {
+  const entered = String(value ?? "").trim();
+  if (!entered) {
+    return null;
+  }
+  const parsed = Number.parseInt(entered, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function parsePercentBps(value: FormDataEntryValue | null): number | null {
+  const entered = String(value ?? "").trim();
+  if (!entered) {
+    return null;
+  }
+  const percent = Number.parseFloat(entered);
+  if (!Number.isFinite(percent) || percent <= 0 || percent > 100) {
+    return null;
+  }
+  return Math.round(percent * 100);
+}
+
+type PromotionFormBody =
+  | {
+      ok: true;
+      body: {
+        code: string;
+        title: string;
+        description: string;
+        discount_type: string;
+        discount_value: number;
+        max_discount_minor: number | null;
+        min_spend_minor: number;
+        usage_limit_global: number | null;
+        usage_limit_per_customer: number | null;
+        scope: string;
+        target_collection_id: string | null;
+        target_design_id: string | null;
+        status: string;
+        starts_at: string;
+        ends_at: string;
+      };
+    }
+  | { ok: false; message: string };
+
+function promotionBodyFromForm(form: FormData): PromotionFormBody {
+  const code = String(form.get("code") ?? "")
+    .trim()
+    .toUpperCase();
+  const title = String(form.get("title") ?? "").trim();
+  const discountType =
+    String(form.get("discount_type") ?? "percentage") === "fixed"
+      ? "fixed"
+      : "percentage";
+  const scope = ["store", "collection", "design"].includes(
+    String(form.get("scope") ?? ""),
+  )
+    ? String(form.get("scope") ?? "")
+    : "store";
+  const status =
+    String(form.get("status") ?? "active") === "paused" ? "paused" : "active";
+  const minSpendMinor = parseOptionalMoneyMinor(form.get("min_spend_ghs"));
+  const usageLimitGlobal = parseOptionalPositiveInt(
+    form.get("usage_limit_global"),
+  );
+  const usageLimitPerCustomer = parseOptionalPositiveInt(
+    form.get("usage_limit_per_customer"),
+  );
+  if (!code || !title) {
+    return { ok: false, message: "Add a code and title for the promotion." };
+  }
+  if (
+    minSpendMinor === null ||
+    usageLimitGlobal === undefined ||
+    usageLimitPerCustomer === undefined
+  ) {
+    return {
+      ok: false,
+      message:
+        "Check the spend floor and usage limits. Limits can be blank, but must be positive when set.",
+    };
+  }
+
+  let maxDiscountMinor: number | null = null;
+  const discountValue =
+    discountType === "percentage"
+      ? parsePercentBps(form.get("percentage_discount"))
+      : parseMoneyMinor(form.get("fixed_discount_ghs"));
+  if (discountType === "percentage") {
+    maxDiscountMinor = parseMoneyMinor(form.get("max_discount_ghs"));
+    if (discountValue === null || maxDiscountMinor === null) {
+      return {
+        ok: false,
+        message:
+          "Percentage promos need a discount percent and a maximum discount amount.",
+      };
+    }
+  } else {
+    if (discountValue === null) {
+      return { ok: false, message: "Add a valid fixed discount amount." };
+    }
+  }
+
+  const startsRaw = String(form.get("starts_at") ?? "").trim();
+  const endsRaw = String(form.get("ends_at") ?? "").trim();
+  const startsAt = startsRaw ? datetimeLocalToRFC3339(startsRaw) : null;
+  const endsAt = endsRaw ? datetimeLocalToRFC3339(endsRaw) : null;
+  if ((startsRaw && !startsAt) || (endsRaw && !endsAt)) {
+    return { ok: false, message: "Use valid start and end dates." };
+  }
+
+  const targetCollectionID =
+    scope === "collection"
+      ? String(form.get("target_collection_id") ?? "").trim() || null
+      : null;
+  const targetDesignID =
+    scope === "design"
+      ? String(form.get("target_design_id") ?? "").trim() || null
+      : null;
+  if (
+    (scope === "collection" && !targetCollectionID) ||
+    (scope === "design" && !targetDesignID)
+  ) {
+    return {
+      ok: false,
+      message: "Choose the collection or design this promotion targets.",
+    };
+  }
+
+  return {
+    ok: true,
+    body: {
+      code,
+      title,
+      description: String(form.get("description") ?? "").trim(),
+      discount_type: discountType,
+      discount_value: discountValue,
+      max_discount_minor: maxDiscountMinor,
+      min_spend_minor: minSpendMinor,
+      usage_limit_global: usageLimitGlobal,
+      usage_limit_per_customer: usageLimitPerCustomer,
+      scope,
+      target_collection_id: targetCollectionID,
+      target_design_id: targetDesignID,
+      status,
+      starts_at: startsAt ?? "",
+      ends_at: endsAt ?? "",
+    },
+  };
+}
+
+function promotionErrorMessage(status: number): string {
+  if (status === 409) {
+    return "That promotion code is already in use.";
+  }
+  if (status === 404) {
+    return "That promotion or target could not be found.";
+  }
+  if (status === 400) {
+    return "Check the promotion details, target, discount, and active dates.";
+  }
+  return "Could not save that promotion yet.";
 }
 
 function parseImageURLs(value: FormDataEntryValue | null): string[] {
@@ -6415,6 +6696,797 @@ function PriceBoardPanel({
   );
 }
 
+function promotionDiscountLabel(promotion: BusinessPromotion): string {
+  if (promotion.discount_type === "percentage") {
+    return `${promotion.discount_value / 100}% up to ${formatGHS(promotion.max_discount_minor ?? 0)}`;
+  }
+  return formatGHS(promotion.discount_value);
+}
+
+function promotionStatusTone(status: string): string {
+  switch (status) {
+    case "active":
+      return tokens.success;
+    case "paused":
+      return tokens.warning;
+    case "archived":
+      return tokens.mutedText;
+    default:
+      return tokens.info;
+  }
+}
+
+function promotionScopeLabel(promotion: BusinessPromotion): string {
+  switch (promotion.scope) {
+    case "collection":
+      return "Collection";
+    case "design":
+      return "Design";
+    default:
+      return "Store";
+  }
+}
+
+function promotionTargetLabel(
+  promotion: BusinessPromotion,
+  collections: CollectionSummary[],
+  designs: Design[],
+): string {
+  if (promotion.scope === "collection") {
+    const collection = collections.find(
+      (item) => item.collection_id === promotion.target_collection_id,
+    );
+    return collection?.name ?? "Collection target";
+  }
+  if (promotion.scope === "design") {
+    const design = designs.find(
+      (item) => item.design_id === promotion.target_design_id,
+    );
+    return design?.title ?? "Design target";
+  }
+  return "Entire store";
+}
+
+function promotionWindowLabel(promotion: BusinessPromotion): string {
+  if (!promotion.starts_at && !promotion.ends_at) {
+    return "Always available";
+  }
+  const start = promotion.starts_at ? shortDate(promotion.starts_at) : "Now";
+  const end = promotion.ends_at ? shortDate(promotion.ends_at) : "No end";
+  return `${start} to ${end}`;
+}
+
+function promotionPercentInputValue(promotion: BusinessPromotion): string {
+  return promotion.discount_type === "percentage"
+    ? String(promotion.discount_value / 100)
+    : "";
+}
+
+function PromotionPanel({
+  promotions,
+  collections,
+  designs,
+  activeCount,
+  redeemedMinor,
+  error,
+}: {
+  promotions: BusinessPromotion[];
+  collections: CollectionSummary[];
+  designs: Design[];
+  activeCount: number;
+  redeemedMinor: number;
+  error?: string;
+}) {
+  const pausedCount = promotions.filter(
+    (promotion) => promotion.status === "paused",
+  ).length;
+  const redemptionCount = promotions.reduce(
+    (total, promotion) => total + promotion.redemption_count,
+    0,
+  );
+  const activeCollections = collections.filter(
+    (collection) => collection.status === "active",
+  );
+  const activeDesigns = designs.filter((design) => design.status === "active");
+
+  return (
+    <Panel id="promotions">
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={2}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: { xs: "stretch", md: "flex-start" },
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <LocalOfferRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Promotion desk</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Business-funded codes for store, collection, or design pushes.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={`${activeCount} active`}
+            tone={activeCount > 0 ? tokens.success : tokens.warning}
+          />
+        </Stack>
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, 1fr)",
+              xl: "repeat(4, 1fr)",
+            },
+          }}
+        >
+          <MiniStat
+            icon={<LocalOfferRounded fontSize="small" />}
+            label="Active"
+            value={String(activeCount)}
+            helper={`${promotions.length} total codes`}
+            tone={tokens.success}
+          />
+          <MiniStat
+            icon={<ScheduleRounded fontSize="small" />}
+            label="Paused"
+            value={String(pausedCount)}
+            helper="Saved but not redeemable"
+            tone={tokens.warning}
+          />
+          <MiniStat
+            icon={<PriceCheckRounded fontSize="small" />}
+            label="Redemptions"
+            value={String(redemptionCount)}
+            helper="Applied checkout discounts"
+            tone={tokens.info}
+          />
+          <MiniStat
+            icon={<PaymentsRounded fontSize="small" />}
+            label="Discounted"
+            value={formatGHS(redeemedMinor)}
+            helper="Business-funded value"
+            tone={tokens.burgundy}
+          />
+        </Box>
+
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <Box
+          sx={{
+            mt: 2,
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "minmax(300px, 0.42fr) minmax(0, 0.58fr)",
+            },
+            alignItems: "start",
+          }}
+        >
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.25 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: alpha(tokens.white, 0.72),
+              backgroundImage: `linear-gradient(135deg, ${alpha(tokens.gold, 0.08)}, transparent 48%)`,
+            }}
+          >
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Box sx={{ color: "primary.main" }}>
+                <AddRounded />
+              </Box>
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Create code</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Launch a storewide or targeted offer.
+                </Typography>
+              </Box>
+            </Stack>
+            <Form method="post">
+              <input type="hidden" name="intent" value="create_promotion" />
+              <Stack spacing={1.5} sx={{ mt: 2 }}>
+                <TextField
+                  name="code"
+                  label="Code"
+                  defaultValue="WELCOME10"
+                  size="small"
+                  required
+                  fullWidth
+                />
+                <TextField
+                  name="title"
+                  label="Title"
+                  size="small"
+                  required
+                  fullWidth
+                />
+                <TextField
+                  name="description"
+                  label="Internal note"
+                  size="small"
+                  multiline
+                  minRows={2}
+                  fullWidth
+                />
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  }}
+                >
+                  <TextField
+                    name="discount_type"
+                    label="Discount type"
+                    select
+                    defaultValue="percentage"
+                    size="small"
+                  >
+                    <MenuItem value="percentage">Percentage</MenuItem>
+                    <MenuItem value="fixed">Fixed amount</MenuItem>
+                  </TextField>
+                  <TextField
+                    name="status"
+                    label="Status"
+                    select
+                    defaultValue="active"
+                    size="small"
+                  >
+                    <MenuItem value="active">Active</MenuItem>
+                    <MenuItem value="paused">Paused</MenuItem>
+                  </TextField>
+                </Box>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+                  }}
+                >
+                  <TextField
+                    name="percentage_discount"
+                    label="Percent"
+                    size="small"
+                    defaultValue="10"
+                    slotProps={{ htmlInput: { inputMode: "decimal" } }}
+                  />
+                  <TextField
+                    name="fixed_discount_ghs"
+                    label="Fixed"
+                    size="small"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                  <TextField
+                    name="max_discount_ghs"
+                    label="Max"
+                    size="small"
+                    defaultValue="50"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                </Box>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  }}
+                >
+                  <TextField
+                    name="scope"
+                    label="Applies to"
+                    select
+                    defaultValue="store"
+                    size="small"
+                  >
+                    <MenuItem value="store">Entire store</MenuItem>
+                    <MenuItem value="collection">Collection</MenuItem>
+                    <MenuItem value="design">Design</MenuItem>
+                  </TextField>
+                  <TextField
+                    name="min_spend_ghs"
+                    label="Min spend"
+                    size="small"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                </Box>
+                <TextField
+                  name="target_collection_id"
+                  label="Collection target"
+                  select
+                  defaultValue=""
+                  size="small"
+                >
+                  <MenuItem value="">No collection target</MenuItem>
+                  {activeCollections.map((collection) => (
+                    <MenuItem
+                      key={collection.collection_id}
+                      value={collection.collection_id}
+                    >
+                      {collection.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  name="target_design_id"
+                  label="Design target"
+                  select
+                  defaultValue=""
+                  size="small"
+                >
+                  <MenuItem value="">No design target</MenuItem>
+                  {activeDesigns.map((design) => (
+                    <MenuItem key={design.design_id} value={design.design_id}>
+                      {design.title}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  }}
+                >
+                  <TextField
+                    name="usage_limit_global"
+                    label="Total uses"
+                    type="number"
+                    size="small"
+                    slotProps={{ htmlInput: { min: 1 } }}
+                  />
+                  <TextField
+                    name="usage_limit_per_customer"
+                    label="Uses/customer"
+                    type="number"
+                    size="small"
+                    slotProps={{ htmlInput: { min: 1 } }}
+                  />
+                </Box>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                  }}
+                >
+                  <TextField
+                    name="starts_at"
+                    label="Starts"
+                    type="datetime-local"
+                    size="small"
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  />
+                  <TextField
+                    name="ends_at"
+                    label="Ends"
+                    type="datetime-local"
+                    size="small"
+                    slotProps={{ inputLabel: { shrink: true } }}
+                  />
+                </Box>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<AddRounded />}
+                >
+                  Create promotion
+                </Button>
+              </Stack>
+            </Form>
+          </Box>
+
+          <Box
+            sx={{
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 2,
+              bgcolor: alpha(tokens.white, 0.72),
+              overflow: "hidden",
+            }}
+          >
+            <Box
+              sx={{
+                p: { xs: 2, md: 2.25 },
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 2,
+              }}
+            >
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Codes</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {promotions.length} business-funded promotions
+                </Typography>
+              </Box>
+              <ToneChip
+                label={`${redemptionCount} used`}
+                tone={redemptionCount > 0 ? tokens.success : tokens.info}
+              />
+            </Box>
+            {promotions.length === 0 ? (
+              <Box sx={{ px: 2.5, pb: 2.5 }}>
+                <InlineEmptyState
+                  icon={<LocalOfferRounded sx={{ fontSize: 38 }} />}
+                  title="No promotions yet"
+                  helper="Create the first promo code when a business wants to fund a store or design push."
+                />
+              </Box>
+            ) : (
+              promotions.map((promotion) => (
+                <PromotionRow
+                  key={promotion.promotion_id}
+                  promotion={promotion}
+                  collections={collections}
+                  designs={designs}
+                />
+              ))
+            )}
+          </Box>
+        </Box>
+      </Box>
+    </Panel>
+  );
+}
+
+function PromotionRow({
+  promotion,
+  collections,
+  designs,
+}: {
+  promotion: BusinessPromotion;
+  collections: CollectionSummary[];
+  designs: Design[];
+}) {
+  const archived = promotion.status === "archived";
+  const currentCollectionID = promotion.target_collection_id ?? "";
+  const currentDesignID = promotion.target_design_id ?? "";
+
+  return (
+    <Box
+      sx={{
+        px: { xs: 2, md: 2.5 },
+        py: 1.6,
+        borderTop: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      <Stack spacing={1.35}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.4}
+          sx={{
+            alignItems: { xs: "stretch", md: "flex-start" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Stack direction="row" spacing={1.15} sx={{ minWidth: 0 }}>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                borderRadius: 1.5,
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                bgcolor: alpha(promotionStatusTone(promotion.status), 0.1),
+                color: promotionStatusTone(promotion.status),
+                border: "1px solid",
+                borderColor: alpha(
+                  promotionStatusTone(promotion.status),
+                  0.2,
+                ),
+              }}
+            >
+              <LocalOfferRounded />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 950 }} noWrap>
+                {promotion.code}
+              </Typography>
+              <Typography sx={{ fontWeight: 800 }} noWrap>
+                {promotion.title}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {promotionDiscountLabel(promotion)} ·{" "}
+                {promotionTargetLabel(promotion, collections, designs)}
+              </Typography>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ mt: 0.85, flexWrap: "wrap" }}
+              >
+                <ToneChip
+                  label={promotion.status}
+                  tone={promotionStatusTone(promotion.status)}
+                />
+                <ToneChip
+                  label={promotionScopeLabel(promotion)}
+                  tone={tokens.info}
+                />
+                <Chip
+                  size="small"
+                  variant="outlined"
+                  label={promotionWindowLabel(promotion)}
+                />
+              </Stack>
+            </Box>
+          </Stack>
+          <Box sx={{ textAlign: { xs: "left", md: "right" } }}>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {promotion.redemption_count} redemption
+              {promotion.redemption_count === 1 ? "" : "s"}
+            </Typography>
+            <Typography sx={{ fontWeight: 900 }}>
+              {formatGHS(promotion.discount_redeemed_minor)}
+            </Typography>
+          </Box>
+        </Stack>
+
+        {archived ? (
+          <InfoStrip
+            icon={<WarningAmberRounded />}
+            tone={tokens.mutedText}
+            title="Archived promotion"
+            helper="Archived codes stay visible for reporting and cannot be edited here."
+          />
+        ) : (
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "1fr",
+                lg: "minmax(120px, 0.8fr) minmax(160px, 1fr) repeat(2, minmax(108px, 0.72fr))",
+              },
+              alignItems: "center",
+            }}
+          >
+            <Form method="post" style={{ display: "contents" }}>
+              <input type="hidden" name="intent" value="update_promotion" />
+              <input
+                type="hidden"
+                name="promotion_id"
+                value={promotion.promotion_id}
+              />
+              <TextField
+                name="code"
+                label="Code"
+                size="small"
+                defaultValue={promotion.code}
+                required
+              />
+              <TextField
+                name="title"
+                label="Title"
+                size="small"
+                defaultValue={promotion.title}
+                required
+              />
+              <TextField
+                name="discount_type"
+                label="Type"
+                select
+                size="small"
+                defaultValue={
+                  promotion.discount_type === "fixed" ? "fixed" : "percentage"
+                }
+              >
+                <MenuItem value="percentage">Percent</MenuItem>
+                <MenuItem value="fixed">Fixed</MenuItem>
+              </TextField>
+              <TextField
+                name="status"
+                label="Status"
+                select
+                size="small"
+                defaultValue={promotion.status === "paused" ? "paused" : "active"}
+              >
+                <MenuItem value="active">Active</MenuItem>
+                <MenuItem value="paused">Paused</MenuItem>
+              </TextField>
+              <TextField
+                name="description"
+                label="Note"
+                size="small"
+                defaultValue={promotion.description}
+                sx={{ gridColumn: { lg: "span 2" } }}
+              />
+              <TextField
+                name="percentage_discount"
+                label="Percent"
+                size="small"
+                defaultValue={promotionPercentInputValue(promotion)}
+                slotProps={{ htmlInput: { inputMode: "decimal" } }}
+              />
+              <TextField
+                name="fixed_discount_ghs"
+                label="Fixed"
+                size="small"
+                defaultValue={
+                  promotion.discount_type === "fixed"
+                    ? moneyInputValue(promotion.discount_value)
+                    : ""
+                }
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { inputMode: "decimal" },
+                }}
+              />
+              <TextField
+                name="max_discount_ghs"
+                label="Max"
+                size="small"
+                defaultValue={moneyInputValue(promotion.max_discount_minor)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { inputMode: "decimal" },
+                }}
+              />
+              <TextField
+                name="min_spend_ghs"
+                label="Min spend"
+                size="small"
+                defaultValue={moneyInputValue(promotion.min_spend_minor)}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { inputMode: "decimal" },
+                }}
+              />
+              <TextField
+                name="scope"
+                label="Applies to"
+                select
+                size="small"
+                defaultValue={
+                  ["store", "collection", "design"].includes(promotion.scope)
+                    ? promotion.scope
+                    : "store"
+                }
+              >
+                <MenuItem value="store">Store</MenuItem>
+                <MenuItem value="collection">Collection</MenuItem>
+                <MenuItem value="design">Design</MenuItem>
+              </TextField>
+              <TextField
+                name="target_collection_id"
+                label="Collection"
+                select
+                size="small"
+                defaultValue={currentCollectionID}
+              >
+                <MenuItem value="">No collection</MenuItem>
+                {collections.map((collection) => (
+                  <MenuItem
+                    key={collection.collection_id}
+                    value={collection.collection_id}
+                  >
+                    {collection.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                name="target_design_id"
+                label="Design"
+                select
+                size="small"
+                defaultValue={currentDesignID}
+              >
+                <MenuItem value="">No design</MenuItem>
+                {designs.map((design) => (
+                  <MenuItem key={design.design_id} value={design.design_id}>
+                    {design.title}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                name="usage_limit_global"
+                label="Total uses"
+                type="number"
+                size="small"
+                defaultValue={promotion.usage_limit_global ?? ""}
+                slotProps={{ htmlInput: { min: 1 } }}
+              />
+              <TextField
+                name="usage_limit_per_customer"
+                label="Uses/customer"
+                type="number"
+                size="small"
+                defaultValue={promotion.usage_limit_per_customer ?? ""}
+                slotProps={{ htmlInput: { min: 1 } }}
+              />
+              <TextField
+                name="starts_at"
+                label="Starts"
+                type="datetime-local"
+                size="small"
+                defaultValue={datetimeLocalValue(promotion.starts_at ?? "")}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <TextField
+                name="ends_at"
+                label="Ends"
+                type="datetime-local"
+                size="small"
+                defaultValue={datetimeLocalValue(promotion.ends_at ?? "")}
+                slotProps={{ inputLabel: { shrink: true } }}
+              />
+              <Stack direction="row" spacing={1} sx={{ gridColumn: "1 / -1" }}>
+                <Button
+                  type="submit"
+                  variant="outlined"
+                  startIcon={<SaveRounded />}
+                >
+                  Save
+                </Button>
+              </Stack>
+            </Form>
+            <Form method="post">
+              <input type="hidden" name="intent" value="archive_promotion" />
+              <input
+                type="hidden"
+                name="promotion_id"
+                value={promotion.promotion_id}
+              />
+              <Button type="submit" variant="outlined" color="error" fullWidth>
+                Archive
+              </Button>
+            </Form>
+          </Box>
+        )}
+      </Stack>
+    </Box>
+  );
+}
+
 function TeamPanel({
   users,
   currentUser,
@@ -7410,6 +8482,7 @@ export default function Dashboard({
     storeSettings,
     collections,
     sizeBands,
+    promotions,
     section,
     orderFilter,
   } = loaderData;
@@ -7477,6 +8550,13 @@ export default function Dashboard({
   const activeDesigns = designs.filter(
     (design) => design.status === "active",
   ).length;
+  const activePromotions = promotions.filter(
+    (promotion) => promotion.status === "active",
+  ).length;
+  const promoRedeemedMinor = promotions.reduce(
+    (total, promotion) => total + promotion.discount_redeemed_minor,
+    0,
+  );
   const activeTeamUsers = businessUsers.filter((user) => user.is_active).length;
   const publishedCollections = collections.filter(
     (collection) => collection.status === "active",
@@ -7613,6 +8693,15 @@ export default function Dashboard({
       tone: tokens.burgundy,
     },
     {
+      title: "Promotions",
+      helper: "Promo codes for store, collection, and design campaigns.",
+      href: "/dashboard/promotions",
+      value: `${activePromotions} active`,
+      actionLabel: "Open promotions",
+      icon: <LocalOfferRounded />,
+      tone: tokens.gold,
+    },
+    {
       title: "Settings",
       helper: "Storefront switches, brand colour, and request controls.",
       href: "/dashboard/settings",
@@ -7641,6 +8730,7 @@ export default function Dashboard({
           visits: railBadge(activeBookings),
           handovers: railBadge(openHandovers),
           catalogue: railBadge(activeDesigns),
+          promotions: railBadge(activePromotions),
           measurements: railBadge(needsMeasurements),
           availability: railBadge(availabilityWindows.length),
           settings: railBadge(activeStoreSettings),
@@ -7901,6 +8991,17 @@ export default function Dashboard({
                     takings={manualTakings}
                     orders={orders}
                     error={action.moneyError}
+                  />
+                ) : null}
+
+                {canManage && section === "promotions" ? (
+                  <PromotionPanel
+                    promotions={promotions}
+                    collections={collections}
+                    designs={designs}
+                    activeCount={activePromotions}
+                    redeemedMinor={promoRedeemedMinor}
+                    error={action.promotionError}
                   />
                 ) : null}
 

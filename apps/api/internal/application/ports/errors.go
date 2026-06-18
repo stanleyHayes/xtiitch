@@ -32,6 +32,10 @@ var ErrPaymentInFlight = errors.New("an equivalent payment is already in flight"
 // resolve to a currently redeemable voucher for the tenant/order context.
 var ErrPromotionUnavailable = errors.New("promotion unavailable")
 
+// ErrPromotionCodeTaken is returned when a business or admin tries to create a
+// non-archived promotion using a code that is already active for that scope.
+var ErrPromotionCodeTaken = errors.New("promotion code already exists")
+
 // ErrSubscriptionBillingUnavailable is returned when an admin billing action is
 // attempted for a free, canceled, or otherwise non-billable subscription.
 var ErrSubscriptionBillingUnavailable = errors.New("subscription billing unavailable")

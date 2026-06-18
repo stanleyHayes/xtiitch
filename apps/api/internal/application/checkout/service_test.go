@@ -916,6 +916,22 @@ type fakePromotions struct {
 	voidOrder  common.ID
 }
 
+func (f *fakePromotions) ListBusinessPromotions(context.Context, common.TenantScope) ([]ports.BusinessPromotionRecord, error) {
+	return nil, nil
+}
+
+func (f *fakePromotions) CreateBusinessPromotion(context.Context, common.TenantScope, ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
+	return ports.BusinessPromotionRecord{}, nil
+}
+
+func (f *fakePromotions) UpdateBusinessPromotion(context.Context, common.TenantScope, ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
+	return ports.BusinessPromotionRecord{}, nil
+}
+
+func (f *fakePromotions) ArchiveBusinessPromotion(context.Context, common.TenantScope, common.ID) (ports.BusinessPromotionRecord, error) {
+	return ports.BusinessPromotionRecord{}, nil
+}
+
 func (f *fakePromotions) ReservePromotion(_ context.Context, _ common.TenantScope, input ports.ReservePromotionInput) (ports.PromotionRedemption, error) {
 	f.reserve = input
 	if f.err != nil {

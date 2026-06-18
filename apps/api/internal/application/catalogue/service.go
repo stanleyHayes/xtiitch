@@ -17,6 +17,7 @@ type Service struct {
 	catalogue  ports.CatalogueRepository
 	storefront ports.StorefrontRepository
 	settings   ports.StoreSettingsRepository
+	promotions ports.PromotionRepository
 	ids        ports.IDGenerator
 }
 
@@ -24,6 +25,7 @@ type Dependencies struct {
 	Catalogue  ports.CatalogueRepository
 	Storefront ports.StorefrontRepository
 	Settings   ports.StoreSettingsRepository
+	Promotions ports.PromotionRepository
 	IDs        ports.IDGenerator
 }
 
@@ -32,6 +34,7 @@ func NewService(deps Dependencies) Service {
 		catalogue:  deps.Catalogue,
 		storefront: deps.Storefront,
 		settings:   deps.Settings,
+		promotions: deps.Promotions,
 		ids:        deps.IDs,
 	}
 }

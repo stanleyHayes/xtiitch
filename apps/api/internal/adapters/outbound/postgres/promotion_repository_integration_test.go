@@ -17,6 +17,7 @@ const (
 	prCustA           = "88888888-0000-0000-0000-000000000011"
 	prCustB           = "88888888-0000-0000-0000-000000000012"
 	prCollectionA     = "88888888-0000-0000-0000-000000000020"
+	prCollectionB     = "88888888-0000-0000-0000-000000000023"
 	prDesignA         = "88888888-0000-0000-0000-000000000021"
 	prDesignB         = "88888888-0000-0000-0000-000000000022"
 	prOrderA          = "88888888-0000-0000-0000-000000000031"
@@ -25,6 +26,9 @@ const (
 	prPromoA          = "88888888-0000-0000-0000-000000000041"
 	prPromoCollection = "88888888-0000-0000-0000-000000000042"
 	prPromoDesign     = "88888888-0000-0000-0000-000000000043"
+	prPromoBusiness   = "88888888-0000-0000-0000-000000000044"
+	prPromoDuplicate  = "88888888-0000-0000-0000-000000000045"
+	prPromoCross      = "88888888-0000-0000-0000-000000000046"
 	prRedA            = "88888888-0000-0000-0000-000000000051"
 	prRedB            = "88888888-0000-0000-0000-000000000052"
 	prRedC            = "88888888-0000-0000-0000-000000000053"
@@ -60,6 +64,10 @@ func seedPromotionReserveFixtures(t *testing.T, pool *pgxpool.Pool) {
 			insert into collections (collection_id, business_id, name, handle, status)
 			values ($1, $2, 'Promo Collection', 'promo-collection', 'active')
 		`, prCollectionA, prBizA)
+		mustExec(t, tx, `
+			insert into collections (collection_id, business_id, name, handle, status)
+			values ($1, $2, 'Other Promo Collection', 'other-promo-collection', 'active')
+		`, prCollectionB, prBizB)
 		mustExec(t, tx, `
 			insert into designs (design_id, business_id, title, handle, status)
 			values ($1, $2, 'Other Promo Design', 'other-promo-design', 'active')
@@ -188,6 +196,135 @@ func TestReservePromotionMatchesCollectionAndDesignTargets(t *testing.T) {
 	if !errors.Is(err, ports.ErrPromotionUnavailable) {
 		t.Fatalf("expected design promotion to reject another design, got %v", err)
 	}
+}
+
+func TestBusinessPromotionManagementScopesTargetsAndArchives(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedPromotionReserveFixtures(t, pool)
+	defer cleanupPromotionReserveFixtures(t, pool)
+
+	repo := NewPromotionRepository(pool)
+	ctx := context.Background()
+	maxDiscount := int64(15000)
+	globalLimit := 25
+	perCustomerLimit := 1
+	collectionID := common.ID(prCollectionA)
+
+	created, err := repo.CreateBusinessPromotion(ctx, prScope(), ports.BusinessPromotionInput{
+		PromotionID:           common.ID(prPromoBusiness),
+		Code:                  "DASH20",
+		Title:                 "Dashboard promo",
+		Description:           "Twenty percent off selected collection",
+		DiscountType:          "percentage",
+		DiscountValue:         2000,
+		MaxDiscountMinor:      &maxDiscount,
+		MinSpendMinor:         30000,
+		UsageLimitGlobal:      &globalLimit,
+		UsageLimitPerCustomer: &perCustomerLimit,
+		Scope:                 "collection",
+		TargetCollectionID:    &collectionID,
+		Status:                "active",
+	})
+	if err != nil {
+		t.Fatalf("create business promotion: %v", err)
+	}
+	if created.BusinessID != common.ID(prBizA) ||
+		created.FundingSource != "business" ||
+		created.Scope != "collection" ||
+		created.TargetCollectionID == nil ||
+		*created.TargetCollectionID != collectionID {
+		t.Fatalf("unexpected created business promotion: %+v", created)
+	}
+
+	records, err := repo.ListBusinessPromotions(ctx, prScope())
+	if err != nil {
+		t.Fatalf("list business promotions: %v", err)
+	}
+	if !businessPromotionExists(records, common.ID(prPromoBusiness), "DASH20", "active") {
+		t.Fatalf("expected created promotion in tenant list, got %+v", records)
+	}
+
+	_, err = repo.CreateBusinessPromotion(ctx, prScope(), ports.BusinessPromotionInput{
+		PromotionID:        common.ID(prPromoDuplicate),
+		Code:               "DASH20",
+		Title:              "Duplicate promo",
+		DiscountType:       "fixed",
+		DiscountValue:      5000,
+		MinSpendMinor:      0,
+		Scope:              "store",
+		Status:             "active",
+		TargetDesignID:     nil,
+		TargetCollectionID: nil,
+	})
+	if !errors.Is(err, ports.ErrPromotionCodeTaken) {
+		t.Fatalf("expected duplicate code rejection, got %v", err)
+	}
+
+	crossTenantCollectionID := common.ID(prCollectionB)
+	_, err = repo.CreateBusinessPromotion(ctx, prScope(), ports.BusinessPromotionInput{
+		PromotionID:        common.ID(prPromoCross),
+		Code:               "CROSS20",
+		Title:              "Cross tenant promo",
+		DiscountType:       "fixed",
+		DiscountValue:      5000,
+		MinSpendMinor:      0,
+		Scope:              "collection",
+		TargetCollectionID: &crossTenantCollectionID,
+		Status:             "active",
+	})
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("expected cross-tenant collection rejection, got %v", err)
+	}
+
+	designID := common.ID(prDesignA)
+	updated, err := repo.UpdateBusinessPromotion(ctx, prScope(), ports.BusinessPromotionInput{
+		PromotionID:    common.ID(prPromoBusiness),
+		Code:           "DASH25",
+		Title:          "Dashboard design promo",
+		Description:    "A focused design discount",
+		DiscountType:   "fixed",
+		DiscountValue:  7500,
+		MinSpendMinor:  10000,
+		Scope:          "design",
+		TargetDesignID: &designID,
+		Status:         "paused",
+	})
+	if err != nil {
+		t.Fatalf("update business promotion: %v", err)
+	}
+	if updated.Code != "DASH25" ||
+		updated.Status != "paused" ||
+		updated.Scope != "design" ||
+		updated.TargetDesignID == nil ||
+		*updated.TargetDesignID != designID ||
+		updated.TargetCollectionID != nil {
+		t.Fatalf("unexpected updated promotion: %+v", updated)
+	}
+
+	archived, err := repo.ArchiveBusinessPromotion(ctx, prScope(), common.ID(prPromoBusiness))
+	if err != nil {
+		t.Fatalf("archive business promotion: %v", err)
+	}
+	if archived.Status != "archived" {
+		t.Fatalf("expected archived status, got %+v", archived)
+	}
+}
+
+func businessPromotionExists(
+	records []ports.BusinessPromotionRecord,
+	promotionID common.ID,
+	code string,
+	status string,
+) bool {
+	for _, record := range records {
+		if record.PromotionID == promotionID &&
+			record.Code == code &&
+			record.Status == status {
+			return true
+		}
+	}
+	return false
 }
 
 func TestReservePromotionAppliesDiscountAndCountsPendingLimit(t *testing.T) {

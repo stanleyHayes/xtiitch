@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
@@ -59,6 +60,11 @@ func (handler Handler) Register(router chi.Router) {
 
 		protected.Post("/size-bands", handler.createSizeBand)
 		protected.Get("/size-bands", handler.listSizeBands)
+
+		protected.Get("/promotions", handler.listPromotions)
+		protected.Post("/promotions", handler.createPromotion)
+		protected.Patch("/promotions/{id}", handler.updatePromotion)
+		protected.Post("/promotions/{id}/archive", handler.archivePromotion)
 	})
 }
 
@@ -199,6 +205,24 @@ type designBody struct {
 	CustomisationAllowed bool     `json:"customisation_allowed"`
 	DepositOverrideMinor *int64   `json:"deposit_override_minor"`
 	Sequence             int      `json:"sequence"`
+}
+
+type promotionBody struct {
+	Code                  string  `json:"code"`
+	Title                 string  `json:"title"`
+	Description           string  `json:"description"`
+	DiscountType          string  `json:"discount_type"`
+	DiscountValue         int64   `json:"discount_value"`
+	MaxDiscountMinor      *int64  `json:"max_discount_minor"`
+	MinSpendMinor         int64   `json:"min_spend_minor"`
+	UsageLimitGlobal      *int    `json:"usage_limit_global"`
+	UsageLimitPerCustomer *int    `json:"usage_limit_per_customer"`
+	Scope                 string  `json:"scope"`
+	TargetCollectionID    *string `json:"target_collection_id"`
+	TargetDesignID        *string `json:"target_design_id"`
+	Status                string  `json:"status"`
+	StartsAt              string  `json:"starts_at"`
+	EndsAt                string  `json:"ends_at"`
 }
 
 func (body designBody) toCommand(scope common.TenantScope, designID common.ID) catalogueapp.DesignCommand {
@@ -375,6 +399,110 @@ func (handler Handler) listPrices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"prices": toPrices(prices)})
 }
 
+// --- promotions ---
+
+func (handler Handler) listPromotions(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	promotions, err := handler.service.ListBusinessPromotions(r.Context(), scope)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	out := make([]promotionResponse, 0, len(promotions))
+	for _, promotion := range promotions {
+		out = append(out, toPromotionResponse(promotion))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"promotions": out})
+}
+
+func (handler Handler) createPromotion(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body promotionBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	record, err := handler.service.CreateBusinessPromotion(r.Context(), body.toCommand(scope, ""))
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, toPromotionResponse(record))
+}
+
+func (handler Handler) updatePromotion(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	var body promotionBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	record, err := handler.service.UpdateBusinessPromotion(
+		r.Context(),
+		body.toCommand(scope, common.ID(chi.URLParam(r, "id"))),
+	)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toPromotionResponse(record))
+}
+
+func (handler Handler) archivePromotion(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	record, err := handler.service.ArchiveBusinessPromotion(
+		r.Context(),
+		scope,
+		common.ID(chi.URLParam(r, "id")),
+	)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, toPromotionResponse(record))
+}
+
+func (body promotionBody) toCommand(scope common.TenantScope, promotionID common.ID) catalogueapp.BusinessPromotionCommand {
+	cmd := catalogueapp.BusinessPromotionCommand{
+		Scope:                 scope,
+		PromotionID:           promotionID,
+		Code:                  body.Code,
+		Title:                 body.Title,
+		Description:           body.Description,
+		DiscountType:          body.DiscountType,
+		DiscountValue:         body.DiscountValue,
+		MaxDiscountMinor:      body.MaxDiscountMinor,
+		MinSpendMinor:         body.MinSpendMinor,
+		UsageLimitGlobal:      body.UsageLimitGlobal,
+		UsageLimitPerCustomer: body.UsageLimitPerCustomer,
+		ScopeName:             body.Scope,
+		Status:                body.Status,
+	}
+	if body.TargetCollectionID != nil && *body.TargetCollectionID != "" {
+		id := common.ID(*body.TargetCollectionID)
+		cmd.TargetCollectionID = &id
+	}
+	if body.TargetDesignID != nil && *body.TargetDesignID != "" {
+		id := common.ID(*body.TargetDesignID)
+		cmd.TargetDesignID = &id
+	}
+	cmd.StartsAt = parseOptionalTime(body.StartsAt)
+	cmd.EndsAt = parseOptionalTime(body.EndsAt)
+	return cmd
+}
+
 // --- shared response shapes & helpers ---
 
 type collectionResponse struct {
@@ -404,6 +532,31 @@ type priceResponse struct {
 	SizeBandID string `json:"size_band_id"`
 	Label      string `json:"label"`
 	PriceMinor int64  `json:"price_minor"`
+}
+
+type promotionResponse struct {
+	PromotionID           string  `json:"promotion_id"`
+	BusinessID            string  `json:"business_id"`
+	Code                  string  `json:"code"`
+	Title                 string  `json:"title"`
+	Description           string  `json:"description"`
+	DiscountType          string  `json:"discount_type"`
+	DiscountValue         int64   `json:"discount_value"`
+	MaxDiscountMinor      *int64  `json:"max_discount_minor"`
+	MinSpendMinor         int64   `json:"min_spend_minor"`
+	UsageLimitGlobal      *int    `json:"usage_limit_global"`
+	UsageLimitPerCustomer *int    `json:"usage_limit_per_customer"`
+	FundingSource         string  `json:"funding_source"`
+	Scope                 string  `json:"scope"`
+	TargetCollectionID    *string `json:"target_collection_id"`
+	TargetDesignID        *string `json:"target_design_id"`
+	Status                string  `json:"status"`
+	StartsAt              *string `json:"starts_at"`
+	EndsAt                *string `json:"ends_at"`
+	RedemptionCount       int     `json:"redemption_count"`
+	DiscountRedeemedMinor int64   `json:"discount_redeemed_minor"`
+	CreatedAt             string  `json:"created_at"`
+	UpdatedAt             string  `json:"updated_at"`
 }
 
 func toSettingsBody(s ports.StoreSettings) settingsBody {
@@ -451,6 +604,57 @@ func toPrices(prices []catalogue.BandPrice) []priceResponse {
 	return out
 }
 
+func toPromotionResponse(record ports.BusinessPromotionRecord) promotionResponse {
+	response := promotionResponse{
+		PromotionID:           record.PromotionID.String(),
+		BusinessID:            record.BusinessID.String(),
+		Code:                  record.Code,
+		Title:                 record.Title,
+		Description:           record.Description,
+		DiscountType:          record.DiscountType,
+		DiscountValue:         record.DiscountValue,
+		MaxDiscountMinor:      record.MaxDiscountMinor,
+		MinSpendMinor:         record.MinSpendMinor,
+		UsageLimitGlobal:      record.UsageLimitGlobal,
+		UsageLimitPerCustomer: record.UsageLimitPerCustomer,
+		FundingSource:         record.FundingSource,
+		Scope:                 record.Scope,
+		Status:                record.Status,
+		RedemptionCount:       record.RedemptionCount,
+		DiscountRedeemedMinor: record.DiscountRedeemedMinor,
+		CreatedAt:             record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:             record.UpdatedAt.Format(time.RFC3339),
+	}
+	if record.TargetCollectionID != nil {
+		value := record.TargetCollectionID.String()
+		response.TargetCollectionID = &value
+	}
+	if record.TargetDesignID != nil {
+		value := record.TargetDesignID.String()
+		response.TargetDesignID = &value
+	}
+	if record.StartsAt != nil {
+		value := record.StartsAt.Format(time.RFC3339)
+		response.StartsAt = &value
+	}
+	if record.EndsAt != nil {
+		value := record.EndsAt.Format(time.RFC3339)
+		response.EndsAt = &value
+	}
+	return response
+}
+
+func parseOptionalTime(value string) *time.Time {
+	if value == "" {
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339, value)
+	if err != nil {
+		return nil
+	}
+	return &parsed
+}
+
 func tenantScope(w http.ResponseWriter, r *http.Request) (common.TenantScope, bool) {
 	principal, ok := authhttp.PrincipalFromContext(r.Context())
 	if !ok {
@@ -463,6 +667,10 @@ func tenantScope(w http.ResponseWriter, r *http.Request) (common.TenantScope, bo
 func writeServiceError(w http.ResponseWriter, err error) {
 	if errors.Is(err, catalogueapp.ErrInvalidInput) {
 		writeError(w, http.StatusBadRequest, "invalid_input")
+		return
+	}
+	if errors.Is(err, ports.ErrPromotionCodeTaken) {
+		writeError(w, http.StatusConflict, "promotion_code_taken")
 		return
 	}
 	writeRepoError(w, err)

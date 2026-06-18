@@ -125,10 +125,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:        ids.UUIDGenerator{},
 	})
 
+	promotionRepository := postgres.NewPromotionRepository(db)
+
 	catalogueService := catalogueapp.NewService(catalogueapp.Dependencies{
 		Catalogue:  postgres.NewCatalogueRepository(db),
 		Storefront: postgres.NewStorefrontRepository(db),
 		Settings:   postgres.NewStoreSettingsRepository(db),
+		Promotions: promotionRepository,
 		IDs:        ids.UUIDGenerator{},
 	})
 
@@ -190,7 +193,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Businesses:   postgres.NewBusinessChargeRepository(db),
 		Orders:       postgres.NewOrderRepository(db),
 		Bookings:     postgres.NewBookingRepository(db),
-		Promotions:   postgres.NewPromotionRepository(db),
+		Promotions:   promotionRepository,
 		Affiliates:   growthRepository,
 		Availability: availabilityService,
 		Payments:     paymentService,
