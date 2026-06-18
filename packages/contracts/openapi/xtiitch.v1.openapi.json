@@ -1,0 +1,783 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Xtiitch API",
+    "version": "0.1.0",
+    "description": "Seed REST contract for the active Xtiitch v1 public storefront, business dashboard, admin console, money, growth, and webhook route families."
+  },
+  "servers": [
+    {
+      "url": "https://api.xtiitch.com",
+      "description": "Production API"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development API"
+    }
+  ],
+  "tags": [
+    { "name": "Health" },
+    { "name": "Business auth" },
+    { "name": "Business dashboard" },
+    { "name": "Public storefront" },
+    { "name": "Payments" },
+    { "name": "Growth" },
+    { "name": "Admin auth" },
+    { "name": "Admin operations" },
+    { "name": "Admin growth" },
+    { "name": "Webhooks" }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": ["Health"],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" }
+        }
+      }
+    },
+    "/readyz": {
+      "get": {
+        "operationId": "getReadiness",
+        "tags": ["Health"],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "503": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/version": {
+      "get": {
+        "operationId": "getApiVersion",
+        "tags": ["Health"],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" }
+        }
+      }
+    },
+    "/v1/auth/business/register": {
+      "post": {
+        "operationId": "registerBusiness",
+        "tags": ["Business auth"],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/AuthTokens" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/auth/business/login": {
+      "post": {
+        "operationId": "loginBusiness",
+        "tags": ["Business auth"],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AuthTokens" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/auth/business/refresh": {
+      "post": {
+        "operationId": "refreshBusinessSession",
+        "tags": ["Business auth"],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AuthTokens" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/auth/business/me": {
+      "get": {
+        "operationId": "getBusinessSession",
+        "tags": ["Business auth"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/auth/business/users": {
+      "get": {
+        "operationId": "listBusinessUsers",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createBusinessUser",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/JsonOk" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/businesses/me": {
+      "get": {
+        "operationId": "getBusinessProfile",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/businesses/me/verify": {
+      "post": {
+        "operationId": "submitBusinessVerification",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/store-settings": {
+      "get": {
+        "operationId": "getStoreSettings",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "patch": {
+        "operationId": "updateStoreSettings",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/collections": {
+      "get": {
+        "operationId": "listCollections",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createCollection",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/designs": {
+      "get": {
+        "operationId": "listDesigns",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createDesign",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/designs/{id}/prices/{bandId}": {
+      "put": {
+        "operationId": "setDesignPrice",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/Id" },
+          { "$ref": "#/components/parameters/BandId" }
+        ],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/media/design-upload-signature": {
+      "post": {
+        "operationId": "signDesignUpload",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/orders": {
+      "get": {
+        "operationId": "listOrders",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createWalkInOrder",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/orders/{id}/advance": {
+      "post": {
+        "operationId": "advanceOrderStage",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/payments": {
+      "get": {
+        "operationId": "listPayments",
+        "tags": ["Payments"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/payments/checkout": {
+      "post": {
+        "operationId": "createBusinessCheckout",
+        "tags": ["Payments"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/JsonOk" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/money/summary": {
+      "get": {
+        "operationId": "getMoneySummary",
+        "tags": ["Payments"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/promotions": {
+      "get": {
+        "operationId": "listBusinessPromotions",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createBusinessPromotion",
+        "tags": ["Business dashboard"],
+        "security": [{ "BusinessBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/public/stores/{handle}": {
+      "get": {
+        "operationId": "getPublicStore",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Handle" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/designs/{handle}": {
+      "get": {
+        "operationId": "getPublicDesign",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Handle" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/stores/{handle}/orders": {
+      "post": {
+        "operationId": "placePublicStandardOrder",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Handle" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/JsonOk" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/stores/{handle}/custom-orders": {
+      "post": {
+        "operationId": "placePublicCustomOrder",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Handle" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "201": { "$ref": "#/components/responses/JsonOk" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/orders/{id}": {
+      "get": {
+        "operationId": "getPublicOrderTracking",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/referrals/{code}": {
+      "get": {
+        "operationId": "getPublicReferralCode",
+        "tags": ["Growth"],
+        "parameters": [{ "$ref": "#/components/parameters/Code" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/public/affiliates/{code}/clicks": {
+      "post": {
+        "operationId": "recordAffiliateClick",
+        "tags": ["Growth"],
+        "parameters": [{ "$ref": "#/components/parameters/Code" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "202": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/public/sponsored": {
+      "get": {
+        "operationId": "listSponsoredPlacements",
+        "tags": ["Growth"],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/webhooks/paystack": {
+      "post": {
+        "operationId": "receivePaystackWebhook",
+        "tags": ["Webhooks"],
+        "security": [{ "PaystackSignature": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/admin/auth/login": {
+      "post": {
+        "operationId": "loginAdmin",
+        "tags": ["Admin auth"],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/AuthTokens" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/admin/auth/me": {
+      "get": {
+        "operationId": "getAdminSession",
+        "tags": ["Admin auth"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/admin/users": {
+      "get": {
+        "operationId": "listAdminUsers",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminUser",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/roles": {
+      "get": {
+        "operationId": "listAdminRoles",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/settings/profile": {
+      "get": {
+        "operationId": "getAdminProfileSettings",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "patch": {
+        "operationId": "updateAdminProfileSettings",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/business-verifications": {
+      "get": {
+        "operationId": "listAdminBusinessVerifications",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/business-verifications/{id}/decision": {
+      "post": {
+        "operationId": "decideAdminBusinessVerification",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Id" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/businesses": {
+      "get": {
+        "operationId": "listAdminBusinesses",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/customers": {
+      "get": {
+        "operationId": "listAdminCustomers",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/platform-metrics": {
+      "get": {
+        "operationId": "getAdminPlatformMetrics",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/money-rails": {
+      "get": {
+        "operationId": "getAdminMoneyRails",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/subscriptions": {
+      "get": {
+        "operationId": "listAdminSubscriptions",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/plans": {
+      "get": {
+        "operationId": "listAdminPlans",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminPlan",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/promotions": {
+      "get": {
+        "operationId": "listAdminPromotions",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminPromotion",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/ad-campaigns": {
+      "get": {
+        "operationId": "listAdminAdCampaigns",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminAdCampaign",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/affiliates": {
+      "get": {
+        "operationId": "listAdminAffiliates",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminAffiliate",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/referral-programmes": {
+      "get": {
+        "operationId": "listAdminReferralProgrammes",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      },
+      "post": {
+        "operationId": "createAdminReferralProgramme",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "201": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/referral-rewards/issue": {
+      "post": {
+        "operationId": "issueAdminReferralRewards",
+        "tags": ["Admin growth"],
+        "security": [{ "AdminBearer": [] }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/risk-reviews": {
+      "get": {
+        "operationId": "listAdminRiskReviews",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/support-tickets": {
+      "get": {
+        "operationId": "listAdminSupportTickets",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/operations-health": {
+      "get": {
+        "operationId": "getAdminOperationsHealth",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/notifications": {
+      "get": {
+        "operationId": "listAdminNotifications",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/reports": {
+      "get": {
+        "operationId": "getAdminReports",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/launch-readiness": {
+      "get": {
+        "operationId": "getAdminLaunchReadiness",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/audit-events": {
+      "get": {
+        "operationId": "listAdminAuditEvents",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "responses": { "200": { "$ref": "#/components/responses/JsonOk" } }
+      }
+    },
+    "/v1/admin/exports/{dataset}.csv": {
+      "get": {
+        "operationId": "exportAdminDatasetCsv",
+        "tags": ["Admin operations"],
+        "security": [{ "AdminBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/Dataset" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/CsvOk" },
+          "403": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BusinessBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Business dashboard access token with tenant scope derived server-side."
+      },
+      "AdminBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Platform admin access token with operator role and permissions."
+      },
+      "PaystackSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Paystack-Signature",
+        "description": "HMAC-SHA512 signature over the raw Paystack webhook body."
+      }
+    },
+    "parameters": {
+      "Id": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "BandId": {
+        "name": "bandId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
+      },
+      "Handle": {
+        "name": "handle",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
+        }
+      },
+      "Code": {
+        "name": "code",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string", "minLength": 2 }
+      },
+      "Dataset": {
+        "name": "dataset",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "businesses",
+            "customers",
+            "payments",
+            "subscriptions",
+            "promotions",
+            "ads",
+            "affiliates",
+            "referral-programmes",
+            "audit-events"
+          ]
+        }
+      }
+    },
+    "requestBodies": {
+      "JsonBody": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GenericJson" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "JsonOk": {
+        "description": "JSON response.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GenericJson" }
+          }
+        }
+      },
+      "AuthTokens": {
+        "description": "Access and refresh token response.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/AuthTokens" }
+          }
+        }
+      },
+      "CsvOk": {
+        "description": "CSV export response.",
+        "content": {
+          "text/csv": {
+            "schema": { "type": "string" }
+          }
+        }
+      },
+      "Error": {
+        "description": "Error response.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/Error" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "GenericJson": {
+        "type": "object",
+        "additionalProperties": true
+      },
+      "AuthTokens": {
+        "type": "object",
+        "required": ["access_token", "refresh_token"],
+        "properties": {
+          "access_token": { "type": "string" },
+          "refresh_token": { "type": "string" }
+        },
+        "additionalProperties": true
+      },
+      "Error": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    }
+  }
+}

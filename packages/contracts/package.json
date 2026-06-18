@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "echo \"contract generation not scaffolded yet\"",
-    "test": "echo \"contract tests not scaffolded yet\""
+    "check": "node --test test/*.test.mjs",
+    "test": "node --test test/*.test.mjs"
   }
 }
-
