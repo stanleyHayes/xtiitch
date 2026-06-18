@@ -11,6 +11,7 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -83,6 +84,46 @@ func TestCheckoutReturnsAuthorization(t *testing.T) {
 	}
 }
 
+func TestVerifyBusinessPassesPrincipalRole(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "owner-1", BusinessID: "business-1", Role: business.UserRoleOwner}}
+	router := newRouter(service, verifier)
+	request := httptest.NewRequest(http.MethodPost, "/businesses/me/verify", bytes.NewReader([]byte(`{"settlement_account":"0240000000"}`)))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.verifyCommand.BusinessID != "business-1" || service.verifyCommand.ActorRole != business.UserRoleOwner {
+		t.Fatalf("unexpected verify command: %+v", service.verifyCommand)
+	}
+}
+
+func TestLogTakingMapsForbidden(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{takingErr: authdomain.ErrForbidden}
+	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "staff-1", BusinessID: "business-1", Role: business.UserRoleStaff}}
+	router := newRouter(service, verifier)
+	request := httptest.NewRequest(http.MethodPost, "/money/takings", bytes.NewReader([]byte(`{"amount_minor":5000,"method":"cash","what_for":"cash sale"}`)))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.takingCommand.ActorRole != business.UserRoleStaff {
+		t.Fatalf("expected staff role in taking command, got %+v", service.takingCommand)
+	}
+}
+
 func newRouter(service Service, verifier ports.TokenVerifier) http.Handler {
 	router := chi.NewRouter()
 	NewHandler(service, authhttp.NewAuthenticator(verifier)).Register(router)
@@ -107,11 +148,15 @@ func (v fakeVerifier) VerifyAccessToken(_ context.Context, _ string) (ports.Veri
 type fakeService struct {
 	handleErr     error
 	handleCalled  bool
+	verifyCommand paymentsapp.VerifyBusinessCommand
 	charge        paymentsapp.ChargeResult
 	chargeCommand paymentsapp.InitiateChargeCommand
+	takingCommand paymentsapp.LogManualTakingCommand
+	takingErr     error
 }
 
-func (s *fakeService) VerifyBusiness(_ context.Context, _ paymentsapp.VerifyBusinessCommand) error {
+func (s *fakeService) VerifyBusiness(_ context.Context, command paymentsapp.VerifyBusinessCommand) error {
+	s.verifyCommand = command
 	return nil
 }
 
@@ -129,7 +174,11 @@ func (s *fakeService) ListPayments(_ context.Context, _ common.TenantScope) ([]p
 	return nil, nil
 }
 
-func (s *fakeService) LogManualTaking(_ context.Context, _ paymentsapp.LogManualTakingCommand) (common.ID, error) {
+func (s *fakeService) LogManualTaking(_ context.Context, command paymentsapp.LogManualTakingCommand) (common.ID, error) {
+	s.takingCommand = command
+	if s.takingErr != nil {
+		return "", s.takingErr
+	}
 	return "taking-1", nil
 }
 

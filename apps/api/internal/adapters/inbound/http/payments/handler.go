@@ -12,6 +12,7 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
@@ -94,6 +95,7 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 
 	if err := handler.service.VerifyBusiness(r.Context(), paymentsapp.VerifyBusinessCommand{
 		BusinessID:        principal.BusinessID,
+		ActorRole:         principal.Role,
 		SettlementAccount: request.SettlementAccount,
 	}); err != nil {
 		status, code := paymentError(err)
@@ -188,6 +190,7 @@ func (handler Handler) logTaking(w http.ResponseWriter, r *http.Request) {
 
 	cmd := paymentsapp.LogManualTakingCommand{
 		Scope:       principal.TenantScope(),
+		ActorRole:   principal.Role,
 		AmountMinor: request.AmountMinor,
 		Method:      request.Method,
 		WhatFor:     request.WhatFor,
@@ -272,6 +275,8 @@ func (handler Handler) webhook(w http.ResponseWriter, r *http.Request) {
 
 func paymentError(err error) (int, string) {
 	switch {
+	case errors.Is(err, authdomain.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, paymentsapp.ErrInvalidCharge), errors.Is(err, paymentsapp.ErrInvalidTaking):
 		return http.StatusBadRequest, "invalid_charge"
 	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):

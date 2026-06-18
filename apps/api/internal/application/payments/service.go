@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
@@ -42,6 +44,7 @@ func NewService(deps Dependencies) Service {
 
 type VerifyBusinessCommand struct {
 	BusinessID        common.ID
+	ActorRole         business.UserRole
 	SettlementAccount string
 }
 
@@ -50,6 +53,9 @@ type VerifyBusinessCommand struct {
 // already-provisioned business is left as-is. Until this runs, charging is
 // gated (Technical Specification sections 5.2, 10.2).
 func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) error {
+	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
+		return err
+	}
 	if cmd.SettlementAccount == "" {
 		return ErrInvalidCharge
 	}
@@ -186,6 +192,7 @@ func (s Service) ListPayments(ctx context.Context, scope common.TenantScope) ([]
 
 type LogManualTakingCommand struct {
 	Scope       common.TenantScope
+	ActorRole   business.UserRole
 	OrderID     *common.ID
 	AmountMinor int64
 	Method      string
@@ -196,6 +203,9 @@ type LogManualTakingCommand struct {
 // tracker. It carries no commission and moves no money — Xtiitch only records it
 // so the business sees its full income.
 func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (common.ID, error) {
+	if err := authorizeMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
 	if cmd.AmountMinor <= 0 {
 		return "", ErrInvalidTaking
 	}
@@ -225,4 +235,14 @@ func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope
 
 func (s Service) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
 	return s.payments.MoneySummary(ctx, scope)
+}
+
+func authorizeMoneyManagement(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return ErrInvalidCharge
+	}
+	if role == business.UserRoleOwner || role == business.UserRoleAdmin {
+		return nil
+	}
+	return authdomain.ErrForbidden
 }

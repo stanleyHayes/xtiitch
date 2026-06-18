@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
@@ -140,7 +142,7 @@ func TestLogManualTakingRecordsOffPlatformSale(t *testing.T) {
 	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{}, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
 
 	id, err := service.LogManualTaking(context.Background(), LogManualTakingCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: "cash", WhatFor: "  alteration  ",
+		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleAdmin, AmountMinor: 5000, Method: "cash", WhatFor: "  alteration  ",
 	})
 	if err != nil {
 		t.Fatalf("log manual taking: %v", err)
@@ -157,10 +159,10 @@ func TestLogManualTakingRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	cases := []LogManualTakingCommand{
-		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 0, Method: "cash"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: -10, Method: "cash"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: "card"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, AmountMinor: 5000, Method: ""},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, AmountMinor: 0, Method: "cash"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, AmountMinor: -10, Method: "cash"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, AmountMinor: 5000, Method: "card"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, AmountMinor: 5000, Method: ""},
 	}
 	for _, cmd := range cases {
 		payments := &fakePaymentRepo{}
@@ -171,6 +173,40 @@ func TestLogManualTakingRejectsInvalidInput(t *testing.T) {
 		if payments.taking.TakingID != "" {
 			t.Fatalf("an invalid taking must not be recorded: %+v", payments.taking)
 		}
+	}
+}
+
+func TestMoneyManagementRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_new"}
+	payments := &fakePaymentRepo{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
+	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+
+	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleStaff,
+		SettlementAccount: "0240000000",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff verification to be forbidden, got %v", err)
+	}
+	if provider.subaccountCreated {
+		t.Fatal("expected staff verification to stop before provider provisioning")
+	}
+
+	_, err = service.LogManualTaking(context.Background(), LogManualTakingCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleStaff,
+		AmountMinor: 5000,
+		Method:      "cash",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff manual taking to be forbidden, got %v", err)
+	}
+	if payments.taking.TakingID != "" {
+		t.Fatalf("expected staff manual taking to stop before repository write: %+v", payments.taking)
 	}
 }
 
@@ -217,7 +253,11 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
 	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
 
-	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{BusinessID: "business-1", SettlementAccount: "0240000000"}); err != nil {
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementAccount: "0240000000",
+	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
 	if !provider.subaccountCreated {
@@ -235,7 +275,11 @@ func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true, SubaccountRef: "sub_existing"}}
 	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
 
-	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{BusinessID: "business-1", SettlementAccount: "0240000000"}); err != nil {
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleAdmin,
+		SettlementAccount: "0240000000",
+	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
 	if provider.subaccountCreated {
