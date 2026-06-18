@@ -10068,6 +10068,7 @@ function AdsSection({
   businesses: AdminBusiness[];
   actionData?: AdminActionFeedback;
 }) {
+  const [adDialogOpen, setAdDialogOpen] = useState(false);
   const eligibleBusinesses = businesses.filter(
     (business) =>
       business.verificationStatus === "verified" &&
@@ -10174,42 +10175,50 @@ function AdsSection({
 
       {!adCampaignsError ? (
         <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-          <Form method="post">
-            <input
-              type="hidden"
-              name="intent"
-              value="admin-ad-campaign:create"
-            />
-            <input type="hidden" name="pricing_model" value="flat_time" />
-            <Stack spacing={2}>
-              <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
-                sx={{ justifyContent: "space-between" }}
-              >
-                <Box>
-                  <Typography variant="h6">Create placement</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Only verified active businesses can be selected.
-                  </Typography>
-                </Box>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<CampaignRounded />}
-                  disabled={eligibleBusinesses.length === 0}
-                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
-                >
-                  Create placement
-                </Button>
-              </Stack>
-              {eligibleBusinesses.length === 0 ? (
-                <Alert severity="info">
-                  No verified active businesses are eligible for sponsored
-                  placement yet.
-                </Alert>
-              ) : null}
-              <FormGroupLabel>Campaign</FormGroupLabel>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.5}
+            sx={{ justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Create placement</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Only verified active businesses can be selected.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              startIcon={<CampaignRounded />}
+              disabled={eligibleBusinesses.length === 0}
+              onClick={() => setAdDialogOpen(true)}
+              sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+            >
+              New placement
+            </Button>
+          </Stack>
+          {eligibleBusinesses.length === 0 ? (
+            <Alert severity="info" sx={{ mt: 1.5 }}>
+              No verified active businesses are eligible for sponsored placement
+              yet.
+            </Alert>
+          ) : null}
+          <Dialog
+            open={adDialogOpen}
+            onClose={() => setAdDialogOpen(false)}
+            fullWidth
+            maxWidth="md"
+          >
+            <DialogTitle>Create ad placement</DialogTitle>
+            <DialogContent dividers>
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="admin-ad-campaign:create"
+                />
+                <input type="hidden" name="pricing_model" value="flat_time" />
+                <Stack spacing={2}>
+                  <FormGroupLabel>Campaign</FormGroupLabel>
               <Box
                 sx={{
                   display: "grid",
@@ -10352,8 +10361,19 @@ function AdsSection({
                   size="small"
                 />
               </Box>
-            </Stack>
-          </Form>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<CampaignRounded />}
+                    disabled={eligibleBusinesses.length === 0}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    Create placement
+                  </Button>
+                </Stack>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </Panel>
       ) : null}
 
@@ -10964,6 +10984,7 @@ function AffiliatesSection({
   affiliateAttributionError: string | null;
   actionData?: AdminActionFeedback;
 }) {
+  const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
   const pendingAffiliates = affiliates.filter(
     (affiliate) => affiliate.status === "pending_review",
   );
@@ -11103,26 +11124,40 @@ function AffiliatesSection({
 
       {!affiliatesError ? (
         <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-          <Form method="post">
-            <input type="hidden" name="intent" value="admin-affiliate:create" />
-            <Stack spacing={2}>
-              <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
-                sx={{ justifyContent: "space-between" }}
-              >
-                <Box>
-                  <Typography variant="h6">Register affiliate</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Add a partner code and the commercial terms operators
-                    approve.
-                  </Typography>
-                </Box>
-                <Button type="submit" variant="contained">
-                  Create partner
-                </Button>
-              </Stack>
-              <FormGroupLabel>Affiliate</FormGroupLabel>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.5}
+            sx={{ justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Register affiliate</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Add a partner code and the commercial terms operators approve.
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              onClick={() => setAffiliateDialogOpen(true)}
+            >
+              New affiliate
+            </Button>
+          </Stack>
+          <Dialog
+            open={affiliateDialogOpen}
+            onClose={() => setAffiliateDialogOpen(false)}
+            fullWidth
+            maxWidth="md"
+          >
+            <DialogTitle>Register affiliate partner</DialogTitle>
+            <DialogContent dividers>
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="admin-affiliate:create"
+                />
+                <Stack spacing={2}>
+                  <FormGroupLabel>Affiliate</FormGroupLabel>
               <Box
                 sx={{
                   display: "grid",
@@ -11223,8 +11258,17 @@ function AffiliatesSection({
                 <TextField label="Payout reference" name="payout_reference" />
                 <TextField label="Notes" name="notes" multiline minRows={2} />
               </Box>
-            </Stack>
-          </Form>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    Create partner
+                  </Button>
+                </Stack>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </Panel>
       ) : null}
 
