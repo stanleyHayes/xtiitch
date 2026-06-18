@@ -421,6 +421,16 @@ type AdminSubscriptionBillingSweepRecord struct {
 	RanAt                 time.Time
 }
 
+type AdminSubscriptionRecurringSweepRecord struct {
+	DueSubscriptions int
+	ChargesAttempted int
+	ChargesPaid      int
+	ChargesPending   int
+	ChargesFailed    int
+	ChargesSkipped   int
+	RanAt            time.Time
+}
+
 type AdminPlanRecord struct {
 	PlanID                  common.ID
 	Code                    string

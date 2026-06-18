@@ -91,6 +91,42 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 	}, nil
 }
 
+func (c Client) ChargeAuthorization(ctx context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+	var response struct {
+		Status bool `json:"status"`
+		Data   struct {
+			Amount    int64  `json:"amount"`
+			Currency  string `json:"currency"`
+			Status    string `json:"status"`
+			Reference string `json:"reference"`
+		} `json:"data"`
+	}
+	if err := c.post(ctx, "/transaction/charge_authorization", map[string]any{
+		"authorization_code": input.AuthorizationCode,
+		"email":              input.CustomerEmail,
+		"amount":             input.AmountMinor,
+		"currency":           input.Currency,
+		"reference":          input.Reference,
+	}, &response); err != nil {
+		return ports.ChargeAuthorizationResult{}, err
+	}
+
+	reference := response.Data.Reference
+	if reference == "" {
+		reference = input.Reference
+	}
+	currency := response.Data.Currency
+	if currency == "" {
+		currency = input.Currency
+	}
+	return ports.ChargeAuthorizationResult{
+		ProviderReference: reference,
+		Status:            response.Data.Status,
+		AmountMinor:       response.Data.Amount,
+		Currency:          currency,
+	}, nil
+}
+
 func (c Client) post(ctx context.Context, path string, body any, out any) error {
 	encoded, err := json.Marshal(body)
 	if err != nil {

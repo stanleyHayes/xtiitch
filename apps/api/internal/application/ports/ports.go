@@ -148,6 +148,7 @@ type RefreshTokenIssuer interface {
 type PaymentProvider interface {
 	CreateBusinessSubaccount(ctx context.Context, input CreateBusinessSubaccountInput) (CreateBusinessSubaccountResult, error)
 	InitializeTransaction(ctx context.Context, input InitializeTransactionInput) (InitializeTransactionResult, error)
+	ChargeAuthorization(ctx context.Context, input ChargeAuthorizationInput) (ChargeAuthorizationResult, error)
 	// VerifyWebhookSignature checks a raw webhook body against its signature
 	// header. It operates on bytes, never a decoded value, so the signature is
 	// verified over exactly what the provider signed.
@@ -179,6 +180,22 @@ type InitializeTransactionResult struct {
 	AuthorizationURL  string
 	AccessCode        string
 	ProviderReference string
+}
+
+type ChargeAuthorizationInput struct {
+	BusinessID        common.ID
+	AuthorizationCode string
+	CustomerEmail     string
+	AmountMinor       int64
+	Currency          string
+	Reference         string
+}
+
+type ChargeAuthorizationResult struct {
+	ProviderReference string
+	Status            string
+	AmountMinor       int64
+	Currency          string
 }
 
 type ProviderChargeEvent struct {

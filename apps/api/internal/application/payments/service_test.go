@@ -265,6 +265,10 @@ func (p *fakeProvider) InitializeTransaction(_ context.Context, input ports.Init
 	return p.initResult, nil
 }
 
+func (p *fakeProvider) ChargeAuthorization(context.Context, ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+	return ports.ChargeAuthorizationResult{}, nil
+}
+
 func (p *fakeProvider) VerifyWebhookSignature(_ []byte, _ string) bool { return p.verifySig }
 
 func (p *fakeProvider) ParseChargeEvent(_ []byte) (ports.ProviderChargeEvent, error) {

@@ -179,6 +179,14 @@ type RunSubscriptionBillingSweepCommand struct {
 	IPAddress   string
 }
 
+type RunSubscriptionRecurringSweepCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
 type ListPlansCommand struct {
 	ActorRole admindomain.Role
 }
@@ -1235,6 +1243,142 @@ func (s Service) RunSubscriptionBillingSweep(
 		UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminSubscriptionBillingSweepRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) RunSubscriptionRecurringSweep(
+	ctx context.Context,
+	cmd RunSubscriptionRecurringSweepCommand,
+) (ports.AdminSubscriptionRecurringSweepRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminSubscriptionRecurringSweepRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSubscriptions); err != nil {
+		return ports.AdminSubscriptionRecurringSweepRecord{}, err
+	}
+	if s.businesses == nil || s.payments == nil {
+		return ports.AdminSubscriptionRecurringSweepRecord{}, authdomain.ErrForbidden
+	}
+
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Operator recurring charge sweep."
+	}
+
+	now := s.clock.Now()
+	record := ports.AdminSubscriptionRecurringSweepRecord{RanAt: now}
+	subscriptions, err := s.businesses.ListAdminSubscriptions(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionRecurringSweepRecord{}, err
+	}
+
+	for _, subscription := range subscriptions {
+		if !subscriptionDueForRecurringCharge(subscription, now) {
+			continue
+		}
+		record.DueSubscriptions++
+		if !subscriptionRecurringChargeReady(subscription) {
+			record.ChargesSkipped++
+			continue
+		}
+
+		invoiceID := s.ids.NewID()
+		invoiceRef := subscriptionInvoiceRef(invoiceID)
+		_, err := s.businesses.IssueAdminSubscriptionInvoice(ctx, ports.IssueAdminSubscriptionInvoiceInput{
+			InvoiceID:          invoiceID,
+			BusinessID:         subscription.BusinessID,
+			InvoiceRef:         invoiceRef,
+			ProviderInvoiceRef: invoiceRef,
+			DueAt:              now.Add(72 * time.Hour),
+			ActorAdminUser:     cmd.ActorUserID,
+			Reason:             reason,
+		})
+		if errors.Is(err, ports.ErrSubscriptionInvoiceOpen) ||
+			errors.Is(err, ports.ErrSubscriptionBillingUnavailable) {
+			record.ChargesSkipped++
+			continue
+		}
+		if err != nil {
+			return ports.AdminSubscriptionRecurringSweepRecord{}, err
+		}
+
+		record.ChargesAttempted++
+		charge, err := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
+			BusinessID:        subscription.BusinessID,
+			AuthorizationCode: subscription.ProviderSubscriptionRef,
+			CustomerEmail:     subscription.OwnerEmail,
+			AmountMinor:       subscription.MonthlyFeeMinor,
+			Currency:          "GHS",
+			Reference:         invoiceRef,
+		})
+		if err != nil {
+			if _, markErr := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
+				InvoiceID:      invoiceID,
+				ActorAdminUser: cmd.ActorUserID,
+				Reason:         recurringChargeFailureReason(err.Error()),
+			}); markErr != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, markErr
+			}
+			record.ChargesFailed++
+			continue
+		}
+
+		switch normalizeProviderChargeStatus(charge.Status) {
+		case "success":
+			if _, err := s.businesses.MarkAdminSubscriptionInvoicePaid(ctx, ports.MarkAdminSubscriptionInvoicePaidInput{
+				InvoiceID:      invoiceID,
+				ActorAdminUser: cmd.ActorUserID,
+				Reason:         "Paystack recurring charge succeeded.",
+			}); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
+			record.ChargesPaid++
+		case "pending":
+			record.ChargesPending++
+		default:
+			if _, err := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
+				InvoiceID:      invoiceID,
+				ActorAdminUser: cmd.ActorUserID,
+				Reason:         "Paystack recurring charge returned " + normalizeProviderChargeStatus(charge.Status) + ".",
+			}); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
+			record.ChargesFailed++
+		}
+	}
+
+	severity := admindomain.AuditSeverityInfo
+	if record.ChargesFailed > 0 || record.ChargesSkipped > 0 {
+		severity = admindomain.AuditSeverityWarning
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Ran subscription recurring charge sweep",
+		TargetType:  "business_subscription",
+		TargetID:    "recurring_charge_sweep",
+		TargetLabel: "Subscription recurring charges",
+		Summary: "Recurring charge sweep attempted " + strconv.Itoa(record.ChargesAttempted) +
+			" charges, paid " + strconv.Itoa(record.ChargesPaid) +
+			", left " + strconv.Itoa(record.ChargesPending) +
+			" pending, failed " + strconv.Itoa(record.ChargesFailed) +
+			", and skipped " + strconv.Itoa(record.ChargesSkipped) + ".",
+		Severity: severity,
+		Metadata: map[string]string{
+			"due_subscriptions": strconv.Itoa(record.DueSubscriptions),
+			"charges_attempted": strconv.Itoa(record.ChargesAttempted),
+			"charges_paid":      strconv.Itoa(record.ChargesPaid),
+			"charges_pending":   strconv.Itoa(record.ChargesPending),
+			"charges_failed":    strconv.Itoa(record.ChargesFailed),
+			"charges_skipped":   strconv.Itoa(record.ChargesSkipped),
+			"reason":            reason,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminSubscriptionRecurringSweepRecord{}, err
 	}
 
 	return record, nil
@@ -3566,6 +3710,52 @@ func subscriptionInvoiceRef(invoiceID common.ID) string {
 		compact = "manual"
 	}
 	return "XTSUB-" + strings.ToUpper(compact)
+}
+
+func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecord, now time.Time) bool {
+	if subscription.MonthlyFeeMinor <= 0 ||
+		subscription.BillingMode != "recurring" ||
+		subscription.Status == "canceled" ||
+		subscription.Status == "cancel_at_period_end" ||
+		subscription.NextBillingAt == nil ||
+		subscription.NextBillingAt.After(now) {
+		return false
+	}
+	for _, invoice := range subscription.Invoices {
+		if invoice.Status == "issued" {
+			return false
+		}
+	}
+	return true
+}
+
+func subscriptionRecurringChargeReady(subscription ports.AdminSubscriptionRecord) bool {
+	return strings.TrimSpace(subscription.OwnerEmail) != "" &&
+		strings.TrimSpace(subscription.ProviderSubscriptionRef) != ""
+}
+
+func normalizeProviderChargeStatus(status string) string {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "success", "successful":
+		return "success"
+	case "processing", "pending", "ongoing", "":
+		return "pending"
+	default:
+		return "failed"
+	}
+}
+
+func recurringChargeFailureReason(reason string) string {
+	trimmed := normalizeOperatorNote(reason)
+	if trimmed == "" {
+		return "Paystack recurring charge failed."
+	}
+	const maxReasonLength = 220
+	message := "Paystack recurring charge failed: " + trimmed
+	if len([]rune(message)) > maxReasonLength {
+		return string([]rune(message)[:maxReasonLength])
+	}
+	return message
 }
 
 func normalizePaymentURL(value string) (string, error) {

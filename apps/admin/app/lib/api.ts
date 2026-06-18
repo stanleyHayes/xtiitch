@@ -195,6 +195,16 @@ export type AdminSubscriptionBillingSweep = {
   ranAt: string;
 };
 
+export type AdminSubscriptionRecurringSweep = {
+  dueSubscriptions: number;
+  chargesAttempted: number;
+  chargesPaid: number;
+  chargesPending: number;
+  chargesFailed: number;
+  chargesSkipped: number;
+  ranAt: string;
+};
+
 export type AdminPlan = {
   planId: string;
   code: string;
@@ -741,6 +751,16 @@ type AdminSubscriptionBillingSweepPayload = {
   overdue_invoices_failed: number;
   subscriptions_canceled: number;
   businesses_touched: number;
+  ran_at: string;
+};
+
+type AdminSubscriptionRecurringSweepPayload = {
+  due_subscriptions: number;
+  charges_attempted: number;
+  charges_paid: number;
+  charges_pending: number;
+  charges_failed: number;
+  charges_skipped: number;
   ran_at: string;
 };
 
@@ -1293,6 +1313,20 @@ function mapSubscriptionBillingSweep(
     overdueInvoicesFailed: payload.overdue_invoices_failed,
     subscriptionsCanceled: payload.subscriptions_canceled,
     businessesTouched: payload.businesses_touched,
+    ranAt: payload.ran_at,
+  };
+}
+
+function mapSubscriptionRecurringSweep(
+  payload: AdminSubscriptionRecurringSweepPayload,
+): AdminSubscriptionRecurringSweep {
+  return {
+    dueSubscriptions: payload.due_subscriptions,
+    chargesAttempted: payload.charges_attempted,
+    chargesPaid: payload.charges_paid,
+    chargesPending: payload.charges_pending,
+    chargesFailed: payload.charges_failed,
+    chargesSkipped: payload.charges_skipped,
     ranAt: payload.ran_at,
   };
 }
@@ -1857,6 +1891,15 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapSubscriptionBillingSweep),
+  runSubscriptionRecurringSweep: (accessToken: string, reason: string) =>
+    requestJSON<AdminSubscriptionRecurringSweepPayload>(
+      "/admin/subscriptions/recurring-charges",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapSubscriptionRecurringSweep),
   plans: async (accessToken: string) => {
     const payload = await requestJSON<{ plans: AdminPlanPayload[] }>(
       "/admin/plans",

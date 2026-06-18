@@ -33,6 +33,15 @@ func (p DevProvider) InitializeTransaction(_ context.Context, input ports.Initia
 	}, nil
 }
 
+func (p DevProvider) ChargeAuthorization(_ context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+	return ports.ChargeAuthorizationResult{
+		ProviderReference: input.Reference,
+		Status:            "success",
+		AmountMinor:       input.AmountMinor,
+		Currency:          input.Currency,
+	}, nil
+}
+
 func (p DevProvider) VerifyWebhookSignature(payload []byte, signature string) bool {
 	return verifyWebhookSignature(p.webhookSecret, payload, signature)
 }

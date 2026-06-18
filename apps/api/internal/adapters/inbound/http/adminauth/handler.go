@@ -45,6 +45,7 @@ type Service interface {
 	MarkSubscriptionInvoicePaid(ctx context.Context, command adminauthapp.MarkSubscriptionInvoicePaidCommand) (ports.AdminSubscriptionRecord, error)
 	MarkSubscriptionInvoiceFailed(ctx context.Context, command adminauthapp.MarkSubscriptionInvoiceFailedCommand) (ports.AdminSubscriptionRecord, error)
 	RunSubscriptionBillingSweep(ctx context.Context, command adminauthapp.RunSubscriptionBillingSweepCommand) (ports.AdminSubscriptionBillingSweepRecord, error)
+	RunSubscriptionRecurringSweep(ctx context.Context, command adminauthapp.RunSubscriptionRecurringSweepCommand) (ports.AdminSubscriptionRecurringSweepRecord, error)
 	ListPlans(ctx context.Context, command adminauthapp.ListPlansCommand) ([]ports.AdminPlanRecord, error)
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
@@ -114,6 +115,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/money-rails", handler.moneyRails)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
+		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
 		protected.Patch("/admin/subscriptions/businesses/{id}", handler.updateSubscription)
 		protected.Post("/admin/subscriptions/businesses/{id}/invoices", handler.issueSubscriptionInvoice)
 		protected.Post("/admin/subscriptions/invoices/{id}/paid", handler.markSubscriptionInvoicePaid)
@@ -641,6 +643,16 @@ type subscriptionBillingSweepResponse struct {
 	SubscriptionsCanceled int    `json:"subscriptions_canceled"`
 	BusinessesTouched     int    `json:"businesses_touched"`
 	RanAt                 string `json:"ran_at"`
+}
+
+type subscriptionRecurringSweepResponse struct {
+	DueSubscriptions int    `json:"due_subscriptions"`
+	ChargesAttempted int    `json:"charges_attempted"`
+	ChargesPaid      int    `json:"charges_paid"`
+	ChargesPending   int    `json:"charges_pending"`
+	ChargesFailed    int    `json:"charges_failed"`
+	ChargesSkipped   int    `json:"charges_skipped"`
+	RanAt            string `json:"ran_at"`
 }
 
 type planResponse struct {
@@ -1401,6 +1413,35 @@ func (handler Handler) runSubscriptionBillingSweep(w http.ResponseWriter, r *htt
 	}
 
 	writeJSON(w, http.StatusOK, newSubscriptionBillingSweepResponse(record))
+}
+
+func (handler Handler) runSubscriptionRecurringSweep(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionBillingSweepRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.RunSubscriptionRecurringSweep(r.Context(), adminauthapp.RunSubscriptionRecurringSweepCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionRecurringSweepResponse(record))
 }
 
 func (handler Handler) plans(w http.ResponseWriter, r *http.Request) {
@@ -3407,6 +3448,20 @@ func newSubscriptionBillingSweepResponse(
 		SubscriptionsCanceled: record.SubscriptionsCanceled,
 		BusinessesTouched:     record.BusinessesTouched,
 		RanAt:                 record.RanAt.Format(time.RFC3339),
+	}
+}
+
+func newSubscriptionRecurringSweepResponse(
+	record ports.AdminSubscriptionRecurringSweepRecord,
+) subscriptionRecurringSweepResponse {
+	return subscriptionRecurringSweepResponse{
+		DueSubscriptions: record.DueSubscriptions,
+		ChargesAttempted: record.ChargesAttempted,
+		ChargesPaid:      record.ChargesPaid,
+		ChargesPending:   record.ChargesPending,
+		ChargesFailed:    record.ChargesFailed,
+		ChargesSkipped:   record.ChargesSkipped,
+		RanAt:            record.RanAt.Format(time.RFC3339),
 	}
 }
 

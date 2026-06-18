@@ -1007,6 +1007,152 @@ func TestRunSubscriptionBillingSweepRequiresPermissionAndAudits(t *testing.T) {
 	}
 }
 
+func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	futureBilling := now.Add(time.Hour)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Ama Stitches",
+				OwnerEmail:              "owner@example.com",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_123",
+				NextBillingAt:           &dueAt,
+			},
+			{
+				SubscriptionID:  "subscription-2",
+				BusinessID:      "business-2",
+				BusinessName:    "Missing Auth",
+				OwnerEmail:      "",
+				MonthlyFeeMinor: 12000,
+				Status:          "active",
+				BillingMode:     "recurring",
+				NextBillingAt:   &dueAt,
+			},
+			{
+				SubscriptionID:          "subscription-3",
+				BusinessID:              "business-3",
+				BusinessName:            "Future Charge",
+				OwnerEmail:              "future@example.com",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_456",
+				NextBillingAt:           &futureBilling,
+			},
+		},
+	}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"invoice-recurring", "audit-recurring"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		Reason:      " collect recurring package fees ",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	if record.DueSubscriptions != 2 ||
+		record.ChargesAttempted != 1 ||
+		record.ChargesPaid != 1 ||
+		record.ChargesSkipped != 1 ||
+		record.ChargesFailed != 0 ||
+		record.ChargesPending != 0 {
+		t.Fatalf("unexpected recurring sweep record: %+v", record)
+	}
+	if len(provider.charged) != 1 ||
+		provider.charged[0].AuthorizationCode != "AUTH_123" ||
+		provider.charged[0].CustomerEmail != "owner@example.com" ||
+		provider.charged[0].AmountMinor != 12000 ||
+		provider.charged[0].Reference != businesses.issuedSubscriptionInvoice.InvoiceRef {
+		t.Fatalf("unexpected recurring charge input: %+v", provider.charged)
+	}
+	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
+		!businesses.issuedSubscriptionInvoice.DueAt.Equal(now.Add(72*time.Hour)) ||
+		businesses.paidSubscriptionInvoice.InvoiceID != "invoice-recurring" {
+		t.Fatalf("expected issued and paid invoice inputs, got issue=%+v paid=%+v",
+			businesses.issuedSubscriptionInvoice, businesses.paidSubscriptionInvoice)
+	}
+	if len(audits.created) != 1 ||
+		audits.created[0].Action != "Ran subscription recurring charge sweep" ||
+		audits.created[0].Metadata["charges_paid"] != "1" ||
+		audits.created[0].Metadata["charges_skipped"] != "1" {
+		t.Fatalf("unexpected audit event: %+v", audits.created)
+	}
+
+	_, err = service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
+func TestRunSubscriptionRecurringSweepMarksProviderFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Ama Stitches",
+				OwnerEmail:              "owner@example.com",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_123",
+				NextBillingAt:           &dueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"invoice-recurring", "audit-recurring"},
+	)
+	service.payments = &fakePaymentProvider{
+		chargeResult: ports.ChargeAuthorizationResult{Status: "failed"},
+	}
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	if record.ChargesAttempted != 1 || record.ChargesFailed != 1 || record.ChargesPaid != 0 {
+		t.Fatalf("unexpected recurring failure record: %+v", record)
+	}
+	if businesses.failedSubscriptionInvoice.InvoiceID != "invoice-recurring" ||
+		businesses.failedSubscriptionInvoice.Reason != "Paystack recurring charge returned failed." {
+		t.Fatalf("expected failed invoice input, got %+v", businesses.failedSubscriptionInvoice)
+	}
+}
+
 func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -3763,7 +3909,10 @@ func (fakeAdminTokenIssuer) IssueAdminAccessToken(_ context.Context, input ports
 }
 
 type fakePaymentProvider struct {
-	initialized ports.InitializeTransactionInput
+	initialized  ports.InitializeTransactionInput
+	charged      []ports.ChargeAuthorizationInput
+	chargeResult ports.ChargeAuthorizationResult
+	chargeErr    error
 }
 
 func (fakePaymentProvider) CreateBusinessSubaccount(
@@ -3781,6 +3930,25 @@ func (provider *fakePaymentProvider) InitializeTransaction(
 	return ports.InitializeTransactionResult{
 		AuthorizationURL:  "https://paystack.test/" + input.Reference,
 		ProviderReference: "PAY_" + input.Reference,
+	}, nil
+}
+
+func (provider *fakePaymentProvider) ChargeAuthorization(
+	_ context.Context,
+	input ports.ChargeAuthorizationInput,
+) (ports.ChargeAuthorizationResult, error) {
+	provider.charged = append(provider.charged, input)
+	if provider.chargeErr != nil {
+		return ports.ChargeAuthorizationResult{}, provider.chargeErr
+	}
+	if provider.chargeResult.Status != "" || provider.chargeResult.ProviderReference != "" {
+		return provider.chargeResult, nil
+	}
+	return ports.ChargeAuthorizationResult{
+		ProviderReference: input.Reference,
+		Status:            "success",
+		AmountMinor:       input.AmountMinor,
+		Currency:          input.Currency,
 	}, nil
 }
 

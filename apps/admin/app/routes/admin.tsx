@@ -37,6 +37,7 @@ import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
 import FileDownloadRounded from "@mui/icons-material/FileDownloadRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
@@ -906,10 +907,28 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  if (intent === "admin-subscription-billing:sweep") {
+  if (
+    intent === "admin-subscription-billing:sweep" ||
+    intent === "admin-subscription-recurring:sweep"
+  ) {
     const { accessToken } = await requireAdminContext(request);
 
     try {
+      if (intent === "admin-subscription-recurring:sweep") {
+        const result = await adminApi.runSubscriptionRecurringSweep(
+          accessToken,
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "subscriptions",
+          severity:
+            result.chargesFailed > 0 || result.chargesSkipped > 0
+              ? "warning"
+              : "success",
+          message: `Recurring charge sweep complete: ${result.chargesPaid} paid, ${result.chargesPending} pending, ${result.chargesFailed} failed, ${result.chargesSkipped} skipped.`,
+        };
+      }
+
       const result = await adminApi.runSubscriptionBillingSweep(
         accessToken,
         String(form.get("reason") ?? ""),
@@ -6384,6 +6403,26 @@ function SubscriptionsSection({
       subscription.graceEndsAt &&
       new Date(subscription.graceEndsAt).getTime() <= nowMs,
   ).length;
+  const recurringDueRows = subscriptions.filter((subscription) => {
+    if (
+      subscription.monthlyFeeMinor <= 0 ||
+      subscription.billingMode !== "recurring" ||
+      subscription.status === "canceled" ||
+      subscription.status === "cancel_at_period_end" ||
+      !subscription.nextBillingAt ||
+      new Date(subscription.nextBillingAt).getTime() > nowMs
+    ) {
+      return false;
+    }
+    return !subscription.invoices.some((invoice) => invoice.status === "issued");
+  });
+  const recurringReadyRows = recurringDueRows.filter(
+    (subscription) =>
+      subscription.ownerEmail.trim() !== "" &&
+      subscription.providerSubscriptionRef.trim() !== "",
+  );
+  const recurringBlockedCount =
+    recurringDueRows.length - recurringReadyRows.length;
 
   return (
     <Stack spacing={2.5}>
@@ -6454,13 +6493,17 @@ function SubscriptionsSection({
         sx={{
           p: { xs: 2, md: 2.5 },
           borderColor: alpha(
-            overdueIssuedInvoiceCount || expiredGraceCount
+            overdueIssuedInvoiceCount ||
+              expiredGraceCount ||
+              recurringBlockedCount
               ? tokens.warning
               : tokens.success,
             0.22,
           ),
           backgroundImage: `linear-gradient(90deg, ${alpha(
-            overdueIssuedInvoiceCount || expiredGraceCount
+            overdueIssuedInvoiceCount ||
+              expiredGraceCount ||
+              recurringBlockedCount
               ? tokens.warning
               : tokens.success,
             0.08,
@@ -6518,6 +6561,69 @@ function SubscriptionsSection({
                 sx={{ minWidth: 170 }}
               >
                 Run sweep
+              </Button>
+            </Stack>
+          </Form>
+        </Stack>
+        <Divider sx={{ my: 1.75 }} />
+        <Stack
+          direction={{ xs: "column", lg: "row" }}
+          spacing={1.5}
+          sx={{ justifyContent: "space-between", alignItems: { lg: "center" } }}
+        >
+          <Box>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap" }}
+            >
+              <Typography variant="h6">Recurring charges</Typography>
+              <Chip
+                size="small"
+                label={`${recurringDueRows.length} due`}
+                color={recurringDueRows.length ? "warning" : "success"}
+                variant={recurringDueRows.length ? "filled" : "outlined"}
+              />
+              <Chip
+                size="small"
+                label={`${recurringReadyRows.length} ready`}
+                color={recurringReadyRows.length ? "success" : "default"}
+                variant="outlined"
+              />
+              <Chip
+                size="small"
+                label={`${recurringBlockedCount} blocked`}
+                color={recurringBlockedCount ? "warning" : "default"}
+                variant="outlined"
+              />
+            </Stack>
+            <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
+              Charge due recurring subscriptions through Paystack saved
+              authorizations, then settle package invoices from the provider
+              result.
+            </Typography>
+          </Box>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-subscription-recurring:sweep"
+            />
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <TextField
+                size="small"
+                name="reason"
+                label="Charge note"
+                defaultValue="Operator recurring charge sweep"
+                sx={{ minWidth: { sm: 260 } }}
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<CreditCardRounded />}
+                sx={{ minWidth: 170 }}
+              >
+                Run charges
               </Button>
             </Stack>
           </Form>
@@ -7089,10 +7195,10 @@ function SubscriptionsSection({
                       />
                       <TextField
                         size="small"
-                        label="Paystack subscription ref"
+                        label="Paystack auth/subscription ref"
                         name="provider_subscription_ref"
                         defaultValue={subscription.providerSubscriptionRef}
-                        placeholder="SUB_..."
+                        placeholder="AUTH_... or SUB_..."
                       />
                     </Box>
                   </Form>
