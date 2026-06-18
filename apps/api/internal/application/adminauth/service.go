@@ -511,6 +511,15 @@ type QueueMoneyReplayCommand struct {
 	IPAddress         string
 }
 
+type ReverseMoneyPaymentCommand struct {
+	ActorUserID       common.ID
+	ActorRole         admindomain.Role
+	ProviderReference string
+	Reason            string
+	UserAgent         string
+	IPAddress         string
+}
+
 type SetSettlementReviewHoldCommand struct {
 	ActorUserID common.ID
 	ActorRole   admindomain.Role
@@ -2382,6 +2391,69 @@ func (s Service) QueueMoneyReplay(
 		UserAgent: cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminMoneyReplayRequestRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) ReverseMoneyPayment(
+	ctx context.Context,
+	cmd ReverseMoneyPaymentCommand,
+) (ports.AdminMoneyReversalRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminMoneyReversalRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageMoneyRails); err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminMoneyReversalRecord{}, authdomain.ErrForbidden
+	}
+
+	providerReference := strings.TrimSpace(cmd.ProviderReference)
+	if providerReference == "" {
+		return ports.AdminMoneyReversalRecord{}, authdomain.ErrInvalidInput
+	}
+	reason := normalizeOperatorNote(cmd.Reason)
+	if reason == "" {
+		reason = "Operator reversed payment after refund or dispute confirmation."
+	}
+
+	record, err := s.businesses.ReverseAdminMoneyPayment(ctx, ports.ReverseAdminMoneyPaymentInput{
+		ProviderReference: providerReference,
+		ActorAdminUser:    cmd.ActorUserID,
+		Reason:            reason,
+	})
+	if err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Reversed payment impact",
+		TargetType:  "payment",
+		TargetID:    record.PaymentID.String(),
+		TargetLabel: record.ProviderReference,
+		Summary: "Reversed payment " + record.ProviderReference +
+			" and voided related growth ledgers.",
+		Severity: admindomain.AuditSeverityWarning,
+		Metadata: map[string]string{
+			"provider_reference":    record.ProviderReference,
+			"business_id":           record.BusinessID.String(),
+			"payment_reversed":      boolString(record.PaymentReversed),
+			"promotion_redemptions": intString(record.PromotionRedemptionCount),
+			"affiliate_conversions": intString(record.AffiliateConversionCount),
+			"referrals":             intString(record.ReferralCount),
+			"referral_rewards":      intString(record.ReferralRewardCount),
+			"generated_promotions":  intString(record.GeneratedPromotionCount),
+			"reason":                record.Reason,
+			"reversed_at":           record.ReversedAt.Format(time.RFC3339),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
 	}
 
 	return record, nil

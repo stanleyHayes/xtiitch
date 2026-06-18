@@ -72,6 +72,7 @@ type AdminBusinessRepository interface {
 	CreateAdminReferralCode(ctx context.Context, input CreateAdminReferralCodeInput) (AdminReferralCodeRecord, error)
 	IssueAdminReferralRewards(ctx context.Context, input IssueAdminReferralRewardsInput) (AdminReferralRewardIssueRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
+	ReverseAdminMoneyPayment(ctx context.Context, input ReverseAdminMoneyPaymentInput) (AdminMoneyReversalRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
 	SetAdminRiskReviewStatus(ctx context.Context, input SetAdminRiskReviewStatusInput) (AdminRiskReviewRecord, error)
@@ -898,6 +899,28 @@ type QueueAdminMoneyReplayInput struct {
 	ReplayRequestID   common.ID
 	ProviderReference string
 	RequestedByUserID common.ID
+	Reason            string
+}
+
+type AdminMoneyReversalRecord struct {
+	PaymentID                common.ID
+	ProviderReference        string
+	BusinessID               common.ID
+	BusinessName             string
+	OrderID                  *common.ID
+	PaymentReversed          bool
+	PromotionRedemptionCount int
+	AffiliateConversionCount int
+	ReferralCount            int
+	ReferralRewardCount      int
+	GeneratedPromotionCount  int
+	Reason                   string
+	ReversedAt               time.Time
+}
+
+type ReverseAdminMoneyPaymentInput struct {
+	ProviderReference string
+	ActorAdminUser    common.ID
 	Reason            string
 }
 

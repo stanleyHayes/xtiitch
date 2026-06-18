@@ -2166,6 +2166,57 @@ func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits(t *testing.T) {
 	}
 }
 
+func TestReverseMoneyPaymentRequiresMoneyPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.ReverseMoneyPayment(context.Background(), ReverseMoneyPaymentCommand{
+		ActorUserID:       "operator-1",
+		ActorRole:         admindomain.RoleOperator,
+		ProviderReference: " xt_ref_refund ",
+		Reason:            " provider refund confirmed ",
+		UserAgent:         "test-agent",
+		IPAddress:         "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("reverse money payment: %v", err)
+	}
+	if businesses.reversal.ProviderReference != "xt_ref_refund" ||
+		businesses.reversal.Reason != "provider refund confirmed" ||
+		!record.PaymentReversed ||
+		record.PromotionRedemptionCount != 1 ||
+		record.ReferralRewardCount != 2 {
+		t.Fatalf("expected normalized reversal and counts, input=%+v record=%+v", businesses.reversal, record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	if audits.created[0].Action != "Reversed payment impact" ||
+		audits.created[0].Severity != admindomain.AuditSeverityWarning ||
+		audits.created[0].Metadata["provider_reference"] != "xt_ref_refund" ||
+		audits.created[0].Metadata["promotion_redemptions"] != "1" ||
+		audits.created[0].Metadata["referral_rewards"] != "2" {
+		t.Fatalf("unexpected audit event: %+v", audits.created[0])
+	}
+
+	_, err = service.ReverseMoneyPayment(context.Background(), ReverseMoneyPaymentCommand{
+		ActorUserID:       "support-1",
+		ActorRole:         admindomain.RoleSupport,
+		ProviderReference: "xt_ref_refund",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestSetSettlementReviewHoldRequiresMoneyPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -2655,6 +2706,7 @@ type fakeAdminBusinesses struct {
 	createdReferralCode        ports.CreateAdminReferralCodeInput
 	issuedReferralRewards      ports.IssueAdminReferralRewardsInput
 	replay                     ports.QueueAdminMoneyReplayInput
+	reversal                   ports.ReverseAdminMoneyPaymentInput
 	hold                       ports.SetAdminSettlementReviewHoldInput
 	riskReviews                []ports.AdminRiskReviewRecord
 	riskUpdate                 ports.SetAdminRiskReviewStatusInput
@@ -3522,6 +3574,29 @@ func (repo *fakeAdminBusinesses) QueueAdminMoneyReplay(
 		Reason:            input.Reason,
 		Status:            "queued",
 		CreatedAt:         time.Now(),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ReverseAdminMoneyPayment(
+	_ context.Context,
+	input ports.ReverseAdminMoneyPaymentInput,
+) (ports.AdminMoneyReversalRecord, error) {
+	repo.reversal = input
+	orderID := common.ID("order-1")
+	return ports.AdminMoneyReversalRecord{
+		PaymentID:                "payment-1",
+		ProviderReference:        input.ProviderReference,
+		BusinessID:               "business-1",
+		BusinessName:             "Ama Stitches",
+		OrderID:                  &orderID,
+		PaymentReversed:          true,
+		PromotionRedemptionCount: 1,
+		AffiliateConversionCount: 1,
+		ReferralCount:            1,
+		ReferralRewardCount:      2,
+		GeneratedPromotionCount:  1,
+		Reason:                   input.Reason,
+		ReversedAt:               time.Now(),
 	}, nil
 }
 

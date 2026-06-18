@@ -814,7 +814,11 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  if (intent === "money:webhook-replay" || intent === "money:settlement-hold") {
+  if (
+    intent === "money:webhook-replay" ||
+    intent === "money:payment-reversal" ||
+    intent === "money:settlement-hold"
+  ) {
     const { accessToken } = await requireAdminContext(request);
 
     try {
@@ -827,6 +831,20 @@ export async function action({ request }: Route.ActionArgs) {
           section: "money",
           severity: "success",
           message: "Webhook replay review queued.",
+        };
+      }
+
+      if (intent === "money:payment-reversal") {
+        const reversal = await adminApi.reverseMoneyPayment(accessToken, {
+          providerReference: String(form.get("provider_reference") ?? ""),
+          reason: String(form.get("reason") ?? ""),
+        });
+        return {
+          section: "money",
+          severity: "success",
+          message: reversal.payment_reversed
+            ? "Payment reversal applied."
+            : "Payment was already reversed.",
         };
       }
 
@@ -2180,6 +2198,8 @@ function webhookColor(status: AdminMoneyWebhookStatus): string {
       return tokens.success;
     case "replayed":
       return tokens.info;
+    case "reversed":
+      return tokens.warning;
     default:
       return tokens.danger;
   }
@@ -13283,6 +13303,33 @@ export default function AdminDashboard({
                                   {replayed ? "Queued" : "Replay"}
                                 </Button>
                               </Form>
+                              {event.status === "verified" ? (
+                                <Form method="post">
+                                  <input
+                                    type="hidden"
+                                    name="intent"
+                                    value="money:payment-reversal"
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="provider_reference"
+                                    value={event.providerReference}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="reason"
+                                    value="Refund or dispute confirmed by provider."
+                                  />
+                                  <Button
+                                    type="submit"
+                                    variant="outlined"
+                                    color="warning"
+                                    size="small"
+                                  >
+                                    Reverse
+                                  </Button>
+                                </Form>
+                              ) : null}
                             </Stack>
                           </Stack>
                         </Box>

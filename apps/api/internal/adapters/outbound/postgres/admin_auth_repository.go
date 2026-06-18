@@ -1103,6 +1103,7 @@ func (repo AdminAuthRepository) GetAdminMoneyRails(ctx context.Context) (ports.A
 			coalesce(b.name, 'Unmatched provider event') as business_name,
 			case
 				when r.created_at is not null then 'replayed'
+				when p.status = 'reversed' then 'reversed'
 				when p.status = 'succeeded' and e.attempts > 1 then 'replayed'
 				when p.status = 'succeeded' then 'verified'
 				else 'failed'
@@ -1114,6 +1115,7 @@ func (repo AdminAuthRepository) GetAdminMoneyRails(ctx context.Context) (ports.A
 			case
 				when r.created_at is not null then 'Operator replay request queued: ' || r.reason
 				when p.payment_id is null then 'Provider event did not map to a payment record.'
+				when p.status = 'reversed' then 'Payment was reversed after refund or dispute review.'
 				when p.status = 'succeeded' and e.attempts > 1 then 'Multiple provider deliveries reconciled safely against the payment ledger.'
 				when p.status = 'succeeded' then 'Signature verified and payment marked succeeded.'
 				when p.status = 'failed' then 'Signature verified and payment marked failed.'
@@ -4227,6 +4229,174 @@ func (repo AdminAuthRepository) QueueAdminMoneyReplay(
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminMoneyReplayRequestRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
+	ctx context.Context,
+	input ports.ReverseAdminMoneyPaymentInput,
+) (ports.AdminMoneyReversalRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
+	}
+
+	var record ports.AdminMoneyReversalRecord
+	var paymentStatus string
+	var orderID pgtype.Text
+	if err := tx.QueryRow(ctx, `
+		select
+			p.payment_id::text,
+			p.provider_reference,
+			p.business_id::text,
+			coalesce(b.name, ''),
+			p.order_id::text,
+			p.status,
+			now()
+		from payments p
+		join businesses b on b.business_id = p.business_id
+		where p.provider_reference = $1
+		for update of p
+	`, input.ProviderReference).Scan(
+		&record.PaymentID,
+		&record.ProviderReference,
+		&record.BusinessID,
+		&record.BusinessName,
+		&orderID,
+		&paymentStatus,
+		&record.ReversedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminMoneyReversalRecord{}, ErrNotFound
+		}
+		return ports.AdminMoneyReversalRecord{}, err
+	}
+	record.OrderID = commonIDPtr(orderID)
+	record.Reason = input.Reason
+
+	if paymentStatus != "succeeded" && paymentStatus != "reversed" {
+		return ports.AdminMoneyReversalRecord{}, authdomain.ErrInvalidInput
+	}
+
+	if paymentStatus == "succeeded" {
+		tag, err := tx.Exec(ctx, `
+			update payments
+			set status = 'reversed',
+				updated_at = now()
+			where payment_id = $1::uuid
+				and status = 'succeeded'
+		`, record.PaymentID.String())
+		if err != nil {
+			return ports.AdminMoneyReversalRecord{}, err
+		}
+		record.PaymentReversed = tag.RowsAffected() > 0
+	}
+
+	if record.PaymentReversed && record.OrderID != nil {
+		if err := tx.QueryRow(ctx, `
+			with voided_redemptions as (
+				update promotion_redemptions
+				set status = 'void',
+					updated_at = now()
+				where business_id = $1::uuid
+					and order_id = $2::uuid
+					and status in ('pending', 'applied')
+				returning 1
+			),
+			reversed_affiliates as (
+				update affiliate_conversions
+				set status = 'reversed',
+					reversed_at = coalesce(reversed_at, now()),
+					reversal_reason = $3,
+					metadata = metadata || jsonb_build_object(
+						'source', 'admin_payment_reversal',
+						'reversed_by_admin_user_id', $4::text,
+						'reversed_provider_reference', $5::text,
+						'reversal_reason', $3::text,
+						'reversed_at', now()
+					),
+					updated_at = now()
+				where business_id = $1::uuid
+					and order_id = $2::uuid
+					and status <> 'reversed'
+				returning 1
+			),
+			voided_referrals as (
+				update referrals
+				set status = 'void',
+					updated_at = now(),
+					metadata = metadata || jsonb_build_object(
+						'source', 'admin_payment_reversal',
+						'reversed_by_admin_user_id', $4::text,
+						'reversed_provider_reference', $5::text,
+						'reversal_reason', $3::text,
+						'reversed_at', now()
+					)
+				where business_id = $1::uuid
+					and order_id = $2::uuid
+					and status in ('pending', 'qualified', 'rewarded')
+				returning referral_id
+			),
+			voided_rewards as (
+				update referral_rewards rr
+				set status = 'void',
+					updated_at = now(),
+					metadata = metadata || jsonb_build_object(
+						'source', 'admin_payment_reversal',
+						'reversed_by_admin_user_id', $4::text,
+						'reversed_provider_reference', $5::text,
+						'reversal_reason', $3::text,
+						'reversed_at', now()
+					)
+				from voided_referrals vf
+				where rr.referral_id = vf.referral_id
+					and rr.status <> 'void'
+				returning rr.promotion_id
+			),
+			archived_generated_promotions as (
+				update promotions p
+				set status = 'archived',
+					updated_by_admin_user_id = $4::uuid,
+					updated_at = now()
+				where p.promotion_id in (
+						select promotion_id
+						from voided_rewards
+						where promotion_id is not null
+					)
+					and p.status <> 'archived'
+				returning 1
+			)
+			select
+				(select count(*)::int from voided_redemptions),
+				(select count(*)::int from reversed_affiliates),
+				(select count(*)::int from voided_referrals),
+				(select count(*)::int from voided_rewards),
+				(select count(*)::int from archived_generated_promotions)
+		`, record.BusinessID.String(),
+			record.OrderID.String(),
+			record.Reason,
+			input.ActorAdminUser.String(),
+			record.ProviderReference,
+		).Scan(
+			&record.PromotionRedemptionCount,
+			&record.AffiliateConversionCount,
+			&record.ReferralCount,
+			&record.ReferralRewardCount,
+			&record.GeneratedPromotionCount,
+		); err != nil {
+			return ports.AdminMoneyReversalRecord{}, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminMoneyReversalRecord{}, err
 	}
 
 	return record, nil

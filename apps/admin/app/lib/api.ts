@@ -67,7 +67,11 @@ export type AdminPlatformMetrics = {
   updatedAt: string;
 };
 
-export type AdminMoneyWebhookStatus = "verified" | "failed" | "replayed";
+export type AdminMoneyWebhookStatus =
+  | "verified"
+  | "failed"
+  | "replayed"
+  | "reversed";
 export type AdminMoneyPayoutStatus = "ready" | "review" | "blocked";
 
 export type AdminMoneyWebhookEvent = {
@@ -645,6 +649,22 @@ type AdminMoneyReplayRequestPayload = {
   reason: string;
   status: string;
   created_at: string;
+};
+
+type AdminMoneyReversalPayload = {
+  payment_id: string;
+  provider_reference: string;
+  business_id: string;
+  business: string;
+  order_id?: string;
+  payment_reversed: boolean;
+  promotion_redemption_count: number;
+  affiliate_conversion_count: number;
+  referral_count: number;
+  referral_reward_count: number;
+  generated_promotion_count: number;
+  reason: string;
+  reversed_at: string;
 };
 
 type AdminMoneyRailsPayload = {
@@ -2418,6 +2438,21 @@ export const adminApi = {
   ) =>
     requestJSON<AdminMoneyReplayRequestPayload>(
       "/admin/money-rails/replay-requests",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          provider_reference: input.providerReference,
+          reason: input.reason,
+        }),
+      },
+    ),
+  reverseMoneyPayment: (
+    accessToken: string,
+    input: { providerReference: string; reason: string },
+  ) =>
+    requestJSON<AdminMoneyReversalPayload>(
+      "/admin/money-rails/payment-reversals",
       {
         method: "POST",
         headers: { Authorization: `Bearer ${accessToken}` },

@@ -72,6 +72,7 @@ type Service interface {
 	CreateReferralCode(ctx context.Context, command adminauthapp.CreateReferralCodeCommand) (ports.AdminReferralCodeRecord, error)
 	IssueReferralRewards(ctx context.Context, command adminauthapp.IssueReferralRewardsCommand) (ports.AdminReferralRewardIssueRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
+	ReverseMoneyPayment(ctx context.Context, command adminauthapp.ReverseMoneyPaymentCommand) (ports.AdminMoneyReversalRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
 	SetRiskReviewStatus(ctx context.Context, command adminauthapp.SetRiskReviewStatusCommand) (ports.AdminRiskReviewRecord, error)
@@ -144,6 +145,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/referral-programmes/{id}/archive", handler.archiveReferralProgramme)
 		protected.Post("/admin/referral-rewards/issue", handler.issueReferralRewards)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
+		protected.Post("/admin/money-rails/payment-reversals", handler.reverseMoneyPayment)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
 		protected.Patch("/admin/risk-reviews/{key}", handler.updateRiskReviewStatus)
@@ -229,6 +231,11 @@ type updateBusinessStatusRequest struct {
 }
 
 type queueMoneyReplayRequest struct {
+	ProviderReference string `json:"provider_reference"`
+	Reason            string `json:"reason"`
+}
+
+type reverseMoneyPaymentRequest struct {
 	ProviderReference string `json:"provider_reference"`
 	Reason            string `json:"reason"`
 }
@@ -555,6 +562,22 @@ type moneyReplayRequestResponse struct {
 	Reason            string `json:"reason"`
 	Status            string `json:"status"`
 	CreatedAt         string `json:"created_at"`
+}
+
+type moneyReversalResponse struct {
+	PaymentID                string `json:"payment_id"`
+	ProviderReference        string `json:"provider_reference"`
+	BusinessID               string `json:"business_id"`
+	Business                 string `json:"business"`
+	OrderID                  string `json:"order_id,omitempty"`
+	PaymentReversed          bool   `json:"payment_reversed"`
+	PromotionRedemptionCount int    `json:"promotion_redemption_count"`
+	AffiliateConversionCount int    `json:"affiliate_conversion_count"`
+	ReferralCount            int    `json:"referral_count"`
+	ReferralRewardCount      int    `json:"referral_reward_count"`
+	GeneratedPromotionCount  int    `json:"generated_promotion_count"`
+	Reason                   string `json:"reason"`
+	ReversedAt               string `json:"reversed_at"`
 }
 
 type subscriptionResponse struct {
@@ -2271,6 +2294,36 @@ func (handler Handler) queueMoneyReplay(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, newMoneyReplayRequestResponse(record))
 }
 
+func (handler Handler) reverseMoneyPayment(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request reverseMoneyPaymentRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.ReverseMoneyPayment(r.Context(), adminauthapp.ReverseMoneyPaymentCommand{
+		ActorUserID:       principal.AdminUserID,
+		ActorRole:         principal.Role,
+		ProviderReference: request.ProviderReference,
+		Reason:            request.Reason,
+		UserAgent:         r.UserAgent(),
+		IPAddress:         requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newMoneyReversalResponse(record))
+}
+
 func (handler Handler) setSettlementReviewHold(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -3252,6 +3305,27 @@ func newMoneyReplayRequestResponse(record ports.AdminMoneyReplayRequestRecord) m
 		Status:            record.Status,
 		CreatedAt:         record.CreatedAt.Format(time.RFC3339),
 	}
+}
+
+func newMoneyReversalResponse(record ports.AdminMoneyReversalRecord) moneyReversalResponse {
+	response := moneyReversalResponse{
+		PaymentID:                record.PaymentID.String(),
+		ProviderReference:        record.ProviderReference,
+		BusinessID:               record.BusinessID.String(),
+		Business:                 record.BusinessName,
+		PaymentReversed:          record.PaymentReversed,
+		PromotionRedemptionCount: record.PromotionRedemptionCount,
+		AffiliateConversionCount: record.AffiliateConversionCount,
+		ReferralCount:            record.ReferralCount,
+		ReferralRewardCount:      record.ReferralRewardCount,
+		GeneratedPromotionCount:  record.GeneratedPromotionCount,
+		Reason:                   record.Reason,
+		ReversedAt:               record.ReversedAt.Format(time.RFC3339),
+	}
+	if record.OrderID != nil {
+		response.OrderID = record.OrderID.String()
+	}
+	return response
 }
 
 func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionResponse {
