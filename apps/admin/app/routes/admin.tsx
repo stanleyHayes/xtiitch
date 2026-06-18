@@ -23,7 +23,6 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
@@ -134,6 +133,7 @@ import {
   type AdminUser,
 } from "../lib/api";
 import { logOut, requireAdminContext, type AdminSession } from "../lib/session";
+import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 
 type Section =
@@ -7708,39 +7708,59 @@ function SubscriptionsSection({
         />
       </Box>
 
-      <Panel
+      <Box
         sx={{
-          p: { xs: 2, md: 2.5 },
-          borderColor: alpha(
-            overdueIssuedInvoiceCount ||
-              expiredGraceCount ||
-              recurringBlockedCount
-              ? tokens.warning
-              : tokens.success,
-            0.22,
-          ),
-          backgroundImage: `linear-gradient(90deg, ${alpha(
-            overdueIssuedInvoiceCount ||
-              expiredGraceCount ||
-              recurringBlockedCount
-              ? tokens.warning
-              : tokens.success,
-            0.08,
-          )}, transparent 44%)`,
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
         }}
       >
-        <Stack
-          direction={{ xs: "column", lg: "row" }}
-          spacing={1.5}
-          sx={{ justifyContent: "space-between", alignItems: { lg: "center" } }}
+        <Panel
+          sx={{
+            p: { xs: 2, md: 2.5 },
+            borderColor: alpha(
+              overdueIssuedInvoiceCount || expiredGraceCount
+                ? tokens.warning
+                : tokens.success,
+              0.22,
+            ),
+            backgroundImage: `
+              radial-gradient(circle at 100% 0%, ${alpha(tokens.warning, overdueIssuedInvoiceCount || expiredGraceCount ? 0.18 : 0.08)}, transparent 34%),
+              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.78)})
+            `,
+          }}
         >
-          <Box>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ alignItems: "center", flexWrap: "wrap" }}
-            >
-              <Typography variant="h6">Billing sweep</Typography>
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 1.5,
+                  display: "grid",
+                  placeItems: "center",
+                  color: overdueIssuedInvoiceCount || expiredGraceCount
+                    ? tokens.warning
+                    : tokens.success,
+                  bgcolor: alpha(
+                    overdueIssuedInvoiceCount || expiredGraceCount
+                      ? tokens.warning
+                      : tokens.success,
+                    0.1,
+                  ),
+                  flexShrink: 0,
+                }}
+              >
+                <SyncRounded />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6">Billing sweep</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Close overdue invoices and expired grace windows.
+                </Typography>
+              </Box>
+            </Stack>
+            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
               <Chip
                 size="small"
                 label={`${overdueIssuedInvoiceCount} overdue invoices`}
@@ -7754,52 +7774,84 @@ function SubscriptionsSection({
                 variant={expiredGraceCount ? "filled" : "outlined"}
               />
             </Stack>
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.5, color: "text.secondary" }}
-            >
-              Fail overdue package invoices and cancel subscriptions whose grace
-              window has expired. No funds are moved by this action.
-            </Typography>
-          </Box>
-          <Form method="post">
-            <input
-              type="hidden"
-              name="intent"
-              value="admin-subscription-billing:sweep"
-            />
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-              <TextField
-                size="small"
-                name="reason"
-                label="Sweep note"
-                defaultValue="Operator billing sweep"
-                sx={{ minWidth: { sm: 260 } }}
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-subscription-billing:sweep"
               />
-              <Button
-                type="submit"
-                variant="contained"
-                startIcon={<SyncRounded />}
-                sx={{ minWidth: 170 }}
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+                  alignItems: "center",
+                }}
               >
-                Run sweep
-              </Button>
-            </Stack>
-          </Form>
-        </Stack>
-        <Divider sx={{ my: 1.75 }} />
-        <Stack
-          direction={{ xs: "column", lg: "row" }}
-          spacing={1.5}
-          sx={{ justifyContent: "space-between", alignItems: { lg: "center" } }}
+                <TextField
+                  size="small"
+                  name="reason"
+                  label="Sweep note"
+                  defaultValue="Operator billing sweep"
+                  fullWidth
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SyncRounded />}
+                  sx={{
+                    minHeight: 44,
+                    minWidth: { sm: 150 },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Run sweep
+                </Button>
+              </Box>
+            </Form>
+          </Stack>
+        </Panel>
+
+        <Panel
+          sx={{
+            p: { xs: 2, md: 2.5 },
+            borderColor: alpha(
+              recurringBlockedCount ? tokens.warning : tokens.success,
+              0.22,
+            ),
+            backgroundImage: `
+              radial-gradient(circle at 100% 0%, ${alpha(tokens.success, recurringReadyRows.length ? 0.15 : 0.07)}, transparent 34%),
+              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.78)})
+            `,
+          }}
         >
-          <Box>
-            <Stack
-              direction="row"
-              spacing={1}
-              sx={{ alignItems: "center", flexWrap: "wrap" }}
-            >
-              <Typography variant="h6">Recurring charges</Typography>
+          <Stack spacing={1.5}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 1.5,
+                  display: "grid",
+                  placeItems: "center",
+                  color: recurringBlockedCount ? tokens.warning : tokens.success,
+                  bgcolor: alpha(
+                    recurringBlockedCount ? tokens.warning : tokens.success,
+                    0.1,
+                  ),
+                  flexShrink: 0,
+                }}
+              >
+                <CreditCardRounded />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6">Recurring charges</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Charge ready subscriptions with saved authorizations.
+                </Typography>
+              </Box>
+            </Stack>
+            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
               <Chip
                 size="small"
                 label={`${recurringDueRows.length} due`}
@@ -7819,41 +7871,44 @@ function SubscriptionsSection({
                 variant="outlined"
               />
             </Stack>
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.5, color: "text.secondary" }}
-            >
-              Charge due recurring subscriptions through Paystack saved
-              authorizations, then settle package invoices from the provider
-              result.
-            </Typography>
-          </Box>
-          <Form method="post">
-            <input
-              type="hidden"
-              name="intent"
-              value="admin-subscription-recurring:sweep"
-            />
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-              <TextField
-                size="small"
-                name="reason"
-                label="Charge note"
-                defaultValue="Operator recurring charge sweep"
-                sx={{ minWidth: { sm: 260 } }}
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-subscription-recurring:sweep"
               />
-              <Button
-                type="submit"
-                variant="contained"
-                startIcon={<CreditCardRounded />}
-                sx={{ minWidth: 170 }}
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+                  alignItems: "center",
+                }}
               >
-                Run charges
-              </Button>
-            </Stack>
-          </Form>
-        </Stack>
-      </Panel>
+                <TextField
+                  size="small"
+                  name="reason"
+                  label="Charge note"
+                  defaultValue="Operator recurring charge sweep"
+                  fullWidth
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<CreditCardRounded />}
+                  sx={{
+                    minHeight: 44,
+                    minWidth: { sm: 150 },
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Run charges
+                </Button>
+              </Box>
+            </Form>
+          </Stack>
+        </Panel>
+      </Box>
 
       <Stack spacing={1}>
         <Typography variant="h6">Package controls</Typography>
@@ -8147,69 +8202,10 @@ function SubscriptionsSection({
         }}
       >
         {planRows.map((row) => (
-          <Panel
+          <SubscriptionPlanSummaryCard
             key={row.plan.code}
-            sx={{
-              p: { xs: 2, md: 2.5 },
-              borderColor: alpha(row.visual.tone, 0.18),
-              backgroundImage: `
-                radial-gradient(circle at 94% 0%, ${alpha(row.visual.tone, 0.13)}, transparent 34%),
-                linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
-              `,
-            }}
-          >
-            <Stack spacing={1.5}>
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ alignItems: "center", justifyContent: "space-between" }}
-              >
-                <Box>
-                  <Typography variant="h6">{row.plan.name}</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {row.visual.promise}
-                  </Typography>
-                </Box>
-                <Chip
-                  size="small"
-                  label={
-                    row.plan.isActive
-                      ? row.plan.code
-                      : `${row.plan.code} archived`
-                  }
-                  sx={{ textTransform: "capitalize" }}
-                />
-              </Stack>
-              <Divider />
-              <Stack spacing={1}>
-                <DetailLine
-                  label="Package fee"
-                  value={
-                    row.plan.monthlyFeeMinor > 0
-                      ? `${formatGHS(row.plan.monthlyFeeMinor)} / month`
-                      : "Free"
-                  }
-                />
-                <DetailLine
-                  label="Commission"
-                  value={`${row.plan.commissionBps / 100}%`}
-                />
-                <DetailLine
-                  label="Design limit"
-                  value={planDesignLimitLabel(row.plan)}
-                />
-                <DetailLine
-                  label="Businesses"
-                  value={`${row.activeTotal} active / ${row.businessTotal} total`}
-                />
-                <DetailLine label="GMV" value={formatGHS(row.gmvMinor)} />
-                <DetailLine
-                  label="Commission earned"
-                  value={formatGHS(row.commissionMinor)}
-                />
-              </Stack>
-            </Stack>
-          </Panel>
+            row={row}
+          />
         ))}
       </Box>
 
@@ -8239,6 +8235,7 @@ function SubscriptionsSection({
                 variant="outlined"
                 endIcon={<ArrowForwardRounded />}
                 onClick={() => onSelect("businesses")}
+                sx={{ whiteSpace: "nowrap" }}
               >
                 Open businesses
               </Button>
@@ -8271,10 +8268,10 @@ function SubscriptionsSection({
                 <Box
                   key={subscription.businessId}
                   sx={{
-                    p: 1.5,
+                    p: { xs: 1.5, md: 2 },
                     border: "1px solid",
                     borderColor: alpha(color, 0.2),
-                    borderRadius: 1.5,
+                    borderRadius: 2,
                     bgcolor: alpha(tokens.white, 0.72),
                     backgroundImage: `linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%)`,
                   }}
@@ -8290,11 +8287,7 @@ function SubscriptionsSection({
                       name="business_id"
                       value={subscription.businessId}
                     />
-                    <Stack
-                      direction={{ xs: "column", lg: "row" }}
-                      spacing={1.25}
-                      sx={{ justifyContent: "space-between" }}
-                    >
+                    <Stack spacing={1.5}>
                       <Box>
                         <Stack
                           direction="row"
@@ -8358,10 +8351,17 @@ function SubscriptionsSection({
                           {subscriptionDesignUsageLabel(subscription)}
                         </Typography>
                       </Box>
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
-                        sx={{ minWidth: { lg: 440 } }}
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                            xl: "150px 150px minmax(180px, 1fr) auto",
+                          },
+                          alignItems: "center",
+                        }}
                       >
                         <TextField
                           select
@@ -8369,7 +8369,6 @@ function SubscriptionsSection({
                           label="Status"
                           name="status"
                           defaultValue={subscription.status}
-                          sx={{ minWidth: { sm: 160 } }}
                         >
                           {subscriptionStatusOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
@@ -8383,7 +8382,6 @@ function SubscriptionsSection({
                           label="Mode"
                           name="billing_mode"
                           defaultValue={subscription.billingMode}
-                          sx={{ minWidth: { sm: 140 } }}
                         >
                           {subscriptionBillingModeOptions.map((option) => (
                             <MenuItem key={option.value} value={option.value}>
@@ -8397,12 +8395,19 @@ function SubscriptionsSection({
                           name="reason"
                           defaultValue=""
                           placeholder="Operator note"
-                          sx={{ minWidth: { sm: 180 } }}
                         />
-                        <Button type="submit" variant="contained">
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          sx={{
+                            minHeight: 44,
+                            minWidth: { xl: 96 },
+                            whiteSpace: "nowrap",
+                          }}
+                        >
                           Save
                         </Button>
-                      </Stack>
+                      </Box>
                     </Stack>
                     <Box
                       sx={{
@@ -8455,9 +8460,16 @@ function SubscriptionsSection({
                           name="business_id"
                           value={subscription.businessId}
                         />
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={1}
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                            },
+                            alignItems: "center",
+                          }}
                         >
                           <TextField
                             size="small"
@@ -8477,11 +8489,15 @@ function SubscriptionsSection({
                             type="submit"
                             variant="outlined"
                             startIcon={<CreditCardRounded />}
-                            sx={{ minWidth: 160 }}
+                            sx={{
+                              minHeight: 44,
+                              minWidth: { md: 176 },
+                              whiteSpace: "nowrap",
+                            }}
                           >
                             Create auth link
                           </Button>
-                        </Stack>
+                        </Box>
                       </Form>
                       <Form method="post">
                         <input
@@ -8494,9 +8510,16 @@ function SubscriptionsSection({
                           name="business_id"
                           value={subscription.businessId}
                         />
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={1}
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                            },
+                            alignItems: "center",
+                          }}
                         >
                           <TextField
                             size="small"
@@ -8517,11 +8540,15 @@ function SubscriptionsSection({
                             variant="outlined"
                             color="success"
                             startIcon={<CheckCircleRounded />}
-                            sx={{ minWidth: 150 }}
+                            sx={{
+                              minHeight: 44,
+                              minWidth: { md: 160 },
+                              whiteSpace: "nowrap",
+                            }}
                           >
                             Verify auth
                           </Button>
-                        </Stack>
+                        </Box>
                       </Form>
                     </Box>
                   ) : null}
@@ -8594,9 +8621,16 @@ function SubscriptionsSection({
                             name="invoice_id"
                             value={openInvoice.invoiceId}
                           />
-                          <Stack
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1}
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 1,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "minmax(0, 1fr) auto",
+                              },
+                              alignItems: "center",
+                            }}
                           >
                             <TextField
                               size="small"
@@ -8609,11 +8643,15 @@ function SubscriptionsSection({
                               type="submit"
                               variant="outlined"
                               color="success"
-                              sx={{ minWidth: 130 }}
+                              sx={{
+                                minHeight: 44,
+                                minWidth: { sm: 130 },
+                                whiteSpace: "nowrap",
+                              }}
                             >
                               Mark paid
                             </Button>
-                          </Stack>
+                          </Box>
                         </Form>
                         <Form method="post">
                           <input
@@ -8626,9 +8664,16 @@ function SubscriptionsSection({
                             name="invoice_id"
                             value={openInvoice.invoiceId}
                           />
-                          <Stack
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1}
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 1,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "minmax(0, 1fr) auto",
+                              },
+                              alignItems: "center",
+                            }}
                           >
                             <TextField
                               size="small"
@@ -8641,11 +8686,15 @@ function SubscriptionsSection({
                               type="submit"
                               variant="outlined"
                               color="warning"
-                              sx={{ minWidth: 130 }}
+                              sx={{
+                                minHeight: 44,
+                                minWidth: { sm: 130 },
+                                whiteSpace: "nowrap",
+                              }}
                             >
                               Mark failed
                             </Button>
-                          </Stack>
+                          </Box>
                         </Form>
                       </Box>
                     ) : null}
@@ -8701,7 +8750,12 @@ function SubscriptionsSection({
                           type="submit"
                           variant="outlined"
                           startIcon={<WorkspacePremiumRounded />}
-                          sx={{ mt: 1, alignSelf: "flex-start" }}
+                          sx={{
+                            mt: 1,
+                            alignSelf: "flex-start",
+                            minHeight: 44,
+                            whiteSpace: "nowrap",
+                          }}
                         >
                           Issue invoice
                         </Button>
@@ -8769,6 +8823,7 @@ function SubscriptionsSection({
               variant="outlined"
               endIcon={<ArrowForwardRounded />}
               onClick={() => onSelect("money")}
+              sx={{ whiteSpace: "nowrap" }}
             >
               Review money rails
             </Button>
@@ -8776,6 +8831,166 @@ function SubscriptionsSection({
         </Panel>
       </Box>
     </Stack>
+  );
+}
+
+function SubscriptionPlanSummaryCard({
+  row,
+}: {
+  row: {
+    plan: AdminPlan;
+    visual: { promise: string; tone: string };
+    activeTotal: number;
+    businessTotal: number;
+    estimatedMrrMinor: number;
+    gmvMinor: number;
+    commissionMinor: number;
+  };
+}) {
+  const monthlyFee =
+    row.plan.monthlyFeeMinor > 0
+      ? `${formatGHS(row.plan.monthlyFeeMinor)}`
+      : "Free";
+  const commissionRate = `${row.plan.commissionBps / 100}%`;
+
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        minHeight: 360,
+        borderColor: alpha(row.visual.tone, 0.18),
+        backgroundImage: `
+          radial-gradient(circle at 92% 4%, ${alpha(row.visual.tone, 0.2)}, transparent 36%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+        `,
+      }}
+    >
+      <Stack spacing={2} sx={{ height: "100%" }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="h5">{row.plan.name}</Typography>
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.4, color: "text.secondary" }}
+            >
+              {row.visual.promise}
+            </Typography>
+          </Box>
+          <Chip
+            size="small"
+            label={row.plan.isActive ? row.plan.code : "Archived"}
+            sx={{
+              textTransform: "capitalize",
+              bgcolor: alpha(row.visual.tone, 0.12),
+              color: row.visual.tone,
+              fontWeight: 900,
+            }}
+          />
+        </Stack>
+
+        <Box
+          sx={{
+            p: 1.5,
+            border: "1px solid",
+            borderColor: alpha(row.visual.tone, 0.16),
+            borderRadius: 1.5,
+            bgcolor: alpha(tokens.white, 0.74),
+          }}
+        >
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            sx={{ justifyContent: "space-between", alignItems: { sm: "end" } }}
+          >
+            <Box>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                Package fee
+              </Typography>
+              <Typography variant="h4" sx={{ lineHeight: 1 }}>
+                {monthlyFee}
+              </Typography>
+              {row.plan.monthlyFeeMinor > 0 ? (
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  per month
+                </Typography>
+              ) : null}
+            </Box>
+            <Box sx={{ textAlign: { xs: "left", sm: "right" } }}>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                Commission
+              </Typography>
+              <Typography sx={{ fontWeight: 950, fontSize: 26 }}>
+                {commissionRate}
+              </Typography>
+            </Box>
+          </Stack>
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+          }}
+        >
+          <PlanStatTile label="Design limit" value={planDesignLimitLabel(row.plan)} />
+          <PlanStatTile
+            label="Businesses"
+            value={`${row.activeTotal}/${row.businessTotal}`}
+            helper="active / total"
+          />
+          <PlanStatTile label="Base MRR" value={formatGHS(row.estimatedMrrMinor)} />
+          <PlanStatTile label="GMV" value={formatGHS(row.gmvMinor)} />
+        </Box>
+
+        <Box sx={{ mt: "auto" }}>
+          <Divider sx={{ mb: 1.25 }} />
+          <DetailLine
+            label="Commission earned"
+            value={formatGHS(row.commissionMinor)}
+          />
+        </Box>
+      </Stack>
+    </Panel>
+  );
+}
+
+function PlanStatTile({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper?: string;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.15,
+        borderRadius: 1.25,
+        border: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: alpha(tokens.white, 0.68),
+        minWidth: 0,
+      }}
+    >
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {label}
+      </Typography>
+      <Typography sx={{ fontWeight: 950, overflowWrap: "anywhere" }}>
+        {value}
+      </Typography>
+      {helper ? (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {helper}
+        </Typography>
+      ) : null}
+    </Box>
   );
 }
 

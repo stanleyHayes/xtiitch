@@ -5,7 +5,6 @@ import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -15,6 +14,7 @@ import SearchRounded from "@mui/icons-material/SearchRounded";
 import SecurityRounded from "@mui/icons-material/SecurityRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import type { Route } from "./+types/track-lookup";
+import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 
 export async function loader({ request }: Route.LoaderArgs) {

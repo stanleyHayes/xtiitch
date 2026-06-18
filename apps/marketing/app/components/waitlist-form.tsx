@@ -1,6 +1,5 @@
 import { useFetcher } from "react-router";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -16,6 +15,7 @@ import LocationCityRoundedIcon from "@mui/icons-material/LocationCityRounded";
 import PhoneIphoneRoundedIcon from "@mui/icons-material/PhoneIphoneRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
+import TextField from "./form-text-field";
 import type { WaitlistResult } from "../lib/waitlist";
 
 export function WaitlistForm() {

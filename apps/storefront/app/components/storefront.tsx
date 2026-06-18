@@ -10,7 +10,6 @@ import CardContent from "@mui/material/CardContent";
 import CardMedia from "@mui/material/CardMedia";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -23,6 +22,7 @@ import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import type { Collection, Design, StoreSummary } from "../lib/api";
+import TextField from "./form-text-field";
 import { priceLabel } from "../lib/format";
 import { tokens } from "../theme";
 

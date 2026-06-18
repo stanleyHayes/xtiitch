@@ -26,7 +26,6 @@ import MenuItem from "@mui/material/MenuItem";
 import MuiLink from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import {
@@ -76,6 +75,7 @@ import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { Route } from "./+types/dashboard";
 import { apiFetch, logOut } from "../lib/auth";
+import TextField from "../components/form-text-field";
 import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";

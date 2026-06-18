@@ -14,7 +14,6 @@ import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Alert from "@mui/material/Alert";
-import TextField from "@mui/material/TextField";
 import MenuItem from "@mui/material/MenuItem";
 import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
@@ -39,6 +38,7 @@ import {
   type StoreSummary,
 } from "../lib/api";
 import { formatGHS, priceLabel } from "../lib/format";
+import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 import { DesignCard } from "../components/storefront";
 
