@@ -18,7 +18,7 @@ Confirm the deployment environment has the required secrets without printing
 their values:
 
 ```sh
-node -e 'for (const key of ["SONAR_HOST_URL","SONAR_ORGANIZATION","SONAR_TOKEN","PAYSTACK_SECRET_KEY","PAYSTACK_WEBHOOK_SECRET","NOTIFICATION_HTTP_URL","NOTIFICATION_HTTP_AUTH_VALUE","RESEND_API_KEY","MARKETING_WAITLIST_WEBHOOK_URL"]) console.log(`${key}=${process.env[key] ? "set" : "missing"}`)'
+pnpm launch:check -- --warn-only
 ```
 
 ## Sonar Quality Gate
@@ -138,6 +138,7 @@ Before public launch, collect owner and qualified legal sign-off for:
 
 Record the approver, date, document version, and any conditions in the launch
 ticket. Do not represent policy text as legally approved until this is complete.
+Set `XTIITCH_LEGAL_REVIEW_CONFIRMED=true` only after that approval is recorded.
 
 ## Growth Policy Decisions
 
@@ -150,6 +151,8 @@ The growth code paths are built, but launch needs owner sign-off for:
 - Whether referral vouchers are store-scoped or platform-wide.
 - Precedence when a promo, referral, and affiliate all touch one order.
 - Commercial policy for subscription billing, grace, and downgrade timing.
+
+Set `XTIITCH_GROWTH_POLICY_CONFIRMED=true` only after these owner decisions are recorded.
 
 ## Evidence Template
 

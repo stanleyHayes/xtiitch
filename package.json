@@ -12,6 +12,7 @@
     "dev:api": "pnpm --filter @xtiitch/api dev",
     "dev:worker": "pnpm --filter @xtiitch/worker dev",
     "format": "pnpm -r --if-present run format",
+    "launch:check": "node scripts/check-launch-gates.mjs",
     "lint": "eslint . --max-warnings=0",
     "quality": "pnpm test && pnpm sonar",
     "sonar": "node scripts/run-sonar.mjs",
