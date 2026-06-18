@@ -44,6 +44,9 @@ const displayFontStack = [
   "sans-serif",
 ].join(", ");
 
+const controlRadius = 16;
+const buttonRadius = 999;
+
 export const theme: Theme = createTheme({
   cssVariables: true,
   palette: {
@@ -172,7 +175,7 @@ export const theme: Theme = createTheme({
       defaultProps: { disableElevation: true },
       styleOverrides: {
         root: {
-          borderRadius: 8,
+          borderRadius: buttonRadius,
           paddingInline: 20,
           minHeight: 44,
           boxShadow: "none",
@@ -185,7 +188,12 @@ export const theme: Theme = createTheme({
             boxShadow: `0 0 0 3px ${tokens.burgundy}24`,
           },
         },
-        sizeLarge: { minHeight: 52, fontSize: "1rem", paddingInline: 28 },
+        sizeLarge: {
+          borderRadius: buttonRadius,
+          minHeight: 52,
+          fontSize: "1rem",
+          paddingInline: 28,
+        },
       },
     },
     MuiContainer: {
@@ -219,9 +227,45 @@ export const theme: Theme = createTheme({
       styleOverrides: {
         root: {
           "& .MuiOutlinedInput-root": {
-            borderRadius: 8,
+            borderRadius: controlRadius,
             backgroundColor: tokens.white,
           },
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: controlRadius,
+          backgroundColor: tokens.white,
+          minHeight: 46,
+          transition:
+            "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+          "&.MuiInputBase-multiline": {
+            minHeight: "auto",
+            alignItems: "flex-start",
+          },
+          "&.Mui-focused": {
+            boxShadow: `0 0 0 3px ${tokens.burgundy}1f`,
+          },
+        },
+      },
+    },
+    MuiFilledInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: controlRadius,
+          overflow: "hidden",
+          minHeight: 46,
+          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": { borderRadius: controlRadius },
         },
       },
     },

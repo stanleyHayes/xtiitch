@@ -189,7 +189,8 @@ When the web app is scaffolded, create an MUI theme from the shared design token
 - `palette.primary.main = #800020`
 - `palette.text.primary = #15111a`
 - `palette.background.default = #faf6f2`
-- `shape.borderRadius = 8`
+- `shape.borderRadius = 8` for cards, panels, and compact surfaces.
+- Buttons use a pill `999px` radius; input fields use a softer `16px` control radius.
 - Buttons should use sentence-case labels.
 - Inputs should be calm, readable, and at least 44px high on touch devices.
 

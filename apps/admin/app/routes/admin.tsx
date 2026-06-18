@@ -8,6 +8,9 @@ import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -25,7 +28,12 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { alpha, type SxProps, type Theme } from "@mui/material/styles";
+import {
+  alpha,
+  styled,
+  type SxProps,
+  type Theme,
+} from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import AccountBalanceRounded from "@mui/icons-material/AccountBalanceRounded";
 import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
@@ -34,6 +42,7 @@ import AssignmentTurnedInRounded from "@mui/icons-material/AssignmentTurnedInRou
 import BlockRounded from "@mui/icons-material/BlockRounded";
 import CancelRounded from "@mui/icons-material/CancelRounded";
 import CampaignRounded from "@mui/icons-material/CampaignRounded";
+import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
@@ -54,6 +63,7 @@ import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -7210,6 +7220,254 @@ function datetimeLocalDefault(value?: string): string {
   return date.toISOString().slice(0, 16);
 }
 
+function splitDateTimeInputValue(value = ""): {
+  date: string;
+  time: string;
+} {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(
+    value.trim(),
+  );
+  if (!match) {
+    const fallback = datetimeLocalDefault(value);
+    return fallback && fallback !== value
+      ? splitDateTimeInputValue(fallback)
+      : { date: "", time: "" };
+  }
+  return {
+    date: `${match[3]}/${match[2]}/${match[1]}`,
+    time: `${match[4]}:${match[5]}`,
+  };
+}
+
+function validCalendarDate(year: number, month: number, day: number): boolean {
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function normaliseDateInput(value: string): string | null {
+  const trimmed = value.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (iso) {
+    const year = Number.parseInt(iso[1] ?? "", 10);
+    const month = Number.parseInt(iso[2] ?? "", 10);
+    const day = Number.parseInt(iso[3] ?? "", 10);
+    return validCalendarDate(year, month, day)
+      ? `${iso[1]}-${iso[2]}-${iso[3]}`
+      : null;
+  }
+
+  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
+  if (!local) {
+    return null;
+  }
+  const day = Number.parseInt(local[1] ?? "", 10);
+  const month = Number.parseInt(local[2] ?? "", 10);
+  const year = Number.parseInt(local[3] ?? "", 10);
+  if (!validCalendarDate(year, month, day)) {
+    return null;
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normaliseTimeInput(value: string): string | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number.parseInt(match[1] ?? "", 10);
+  const minutes = Number.parseInt(match[2] ?? "", 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function composeDateTimeValue(dateValue: string, timeValue: string): string {
+  const date = normaliseDateInput(dateValue);
+  const time = normaliseTimeInput(timeValue);
+  return date && time ? `${date}T${time}` : "";
+}
+
+const StyledTemporalField = styled(Box)(({ theme }) => ({
+  border: `1px solid ${alpha(tokens.ink, 0.1)}`,
+  borderRadius: 20,
+  background: `linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.78)})`,
+  padding: theme.spacing(0.75),
+  transition:
+    "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+  "&:focus-within": {
+    borderColor: alpha(tokens.burgundy, 0.42),
+    boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.1)}`,
+  },
+  "&[data-disabled='true']": {
+    opacity: 0.56,
+  },
+  "& .MuiFormLabel-root": {
+    fontWeight: 800,
+  },
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 14,
+    backgroundColor: tokens.white,
+  },
+  "& .MuiOutlinedInput-notchedOutline": {
+    borderColor: alpha(tokens.ink, 0.12),
+  },
+  "& .MuiInputBase-input": {
+    fontWeight: 800,
+    letterSpacing: 0,
+  },
+  "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+    color: alpha(tokens.burgundy, 0.78),
+  },
+}));
+
+function StyledDateTimeField({
+  name,
+  label,
+  defaultValue = "",
+  required = false,
+  disabled = false,
+  size = "small",
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  required?: boolean;
+  disabled?: boolean;
+  size?: "small" | "medium";
+}) {
+  const initial = splitDateTimeInputValue(defaultValue);
+  const [dateValue, setDateValue] = useState(initial.date);
+  const [timeValue, setTimeValue] = useState(initial.time);
+  const hiddenValue = composeDateTimeValue(dateValue, timeValue);
+
+  return (
+    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
+      <input
+        type="hidden"
+        name={name}
+        value={hiddenValue}
+        disabled={disabled}
+      />
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+      >
+        {label}
+        {required ? " *" : ""}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 0.75,
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 0.78fr" },
+        }}
+      >
+        <TextField
+          label="Date"
+          value={dateValue}
+          onChange={(event) => setDateValue(event.target.value)}
+          placeholder="dd/mm/yyyy"
+          required={required}
+          disabled={disabled}
+          size={size}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <CalendarMonthRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+            htmlInput: {
+              inputMode: "numeric",
+              pattern: "(\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2})",
+            },
+          }}
+        />
+        <TextField
+          label="Time"
+          value={timeValue}
+          onChange={(event) => setTimeValue(event.target.value)}
+          placeholder="HH:mm"
+          required={required}
+          disabled={disabled}
+          size={size}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <ScheduleRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+            htmlInput: {
+              inputMode: "numeric",
+              pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+            },
+          }}
+        />
+      </Box>
+    </StyledTemporalField>
+  );
+}
+
+function StyledTimeField({
+  name,
+  label,
+  defaultValue = "",
+  required = false,
+  disabled = false,
+  size = "small",
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  required?: boolean;
+  disabled?: boolean;
+  size?: "small" | "medium";
+}) {
+  const [timeValue, setTimeValue] = useState(defaultValue);
+  const hiddenValue = normaliseTimeInput(timeValue) ?? "";
+
+  return (
+    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
+      <input
+        type="hidden"
+        name={name}
+        value={hiddenValue}
+        disabled={disabled}
+      />
+      <TextField
+        label={label}
+        value={timeValue}
+        onChange={(event) => setTimeValue(event.target.value)}
+        placeholder="HH:mm"
+        required={required}
+        disabled={disabled}
+        size={size}
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <ScheduleRounded fontSize="small" />
+              </InputAdornment>
+            ),
+          },
+          htmlInput: {
+            inputMode: "numeric",
+            pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+          },
+        }}
+      />
+    </StyledTemporalField>
+  );
+}
+
 function SubscriptionsSection({
   subscriptions,
   subscriptionsError,
@@ -8430,12 +8688,10 @@ function SubscriptionsSection({
                             label="Payment link"
                             placeholder="https://paystack.com/pay/..."
                           />
-                          <TextField
+                          <StyledDateTimeField
                             size="small"
                             name="due_at"
                             label="Due date"
-                            type="datetime-local"
-                            slotProps={{ inputLabel: { shrink: true } }}
                           />
                           <TextField
                             size="small"
@@ -8550,6 +8806,41 @@ function PromotionsSection({
     (total, promotion) => total + promotion.discountRedeemedMinor,
     0,
   );
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
+  const filteredPromotions = useMemo(() => {
+    const normalisedQuery = query.trim().toLowerCase();
+
+    return promotions.filter((promotion) => {
+      const matchesStatus =
+        statusFilter === "all" || promotion.status === statusFilter;
+      const matchesScope =
+        scopeFilter === "all" || promotion.scope === scopeFilter;
+      const searchable = [
+        promotion.title,
+        promotion.code,
+        promotion.status,
+        promotion.scope,
+        promotion.fundingSource,
+        promotionTargetLabel(promotion),
+        promotionDiscountLabel(promotion),
+        promotionScopeTargetLabel(promotion),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        matchesStatus &&
+        matchesScope &&
+        (!normalisedQuery || searchable.includes(normalisedQuery))
+      );
+    });
+  }, [promotions, query, scopeFilter, statusFilter]);
+  const selectedPromotion =
+    promotions.find((promotion) => promotion.promotionId === detailID) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -8606,215 +8897,91 @@ function PromotionsSection({
       </Box>
 
       {!promotionsError ? (
-        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-          <Form method="post">
-            <input type="hidden" name="intent" value="admin-promotion:create" />
-            <Stack spacing={1.5}>
-              <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
-                sx={{ justifyContent: "space-between" }}
-              >
-                <Box>
-                  <Typography variant="h6">Create promotion</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Add a platform-wide voucher or tie the offer to one store.
-                  </Typography>
-                </Box>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<LocalOfferRounded />}
-                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
-                >
-                  Create promotion
-                </Button>
-              </Stack>
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "repeat(2, minmax(0, 1fr))",
-                    xl: "1.1fr 1fr 1.4fr repeat(3, minmax(120px, 0.85fr))",
-                  },
-                }}
-              >
-                <TextField
-                  select
-                  label="Target"
-                  name="business_id"
-                  size="small"
-                  defaultValue=""
-                >
-                  <MenuItem value="">Platform-wide</MenuItem>
-                  {businesses.map((business) => (
-                    <MenuItem key={business.id} value={business.id}>
-                      {business.name} · {business.handle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Code"
-                  name="code"
-                  placeholder="WELCOME10"
-                  size="small"
-                />
-                <TextField label="Title" name="title" size="small" required />
-                <TextField
-                  select
-                  label="Discount"
-                  name="discount_type"
-                  size="small"
-                  defaultValue="percentage"
-                >
-                  {promotionDiscountTypeOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Value"
-                  name="discount_value"
-                  type="number"
-                  size="small"
-                  defaultValue="10"
-                  slotProps={{
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <TextField
-                  label="Max cap"
-                  name="max_discount_ghs"
-                  type="number"
-                  size="small"
-                  defaultValue="50.00"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">GHS</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <TextField
-                  label="Minimum spend"
-                  name="min_spend_ghs"
-                  type="number"
-                  size="small"
-                  defaultValue="0.00"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">GHS</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <TextField
-                  select
-                  label="Funding"
-                  name="funding_source"
-                  size="small"
-                  defaultValue="business"
-                >
-                  {promotionFundingSourceOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Scope"
-                  name="scope"
-                  size="small"
-                  defaultValue="store"
-                >
-                  {promotionScopeOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Collection ID"
-                  name="target_collection_id"
-                  size="small"
-                />
-                <TextField
-                  label="Design ID"
-                  name="target_design_id"
-                  size="small"
-                />
-                <TextField
-                  select
-                  label="Status"
-                  name="status"
-                  size="small"
-                  defaultValue="active"
-                >
-                  {promotionStatusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Global limit"
-                  name="usage_limit_global"
-                  type="number"
-                  size="small"
-                  placeholder="Unlimited"
-                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                />
-                <TextField
-                  label="Per-customer limit"
-                  name="usage_limit_per_customer"
-                  type="number"
-                  size="small"
-                  placeholder="Unlimited"
-                  slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                />
-                <TextField
-                  label="Starts"
-                  name="starts_at"
-                  type="datetime-local"
-                  size="small"
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-                <TextField
-                  label="Ends"
-                  name="ends_at"
-                  type="datetime-local"
-                  size="small"
-                  slotProps={{ inputLabel: { shrink: true } }}
-                />
-              </Box>
-              <TextField
-                label="Description"
-                name="description"
-                multiline
-                minRows={2}
-                size="small"
-              />
-            </Stack>
-          </Form>
+        <Panel sx={{ overflow: "hidden" }}>
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.5 },
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(220px, 1fr) repeat(2, minmax(140px, 0.35fr)) auto",
+              },
+              alignItems: "center",
+            }}
+          >
+            <TextField
+              label="Search promotions"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              label="Status"
+              select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All statuses</MenuItem>
+              {promotionStatusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Scope"
+              select
+              value={scopeFilter}
+              onChange={(event) => setScopeFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All scopes</MenuItem>
+              {promotionScopeOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Button
+              variant="contained"
+              startIcon={<LocalOfferRounded />}
+              onClick={() => setCreateOpen(true)}
+              sx={{ minHeight: 42, whiteSpace: "nowrap" }}
+            >
+              New promotion
+            </Button>
+          </Box>
         </Panel>
       ) : null}
 
       {!promotionsError && promotions.length === 0 ? (
         <Alert severity="info">
-          No promotion rules are configured yet. Create the first voucher above.
+          No promotion rules are configured yet. Create the first voucher from
+          New promotion.
         </Alert>
       ) : null}
 
-      {!promotionsError && promotions.length > 0 ? (
+      {!promotionsError &&
+      promotions.length > 0 &&
+      filteredPromotions.length === 0 ? (
+        <Alert severity="info">
+          No promotions match the current search and filters.
+        </Alert>
+      ) : null}
+
+      {!promotionsError && filteredPromotions.length > 0 ? (
         <Box
           sx={{
             display: "grid",
@@ -8823,7 +8990,7 @@ function PromotionsSection({
             alignItems: "start",
           }}
         >
-          {promotions.map((promotion) => {
+          {filteredPromotions.map((promotion) => {
             const archived = promotion.status === "archived";
             const color = promotionStatusColor(promotion.status);
 
@@ -9224,25 +9391,21 @@ function PromotionsSection({
                           disabled={archived}
                           slotProps={{ htmlInput: { min: 1, step: 1 } }}
                         />
-                        <TextField
+                        <StyledDateTimeField
                           label="Starts"
                           name="starts_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(
                             promotion.startsAt,
                           )}
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
-                        <TextField
+                        <StyledDateTimeField
                           label="Ends"
                           name="ends_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(promotion.endsAt)}
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
                       </Box>
                       <TextField
@@ -9552,21 +9715,17 @@ function AdsSection({
                     htmlInput: { min: 0, step: "0.01" },
                   }}
                 />
-                <TextField
+                <StyledDateTimeField
                   label="Starts"
                   name="starts_at"
-                  type="datetime-local"
                   size="small"
                   required
-                  slotProps={{ inputLabel: { shrink: true } }}
                 />
-                <TextField
+                <StyledDateTimeField
                   label="Ends"
                   name="ends_at"
-                  type="datetime-local"
                   size="small"
                   required
-                  slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Box>
               <Box
@@ -10095,25 +10254,21 @@ function AdsSection({
                             htmlInput: { min: 0, step: "0.01" },
                           }}
                         />
-                        <TextField
+                        <StyledDateTimeField
                           label="Starts"
                           name="starts_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(campaign.startsAt)}
                           required
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
-                        <TextField
+                        <StyledDateTimeField
                           label="Ends"
                           name="ends_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(campaign.endsAt)}
                           required
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
                       </Box>
                       <Box
@@ -11347,17 +11502,13 @@ function ReferralsSection({
                   gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                 }}
               >
-                <TextField
+                <StyledDateTimeField
                   label="Starts"
                   name="starts_at"
-                  type="datetime-local"
-                  slotProps={{ inputLabel: { shrink: true } }}
                 />
-                <TextField
+                <StyledDateTimeField
                   label="Ends"
                   name="ends_at"
-                  type="datetime-local"
-                  slotProps={{ inputLabel: { shrink: true } }}
                 />
               </Box>
               <TextField label="Notes" name="notes" multiline minRows={2} />
@@ -11910,25 +12061,21 @@ function ReferralsSection({
                             </MenuItem>
                           ))}
                         </TextField>
-                        <TextField
+                        <StyledDateTimeField
                           label="Starts"
                           name="starts_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(
                             programme.startsAt,
                           )}
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
-                        <TextField
+                        <StyledDateTimeField
                           label="Ends"
                           name="ends_at"
-                          type="datetime-local"
                           size="small"
                           defaultValue={datetimeLocalDefault(programme.endsAt)}
                           disabled={archived}
-                          slotProps={{ inputLabel: { shrink: true } }}
                         />
                       </Box>
                       <TextField
@@ -12398,9 +12545,43 @@ function AdminUsersSection({
   actionData?: AdminActionFeedback;
   error: string | null;
 }) {
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const activeCount = users.filter((user) => user.isActive).length;
   const ownerCount = users.filter((user) => user.role === "owner").length;
   const supportCount = users.filter((user) => user.role === "support").length;
+  const filteredUsers = useMemo(() => {
+    const normalisedQuery = query.trim().toLowerCase();
+
+    return users.filter((user) => {
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? user.isActive : !user.isActive);
+      const roleLabel =
+        roles.find((role) => role.role === user.role)?.label ?? user.role;
+      const searchable = [
+        user.displayName,
+        user.email,
+        user.role,
+        roleLabel,
+        user.isActive ? "active" : "inactive",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        matchesRole &&
+        matchesStatus &&
+        (!normalisedQuery || searchable.includes(normalisedQuery))
+      );
+    });
+  }, [query, roleFilter, roles, statusFilter, users]);
+  const selectedUser =
+    users.find((user) => user.adminUserId === detailID) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -12443,6 +12624,8 @@ function AdminUsersSection({
         />
       </Box>
 
+      {error ? <Alert severity="warning">{error}</Alert> : null}
+
       <Box
         sx={{
           display: "grid",
@@ -12450,232 +12633,406 @@ function AdminUsersSection({
           gridTemplateColumns: { xs: "1fr", xl: "1.2fr 0.8fr" },
         }}
       >
-        <Stack spacing={2.5}>
-          <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-            <Stack spacing={2}>
+        <Panel sx={{ overflow: "hidden" }}>
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.5 },
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(220px, 1fr) repeat(2, minmax(140px, 0.35fr)) auto",
+              },
+              alignItems: "center",
+            }}
+          >
+            <TextField
+              label="Search operators"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              label="Role"
+              select
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All roles</MenuItem>
+              {roles.map((role) => (
+                <MenuItem key={role.role} value={role.role}>
+                  {role.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Status"
+              select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All statuses</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+            </TextField>
+            <Button
+              variant="contained"
+              startIcon={<PersonSearchRounded />}
+              onClick={() => setCreateOpen(true)}
+              sx={{ minHeight: 42, whiteSpace: "nowrap" }}
+            >
+              New operator
+            </Button>
+          </Box>
+          <Divider />
+          <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
+              }}
+            >
               <Box>
-                <Typography variant="h6">Create operator</Typography>
+                <Typography sx={{ fontWeight: 900 }}>Operator list</Typography>
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  New operators can sign in immediately with the temporary
-                  password set here.
+                  {filteredUsers.length} of {users.length} operators shown
                 </Typography>
               </Box>
-              <Form method="post">
-                <input type="hidden" name="intent" value="admin-user:create" />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1.5,
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "1.1fr 1.2fr 1fr auto",
-                    },
-                    alignItems: "end",
-                  }}
-                >
-                  <TextField
-                    name="display_name"
-                    label="Display name"
-                    required
-                  />
-                  <TextField name="email" label="Email" type="email" required />
-                  <TextField
-                    name="role"
-                    label="Role"
-                    select
-                    required
-                    defaultValue="support"
-                  >
-                    {roles.map((role) => (
-                      <MenuItem key={role.role} value={role.role}>
-                        {role.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    name="password"
-                    label="Temporary password"
-                    type="password"
-                    required
-                    sx={{ gridColumn: { md: "1 / span 3" } }}
-                  />
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<PersonSearchRounded />}
-                    sx={{ minHeight: 56 }}
-                  >
-                    Create
-                  </Button>
-                </Box>
-              </Form>
+              <Chip
+                size="small"
+                label={`${users.length - activeCount} inactive`}
+                color={users.length - activeCount > 0 ? "warning" : "success"}
+                variant="outlined"
+              />
             </Stack>
-          </Panel>
-
-          {error ? (
-            <Alert severity="warning">{error}</Alert>
+          </Box>
+          {users.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <Alert severity="info">
+                No operator accounts are available from the admin API.
+              </Alert>
+            </Box>
+          ) : filteredUsers.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <Alert severity="info">
+                No operators match the current search and filters.
+              </Alert>
+            </Box>
           ) : (
-            <Stack spacing={1.5}>
-              {users.map((user) => {
-                const isSelf = user.adminUserId === currentUserId;
-                return (
-                  <Panel
-                    key={user.adminUserId}
-                    sx={{
-                      p: 2,
-                      borderColor: alpha(roleTone(user.role), 0.16),
-                      backgroundImage: `linear-gradient(90deg, ${alpha(
-                        roleTone(user.role),
-                        0.065,
-                      )}, transparent 42%)`,
-                    }}
-                  >
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="intent"
-                        value="admin-user:update"
-                      />
-                      <input
-                        type="hidden"
-                        name="admin_user_id"
-                        value={user.adminUserId}
-                      />
-                      <Stack spacing={1.5}>
-                        <Stack
-                          direction={{ xs: "column", md: "row" }}
-                          spacing={1.5}
-                          sx={{
-                            alignItems: { md: "center" },
-                            justifyContent: "space-between",
-                          }}
-                        >
-                          <Stack
-                            direction="row"
-                            spacing={1.25}
-                            sx={{ alignItems: "center", minWidth: 0 }}
-                          >
-                            <Box
-                              sx={{
-                                width: 42,
-                                height: 42,
-                                borderRadius: 1.5,
-                                display: "grid",
-                                placeItems: "center",
-                                bgcolor: alpha(roleTone(user.role), 0.12),
-                                color: roleTone(user.role),
-                              }}
-                            >
-                              <ShieldRounded />
-                            </Box>
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 900 }}>
-                                {user.displayName}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  color: "text.secondary",
-                                  overflowWrap: "anywhere",
-                                }}
-                              >
-                                {user.email}
-                              </Typography>
-                            </Box>
-                          </Stack>
-                          <Stack
-                            direction="row"
-                            spacing={0.75}
-                            sx={{ flexWrap: "wrap", gap: 0.75 }}
-                          >
-                            <Chip
-                              size="small"
-                              label={user.role}
-                              sx={{
-                                textTransform: "capitalize",
-                                bgcolor: alpha(roleTone(user.role), 0.12),
-                                color: roleTone(user.role),
-                              }}
-                            />
-                            <Chip
-                              size="small"
-                              label={user.isActive ? "Active" : "Inactive"}
-                              color={user.isActive ? "success" : "default"}
-                              variant={user.isActive ? "filled" : "outlined"}
-                            />
-                            {isSelf ? <Chip size="small" label="You" /> : null}
-                          </Stack>
-                        </Stack>
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1.5,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              md: "1.35fr 0.85fr 0.75fr auto",
-                            },
-                            alignItems: "end",
-                          }}
-                        >
-                          <TextField
-                            name="display_name"
-                            label="Display name"
-                            defaultValue={user.displayName}
-                            required
-                          />
-                          <TextField
-                            name="role"
-                            label="Role"
-                            select
-                            defaultValue={user.role}
-                            required
-                          >
-                            {roles.map((role) => (
-                              <MenuItem key={role.role} value={role.role}>
-                                {role.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                          <TextField
-                            name="is_active"
-                            label="Status"
-                            select
-                            defaultValue={String(user.isActive)}
-                            required
-                          >
-                            <MenuItem value="true">Active</MenuItem>
-                            <MenuItem value="false">Inactive</MenuItem>
-                          </TextField>
-                          <Button
-                            type="submit"
-                            variant={isSelf ? "outlined" : "contained"}
-                            disabled={isSelf && user.role === "owner"}
-                            sx={{ minHeight: 56 }}
-                          >
-                            Save
-                          </Button>
-                        </Box>
-                        {isSelf && user.role === "owner" ? (
-                          <Typography
-                            variant="caption"
-                            sx={{ color: "text.secondary", fontWeight: 800 }}
-                          >
-                            Self-demotion and self-deactivation are blocked to
-                            avoid locking the platform out.
-                          </Typography>
-                        ) : null}
-                      </Stack>
-                    </Form>
-                  </Panel>
-                );
-              })}
-            </Stack>
+            filteredUsers.map((user) => (
+              <AdminOperatorRow
+                key={user.adminUserId}
+                user={user}
+                currentUserId={currentUserId}
+                onView={() => setDetailID(user.adminUserId)}
+              />
+            ))
           )}
-        </Stack>
+        </Panel>
 
         <RolePermissionMatrix roles={roles} />
       </Box>
+
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Create operator</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                New operators can sign in with the temporary password set here.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setCreateOpen(false)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <AdminOperatorCreateForm roles={roles} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedUser)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">
+                {selectedUser?.displayName ?? "Operator details"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Update the operator profile, role, and access state.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedUser ? (
+            <AdminOperatorDetailForm
+              user={selectedUser}
+              roles={roles}
+              currentUserId={currentUserId}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Stack>
+  );
+}
+
+function AdminOperatorCreateForm({
+  roles,
+}: {
+  roles: AdminRoleDefinition[];
+}) {
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="admin-user:create" />
+      <Stack spacing={1.5}>
+        <TextField name="display_name" label="Display name" required />
+        <TextField name="email" label="Email" type="email" required />
+        <TextField
+          name="role"
+          label="Role"
+          select
+          required
+          defaultValue="support"
+        >
+          {roles.map((role) => (
+            <MenuItem key={role.role} value={role.role}>
+              {role.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          name="password"
+          label="Temporary password"
+          type="password"
+          required
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          startIcon={<PersonSearchRounded />}
+        >
+          Create operator
+        </Button>
+      </Stack>
+    </Form>
+  );
+}
+
+function AdminOperatorRow({
+  user,
+  currentUserId,
+  onView,
+}: {
+  user: AdminUser;
+  currentUserId: string;
+  onView: () => void;
+}) {
+  const isSelf = user.adminUserId === currentUserId;
+
+  return (
+    <Box
+      sx={{
+        px: { xs: 2, md: 2.5 },
+        py: 1.5,
+        borderTop: "1px solid",
+        borderColor: "divider",
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={1.5}
+        sx={{
+          alignItems: { xs: "stretch", md: "center" },
+          justifyContent: "space-between",
+        }}
+      >
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: 1.5,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: alpha(roleTone(user.role), 0.12),
+              color: roleTone(user.role),
+              flexShrink: 0,
+            }}
+          >
+            <ShieldRounded />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 900 }} noWrap>
+              {user.displayName}
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+            >
+              {user.email}
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{ flexWrap: "wrap", gap: 0.75, alignItems: "center" }}
+        >
+          <Chip
+            size="small"
+            label={user.role}
+            sx={{
+              textTransform: "capitalize",
+              bgcolor: alpha(roleTone(user.role), 0.12),
+              color: roleTone(user.role),
+            }}
+          />
+          <Chip
+            size="small"
+            label={user.isActive ? "Active" : "Inactive"}
+            color={user.isActive ? "success" : "default"}
+            variant={user.isActive ? "filled" : "outlined"}
+          />
+          {isSelf ? <Chip size="small" label="You" /> : null}
+          <Button
+            variant="outlined"
+            size="small"
+            endIcon={<ArrowForwardRounded />}
+            onClick={onView}
+          >
+            View details
+          </Button>
+        </Stack>
+      </Stack>
+    </Box>
+  );
+}
+
+function AdminOperatorDetailForm({
+  user,
+  roles,
+  currentUserId,
+}: {
+  user: AdminUser;
+  roles: AdminRoleDefinition[];
+  currentUserId: string;
+}) {
+  const isSelf = user.adminUserId === currentUserId;
+
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="admin-user:update" />
+      <input type="hidden" name="admin_user_id" value={user.adminUserId} />
+      <Stack spacing={1.5}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+          }}
+        >
+          <DetailLine label="Email" value={user.email} />
+          <DetailLine label="Current role" value={user.role} />
+          <DetailLine
+            label="Access state"
+            value={user.isActive ? "Active" : "Inactive"}
+          />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "1.35fr 0.85fr 0.75fr auto",
+            },
+            alignItems: "end",
+          }}
+        >
+          <TextField
+            name="display_name"
+            label="Display name"
+            defaultValue={user.displayName}
+            required
+          />
+          <TextField
+            name="role"
+            label="Role"
+            select
+            defaultValue={user.role}
+            required
+          >
+            {roles.map((role) => (
+              <MenuItem key={role.role} value={role.role}>
+                {role.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            name="is_active"
+            label="Status"
+            select
+            defaultValue={String(user.isActive)}
+            required
+          >
+            <MenuItem value="true">Active</MenuItem>
+            <MenuItem value="false">Inactive</MenuItem>
+          </TextField>
+          <Button
+            type="submit"
+            variant={isSelf ? "outlined" : "contained"}
+            disabled={isSelf && user.role === "owner"}
+            sx={{ minHeight: 56 }}
+          >
+            Save
+          </Button>
+        </Box>
+        {isSelf && user.role === "owner" ? (
+          <Alert severity="info">
+            Self-demotion and self-deactivation are blocked to avoid locking the
+            platform out.
+          </Alert>
+        ) : null}
+      </Stack>
+    </Form>
   );
 }
 
@@ -13018,10 +13375,9 @@ function SettingsSection({
                     defaultValue={preferences.phoneNumber}
                     placeholder="+233501234567"
                   />
-                  <TextField
+                  <StyledTimeField
                     name="daily_digest_time"
                     label="Digest time"
-                    type="time"
                     defaultValue={preferences.dailyDigestTime}
                     required
                   />

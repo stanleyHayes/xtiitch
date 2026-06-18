@@ -39,6 +39,9 @@ const displayFontStack = [
   "sans-serif",
 ].join(", ");
 
+const controlRadius = 16;
+const buttonRadius = 999;
+
 export const theme: Theme = createTheme({
   cssVariables: true,
   palette: {
@@ -67,7 +70,46 @@ export const theme: Theme = createTheme({
   components: {
     MuiButton: {
       defaultProps: { disableElevation: true },
-      styleOverrides: { root: { borderRadius: 8, minHeight: 44 } },
+      styleOverrides: { root: { borderRadius: buttonRadius, minHeight: 44 } },
+    },
+    MuiTextField: {
+      defaultProps: { variant: "outlined" },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: controlRadius,
+          backgroundColor: tokens.white,
+          minHeight: 46,
+          transition:
+            "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+          "&.MuiInputBase-multiline": {
+            minHeight: "auto",
+            alignItems: "flex-start",
+          },
+          "&.Mui-focused": {
+            boxShadow: `0 0 0 3px ${tokens.burgundy}1f`,
+          },
+        },
+      },
+    },
+    MuiFilledInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: controlRadius,
+          overflow: "hidden",
+          minHeight: 46,
+          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+        },
+      },
+    },
+    MuiAutocomplete: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": { borderRadius: controlRadius },
+        },
+      },
     },
     MuiCard: {
       defaultProps: { elevation: 0 },

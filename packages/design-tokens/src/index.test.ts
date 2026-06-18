@@ -15,6 +15,8 @@ test("brand colors expose the shared Xtiitch palette", () => {
 
 test("layout tokens keep the web and mobile apps on the same scale", () => {
   assert.equal(xtiitchRadii.md, 8);
+  assert.equal(xtiitchRadii.control, 16);
+  assert.equal(xtiitchRadii.button, 999);
   assert.equal(xtiitchSpacing.lg, 24);
   assert.equal(xtiitchTypography.body.mobile, 16);
 });

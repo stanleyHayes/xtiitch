@@ -16,6 +16,9 @@ export const xtiitchRadii = {
   sm: 4,
   md: 8,
   lg: 12,
+  xl: 16,
+  control: 16,
+  button: 999,
 } as const;
 
 export const xtiitchSpacing = {
@@ -35,4 +38,3 @@ export const xtiitchTypography = {
   support: { desktop: 14, mobile: 14 },
   metadata: { desktop: 12, mobile: 12 },
 } as const;
-

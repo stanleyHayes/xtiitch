@@ -1,6 +1,7 @@
 import { Form, Link as RouterLink, redirect } from "react-router";
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactElement,
@@ -13,6 +14,9 @@ import ButtonBase from "@mui/material/ButtonBase";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
+import Dialog from "@mui/material/Dialog";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -25,7 +29,12 @@ import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { alpha, type SxProps, type Theme } from "@mui/material/styles";
+import {
+  alpha,
+  styled,
+  type SxProps,
+  type Theme,
+} from "@mui/material/styles";
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
@@ -55,6 +64,7 @@ import QueryStatsRounded from "@mui/icons-material/QueryStatsRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SaveRounded from "@mui/icons-material/SaveRounded";
 import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
@@ -2898,10 +2908,263 @@ function datetimeLocalValue(value: string): string {
     : parsed.toISOString().slice(0, 16);
 }
 
+function splitDateTimeInputValue(value = ""): {
+  date: string;
+  time: string;
+} {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(
+    value.trim(),
+  );
+  if (!match) {
+    const fallback = datetimeLocalValue(value);
+    return fallback && fallback !== value
+      ? splitDateTimeInputValue(fallback)
+      : { date: "", time: "" };
+  }
+  return {
+    date: `${match[3]}/${match[2]}/${match[1]}`,
+    time: `${match[4]}:${match[5]}`,
+  };
+}
+
+function validCalendarDate(year: number, month: number, day: number): boolean {
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  return (
+    parsed.getUTCFullYear() === year &&
+    parsed.getUTCMonth() === month - 1 &&
+    parsed.getUTCDate() === day
+  );
+}
+
+function normaliseDateInput(value: string): string | null {
+  const trimmed = value.trim();
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
+  if (iso) {
+    const year = Number.parseInt(iso[1] ?? "", 10);
+    const month = Number.parseInt(iso[2] ?? "", 10);
+    const day = Number.parseInt(iso[3] ?? "", 10);
+    return validCalendarDate(year, month, day)
+      ? `${iso[1]}-${iso[2]}-${iso[3]}`
+      : null;
+  }
+
+  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
+  if (!local) {
+    return null;
+  }
+  const day = Number.parseInt(local[1] ?? "", 10);
+  const month = Number.parseInt(local[2] ?? "", 10);
+  const year = Number.parseInt(local[3] ?? "", 10);
+  if (!validCalendarDate(year, month, day)) {
+    return null;
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function normaliseTimeInput(value: string): string | null {
+  const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
+  if (!match) {
+    return null;
+  }
+  const hours = Number.parseInt(match[1] ?? "", 10);
+  const minutes = Number.parseInt(match[2] ?? "", 10);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+function composeDateTimeValue(dateValue: string, timeValue: string): string {
+  const date = normaliseDateInput(dateValue);
+  const time = normaliseTimeInput(timeValue);
+  return date && time ? `${date}T${time}` : "";
+}
+
 function minutesToTime(value: number): string {
   const hours = Math.floor(value / 60);
   const minutes = value % 60;
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+}
+
+const StyledTemporalField = styled(Box)(({ theme }) => ({
+  border: `1px solid ${alpha(tokens.ink, 0.1)}`,
+  borderRadius: 20,
+  background: `linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.78)})`,
+  padding: theme.spacing(0.75),
+  transition:
+    "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+  "&:focus-within": {
+    borderColor: alpha(tokens.burgundy, 0.42),
+    boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.1)}`,
+  },
+  "&[data-disabled='true']": {
+    opacity: 0.56,
+  },
+  "& .MuiFormLabel-root": {
+    fontWeight: 800,
+  },
+  "& .MuiOutlinedInput-root": {
+    borderRadius: 14,
+    backgroundColor: tokens.white,
+  },
+  "& .MuiOutlinedInput-notchedOutline": {
+    borderColor: alpha(tokens.ink, 0.12),
+  },
+  "& .MuiInputBase-input": {
+    fontWeight: 800,
+    letterSpacing: 0,
+  },
+  "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+    color: alpha(tokens.burgundy, 0.78),
+  },
+}));
+
+function StyledDateTimeField({
+  name,
+  label,
+  defaultValue = "",
+  required = false,
+  disabled = false,
+  size = "small",
+  fullWidth = true,
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  required?: boolean;
+  disabled?: boolean;
+  size?: "small" | "medium";
+  fullWidth?: boolean;
+}) {
+  const initial = splitDateTimeInputValue(defaultValue);
+  const [dateValue, setDateValue] = useState(initial.date);
+  const [timeValue, setTimeValue] = useState(initial.time);
+  const hiddenValue = composeDateTimeValue(dateValue, timeValue);
+
+  return (
+    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
+      <input
+        type="hidden"
+        name={name}
+        value={hiddenValue}
+        disabled={disabled}
+      />
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+      >
+        {label}
+        {required ? " *" : ""}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 0.75,
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 0.78fr" },
+        }}
+      >
+        <TextField
+          label="Date"
+          value={dateValue}
+          onChange={(event) => setDateValue(event.target.value)}
+          placeholder="dd/mm/yyyy"
+          required={required}
+          disabled={disabled}
+          size={size}
+          fullWidth={fullWidth}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <CalendarMonthRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+            htmlInput: {
+              inputMode: "numeric",
+              pattern: "(\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2})",
+            },
+          }}
+        />
+        <TextField
+          label="Time"
+          value={timeValue}
+          onChange={(event) => setTimeValue(event.target.value)}
+          placeholder="HH:mm"
+          required={required}
+          disabled={disabled}
+          size={size}
+          fullWidth={fullWidth}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <ScheduleRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+            htmlInput: {
+              inputMode: "numeric",
+              pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+            },
+          }}
+        />
+      </Box>
+    </StyledTemporalField>
+  );
+}
+
+function StyledTimeField({
+  name,
+  label,
+  defaultValue = "",
+  required = false,
+  disabled = false,
+  size = "small",
+}: {
+  name: string;
+  label: string;
+  defaultValue?: string;
+  required?: boolean;
+  disabled?: boolean;
+  size?: "small" | "medium";
+}) {
+  const [timeValue, setTimeValue] = useState(defaultValue);
+  const hiddenValue = normaliseTimeInput(timeValue) ?? "";
+
+  return (
+    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
+      <input
+        type="hidden"
+        name={name}
+        value={hiddenValue}
+        disabled={disabled}
+      />
+      <TextField
+        label={label}
+        value={timeValue}
+        onChange={(event) => setTimeValue(event.target.value)}
+        placeholder="HH:mm"
+        required={required}
+        disabled={disabled}
+        size={size}
+        fullWidth
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <ScheduleRounded fontSize="small" />
+              </InputAdornment>
+            ),
+          },
+          htmlInput: {
+            inputMode: "numeric",
+            pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+          },
+        }}
+      />
+    </StyledTemporalField>
+  );
 }
 
 function formatMethod(value: string): string {
@@ -7569,6 +7832,11 @@ function PromotionPanel({
   redeemedMinor: number;
   error?: string;
 }) {
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [scopeFilter, setScopeFilter] = useState("all");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const pausedCount = promotions.filter(
     (promotion) => promotion.status === "paused",
   ).length;
@@ -7580,6 +7848,35 @@ function PromotionPanel({
     (collection) => collection.status === "active",
   );
   const activeDesigns = designs.filter((design) => design.status === "active");
+  const filteredPromotions = useMemo(() => {
+    const normalisedQuery = query.trim().toLowerCase();
+
+    return promotions.filter((promotion) => {
+      const matchesStatus =
+        statusFilter === "all" || promotion.status === statusFilter;
+      const matchesScope =
+        scopeFilter === "all" || promotion.scope === scopeFilter;
+      const searchable = [
+        promotion.code,
+        promotion.title,
+        promotion.description,
+        promotion.status,
+        promotion.scope,
+        promotionDiscountLabel(promotion),
+        promotionTargetLabel(promotion, collections, designs),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        matchesStatus &&
+        matchesScope &&
+        (!normalisedQuery || searchable.includes(normalisedQuery))
+      );
+    });
+  }, [collections, designs, promotions, query, scopeFilter, statusFilter]);
+  const selectedPromotion =
+    promotions.find((promotion) => promotion.promotion_id === detailID) ?? null;
 
   return (
     <Panel id="promotions">
@@ -7660,300 +7957,391 @@ function PromotionPanel({
         <Box
           sx={{
             mt: 2,
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: {
-              xs: "1fr",
-              lg: "minmax(300px, 0.42fr) minmax(0, 0.58fr)",
-            },
-            alignItems: "start",
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            bgcolor: alpha(tokens.white, 0.72),
+            overflow: "hidden",
           }}
         >
           <Box
             sx={{
               p: { xs: 2, md: 2.25 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
-              bgcolor: alpha(tokens.white, 0.72),
-              backgroundImage: `linear-gradient(135deg, ${alpha(tokens.gold, 0.08)}, transparent 48%)`,
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(220px, 1fr) repeat(2, minmax(150px, 0.38fr)) auto",
+              },
+              alignItems: "center",
             }}
           >
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              <Box sx={{ color: "primary.main" }}>
-                <AddRounded />
-              </Box>
-              <Box>
-                <Typography sx={{ fontWeight: 900 }}>Create code</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  Launch a storewide or targeted offer.
-                </Typography>
-              </Box>
-            </Stack>
-            <Form method="post">
-              <input type="hidden" name="intent" value="create_promotion" />
-              <Stack spacing={1.5} sx={{ mt: 2 }}>
-                <TextField
-                  name="code"
-                  label="Code"
-                  defaultValue="WELCOME10"
-                  size="small"
-                  required
-                  fullWidth
-                />
-                <TextField
-                  name="title"
-                  label="Title"
-                  size="small"
-                  required
-                  fullWidth
-                />
-                <TextField
-                  name="description"
-                  label="Internal note"
-                  size="small"
-                  multiline
-                  minRows={2}
-                  fullWidth
-                />
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                  }}
-                >
-                  <TextField
-                    name="discount_type"
-                    label="Discount type"
-                    select
-                    defaultValue="percentage"
-                    size="small"
-                  >
-                    <MenuItem value="percentage">Percentage</MenuItem>
-                    <MenuItem value="fixed">Fixed amount</MenuItem>
-                  </TextField>
-                  <TextField
-                    name="status"
-                    label="Status"
-                    select
-                    defaultValue="active"
-                    size="small"
-                  >
-                    <MenuItem value="active">Active</MenuItem>
-                    <MenuItem value="paused">Paused</MenuItem>
-                  </TextField>
-                </Box>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-                  }}
-                >
-                  <TextField
-                    name="percentage_discount"
-                    label="Percent"
-                    size="small"
-                    defaultValue="10"
-                    slotProps={{ htmlInput: { inputMode: "decimal" } }}
-                  />
-                  <TextField
-                    name="fixed_discount_ghs"
-                    label="Fixed"
-                    size="small"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
-                  <TextField
-                    name="max_discount_ghs"
-                    label="Max"
-                    size="small"
-                    defaultValue="50"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
-                </Box>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                  }}
-                >
-                  <TextField
-                    name="scope"
-                    label="Applies to"
-                    select
-                    defaultValue="store"
-                    size="small"
-                  >
-                    <MenuItem value="store">Entire store</MenuItem>
-                    <MenuItem value="collection">Collection</MenuItem>
-                    <MenuItem value="design">Design</MenuItem>
-                  </TextField>
-                  <TextField
-                    name="min_spend_ghs"
-                    label="Min spend"
-                    size="small"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
-                </Box>
-                <TextField
-                  name="target_collection_id"
-                  label="Collection target"
-                  select
-                  defaultValue=""
-                  size="small"
-                >
-                  <MenuItem value="">No collection target</MenuItem>
-                  {activeCollections.map((collection) => (
-                    <MenuItem
-                      key={collection.collection_id}
-                      value={collection.collection_id}
-                    >
-                      {collection.name}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  name="target_design_id"
-                  label="Design target"
-                  select
-                  defaultValue=""
-                  size="small"
-                >
-                  <MenuItem value="">No design target</MenuItem>
-                  {activeDesigns.map((design) => (
-                    <MenuItem key={design.design_id} value={design.design_id}>
-                      {design.title}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                  }}
-                >
-                  <TextField
-                    name="usage_limit_global"
-                    label="Total uses"
-                    type="number"
-                    size="small"
-                    slotProps={{ htmlInput: { min: 1 } }}
-                  />
-                  <TextField
-                    name="usage_limit_per_customer"
-                    label="Uses/customer"
-                    type="number"
-                    size="small"
-                    slotProps={{ htmlInput: { min: 1 } }}
-                  />
-                </Box>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-                  }}
-                >
-                  <TextField
-                    name="starts_at"
-                    label="Starts"
-                    type="datetime-local"
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                  <TextField
-                    name="ends_at"
-                    label="Ends"
-                    type="datetime-local"
-                    size="small"
-                    slotProps={{ inputLabel: { shrink: true } }}
-                  />
-                </Box>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<AddRounded />}
-                >
-                  Create promotion
-                </Button>
-              </Stack>
-            </Form>
+            <TextField
+              label="Search codes"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
+            <TextField
+              label="Status"
+              select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All statuses</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="paused">Paused</MenuItem>
+              <MenuItem value="archived">Archived</MenuItem>
+            </TextField>
+            <TextField
+              label="Scope"
+              select
+              value={scopeFilter}
+              onChange={(event) => setScopeFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All scopes</MenuItem>
+              <MenuItem value="store">Store</MenuItem>
+              <MenuItem value="collection">Collection</MenuItem>
+              <MenuItem value="design">Design</MenuItem>
+            </TextField>
+            <Button
+              variant="contained"
+              startIcon={<AddRounded />}
+              onClick={() => setCreateOpen(true)}
+              sx={{ minHeight: 42, whiteSpace: "nowrap" }}
+            >
+              New promotion
+            </Button>
           </Box>
-
+          <Divider />
           <Box
             sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
-              bgcolor: alpha(tokens.white, 0.72),
-              overflow: "hidden",
+              p: { xs: 2, md: 2.25 },
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 2,
+              alignItems: "center",
             }}
           >
-            <Box
-              sx={{
-                p: { xs: 2, md: 2.25 },
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 2,
-              }}
-            >
-              <Box>
-                <Typography sx={{ fontWeight: 900 }}>Codes</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {promotions.length} business-funded promotions
-                </Typography>
-              </Box>
-              <ToneChip
-                label={`${redemptionCount} used`}
-                tone={redemptionCount > 0 ? tokens.success : tokens.info}
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Promotion list</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {filteredPromotions.length} of {promotions.length} codes shown
+              </Typography>
+            </Box>
+            <ToneChip
+              label={`${redemptionCount} used`}
+              tone={redemptionCount > 0 ? tokens.success : tokens.info}
+            />
+          </Box>
+          {promotions.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <InlineEmptyState
+                icon={<LocalOfferRounded sx={{ fontSize: 38 }} />}
+                title="No promotions yet"
+                helper="Create the first promo code when a business wants to fund a store or design push."
               />
             </Box>
-            {promotions.length === 0 ? (
-              <Box sx={{ px: 2.5, pb: 2.5 }}>
-                <InlineEmptyState
-                  icon={<LocalOfferRounded sx={{ fontSize: 38 }} />}
-                  title="No promotions yet"
-                  helper="Create the first promo code when a business wants to fund a store or design push."
-                />
-              </Box>
-            ) : (
-              promotions.map((promotion) => (
-                <PromotionRow
-                  key={promotion.promotion_id}
-                  promotion={promotion}
-                  collections={collections}
-                  designs={designs}
-                />
-              ))
-            )}
-          </Box>
+          ) : filteredPromotions.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <InlineEmptyState
+                icon={<SearchRounded sx={{ fontSize: 38 }} />}
+                title="No matching promotions"
+                helper="Adjust the search or filters to bring more codes back into view."
+              />
+            </Box>
+          ) : (
+            filteredPromotions.map((promotion) => (
+              <PromotionRow
+                key={promotion.promotion_id}
+                promotion={promotion}
+                collections={collections}
+                designs={designs}
+                onView={() => setDetailID(promotion.promotion_id)}
+              />
+            ))
+          )}
         </Box>
       </Box>
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Create promotion</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Launch a storewide or targeted offer.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setCreateOpen(false)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <PromotionCreateForm
+            activeCollections={activeCollections}
+            activeDesigns={activeDesigns}
+          />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(selectedPromotion)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">
+                {selectedPromotion?.code ?? "Promotion details"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Review, edit, or archive this promotion.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedPromotion ? (
+            <PromotionDetailForm
+              promotion={selectedPromotion}
+              collections={collections}
+              designs={designs}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Panel>
+  );
+}
+
+function PromotionCreateForm({
+  activeCollections,
+  activeDesigns,
+}: {
+  activeCollections: CollectionSummary[];
+  activeDesigns: Design[];
+}) {
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="create_promotion" />
+      <Stack spacing={1.5}>
+        <TextField
+          name="code"
+          label="Code"
+          defaultValue="WELCOME10"
+          size="small"
+          required
+          fullWidth
+        />
+        <TextField name="title" label="Title" size="small" required fullWidth />
+        <TextField
+          name="description"
+          label="Internal note"
+          size="small"
+          multiline
+          minRows={2}
+          fullWidth
+        />
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          }}
+        >
+          <TextField
+            name="discount_type"
+            label="Discount type"
+            select
+            defaultValue="percentage"
+            size="small"
+          >
+            <MenuItem value="percentage">Percentage</MenuItem>
+            <MenuItem value="fixed">Fixed amount</MenuItem>
+          </TextField>
+          <TextField
+            name="status"
+            label="Status"
+            select
+            defaultValue="active"
+            size="small"
+          >
+            <MenuItem value="active">Active</MenuItem>
+            <MenuItem value="paused">Paused</MenuItem>
+          </TextField>
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+          }}
+        >
+          <TextField
+            name="percentage_discount"
+            label="Percent"
+            size="small"
+            defaultValue="10"
+            slotProps={{ htmlInput: { inputMode: "decimal" } }}
+          />
+          <TextField
+            name="fixed_discount_ghs"
+            label="Fixed"
+            size="small"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { inputMode: "decimal" },
+            }}
+          />
+          <TextField
+            name="max_discount_ghs"
+            label="Max"
+            size="small"
+            defaultValue="50"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { inputMode: "decimal" },
+            }}
+          />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          }}
+        >
+          <TextField
+            name="scope"
+            label="Applies to"
+            select
+            defaultValue="store"
+            size="small"
+          >
+            <MenuItem value="store">Entire store</MenuItem>
+            <MenuItem value="collection">Collection</MenuItem>
+            <MenuItem value="design">Design</MenuItem>
+          </TextField>
+          <TextField
+            name="min_spend_ghs"
+            label="Min spend"
+            size="small"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { inputMode: "decimal" },
+            }}
+          />
+        </Box>
+        <TextField
+          name="target_collection_id"
+          label="Collection target"
+          select
+          defaultValue=""
+          size="small"
+        >
+          <MenuItem value="">No collection target</MenuItem>
+          {activeCollections.map((collection) => (
+            <MenuItem
+              key={collection.collection_id}
+              value={collection.collection_id}
+            >
+              {collection.name}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          name="target_design_id"
+          label="Design target"
+          select
+          defaultValue=""
+          size="small"
+        >
+          <MenuItem value="">No design target</MenuItem>
+          {activeDesigns.map((design) => (
+            <MenuItem key={design.design_id} value={design.design_id}>
+              {design.title}
+            </MenuItem>
+          ))}
+        </TextField>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          }}
+        >
+          <TextField
+            name="usage_limit_global"
+            label="Total uses"
+            type="number"
+            size="small"
+            slotProps={{ htmlInput: { min: 1 } }}
+          />
+          <TextField
+            name="usage_limit_per_customer"
+            label="Uses/customer"
+            type="number"
+            size="small"
+            slotProps={{ htmlInput: { min: 1 } }}
+          />
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+          }}
+        >
+          <StyledDateTimeField name="starts_at" label="Starts" size="small" />
+          <StyledDateTimeField name="ends_at" label="Ends" size="small" />
+        </Box>
+        <Button type="submit" variant="contained" startIcon={<AddRounded />}>
+          Create promotion
+        </Button>
+      </Stack>
+    </Form>
   );
 }
 
@@ -7961,15 +8349,13 @@ function PromotionRow({
   promotion,
   collections,
   designs,
+  onView,
 }: {
   promotion: BusinessPromotion;
   collections: CollectionSummary[];
   designs: Design[];
+  onView: () => void;
 }) {
-  const archived = promotion.status === "archived";
-  const currentCollectionID = promotion.target_collection_id ?? "";
-  const currentDesignID = promotion.target_design_id ?? "";
-
   return (
     <Box
       sx={{
@@ -8045,35 +8431,94 @@ function PromotionRow({
             <Typography sx={{ fontWeight: 900 }}>
               {formatGHS(promotion.discount_redeemed_minor)}
             </Typography>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<VisibilityRounded />}
+              onClick={onView}
+              sx={{ mt: 1 }}
+            >
+              View details
+            </Button>
           </Box>
         </Stack>
+      </Stack>
+    </Box>
+  );
+}
 
-        {archived ? (
-          <InfoStrip
-            icon={<WarningAmberRounded />}
-            tone={tokens.mutedText}
-            title="Archived promotion"
-            helper="Archived codes stay visible for reporting and cannot be edited here."
-          />
-        ) : (
-          <Box
-            sx={{
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: {
-                xs: "1fr",
-                lg: "minmax(120px, 0.8fr) minmax(160px, 1fr) repeat(2, minmax(108px, 0.72fr))",
-              },
-              alignItems: "center",
-            }}
-          >
-            <Form method="post" style={{ display: "contents" }}>
-              <input type="hidden" name="intent" value="update_promotion" />
-              <input
-                type="hidden"
-                name="promotion_id"
-                value={promotion.promotion_id}
-              />
+function PromotionDetailForm({
+  promotion,
+  collections,
+  designs,
+}: {
+  promotion: BusinessPromotion;
+  collections: CollectionSummary[];
+  designs: Design[];
+}) {
+  const archived = promotion.status === "archived";
+  const currentCollectionID = promotion.target_collection_id ?? "";
+  const currentDesignID = promotion.target_design_id ?? "";
+
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+        }}
+      >
+        <MiniStat
+          icon={<LocalOfferRounded fontSize="small" />}
+          label="Discount"
+          value={promotionDiscountLabel(promotion)}
+          helper={promotionTargetLabel(promotion, collections, designs)}
+          tone={promotionStatusTone(promotion.status)}
+        />
+        <MiniStat
+          icon={<PriceCheckRounded fontSize="small" />}
+          label="Redemptions"
+          value={String(promotion.redemption_count)}
+          helper={formatGHS(promotion.discount_redeemed_minor)}
+          tone={tokens.success}
+        />
+        <MiniStat
+          icon={<ScheduleRounded fontSize="small" />}
+          label="Window"
+          value={promotion.status}
+          helper={promotionWindowLabel(promotion)}
+          tone={promotionStatusTone(promotion.status)}
+        />
+      </Box>
+
+      {archived ? (
+        <InfoStrip
+          icon={<WarningAmberRounded />}
+          tone={tokens.mutedText}
+          title="Archived promotion"
+          helper="Archived codes stay visible for reporting and cannot be edited here."
+        />
+      ) : (
+        <Stack spacing={1.5}>
+          <Form method="post">
+            <input type="hidden" name="intent" value="update_promotion" />
+            <input
+              type="hidden"
+              name="promotion_id"
+              value={promotion.promotion_id}
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(2, minmax(0, 1fr))",
+                  lg: "repeat(4, minmax(0, 1fr))",
+                },
+              }}
+            >
               <TextField
                 name="code"
                 label="Code"
@@ -8234,47 +8679,42 @@ function PromotionRow({
                 defaultValue={promotion.usage_limit_per_customer ?? ""}
                 slotProps={{ htmlInput: { min: 1 } }}
               />
-              <TextField
+              <StyledDateTimeField
                 name="starts_at"
                 label="Starts"
-                type="datetime-local"
                 size="small"
                 defaultValue={datetimeLocalValue(promotion.starts_at ?? "")}
-                slotProps={{ inputLabel: { shrink: true } }}
               />
-              <TextField
+              <StyledDateTimeField
                 name="ends_at"
                 label="Ends"
-                type="datetime-local"
                 size="small"
                 defaultValue={datetimeLocalValue(promotion.ends_at ?? "")}
-                slotProps={{ inputLabel: { shrink: true } }}
               />
-              <Stack direction="row" spacing={1} sx={{ gridColumn: "1 / -1" }}>
-                <Button
-                  type="submit"
-                  variant="outlined"
-                  startIcon={<SaveRounded />}
-                >
-                  Save
-                </Button>
-              </Stack>
-            </Form>
-            <Form method="post">
-              <input type="hidden" name="intent" value="archive_promotion" />
-              <input
-                type="hidden"
-                name="promotion_id"
-                value={promotion.promotion_id}
-              />
-              <Button type="submit" variant="outlined" color="error" fullWidth>
-                Archive
-              </Button>
-            </Form>
-          </Box>
-        )}
-      </Stack>
-    </Box>
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<SaveRounded />}
+              sx={{ mt: 1.5 }}
+            >
+              Save promotion
+            </Button>
+          </Form>
+          <Form method="post">
+            <input type="hidden" name="intent" value="archive_promotion" />
+            <input
+              type="hidden"
+              name="promotion_id"
+              value={promotion.promotion_id}
+            />
+            <Button type="submit" variant="outlined" color="error">
+              Archive promotion
+            </Button>
+          </Form>
+        </Stack>
+      )}
+    </Stack>
   );
 }
 
@@ -8287,10 +8727,43 @@ function TeamPanel({
   currentUser: CurrentUser;
   error?: string;
 }) {
+  const [query, setQuery] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const activeUsers = users.filter((user) => user.is_active).length;
   const adminUsers = users.filter((user) => user.role === "admin").length;
   const staffUsers = users.filter((user) => user.role === "staff").length;
   const inactiveUsers = users.filter((user) => !user.is_active).length;
+  const filteredUsers = useMemo(() => {
+    const normalisedQuery = query.trim().toLowerCase();
+
+    return users.filter((user) => {
+      const matchesRole = roleFilter === "all" || user.role === roleFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "active" ? user.is_active : !user.is_active);
+      const searchable = [
+        user.display_name,
+        user.email,
+        user.role,
+        user.is_active ? "active" : "inactive",
+        businessUserJoinedLabel(user),
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return (
+        matchesRole &&
+        matchesStatus &&
+        (!normalisedQuery || searchable.includes(normalisedQuery))
+      );
+    });
+  }, [query, roleFilter, statusFilter, users]);
+  const selectedUser =
+    users.find((user) => user.business_user_id === detailID) ?? null;
 
   return (
     <Panel id="team">
@@ -8356,153 +8829,282 @@ function TeamPanel({
           />
         </Box>
 
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
         <Box
           sx={{
             mt: 2,
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: {
-              xs: "1fr",
-              lg: "minmax(300px, 0.42fr) minmax(0, 0.58fr)",
-            },
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            bgcolor: alpha(tokens.white, 0.72),
+            overflow: "hidden",
           }}
         >
-          <Stack spacing={2}>
-            <Box
-              sx={{
-                p: { xs: 2, md: 2.25 },
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2,
-                bgcolor: alpha(tokens.white, 0.72),
-                backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.06)}, transparent 48%)`,
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1.25}
-                sx={{ alignItems: "center" }}
-              >
-                <Box sx={{ color: "primary.main" }}>
-                  <AddRounded />
-                </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 900 }}>
-                    Create access
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Add an admin or staff sign-in; invite email sends when
-                    delivery is configured.
-                  </Typography>
-                </Box>
-              </Stack>
-              <Form method="post">
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="create_business_user"
-                />
-                <Stack spacing={1.5} sx={{ mt: 2 }}>
-                  {error ? <Alert severity="warning">{error}</Alert> : null}
-                  <TextField
-                    name="display_name"
-                    label="Name"
-                    size="small"
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    name="email"
-                    label="Email"
-                    type="email"
-                    size="small"
-                    required
-                    fullWidth
-                  />
-                  <TextField
-                    name="password"
-                    label="Temporary password"
-                    type="password"
-                    size="small"
-                    required
-                    fullWidth
-                    slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
-                  />
-                  <TextField
-                    name="role"
-                    label="Role"
-                    select
-                    defaultValue="staff"
-                    size="small"
-                  >
-                    {businessUserRoleOptions.map((role) => (
-                      <MenuItem key={role.value} value={role.value}>
-                        {role.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<AddRounded />}
-                  >
-                    Add team member
-                  </Button>
-                </Stack>
-              </Form>
-            </Box>
-            <OwnerTransferPanel users={users} currentUser={currentUser} />
-          </Stack>
-
           <Box
             sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
-              bgcolor: alpha(tokens.white, 0.72),
-              overflow: "hidden",
+              p: { xs: 2, md: 2.25 },
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "minmax(220px, 1fr) repeat(2, minmax(140px, 0.35fr)) auto auto",
+              },
+              alignItems: "center",
             }}
           >
-            <Box
-              sx={{
-                p: { xs: 2, md: 2.25 },
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 2,
+            <TextField
+              label="Search accounts"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              size="small"
+              fullWidth
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchRounded fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
               }}
+            />
+            <TextField
+              label="Role"
+              select
+              value={roleFilter}
+              onChange={(event) => setRoleFilter(event.target.value)}
+              size="small"
             >
-              <Box>
-                <Typography sx={{ fontWeight: 900 }}>Accounts</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {users.length} people with business access
-                </Typography>
-              </Box>
-              <ToneChip
-                label={`${inactiveUsers} inactive`}
-                tone={inactiveUsers > 0 ? tokens.warning : tokens.success}
+              <MenuItem value="all">All roles</MenuItem>
+              <MenuItem value="owner">Owner</MenuItem>
+              <MenuItem value="admin">Admin</MenuItem>
+              <MenuItem value="staff">Staff</MenuItem>
+            </TextField>
+            <TextField
+              label="Status"
+              select
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              size="small"
+            >
+              <MenuItem value="all">All statuses</MenuItem>
+              <MenuItem value="active">Active</MenuItem>
+              <MenuItem value="inactive">Inactive</MenuItem>
+            </TextField>
+            <Button
+              variant="outlined"
+              startIcon={<VerifiedUserRounded />}
+              onClick={() => setTransferOpen(true)}
+              sx={{ minHeight: 42, whiteSpace: "nowrap" }}
+            >
+              Transfer owner
+            </Button>
+            <Button
+              variant="contained"
+              startIcon={<AddRounded />}
+              onClick={() => setCreateOpen(true)}
+              sx={{ minHeight: 42, whiteSpace: "nowrap" }}
+            >
+              New user
+            </Button>
+          </Box>
+          <Divider />
+          <Box
+            sx={{
+              p: { xs: 2, md: 2.25 },
+              display: "flex",
+              justifyContent: "space-between",
+              gap: 2,
+              alignItems: "center",
+            }}
+          >
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Account list</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                {filteredUsers.length} of {users.length} people shown
+              </Typography>
+            </Box>
+            <ToneChip
+              label={`${inactiveUsers} inactive`}
+              tone={inactiveUsers > 0 ? tokens.warning : tokens.success}
+            />
+          </Box>
+          {users.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <InlineEmptyState
+                icon={<PeopleAltRounded sx={{ fontSize: 38 }} />}
+                title="No team accounts"
+                helper="The owner account will appear here after the API returns business users."
               />
             </Box>
-            {users.length === 0 ? (
-              <Box sx={{ px: 2.5, pb: 2.5 }}>
-                <InlineEmptyState
-                  icon={<PeopleAltRounded sx={{ fontSize: 38 }} />}
-                  title="No team accounts"
-                  helper="The owner account will appear here after the API returns business users."
-                />
-              </Box>
-            ) : (
-              users.map((user) => (
-                <BusinessUserRow
-                  key={user.business_user_id}
-                  user={user}
-                  currentUser={currentUser}
-                />
-              ))
-            )}
-          </Box>
+          ) : filteredUsers.length === 0 ? (
+            <Box sx={{ px: 2.5, pb: 2.5 }}>
+              <InlineEmptyState
+                icon={<SearchRounded sx={{ fontSize: 38 }} />}
+                title="No matching accounts"
+                helper="Adjust the search or filters to bring more users back into view."
+              />
+            </Box>
+          ) : (
+            filteredUsers.map((user) => (
+              <BusinessUserRow
+                key={user.business_user_id}
+                user={user}
+                currentUser={currentUser}
+                onView={() => setDetailID(user.business_user_id)}
+              />
+            ))
+          )}
         </Box>
       </Box>
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Create access</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Add an admin or staff sign-in.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setCreateOpen(false)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <BusinessUserCreateForm error={error} />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={transferOpen}
+        onClose={() => setTransferOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Owner transfer</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Move owner access to another active admin.
+              </Typography>
+            </Box>
+            <IconButton
+              onClick={() => setTransferOpen(false)}
+              aria-label="Close"
+            >
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <OwnerTransferPanel users={users} currentUser={currentUser} />
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={Boolean(selectedUser)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">
+                {selectedUser?.display_name || selectedUser?.email || "Account"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Review access, role, status, and password controls.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedUser ? (
+            <BusinessUserDetailForm
+              user={selectedUser}
+              currentUser={currentUser}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Panel>
+  );
+}
+
+function BusinessUserCreateForm({ error }: { error?: string }) {
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="create_business_user" />
+      <Stack spacing={1.5}>
+        {error ? <Alert severity="warning">{error}</Alert> : null}
+        <TextField
+          name="display_name"
+          label="Name"
+          size="small"
+          required
+          fullWidth
+        />
+        <TextField
+          name="email"
+          label="Email"
+          type="email"
+          size="small"
+          required
+          fullWidth
+        />
+        <TextField
+          name="password"
+          label="Temporary password"
+          type="password"
+          size="small"
+          required
+          fullWidth
+          slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
+        />
+        <TextField
+          name="role"
+          label="Role"
+          select
+          defaultValue="staff"
+          size="small"
+        >
+          {businessUserRoleOptions.map((role) => (
+            <MenuItem key={role.value} value={role.value}>
+              {role.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        <Button type="submit" variant="contained" startIcon={<AddRounded />}>
+          Add team member
+        </Button>
+      </Stack>
+    </Form>
   );
 }
 
@@ -8608,11 +9210,12 @@ function OwnerTransferPanel({
 function BusinessUserRow({
   user,
   currentUser,
+  onView,
 }: {
   user: BusinessUser;
   currentUser: CurrentUser;
+  onView: () => void;
 }) {
-  const isOwner = user.role === "owner";
   const isCurrentUser = user.business_user_id === currentUser.user_id;
   const tone = roleTone(user.role);
 
@@ -8689,147 +9292,188 @@ function BusinessUserRow({
             {businessUserJoinedLabel(user)}
           </Typography>
         </Stack>
+        <Button
+          variant="outlined"
+          startIcon={<VisibilityRounded />}
+          onClick={onView}
+          sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+        >
+          View details
+        </Button>
+      </Stack>
+    </Box>
+  );
+}
 
-        {isOwner ? (
-          <InfoStrip
-            icon={<VerifiedUserRounded />}
-            tone={tokens.burgundy}
-            title="Protected owner account"
-            helper="Owner role changes stay outside this team desk."
-          />
-        ) : (
-          <Stack spacing={1}>
+function BusinessUserDetailForm({
+  user,
+  currentUser,
+}: {
+  user: BusinessUser;
+  currentUser: CurrentUser;
+}) {
+  const isOwner = user.role === "owner";
+  const isCurrentUser = user.business_user_id === currentUser.user_id;
+  const tone = roleTone(user.role);
+
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
+        }}
+      >
+        <MiniStat
+          icon={<PeopleAltRounded fontSize="small" />}
+          label="Role"
+          value={roleLabel(user.role)}
+          helper={isCurrentUser ? "Current session" : "Business user"}
+          tone={tone}
+        />
+        <MiniStat
+          icon={<CheckCircleRounded fontSize="small" />}
+          label="Status"
+          value={user.is_active ? "Active" : "Inactive"}
+          helper={businessUserJoinedLabel(user)}
+          tone={user.is_active ? tokens.success : tokens.warning}
+        />
+        <MiniStat
+          icon={<VerifiedUserRounded fontSize="small" />}
+          label="Identity"
+          value={businessUserInitials(user)}
+          helper={user.email}
+          tone={tokens.info}
+        />
+      </Box>
+
+      {isOwner ? (
+        <InfoStrip
+          icon={<VerifiedUserRounded />}
+          tone={tokens.burgundy}
+          title="Protected owner account"
+          helper="Owner role changes stay outside this team desk."
+        />
+      ) : (
+        <Stack spacing={1.5}>
+          <Form method="post">
+            <input type="hidden" name="intent" value="update_business_user" />
+            <input
+              type="hidden"
+              name="business_user_id"
+              value={user.business_user_id}
+            />
+            <input
+              type="hidden"
+              name="is_active"
+              value={user.is_active ? "true" : "false"}
+            />
             <Box
               sx={{
                 display: "grid",
                 gap: 1,
                 gridTemplateColumns: {
                   xs: "1fr",
-                  lg: "minmax(0, 1fr) 130px auto auto",
+                  sm: "minmax(0, 1fr) 150px auto",
                 },
                 alignItems: "center",
               }}
             >
-              <Form method="post" style={{ display: "contents" }}>
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="update_business_user"
-                />
-                <input
-                  type="hidden"
-                  name="business_user_id"
-                  value={user.business_user_id}
-                />
-                <input
-                  type="hidden"
-                  name="is_active"
-                  value={user.is_active ? "true" : "false"}
-                />
-                <TextField
-                  name="display_name"
-                  label="Name"
-                  size="small"
-                  defaultValue={user.display_name}
-                  required
-                />
-                <TextField
-                  name="role"
-                  label="Role"
-                  select
-                  size="small"
-                  defaultValue={user.role === "admin" ? "admin" : "staff"}
-                >
-                  {businessUserRoleOptions.map((role) => (
-                    <MenuItem key={role.value} value={role.value}>
-                      {role.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <Button
-                  type="submit"
-                  variant="outlined"
-                  startIcon={<SaveRounded />}
-                >
-                  Save
-                </Button>
-              </Form>
-              <Form method="post">
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="update_business_user"
-                />
-                <input
-                  type="hidden"
-                  name="business_user_id"
-                  value={user.business_user_id}
-                />
-                <input
-                  type="hidden"
-                  name="display_name"
-                  value={user.display_name}
-                />
-                <input
-                  type="hidden"
-                  name="role"
-                  value={user.role === "admin" ? "admin" : "staff"}
-                />
-                <input
-                  type="hidden"
-                  name="is_active"
-                  value={user.is_active ? "false" : "true"}
-                />
-                <Button
-                  type="submit"
-                  variant="outlined"
-                  color={user.is_active ? "error" : "success"}
-                  disabled={isCurrentUser}
-                  fullWidth
-                >
-                  {user.is_active ? "Deactivate" : "Reactivate"}
-                </Button>
-              </Form>
-            </Box>
-            <Form method="post">
-              <input
-                type="hidden"
-                name="intent"
-                value="reset_business_user_password"
+              <TextField
+                name="display_name"
+                label="Name"
+                size="small"
+                defaultValue={user.display_name}
+                required
               />
-              <input
-                type="hidden"
-                name="business_user_id"
-                value={user.business_user_id}
-              />
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1,
-                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
-                }}
+              <TextField
+                name="role"
+                label="Role"
+                select
+                size="small"
+                defaultValue={user.role === "admin" ? "admin" : "staff"}
               >
-                <TextField
-                  name="password"
-                  label="New temporary password"
-                  type="password"
-                  size="small"
-                  required
-                  slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
-                />
-                <Button
-                  type="submit"
-                  variant="text"
-                  startIcon={<LockResetRounded />}
-                >
-                  Reset password
-                </Button>
-              </Box>
-            </Form>
-          </Stack>
-        )}
-      </Stack>
-    </Box>
+                {businessUserRoleOptions.map((role) => (
+                  <MenuItem key={role.value} value={role.value}>
+                    {role.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveRounded />}
+              >
+                Save
+              </Button>
+            </Box>
+          </Form>
+          <Form method="post">
+            <input type="hidden" name="intent" value="update_business_user" />
+            <input
+              type="hidden"
+              name="business_user_id"
+              value={user.business_user_id}
+            />
+            <input type="hidden" name="display_name" value={user.display_name} />
+            <input
+              type="hidden"
+              name="role"
+              value={user.role === "admin" ? "admin" : "staff"}
+            />
+            <input
+              type="hidden"
+              name="is_active"
+              value={user.is_active ? "false" : "true"}
+            />
+            <Button
+              type="submit"
+              variant="outlined"
+              color={user.is_active ? "error" : "success"}
+              disabled={isCurrentUser}
+            >
+              {user.is_active ? "Deactivate user" : "Reactivate user"}
+            </Button>
+          </Form>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="reset_business_user_password"
+            />
+            <input
+              type="hidden"
+              name="business_user_id"
+              value={user.business_user_id}
+            />
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+              }}
+            >
+              <TextField
+                name="password"
+                label="New temporary password"
+                type="password"
+                size="small"
+                required
+                slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
+              />
+              <Button
+                type="submit"
+                variant="outlined"
+                startIcon={<LockResetRounded />}
+              >
+                Reset password
+              </Button>
+            </Box>
+          </Form>
+        </Stack>
+      )}
+    </Stack>
   );
 }
 
@@ -8933,14 +9577,12 @@ function BookingQueuePanel({
                       value={booking.booking_id}
                     />
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
+                      <StyledDateTimeField
                         name="slot_start"
                         label="New slot"
-                        type="datetime-local"
                         size="small"
                         defaultValue={datetimeLocalValue(booking.slot_start)}
                         disabled={!canReschedule}
-                        slotProps={{ inputLabel: { shrink: true } }}
                         fullWidth
                       />
                       <Button
@@ -9303,21 +9945,17 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
           </MenuItem>
         ))}
       </TextField>
-      <TextField
+      <StyledTimeField
         name="start"
         label="Start"
-        type="time"
         size="small"
         defaultValue={window ? minutesToTime(window.start_minute) : ""}
-        slotProps={{ inputLabel: { shrink: true } }}
       />
-      <TextField
+      <StyledTimeField
         name="end"
         label="End"
-        type="time"
         size="small"
         defaultValue={window ? minutesToTime(window.end_minute) : ""}
-        slotProps={{ inputLabel: { shrink: true } }}
       />
       <TextField
         name="slot_minutes"
@@ -9998,7 +10636,8 @@ export default function Dashboard({
                       action={
                         <Stack
                           direction="row"
-                          spacing={1}
+                          spacing={0.85}
+                          useFlexGap
                           sx={{
                             maxWidth: "100%",
                             flexWrap: { xs: "nowrap", sm: "wrap" },
@@ -10008,29 +10647,79 @@ export default function Dashboard({
                             "&::-webkit-scrollbar": { display: "none" },
                           }}
                         >
-                          {orderFilters.map((filter) => (
-                            <Button
-                              key={filter.value}
-                              component={RouterLink}
-                              to={`/dashboard/orders?orders=${filter.value}`}
-                              size="small"
-                              variant={
-                                orderFilter === filter.value
-                                  ? "contained"
-                                  : "outlined"
-                              }
-                              sx={{
-                                flexShrink: 0,
-                                bgcolor:
-                                  orderFilter === filter.value
-                                    ? undefined
-                                    : alpha(tokens.white, 0.72),
-                              }}
-                            >
-                              {filter.label} (
-                              {countOrders(orders, filter.value)})
-                            </Button>
-                          ))}
+                          {orderFilters.map((filter) => {
+                            const selected = orderFilter === filter.value;
+                            const count = countOrders(orders, filter.value);
+                            return (
+                              <Button
+                                key={filter.value}
+                                component={RouterLink}
+                                to={`/dashboard/orders?orders=${filter.value}`}
+                                disableElevation
+                                sx={{
+                                  flexShrink: 0,
+                                  px: 1.5,
+                                  py: 0.55,
+                                  minHeight: 36,
+                                  borderRadius: 999,
+                                  textTransform: "none",
+                                  fontWeight: 800,
+                                  fontSize: 13,
+                                  lineHeight: 1,
+                                  color: selected ? tokens.white : tokens.ink,
+                                  bgcolor: selected
+                                    ? tokens.burgundy
+                                    : alpha(tokens.ink, 0.045),
+                                  border: "1px solid",
+                                  borderColor: selected
+                                    ? tokens.burgundy
+                                    : alpha(tokens.ink, 0.1),
+                                  boxShadow: selected
+                                    ? `0 6px 16px ${alpha(tokens.burgundy, 0.26)}`
+                                    : "none",
+                                  transition:
+                                    "background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
+                                  "&:hover": {
+                                    bgcolor: selected
+                                      ? tokens.burgundy
+                                      : alpha(tokens.burgundy, 0.08),
+                                    borderColor: selected
+                                      ? tokens.burgundy
+                                      : alpha(tokens.burgundy, 0.3),
+                                  },
+                                }}
+                              >
+                                <Stack
+                                  direction="row"
+                                  spacing={0.75}
+                                  sx={{ alignItems: "center" }}
+                                >
+                                  <Box component="span">{filter.label}</Box>
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      minWidth: 20,
+                                      height: 20,
+                                      px: 0.5,
+                                      borderRadius: 999,
+                                      display: "grid",
+                                      placeItems: "center",
+                                      fontSize: 11,
+                                      fontWeight: 900,
+                                      color: selected
+                                        ? tokens.white
+                                        : alpha(tokens.ink, 0.55),
+                                      bgcolor: selected
+                                        ? alpha(tokens.white, 0.24)
+                                        : alpha(tokens.ink, 0.08),
+                                    }}
+                                  >
+                                    {count}
+                                  </Box>
+                                </Stack>
+                              </Button>
+                            );
+                          })}
                         </Stack>
                       }
                     />
