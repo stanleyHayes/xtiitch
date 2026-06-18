@@ -7,6 +7,8 @@ import (
 
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
@@ -132,11 +134,52 @@ func TestSetAgreedTotalRejectsNonPositive(t *testing.T) {
 
 	repo := &fakeOrderRepo{}
 	service := NewService(Dependencies{Orders: repo, IDs: &seqIDs{}})
-	if err := service.SetAgreedTotal(context.Background(), common.TenantScope{BusinessID: "b1"}, "o1", 0); !errors.Is(err, ErrInvalidInput) {
+	if err := service.SetAgreedTotal(context.Background(), SetAgreedTotalCommand{
+		Scope:            common.TenantScope{BusinessID: "b1"},
+		ActorRole:        business.UserRoleOwner,
+		OrderID:          "o1",
+		AgreedTotalMinor: 0,
+	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected invalid input for non-positive total, got %v", err)
 	}
 	if repo.agreedTotalSet != 0 {
 		t.Fatal("a non-positive total must never reach the repository")
+	}
+}
+
+func TestOrderMoneyMutationsRequireOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeOrderRepo{billing: ports.OrderBilling{
+		OrderType: "custom", Status: "confirmed", AgreedTotalMinor: ptr(int64(50000)), SettledMinor: 15000, CustomerEmail: "c@x.z",
+	}}
+	payments := &fakeOrderPayments{}
+	service := NewService(Dependencies{Orders: repo, Payments: payments, IDs: &seqIDs{}})
+	scope := common.TenantScope{BusinessID: "b1"}
+
+	err := service.SetAgreedTotal(context.Background(), SetAgreedTotalCommand{
+		Scope:            scope,
+		ActorRole:        business.UserRoleStaff,
+		OrderID:          "o1",
+		AgreedTotalMinor: 50000,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff agreed total to be forbidden, got %v", err)
+	}
+	if repo.agreedTotalSet != 0 {
+		t.Fatal("expected staff agreed total to stop before repository write")
+	}
+
+	_, err = service.CollectBalance(context.Background(), CollectBalanceCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleStaff,
+		OrderID:   "o1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff balance collection to be forbidden, got %v", err)
+	}
+	if payments.called {
+		t.Fatal("expected staff balance collection to stop before charge creation")
 	}
 }
 
@@ -149,7 +192,11 @@ func TestCollectBalanceChargesOutstanding(t *testing.T) {
 	payments := &fakeOrderPayments{result: paymentsapp.ChargeResult{Reference: "xt_bal", AuthorizationURL: "https://pay"}}
 	service := NewService(Dependencies{Orders: repo, Payments: payments, IDs: &seqIDs{}})
 
-	res, err := service.CollectBalance(context.Background(), common.TenantScope{BusinessID: "b1"}, "o1", "")
+	res, err := service.CollectBalance(context.Background(), CollectBalanceCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleAdmin,
+		OrderID:   "o1",
+	})
 	if err != nil {
 		t.Fatalf("collect balance: %v", err)
 	}
@@ -185,7 +232,11 @@ func TestCollectBalanceRejectsWhenNothingDue(t *testing.T) {
 			repo := &fakeOrderRepo{billing: tc.billing}
 			payments := &fakeOrderPayments{}
 			service := NewService(Dependencies{Orders: repo, Payments: payments, IDs: &seqIDs{}})
-			if _, err := service.CollectBalance(context.Background(), common.TenantScope{BusinessID: "b1"}, "o1", ""); !errors.Is(err, ErrBalanceNotDue) {
+			if _, err := service.CollectBalance(context.Background(), CollectBalanceCommand{
+				Scope:     common.TenantScope{BusinessID: "b1"},
+				ActorRole: business.UserRoleOwner,
+				OrderID:   "o1",
+			}); !errors.Is(err, ErrBalanceNotDue) {
 				t.Fatalf("expected balance not due, got %v", err)
 			}
 			if payments.called {
@@ -204,7 +255,11 @@ func TestCollectBalanceRejectsWhenBalanceInFlight(t *testing.T) {
 	payments := &fakeOrderPayments{}
 	service := NewService(Dependencies{Orders: repo, Payments: payments, IDs: &seqIDs{}})
 
-	if _, err := service.CollectBalance(context.Background(), common.TenantScope{BusinessID: "b1"}, "o1", ""); !errors.Is(err, ErrBalanceInProgress) {
+	if _, err := service.CollectBalance(context.Background(), CollectBalanceCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleOwner,
+		OrderID:   "o1",
+	}); !errors.Is(err, ErrBalanceInProgress) {
 		t.Fatalf("expected balance in progress, got %v", err)
 	}
 	if payments.called {

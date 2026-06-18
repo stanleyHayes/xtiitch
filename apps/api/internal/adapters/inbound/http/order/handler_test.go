@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,9 +13,9 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
-	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -104,6 +105,27 @@ func TestAdvanceStageRejectsInvalidOrderState(t *testing.T) {
 	}
 }
 
+func TestSetAgreedTotalMapsForbidden(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeOrderService{setAgreedErr: authdomain.ErrForbidden}
+	router := newOrderRouter(service, fakeOrderVerifier{
+		principal: ports.VerifiedAccessToken{Subject: "staff-1", BusinessID: "business-1", Role: business.UserRoleStaff},
+	})
+	request := httptest.NewRequest(http.MethodPost, "/orders/order-1/agreed-total", strings.NewReader(`{"agreed_total_minor":50000}`))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("expected 403, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.setAgreedCommand.ActorRole != business.UserRoleStaff || service.setAgreedCommand.OrderID != "order-1" {
+		t.Fatalf("unexpected agreed total command: %+v", service.setAgreedCommand)
+	}
+}
+
 func newOrderRouter(service Service, verifier ports.TokenVerifier) http.Handler {
 	router := chi.NewRouter()
 	NewHandler(service, authhttp.NewAuthenticator(verifier)).Register(router)
@@ -120,8 +142,11 @@ func (v fakeOrderVerifier) VerifyAccessToken(_ context.Context, _ string) (ports
 }
 
 type fakeOrderService struct {
-	orders     []ports.OrderSummary
-	advanceErr error
+	orders           []ports.OrderSummary
+	advanceErr       error
+	setAgreedErr     error
+	setAgreedCommand orderapp.SetAgreedTotalCommand
+	collectCommand   orderapp.CollectBalanceCommand
 }
 
 func (s *fakeOrderService) CreateWalkInOrder(context.Context, orderapp.CreateWalkInOrderCommand) (common.ID, error) {
@@ -140,10 +165,12 @@ func (s *fakeOrderService) GetTracking(context.Context, common.ID) (order.Tracki
 	return order.Tracking{}, nil
 }
 
-func (s *fakeOrderService) SetAgreedTotal(context.Context, common.TenantScope, common.ID, int64) error {
-	return nil
+func (s *fakeOrderService) SetAgreedTotal(_ context.Context, command orderapp.SetAgreedTotalCommand) error {
+	s.setAgreedCommand = command
+	return s.setAgreedErr
 }
 
-func (s *fakeOrderService) CollectBalance(context.Context, common.TenantScope, common.ID, money.PaymentMethod) (orderapp.CollectBalanceResult, error) {
+func (s *fakeOrderService) CollectBalance(_ context.Context, command orderapp.CollectBalanceCommand) (orderapp.CollectBalanceResult, error) {
+	s.collectCommand = command
 	return orderapp.CollectBalanceResult{}, nil
 }

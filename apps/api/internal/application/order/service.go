@@ -7,6 +7,8 @@ import (
 
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
@@ -90,11 +92,21 @@ func (s Service) GetTracking(ctx context.Context, orderID common.ID) (order.Trac
 // its outstanding balance can later be collected. The repository enforces that
 // the order is a confirmed custom order and the total is not below what has
 // already been settled (ports.ErrInvalidOrderState otherwise).
-func (s Service) SetAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error {
-	if agreedTotalMinor <= 0 {
+type SetAgreedTotalCommand struct {
+	Scope            common.TenantScope
+	ActorRole        business.UserRole
+	OrderID          common.ID
+	AgreedTotalMinor int64
+}
+
+func (s Service) SetAgreedTotal(ctx context.Context, cmd SetAgreedTotalCommand) error {
+	if err := authorizeOrderMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.AgreedTotalMinor <= 0 {
 		return ErrInvalidInput
 	}
-	return s.orders.SetAgreedTotal(ctx, scope, orderID, agreedTotalMinor)
+	return s.orders.SetAgreedTotal(ctx, cmd.Scope, cmd.OrderID, cmd.AgreedTotalMinor)
 }
 
 type CollectBalanceResult struct {
@@ -107,12 +119,22 @@ type CollectBalanceResult struct {
 // confirmed custom order (agreed total minus what is already settled) over the
 // money rails. The balance payment is recorded as initiated and credited to the
 // order only by its confirmed webhook, which caps settlement at the agreed total.
-func (s Service) CollectBalance(ctx context.Context, scope common.TenantScope, orderID common.ID, method money.PaymentMethod) (CollectBalanceResult, error) {
-	if method != "" && !method.Valid() {
+type CollectBalanceCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	OrderID   common.ID
+	Method    money.PaymentMethod
+}
+
+func (s Service) CollectBalance(ctx context.Context, cmd CollectBalanceCommand) (CollectBalanceResult, error) {
+	if err := authorizeOrderMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return CollectBalanceResult{}, err
+	}
+	if cmd.Method != "" && !cmd.Method.Valid() {
 		return CollectBalanceResult{}, ErrInvalidInput
 	}
 
-	billing, err := s.orders.GetOrderBilling(ctx, scope, orderID)
+	billing, err := s.orders.GetOrderBilling(ctx, cmd.Scope, cmd.OrderID)
 	if err != nil {
 		return CollectBalanceResult{}, err
 	}
@@ -134,13 +156,13 @@ func (s Service) CollectBalance(ctx context.Context, scope common.TenantScope, o
 		return CollectBalanceResult{}, ErrBalanceNotDue
 	}
 
-	chargeMethod := method
+	chargeMethod := cmd.Method
 	if chargeMethod == "" {
 		chargeMethod = money.PaymentMethodMomo
 	}
 	charge, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
-		Scope:         scope,
-		OrderID:       &orderID,
+		Scope:         cmd.Scope,
+		OrderID:       &cmd.OrderID,
 		Purpose:       money.PaymentPurposeBalance,
 		AmountMinor:   balance,
 		Method:        chargeMethod,
@@ -158,4 +180,14 @@ func (s Service) CollectBalance(ctx context.Context, scope common.TenantScope, o
 		AuthorizationURL: charge.AuthorizationURL,
 		AmountMinor:      balance,
 	}, nil
+}
+
+func authorizeOrderMoneyManagement(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return ErrInvalidInput
+	}
+	if role == business.UserRoleOwner || role == business.UserRoleAdmin {
+		return nil
+	}
+	return authdomain.ErrForbidden
 }

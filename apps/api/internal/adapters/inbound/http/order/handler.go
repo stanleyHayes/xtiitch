@@ -12,6 +12,7 @@ import (
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
@@ -24,8 +25,8 @@ type Service interface {
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error)
 	AdvanceStage(ctx context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error)
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
-	SetAgreedTotal(ctx context.Context, scope common.TenantScope, orderID common.ID, agreedTotalMinor int64) error
-	CollectBalance(ctx context.Context, scope common.TenantScope, orderID common.ID, method money.PaymentMethod) (orderapp.CollectBalanceResult, error)
+	SetAgreedTotal(ctx context.Context, command orderapp.SetAgreedTotalCommand) error
+	CollectBalance(ctx context.Context, command orderapp.CollectBalanceCommand) (orderapp.CollectBalanceResult, error)
 }
 
 type Handler struct {
@@ -166,7 +167,12 @@ func (handler Handler) setAgreedTotal(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.SetAgreedTotal(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), body.AgreedTotalMinor); err != nil {
+	if err := handler.service.SetAgreedTotal(r.Context(), orderapp.SetAgreedTotalCommand{
+		Scope:            principal.TenantScope(),
+		ActorRole:        principal.Role,
+		OrderID:          common.ID(chi.URLParam(r, "id")),
+		AgreedTotalMinor: body.AgreedTotalMinor,
+	}); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -188,7 +194,12 @@ func (handler Handler) collectBalance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	result, err := handler.service.CollectBalance(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), money.PaymentMethod(body.Method))
+	result, err := handler.service.CollectBalance(r.Context(), orderapp.CollectBalanceCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		OrderID:   common.ID(chi.URLParam(r, "id")),
+		Method:    money.PaymentMethod(body.Method),
+	})
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -224,6 +235,8 @@ func toTrackingResponse(tracking order.Tracking) map[string]any {
 
 func writeServiceError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, authdomain.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, orderapp.ErrInvalidInput), errors.Is(err, paymentsapp.ErrInvalidCharge):
 		writeError(w, http.StatusBadRequest, "invalid_input")
 	case errors.Is(err, ports.ErrInvalidOrderState):
