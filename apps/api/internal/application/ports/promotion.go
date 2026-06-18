@@ -66,6 +66,8 @@ type ReservePromotionInput struct {
 	BusinessID    common.ID
 	OrderID       common.ID
 	CustomerID    common.ID
+	CustomerEmail string
+	CustomerPhone string
 	DesignID      common.ID
 	Code          string
 	SubtotalMinor int64

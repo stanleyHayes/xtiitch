@@ -43,6 +43,7 @@ const (
 	itAffRefProgramme = "aaaaaaaa-6666-6666-6666-666666666686"
 	itAffRefCode      = "aaaaaaaa-6666-6666-6666-666666666687"
 	itAffRefRecord    = "aaaaaaaa-6666-6666-6666-666666666688"
+	itAffRefRecordTwo = "aaaaaaaa-6666-6666-6666-666666666689"
 	itAffRefCodeValue = "ITAREFAMA"
 )
 
@@ -275,6 +276,8 @@ func TestReferralCodeResolutionAndReservation(t *testing.T) {
 			BusinessID:        itAffRefBusiness,
 			OrderID:           itAffRefOrder,
 			RefereeCustomerID: itAffRefReferee,
+			RefereeEmail:      "referee@example.com",
+			RefereePhone:      "0241110000",
 			Code:              "itarefama",
 			GrossMinor:        50000,
 		},
@@ -313,7 +316,7 @@ func TestReferralCodeResolutionAndReservation(t *testing.T) {
 		context.Background(),
 		common.TenantScope{BusinessID: itAffRefBusiness},
 		ports.ReserveReferralAttributionInput{
-			ReferralID:        "aaaaaaaa-6666-6666-6666-666666666689",
+			ReferralID:        itAffRefRecordTwo,
 			BusinessID:        itAffRefBusiness,
 			OrderID:           itAffRefOrder,
 			RefereeCustomerID: itAffRefReferrer,
@@ -323,6 +326,24 @@ func TestReferralCodeResolutionAndReservation(t *testing.T) {
 	)
 	if !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("expected self-referral to be unavailable, got %v", err)
+	}
+
+	_, err = repo.ReserveReferralAttribution(
+		context.Background(),
+		common.TenantScope{BusinessID: itAffRefBusiness},
+		ports.ReserveReferralAttributionInput{
+			ReferralID:        itAffRefRecordTwo,
+			BusinessID:        itAffRefBusiness,
+			OrderID:           itAffRefOrder,
+			RefereeCustomerID: itAffRefReferee,
+			RefereeEmail:      "REFERRER@example.com",
+			RefereePhone:      "0245550000",
+			Code:              itAffRefCodeValue,
+			GrossMinor:        50000,
+		},
+	)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("expected contact-matched self-referral to be unavailable, got %v", err)
 	}
 }
 
@@ -478,10 +499,10 @@ func seedReferralAttributionFixture(t *testing.T, pool *pgxpool.Pool) {
 			values ($1, $2, 'IT Referral Atelier', 'it-referral-atelier', 'verified')
 		`, itAffRefBusiness, planID)
 		mustExec(t, tx, `
-			insert into customers (customer_id, display_name)
+			insert into customers (customer_id, display_name, email, phone)
 			values
-				($1, 'IT Referral Referrer'),
-				($2, 'IT Referral Referee')
+				($1, 'IT Referral Referrer', 'referrer@example.com', '(024) 555-0000'),
+				($2, 'IT Referral Referee', 'referee@example.com', '0241110000')
 		`, itAffRefReferrer, itAffRefReferee)
 		mustExec(t, tx, `
 			insert into designs (design_id, business_id, title, handle, status)

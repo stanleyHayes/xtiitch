@@ -515,10 +515,14 @@ func (repo AffiliateRepository) ReserveReferralAttribution(
 				rc.referral_code_id,
 				rc.referral_programme_id,
 				rc.owner_customer_id,
-				rc.owner_business_id
+				rc.owner_business_id,
+				coalesce(owner_customer.email, '') as owner_email,
+				regexp_replace(coalesce(owner_customer.phone, ''), '\D', '', 'g') as owner_phone
 			from referral_codes rc
 			join referral_programmes rp
 				on rp.referral_programme_id = rc.referral_programme_id
+			left join customers owner_customer
+				on owner_customer.customer_id = rc.owner_customer_id
 			where lower(rc.code) = lower($2)
 				and rc.status = 'active'
 				and rp.status = 'active'
@@ -559,7 +563,17 @@ func (repo AffiliateRepository) ReserveReferralAttribution(
 				jsonb_build_object('source', 'checkout')
 			from active_code
 			where active_code.owner_customer_id is null
-				or active_code.owner_customer_id <> $5::uuid
+				or (
+					active_code.owner_customer_id <> $5::uuid
+					and not (
+						nullif($7::text, '') is not null
+						and lower(active_code.owner_email) = lower($7::text)
+					)
+					and not (
+						nullif(regexp_replace($8::text, '\D', '', 'g'), '') is not null
+						and active_code.owner_phone = regexp_replace($8::text, '\D', '', 'g')
+					)
+				)
 			on conflict (order_id) do update
 			set updated_at = now()
 			returning *
@@ -580,6 +594,8 @@ func (repo AffiliateRepository) ReserveReferralAttribution(
 		input.OrderID.String(),
 		input.RefereeCustomerID.String(),
 		input.GrossMinor,
+		input.RefereeEmail,
+		input.RefereePhone,
 	).Scan(
 		&record.ReferralID,
 		&record.ReferralProgrammeID,

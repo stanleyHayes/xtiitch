@@ -29,10 +29,13 @@ const (
 	prPromoBusiness   = "88888888-0000-0000-0000-000000000044"
 	prPromoDuplicate  = "88888888-0000-0000-0000-000000000045"
 	prPromoCross      = "88888888-0000-0000-0000-000000000046"
+	prPromoContact    = "88888888-0000-0000-0000-000000000047"
 	prRedA            = "88888888-0000-0000-0000-000000000051"
 	prRedB            = "88888888-0000-0000-0000-000000000052"
 	prRedC            = "88888888-0000-0000-0000-000000000053"
 	prRedD            = "88888888-0000-0000-0000-000000000054"
+	prRedContactA     = "88888888-0000-0000-0000-000000000055"
+	prRedContactB     = "88888888-0000-0000-0000-000000000056"
 )
 
 func prScope() common.TenantScope {
@@ -56,9 +59,9 @@ func seedPromotionReserveFixtures(t *testing.T, pool *pgxpool.Pool) {
 			`, biz, planID, "it-pr-"+biz[len(biz)-4:])
 		}
 		mustExec(t, tx, `
-			insert into customers (customer_id, display_name, email)
-			values ($1, 'Promo Customer A', 'promo-a@example.com'),
-				($2, 'Promo Customer B', 'promo-b@example.com')
+			insert into customers (customer_id, display_name, email, phone)
+			values ($1, 'Promo Customer A', 'promo-a@example.com', '(024) 123-4567'),
+				($2, 'Promo Customer B', 'promo-b@example.com', '0249990000')
 		`, prCustA, prCustB)
 		mustExec(t, tx, `
 			insert into collections (collection_id, business_id, name, handle, status)
@@ -365,5 +368,50 @@ func TestReservePromotionAppliesDiscountAndCountsPendingLimit(t *testing.T) {
 	})
 	if !errors.Is(err, ports.ErrPromotionUnavailable) {
 		t.Fatalf("expected usage limit to count pending redemption, got %v", err)
+	}
+}
+
+func TestReservePromotionCountsContactMatchedCustomers(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedPromotionReserveFixtures(t, pool)
+	defer cleanupPromotionReserveFixtures(t, pool)
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into promotions (
+				promotion_id, business_id, code, title, description,
+				discount_type, discount_value, usage_limit_per_customer,
+				funding_source, scope, status
+			)
+			values ($1, $2, 'PHONEONCE', 'Phone once', '', 'fixed', 5000, 1, 'business', 'store', 'active')
+		`, prPromoContact, prBizA)
+		mustExec(t, tx, `
+			insert into promotion_redemptions (
+				promotion_redemption_id,
+				promotion_id,
+				business_id,
+				order_id,
+				customer_id,
+				discount_minor,
+				status
+			)
+			values ($1, $2, $3, $4, $5, 5000, 'applied')
+		`, prRedContactA, prPromoContact, prBizA, prOrderA, prCustA)
+	})
+
+	_, err := NewPromotionRepository(pool).ReservePromotion(context.Background(), prScope(), ports.ReservePromotionInput{
+		RedemptionID:  common.ID(prRedContactB),
+		BusinessID:    common.ID(prBizA),
+		OrderID:       common.ID(prOrderB),
+		CustomerID:    common.ID(prCustB),
+		CustomerEmail: "fresh@example.com",
+		CustomerPhone: "0241234567",
+		DesignID:      common.ID(prDesignA),
+		Code:          "PHONEONCE",
+		SubtotalMinor: 50000,
+	})
+	if !errors.Is(err, ports.ErrPromotionUnavailable) {
+		t.Fatalf("expected phone-matched customer limit to reject redemption, got %v", err)
 	}
 }

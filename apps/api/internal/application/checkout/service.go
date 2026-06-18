@@ -168,6 +168,8 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		code:          cmd.PromoCode,
 		orderID:       orderID,
 		customerID:    customerID,
+		customerEmail: email,
+		customerPhone: strings.TrimSpace(cmd.CustomerPhone),
 		designID:      designID,
 		subtotalMinor: price,
 		commissionBps: charge.CommissionBps,
@@ -196,6 +198,8 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		code:              cmd.ReferralCode,
 		orderID:           orderID,
 		refereeCustomerID: customerID,
+		refereeEmail:      email,
+		refereePhone:      strings.TrimSpace(cmd.CustomerPhone),
 		grossMinor:        chargeAmount,
 	})
 
@@ -387,6 +391,8 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		code:              cmd.ReferralCode,
 		orderID:           orderID,
 		refereeCustomerID: customerID,
+		refereeEmail:      customer.email,
+		refereePhone:      customer.phone,
 		grossMinor:        deposit,
 	})
 
@@ -588,6 +594,8 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		code:          cmd.PromoCode,
 		orderID:       orderID,
 		customerID:    customerID,
+		customerEmail: customer.email,
+		customerPhone: customer.phone,
 		designID:      design.ID,
 		subtotalMinor: deposit,
 		commissionBps: charge.CommissionBps,
@@ -611,6 +619,8 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		code:              cmd.ReferralCode,
 		orderID:           orderID,
 		refereeCustomerID: customerID,
+		refereeEmail:      customer.email,
+		refereePhone:      customer.phone,
 		grossMinor:        chargeAmount,
 	})
 
@@ -648,6 +658,8 @@ type promotionCheckoutInput struct {
 	code          string
 	orderID       common.ID
 	customerID    common.ID
+	customerEmail string
+	customerPhone string
 	designID      common.ID
 	subtotalMinor int64
 	commissionBps int
@@ -671,6 +683,8 @@ type referralCheckoutInput struct {
 	code              string
 	orderID           common.ID
 	refereeCustomerID common.ID
+	refereeEmail      string
+	refereePhone      string
 	grossMinor        int64
 }
 
@@ -692,6 +706,8 @@ func (s Service) reservePromotion(
 		BusinessID:    scope.BusinessID,
 		OrderID:       input.orderID,
 		CustomerID:    input.customerID,
+		CustomerEmail: strings.TrimSpace(input.customerEmail),
+		CustomerPhone: strings.TrimSpace(input.customerPhone),
 		DesignID:      input.designID,
 		Code:          code,
 		SubtotalMinor: input.subtotalMinor,
@@ -786,6 +802,8 @@ func (s Service) reserveReferralAttribution(
 		BusinessID:        scope.BusinessID,
 		OrderID:           input.orderID,
 		RefereeCustomerID: input.refereeCustomerID,
+		RefereeEmail:      strings.TrimSpace(input.refereeEmail),
+		RefereePhone:      strings.TrimSpace(input.refereePhone),
 		Code:              code,
 		GrossMinor:        input.grossMinor,
 	})

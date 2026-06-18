@@ -129,6 +129,8 @@ type ReserveReferralAttributionInput struct {
 	BusinessID        common.ID
 	OrderID           common.ID
 	RefereeCustomerID common.ID
+	RefereeEmail      string
+	RefereePhone      string
 	Code              string
 	GrossMinor        int64
 }

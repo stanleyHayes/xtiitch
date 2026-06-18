@@ -343,7 +343,7 @@ func (repo PromotionRepository) ReservePromotion(
 	if err != nil {
 		return ports.PromotionRedemption{}, err
 	}
-	if err := promotionUsageAvailable(ctx, tx, candidate, input.CustomerID); err != nil {
+	if err := promotionUsageAvailable(ctx, tx, candidate, input); err != nil {
 		return ports.PromotionRedemption{}, err
 	}
 
@@ -583,7 +583,7 @@ func findPromotionForCheckout(ctx context.Context, tx pgx.Tx, input ports.Reserv
 	return promotion, nil
 }
 
-func promotionUsageAvailable(ctx context.Context, tx pgx.Tx, promotion checkoutPromotion, customerID common.ID) error {
+func promotionUsageAvailable(ctx context.Context, tx pgx.Tx, promotion checkoutPromotion, input ports.ReservePromotionInput) error {
 	if promotion.usageLimitGlobal.Valid {
 		var used int
 		if err := tx.QueryRow(ctx, `
@@ -602,10 +602,23 @@ func promotionUsageAvailable(ctx context.Context, tx pgx.Tx, promotion checkoutP
 		var used int
 		if err := tx.QueryRow(ctx, `
 			select count(*)::int
-			from promotion_redemptions
-			where promotion_id = $1::uuid and customer_id = $2::uuid
-				and status in ('pending', 'applied')
-		`, promotion.promotionID, customerID.String()).Scan(&used); err != nil {
+			from promotion_redemptions pr
+			left join customers c on c.customer_id = pr.customer_id
+			where pr.promotion_id = $1::uuid
+				and pr.status in ('pending', 'applied')
+				and (
+					pr.customer_id = $2::uuid
+					or (
+						nullif($3::text, '') is not null
+						and lower(coalesce(c.email, '')) = lower($3::text)
+					)
+					or (
+						nullif(regexp_replace($4::text, '\D', '', 'g'), '') is not null
+						and regexp_replace(coalesce(c.phone, ''), '\D', '', 'g') =
+							regexp_replace($4::text, '\D', '', 'g')
+					)
+				)
+		`, promotion.promotionID, input.CustomerID.String(), input.CustomerEmail, input.CustomerPhone).Scan(&used); err != nil {
 			return err
 		}
 		if used >= int(promotion.usageLimitPerCustomer.Int32) {

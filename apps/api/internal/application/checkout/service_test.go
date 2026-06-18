@@ -38,7 +38,7 @@ func newTestService(orders ports.OrderRepository, payments Payments) Service {
 func placeCommand() PlaceStandardOrderCommand {
 	return PlaceStandardOrderCommand{
 		StoreHandle: "shop", DesignHandle: "design", SizeBandID: "band-1",
-		CustomerName: "Ama", CustomerEmail: "ama@example.com",
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
 	}
 }
 
@@ -82,7 +82,10 @@ func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 	if orders.created.OrderID != "order-1" || orders.created.CustomerID != "customer-1" || orders.created.BusinessID != testBusinessID {
 		t.Fatalf("unexpected draft order ids: %+v", orders.created)
 	}
-	if orders.created.CustomerName != "Ama" || orders.created.CustomerEmail != "ama@example.com" || orders.created.AgreedTotalMinor != 50000 {
+	if orders.created.CustomerName != "Ama" ||
+		orders.created.CustomerEmail != "ama@example.com" ||
+		orders.created.CustomerPhone != "+233 24 000 0000" ||
+		orders.created.AgreedTotalMinor != 50000 {
 		t.Fatalf("unexpected draft order details: %+v", orders.created)
 	}
 	if payments.command.OrderID == nil || *payments.command.OrderID != "order-1" {
@@ -220,6 +223,8 @@ func TestPlaceStandardOrderReservesReferralAttribution(t *testing.T) {
 		referrals.reserve.BusinessID != testBusinessID ||
 		referrals.reserve.OrderID != "order-1" ||
 		referrals.reserve.RefereeCustomerID != "customer-1" ||
+		referrals.reserve.RefereeEmail != "ama@example.com" ||
+		referrals.reserve.RefereePhone != "+233 24 000 0000" ||
 		referrals.reserve.Code != "AMAFRIEND" ||
 		referrals.reserve.GrossMinor != 50000 {
 		t.Fatalf("unexpected referral reservation: %+v", referrals.reserve)
@@ -267,7 +272,9 @@ func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission(t *t
 	if promotions.reserve.Code != "WELCOME10" ||
 		promotions.reserve.SubtotalMinor != 50000 ||
 		promotions.reserve.OrderID != "order-1" ||
-		promotions.reserve.CustomerID != "customer-1" {
+		promotions.reserve.CustomerID != "customer-1" ||
+		promotions.reserve.CustomerEmail != "ama@example.com" ||
+		promotions.reserve.CustomerPhone != "+233 24 000 0000" {
 		t.Fatalf("unexpected promotion reservation: %+v", promotions.reserve)
 	}
 	if !orders.draftTotalSet || orders.draftTotal != 45000 {
