@@ -29,17 +29,30 @@ import {
   api,
   type CustomSizeMode,
   type Design,
+  type ReferralCode,
   type StoreSummary,
 } from "../lib/api";
 import { formatGHS, priceLabel } from "../lib/format";
 import { tokens } from "../theme";
 
-export async function loader({ params }: Route.LoaderArgs) {
+type RewardCodes = {
+  promoCode: string;
+  referralCode: string;
+  affiliateCode: string;
+  affiliateClickID: string;
+  affiliateVisitorID: string;
+};
+
+export async function loader({ params, request }: Route.LoaderArgs) {
   const design = await api.design(params.handle);
   if (!design) {
     throw new Response("Design not found", { status: 404 });
   }
-  return { design };
+  const rewardCodes = rewardCodesFromRequest(request);
+  const referralPreview = rewardCodes.referralCode
+    ? await api.referral(rewardCodes.referralCode)
+    : null;
+  return { design, rewardCodes, referralPreview };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -62,6 +75,7 @@ export async function action({ request, params }: Route.ActionArgs) {
   const customerEmail = String(form.get("customer_email") ?? "").trim();
   const method =
     String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
+  const rewardCodes = rewardCodesFromForm(form);
 
   if (intent === "custom") {
     const sizeMode = toCustomSizeMode(String(form.get("size_mode") ?? ""));
@@ -88,6 +102,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       customer_phone: customerPhone,
       customer_email: customerEmail,
       method: sizeMode === "come_to_shop" ? undefined : method,
+      ...rewardPayload(rewardCodes),
       measurements: sizeMode === "self_measure" ? measurements : undefined,
     });
 
@@ -119,6 +134,7 @@ export async function action({ request, params }: Route.ActionArgs) {
     customer_phone: customerPhone,
     customer_email: customerEmail,
     method,
+    ...rewardPayload(rewardCodes),
   });
 
   if (!response.ok) {
@@ -157,10 +173,66 @@ function collectMeasurements(form: FormData): Record<string, string> {
   return measurements;
 }
 
+function cleanRewardCode(value: FormDataEntryValue | string | null): string {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase();
+}
+
+function rewardCodesFromRequest(request: Request): RewardCodes {
+  const url = new URL(request.url);
+  return {
+    promoCode: cleanRewardCode(
+      url.searchParams.get("promo_code") ?? url.searchParams.get("promo"),
+    ),
+    referralCode: cleanRewardCode(
+      url.searchParams.get("referral_code") ??
+        url.searchParams.get("referral") ??
+        url.searchParams.get("ref"),
+    ),
+    affiliateCode: cleanRewardCode(
+      url.searchParams.get("affiliate_code") ??
+        url.searchParams.get("affiliate"),
+    ),
+    affiliateClickID: String(
+      url.searchParams.get("affiliate_click_id") ??
+        url.searchParams.get("click_id") ??
+        "",
+    ).trim(),
+    affiliateVisitorID: String(
+      url.searchParams.get("affiliate_visitor_id") ??
+        url.searchParams.get("visitor_id") ??
+        "",
+    ).trim(),
+  };
+}
+
+function rewardCodesFromForm(form: FormData): RewardCodes {
+  return {
+    promoCode: cleanRewardCode(form.get("promo_code")),
+    referralCode: cleanRewardCode(form.get("referral_code")),
+    affiliateCode: cleanRewardCode(form.get("affiliate_code")),
+    affiliateClickID: String(form.get("affiliate_click_id") ?? "").trim(),
+    affiliateVisitorID: String(form.get("affiliate_visitor_id") ?? "").trim(),
+  };
+}
+
+function rewardPayload(codes: RewardCodes) {
+  return {
+    promo_code: codes.promoCode || undefined,
+    referral_code: codes.referralCode || undefined,
+    affiliate_code: codes.affiliateCode || undefined,
+    affiliate_click_id: codes.affiliateClickID || undefined,
+    affiliate_visitor_id: codes.affiliateVisitorID || undefined,
+  };
+}
+
 function checkoutMessage(code: string): string {
   switch (code) {
     case "store_not_verified":
       return "This store needs to finish payment verification before it can take online orders.";
+    case "promotion_unavailable":
+      return "That promo code is not available for this order.";
     case "invalid_order":
       return "Check the selected size and contact details, then try again.";
     case "not_found":
@@ -176,6 +248,8 @@ function customOrderMessage(code: string): string {
       return "This store needs to finish payment verification before it can take deposit payments.";
     case "store_cannot_take_order":
       return "This store has not enabled this bespoke order route yet.";
+    case "promotion_unavailable":
+      return "That promo code is not available for this bespoke request.";
     case "invalid_order":
       return "Check the bespoke route, contact details, and measurements, then try again.";
     case "not_found":
@@ -332,6 +406,77 @@ function PaymentMethodField() {
   );
 }
 
+function rewardValueLabel(referral: ReferralCode): string {
+  if (referral.reward_type === "percentage") {
+    return `${(referral.reward_value / 100).toFixed(0)}%`;
+  }
+  return formatGHS(referral.reward_value);
+}
+
+function RewardFields({
+  codes,
+  referralPreview,
+  includePromo = true,
+}: {
+  codes: RewardCodes;
+  referralPreview?: ReferralCode | null;
+  includePromo?: boolean;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        borderRadius: "8px",
+        bgcolor: alpha(tokens.success, 0.055),
+        border: "1px solid",
+        borderColor: alpha(tokens.success, 0.14),
+      }}
+    >
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1 }}>
+        <SecurityRounded sx={{ color: tokens.success }} />
+        <Typography sx={{ fontWeight: 950 }}>Rewards &amp; codes</Typography>
+      </Stack>
+      <Stack spacing={1.25}>
+        {includePromo ? (
+          <TextField
+            name="promo_code"
+            label="Promo code"
+            defaultValue={codes.promoCode}
+            fullWidth
+          />
+        ) : null}
+        <TextField
+          name="referral_code"
+          label="Referral code"
+          defaultValue={codes.referralCode}
+          fullWidth
+        />
+        <input type="hidden" name="affiliate_code" value={codes.affiliateCode} />
+        <input
+          type="hidden"
+          name="affiliate_click_id"
+          value={codes.affiliateClickID}
+        />
+        <input
+          type="hidden"
+          name="affiliate_visitor_id"
+          value={codes.affiliateVisitorID}
+        />
+        {referralPreview ? (
+          <Alert severity="success">
+            {referralPreview.title}: referee reward preview{" "}
+            {rewardValueLabel(referralPreview)}
+          </Alert>
+        ) : codes.referralCode ? (
+          <Alert severity="info">
+            We will validate this referral code when checkout starts.
+          </Alert>
+        ) : null}
+      </Stack>
+    </Box>
+  );
+}
+
 function SizePriceList({ design }: { design: Design }) {
   if (design.prices.length === 0) {
     return null;
@@ -430,11 +575,15 @@ function StandardOrderPanel({
   store,
   isSubmitting,
   error,
+  rewardCodes,
+  referralPreview,
 }: {
   design: Design;
   store?: StoreSummary;
   isSubmitting: boolean;
   error?: string | null;
+  rewardCodes: RewardCodes;
+  referralPreview?: ReferralCode | null;
 }) {
   const canOrder = design.prices.length > 0 && Boolean(store?.handle);
 
@@ -507,6 +656,10 @@ function StandardOrderPanel({
               ))}
             </TextField>
             <ContactFields />
+            <RewardFields
+              codes={rewardCodes}
+              referralPreview={referralPreview}
+            />
             <PaymentMethodField />
             <Button
               type="submit"
@@ -633,10 +786,14 @@ function CustomRouteForm({
   route,
   store,
   isSubmitting,
+  rewardCodes,
+  referralPreview,
 }: {
   route: CustomRoute;
   store: StoreSummary;
   isSubmitting: boolean;
+  rewardCodes: RewardCodes;
+  referralPreview?: ReferralCode | null;
 }) {
   return (
     <Box
@@ -709,7 +866,15 @@ function CustomRouteForm({
               <MeasurementInputs store={store} />
             ) : null}
             <ContactFields />
-            {route.takesPayment ? <PaymentMethodField /> : null}
+            {route.takesPayment ? (
+              <>
+                <RewardFields
+                  codes={rewardCodes}
+                  referralPreview={referralPreview}
+                />
+                <PaymentMethodField />
+              </>
+            ) : null}
             <Button
               type="submit"
               variant={route.takesPayment ? "contained" : "outlined"}
@@ -731,11 +896,15 @@ function BespokeOrderPanel({
   store,
   isSubmitting,
   error,
+  rewardCodes,
+  referralPreview,
 }: {
   design: Design;
   store?: StoreSummary;
   isSubmitting: boolean;
   error?: string | null;
+  rewardCodes: RewardCodes;
+  referralPreview?: ReferralCode | null;
 }) {
   const unavailableMessage = !store?.handle
     ? "This design needs a store connection before it can take bespoke requests."
@@ -802,6 +971,8 @@ function BespokeOrderPanel({
               route={route}
               store={store}
               isSubmitting={isSubmitting}
+              rewardCodes={rewardCodes}
+              referralPreview={referralPreview}
             />
           ))}
         </Stack>
@@ -815,6 +986,8 @@ export default function DesignPage({
   actionData,
 }: Route.ComponentProps) {
   const { design } = loaderData;
+  const rewardCodes = loaderData.rewardCodes;
+  const referralPreview = loaderData.referralPreview;
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const store = design.store;
@@ -973,12 +1146,16 @@ export default function DesignPage({
                 store={store}
                 isSubmitting={isSubmitting}
                 error={actionData?.standardError}
+                rewardCodes={rewardCodes}
+                referralPreview={referralPreview}
               />
               <BespokeOrderPanel
                 design={design}
                 store={store}
                 isSubmitting={isSubmitting}
                 error={actionData?.customError}
+                rewardCodes={rewardCodes}
+                referralPreview={referralPreview}
               />
             </Box>
           </Box>

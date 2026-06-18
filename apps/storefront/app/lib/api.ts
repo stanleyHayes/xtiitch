@@ -95,6 +95,11 @@ export type PlaceOrderInput = {
   customer_phone: string;
   customer_email: string;
   method: "momo" | "card";
+  promo_code?: string;
+  affiliate_code?: string;
+  affiliate_click_id?: string;
+  affiliate_visitor_id?: string;
+  referral_code?: string;
 };
 
 export type CustomSizeMode = "self_measure" | "home_visit" | "come_to_shop";
@@ -106,6 +111,11 @@ export type PlaceCustomOrderInput = {
   customer_phone: string;
   customer_email: string;
   method?: "momo" | "card";
+  promo_code?: string;
+  affiliate_code?: string;
+  affiliate_click_id?: string;
+  affiliate_visitor_id?: string;
+  referral_code?: string;
   measurements?: Record<string, string>;
 };
 
@@ -114,6 +124,7 @@ export type PlaceOrderResult = {
   reference: string;
   authorization_url: string;
   amount_minor: number;
+  discount_minor: number;
 };
 
 export type PlaceOrderResponse =
@@ -151,6 +162,26 @@ export type Tracking = {
   stages: TrackingStage[];
 };
 
+export type ReferralCode = {
+  referral_code_id: string;
+  referral_programme_id: string;
+  business_id?: string | null;
+  owner_type: string;
+  code: string;
+  title: string;
+  audience: string;
+  referrer_reward_kind: string;
+  referee_reward_kind: string;
+  reward_type: string;
+  reward_value: number;
+  max_reward_minor?: number | null;
+  qualifying_order_min_minor: number;
+  reward_hold_days: number;
+  starts_at?: string | null;
+  ends_at?: string | null;
+  status: string;
+};
+
 export const api = {
   store: (handle: string) => getJSON<StorePage>(`/public/stores/${enc(handle)}`),
   tracking: (orderId: string) => getJSON<Tracking>(`/public/orders/${enc(orderId)}`),
@@ -158,6 +189,7 @@ export const api = {
     getJSON<SearchPage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`),
   design: (handle: string) => getJSON<Design>(`/public/designs/${enc(handle)}`),
   collection: (handle: string) => getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
+  referral: (code: string) => getJSON<ReferralCode>(`/public/referrals/${enc(code)}`),
   placeOrder: (storeHandle: string, input: PlaceOrderInput) =>
     postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/orders`, input),
   placeCustomOrder: (storeHandle: string, input: PlaceCustomOrderInput) =>
