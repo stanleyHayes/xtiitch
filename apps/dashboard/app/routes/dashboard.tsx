@@ -3212,12 +3212,25 @@ function WorkspaceRail({
     >
       <Box
         sx={{
-          p: 1,
+          position: "relative",
+          overflow: "hidden",
+          p: 1.25,
           border: "1px solid",
-          borderColor: alpha(tokens.white, 0.13),
-          borderRadius: 2,
-          bgcolor: alpha(tokens.white, 0.075),
+          borderColor: alpha(tokens.gold, 0.22),
+          borderRadius: 2.5,
+          color: tokens.white,
+          backgroundColor: alpha(tokens.white, 0.05),
+          backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${alpha(tokens.gold, 0.16)} 0%, transparent 44%), linear-gradient(150deg, ${alpha(tokens.burgundy, 0.5)} 0%, ${alpha(tokens.ink, 0)} 62%)`,
           backdropFilter: "blur(14px)",
+          boxShadow: `0 18px 44px ${alpha(tokens.ink, 0.42)}, inset 0 1px 0 ${alpha(tokens.white, 0.12)}`,
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            insetInline: 14,
+            top: 0,
+            height: "1px",
+            background: `linear-gradient(90deg, transparent, ${alpha(tokens.gold, 0.7)}, transparent)`,
+          },
         }}
       >
         <Stack
@@ -3232,30 +3245,96 @@ function WorkspaceRail({
           >
             <Box
               sx={{
-                width: 46,
-                height: 46,
-                borderRadius: 1.5,
+                position: "relative",
+                width: 48,
+                height: 48,
+                borderRadius: 2,
                 display: "grid",
                 placeItems: "center",
-                bgcolor: tokens.burgundy,
-                color: tokens.white,
-                boxShadow: `0 16px 42px ${alpha(tokens.burgundy, 0.36)}`,
                 flexShrink: 0,
+                color: tokens.white,
+                backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
+                border: `1px solid ${alpha(tokens.gold, 0.5)}`,
+                boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
               }}
             >
-              <StorefrontRounded />
+              <Typography
+                component="span"
+                aria-hidden
+                sx={{
+                  fontFamily: '"DM Serif Display", serif',
+                  fontSize: 24,
+                  lineHeight: 1,
+                  mt: "2px",
+                }}
+              >
+                {(profile.name?.trim()?.[0] ?? "X").toUpperCase()}
+              </Typography>
+              <StorefrontRounded
+                sx={{
+                  position: "absolute",
+                  right: -6,
+                  bottom: -6,
+                  fontSize: 17,
+                  p: "2px",
+                  borderRadius: "50%",
+                  color: tokens.charcoal,
+                  bgcolor: tokens.gold,
+                  boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
+                }}
+              />
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {profile.name}
-              </Typography>
               <Typography
-                variant="caption"
-                sx={{ color: alpha(tokens.white, 0.66), fontWeight: 800 }}
+                sx={{
+                  fontFamily: '"DM Serif Display", serif',
+                  fontSize: 19,
+                  lineHeight: 1.15,
+                  color: tokens.white,
+                }}
                 noWrap
               >
-                {profile.plan} plan · {profile.handle}
+                {profile.name}
               </Typography>
+              <Stack
+                direction="row"
+                spacing={0.75}
+                sx={{ alignItems: "center", mt: 0.25, minWidth: 0 }}
+              >
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    letterSpacing: "0.14em",
+                    textTransform: "uppercase",
+                    color: tokens.gold,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {profile.plan} plan
+                </Typography>
+                <Box
+                  sx={{
+                    width: 3,
+                    height: 3,
+                    borderRadius: "50%",
+                    bgcolor: alpha(tokens.white, 0.4),
+                    flexShrink: 0,
+                  }}
+                />
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 11.5,
+                    fontWeight: 700,
+                    color: alpha(tokens.white, 0.62),
+                  }}
+                  noWrap
+                >
+                  {profile.handle}
+                </Typography>
+              </Stack>
             </Box>
           </Stack>
           {inDrawer ? (
@@ -3277,31 +3356,39 @@ function WorkspaceRail({
         <Stack
           direction="row"
           spacing={0.75}
-          sx={{ mt: 1.25, flexWrap: "wrap", gap: 0.75 }}
+          sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}
         >
           <Chip
             size="small"
             icon={verified ? <VerifiedUserRounded /> : <WarningAmberRounded />}
             label={verified ? "Verified" : "Needs review"}
             sx={{
+              height: 26,
+              fontWeight: 700,
               color: tokens.white,
-              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.3),
+              borderRadius: 1.5,
+              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.16),
               border: "1px solid",
-              borderColor: alpha(
-                verified ? tokens.success : tokens.warning,
-                0.42,
-              ),
-              "& .MuiChip-icon": { color: alpha(tokens.white, 0.86) },
+              borderColor: alpha(verified ? tokens.success : tokens.warning, 0.5),
+              "& .MuiChip-label": { px: 1 },
+              "& .MuiChip-icon": {
+                fontSize: 15,
+                color: verified ? tokens.success : tokens.gold,
+              },
             }}
           />
           <Chip
             size="small"
             label={roleLabel(currentUser.role)}
             sx={{
+              height: 26,
+              fontWeight: 700,
               color: tokens.white,
-              bgcolor: alpha(roleTone(currentUser.role), 0.34),
+              borderRadius: 1.5,
+              backgroundImage: `linear-gradient(135deg, ${alpha(roleTone(currentUser.role), 0.34)}, ${alpha(roleTone(currentUser.role), 0.14)})`,
               border: "1px solid",
-              borderColor: alpha(roleTone(currentUser.role), 0.45),
+              borderColor: alpha(roleTone(currentUser.role), 0.5),
+              "& .MuiChip-label": { px: 1 },
             }}
           />
         </Stack>

@@ -13,6 +13,7 @@ export const tokens = {
   info: "#315f8f",
   panel: "#fffaf7",
   charcoal: "#201923",
+  gold: "#c58b2c",
 } as const;
 
 const bodyFontStack = [
