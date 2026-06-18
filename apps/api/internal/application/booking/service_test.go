@@ -7,7 +7,9 @@ import (
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -60,7 +62,12 @@ func TestRescheduleBookingValidatesSlotBeforeMoving(t *testing.T) {
 	// A taken/invalid slot propagates and never touches the repository.
 	repo := &fakeBookingRepo{}
 	svc := NewService(Dependencies{Bookings: repo, Availability: fakeAvailability{err: ports.ErrSlotTaken}, IDs: fixedIDs{id: "new-1"}})
-	if err := svc.RescheduleBooking(context.Background(), scope, "old-1", when); !errors.Is(err, ports.ErrSlotTaken) {
+	if err := svc.RescheduleBooking(context.Background(), RescheduleBookingCommand{
+		Scope:        scope,
+		ActorRole:    business.UserRoleStaff,
+		BookingID:    "old-1",
+		NewSlotStart: when,
+	}); !errors.Is(err, ports.ErrSlotTaken) {
 		t.Fatalf("expected ErrSlotTaken, got %v", err)
 	}
 	if repo.rescheduled.OldBookingID != "" {
@@ -71,7 +78,12 @@ func TestRescheduleBookingValidatesSlotBeforeMoving(t *testing.T) {
 	repo2 := &fakeBookingRepo{}
 	slot := booking.Slot{Start: when, End: when.Add(time.Hour)}
 	svc2 := NewService(Dependencies{Bookings: repo2, Availability: fakeAvailability{slot: slot}, IDs: fixedIDs{id: "new-1"}})
-	if err := svc2.RescheduleBooking(context.Background(), scope, "old-1", when); err != nil {
+	if err := svc2.RescheduleBooking(context.Background(), RescheduleBookingCommand{
+		Scope:        scope,
+		ActorRole:    business.UserRoleAdmin,
+		BookingID:    "old-1",
+		NewSlotStart: when,
+	}); err != nil {
 		t.Fatalf("reschedule: %v", err)
 	}
 	if repo2.rescheduled.OldBookingID != "old-1" || repo2.rescheduled.NewBookingID != "new-1" ||
@@ -85,10 +97,42 @@ func TestCancelBookingPassesThrough(t *testing.T) {
 
 	repo := &fakeBookingRepo{}
 	svc := NewService(Dependencies{Bookings: repo, Availability: fakeAvailability{}, IDs: fixedIDs{}})
-	if err := svc.CancelBooking(context.Background(), common.TenantScope{BusinessID: "b1"}, "book-1"); err != nil {
+	if err := svc.CancelBooking(context.Background(), CancelBookingCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleStaff,
+		BookingID: "book-1",
+	}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if repo.cancelled != "book-1" {
 		t.Fatalf("expected cancel for book-1, got %q", repo.cancelled)
+	}
+}
+
+func TestBookingOperationsRequireKnownBusinessRole(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeBookingRepo{}
+	svc := NewService(Dependencies{Bookings: repo, Availability: fakeAvailability{}, IDs: fixedIDs{}})
+	err := svc.CancelBooking(context.Background(), CancelBookingCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRole("viewer"),
+		BookingID: "book-1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected forbidden role, got %v", err)
+	}
+	if repo.cancelled != "" {
+		t.Fatalf("repository must not be called for forbidden role, got %q", repo.cancelled)
+	}
+
+	err = svc.RescheduleBooking(context.Background(), RescheduleBookingCommand{
+		Scope:        common.TenantScope{},
+		ActorRole:    business.UserRoleOwner,
+		BookingID:    "book-1",
+		NewSlotStart: time.Now(),
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected missing tenant scope to be invalid, got %v", err)
 	}
 }

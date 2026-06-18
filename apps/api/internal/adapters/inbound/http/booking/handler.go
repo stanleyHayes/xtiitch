@@ -10,7 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -18,8 +20,8 @@ const maxBodyBytes = 1 << 20
 
 type Service interface {
 	ListBookings(ctx context.Context, scope common.TenantScope) ([]ports.BookingSummary, error)
-	CancelBooking(ctx context.Context, scope common.TenantScope, bookingID common.ID) error
-	RescheduleBooking(ctx context.Context, scope common.TenantScope, bookingID common.ID, newSlotStart time.Time) error
+	CancelBooking(ctx context.Context, command bookingapp.CancelBookingCommand) error
+	RescheduleBooking(ctx context.Context, command bookingapp.RescheduleBookingCommand) error
 }
 
 type Handler struct {
@@ -74,7 +76,11 @@ func (handler Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if err := handler.service.CancelBooking(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id"))); err != nil {
+	if err := handler.service.CancelBooking(r.Context(), bookingapp.CancelBookingCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		BookingID: common.ID(chi.URLParam(r, "id")),
+	}); err != nil {
 		status, code := bookingError(err)
 		writeError(w, status, code)
 		return
@@ -102,7 +108,12 @@ func (handler Handler) reschedule(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.RescheduleBooking(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), slotStart); err != nil {
+	if err := handler.service.RescheduleBooking(r.Context(), bookingapp.RescheduleBookingCommand{
+		Scope:        principal.TenantScope(),
+		ActorRole:    principal.Role,
+		BookingID:    common.ID(chi.URLParam(r, "id")),
+		NewSlotStart: slotStart,
+	}); err != nil {
 		status, code := bookingError(err)
 		writeError(w, status, code)
 		return
@@ -112,6 +123,10 @@ func (handler Handler) reschedule(w http.ResponseWriter, r *http.Request) {
 
 func bookingError(err error) (int, string) {
 	switch {
+	case errors.Is(err, authdomain.ErrInvalidInput):
+		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, authdomain.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	case errors.Is(err, ports.ErrSlotTaken), errors.Is(err, ports.ErrNoAvailability):
