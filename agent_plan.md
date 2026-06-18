@@ -242,6 +242,8 @@ Uncommitted UI control polish: standardized button and input radii across `apps/
 
 Uncommitted dashboard team-list redesign: redesigned the single team member row in `apps/dashboard` `/dashboard/team` to a compact horizontal layout with a circular avatar, inline role/status/"You" chips, right-aligned join date, and a small pill "View" button. Also refined the shared `StyledDateTimeField` in `apps/admin` and `apps/dashboard` to use dropdown selects for month/day/year/hour/minute/period. Verified with `pnpm check`, `pnpm test`, production builds for admin/dashboard, and `git diff --check`.
 
+Uncommitted admin subscription-package card redesign: redesigned `SubscriptionPlanSummaryCard` in `apps/admin` to reduce visual clutter. The new card uses a single tinted pricing band for package fee, commission, and base MRR; a cleaner four-column text stat row for design limit, businesses, GMV, and commission earned; and a subtle footer line for mapped-business count. Archived packages are slightly muted. Verified with `pnpm --filter @xtiitch/admin check`, `pnpm exec eslint apps/admin --max-warnings=0`, `pnpm --filter @xtiitch/admin build`, and `git diff --check`.
+
 How to run + verify (dev):
 
 - Demo Postgres runs in docker container `xtiitch-demo-pg` on `localhost:5450` (db/owner `xtiitch`/`xtiitch`, app role `xtiitch_app`). Migrations `000001`–`000037` are applied locally.

@@ -9183,25 +9183,25 @@ function SubscriptionPlanSummaryCard({
   return (
     <Panel
       sx={{
-        p: { xs: 1.75, md: 2 },
-        borderColor: alpha(row.visual.tone, row.plan.isActive ? 0.2 : 0.16),
+        p: { xs: 1.75, md: 2.25 },
+        borderColor: alpha(row.visual.tone, row.plan.isActive ? 0.22 : 0.16),
         backgroundImage: `
-          radial-gradient(circle at 96% 0%, ${alpha(row.visual.tone, row.plan.isActive ? 0.16 : 0.08)}, transparent 32%),
+          radial-gradient(circle at 96% 0%, ${alpha(row.visual.tone, row.plan.isActive ? 0.14 : 0.08)}, transparent 32%),
           linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.66)})
         `,
+        opacity: row.plan.isActive ? 1 : 0.92,
       }}
     >
-      <Stack spacing={1.5}>
+      <Stack spacing={2}>
         <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{
-            alignItems: { xs: "flex-start", sm: "flex-start" },
-            justifyContent: "space-between",
-          }}
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6">{row.plan.name}</Typography>
+            <Typography variant="h6" sx={{ fontWeight: 900 }}>
+              {row.plan.name}
+            </Typography>
             <Typography
               variant="body2"
               sx={{ mt: 0.4, color: "text.secondary" }}
@@ -9219,7 +9219,7 @@ function SubscriptionPlanSummaryCard({
               bgcolor: alpha(row.visual.tone, 0.12),
               color: row.visual.tone,
               fontWeight: 900,
-              maxWidth: "100%",
+              flexShrink: 0,
             }}
           />
         </Stack>
@@ -9227,26 +9227,27 @@ function SubscriptionPlanSummaryCard({
         <Box
           sx={{
             display: "grid",
-            gap: 1,
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "1.1fr 0.85fr 0.95fr",
-            },
+            gridTemplateColumns: { xs: "1fr", sm: "1fr auto" },
+            gap: { xs: 1.5, sm: 2.5 },
+            alignItems: "center",
+            p: { xs: 1.5, md: 1.75 },
+            borderRadius: 2,
+            bgcolor: alpha(row.visual.tone, 0.06),
+            border: "1px solid",
+            borderColor: alpha(row.visual.tone, 0.14),
           }}
         >
-          <Box
-            sx={{
-              p: 1.35,
-              border: "1px solid",
-              borderColor: alpha(row.visual.tone, 0.16),
-              borderRadius: 1.5,
-              bgcolor: alpha(tokens.white, 0.78),
-            }}
-          >
-            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", fontWeight: 800 }}
+            >
               Package fee
             </Typography>
-            <Typography variant="h5" sx={{ lineHeight: 1.08 }}>
+            <Typography
+              variant="h4"
+              sx={{ lineHeight: 1.05, fontWeight: 950 }}
+            >
               {monthlyFee}
             </Typography>
             {row.plan.monthlyFeeMinor > 0 ? (
@@ -9255,25 +9256,51 @@ function SubscriptionPlanSummaryCard({
               </Typography>
             ) : null}
           </Box>
-          <PlanStatTile
-            label="Commission"
-            value={commissionRate}
-            tone={row.visual.tone}
-          />
-          <PlanStatTile
-            label="Base MRR"
-            value={formatGHS(row.estimatedMrrMinor)}
-            tone={row.visual.tone}
-          />
+          <Stack
+            direction={{ xs: "row", sm: "column" }}
+            spacing={{ xs: 2, sm: 0.5 }}
+            sx={{
+              alignItems: { xs: "center", sm: "flex-end" },
+              textAlign: { xs: "left", sm: "right" },
+            }}
+          >
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", fontWeight: 800 }}
+              >
+                Commission
+              </Typography>
+              <Typography
+                sx={{
+                  fontWeight: 950,
+                  color: row.visual.tone,
+                  lineHeight: 1.2,
+                }}
+              >
+                {commissionRate}
+              </Typography>
+            </Box>
+            <Box>
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", fontWeight: 800 }}
+              >
+                Base MRR
+              </Typography>
+              <Typography sx={{ fontWeight: 950, lineHeight: 1.2 }}>
+                {formatGHS(row.estimatedMrrMinor)}
+              </Typography>
+            </Box>
+          </Stack>
         </Box>
 
         <Box
           sx={{
             display: "grid",
-            gap: 1,
+            gap: 1.5,
             gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
+              xs: "repeat(2, minmax(0, 1fr))",
               lg: "repeat(4, minmax(0, 1fr))",
             },
           }}
@@ -9281,40 +9308,30 @@ function SubscriptionPlanSummaryCard({
           <PlanStatTile
             label="Design limit"
             value={planDesignLimitLabel(row.plan)}
-            tone={row.visual.tone}
           />
           <PlanStatTile
             label="Businesses"
-            value={`${row.activeTotal} active / ${row.businessTotal} total`}
-            tone={row.visual.tone}
+            value={`${row.activeTotal} active`}
+            helper={`${row.businessTotal} total`}
           />
           <PlanStatTile
             label="GMV"
             value={formatGHS(row.gmvMinor)}
-            tone={row.visual.tone}
           />
           <PlanStatTile
             label="Commission earned"
             value={formatGHS(row.commissionMinor)}
-            tone={row.visual.tone}
           />
         </Box>
 
-        <Box
-          sx={{
-            p: 1.2,
-            border: "1px solid",
-            borderColor: alpha(row.visual.tone, 0.12),
-            borderRadius: 1.5,
-            bgcolor: alpha(row.visual.tone, 0.055),
-          }}
+        <Typography
+          variant="body2"
+          sx={{ color: "text.secondary", fontWeight: 800 }}
         >
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            {row.businessTotal
-              ? `${row.businessTotal} businesses are currently mapped to this package.`
-              : "No businesses are currently mapped to this package."}
-          </Typography>
-        </Box>
+          {row.businessTotal
+            ? `${row.businessTotal} businesses are currently mapped to this package.`
+            : "No businesses are currently mapped to this package."}
+        </Typography>
       </Stack>
     </Panel>
   );
@@ -9324,28 +9341,22 @@ function PlanStatTile({
   label,
   value,
   helper,
-  tone = tokens.ink,
 }: {
   label: string;
   value: string;
   helper?: string;
-  tone?: string;
 }) {
   return (
-    <Box
-      sx={{
-        p: 1.15,
-        borderRadius: 1.25,
-        border: "1px solid",
-        borderColor: alpha(tone, 0.12),
-        bgcolor: alpha(tokens.white, 0.68),
-        minWidth: 0,
-      }}
-    >
-      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+    <Box sx={{ minWidth: 0 }}>
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", fontWeight: 800 }}
+      >
         {label}
       </Typography>
-      <Typography sx={{ fontWeight: 950, overflowWrap: "anywhere" }}>
+      <Typography
+        sx={{ fontWeight: 950, overflowWrap: "anywhere", lineHeight: 1.2 }}
+      >
         {value}
       </Typography>
       {helper ? (
