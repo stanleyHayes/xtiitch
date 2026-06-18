@@ -38,13 +38,16 @@ func (handler Handler) Register(router chi.Router) {
 }
 
 type placeOrderBody struct {
-	DesignHandle  string `json:"design_handle"`
-	SizeBandID    string `json:"size_band_id"`
-	CustomerName  string `json:"customer_name"`
-	CustomerPhone string `json:"customer_phone"`
-	CustomerEmail string `json:"customer_email"`
-	Method        string `json:"method"`
-	PromoCode     string `json:"promo_code"`
+	DesignHandle       string `json:"design_handle"`
+	SizeBandID         string `json:"size_band_id"`
+	CustomerName       string `json:"customer_name"`
+	CustomerPhone      string `json:"customer_phone"`
+	CustomerEmail      string `json:"customer_email"`
+	Method             string `json:"method"`
+	PromoCode          string `json:"promo_code"`
+	AffiliateCode      string `json:"affiliate_code"`
+	AffiliateClickID   string `json:"affiliate_click_id"`
+	AffiliateVisitorID string `json:"affiliate_visitor_id"`
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +58,17 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.PlaceStandardOrder(r.Context(), checkoutapp.PlaceStandardOrderCommand{
-		StoreHandle:   chi.URLParam(r, "handle"),
-		DesignHandle:  body.DesignHandle,
-		SizeBandID:    common.ID(body.SizeBandID),
-		CustomerName:  body.CustomerName,
-		CustomerPhone: body.CustomerPhone,
-		CustomerEmail: body.CustomerEmail,
-		Method:        money.PaymentMethod(body.Method),
-		PromoCode:     body.PromoCode,
+		StoreHandle:        chi.URLParam(r, "handle"),
+		DesignHandle:       body.DesignHandle,
+		SizeBandID:         common.ID(body.SizeBandID),
+		CustomerName:       body.CustomerName,
+		CustomerPhone:      body.CustomerPhone,
+		CustomerEmail:      body.CustomerEmail,
+		Method:             money.PaymentMethod(body.Method),
+		PromoCode:          body.PromoCode,
+		AffiliateCode:      body.AffiliateCode,
+		AffiliateClickID:   common.ID(body.AffiliateClickID),
+		AffiliateVisitorID: body.AffiliateVisitorID,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -74,14 +80,17 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 type placeCustomOrderBody struct {
-	DesignHandle  string            `json:"design_handle"`
-	SizeMode      string            `json:"size_mode"`
-	CustomerName  string            `json:"customer_name"`
-	CustomerPhone string            `json:"customer_phone"`
-	CustomerEmail string            `json:"customer_email"`
-	Method        string            `json:"method"`
-	PromoCode     string            `json:"promo_code"`
-	Measurements  map[string]string `json:"measurements"`
+	DesignHandle       string            `json:"design_handle"`
+	SizeMode           string            `json:"size_mode"`
+	CustomerName       string            `json:"customer_name"`
+	CustomerPhone      string            `json:"customer_phone"`
+	CustomerEmail      string            `json:"customer_email"`
+	Method             string            `json:"method"`
+	PromoCode          string            `json:"promo_code"`
+	AffiliateCode      string            `json:"affiliate_code"`
+	AffiliateClickID   string            `json:"affiliate_click_id"`
+	AffiliateVisitorID string            `json:"affiliate_visitor_id"`
+	Measurements       map[string]string `json:"measurements"`
 }
 
 func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) {
@@ -92,15 +101,18 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 	}
 
 	result, err := handler.service.PlaceCustomOrder(r.Context(), checkoutapp.PlaceCustomOrderCommand{
-		StoreHandle:   chi.URLParam(r, "handle"),
-		DesignHandle:  body.DesignHandle,
-		SizeMode:      body.SizeMode,
-		CustomerName:  body.CustomerName,
-		CustomerPhone: body.CustomerPhone,
-		CustomerEmail: body.CustomerEmail,
-		Method:        money.PaymentMethod(body.Method),
-		PromoCode:     body.PromoCode,
-		Measurements:  body.Measurements,
+		StoreHandle:        chi.URLParam(r, "handle"),
+		DesignHandle:       body.DesignHandle,
+		SizeMode:           body.SizeMode,
+		CustomerName:       body.CustomerName,
+		CustomerPhone:      body.CustomerPhone,
+		CustomerEmail:      body.CustomerEmail,
+		Method:             money.PaymentMethod(body.Method),
+		PromoCode:          body.PromoCode,
+		AffiliateCode:      body.AffiliateCode,
+		AffiliateClickID:   common.ID(body.AffiliateClickID),
+		AffiliateVisitorID: body.AffiliateVisitorID,
+		Measurements:       body.Measurements,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -112,13 +124,16 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 }
 
 type placeBookingBody struct {
-	DesignHandle  string `json:"design_handle"`
-	CustomerName  string `json:"customer_name"`
-	CustomerPhone string `json:"customer_phone"`
-	CustomerEmail string `json:"customer_email"`
-	Method        string `json:"method"`
-	SlotStart     string `json:"slot_start"`
-	Address       string `json:"address"`
+	DesignHandle       string `json:"design_handle"`
+	CustomerName       string `json:"customer_name"`
+	CustomerPhone      string `json:"customer_phone"`
+	CustomerEmail      string `json:"customer_email"`
+	Method             string `json:"method"`
+	AffiliateCode      string `json:"affiliate_code"`
+	AffiliateClickID   string `json:"affiliate_click_id"`
+	AffiliateVisitorID string `json:"affiliate_visitor_id"`
+	SlotStart          string `json:"slot_start"`
+	Address            string `json:"address"`
 }
 
 func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
@@ -134,14 +149,17 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.PlaceHomeVisitBooking(r.Context(), checkoutapp.PlaceHomeVisitBookingCommand{
-		StoreHandle:   chi.URLParam(r, "handle"),
-		DesignHandle:  body.DesignHandle,
-		CustomerName:  body.CustomerName,
-		CustomerPhone: body.CustomerPhone,
-		CustomerEmail: body.CustomerEmail,
-		Method:        money.PaymentMethod(body.Method),
-		SlotStart:     slotStart,
-		Address:       body.Address,
+		StoreHandle:        chi.URLParam(r, "handle"),
+		DesignHandle:       body.DesignHandle,
+		CustomerName:       body.CustomerName,
+		CustomerPhone:      body.CustomerPhone,
+		CustomerEmail:      body.CustomerEmail,
+		Method:             money.PaymentMethod(body.Method),
+		AffiliateCode:      body.AffiliateCode,
+		AffiliateClickID:   common.ID(body.AffiliateClickID),
+		AffiliateVisitorID: body.AffiliateVisitorID,
+		SlotStart:          slotStart,
+		Address:            body.Address,
 	})
 	if err != nil {
 		status, code := checkoutError(err)

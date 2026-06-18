@@ -46,6 +46,7 @@ type Service struct {
 	orders       ports.OrderRepository
 	bookings     ports.BookingRepository
 	promotions   ports.PromotionRepository
+	affiliates   ports.AffiliateClickRepository
 	availability Availability
 	payments     Payments
 	ids          ports.IDGenerator
@@ -58,6 +59,7 @@ type Dependencies struct {
 	Orders       ports.OrderRepository
 	Bookings     ports.BookingRepository
 	Promotions   ports.PromotionRepository
+	Affiliates   ports.AffiliateClickRepository
 	Availability Availability
 	Payments     Payments
 	IDs          ports.IDGenerator
@@ -75,6 +77,7 @@ func NewService(deps Dependencies) Service {
 		orders:       deps.Orders,
 		bookings:     deps.Bookings,
 		promotions:   deps.Promotions,
+		affiliates:   deps.Affiliates,
 		availability: deps.Availability,
 		payments:     deps.Payments,
 		ids:          deps.IDs,
@@ -83,14 +86,17 @@ func NewService(deps Dependencies) Service {
 }
 
 type PlaceStandardOrderCommand struct {
-	StoreHandle   string
-	DesignHandle  string
-	SizeBandID    common.ID
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
-	Method        money.PaymentMethod
-	PromoCode     string
+	StoreHandle        string
+	DesignHandle       string
+	SizeBandID         common.ID
+	CustomerName       string
+	CustomerPhone      string
+	CustomerEmail      string
+	Method             money.PaymentMethod
+	PromoCode          string
+	AffiliateCode      string
+	AffiliateClickID   common.ID
+	AffiliateVisitorID string
 }
 
 type PlaceStandardOrderResult struct {
@@ -175,6 +181,13 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 			return PlaceStandardOrderResult{}, err
 		}
 	}
+	s.reserveAffiliateAttribution(ctx, scope, affiliateCheckoutInput{
+		code:       cmd.AffiliateCode,
+		clickID:    cmd.AffiliateClickID,
+		visitorID:  cmd.AffiliateVisitorID,
+		orderID:    orderID,
+		grossMinor: chargeAmount,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -249,15 +262,18 @@ func priceForBand(prices []catalogue.BandPrice, bandID common.ID) (int64, bool) 
 }
 
 type PlaceHomeVisitBookingCommand struct {
-	StoreHandle   string
-	DesignHandle  string
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
-	Method        money.PaymentMethod
-	PromoCode     string
-	SlotStart     time.Time
-	Address       string
+	StoreHandle        string
+	DesignHandle       string
+	CustomerName       string
+	CustomerPhone      string
+	CustomerEmail      string
+	Method             money.PaymentMethod
+	PromoCode          string
+	AffiliateCode      string
+	AffiliateClickID   common.ID
+	AffiliateVisitorID string
+	SlotStart          time.Time
+	Address            string
 }
 
 type PlaceHomeVisitBookingResult struct {
@@ -349,6 +365,13 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		s.discardBooking(ctx, scope, bookingID, orderID, customerID)
 		return PlaceHomeVisitBookingResult{}, err
 	}
+	s.reserveAffiliateAttribution(ctx, scope, affiliateCheckoutInput{
+		code:       cmd.AffiliateCode,
+		clickID:    cmd.AffiliateClickID,
+		visitorID:  cmd.AffiliateVisitorID,
+		orderID:    orderID,
+		grossMinor: deposit,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -385,14 +408,17 @@ func (s Service) discardBooking(ctx context.Context, scope common.TenantScope, b
 }
 
 type PlaceCustomOrderCommand struct {
-	StoreHandle   string
-	DesignHandle  string
-	SizeMode      string
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
-	Method        money.PaymentMethod
-	PromoCode     string
+	StoreHandle        string
+	DesignHandle       string
+	SizeMode           string
+	CustomerName       string
+	CustomerPhone      string
+	CustomerEmail      string
+	Method             money.PaymentMethod
+	PromoCode          string
+	AffiliateCode      string
+	AffiliateClickID   common.ID
+	AffiliateVisitorID string
 	// Measurements maps the business's measurement field ids to entered values;
 	// only used (and required) for the self-measure route.
 	Measurements map[string]string
@@ -556,6 +582,13 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 	if promotion.discountMinor > 0 {
 		chargeAmount = promotion.payableMinor
 	}
+	s.reserveAffiliateAttribution(ctx, scope, affiliateCheckoutInput{
+		code:       cmd.AffiliateCode,
+		clickID:    cmd.AffiliateClickID,
+		visitorID:  cmd.AffiliateVisitorID,
+		orderID:    orderID,
+		grossMinor: chargeAmount,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -600,6 +633,14 @@ type promotionCheckoutResult struct {
 	payableMinor    int64
 	discountMinor   int64
 	commissionMinor *int64
+}
+
+type affiliateCheckoutInput struct {
+	code       string
+	clickID    common.ID
+	visitorID  string
+	orderID    common.ID
+	grossMinor int64
 }
 
 func (s Service) reservePromotion(
@@ -667,6 +708,35 @@ func (s Service) voidPromotionReservation(ctx context.Context, scope common.Tena
 
 func normalizeCheckoutPromotionCode(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
+}
+
+func (s Service) reserveAffiliateAttribution(
+	ctx context.Context,
+	scope common.TenantScope,
+	input affiliateCheckoutInput,
+) {
+	code := normalizeCheckoutPromotionCode(input.code)
+	if code == "" || s.affiliates == nil || input.orderID.IsZero() || input.grossMinor <= 0 {
+		return
+	}
+
+	_, err := s.affiliates.ReserveAffiliateAttribution(ctx, scope, ports.ReserveAffiliateAttributionInput{
+		ReservationID: s.ids.NewID(),
+		BusinessID:    scope.BusinessID,
+		OrderID:       input.orderID,
+		Code:          code,
+		ClickID:       input.clickID,
+		VisitorID:     strings.TrimSpace(input.visitorID),
+		GrossMinor:    input.grossMinor,
+	})
+	if err == nil || errors.Is(err, ports.ErrNotFound) {
+		return
+	}
+	s.logger.ErrorContext(ctx, "checkout: failed to reserve affiliate attribution",
+		"business_id", scope.BusinessID.String(),
+		"order_id", input.orderID.String(),
+		"affiliate_code", code,
+		"error", err)
 }
 
 func promotionCommissionMinor(

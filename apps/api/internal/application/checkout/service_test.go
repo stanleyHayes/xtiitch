@@ -96,6 +96,91 @@ func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 	}
 }
 
+func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	affiliates := &fakeAffiliates{}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Affiliates: affiliates,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "reservation-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.AffiliateCode = " sewingpro "
+	cmd.AffiliateClickID = "click-1"
+	cmd.AffiliateVisitorID = "visitor-1"
+	res, err := svc.PlaceStandardOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.OrderID != "order-1" || res.AmountMinor != 50000 {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	if !affiliates.reserveCalled {
+		t.Fatal("expected affiliate attribution to be reserved")
+	}
+	if affiliates.reserve.ReservationID != "reservation-1" ||
+		affiliates.reserve.BusinessID != testBusinessID ||
+		affiliates.reserve.OrderID != "order-1" ||
+		affiliates.reserve.Code != "SEWINGPRO" ||
+		affiliates.reserve.ClickID != "click-1" ||
+		affiliates.reserve.VisitorID != "visitor-1" ||
+		affiliates.reserve.GrossMinor != 50000 {
+		t.Fatalf("unexpected affiliate reservation: %+v", affiliates.reserve)
+	}
+}
+
+func TestPlaceStandardOrderIgnoresUnavailableAffiliateAttribution(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	affiliates := &fakeAffiliates{err: ports.ErrNotFound}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:     orders,
+		Payments:   payments,
+		Affiliates: affiliates,
+		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "reservation-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.AffiliateCode = "missing"
+	res, err := svc.PlaceStandardOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("affiliate misses must not block checkout: %v", err)
+	}
+	if res.Reference != "xt_ref" || !payments.called {
+		t.Fatalf("expected checkout to continue, result=%+v paymentCalled=%v", res, payments.called)
+	}
+	if !affiliates.reserveCalled {
+		t.Fatal("expected the affiliate repository to be consulted")
+	}
+}
+
 func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission(t *testing.T) {
 	t.Parallel()
 
@@ -849,6 +934,32 @@ func (f *fakePromotions) VoidPendingPromotionRedemptions(_ context.Context, _ co
 	f.voidCalled = true
 	f.voidOrder = orderID
 	return nil
+}
+
+type fakeAffiliates struct {
+	reserveCalled bool
+	reserve       ports.ReserveAffiliateAttributionInput
+	err           error
+}
+
+func (f *fakeAffiliates) RecordAffiliateClick(context.Context, ports.RecordAffiliateClickInput) (ports.AffiliateClickRecord, error) {
+	return ports.AffiliateClickRecord{}, nil
+}
+
+func (f *fakeAffiliates) ReserveAffiliateAttribution(_ context.Context, _ common.TenantScope, input ports.ReserveAffiliateAttributionInput) (ports.AffiliateAttributionReservation, error) {
+	f.reserveCalled = true
+	f.reserve = input
+	if f.err != nil {
+		return ports.AffiliateAttributionReservation{}, f.err
+	}
+	return ports.AffiliateAttributionReservation{
+		ReservationID:   input.ReservationID,
+		AffiliateID:     "affiliate-1",
+		BusinessID:      input.BusinessID,
+		OrderID:         input.OrderID,
+		GrossMinor:      input.GrossMinor,
+		CommissionMinor: 5000,
+	}, nil
 }
 
 type seqIDs struct {

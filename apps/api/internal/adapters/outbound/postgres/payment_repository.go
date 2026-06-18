@@ -438,7 +438,10 @@ func applyPaymentFailure(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 		}
 	}
 	if payment.orderID.Valid {
-		return voidPendingPromotionRedemptionsForOrder(ctx, tx, payment.businessID, payment.orderID.String)
+		if err := voidPendingPromotionRedemptionsForOrder(ctx, tx, payment.businessID, payment.orderID.String); err != nil {
+			return err
+		}
+		return voidPendingAffiliateAttributionForOrder(ctx, tx, payment.businessID, payment.orderID.String)
 	}
 	return nil
 }
@@ -560,6 +563,9 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 	if err := applyPendingPromotionRedemptionsForOrder(ctx, tx, businessID, orderID); err != nil {
 		return err
 	}
+	if err := applyPendingAffiliateAttributionForOrder(ctx, tx, businessID, orderID); err != nil {
+		return err
+	}
 
 	// The order is now confirmed; in the same transaction, record the intent to
 	// tell the customer. The dedup key makes a redelivered webhook a no-op.
@@ -580,6 +586,63 @@ func voidPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, bus
 		update promotion_redemptions
 		set status = 'void', updated_at = now()
 		where business_id = $1 and order_id = $2 and status = 'pending'
+	`, businessID, orderID)
+	return err
+}
+
+func applyPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		with reservation as (
+			update affiliate_attribution_reservations
+			set status = 'converted', updated_at = now()
+			where business_id = $1
+				and order_id = $2
+				and status = 'pending'
+			returning *
+		)
+		insert into affiliate_conversions (
+			affiliate_id,
+			affiliate_click_id,
+			business_id,
+			order_id,
+			gross_minor,
+			commission_minor,
+			commission_model,
+			commission_rate,
+			attribution_model,
+			status,
+			hold_until,
+			metadata
+		)
+		select
+			affiliate_id,
+			affiliate_click_id,
+			business_id,
+			order_id,
+			gross_minor,
+			commission_minor,
+			commission_model,
+			commission_rate,
+			attribution_model,
+			'pending',
+			now() + interval '14 days',
+			metadata || jsonb_build_object(
+				'reservation_id', reservation_id::text,
+				'source', 'payment_success'
+			)
+		from reservation
+		on conflict (order_id) do nothing
+	`, businessID, orderID)
+	return err
+}
+
+func voidPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		update affiliate_attribution_reservations
+		set status = 'void', updated_at = now()
+		where business_id = $1
+			and order_id = $2
+			and status = 'pending'
 	`, businessID, orderID)
 	return err
 }

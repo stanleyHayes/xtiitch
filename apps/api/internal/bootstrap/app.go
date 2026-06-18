@@ -189,6 +189,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Orders:       postgres.NewOrderRepository(db),
 		Bookings:     postgres.NewBookingRepository(db),
 		Promotions:   postgres.NewPromotionRepository(db),
+		Affiliates:   postgres.NewAffiliateRepository(db),
 		Availability: availabilityService,
 		Payments:     paymentService,
 		IDs:          ids.UUIDGenerator{},

@@ -41,6 +41,13 @@ const (
 	itPromoOK = "77777777-0000-0000-0000-0000000000a2"
 	itRedOK   = "77777777-0000-0000-0000-0000000000b2"
 
+	itPayAffiliate   = "99999999-0000-0000-0000-0000000000a2"
+	itPayAffClick    = "99999999-0000-0000-0000-0000000000b2"
+	itPayAffReserve  = "99999999-0000-0000-0000-0000000000c2"
+	itPayAffVisitor  = "it-payment-affiliate-visitor"
+	itPayAffCode     = "ITPAYAFF"
+	itPayAffCommRate = 1250
+
 	itPayCross = "00000000-0000-0000-0000-0000000000c1"
 	itRefCross = "xt_it_ref_cross"
 
@@ -168,6 +175,45 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 				values ($1, $2, $3, $4, $5, 5000, 'pending')
 			`, promo.redemption, promo.promotion, itBizA, promo.order, itCustA)
 		}
+		mustExec(t, tx, `
+			insert into affiliates (
+				affiliate_id,
+				code,
+				display_name,
+				commission_model,
+				commission_rate,
+				cookie_window_days,
+				status
+			)
+			values ($1, $2, 'IT Payment Affiliate', 'percentage', $3, 30, 'active')
+		`, itPayAffiliate, itPayAffCode, itPayAffCommRate)
+		mustExec(t, tx, `
+			insert into affiliate_clicks (
+				affiliate_click_id,
+				affiliate_id,
+				visitor_id,
+				landing_url,
+				ip_hash
+			)
+			values ($1, $2, $3, 'https://demo.xtiitch.test/pay', 'hash')
+		`, itPayAffClick, itPayAffiliate, itPayAffVisitor)
+		mustExec(t, tx, `
+			insert into affiliate_attribution_reservations (
+				reservation_id,
+				affiliate_id,
+				affiliate_click_id,
+				business_id,
+				order_id,
+				gross_minor,
+				commission_minor,
+				commission_model,
+				commission_rate,
+				attribution_model,
+				status,
+				metadata
+			)
+			values ($1, $2, $3, $4, $5, $6, 6250, 'percentage', $7, 'last_click', 'pending', '{"source":"integration"}')
+		`, itPayAffReserve, itPayAffiliate, itPayAffClick, itBizA, itOrderOK, itAmount, itPayAffCommRate)
 	})
 }
 
@@ -176,6 +222,7 @@ func cleanupConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from payment_provider_events where provider_reference = any($1)`,
 			[]string{itRefFail, itRefOK, itRefCross})
+		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itPayAffiliate)
 		// Businesses cascade to their payments, orders, stage_events, designs, stages.
 		mustExec(t, tx, `delete from businesses where business_id = any($1)`, []string{itBizA, itBizB})
 		mustExec(t, tx, `delete from customers where customer_id = $1`, itCustA)
@@ -314,6 +361,15 @@ type subscriptionInvoiceState struct {
 	graceEndsAtSet     bool
 }
 
+type affiliateAttributionState struct {
+	reservationStatus string
+	conversionStatus  string
+	commissionMinor   int64
+	holdUntilSet      bool
+	source            string
+	reservationID     string
+}
+
 func readPaymentStatus(t *testing.T, pool *pgxpool.Pool, ref string) string {
 	t.Helper()
 	var status string
@@ -353,6 +409,35 @@ func readPromotionRedemptionStatus(t *testing.T, pool *pgxpool.Pool, redemptionI
 		}
 	})
 	return status, redeemed
+}
+
+func readAffiliateAttributionState(t *testing.T, pool *pgxpool.Pool, orderID string) affiliateAttributionState {
+	t.Helper()
+	var state affiliateAttributionState
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(context.Background(), `
+			select
+				r.status,
+				c.status,
+				c.commission_minor,
+				c.hold_until is not null,
+				c.metadata->>'source',
+				c.metadata->>'reservation_id'
+			from affiliate_attribution_reservations r
+			join affiliate_conversions c on c.order_id = r.order_id
+			where r.order_id = $1
+		`, orderID).Scan(
+			&state.reservationStatus,
+			&state.conversionStatus,
+			&state.commissionMinor,
+			&state.holdUntilSet,
+			&state.source,
+			&state.reservationID,
+		); err != nil {
+			t.Fatalf("read affiliate attribution %s: %v", orderID, err)
+		}
+	})
+	return state
 }
 
 func readSubscriptionInvoiceState(t *testing.T, pool *pgxpool.Pool, invoiceID string) subscriptionInvoiceState {
@@ -479,6 +564,15 @@ func TestConfirmFromProviderSuccessConfirmsAndIsIdempotent(t *testing.T) {
 	status, redeemed := readPromotionRedemptionStatus(t, pool, itRedOK)
 	if status != "applied" || !redeemed {
 		t.Fatalf("successful payment must apply pending promotion redemption, status=%q redeemed=%v", status, redeemed)
+	}
+	affiliate := readAffiliateAttributionState(t, pool, itOrderOK)
+	if affiliate.reservationStatus != "converted" ||
+		affiliate.conversionStatus != "pending" ||
+		affiliate.commissionMinor != 6250 ||
+		!affiliate.holdUntilSet ||
+		affiliate.source != "payment_success" ||
+		affiliate.reservationID != itPayAffReserve {
+		t.Fatalf("successful payment must materialize pending affiliate conversion, got %+v", affiliate)
 	}
 }
 

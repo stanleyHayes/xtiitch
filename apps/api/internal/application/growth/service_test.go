@@ -94,6 +94,14 @@ func (repo *fakeAffiliateClicks) RecordAffiliateClick(
 	}, nil
 }
 
+func (repo *fakeAffiliateClicks) ReserveAffiliateAttribution(
+	context.Context,
+	common.TenantScope,
+	ports.ReserveAffiliateAttributionInput,
+) (ports.AffiliateAttributionReservation, error) {
+	return ports.AffiliateAttributionReservation{}, nil
+}
+
 type sequenceIDs struct {
 	ids []common.ID
 }
