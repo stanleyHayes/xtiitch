@@ -8,6 +8,8 @@ import (
 	"context"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/delivery"
 )
@@ -29,6 +31,8 @@ func NewService(deps Dependencies) Service {
 // ArrangeHandoverCommand is the validated request to arrange a handover for a
 // fulfilled order.
 type ArrangeHandoverCommand struct {
+	Scope          common.TenantScope
+	ActorRole      business.UserRole
 	OrderID        common.ID
 	Method         delivery.Method
 	RecipientName  string
@@ -42,7 +46,13 @@ type ArrangeHandoverCommand struct {
 // method must be valid, and a delivery must carry a destination address
 // (ErrInvalidHandoverState otherwise); the repository enforces that the order is
 // fulfilled and that it has no other open handover.
-func (s Service) ArrangeHandover(ctx context.Context, scope common.TenantScope, cmd ArrangeHandoverCommand) (common.ID, error) {
+func (s Service) ArrangeHandover(ctx context.Context, cmd ArrangeHandoverCommand) (common.ID, error) {
+	if err := authorizeHandoverOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
+	if cmd.OrderID.IsZero() {
+		return "", authdomain.ErrInvalidInput
+	}
 	if !cmd.Method.Valid() {
 		return "", ports.ErrInvalidHandoverState
 	}
@@ -50,7 +60,7 @@ func (s Service) ArrangeHandover(ctx context.Context, scope common.TenantScope, 
 		return "", ports.ErrInvalidHandoverState
 	}
 	id := s.ids.NewID()
-	if err := s.handovers.ArrangeHandover(ctx, scope, ports.ArrangeHandoverInput{
+	if err := s.handovers.ArrangeHandover(ctx, cmd.Scope, ports.ArrangeHandoverInput{
 		HandoverID:     id,
 		OrderID:        cmd.OrderID,
 		Method:         cmd.Method,
@@ -70,13 +80,27 @@ func (s Service) ListHandovers(ctx context.Context, scope common.TenantScope) ([
 	return s.handovers.ListHandovers(ctx, scope)
 }
 
+type AdvanceHandoverCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	HandoverID common.ID
+	Courier    string
+	Note       string
+}
+
 // AdvanceHandover moves a handover one step forward in its flow (pickup: ->
 // collected; delivery: -> dispatched -> delivered). The forward step is derived
 // from the handover's method and current status, so a terminal handover cannot
 // be advanced (ErrInvalidHandoverState). Optional courier/note are recorded with
 // the move.
-func (s Service) AdvanceHandover(ctx context.Context, scope common.TenantScope, handoverID common.ID, courier, note string) error {
-	state, err := s.handovers.GetHandover(ctx, scope, handoverID)
+func (s Service) AdvanceHandover(ctx context.Context, cmd AdvanceHandoverCommand) error {
+	if err := authorizeHandoverOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.HandoverID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	state, err := s.handovers.GetHandover(ctx, cmd.Scope, cmd.HandoverID)
 	if err != nil {
 		return err
 	}
@@ -84,28 +108,52 @@ func (s Service) AdvanceHandover(ctx context.Context, scope common.TenantScope, 
 	if !ok {
 		return ports.ErrInvalidHandoverState
 	}
-	return s.handovers.SetHandoverStatus(ctx, scope, ports.SetHandoverStatusInput{
-		HandoverID: handoverID,
+	return s.handovers.SetHandoverStatus(ctx, cmd.Scope, ports.SetHandoverStatusInput{
+		HandoverID: cmd.HandoverID,
 		From:       state.Status,
 		To:         next,
-		Courier:    courier,
-		Note:       note,
+		Courier:    cmd.Courier,
+		Note:       cmd.Note,
 	})
+}
+
+type CancelHandoverCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	HandoverID common.ID
 }
 
 // CancelHandover cancels an open handover. A completed or already-cancelled one
 // cannot be cancelled (ErrInvalidHandoverState).
-func (s Service) CancelHandover(ctx context.Context, scope common.TenantScope, handoverID common.ID) error {
-	state, err := s.handovers.GetHandover(ctx, scope, handoverID)
+func (s Service) CancelHandover(ctx context.Context, cmd CancelHandoverCommand) error {
+	if err := authorizeHandoverOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.HandoverID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	state, err := s.handovers.GetHandover(ctx, cmd.Scope, cmd.HandoverID)
 	if err != nil {
 		return err
 	}
 	if !delivery.CanCancel(state.Status) {
 		return ports.ErrInvalidHandoverState
 	}
-	return s.handovers.SetHandoverStatus(ctx, scope, ports.SetHandoverStatusInput{
-		HandoverID: handoverID,
+	return s.handovers.SetHandoverStatus(ctx, cmd.Scope, ports.SetHandoverStatusInput{
+		HandoverID: cmd.HandoverID,
 		From:       state.Status,
 		To:         delivery.StatusCancelled,
 	})
+}
+
+func authorizeHandoverOperation(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	switch role {
+	case business.UserRoleOwner, business.UserRoleAdmin, business.UserRoleStaff:
+		return nil
+	default:
+		return authdomain.ErrForbidden
+	}
 }

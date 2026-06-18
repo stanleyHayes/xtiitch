@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/delivery"
 )
@@ -49,8 +51,8 @@ func TestArrangeHandoverValidatesMethodAndAddress(t *testing.T) {
 	// An unknown method is rejected before touching the repository.
 	repo := &fakeDeliveryRepo{}
 	svc := NewService(Dependencies{Handovers: repo, IDs: fixedIDs{id: "h1"}})
-	if _, err := svc.ArrangeHandover(context.Background(), scope(), ArrangeHandoverCommand{
-		OrderID: "o1", Method: delivery.Method("teleport"),
+	if _, err := svc.ArrangeHandover(context.Background(), ArrangeHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleStaff, OrderID: "o1", Method: delivery.Method("teleport"),
 	}); !errors.Is(err, ports.ErrInvalidHandoverState) {
 		t.Fatalf("expected ErrInvalidHandoverState for a bad method, got %v", err)
 	}
@@ -59,15 +61,15 @@ func TestArrangeHandoverValidatesMethodAndAddress(t *testing.T) {
 	}
 
 	// A delivery with no address is rejected.
-	if _, err := svc.ArrangeHandover(context.Background(), scope(), ArrangeHandoverCommand{
-		OrderID: "o1", Method: delivery.MethodDelivery, Address: "",
+	if _, err := svc.ArrangeHandover(context.Background(), ArrangeHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleAdmin, OrderID: "o1", Method: delivery.MethodDelivery, Address: "",
 	}); !errors.Is(err, ports.ErrInvalidHandoverState) {
 		t.Fatalf("expected ErrInvalidHandoverState for a delivery without an address, got %v", err)
 	}
 
 	// A valid delivery is arranged with a fresh id and the full input.
-	id, err := svc.ArrangeHandover(context.Background(), scope(), ArrangeHandoverCommand{
-		OrderID: "o1", Method: delivery.MethodDelivery, Address: "12 Oxford St, Accra", RecipientName: "Ama",
+	id, err := svc.ArrangeHandover(context.Background(), ArrangeHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleOwner, OrderID: "o1", Method: delivery.MethodDelivery, Address: "12 Oxford St, Accra", RecipientName: "Ama",
 	})
 	if err != nil {
 		t.Fatalf("arrange: %v", err)
@@ -95,7 +97,9 @@ func TestAdvanceHandoverPicksTheForwardStep(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeDeliveryRepo{state: ports.HandoverState{Method: tc.method, Status: tc.from}}
 			svc := NewService(Dependencies{Handovers: repo, IDs: fixedIDs{}})
-			if err := svc.AdvanceHandover(context.Background(), scope(), "h1", "DHL-123", ""); err != nil {
+			if err := svc.AdvanceHandover(context.Background(), AdvanceHandoverCommand{
+				Scope: scope(), ActorRole: business.UserRoleStaff, HandoverID: "h1", Courier: "DHL-123",
+			}); err != nil {
 				t.Fatalf("advance: %v", err)
 			}
 			if repo.set.From != tc.from || repo.set.To != tc.want || repo.set.Courier != "DHL-123" {
@@ -107,7 +111,9 @@ func TestAdvanceHandoverPicksTheForwardStep(t *testing.T) {
 	// A terminal handover cannot be advanced and the repo is never written.
 	repo := &fakeDeliveryRepo{state: ports.HandoverState{Method: delivery.MethodDelivery, Status: delivery.StatusCompleted}}
 	svc := NewService(Dependencies{Handovers: repo, IDs: fixedIDs{}})
-	if err := svc.AdvanceHandover(context.Background(), scope(), "h1", "", ""); !errors.Is(err, ports.ErrInvalidHandoverState) {
+	if err := svc.AdvanceHandover(context.Background(), AdvanceHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleStaff, HandoverID: "h1",
+	}); !errors.Is(err, ports.ErrInvalidHandoverState) {
 		t.Fatalf("expected ErrInvalidHandoverState advancing a completed handover, got %v", err)
 	}
 	if repo.setCalls != 0 {
@@ -121,7 +127,9 @@ func TestCancelHandoverGuardsTerminalState(t *testing.T) {
 	// An open handover is cancelled.
 	repo := &fakeDeliveryRepo{state: ports.HandoverState{Method: delivery.MethodDelivery, Status: delivery.StatusDispatched}}
 	svc := NewService(Dependencies{Handovers: repo, IDs: fixedIDs{}})
-	if err := svc.CancelHandover(context.Background(), scope(), "h1"); err != nil {
+	if err := svc.CancelHandover(context.Background(), CancelHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleStaff, HandoverID: "h1",
+	}); err != nil {
 		t.Fatalf("cancel: %v", err)
 	}
 	if repo.set.From != delivery.StatusDispatched || repo.set.To != delivery.StatusCancelled {
@@ -131,10 +139,43 @@ func TestCancelHandoverGuardsTerminalState(t *testing.T) {
 	// A completed handover cannot be cancelled.
 	done := &fakeDeliveryRepo{state: ports.HandoverState{Method: delivery.MethodPickup, Status: delivery.StatusCompleted}}
 	doneSvc := NewService(Dependencies{Handovers: done, IDs: fixedIDs{}})
-	if err := doneSvc.CancelHandover(context.Background(), scope(), "h1"); !errors.Is(err, ports.ErrInvalidHandoverState) {
+	if err := doneSvc.CancelHandover(context.Background(), CancelHandoverCommand{
+		Scope: scope(), ActorRole: business.UserRoleStaff, HandoverID: "h1",
+	}); !errors.Is(err, ports.ErrInvalidHandoverState) {
 		t.Fatalf("expected ErrInvalidHandoverState cancelling a completed handover, got %v", err)
 	}
 	if done.setCalls != 0 {
 		t.Fatal("a completed handover must not be written")
+	}
+}
+
+func TestHandoverOperationsRequireKnownBusinessRole(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeDeliveryRepo{state: ports.HandoverState{Method: delivery.MethodPickup, Status: delivery.StatusPending}}
+	svc := NewService(Dependencies{Handovers: repo, IDs: fixedIDs{id: "h1"}})
+	_, err := svc.ArrangeHandover(context.Background(), ArrangeHandoverCommand{
+		Scope:     scope(),
+		ActorRole: business.UserRole("viewer"),
+		OrderID:   "o1",
+		Method:    delivery.MethodPickup,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected forbidden role, got %v", err)
+	}
+	if repo.arranged.HandoverID != "" {
+		t.Fatalf("repository must not be called for forbidden arrange, got %+v", repo.arranged)
+	}
+
+	err = svc.AdvanceHandover(context.Background(), AdvanceHandoverCommand{
+		Scope:      common.TenantScope{},
+		ActorRole:  business.UserRoleOwner,
+		HandoverID: "h1",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected missing tenant scope to be invalid, got %v", err)
+	}
+	if repo.setCalls != 0 {
+		t.Fatal("repository must not be written for invalid scope")
 	}
 }

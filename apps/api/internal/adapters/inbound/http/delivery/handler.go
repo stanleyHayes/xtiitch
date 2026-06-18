@@ -12,6 +12,7 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/delivery"
 )
@@ -19,10 +20,10 @@ import (
 const maxBodyBytes = 1 << 20
 
 type Service interface {
-	ArrangeHandover(ctx context.Context, scope common.TenantScope, cmd deliveryapp.ArrangeHandoverCommand) (common.ID, error)
+	ArrangeHandover(ctx context.Context, command deliveryapp.ArrangeHandoverCommand) (common.ID, error)
 	ListHandovers(ctx context.Context, scope common.TenantScope) ([]ports.HandoverSummary, error)
-	AdvanceHandover(ctx context.Context, scope common.TenantScope, handoverID common.ID, courier, note string) error
-	CancelHandover(ctx context.Context, scope common.TenantScope, handoverID common.ID) error
+	AdvanceHandover(ctx context.Context, command deliveryapp.AdvanceHandoverCommand) error
+	CancelHandover(ctx context.Context, command deliveryapp.CancelHandoverCommand) error
 }
 
 type Handler struct {
@@ -74,7 +75,9 @@ func (handler Handler) arrange(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "address_required")
 		return
 	}
-	id, err := handler.service.ArrangeHandover(r.Context(), principal.TenantScope(), deliveryapp.ArrangeHandoverCommand{
+	id, err := handler.service.ArrangeHandover(r.Context(), deliveryapp.ArrangeHandoverCommand{
+		Scope:          principal.TenantScope(),
+		ActorRole:      principal.Role,
 		OrderID:        common.ID(body.OrderID),
 		Method:         method,
 		RecipientName:  body.RecipientName,
@@ -142,7 +145,13 @@ func (handler Handler) advance(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := handler.service.AdvanceHandover(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")), body.Courier, body.Note); err != nil {
+	if err := handler.service.AdvanceHandover(r.Context(), deliveryapp.AdvanceHandoverCommand{
+		Scope:      principal.TenantScope(),
+		ActorRole:  principal.Role,
+		HandoverID: common.ID(chi.URLParam(r, "id")),
+		Courier:    body.Courier,
+		Note:       body.Note,
+	}); err != nil {
 		status, code := handoverError(err)
 		writeError(w, status, code)
 		return
@@ -156,7 +165,11 @@ func (handler Handler) cancel(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if err := handler.service.CancelHandover(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id"))); err != nil {
+	if err := handler.service.CancelHandover(r.Context(), deliveryapp.CancelHandoverCommand{
+		Scope:      principal.TenantScope(),
+		ActorRole:  principal.Role,
+		HandoverID: common.ID(chi.URLParam(r, "id")),
+	}); err != nil {
 		status, code := handoverError(err)
 		writeError(w, status, code)
 		return
@@ -166,6 +179,10 @@ func (handler Handler) cancel(w http.ResponseWriter, r *http.Request) {
 
 func handoverError(err error) (int, string) {
 	switch {
+	case errors.Is(err, authdomain.ErrInvalidInput):
+		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, authdomain.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	case errors.Is(err, ports.ErrHandoverInProgress):
