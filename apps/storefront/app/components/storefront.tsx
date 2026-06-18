@@ -150,6 +150,18 @@ export function StoreHeader({
             Browse pieces
           </Button>
           <Button
+            component={RouterLink}
+            to="/track"
+            variant="outlined"
+            sx={{
+              color: onBrand,
+              borderColor: alpha(onBrand, 0.32),
+              "&:hover": { borderColor: alpha(onBrand, 0.58) },
+            }}
+          >
+            Track order
+          </Button>
+          <Button
             href="https://xtiitch.com"
             variant="outlined"
             sx={{

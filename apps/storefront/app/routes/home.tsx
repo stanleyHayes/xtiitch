@@ -1,7 +1,10 @@
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import type { Route } from "./+types/home";
 import { api } from "../lib/api";
@@ -112,14 +115,24 @@ function Landing() {
           Open the store link a fashion business shared with you to browse their
           designs, see prices, and place an order — no account needed to look.
         </Typography>
-        <Button
-          href="https://xtiitch.com"
-          variant="contained"
-          size="large"
-          sx={{ mt: 4 }}
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.25}
+          sx={{ mt: 4, justifyContent: "center" }}
         >
-          Learn about Xtiitch
-        </Button>
+          <Button href="https://xtiitch.com" variant="contained" size="large">
+            Learn about Xtiitch
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/track"
+            variant="outlined"
+            size="large"
+            startIcon={<LocalShippingRounded />}
+          >
+            Track an order
+          </Button>
+        </Stack>
       </Container>
     </Box>
   );

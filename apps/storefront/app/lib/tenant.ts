@@ -15,12 +15,14 @@ export const RESERVED_SUBDOMAINS = new Set([
 // Host header. A store is reached at <handle>.xtiitch.com (in development,
 // <handle>.localhost:<port>); the apex, www, and the reserved platform labels
 // carry no store and return null so the storefront shows its generic landing.
-export function storeHandleFromHost(host: string | null | undefined): string | null {
+export function storeHandleFromHost(
+  host: string | null | undefined,
+): string | null {
   if (!host) {
     return null;
   }
-  const hostname = (host.split(":")[0] ?? "").trim().toLowerCase();
-  if (!hostname || hostname === "localhost") {
+  const hostname = hostnameFromHost(host);
+  if (!hostname || hostname === "localhost" || isIPAddress(hostname)) {
     return null;
   }
   const labels = hostname.split(".");
@@ -35,4 +37,17 @@ export function storeHandleFromHost(host: string | null | undefined): string | n
     return null;
   }
   return candidate;
+}
+
+function hostnameFromHost(host: string): string {
+  const value = host.trim().toLowerCase();
+  if (value.startsWith("[")) {
+    const end = value.indexOf("]");
+    return (end === -1 ? value.slice(1) : value.slice(1, end)).trim();
+  }
+  return (value.split(":")[0] ?? "").trim();
+}
+
+function isIPAddress(hostname: string): boolean {
+  return /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(":");
 }
