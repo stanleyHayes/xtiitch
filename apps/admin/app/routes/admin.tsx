@@ -3188,15 +3188,21 @@ function VerificationCard({
 function CustomerDirectoryPanel({
   customers,
   visibleCustomers,
+  selectedCustomer,
   query,
   error,
   onQueryChange,
+  onInspect,
+  onCloseInspector,
 }: {
   customers: AdminCustomer[];
   visibleCustomers: AdminCustomer[];
+  selectedCustomer: AdminCustomer | null;
   query: string;
   error: string | null;
   onQueryChange: (value: string) => void;
+  onInspect: (customer: AdminCustomer) => void;
+  onCloseInspector: () => void;
 }) {
   const multiBusinessCustomers = customers.filter(
     (customer) => customer.tenantCount > 1,
@@ -3266,21 +3272,42 @@ function CustomerDirectoryPanel({
           }}
         />
       </Panel>
-      <Stack spacing={1.5}>
-        {visibleCustomers.map((customer) => (
-          <CustomerRow key={customer.id} customer={customer} />
-        ))}
-        {!error && visibleCustomers.length === 0 ? (
-          <Panel sx={{ p: 3, textAlign: "center" }}>
-            <Typography sx={{ fontWeight: 800 }}>
-              No customers match this view.
-            </Typography>
-            <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-              Clear the search to return to the full customer directory.
-            </Typography>
-          </Panel>
-        ) : null}
-      </Stack>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            xl: "minmax(0, 1fr) 380px",
+          },
+          alignItems: "start",
+        }}
+      >
+        <Stack spacing={1.5}>
+          {visibleCustomers.map((customer) => (
+            <CustomerRow
+              key={customer.id}
+              customer={customer}
+              selected={selectedCustomer?.id === customer.id}
+              onInspect={onInspect}
+            />
+          ))}
+          {!error && visibleCustomers.length === 0 ? (
+            <Panel sx={{ p: 3, textAlign: "center" }}>
+              <Typography sx={{ fontWeight: 800 }}>
+                No customers match this view.
+              </Typography>
+              <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                Clear the search to return to the full customer directory.
+              </Typography>
+            </Panel>
+          ) : null}
+        </Stack>
+        <CustomerInspector
+          customer={selectedCustomer}
+          onClose={onCloseInspector}
+        />
+      </Box>
     </Stack>
   );
 }
@@ -3309,14 +3336,32 @@ function CustomerStat({
   );
 }
 
-function CustomerRow({ customer }: { customer: AdminCustomer }) {
+function CustomerRow({
+  customer,
+  selected,
+  onInspect,
+}: {
+  customer: AdminCustomer;
+  selected: boolean;
+  onInspect: (customer: AdminCustomer) => void;
+}) {
   const contact = customer.email || customer.phone || "No contact on file";
   const lastBusiness = customer.lastBusinessName
     ? `${customer.lastBusinessName} · ${customer.lastBusinessHandle}`
     : "No linked business activity";
 
   return (
-    <Panel sx={{ p: { xs: 2, md: 2.25 } }}>
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.25 },
+        borderColor: selected
+          ? alpha(tokens.burgundy, 0.42)
+          : alpha(tokens.ink, 0.08),
+        backgroundImage: selected
+          ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.08)}, transparent 36%)`
+          : undefined,
+      }}
+    >
       <Stack
         direction={{ xs: "column", lg: "row" }}
         spacing={2}
@@ -3377,9 +3422,10 @@ function CustomerRow({ customer }: { customer: AdminCustomer }) {
             gap: 1.5,
             gridTemplateColumns: {
               xs: "1fr",
-              sm: "repeat(3, minmax(0, 1fr))",
+              sm: "repeat(3, minmax(0, 1fr)) auto",
             },
             minWidth: { lg: 520 },
+            alignItems: "center",
           }}
         >
           <DetailLine label="GMV" value={formatGHS(customer.gmvMinor)} />
@@ -3388,7 +3434,97 @@ function CustomerRow({ customer }: { customer: AdminCustomer }) {
             label="Last active"
             value={shortTime(customer.lastActive)}
           />
+          <Button
+            type="button"
+            variant={selected ? "contained" : "outlined"}
+            endIcon={<ArrowForwardRounded />}
+            onClick={() => onInspect(customer)}
+          >
+            Inspect
+          </Button>
         </Box>
+      </Stack>
+    </Panel>
+  );
+}
+
+function CustomerInspector({
+  customer,
+  onClose,
+}: {
+  customer: AdminCustomer | null;
+  onClose: () => void;
+}) {
+  if (!customer) {
+    return (
+      <Panel sx={{ p: 3, position: { xl: "sticky" }, top: 88 }}>
+        <Stack spacing={1.5} sx={{ alignItems: "center", textAlign: "center" }}>
+          <Avatar
+            sx={{
+              bgcolor: alpha(tokens.burgundy, 0.1),
+              color: tokens.burgundy,
+            }}
+          >
+            <PeopleAltRounded />
+          </Avatar>
+          <Typography variant="h6">Select a customer</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Inspect contact, order volume, linked businesses, and customer GMV.
+          </Typography>
+        </Stack>
+      </Panel>
+    );
+  }
+
+  const contact = customer.email || customer.phone || "No contact on file";
+  const lastBusiness = customer.lastBusinessName
+    ? `${customer.lastBusinessName} · ${customer.lastBusinessHandle}`
+    : "No linked business activity";
+
+  return (
+    <Panel sx={{ p: 2.5, position: { xl: "sticky" }, top: 88 }}>
+      <Stack spacing={2}>
+        <Stack direction="row" sx={{ justifyContent: "space-between", gap: 1 }}>
+          <Stack direction="row" spacing={1.25} sx={{ minWidth: 0 }}>
+            <Avatar sx={{ bgcolor: tokens.burgundy }}>
+              <PeopleAltRounded />
+            </Avatar>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" sx={{ overflowWrap: "anywhere" }}>
+                {customer.displayName || contact}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+              >
+                {shortID(customer.id)}
+              </Typography>
+            </Box>
+          </Stack>
+          <IconButton aria-label="Close customer inspector" onClick={onClose}>
+            <CloseRounded />
+          </IconButton>
+        </Stack>
+        <Divider />
+        <DetailLine label="Contact" value={contact} />
+        <DetailLine label="Phone" value={customer.phone || "Not provided"} />
+        <DetailLine
+          label="Linked businesses"
+          value={String(customer.tenantCount)}
+        />
+        <DetailLine label="Orders" value={String(customer.orderCount)} />
+        <DetailLine
+          label="Custom orders"
+          value={String(customer.customOrderCount)}
+        />
+        <DetailLine label="Customer GMV" value={formatGHS(customer.gmvMinor)} />
+        <DetailLine label="Last business" value={lastBusiness} />
+        <DetailLine
+          label="Last active"
+          value={shortTime(customer.lastActive)}
+        />
+        <DetailLine label="Created" value={shortTime(customer.createdAt)} />
+        <DetailLine label="Updated" value={shortTime(customer.updatedAt)} />
       </Stack>
     </Panel>
   );
@@ -13721,6 +13857,8 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [selectedBusiness, setSelectedBusiness] =
     useState<AdminBusiness | null>(adminBusinesses[0] ?? null);
+  const [selectedCustomer, setSelectedCustomer] =
+    useState<AdminCustomer | null>(adminCustomers[0] ?? null);
   const [auditLog, setAuditLog] = useState<AuditEvent[]>(auditEvents);
   const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -13850,6 +13988,20 @@ export default function AdminDashboard({
       return adminBusinesses[0] ?? null;
     });
   }, [adminBusinesses]);
+
+  useEffect(() => {
+    setSelectedCustomer((current) => {
+      if (current) {
+        const refreshed = adminCustomers.find(
+          (customer) => customer.id === current.id,
+        );
+        if (refreshed) {
+          return refreshed;
+        }
+      }
+      return adminCustomers[0] ?? null;
+    });
+  }, [adminCustomers]);
 
   const updateVerificationNote = (id: string, value: string) => {
     setVerificationNotes((current) => ({ ...current, [id]: value }));
@@ -14407,9 +14559,12 @@ export default function AdminDashboard({
             <CustomerDirectoryPanel
               customers={adminCustomers}
               visibleCustomers={filteredCustomers}
+              selectedCustomer={selectedCustomer}
               query={customerQuery}
               error={customerDirectoryError}
               onQueryChange={setCustomerQuery}
+              onInspect={setSelectedCustomer}
+              onCloseInspector={() => setSelectedCustomer(null)}
             />
           ) : null}
 
