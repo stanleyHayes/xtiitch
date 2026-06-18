@@ -14,7 +14,7 @@
     "format": "pnpm -r --if-present run format",
     "lint": "eslint . --max-warnings=0",
     "quality": "pnpm test && pnpm sonar",
-    "sonar": "sonar-scanner",
+    "sonar": "node scripts/run-sonar.mjs",
     "test": "pnpm -r --if-present run test"
   },
   "devDependencies": {

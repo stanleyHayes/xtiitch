@@ -324,7 +324,9 @@ func adminLaunchReadinessConfig(cfg config.Config) adminauthapp.AdminLaunchReadi
 		PaystackWebhookConfigured: strings.TrimSpace(cfg.PaystackWebhookKey) != "",
 		ResendConfigured: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
 			strings.TrimSpace(cfg.ResendFromEmail) != "",
-		SonarHostConfigured: strings.TrimSpace(cfg.SonarHostURL) != "",
+		SonarHostConfigured:         strings.TrimSpace(cfg.SonarHostURL) != "",
+		SonarOrganizationConfigured: strings.TrimSpace(cfg.SonarOrganization) != "",
+		SonarTokenConfigured:        strings.TrimSpace(cfg.SonarToken) != "",
 	}
 }
 

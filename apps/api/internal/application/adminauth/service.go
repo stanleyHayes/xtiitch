@@ -215,6 +215,8 @@ type AdminLaunchReadinessConfig struct {
 	PaystackWebhookConfigured     bool
 	ResendConfigured              bool
 	SonarHostConfigured           bool
+	SonarOrganizationConfigured   bool
+	SonarTokenConfigured          bool
 }
 
 type GetLaunchReadinessCommand struct {
@@ -4556,6 +4558,10 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 	waitlistReady := cfg.MarketingWaitlistWebhookReady || cfg.MarketingWaitlistEmailReady
 	secureAdminAccess := cfg.AdminBootstrapOwnerConfigured && !cfg.JWTSigningKeyDefault
 
+	sonarReady := cfg.SonarHostConfigured &&
+		cfg.SonarOrganizationConfigured &&
+		cfg.SonarTokenConfigured
+
 	return []LaunchReadinessCheck{
 		{
 			ID:       "admin-access",
@@ -4683,13 +4689,13 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 			ID:       "quality-scan",
 			Category: "Quality",
 			Label:    "SonarCloud scan",
-			Status:   healthStatus(false, !cfg.SonarHostConfigured),
+			Status:   healthStatus(false, !sonarReady),
 			Summary: readinessSummary(
-				cfg.SonarHostConfigured,
-				"Sonar host configuration is present; run the organization-scoped scan.",
+				sonarReady,
+				"Sonar host, token, and organization are configured; run the quality-gate scan.",
 				"SonarCloud host/token/organization setup is not complete yet.",
 			),
-			Detail:      "The local scanner reached SonarCloud previously but still needs project organization configuration.",
+			Detail:      "The scanner wrapper passes SONAR_ORGANIZATION as sonar.organization when the environment variable is present.",
 			Action:      "Set the Sonar organization/host/token and rerun pnpm sonar.",
 			Target:      "audit",
 			TargetLabel: "Open audit",

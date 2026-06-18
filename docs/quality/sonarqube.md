@@ -12,13 +12,19 @@ pnpm sonar
 
 `pnpm check` includes strict linting with zero warnings. Inline lint rule disabling is disabled in the root ESLint config; fix the code or document an architectural exception instead of hiding a rule violation.
 
-`pnpm sonar` requires a configured SonarQube or SonarCloud host and token:
+`pnpm sonar` requires a configured SonarQube or SonarCloud host and token. For
+SonarCloud, set the organization as well:
 
 ```sh
 SONAR_HOST_URL=http://localhost:9000
+SONAR_ORGANIZATION=your-sonarcloud-organization
 SONAR_TOKEN=your-token
 pnpm sonar
 ```
+
+The `pnpm sonar` wrapper passes `SONAR_ORGANIZATION` to the scanner as
+`sonar.organization` when it is present. Keep `sonar-project.properties`
+project-specific and put the real organization in local env or CI secrets.
 
 ## Required Coverage Inputs
 

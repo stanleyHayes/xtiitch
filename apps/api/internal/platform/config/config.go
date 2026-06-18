@@ -29,6 +29,8 @@ type Config struct {
 	ResendAPIKey              string
 	ResendFromEmail           string
 	SonarHostURL              string
+	SonarOrganization         string
+	SonarToken                string
 	WorkerQueueName           string
 }
 
@@ -65,6 +67,8 @@ func Load() Config {
 		ResendAPIKey:          getenv("RESEND_API_KEY", ""),
 		ResendFromEmail:       getenv("RESEND_FROM_EMAIL", ""),
 		SonarHostURL:          getenv("SONAR_HOST_URL", ""),
+		SonarOrganization:     getenv("SONAR_ORGANIZATION", ""),
+		SonarToken:            getenv("SONAR_TOKEN", ""),
 		WorkerQueueName:       getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
 	}
 }

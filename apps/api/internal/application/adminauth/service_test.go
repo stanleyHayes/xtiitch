@@ -2921,6 +2921,8 @@ func TestGetLaunchReadinessRequiresSettingsAndSummarizesConfig(t *testing.T) {
 		PaystackSecretConfigured:      true,
 		PaystackWebhookConfigured:     true,
 		SonarHostConfigured:           true,
+		SonarOrganizationConfigured:   true,
+		SonarTokenConfigured:          true,
 	}
 
 	result, err := service.GetLaunchReadiness(context.Background(), GetLaunchReadinessCommand{
