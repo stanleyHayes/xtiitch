@@ -21,6 +21,7 @@ import Typography from "@mui/material/Typography";
 import { alpha, type SxProps, type Theme } from "@mui/material/styles";
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
@@ -4898,12 +4899,142 @@ function InfoStrip({
   );
 }
 
-function DesignRow({
+function DesignCard({
   design,
   collections,
+  onOpen,
 }: {
   design: Design;
   collections: CollectionSummary[];
+  onOpen: () => void;
+}) {
+  const retired = design.status === "retired";
+  const image = design.images[0] || fallbackDesignImage(design);
+  const collectionName =
+    collections.find(
+      (collection) => collection.collection_id === design.collection_id,
+    )?.name ?? "No collection";
+  const lowestPriceMinor = design.prices.reduce<number | null>(
+    (lowest, price) =>
+      lowest === null ? price.price_minor : Math.min(lowest, price.price_minor),
+    null,
+  );
+  const priceSummary =
+    lowestPriceMinor === null
+      ? "No prices"
+      : design.prices.length === 1
+        ? formatGHS(lowestPriceMinor)
+        : `From ${formatGHS(lowestPriceMinor)}`;
+  return (
+    <Box
+      component="button"
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open ${design.title}`}
+      sx={{
+        textAlign: "left",
+        cursor: "pointer",
+        appearance: "none",
+        font: "inherit",
+        color: "inherit",
+        p: 0,
+        m: 0,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: "100%",
+        border: "1px solid",
+        borderColor: alpha(tokens.ink, 0.1),
+        borderRadius: 2,
+        overflow: "hidden",
+        bgcolor: "background.paper",
+        opacity: retired ? 0.62 : 1,
+        transition:
+          "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+        "&:hover": {
+          transform: "translateY(-2px)",
+          borderColor: alpha(tokens.burgundy, 0.3),
+          boxShadow: `0 18px 40px ${alpha(tokens.ink, 0.1)}`,
+        },
+        "&:focus-visible": {
+          outline: `2px solid ${tokens.burgundy}`,
+          outlineOffset: 2,
+        },
+      }}
+    >
+      <Box
+        sx={{
+          position: "relative",
+          aspectRatio: "4 / 3",
+          bgcolor: alpha(tokens.burgundy, 0.06),
+        }}
+      >
+        <Box
+          component="img"
+          src={image}
+          alt=""
+          sx={{
+            width: "100%",
+            height: "100%",
+            objectFit: "cover",
+            display: "block",
+            filter: design.images[0] ? "none" : "saturate(0.9) contrast(1.04)",
+          }}
+        />
+        <Box sx={{ position: "absolute", top: 8, left: 8 }}>
+          <ToneChip
+            label={design.status}
+            tone={retired ? tokens.mutedText : tokens.success}
+          />
+        </Box>
+      </Box>
+      <Box
+        sx={{
+          p: 1.5,
+          minWidth: 0,
+          display: "flex",
+          flex: 1,
+          flexDirection: "column",
+        }}
+      >
+        <Typography sx={{ fontWeight: 800 }} noWrap>
+          {design.title}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", display: "block" }}
+          noWrap
+        >
+          {collectionName}
+        </Typography>
+        <Stack
+          direction="row"
+          spacing={0.75}
+          sx={{
+            mt: "auto",
+            pt: 1,
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 0.5,
+          }}
+        >
+          <Chip size="small" variant="outlined" label={priceSummary} />
+          {design.customisation_allowed ? (
+            <Chip size="small" variant="outlined" label="Bespoke" />
+          ) : null}
+        </Stack>
+      </Box>
+    </Box>
+  );
+}
+
+function DesignRow({
+  design,
+  collections,
+  defaultOpen = false,
+}: {
+  design: Design;
+  collections: CollectionSummary[];
+  defaultOpen?: boolean;
 }) {
   const retired = design.status === "retired";
   const image = design.images[0] || fallbackDesignImage(design);
@@ -4925,6 +5056,7 @@ function DesignRow({
   return (
     <Box
       component="details"
+      open={defaultOpen}
       sx={{
         borderTop: "1px solid",
         borderColor: "divider",
@@ -9103,6 +9235,12 @@ export default function Dashboard({
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [catalogueView, setCatalogueView] = useState<"all" | "add">("all");
+  const [openDesignId, setOpenDesignId] = useState<string | null>(null);
+  const openCatalogueDesign =
+    openDesignId === null
+      ? null
+      : (designs.find((design) => design.design_id === openDesignId) ?? null);
   const verified = profile.verification_status === "verified";
   const canManage = canManageDashboard(currentUser.role);
   const workspaceGroups = canManage
@@ -9803,66 +9941,101 @@ export default function Dashboard({
                       title="Design studio"
                       helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
                     />
-                    <Box
+                    <Stack
+                      direction="row"
+                      spacing={1}
                       sx={{
                         mt: 2,
-                        display: "grid",
-                        gap: 1.25,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          sm: "repeat(2, minmax(0, 1fr))",
-                          xl: "repeat(4, minmax(0, 1fr))",
-                        },
+                        flexWrap: "wrap",
+                        gap: 1,
+                        alignItems: "center",
                       }}
                     >
-                      <MiniStat
-                        icon={<StorefrontRounded fontSize="small" />}
-                        label="Active pieces"
-                        value={String(
-                          designs.filter((design) => design.status === "active")
-                            .length,
-                        )}
-                        helper={`${designs.length} total designs`}
-                        tone={tokens.success}
-                      />
-                      <MiniStat
-                        icon={<VisibilityRounded fontSize="small" />}
-                        label="Collections"
-                        value={String(publishedCollections)}
-                        helper={`${collections.length} total collections`}
-                        tone={tokens.info}
-                      />
-                      <MiniStat
-                        icon={<ContentCutRounded fontSize="small" />}
-                        label="Customisable"
-                        value={String(
-                          designs.filter(
-                            (design) => design.customisation_allowed,
-                          ).length,
-                        )}
-                        helper="Available for bespoke requests"
-                        tone={tokens.burgundy}
-                      />
-                      <MiniStat
-                        icon={<StraightenRounded fontSize="small" />}
-                        label="Size bands"
-                        value={String(sizeBands.length)}
-                        helper={`${cataloguePriceCount} prices set`}
-                        tone={tokens.warning}
-                      />
-                    </Box>
-                    <Box
-                      sx={{
-                        mt: 2,
-                        display: "grid",
-                        gap: 2,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          lg: "minmax(320px, 0.44fr) minmax(0, 0.56fr)",
-                        },
-                      }}
-                    >
-                      <Stack spacing={2}>
+                      <Button
+                        variant={
+                          !openCatalogueDesign && catalogueView === "all"
+                            ? "contained"
+                            : "outlined"
+                        }
+                        onClick={() => {
+                          setOpenDesignId(null);
+                          setCatalogueView("all");
+                        }}
+                        startIcon={<DesignServicesRounded />}
+                      >
+                        All designs ({designs.length})
+                      </Button>
+                      <Button
+                        variant={
+                          !openCatalogueDesign && catalogueView === "add"
+                            ? "contained"
+                            : "outlined"
+                        }
+                        onClick={() => {
+                          setOpenDesignId(null);
+                          setCatalogueView("add");
+                        }}
+                        startIcon={<AddRounded />}
+                      >
+                        Add design
+                      </Button>
+                      {openCatalogueDesign ? (
+                        <ToneChip
+                          label={`Editing: ${openCatalogueDesign.title}`}
+                          tone={tokens.burgundy}
+                        />
+                      ) : null}
+                    </Stack>
+
+                    {openCatalogueDesign ? (
+                      <Box sx={{ mt: 2 }}>
+                        <Button
+                          onClick={() => setOpenDesignId(null)}
+                          startIcon={<ArrowBackRounded />}
+                          sx={{ mb: 1.5 }}
+                        >
+                          All designs
+                        </Button>
+                        <Panel>
+                          <Box sx={{ p: { xs: 2, md: 2.5 }, pb: 1 }}>
+                            <Typography
+                              sx={{
+                                fontFamily: '"DM Serif Display", serif',
+                                fontSize: 22,
+                                lineHeight: 1.15,
+                              }}
+                            >
+                              {openCatalogueDesign.title}
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              Edit details, imagery, pricing, and availability for
+                              this piece.
+                            </Typography>
+                          </Box>
+                          <DesignRow
+                            key={openCatalogueDesign.design_id}
+                            design={openCatalogueDesign}
+                            collections={collections}
+                            defaultOpen
+                          />
+                        </Panel>
+                      </Box>
+                    ) : catalogueView === "add" ? (
+                      <Box
+                        sx={{
+                          mt: 2,
+                          display: "grid",
+                          gap: 2,
+                          alignItems: "start",
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            lg: "minmax(0, 0.55fr) minmax(0, 0.45fr)",
+                          },
+                        }}
+                      >
                         <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
                           <Stack
                             direction="row"
@@ -9995,35 +10168,59 @@ export default function Dashboard({
                           designs={designs}
                           error={action.mediaError}
                         />
-                      </Stack>
-
-                      <Panel>
+                      </Box>
+                    ) : (
+                      <Box sx={{ mt: 2 }}>
                         <Box
                           sx={{
-                            p: { xs: 2, md: 2.5 },
-                            display: "flex",
-                            justifyContent: "space-between",
-                            gap: 2,
+                            display: "grid",
+                            gap: 1.25,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              sm: "repeat(2, minmax(0, 1fr))",
+                              xl: "repeat(4, minmax(0, 1fr))",
+                            },
                           }}
                         >
-                          <Box>
-                            <Typography sx={{ fontWeight: 900 }}>
-                              Designs
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              {designs.length} total pieces
-                            </Typography>
-                          </Box>
-                          <ToneChip
-                            label={`${designs.filter((design) => design.status === "active").length} active`}
+                          <MiniStat
+                            icon={<StorefrontRounded fontSize="small" />}
+                            label="Active pieces"
+                            value={String(
+                              designs.filter(
+                                (design) => design.status === "active",
+                              ).length,
+                            )}
+                            helper={`${designs.length} total designs`}
                             tone={tokens.success}
+                          />
+                          <MiniStat
+                            icon={<VisibilityRounded fontSize="small" />}
+                            label="Collections"
+                            value={String(publishedCollections)}
+                            helper={`${collections.length} total collections`}
+                            tone={tokens.info}
+                          />
+                          <MiniStat
+                            icon={<ContentCutRounded fontSize="small" />}
+                            label="Customisable"
+                            value={String(
+                              designs.filter(
+                                (design) => design.customisation_allowed,
+                              ).length,
+                            )}
+                            helper="Available for bespoke requests"
+                            tone={tokens.burgundy}
+                          />
+                          <MiniStat
+                            icon={<StraightenRounded fontSize="small" />}
+                            label="Size bands"
+                            value={String(sizeBands.length)}
+                            helper={`${cataloguePriceCount} prices set`}
+                            tone={tokens.warning}
                           />
                         </Box>
                         {designs.length === 0 ? (
-                          <Box sx={{ px: 2.5, pb: 2.5 }}>
+                          <Panel sx={{ mt: 2, p: { xs: 2.5, md: 3 } }}>
                             <EmptyState
                               icon={
                                 <DesignServicesRounded sx={{ fontSize: 38 }} />
@@ -10031,33 +10228,63 @@ export default function Dashboard({
                               title="No designs yet"
                               helper="Add your first design with an image URL so customers can browse the store."
                             />
-                          </Box>
+                            <Box
+                              sx={{
+                                mt: 2,
+                                display: "flex",
+                                justifyContent: "center",
+                              }}
+                            >
+                              <Button
+                                variant="contained"
+                                startIcon={<AddRounded />}
+                                onClick={() => setCatalogueView("add")}
+                              >
+                                Add a design
+                              </Button>
+                            </Box>
+                          </Panel>
                         ) : (
-                          designs.map((design) => (
-                            <DesignRow
-                              key={design.design_id}
-                              design={design}
-                              collections={collections}
-                            />
-                          ))
+                          <Box
+                            sx={{
+                              mt: 2,
+                              display: "grid",
+                              gap: 1.5,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "repeat(2, minmax(0, 1fr))",
+                                md: "repeat(3, minmax(0, 1fr))",
+                                xl: "repeat(4, minmax(0, 1fr))",
+                              },
+                            }}
+                          >
+                            {designs.map((design) => (
+                              <DesignCard
+                                key={design.design_id}
+                                design={design}
+                                collections={collections}
+                                onOpen={() => setOpenDesignId(design.design_id)}
+                              />
+                            ))}
+                          </Box>
                         )}
-                      </Panel>
-                    </Box>
-                    <Box sx={{ mt: 2 }}>
-                      <CatalogueSetupPanel
-                        collections={collections}
-                        sizeBands={sizeBands}
-                        collectionError={action.collectionError}
-                        sizeBandError={action.sizeBandError}
-                      />
-                    </Box>
-                    <Box sx={{ mt: 2 }}>
-                      <PriceBoardPanel
-                        designs={designs}
-                        sizeBands={sizeBands}
-                        error={action.priceError}
-                      />
-                    </Box>
+                        <Box sx={{ mt: 2 }}>
+                          <CatalogueSetupPanel
+                            collections={collections}
+                            sizeBands={sizeBands}
+                            collectionError={action.collectionError}
+                            sizeBandError={action.sizeBandError}
+                          />
+                        </Box>
+                        <Box sx={{ mt: 2 }}>
+                          <PriceBoardPanel
+                            designs={designs}
+                            sizeBands={sizeBands}
+                            error={action.priceError}
+                          />
+                        </Box>
+                      </Box>
+                    )}
                   </Box>
                 ) : null}
               </Stack>
