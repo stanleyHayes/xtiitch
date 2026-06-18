@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Xtiitch",
+    "slug": "xtiitch-mobile",
+    "scheme": "xtiitch",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "backgroundColor": "#faf6f2",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.xtiitch.mobile"
+    },
+    "android": {
+      "package": "com.xtiitch.mobile"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

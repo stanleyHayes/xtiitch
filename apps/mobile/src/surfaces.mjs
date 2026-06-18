@@ -66,6 +66,10 @@ export function resolveLaunchRoute(input = {}) {
   };
 }
 
+/**
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
 export function resolveApiBaseUrl(env = process.env) {
   const raw =
     env.EXPO_PUBLIC_XTIITCH_API_URL ??
