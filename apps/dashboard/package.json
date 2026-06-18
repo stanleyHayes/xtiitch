@@ -7,7 +7,7 @@
     "build": "react-router build",
     "check": "react-router typegen && tsc --noEmit",
     "dev": "react-router dev",
-    "test": "echo \"dashboard tests not scaffolded yet\""
+    "test": "tsx --test app/lib/*.test.ts"
   },
   "dependencies": {
     "@emotion/cache": "11.14.0",
