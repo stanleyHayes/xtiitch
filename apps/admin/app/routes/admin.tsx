@@ -27,7 +27,7 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { alpha, styled, type SxProps, type Theme } from "@mui/material/styles";
+import { alpha, type SxProps, type Theme } from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import AccountBalanceRounded from "@mui/icons-material/AccountBalanceRounded";
 import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
@@ -36,7 +36,6 @@ import AssignmentTurnedInRounded from "@mui/icons-material/AssignmentTurnedInRou
 import BlockRounded from "@mui/icons-material/BlockRounded";
 import CancelRounded from "@mui/icons-material/CancelRounded";
 import CampaignRounded from "@mui/icons-material/CampaignRounded";
-import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
@@ -57,7 +56,6 @@ import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
-import ScheduleRounded from "@mui/icons-material/ScheduleRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -7232,40 +7230,6 @@ function splitDateTimeInputValue(value = ""): {
   };
 }
 
-function validCalendarDate(year: number, month: number, day: number): boolean {
-  const parsed = new Date(Date.UTC(year, month - 1, day));
-  return (
-    parsed.getUTCFullYear() === year &&
-    parsed.getUTCMonth() === month - 1 &&
-    parsed.getUTCDate() === day
-  );
-}
-
-function normaliseDateInput(value: string): string | null {
-  const trimmed = value.trim();
-  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(trimmed);
-  if (iso) {
-    const year = Number.parseInt(iso[1] ?? "", 10);
-    const month = Number.parseInt(iso[2] ?? "", 10);
-    const day = Number.parseInt(iso[3] ?? "", 10);
-    return validCalendarDate(year, month, day)
-      ? `${iso[1]}-${iso[2]}-${iso[3]}`
-      : null;
-  }
-
-  const local = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
-  if (!local) {
-    return null;
-  }
-  const day = Number.parseInt(local[1] ?? "", 10);
-  const month = Number.parseInt(local[2] ?? "", 10);
-  const year = Number.parseInt(local[3] ?? "", 10);
-  if (!validCalendarDate(year, month, day)) {
-    return null;
-  }
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-}
-
 function normaliseTimeInput(value: string): string | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
   if (!match) {
@@ -7279,55 +7243,7 @@ function normaliseTimeInput(value: string): string | null {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-function composeDateTimeValue(dateValue: string, timeValue: string): string {
-  const date = normaliseDateInput(dateValue);
-  const time = normaliseTimeInput(timeValue);
-  return date && time ? `${date}T${time}` : "";
-}
-
-const monthOptions = [
-  { value: "01", label: "Jan" },
-  { value: "02", label: "Feb" },
-  { value: "03", label: "Mar" },
-  { value: "04", label: "Apr" },
-  { value: "05", label: "May" },
-  { value: "06", label: "Jun" },
-  { value: "07", label: "Jul" },
-  { value: "08", label: "Aug" },
-  { value: "09", label: "Sep" },
-  { value: "10", label: "Oct" },
-  { value: "11", label: "Nov" },
-  { value: "12", label: "Dec" },
-];
-
-const hourOptions = Array.from({ length: 12 }, (_, index) =>
-  String(index + 1).padStart(2, "0"),
-);
-
-const defaultMinuteOptions = Array.from({ length: 12 }, (_, index) =>
-  String(index * 5).padStart(2, "0"),
-);
-
 const periodOptions = ["AM", "PM"] as const;
-
-function optionListWithSelected(options: string[], selected: string): string[] {
-  return selected && !options.includes(selected)
-    ? [...options, selected].sort((a, b) => Number(a) - Number(b))
-    : options;
-}
-
-function splitDateParts(value: string): {
-  year: string;
-  month: string;
-  day: string;
-} {
-  const normalised = normaliseDateInput(value);
-  if (!normalised) {
-    return { year: "", month: "", day: "" };
-  }
-  const [year = "", month = "", day = ""] = normalised.split("-");
-  return { year, month, day };
-}
 
 function splitTimeParts(value: string): {
   hour: string;
@@ -7347,14 +7263,6 @@ function splitTimeParts(value: string): {
     minute,
     period,
   };
-}
-
-function composeDateInputValue(
-  year: string,
-  month: string,
-  day: string,
-): string {
-  return normaliseDateInput(`${year}-${month}-${day}`) ?? "";
 }
 
 function composeTimeInputValue(
@@ -7383,70 +7291,23 @@ function composeTimeInputValue(
   );
 }
 
-function dayOptionsFor(year: string, month: string): string[] {
-  const parsedYear = Number.parseInt(year, 10);
-  const parsedMonth = Number.parseInt(month, 10);
-  const maxDay =
-    Number.isInteger(parsedYear) &&
-    Number.isInteger(parsedMonth) &&
-    parsedMonth >= 1 &&
-    parsedMonth <= 12
-      ? new Date(Date.UTC(parsedYear, parsedMonth, 0)).getUTCDate()
-      : 31;
-  return Array.from({ length: maxDay }, (_, index) =>
-    String(index + 1).padStart(2, "0"),
+function FormGroupLabel({ children }: { children: ReactNode }) {
+  return (
+    <Typography
+      sx={{
+        fontWeight: 900,
+        fontSize: 13,
+        letterSpacing: "0.06em",
+        textTransform: "uppercase",
+        color: alpha(tokens.ink, 0.55),
+        mt: 1.75,
+        mb: 0.5,
+      }}
+    >
+      {children}
+    </Typography>
   );
 }
-
-function yearOptionsFor(selectedYear: string): string[] {
-  const current = new Date().getFullYear();
-  const years = Array.from({ length: 8 }, (_, index) =>
-    String(current - 1 + index),
-  );
-  return selectedYear && !years.includes(selectedYear)
-    ? [...years, selectedYear].sort((a, b) => Number(a) - Number(b))
-    : years;
-}
-
-const StyledTemporalField = styled(Box)(({ theme }) => ({
-  border: `1px solid ${alpha(tokens.ink, 0.1)}`,
-  borderRadius: 20,
-  background: `linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.78)})`,
-  padding: theme.spacing(0.75),
-  transition:
-    "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
-  "&:focus-within": {
-    borderColor: alpha(tokens.burgundy, 0.42),
-    boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.1)}`,
-  },
-  "&[data-disabled='true']": {
-    opacity: 0.56,
-  },
-  "& .MuiFormLabel-root": {
-    fontWeight: 800,
-  },
-  "& .MuiOutlinedInput-root": {
-    borderRadius: 14,
-    backgroundColor: tokens.white,
-  },
-  "& .MuiOutlinedInput-notchedOutline": {
-    borderColor: alpha(tokens.ink, 0.12),
-  },
-  "& .MuiInputBase-input": {
-    fontWeight: 800,
-    letterSpacing: 0,
-  },
-  "& .MuiSelect-select": {
-    fontWeight: 800,
-    letterSpacing: 0,
-  },
-  "& .MuiSelect-icon": {
-    color: alpha(tokens.burgundy, 0.68),
-  },
-  "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-    color: alpha(tokens.burgundy, 0.78),
-  },
-}));
 
 function StyledDateTimeField({
   name,
@@ -7464,191 +7325,22 @@ function StyledDateTimeField({
   size?: "small" | "medium";
 }) {
   const initial = splitDateTimeInputValue(defaultValue);
-  const initialDate = splitDateParts(initial.date);
-  const initialTime = splitTimeParts(initial.time);
-  const [dateYear, setDateYear] = useState(initialDate.year);
-  const [dateMonth, setDateMonth] = useState(initialDate.month);
-  const [dateDay, setDateDay] = useState(initialDate.day);
-  const [timeHour, setTimeHour] = useState(initialTime.hour);
-  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
-  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
-  const dayOptions = useMemo(
-    () => dayOptionsFor(dateYear, dateMonth),
-    [dateYear, dateMonth],
+  const [value, setValue] = useState(
+    initial.date && initial.time ? `${initial.date}T${initial.time}` : "",
   );
-  const minuteOptions = useMemo(
-    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
-    [timeMinute],
-  );
-  const dateValue = composeDateInputValue(dateYear, dateMonth, dateDay);
-  const timeValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
-  const hiddenValue = composeDateTimeValue(dateValue, timeValue);
-
-  useEffect(() => {
-    if (dateDay && !dayOptions.includes(dateDay)) {
-      setDateDay("");
-    }
-  }, [dateDay, dayOptions]);
-
   return (
-    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
-      <input
-        type="hidden"
-        name={name}
-        value={hiddenValue}
-        disabled={disabled}
-      />
-      <Typography
-        variant="caption"
-        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
-      >
-        {label}
-        {required ? " *" : ""}
-      </Typography>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 0.75,
-        }}
-      >
-        <Box
-          sx={{
-            display: "grid",
-            gap: 0.75,
-            gridTemplateColumns: { xs: "1fr 1fr", sm: "0.9fr 1fr 1.2fr" },
-          }}
-        >
-          <TextField
-            select
-            label="Day"
-            value={dateDay}
-            onChange={(event) => setDateDay(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-            slotProps={{
-              inputLabel: { shrink: true },
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <CalendarMonthRounded fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          >
-            <MenuItem value="">Day</MenuItem>
-            {dayOptions.map((day) => (
-              <MenuItem key={day} value={day}>
-                {day}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Month"
-            value={dateMonth}
-            onChange={(event) => setDateMonth(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-          >
-            <MenuItem value="">Month</MenuItem>
-            {monthOptions.map((month) => (
-              <MenuItem key={month.value} value={month.value}>
-                {month.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Year"
-            value={dateYear}
-            onChange={(event) => setDateYear(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-            sx={{ gridColumn: { xs: "1 / -1", sm: "auto" } }}
-          >
-            <MenuItem value="">Year</MenuItem>
-            {yearOptionsFor(dateYear).map((year) => (
-              <MenuItem key={year} value={year}>
-                {year}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 0.75,
-            gridTemplateColumns: {
-              xs: "1fr 1fr 0.9fr",
-              sm: "0.9fr 0.9fr 0.8fr",
-            },
-          }}
-        >
-          <TextField
-            select
-            label="Hour"
-            value={timeHour}
-            onChange={(event) => setTimeHour(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-            slotProps={{
-              inputLabel: { shrink: true },
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <ScheduleRounded fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          >
-            <MenuItem value="">Hour</MenuItem>
-            {hourOptions.map((hour) => (
-              <MenuItem key={hour} value={hour}>
-                {hour}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="Minute"
-            value={timeMinute}
-            onChange={(event) => setTimeMinute(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-          >
-            <MenuItem value="">Minute</MenuItem>
-            {minuteOptions.map((minute) => (
-              <MenuItem key={minute} value={minute}>
-                {minute}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            select
-            label="AM/PM"
-            value={timePeriod}
-            onChange={(event) => setTimePeriod(event.target.value)}
-            required={required}
-            disabled={disabled}
-            size={size}
-          >
-            <MenuItem value="">--</MenuItem>
-            {periodOptions.map((period) => (
-              <MenuItem key={period} value={period}>
-                {period}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
-      </Box>
-    </StyledTemporalField>
+    <TextField
+      type="datetime-local"
+      name={name}
+      label={label}
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      required={required}
+      disabled={disabled}
+      size={size}
+      fullWidth
+      slotProps={{ inputLabel: { shrink: true } }}
+    />
   );
 }
 
@@ -7667,98 +7359,23 @@ function StyledTimeField({
   disabled?: boolean;
   size?: "small" | "medium";
 }) {
-  const initialTime = splitTimeParts(defaultValue);
-  const [timeHour, setTimeHour] = useState(initialTime.hour);
-  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
-  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
-  const minuteOptions = useMemo(
-    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
-    [timeMinute],
+  const initial = splitTimeParts(defaultValue);
+  const [value, setValue] = useState(
+    composeTimeInputValue(initial.hour, initial.minute, initial.period),
   );
-  const hiddenValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
-
   return (
-    <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
-      <input
-        type="hidden"
-        name={name}
-        value={hiddenValue}
-        disabled={disabled}
-      />
-      <Typography
-        variant="caption"
-        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
-      >
-        {label}
-        {required ? " *" : ""}
-      </Typography>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 0.75,
-          gridTemplateColumns: { xs: "1fr 1fr 0.9fr", sm: "0.9fr 0.9fr 0.8fr" },
-        }}
-      >
-        <TextField
-          select
-          label="Hour"
-          value={timeHour}
-          onChange={(event) => setTimeHour(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-          slotProps={{
-            inputLabel: { shrink: true },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <ScheduleRounded fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        >
-          <MenuItem value="">Hour</MenuItem>
-          {hourOptions.map((hour) => (
-            <MenuItem key={hour} value={hour}>
-              {hour}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="Minute"
-          value={timeMinute}
-          onChange={(event) => setTimeMinute(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-        >
-          <MenuItem value="">Minute</MenuItem>
-          {minuteOptions.map((minute) => (
-            <MenuItem key={minute} value={minute}>
-              {minute}
-            </MenuItem>
-          ))}
-        </TextField>
-        <TextField
-          select
-          label="AM/PM"
-          value={timePeriod}
-          onChange={(event) => setTimePeriod(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-        >
-          <MenuItem value="">--</MenuItem>
-          {periodOptions.map((period) => (
-            <MenuItem key={period} value={period}>
-              {period}
-            </MenuItem>
-          ))}
-        </TextField>
-      </Box>
-    </StyledTemporalField>
+    <TextField
+      type="time"
+      name={name}
+      label={label}
+      value={value}
+      onChange={(event) => setValue(event.target.value)}
+      required={required}
+      disabled={disabled}
+      size={size}
+      fullWidth
+      slotProps={{ inputLabel: { shrink: true } }}
+    />
   );
 }
 
@@ -8674,6 +8291,7 @@ function SubscriptionsSection({
                           {subscriptionDesignUsageLabel(subscription)}
                         </Typography>
                       </Box>
+                      <FormGroupLabel>Billing state</FormGroupLabel>
                       <Box
                         sx={{
                           display: "grid",
@@ -8761,6 +8379,9 @@ function SubscriptionsSection({
                     </Box>
                   </Form>
 
+                  {canCaptureAuthorization ? (
+                    <FormGroupLabel>Recurring authorization</FormGroupLabel>
+                  ) : null}
                   {canCaptureAuthorization ? (
                     <Box
                       sx={{
@@ -10498,6 +10119,7 @@ function AdsSection({
                   placement yet.
                 </Alert>
               ) : null}
+              <FormGroupLabel>Campaign</FormGroupLabel>
               <Box
                 sx={{
                   display: "grid",
@@ -10562,6 +10184,19 @@ function AdsSection({
                   size="small"
                   required
                 />
+              </Box>
+              <FormGroupLabel>Budget &amp; schedule</FormGroupLabel>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    xl: "repeat(4, minmax(0, 1fr))",
+                  },
+                }}
+              >
                 <TextField
                   label="Budget"
                   name="budget_ghs"
@@ -11397,6 +11032,7 @@ function AffiliatesSection({
                   Create partner
                 </Button>
               </Stack>
+              <FormGroupLabel>Affiliate</FormGroupLabel>
               <Box
                 sx={{
                   display: "grid",
@@ -11427,6 +11063,15 @@ function AffiliatesSection({
                 <TextField label="Email" name="email" type="email" />
                 <TextField label="Phone" name="phone" />
                 <TextField label="Website" name="website_url" type="url" />
+              </Box>
+              <FormGroupLabel>Commission &amp; payout</FormGroupLabel>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                }}
+              >
                 <TextField
                   select
                   label="Commission"

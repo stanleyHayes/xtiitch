@@ -10279,46 +10279,65 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
     <Box
       sx={{
         display: "grid",
-        gap: 1,
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "minmax(0, 1fr) 105px 105px 110px",
-        },
+        gap: 1.5,
+        p: { xs: 1.5, sm: 1.75 },
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: alpha(tokens.panel, 0.5),
       }}
     >
-      <TextField
-        name="weekday"
-        label="Day"
-        select
-        size="small"
-        defaultValue={window?.weekday ?? 1}
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.25,
+          alignItems: "start",
+          gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 136px" },
+        }}
       >
-        {weekdays.map((weekday) => (
-          <MenuItem key={weekday.value} value={weekday.value}>
-            {weekday.label}
-          </MenuItem>
-        ))}
-      </TextField>
-      <StyledTimeField
-        name="start"
-        label="Start"
-        size="small"
-        defaultValue={window ? minutesToTime(window.start_minute) : ""}
-      />
-      <StyledTimeField
-        name="end"
-        label="End"
-        size="small"
-        defaultValue={window ? minutesToTime(window.end_minute) : ""}
-      />
-      <TextField
-        name="slot_minutes"
-        label="Slot"
-        type="number"
-        size="small"
-        defaultValue={window?.slot_minutes ?? 60}
-        slotProps={{ htmlInput: { min: 15, max: 480, step: 15 } }}
-      />
+        <TextField
+          name="weekday"
+          label="Day"
+          select
+          size="small"
+          defaultValue={window?.weekday ?? 1}
+        >
+          {weekdays.map((weekday) => (
+            <MenuItem key={weekday.value} value={weekday.value}>
+              {weekday.label}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          name="slot_minutes"
+          label="Slot (min)"
+          type="number"
+          size="small"
+          defaultValue={window?.slot_minutes ?? 60}
+          slotProps={{ htmlInput: { min: 15, max: 480, step: 15 } }}
+        />
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1.5,
+          alignItems: "start",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+        }}
+      >
+        <StyledTimeField
+          name="start"
+          label="Start time"
+          size="small"
+          defaultValue={window ? minutesToTime(window.start_minute) : ""}
+        />
+        <StyledTimeField
+          name="end"
+          label="End time"
+          size="small"
+          defaultValue={window ? minutesToTime(window.end_minute) : ""}
+        />
+      </Box>
     </Box>
   );
 }
@@ -10853,20 +10872,21 @@ export default function Dashboard({
             </Stack>
           ) : null}
 
-          <Box
-            sx={{
-              display: "grid",
-              gap: 1.5,
-              gridTemplateColumns: {
-                xs: "1fr",
-                sm: "repeat(2, 1fr)",
-                xl: "repeat(4, 1fr)",
-              },
-            }}
-          >
-            <MetricCard
-              icon={<ReceiptLongRounded />}
-              label="Live orders"
+          {section === "overview" || section === "tasks" ? (
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.5,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(2, 1fr)",
+                  xl: "repeat(4, 1fr)",
+                },
+              }}
+            >
+              <MetricCard
+                icon={<ReceiptLongRounded />}
+                label="Live orders"
               value={String(liveOrders.length)}
               helper={
                 canManage
@@ -10905,7 +10925,8 @@ export default function Dashboard({
               helper={`${readyForHandover} fulfilled orders ready`}
               tone={tokens.warning}
             />
-          </Box>
+            </Box>
+          ) : null}
 
           <Box sx={{ mt: 2.5 }}>
             {canManage && section === "reports" ? (
