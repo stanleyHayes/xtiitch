@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -26,6 +28,7 @@ func TestCreateDesignGeneratesHandleAndRecordsInput(t *testing.T) {
 
 	id, err := service.CreateDesign(context.Background(), DesignCommand{
 		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
 		Title:       "  Kente Wrap Dress  ",
 		Description: " Hand-woven ",
 	})
@@ -55,6 +58,7 @@ func TestCreateDesignRejectsDepositOverrideBelowFloor(t *testing.T) {
 
 	_, err := service.CreateDesign(context.Background(), DesignCommand{
 		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
 		Title:                "Cheap",
 		DepositOverrideMinor: &below,
 	})
@@ -73,11 +77,42 @@ func TestCreateCollectionRejectsEmptyName(t *testing.T) {
 	service := newService(repo)
 
 	_, err := service.CreateCollection(context.Background(), CreateCollectionCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"},
-		Name:  "   ",
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleAdmin,
+		Name:      "   ",
 	})
 	if !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected invalid input, got %v", err)
+	}
+}
+
+func TestCatalogueManagementRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+	scope := common.TenantScope{BusinessID: "business-1"}
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:     scope,
+		ActorRole: business.UserRoleStaff,
+		Title:     "Staff draft",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff design creation to be forbidden, got %v", err)
+	}
+	if repo.created {
+		t.Fatal("expected staff design creation to stop before repository write")
+	}
+
+	if err := service.SetDesignPrice(context.Background(), SetDesignPriceCommand{
+		Scope:      scope,
+		ActorRole:  business.UserRoleStaff,
+		DesignID:   "design-1",
+		SizeBandID: "size-1",
+		PriceMinor: 10000,
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff price management to be forbidden, got %v", err)
 	}
 }
 

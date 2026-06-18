@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -14,6 +15,7 @@ var businessPromotionCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,30}
 
 type BusinessPromotionCommand struct {
 	Scope                 common.TenantScope
+	ActorRole             business.UserRole
 	PromotionID           common.ID
 	Code                  string
 	Title                 string
@@ -46,6 +48,9 @@ func (s Service) CreateBusinessPromotion(
 	ctx context.Context,
 	cmd BusinessPromotionCommand,
 ) (ports.BusinessPromotionRecord, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return ports.BusinessPromotionRecord{}, err
+	}
 	if s.promotions == nil || cmd.Scope.BusinessID.IsZero() {
 		return ports.BusinessPromotionRecord{}, ErrInvalidInput
 	}
@@ -61,6 +66,9 @@ func (s Service) UpdateBusinessPromotion(
 	ctx context.Context,
 	cmd BusinessPromotionCommand,
 ) (ports.BusinessPromotionRecord, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return ports.BusinessPromotionRecord{}, err
+	}
 	if s.promotions == nil || cmd.Scope.BusinessID.IsZero() || cmd.PromotionID.IsZero() {
 		return ports.BusinessPromotionRecord{}, ErrInvalidInput
 	}
@@ -71,15 +79,23 @@ func (s Service) UpdateBusinessPromotion(
 	return s.promotions.UpdateBusinessPromotion(ctx, cmd.Scope, input)
 }
 
+type BusinessPromotionActionCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	PromotionID common.ID
+}
+
 func (s Service) ArchiveBusinessPromotion(
 	ctx context.Context,
-	scope common.TenantScope,
-	promotionID common.ID,
+	cmd BusinessPromotionActionCommand,
 ) (ports.BusinessPromotionRecord, error) {
-	if s.promotions == nil || scope.BusinessID.IsZero() || promotionID.IsZero() {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return ports.BusinessPromotionRecord{}, err
+	}
+	if s.promotions == nil || cmd.Scope.BusinessID.IsZero() || cmd.PromotionID.IsZero() {
 		return ports.BusinessPromotionRecord{}, ErrInvalidInput
 	}
-	return s.promotions.ArchiveBusinessPromotion(ctx, scope, promotionID)
+	return s.promotions.ArchiveBusinessPromotion(ctx, cmd.Scope, cmd.PromotionID)
 }
 
 func normalizeBusinessPromotionInput(cmd BusinessPromotionCommand) (ports.BusinessPromotionInput, error) {

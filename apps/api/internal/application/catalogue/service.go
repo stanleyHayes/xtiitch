@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
@@ -49,8 +51,17 @@ func (s Service) GetSettings(ctx context.Context, scope common.TenantScope) (por
 	return s.settings.Get(ctx, scope)
 }
 
-func (s Service) UpdateSettings(ctx context.Context, scope common.TenantScope, settings ports.StoreSettings) error {
-	return s.settings.Update(ctx, scope, settings)
+type UpdateSettingsCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Settings  ports.StoreSettings
+}
+
+func (s Service) UpdateSettings(ctx context.Context, cmd UpdateSettingsCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.settings.Update(ctx, cmd.Scope, cmd.Settings)
 }
 
 func (s Service) GetStoreProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {
@@ -60,13 +71,17 @@ func (s Service) GetStoreProfile(ctx context.Context, scope common.TenantScope) 
 // --- Collections ---
 
 type CreateCollectionCommand struct {
-	Scope    common.TenantScope
-	Name     string
-	Theme    string
-	Sequence int
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Name      string
+	Theme     string
+	Sequence  int
 }
 
 func (s Service) CreateCollection(ctx context.Context, cmd CreateCollectionCommand) (common.ID, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
 	name := strings.TrimSpace(cmd.Name)
 	if name == "" {
 		return "", ErrInvalidInput
@@ -87,22 +102,38 @@ func (s Service) ListCollections(ctx context.Context, scope common.TenantScope) 
 	return s.catalogue.ListCollections(ctx, scope)
 }
 
-func (s Service) RetireCollection(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetCollectionStatus(ctx, scope, id, catalogue.StatusRetired)
+type CollectionStatusCommand struct {
+	Scope        common.TenantScope
+	ActorRole    business.UserRole
+	CollectionID common.ID
 }
 
-func (s Service) RestoreCollection(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetCollectionStatus(ctx, scope, id, catalogue.StatusActive)
+func (s Service) RetireCollection(ctx context.Context, cmd CollectionStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetCollectionStatus(ctx, cmd.Scope, cmd.CollectionID, catalogue.StatusRetired)
 }
 
-func (s Service) DeleteCollection(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetCollectionStatus(ctx, scope, id, catalogue.StatusDeleted)
+func (s Service) RestoreCollection(ctx context.Context, cmd CollectionStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetCollectionStatus(ctx, cmd.Scope, cmd.CollectionID, catalogue.StatusActive)
+}
+
+func (s Service) DeleteCollection(ctx context.Context, cmd CollectionStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetCollectionStatus(ctx, cmd.Scope, cmd.CollectionID, catalogue.StatusDeleted)
 }
 
 // --- Designs ---
 
 type DesignCommand struct {
 	Scope                common.TenantScope
+	ActorRole            business.UserRole
 	DesignID             common.ID
 	CollectionID         *common.ID
 	Title                string
@@ -127,6 +158,9 @@ func (cmd DesignCommand) validate() (string, error) {
 }
 
 func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
 	title, err := cmd.validate()
 	if err != nil {
 		return "", err
@@ -148,6 +182,9 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 }
 
 func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
 	title, err := cmd.validate()
 	if err != nil {
 		return err
@@ -173,27 +210,46 @@ func (s Service) GetDesign(ctx context.Context, scope common.TenantScope, id com
 	return s.catalogue.GetDesign(ctx, scope, id)
 }
 
-func (s Service) RetireDesign(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetDesignStatus(ctx, scope, id, catalogue.StatusRetired)
+type DesignStatusCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	DesignID  common.ID
 }
 
-func (s Service) RestoreDesign(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetDesignStatus(ctx, scope, id, catalogue.StatusActive)
+func (s Service) RetireDesign(ctx context.Context, cmd DesignStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetDesignStatus(ctx, cmd.Scope, cmd.DesignID, catalogue.StatusRetired)
 }
 
-func (s Service) DeleteDesign(ctx context.Context, scope common.TenantScope, id common.ID) error {
-	return s.catalogue.SetDesignStatus(ctx, scope, id, catalogue.StatusDeleted)
+func (s Service) RestoreDesign(ctx context.Context, cmd DesignStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetDesignStatus(ctx, cmd.Scope, cmd.DesignID, catalogue.StatusActive)
+}
+
+func (s Service) DeleteDesign(ctx context.Context, cmd DesignStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.SetDesignStatus(ctx, cmd.Scope, cmd.DesignID, catalogue.StatusDeleted)
 }
 
 // --- Size bands & pricing ---
 
 type CreateSizeBandCommand struct {
-	Scope    common.TenantScope
-	Label    string
-	Sequence int
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Label     string
+	Sequence  int
 }
 
 func (s Service) CreateSizeBand(ctx context.Context, cmd CreateSizeBandCommand) (common.ID, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
 	label := strings.TrimSpace(cmd.Label)
 	if label == "" {
 		return "", ErrInvalidInput
@@ -212,11 +268,22 @@ func (s Service) ListSizeBands(ctx context.Context, scope common.TenantScope) ([
 	return s.catalogue.ListSizeBands(ctx, scope)
 }
 
-func (s Service) SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error {
-	if priceMinor < 0 {
+type SetDesignPriceCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	DesignID   common.ID
+	SizeBandID common.ID
+	PriceMinor int64
+}
+
+func (s Service) SetDesignPrice(ctx context.Context, cmd SetDesignPriceCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.PriceMinor < 0 {
 		return ErrInvalidInput
 	}
-	return s.catalogue.SetDesignPrice(ctx, scope, designID, sizeBandID, priceMinor)
+	return s.catalogue.SetDesignPrice(ctx, cmd.Scope, cmd.DesignID, cmd.SizeBandID, cmd.PriceMinor)
 }
 
 func (s Service) ListDesignPrices(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.BandPrice, error) {
@@ -270,4 +337,14 @@ func (s Service) SearchStore(ctx context.Context, handle string, query string) (
 	}
 	designs, err := s.storefront.SearchActiveDesigns(ctx, store.BusinessID, strings.TrimSpace(query))
 	return store, designs, err
+}
+
+func authorizeCatalogueManagement(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return ErrInvalidInput
+	}
+	if role == business.UserRoleOwner || role == business.UserRoleAdmin {
+		return nil
+	}
+	return authdomain.ErrForbidden
 }

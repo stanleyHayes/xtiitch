@@ -12,6 +12,8 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -112,7 +114,7 @@ func (handler Handler) getSettings(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -121,16 +123,20 @@ func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.UpdateSettings(r.Context(), scope, ports.StoreSettings{
-		BespokeEnabled:       body.BespokeEnabled,
-		MeasurementsEnabled:  body.MeasurementsEnabled,
-		CustomisationEnabled: body.CustomisationEnabled,
-		CollectionsEnabled:   body.CollectionsEnabled,
-		DeliveryEnabled:      body.DeliveryEnabled,
-		DispatchEnabled:      body.DispatchEnabled,
-		BrandColor:           body.BrandColor,
+	if err := handler.service.UpdateSettings(r.Context(), catalogueapp.UpdateSettingsCommand{
+		Scope:     scope,
+		ActorRole: role,
+		Settings: ports.StoreSettings{
+			BespokeEnabled:       body.BespokeEnabled,
+			MeasurementsEnabled:  body.MeasurementsEnabled,
+			CustomisationEnabled: body.CustomisationEnabled,
+			CollectionsEnabled:   body.CollectionsEnabled,
+			DeliveryEnabled:      body.DeliveryEnabled,
+			DispatchEnabled:      body.DispatchEnabled,
+			BrandColor:           body.BrandColor,
+		},
 	}); err != nil {
-		writeRepoError(w, err)
+		writeServiceError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
@@ -145,7 +151,7 @@ type createCollectionBody struct {
 }
 
 func (handler Handler) createCollection(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -155,7 +161,11 @@ func (handler Handler) createCollection(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	id, err := handler.service.CreateCollection(r.Context(), catalogueapp.CreateCollectionCommand{
-		Scope: scope, Name: body.Name, Theme: body.Theme, Sequence: body.Sequence,
+		Scope:     scope,
+		ActorRole: role,
+		Name:      body.Name,
+		Theme:     body.Theme,
+		Sequence:  body.Sequence,
 	})
 	if err != nil {
 		writeServiceError(w, err)
@@ -181,14 +191,18 @@ func (handler Handler) listCollections(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"collections": out})
 }
 
-func (handler Handler) collectionAction(action func(catalogueapp.Service, context.Context, common.TenantScope, common.ID) error) http.HandlerFunc {
+func (handler Handler) collectionAction(action func(catalogueapp.Service, context.Context, catalogueapp.CollectionStatusCommand) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		scope, ok := tenantScope(w, r)
+		scope, role, ok := tenantPrincipal(w, r)
 		if !ok {
 			return
 		}
-		if err := action(handler.service, r.Context(), scope, common.ID(chi.URLParam(r, "id"))); err != nil {
-			writeRepoError(w, err)
+		if err := action(handler.service, r.Context(), catalogueapp.CollectionStatusCommand{
+			Scope:        scope,
+			ActorRole:    role,
+			CollectionID: common.ID(chi.URLParam(r, "id")),
+		}); err != nil {
+			writeServiceError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -225,9 +239,10 @@ type promotionBody struct {
 	EndsAt                string  `json:"ends_at"`
 }
 
-func (body designBody) toCommand(scope common.TenantScope, designID common.ID) catalogueapp.DesignCommand {
+func (body designBody) toCommand(scope common.TenantScope, role business.UserRole, designID common.ID) catalogueapp.DesignCommand {
 	cmd := catalogueapp.DesignCommand{
 		Scope:                scope,
+		ActorRole:            role,
 		DesignID:             designID,
 		Title:                body.Title,
 		Description:          body.Description,
@@ -244,7 +259,7 @@ func (body designBody) toCommand(scope common.TenantScope, designID common.ID) c
 }
 
 func (handler Handler) createDesign(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -253,7 +268,7 @@ func (handler Handler) createDesign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	id, err := handler.service.CreateDesign(r.Context(), body.toCommand(scope, ""))
+	id, err := handler.service.CreateDesign(r.Context(), body.toCommand(scope, role, ""))
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -262,7 +277,7 @@ func (handler Handler) createDesign(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) updateDesign(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -271,7 +286,7 @@ func (handler Handler) updateDesign(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.UpdateDesign(r.Context(), body.toCommand(scope, common.ID(chi.URLParam(r, "id")))); err != nil {
+	if err := handler.service.UpdateDesign(r.Context(), body.toCommand(scope, role, common.ID(chi.URLParam(r, "id")))); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -313,14 +328,18 @@ func (handler Handler) getDesign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toDesignResponse(design, prices))
 }
 
-func (handler Handler) designAction(action func(catalogueapp.Service, context.Context, common.TenantScope, common.ID) error) http.HandlerFunc {
+func (handler Handler) designAction(action func(catalogueapp.Service, context.Context, catalogueapp.DesignStatusCommand) error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		scope, ok := tenantScope(w, r)
+		scope, role, ok := tenantPrincipal(w, r)
 		if !ok {
 			return
 		}
-		if err := action(handler.service, r.Context(), scope, common.ID(chi.URLParam(r, "id"))); err != nil {
-			writeRepoError(w, err)
+		if err := action(handler.service, r.Context(), catalogueapp.DesignStatusCommand{
+			Scope:     scope,
+			ActorRole: role,
+			DesignID:  common.ID(chi.URLParam(r, "id")),
+		}); err != nil {
+			writeServiceError(w, err)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -330,7 +349,7 @@ func (handler Handler) designAction(action func(catalogueapp.Service, context.Co
 // --- size bands & prices ---
 
 func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -342,7 +361,12 @@ func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	id, err := handler.service.CreateSizeBand(r.Context(), catalogueapp.CreateSizeBandCommand{Scope: scope, Label: body.Label, Sequence: body.Sequence})
+	id, err := handler.service.CreateSizeBand(r.Context(), catalogueapp.CreateSizeBandCommand{
+		Scope:     scope,
+		ActorRole: role,
+		Label:     body.Label,
+		Sequence:  body.Sequence,
+	})
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -368,7 +392,7 @@ func (handler Handler) listSizeBands(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) setPrice(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -379,7 +403,13 @@ func (handler Handler) setPrice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.SetDesignPrice(r.Context(), scope, common.ID(chi.URLParam(r, "id")), common.ID(chi.URLParam(r, "bandId")), body.PriceMinor); err != nil {
+	if err := handler.service.SetDesignPrice(r.Context(), catalogueapp.SetDesignPriceCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		DesignID:   common.ID(chi.URLParam(r, "id")),
+		SizeBandID: common.ID(chi.URLParam(r, "bandId")),
+		PriceMinor: body.PriceMinor,
+	}); err != nil {
 		writeServiceError(w, err)
 		return
 	}
@@ -419,7 +449,7 @@ func (handler Handler) listPromotions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) createPromotion(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -428,7 +458,7 @@ func (handler Handler) createPromotion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	record, err := handler.service.CreateBusinessPromotion(r.Context(), body.toCommand(scope, ""))
+	record, err := handler.service.CreateBusinessPromotion(r.Context(), body.toCommand(scope, role, ""))
 	if err != nil {
 		writeServiceError(w, err)
 		return
@@ -437,7 +467,7 @@ func (handler Handler) createPromotion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) updatePromotion(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
@@ -448,7 +478,7 @@ func (handler Handler) updatePromotion(w http.ResponseWriter, r *http.Request) {
 	}
 	record, err := handler.service.UpdateBusinessPromotion(
 		r.Context(),
-		body.toCommand(scope, common.ID(chi.URLParam(r, "id"))),
+		body.toCommand(scope, role, common.ID(chi.URLParam(r, "id"))),
 	)
 	if err != nil {
 		writeServiceError(w, err)
@@ -458,14 +488,17 @@ func (handler Handler) updatePromotion(w http.ResponseWriter, r *http.Request) {
 }
 
 func (handler Handler) archivePromotion(w http.ResponseWriter, r *http.Request) {
-	scope, ok := tenantScope(w, r)
+	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
 	record, err := handler.service.ArchiveBusinessPromotion(
 		r.Context(),
-		scope,
-		common.ID(chi.URLParam(r, "id")),
+		catalogueapp.BusinessPromotionActionCommand{
+			Scope:       scope,
+			ActorRole:   role,
+			PromotionID: common.ID(chi.URLParam(r, "id")),
+		},
 	)
 	if err != nil {
 		writeServiceError(w, err)
@@ -474,9 +507,10 @@ func (handler Handler) archivePromotion(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, toPromotionResponse(record))
 }
 
-func (body promotionBody) toCommand(scope common.TenantScope, promotionID common.ID) catalogueapp.BusinessPromotionCommand {
+func (body promotionBody) toCommand(scope common.TenantScope, role business.UserRole, promotionID common.ID) catalogueapp.BusinessPromotionCommand {
 	cmd := catalogueapp.BusinessPromotionCommand{
 		Scope:                 scope,
+		ActorRole:             role,
 		PromotionID:           promotionID,
 		Code:                  body.Code,
 		Title:                 body.Title,
@@ -656,15 +690,24 @@ func parseOptionalTime(value string) *time.Time {
 }
 
 func tenantScope(w http.ResponseWriter, r *http.Request) (common.TenantScope, bool) {
+	scope, _, ok := tenantPrincipal(w, r)
+	return scope, ok
+}
+
+func tenantPrincipal(w http.ResponseWriter, r *http.Request) (common.TenantScope, business.UserRole, bool) {
 	principal, ok := authhttp.PrincipalFromContext(r.Context())
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
-		return common.TenantScope{}, false
+		return common.TenantScope{}, "", false
 	}
-	return principal.TenantScope(), true
+	return principal.TenantScope(), principal.Role, true
 }
 
 func writeServiceError(w http.ResponseWriter, err error) {
+	if errors.Is(err, authdomain.ErrForbidden) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
 	if errors.Is(err, catalogueapp.ErrInvalidInput) {
 		writeError(w, http.StatusBadRequest, "invalid_input")
 		return
