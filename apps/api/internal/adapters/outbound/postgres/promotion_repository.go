@@ -25,7 +25,7 @@ func (repo PromotionRepository) ReservePromotion(
 	input ports.ReservePromotionInput,
 ) (ports.PromotionRedemption, error) {
 	if input.RedemptionID.IsZero() || input.OrderID.IsZero() || input.CustomerID.IsZero() ||
-		input.BusinessID.IsZero() || input.SubtotalMinor <= 0 || input.Code == "" {
+		input.BusinessID.IsZero() || input.DesignID.IsZero() || input.SubtotalMinor <= 0 || input.Code == "" {
 		return ports.PromotionRedemption{}, ports.ErrPromotionUnavailable
 	}
 
@@ -129,28 +129,42 @@ type checkoutPromotion struct {
 func findPromotionForCheckout(ctx context.Context, tx pgx.Tx, input ports.ReservePromotionInput) (checkoutPromotion, error) {
 	var promotion checkoutPromotion
 	err := tx.QueryRow(ctx, `
+		with order_design as (
+			select design_id, collection_id
+			from designs
+			where design_id = $4::uuid
+				and business_id = $2::uuid
+		)
 		select
-			promotion_id::text,
-			coalesce(code, ''),
-			discount_type,
-			discount_value,
-			max_discount_minor,
-			usage_limit_global,
-			usage_limit_per_customer,
-			funding_source
-		from promotions
-		where code is not null
-			and lower(code) = lower($1)
-			and status = 'active'
-			and scope = 'store'
-			and (business_id = $2 or business_id is null)
-			and min_spend_minor <= $3
-			and (starts_at is null or starts_at <= now())
-			and (ends_at is null or ends_at > now())
-		order by (business_id is not null) desc, created_at desc
+			p.promotion_id::text,
+			coalesce(p.code, ''),
+			p.discount_type,
+			p.discount_value,
+			p.max_discount_minor,
+			p.usage_limit_global,
+			p.usage_limit_per_customer,
+			p.funding_source
+		from promotions p
+		left join order_design d on true
+		where p.code is not null
+			and lower(p.code) = lower($1)
+			and p.status = 'active'
+			and (p.business_id = $2 or p.business_id is null)
+			and p.min_spend_minor <= $3
+			and (p.starts_at is null or p.starts_at <= now())
+			and (p.ends_at is null or p.ends_at > now())
+			and (
+				p.scope = 'store'
+				or (p.scope = 'design' and p.target_design_id = $4::uuid)
+				or (p.scope = 'collection' and d.collection_id is not null and p.target_collection_id = d.collection_id)
+			)
+		order by
+			(p.business_id is not null) desc,
+			case p.scope when 'design' then 3 when 'collection' then 2 else 1 end desc,
+			p.created_at desc
 		limit 1
-		for update
-	`, input.Code, input.BusinessID.String(), input.SubtotalMinor).Scan(
+		for update of p
+	`, input.Code, input.BusinessID.String(), input.SubtotalMinor, input.DesignID.String()).Scan(
 		&promotion.promotionID,
 		&promotion.code,
 		&promotion.discountType,

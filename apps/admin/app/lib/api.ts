@@ -241,6 +241,8 @@ export type AdminPromotion = {
   usageLimitPerCustomer?: number;
   fundingSource: AdminPromotionFundingSource;
   scope: AdminPromotionScope;
+  targetCollectionId?: string;
+  targetDesignId?: string;
   status: AdminPromotionStatus;
   startsAt?: string;
   endsAt?: string;
@@ -713,6 +715,8 @@ type AdminPromotionPayload = {
   usage_limit_per_customer?: number;
   funding_source: AdminPromotionFundingSource;
   scope: AdminPromotionScope;
+  target_collection_id?: string;
+  target_design_id?: string;
   status: AdminPromotionStatus;
   starts_at?: string;
   ends_at?: string;
@@ -1223,6 +1227,8 @@ function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
     usageLimitPerCustomer: payload.usage_limit_per_customer,
     fundingSource: payload.funding_source,
     scope: payload.scope,
+    targetCollectionId: payload.target_collection_id,
+    targetDesignId: payload.target_design_id,
     status: payload.status,
     startsAt: payload.starts_at,
     endsAt: payload.ends_at,
@@ -1793,6 +1799,8 @@ export const adminApi = {
       usageLimitPerCustomer?: number;
       fundingSource: AdminPromotionFundingSource;
       scope: AdminPromotionScope;
+      targetCollectionId?: string;
+      targetDesignId?: string;
       status: Exclude<AdminPromotionStatus, "archived">;
       startsAt?: string;
       endsAt?: string;
@@ -1814,6 +1822,8 @@ export const adminApi = {
         usage_limit_per_customer: input.usageLimitPerCustomer,
         funding_source: input.fundingSource,
         scope: input.scope,
+        target_collection_id: input.targetCollectionId,
+        target_design_id: input.targetDesignId,
         status: input.status,
         starts_at: input.startsAt,
         ends_at: input.endsAt,
@@ -1835,6 +1845,8 @@ export const adminApi = {
       usageLimitPerCustomer?: number;
       fundingSource: AdminPromotionFundingSource;
       scope: AdminPromotionScope;
+      targetCollectionId?: string;
+      targetDesignId?: string;
       status: Exclude<AdminPromotionStatus, "archived">;
       startsAt?: string;
       endsAt?: string;
@@ -1858,6 +1870,8 @@ export const adminApi = {
           usage_limit_per_customer: input.usageLimitPerCustomer,
           funding_source: input.fundingSource,
           scope: input.scope,
+          target_collection_id: input.targetCollectionId,
+          target_design_id: input.targetDesignId,
           status: input.status,
           starts_at: input.startsAt,
           ends_at: input.endsAt,

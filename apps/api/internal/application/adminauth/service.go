@@ -233,6 +233,8 @@ type CreatePromotionCommand struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -256,6 +258,8 @@ type UpdatePromotionCommand struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -3371,6 +3375,8 @@ func normalizeCreatePromotionInput(cmd CreatePromotionCommand, promotionID commo
 		UsageLimitPerCustomer: cmd.UsageLimitPerCustomer,
 		FundingSource:         cmd.FundingSource,
 		Scope:                 cmd.Scope,
+		TargetCollectionID:    cmd.TargetCollectionID,
+		TargetDesignID:        cmd.TargetDesignID,
 		Status:                cmd.Status,
 		StartsAt:              cmd.StartsAt,
 		EndsAt:                cmd.EndsAt,
@@ -3392,6 +3398,8 @@ func normalizeCreatePromotionInput(cmd CreatePromotionCommand, promotionID commo
 		UsageLimitPerCustomer: normalized.UsageLimitPerCustomer,
 		FundingSource:         normalized.FundingSource,
 		Scope:                 normalized.Scope,
+		TargetCollectionID:    normalized.TargetCollectionID,
+		TargetDesignID:        normalized.TargetDesignID,
 		Status:                normalized.Status,
 		StartsAt:              normalized.StartsAt,
 		EndsAt:                normalized.EndsAt,
@@ -3413,6 +3421,8 @@ func normalizeUpdatePromotionInput(cmd UpdatePromotionCommand) (ports.UpdateAdmi
 		UsageLimitPerCustomer: cmd.UsageLimitPerCustomer,
 		FundingSource:         cmd.FundingSource,
 		Scope:                 cmd.Scope,
+		TargetCollectionID:    cmd.TargetCollectionID,
+		TargetDesignID:        cmd.TargetDesignID,
 		Status:                cmd.Status,
 		StartsAt:              cmd.StartsAt,
 		EndsAt:                cmd.EndsAt,
@@ -3434,6 +3444,8 @@ func normalizeUpdatePromotionInput(cmd UpdatePromotionCommand) (ports.UpdateAdmi
 		UsageLimitPerCustomer: normalized.UsageLimitPerCustomer,
 		FundingSource:         normalized.FundingSource,
 		Scope:                 normalized.Scope,
+		TargetCollectionID:    normalized.TargetCollectionID,
+		TargetDesignID:        normalized.TargetDesignID,
 		Status:                normalized.Status,
 		StartsAt:              normalized.StartsAt,
 		EndsAt:                normalized.EndsAt,
@@ -3454,6 +3466,8 @@ type promotionFields struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -3493,6 +3507,26 @@ func normalizePromotionFields(input promotionFields) (promotionFields, error) {
 	if scope != "store" && scope != "collection" && scope != "design" {
 		return promotionFields{}, authdomain.ErrInvalidInput
 	}
+	targetCollectionID := copyOptionalID(input.TargetCollectionID)
+	targetDesignID := copyOptionalID(input.TargetDesignID)
+	if (targetCollectionID != nil && targetCollectionID.IsZero()) ||
+		(targetDesignID != nil && targetDesignID.IsZero()) {
+		return promotionFields{}, authdomain.ErrInvalidInput
+	}
+	switch scope {
+	case "store":
+		if targetCollectionID != nil || targetDesignID != nil {
+			return promotionFields{}, authdomain.ErrInvalidInput
+		}
+	case "collection":
+		if targetCollectionID == nil || targetDesignID != nil {
+			return promotionFields{}, authdomain.ErrInvalidInput
+		}
+	case "design":
+		if targetDesignID == nil || targetCollectionID != nil {
+			return promotionFields{}, authdomain.ErrInvalidInput
+		}
+	}
 	status := normalizePromotionOption(input.Status, "active")
 	if status != "active" && status != "paused" {
 		return promotionFields{}, authdomain.ErrInvalidInput
@@ -3513,6 +3547,8 @@ func normalizePromotionFields(input promotionFields) (promotionFields, error) {
 		UsageLimitPerCustomer: copyOptionalInt(input.UsageLimitPerCustomer),
 		FundingSource:         fundingSource,
 		Scope:                 scope,
+		TargetCollectionID:    targetCollectionID,
+		TargetDesignID:        targetDesignID,
 		Status:                status,
 		StartsAt:              copyOptionalTime(input.StartsAt),
 		EndsAt:                copyOptionalTime(input.EndsAt),

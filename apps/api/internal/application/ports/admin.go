@@ -468,6 +468,8 @@ type AdminPromotionRecord struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -506,6 +508,8 @@ type CreateAdminPromotionInput struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time
@@ -526,6 +530,8 @@ type UpdateAdminPromotionInput struct {
 	UsageLimitPerCustomer *int
 	FundingSource         string
 	Scope                 string
+	TargetCollectionID    *common.ID
+	TargetDesignID        *common.ID
 	Status                string
 	StartsAt              *time.Time
 	EndsAt                *time.Time

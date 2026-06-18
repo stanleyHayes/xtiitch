@@ -2333,6 +2333,8 @@ func (repo AdminAuthRepository) CreateAdminPromotion(
 				usage_limit_per_customer,
 				funding_source,
 				scope,
+				target_collection_id,
+				target_design_id,
 				status,
 				starts_at,
 				ends_at,
@@ -2356,8 +2358,10 @@ func (repo AdminAuthRepository) CreateAdminPromotion(
 				$14,
 				$15,
 				$16,
-				$17::uuid,
-				$17::uuid
+				$17,
+				$18,
+				$19::uuid,
+				$19::uuid
 			)
 			returning *
 		)
@@ -2375,6 +2379,8 @@ func (repo AdminAuthRepository) CreateAdminPromotion(
 		nullableIntArg(input.UsageLimitPerCustomer),
 		input.FundingSource,
 		input.Scope,
+		nullableIDArg(input.TargetCollectionID),
+		nullableIDArg(input.TargetDesignID),
 		input.Status,
 		input.StartsAt,
 		input.EndsAt,
@@ -2432,10 +2438,12 @@ func (repo AdminAuthRepository) UpdateAdminPromotion(
 				usage_limit_per_customer = $11,
 				funding_source = $12,
 				scope = $13,
-				status = $14,
-				starts_at = $15,
-				ends_at = $16,
-				updated_by_admin_user_id = $17::uuid,
+				target_collection_id = $14,
+				target_design_id = $15,
+				status = $16,
+				starts_at = $17,
+				ends_at = $18,
+				updated_by_admin_user_id = $19::uuid,
 				updated_at = now()
 			where promotion_id = $1::uuid
 			returning *
@@ -2454,6 +2462,8 @@ func (repo AdminAuthRepository) UpdateAdminPromotion(
 		nullableIntArg(input.UsageLimitPerCustomer),
 		input.FundingSource,
 		input.Scope,
+		nullableIDArg(input.TargetCollectionID),
+		nullableIDArg(input.TargetDesignID),
 		input.Status,
 		input.StartsAt,
 		input.EndsAt,
@@ -4228,6 +4238,8 @@ func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
 	var record ports.AdminPromotionRecord
 	var businessID pgtype.Text
+	var targetCollectionID pgtype.Text
+	var targetDesignID pgtype.Text
 	var maxDiscountMinor pgtype.Int8
 	var usageLimitGlobal pgtype.Int4
 	var usageLimitPerCustomer pgtype.Int4
@@ -4249,6 +4261,8 @@ func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
 		&usageLimitPerCustomer,
 		&record.FundingSource,
 		&record.Scope,
+		&targetCollectionID,
+		&targetDesignID,
 		&record.Status,
 		&startsAt,
 		&endsAt,
@@ -4262,6 +4276,14 @@ func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
 	if businessID.Valid {
 		id := common.ID(businessID.String)
 		record.BusinessID = &id
+	}
+	if targetCollectionID.Valid {
+		id := common.ID(targetCollectionID.String)
+		record.TargetCollectionID = &id
+	}
+	if targetDesignID.Valid {
+		id := common.ID(targetDesignID.String)
+		record.TargetDesignID = &id
 	}
 	record.MaxDiscountMinor = int8Ptr(maxDiscountMinor)
 	record.UsageLimitGlobal = int4Ptr(usageLimitGlobal)
@@ -5037,6 +5059,8 @@ func adminPromotionSelect(source string) string {
 			p.usage_limit_per_customer,
 			p.funding_source,
 			p.scope,
+			p.target_collection_id::text,
+			p.target_design_id::text,
 			p.status,
 			p.starts_at,
 			p.ends_at,

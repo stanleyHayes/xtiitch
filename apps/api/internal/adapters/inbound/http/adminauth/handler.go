@@ -277,6 +277,8 @@ type planArchiveRequest struct {
 
 type promotionUpsertRequest struct {
 	BusinessID            string     `json:"business_id"`
+	TargetCollectionID    string     `json:"target_collection_id"`
+	TargetDesignID        string     `json:"target_design_id"`
 	Code                  string     `json:"code"`
 	Title                 string     `json:"title"`
 	Description           string     `json:"description"`
@@ -628,6 +630,8 @@ type promotionResponse struct {
 	UsageLimitPerCustomer *int                          `json:"usage_limit_per_customer,omitempty"`
 	FundingSource         string                        `json:"funding_source"`
 	Scope                 string                        `json:"scope"`
+	TargetCollectionID    string                        `json:"target_collection_id,omitempty"`
+	TargetDesignID        string                        `json:"target_design_id,omitempty"`
 	Status                string                        `json:"status"`
 	StartsAt              string                        `json:"starts_at,omitempty"`
 	EndsAt                string                        `json:"ends_at,omitempty"`
@@ -1473,6 +1477,8 @@ func (handler Handler) createPromotion(w http.ResponseWriter, r *http.Request) {
 		UsageLimitPerCustomer: request.UsageLimitPerCustomer,
 		FundingSource:         request.FundingSource,
 		Scope:                 request.Scope,
+		TargetCollectionID:    optionalCommonID(request.TargetCollectionID),
+		TargetDesignID:        optionalCommonID(request.TargetDesignID),
 		Status:                request.Status,
 		StartsAt:              request.StartsAt,
 		EndsAt:                request.EndsAt,
@@ -1517,6 +1523,8 @@ func (handler Handler) updatePromotion(w http.ResponseWriter, r *http.Request) {
 		UsageLimitPerCustomer: request.UsageLimitPerCustomer,
 		FundingSource:         request.FundingSource,
 		Scope:                 request.Scope,
+		TargetCollectionID:    optionalCommonID(request.TargetCollectionID),
+		TargetDesignID:        optionalCommonID(request.TargetDesignID),
 		Status:                request.Status,
 		StartsAt:              request.StartsAt,
 		EndsAt:                request.EndsAt,
@@ -2874,6 +2882,10 @@ func decodeJSON(r *http.Request, value any) error {
 }
 
 func promotionBusinessID(value string) *common.ID {
+	return optionalCommonID(value)
+}
+
+func optionalCommonID(value string) *common.ID {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return nil
@@ -3216,6 +3228,8 @@ func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {
 		UsageLimitPerCustomer: record.UsageLimitPerCustomer,
 		FundingSource:         record.FundingSource,
 		Scope:                 record.Scope,
+		TargetCollectionID:    optionalIDString(record.TargetCollectionID),
+		TargetDesignID:        optionalIDString(record.TargetDesignID),
 		Status:                record.Status,
 		StartsAt:              optionalTimeString(record.StartsAt),
 		EndsAt:                optionalTimeString(record.EndsAt),
@@ -3405,6 +3419,13 @@ func optionalTimeString(value *time.Time) string {
 		return ""
 	}
 	return value.Format(time.RFC3339)
+}
+
+func optionalIDString(value *common.ID) string {
+	if value == nil {
+		return ""
+	}
+	return value.String()
 }
 
 func businessListStatus(record ports.AdminBusinessRecord) string {

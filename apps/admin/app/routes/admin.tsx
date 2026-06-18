@@ -1069,6 +1069,8 @@ export async function action({ request }: Route.ActionArgs) {
         ),
         fundingSource: readPromotionFundingSource(form.get("funding_source")),
         scope: readPromotionScope(form.get("scope")),
+        targetCollectionId: readOptionalText(form.get("target_collection_id")),
+        targetDesignId: readOptionalText(form.get("target_design_id")),
         status: readPromotionEditableStatus(form.get("status")),
         startsAt: readOptionalDateTime(form.get("starts_at")),
         endsAt: readOptionalDateTime(form.get("ends_at")),
@@ -5956,6 +5958,20 @@ function promotionTargetLabel(promotion: AdminPromotion): string {
     : "Platform-wide";
 }
 
+function promotionScopeTargetLabel(promotion: AdminPromotion): string {
+  if (promotion.scope === "collection") {
+    return promotion.targetCollectionId
+      ? `collection ${shortID(promotion.targetCollectionId)}`
+      : "collection target";
+  }
+  if (promotion.scope === "design") {
+    return promotion.targetDesignId
+      ? `design ${shortID(promotion.targetDesignId)}`
+      : "design target";
+  }
+  return "store";
+}
+
 function promotionValueDefault(promotion: AdminPromotion): string {
   if (promotion.discountType === "percentage") {
     return (promotion.discountValue / 100).toString();
@@ -7434,6 +7450,12 @@ function PromotionsSection({
                   ))}
                 </TextField>
                 <TextField
+                  label="Collection ID"
+                  name="target_collection_id"
+                  size="small"
+                />
+                <TextField label="Design ID" name="target_design_id" size="small" />
+                <TextField
                   select
                   label="Status"
                   name="status"
@@ -7600,7 +7622,9 @@ function PromotionsSection({
                     />
                     <DetailLine
                       label="Funding"
-                      value={`${promotion.fundingSource} · ${promotion.scope}`}
+                      value={`${promotion.fundingSource} · ${promotionScopeTargetLabel(
+                        promotion,
+                      )}`}
                     />
                     <DetailLine
                       label="Starts"
@@ -7864,6 +7888,20 @@ function PromotionsSection({
                             </MenuItem>
                           ))}
                         </TextField>
+                        <TextField
+                          label="Collection ID"
+                          name="target_collection_id"
+                          size="small"
+                          defaultValue={promotion.targetCollectionId ?? ""}
+                          disabled={archived}
+                        />
+                        <TextField
+                          label="Design ID"
+                          name="target_design_id"
+                          size="small"
+                          defaultValue={promotion.targetDesignId ?? ""}
+                          disabled={archived}
+                        />
                         <TextField
                           label="Global limit"
                           name="usage_limit_global"
