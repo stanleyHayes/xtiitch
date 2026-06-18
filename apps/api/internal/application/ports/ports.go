@@ -19,6 +19,7 @@ type BusinessIdentityRepository interface {
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserPasswordInput) error
+	TransferBusinessOwner(ctx context.Context, scope common.TenantScope, input TransferBusinessOwnerInput) (TransferBusinessOwnerResult, error)
 }
 
 type CreateBusinessWithOwnerInput struct {
@@ -75,6 +76,16 @@ type UpdateBusinessUserInput struct {
 type UpdateBusinessUserPasswordInput struct {
 	UserID       common.ID
 	PasswordHash string
+}
+
+type TransferBusinessOwnerInput struct {
+	CurrentOwnerUserID common.ID
+	NewOwnerUserID     common.ID
+}
+
+type TransferBusinessOwnerResult struct {
+	PreviousOwner BusinessUserRecord
+	NewOwner      BusinessUserRecord
 }
 
 type AuthSessionRepository interface {

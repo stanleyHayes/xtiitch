@@ -340,6 +340,125 @@ func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(ctx context.Co
 	return tx.Commit(ctx)
 }
 
+func (repo BusinessIdentityRepository) TransferBusinessOwner(ctx context.Context, scope common.TenantScope, input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		select business_user_id::text, role, is_active
+		from business_users
+		where business_id = $1
+			and business_user_id in ($2, $3)
+		order by business_user_id
+		for update
+	`, scope.BusinessID.String(), input.CurrentOwnerUserID.String(), input.NewOwnerUserID.String())
+	if err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+	defer rows.Close()
+
+	type lockedUser struct {
+		role     business.UserRole
+		isActive bool
+	}
+	locked := map[common.ID]lockedUser{}
+	for rows.Next() {
+		var userID common.ID
+		var role string
+		var active bool
+		if err := rows.Scan(&userID, &role, &active); err != nil {
+			return ports.TransferBusinessOwnerResult{}, err
+		}
+		locked[userID] = lockedUser{role: business.UserRole(role), isActive: active}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+	rows.Close()
+
+	currentOwner, ok := locked[input.CurrentOwnerUserID]
+	if !ok || !currentOwner.isActive || currentOwner.role != business.UserRoleOwner {
+		return ports.TransferBusinessOwnerResult{}, ports.ErrNotFound
+	}
+	newOwner, ok := locked[input.NewOwnerUserID]
+	if !ok || !newOwner.isActive || newOwner.role != business.UserRoleAdmin {
+		return ports.TransferBusinessOwnerResult{}, ports.ErrNotFound
+	}
+
+	updatedRows, err := tx.Query(ctx, `
+		update business_users
+		set role = case
+				when business_user_id = $2 then 'admin'
+				when business_user_id = $3 then 'owner'
+				else role
+			end,
+			updated_at = now()
+		where business_id = $1
+			and business_user_id in ($2, $3)
+		returning
+			business_user_id::text,
+			business_id::text,
+			email,
+			display_name,
+			role,
+			is_active,
+			created_at,
+			updated_at
+	`, scope.BusinessID.String(), input.CurrentOwnerUserID.String(), input.NewOwnerUserID.String())
+	if err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+	defer updatedRows.Close()
+
+	updated := map[common.ID]ports.BusinessUserRecord{}
+	for updatedRows.Next() {
+		user, err := scanBusinessUserRecord(updatedRows)
+		if err != nil {
+			return ports.TransferBusinessOwnerResult{}, err
+		}
+		updated[user.UserID] = user
+	}
+	if err := updatedRows.Err(); err != nil {
+		updatedRows.Close()
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+	updatedRows.Close()
+
+	previousOwner, hasPrevious := updated[input.CurrentOwnerUserID]
+	transferredOwner, hasTransferred := updated[input.NewOwnerUserID]
+	if !hasPrevious || !hasTransferred {
+		return ports.TransferBusinessOwnerResult{}, ports.ErrNotFound
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update auth_sessions
+		set revoked_at = now(),
+			updated_at = now()
+		where business_id = $1
+			and business_user_id in ($2, $3)
+			and revoked_at is null
+	`, scope.BusinessID.String(), input.CurrentOwnerUserID.String(), input.NewOwnerUserID.String()); err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.TransferBusinessOwnerResult{}, err
+	}
+
+	return ports.TransferBusinessOwnerResult{
+		PreviousOwner: previousOwner,
+		NewOwner:      transferredOwner,
+	}, nil
+}
+
 func scanBusinessUserRecord(row pgx.Row) (ports.BusinessUserRecord, error) {
 	var user ports.BusinessUserRecord
 	var role string

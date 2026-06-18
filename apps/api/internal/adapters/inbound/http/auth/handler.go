@@ -27,6 +27,7 @@ type Service interface {
 	CreateBusinessUser(ctx context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	ResetBusinessUserPassword(ctx context.Context, command authapp.ResetBusinessUserPasswordCommand) error
+	TransferBusinessOwner(ctx context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error)
 }
 
 type Handler struct {
@@ -51,6 +52,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/auth/business/users", handler.createBusinessUser)
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
 		protected.Post("/auth/business/users/{id}/password", handler.resetBusinessUserPassword)
+		protected.Post("/auth/business/owner-transfer", handler.transferBusinessOwner)
 	})
 }
 
@@ -93,6 +95,11 @@ type resetBusinessUserPasswordRequest struct {
 	Password string `json:"password"`
 }
 
+type transferBusinessOwnerRequest struct {
+	NewOwnerUserID string `json:"new_owner_user_id"`
+	Confirmation   string `json:"confirmation"`
+}
+
 type meResponse struct {
 	BusinessID string `json:"business_id"`
 	UserID     string `json:"user_id"`
@@ -108,6 +115,11 @@ type businessUserResponse struct {
 	IsActive    bool   `json:"is_active"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
+}
+
+type transferBusinessOwnerResponse struct {
+	PreviousOwner businessUserResponse `json:"previous_owner"`
+	NewOwner      businessUserResponse `json:"new_owner"`
 }
 
 type authResponse struct {
@@ -331,6 +343,38 @@ func (handler Handler) resetBusinessUserPassword(w http.ResponseWriter, r *http.
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) transferBusinessOwner(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request transferBusinessOwnerRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	result, err := handler.service.TransferBusinessOwner(r.Context(), authapp.TransferBusinessOwnerCommand{
+		Scope:          principal.TenantScope(),
+		ActorUserID:    principal.UserID,
+		ActorRole:      principal.Role,
+		NewOwnerUserID: common.ID(request.NewOwnerUserID),
+		Confirmation:   request.Confirmation,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, transferBusinessOwnerResponse{
+		PreviousOwner: newBusinessUserResponse(result.PreviousOwner),
+		NewOwner:      newBusinessUserResponse(result.NewOwner),
+	})
 }
 
 func decodeJSON(r *http.Request, value any) error {

@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	minPasswordLength = 8
+	minPasswordLength         = 8
+	ownerTransferConfirmation = "TRANSFER OWNER"
 	// bcrypt silently truncates input beyond 72 bytes, so reject longer
 	// passwords rather than hashing a quietly-truncated value.
 	maxPasswordLength = 72
@@ -324,6 +325,34 @@ func (s Service) ResetBusinessUserPassword(ctx context.Context, cmd ResetBusines
 	return s.businesses.UpdateBusinessUserPassword(ctx, cmd.Scope, ports.UpdateBusinessUserPasswordInput{
 		UserID:       cmd.UserID,
 		PasswordHash: passwordHash,
+	})
+}
+
+type TransferBusinessOwnerCommand struct {
+	Scope          common.TenantScope
+	ActorUserID    common.ID
+	ActorRole      business.UserRole
+	NewOwnerUserID common.ID
+	Confirmation   string
+}
+
+func (s Service) TransferBusinessOwner(ctx context.Context, cmd TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error) {
+	if cmd.Scope.BusinessID.IsZero() || cmd.ActorUserID.IsZero() || cmd.NewOwnerUserID.IsZero() {
+		return ports.TransferBusinessOwnerResult{}, authdomain.ErrInvalidInput
+	}
+	if cmd.ActorRole != business.UserRoleOwner {
+		return ports.TransferBusinessOwnerResult{}, authdomain.ErrForbidden
+	}
+	if cmd.ActorUserID == cmd.NewOwnerUserID {
+		return ports.TransferBusinessOwnerResult{}, authdomain.ErrInvalidInput
+	}
+	if strings.TrimSpace(cmd.Confirmation) != ownerTransferConfirmation {
+		return ports.TransferBusinessOwnerResult{}, authdomain.ErrInvalidInput
+	}
+
+	return s.businesses.TransferBusinessOwner(ctx, cmd.Scope, ports.TransferBusinessOwnerInput{
+		CurrentOwnerUserID: cmd.ActorUserID,
+		NewOwnerUserID:     cmd.NewOwnerUserID,
 	})
 }
 

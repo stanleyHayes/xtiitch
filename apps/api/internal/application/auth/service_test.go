@@ -632,6 +632,71 @@ func TestResetBusinessUserPasswordRequiresOwnerOrAdminAndHashesPassword(t *testi
 	}
 }
 
+func TestTransferBusinessOwnerRequiresCurrentOwnerAndConfirmation(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"unused"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	result, err := service.TransferBusinessOwner(context.Background(), TransferBusinessOwnerCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		ActorUserID:    "owner-1",
+		ActorRole:      business.UserRoleOwner,
+		NewOwnerUserID: "admin-1",
+		Confirmation:   "TRANSFER OWNER",
+	})
+	if err != nil {
+		t.Fatalf("transfer business owner: %v", err)
+	}
+	if businesses.transferredOwner.CurrentOwnerUserID != "owner-1" || businesses.transferredOwner.NewOwnerUserID != "admin-1" {
+		t.Fatalf("expected scoped owner transfer, got %+v", businesses.transferredOwner)
+	}
+	if result.NewOwner.UserID != "admin-1" || result.NewOwner.Role != business.UserRoleOwner {
+		t.Fatalf("unexpected transfer response: %+v", result)
+	}
+
+	_, err = service.TransferBusinessOwner(context.Background(), TransferBusinessOwnerCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		ActorUserID:    "admin-2",
+		ActorRole:      business.UserRoleAdmin,
+		NewOwnerUserID: "admin-1",
+		Confirmation:   "TRANSFER OWNER",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected admin transfer to be forbidden, got %v", err)
+	}
+
+	_, err = service.TransferBusinessOwner(context.Background(), TransferBusinessOwnerCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		ActorUserID:    "owner-1",
+		ActorRole:      business.UserRoleOwner,
+		NewOwnerUserID: "admin-1",
+		Confirmation:   "transfer owner",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected confirmation mismatch to be invalid, got %v", err)
+	}
+
+	_, err = service.TransferBusinessOwner(context.Background(), TransferBusinessOwnerCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		ActorUserID:    "owner-1",
+		ActorRole:      business.UserRoleOwner,
+		NewOwnerUserID: "owner-1",
+		Confirmation:   "TRANSFER OWNER",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected self-transfer to be invalid, got %v", err)
+	}
+}
+
 type fakeBusinessIdentityRepository struct {
 	created           ports.CreateBusinessWithOwnerInput
 	createErr         error
@@ -649,6 +714,9 @@ type fakeBusinessIdentityRepository struct {
 	updateUserErr     error
 	updatedPassword   ports.UpdateBusinessUserPasswordInput
 	updatePasswordErr error
+	transferredOwner  ports.TransferBusinessOwnerInput
+	transferScope     common.TenantScope
+	transferErr       error
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
@@ -715,6 +783,28 @@ func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword(_ context
 	repo.updateScope = scope
 	repo.updatedPassword = input
 	return repo.updatePasswordErr
+}
+
+func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner(_ context.Context, scope common.TenantScope, input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult, error) {
+	repo.transferScope = scope
+	repo.transferredOwner = input
+	if repo.transferErr != nil {
+		return ports.TransferBusinessOwnerResult{}, repo.transferErr
+	}
+	return ports.TransferBusinessOwnerResult{
+		PreviousOwner: ports.BusinessUserRecord{
+			UserID:     input.CurrentOwnerUserID,
+			BusinessID: scope.BusinessID,
+			Role:       business.UserRoleAdmin,
+			IsActive:   true,
+		},
+		NewOwner: ports.BusinessUserRecord{
+			UserID:     input.NewOwnerUserID,
+			BusinessID: scope.BusinessID,
+			Role:       business.UserRoleOwner,
+			IsActive:   true,
+		},
+	}, nil
 }
 
 type countingPasswordHasher struct {

@@ -400,6 +400,71 @@ func TestResetBusinessUserPasswordReturnsNoContent(t *testing.T) {
 	}
 }
 
+func TestTransferBusinessOwnerReturnsAffectedUsers(t *testing.T) {
+	t.Parallel()
+
+	createdAt := time.Date(2026, 6, 16, 10, 0, 0, 0, time.UTC)
+	service := &fakeAuthService{
+		transferResult: ports.TransferBusinessOwnerResult{
+			PreviousOwner: ports.BusinessUserRecord{
+				UserID:      "owner-1",
+				BusinessID:  "business-1",
+				Email:       "owner@example.com",
+				DisplayName: "Old Owner",
+				Role:        business.UserRoleAdmin,
+				IsActive:    true,
+				CreatedAt:   createdAt,
+				UpdatedAt:   createdAt,
+			},
+			NewOwner: ports.BusinessUserRecord{
+				UserID:      "admin-1",
+				BusinessID:  "business-1",
+				Email:       "admin@example.com",
+				DisplayName: "New Owner",
+				Role:        business.UserRoleOwner,
+				IsActive:    true,
+				CreatedAt:   createdAt,
+				UpdatedAt:   createdAt,
+			},
+		},
+	}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "owner-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleOwner,
+	}})
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/owner-transfer", bytes.NewReader([]byte(`{
+		"new_owner_user_id": "admin-1",
+		"confirmation": "TRANSFER OWNER"
+	}`)))
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	if !service.transferOwnerCalled {
+		t.Fatal("expected transfer owner service to be called")
+	}
+	if service.transferOwnerCommand.Scope.BusinessID != "business-1" ||
+		service.transferOwnerCommand.ActorUserID != "owner-1" ||
+		service.transferOwnerCommand.ActorRole != business.UserRoleOwner ||
+		service.transferOwnerCommand.NewOwnerUserID != "admin-1" ||
+		service.transferOwnerCommand.Confirmation != "TRANSFER OWNER" {
+		t.Fatalf("unexpected transfer owner command: %+v", service.transferOwnerCommand)
+	}
+
+	var body transferBusinessOwnerResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.PreviousOwner.Role != "admin" || body.NewOwner.Role != "owner" {
+		t.Fatalf("unexpected transfer response: %+v", body)
+	}
+}
+
 func newTestRouter(service *fakeAuthService) http.Handler {
 	return newTestRouterWithVerifier(service, fakeTokenVerifier{err: errors.New("no verifier")})
 }
@@ -439,6 +504,9 @@ type fakeAuthService struct {
 	updateUserCommand        authapp.UpdateBusinessUserCommand
 	resetUserPasswordCalled  bool
 	resetUserPasswordCommand authapp.ResetBusinessUserPasswordCommand
+	transferOwnerCalled      bool
+	transferOwnerCommand     authapp.TransferBusinessOwnerCommand
+	transferResult           ports.TransferBusinessOwnerResult
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -510,4 +578,13 @@ func (service *fakeAuthService) ResetBusinessUserPassword(_ context.Context, com
 	service.resetUserPasswordCalled = true
 	service.resetUserPasswordCommand = command
 	return service.userErr
+}
+
+func (service *fakeAuthService) TransferBusinessOwner(_ context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error) {
+	service.transferOwnerCalled = true
+	service.transferOwnerCommand = command
+	if service.userErr != nil {
+		return ports.TransferBusinessOwnerResult{}, service.userErr
+	}
+	return service.transferResult, nil
 }

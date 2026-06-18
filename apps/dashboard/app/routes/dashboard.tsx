@@ -1223,6 +1223,27 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/team");
   }
 
+  if (intent === "transfer_owner") {
+    const newOwnerUserID = String(form.get("new_owner_user_id") ?? "").trim();
+    if (!newOwnerUserID) {
+      return { teamError: "Choose an active admin to become the owner." };
+    }
+    const response = await apiFetch(request, "/auth/business/owner-transfer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        new_owner_user_id: newOwnerUserID,
+        confirmation: String(form.get("confirmation") ?? ""),
+      }),
+    });
+    if (!response.ok) {
+      return {
+        teamError: businessUserErrorMessage(response.status, "transfer"),
+      };
+    }
+    return redirect("/dashboard/team");
+  }
+
   if (intent === "create_collection") {
     const sequence = parseSequence(form.get("sequence"));
     if (sequence === null) {
@@ -1635,16 +1656,20 @@ function rolePermissionMessage(role: string): string {
 
 function businessUserErrorMessage(
   status: number,
-  action: "create" | "update" | "reset",
+  action: "create" | "update" | "reset" | "transfer",
 ): string {
   if (status === 403) {
-    return "Only owners and admins can manage team access.";
+    return action === "transfer"
+      ? "Only the current owner can transfer business ownership."
+      : "Only owners and admins can manage team access.";
   }
   if (status === 409) {
     return "That email is already attached to this business.";
   }
   if (status === 404) {
-    return "That team member could not be found or is protected.";
+    return action === "transfer"
+      ? "Choose an active admin account before transferring ownership."
+      : "That team member could not be found or is protected.";
   }
   if (status === 400) {
     if (action === "create") {
@@ -1653,10 +1678,16 @@ function businessUserErrorMessage(
     if (action === "reset") {
       return "Use a temporary password between 8 and 72 characters.";
     }
+    if (action === "transfer") {
+      return 'Choose an active admin and type "TRANSFER OWNER" exactly.';
+    }
     return "Add a name and choose an admin or staff role before saving.";
   }
   if (action === "create") {
     return "Could not create that team member yet.";
+  }
+  if (action === "transfer") {
+    return "Could not transfer ownership yet.";
   }
   return action === "reset"
     ? "Could not reset that team member's password yet."
@@ -1834,7 +1865,9 @@ function parseMoneyMinor(value: FormDataEntryValue | null): number | null {
   return Math.round(amount * 100);
 }
 
-function parseOptionalMoneyMinor(value: FormDataEntryValue | null): number | null {
+function parseOptionalMoneyMinor(
+  value: FormDataEntryValue | null,
+): number | null {
   const entered = String(value ?? "")
     .replaceAll(",", "")
     .trim();
@@ -3031,7 +3064,10 @@ function WorkspaceRail({
               color: tokens.white,
               bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.3),
               border: "1px solid",
-              borderColor: alpha(verified ? tokens.success : tokens.warning, 0.42),
+              borderColor: alpha(
+                verified ? tokens.success : tokens.warning,
+                0.42,
+              ),
               "& .MuiChip-icon": { color: alpha(tokens.white, 0.86) },
             }}
           />
@@ -3089,7 +3125,9 @@ function WorkspaceRail({
                     ? alpha(tokens.white, 0.13)
                     : alpha(tokens.white, 0.035),
                   border: "1px solid",
-                  borderColor: active ? alpha(tokens.white, 0.18) : "transparent",
+                  borderColor: active
+                    ? alpha(tokens.white, 0.18)
+                    : "transparent",
                   "&::before": {
                     content: '""',
                     position: "absolute",
@@ -7238,10 +7276,7 @@ function PromotionRow({
                 bgcolor: alpha(promotionStatusTone(promotion.status), 0.1),
                 color: promotionStatusTone(promotion.status),
                 border: "1px solid",
-                borderColor: alpha(
-                  promotionStatusTone(promotion.status),
-                  0.2,
-                ),
+                borderColor: alpha(promotionStatusTone(promotion.status), 0.2),
               }}
             >
               <LocalOfferRounded />
@@ -7346,7 +7381,9 @@ function PromotionRow({
                 label="Status"
                 select
                 size="small"
-                defaultValue={promotion.status === "paused" ? "paused" : "active"}
+                defaultValue={
+                  promotion.status === "paused" ? "paused" : "active"
+                }
               >
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="paused">Paused</MenuItem>
@@ -7606,79 +7643,92 @@ function TeamPanel({
             },
           }}
         >
-          <Box
-            sx={{
-              p: { xs: 2, md: 2.25 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
-              bgcolor: alpha(tokens.white, 0.72),
-              backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.06)}, transparent 48%)`,
-            }}
-          >
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              <Box sx={{ color: "primary.main" }}>
-                <AddRounded />
-              </Box>
-              <Box>
-                <Typography sx={{ fontWeight: 900 }}>Create access</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  Add an admin or staff sign-in; invite email sends when
-                  delivery is configured.
-                </Typography>
-              </Box>
-            </Stack>
-            <Form method="post">
-              <input type="hidden" name="intent" value="create_business_user" />
-              <Stack spacing={1.5} sx={{ mt: 2 }}>
-                {error ? <Alert severity="warning">{error}</Alert> : null}
-                <TextField
-                  name="display_name"
-                  label="Name"
-                  size="small"
-                  required
-                  fullWidth
-                />
-                <TextField
-                  name="email"
-                  label="Email"
-                  type="email"
-                  size="small"
-                  required
-                  fullWidth
-                />
-                <TextField
-                  name="password"
-                  label="Temporary password"
-                  type="password"
-                  size="small"
-                  required
-                  fullWidth
-                  slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
-                />
-                <TextField
-                  name="role"
-                  label="Role"
-                  select
-                  defaultValue="staff"
-                  size="small"
-                >
-                  {businessUserRoleOptions.map((role) => (
-                    <MenuItem key={role.value} value={role.value}>
-                      {role.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<AddRounded />}
-                >
-                  Add team member
-                </Button>
+          <Stack spacing={2}>
+            <Box
+              sx={{
+                p: { xs: 2, md: 2.25 },
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                bgcolor: alpha(tokens.white, 0.72),
+                backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.06)}, transparent 48%)`,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center" }}
+              >
+                <Box sx={{ color: "primary.main" }}>
+                  <AddRounded />
+                </Box>
+                <Box>
+                  <Typography sx={{ fontWeight: 900 }}>
+                    Create access
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Add an admin or staff sign-in; invite email sends when
+                    delivery is configured.
+                  </Typography>
+                </Box>
               </Stack>
-            </Form>
-          </Box>
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="create_business_user"
+                />
+                <Stack spacing={1.5} sx={{ mt: 2 }}>
+                  {error ? <Alert severity="warning">{error}</Alert> : null}
+                  <TextField
+                    name="display_name"
+                    label="Name"
+                    size="small"
+                    required
+                    fullWidth
+                  />
+                  <TextField
+                    name="email"
+                    label="Email"
+                    type="email"
+                    size="small"
+                    required
+                    fullWidth
+                  />
+                  <TextField
+                    name="password"
+                    label="Temporary password"
+                    type="password"
+                    size="small"
+                    required
+                    fullWidth
+                    slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
+                  />
+                  <TextField
+                    name="role"
+                    label="Role"
+                    select
+                    defaultValue="staff"
+                    size="small"
+                  >
+                    {businessUserRoleOptions.map((role) => (
+                      <MenuItem key={role.value} value={role.value}>
+                        {role.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<AddRounded />}
+                  >
+                    Add team member
+                  </Button>
+                </Stack>
+              </Form>
+            </Box>
+            <OwnerTransferPanel users={users} currentUser={currentUser} />
+          </Stack>
 
           <Box
             sx={{
@@ -7729,6 +7779,105 @@ function TeamPanel({
         </Box>
       </Box>
     </Panel>
+  );
+}
+
+function OwnerTransferPanel({
+  users,
+  currentUser,
+}: {
+  users: BusinessUser[];
+  currentUser: CurrentUser;
+}) {
+  const isOwner = currentUser.role === "owner";
+  const activeAdmins = users.filter(
+    (user) =>
+      user.role === "admin" &&
+      user.is_active &&
+      user.business_user_id !== currentUser.user_id,
+  );
+  const disabled = !isOwner || activeAdmins.length === 0;
+  const helper = !isOwner
+    ? "Only the current owner can transfer ownership."
+    : activeAdmins.length === 0
+      ? "Create an active admin account before transferring ownership."
+      : "Transfers demote the current owner to admin and require everyone involved to sign in again.";
+
+  return (
+    <Box
+      sx={{
+        p: { xs: 2, md: 2.25 },
+        border: "1px solid",
+        borderColor: alpha(tokens.burgundy, 0.22),
+        borderRadius: 2,
+        bgcolor: alpha(tokens.white, 0.74),
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.06)}, transparent 52%)`,
+      }}
+    >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+        <Box sx={{ color: "primary.main" }}>
+          <VerifiedUserRounded />
+        </Box>
+        <Box>
+          <Typography sx={{ fontWeight: 900 }}>Owner transfer</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {helper}
+          </Typography>
+        </Box>
+      </Stack>
+
+      {!isOwner || activeAdmins.length === 0 ? (
+        <Alert severity="info" sx={{ mt: 2 }}>
+          {helper}
+        </Alert>
+      ) : null}
+
+      <Form method="post">
+        <input type="hidden" name="intent" value="transfer_owner" />
+        <Stack spacing={1.5} sx={{ mt: 2 }}>
+          <TextField
+            name="new_owner_user_id"
+            label="New owner"
+            select
+            size="small"
+            defaultValue={activeAdmins[0]?.business_user_id ?? ""}
+            disabled={disabled}
+            required
+            fullWidth
+          >
+            {activeAdmins.length === 0 ? (
+              <MenuItem value="">No active admins available</MenuItem>
+            ) : (
+              activeAdmins.map((user) => (
+                <MenuItem
+                  key={user.business_user_id}
+                  value={user.business_user_id}
+                >
+                  {user.display_name || user.email}
+                </MenuItem>
+              ))
+            )}
+          </TextField>
+          <TextField
+            name="confirmation"
+            label='Type "TRANSFER OWNER"'
+            size="small"
+            disabled={disabled}
+            required
+            fullWidth
+          />
+          <Button
+            type="submit"
+            variant="outlined"
+            color="error"
+            startIcon={<VerifiedUserRounded />}
+            disabled={disabled}
+          >
+            Transfer ownership
+          </Button>
+        </Stack>
+      </Form>
+    </Box>
   );
 }
 
@@ -8897,7 +9046,11 @@ export default function Dashboard({
             <MenuRounded />
           </IconButton>
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary" }}
+              noWrap
+            >
               {profile.name}
             </Typography>
             <Typography sx={{ fontWeight: 950, lineHeight: 1.1 }} noWrap>
