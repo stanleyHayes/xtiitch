@@ -26,6 +26,14 @@ const (
 	itAffReserveClick       = "aaaaaaaa-9999-9999-9999-999999999986"
 	itAffReserveReservation = "aaaaaaaa-9999-9999-9999-999999999987"
 	itAffReserveCode        = "ITRESERVE"
+
+	itSponsoredBusiness       = "aaaaaaaa-7777-7777-7777-777777777781"
+	itSponsoredDesign         = "aaaaaaaa-7777-7777-7777-777777777782"
+	itSponsoredCampaignActive = "aaaaaaaa-7777-7777-7777-777777777783"
+	itSponsoredCampaignPaused = "aaaaaaaa-7777-7777-7777-777777777784"
+	itSponsoredCampaignOld    = "aaaaaaaa-7777-7777-7777-777777777785"
+	itSponsoredEvent          = "aaaaaaaa-7777-7777-7777-777777777786"
+	itSponsoredEventDupe      = "aaaaaaaa-7777-7777-7777-777777777787"
 )
 
 func TestRecordAffiliateClickPersistsActiveCodeWithoutRawIP(t *testing.T) {
@@ -143,6 +151,89 @@ func TestReserveAffiliateAttributionPersistsLastClickReservation(t *testing.T) {
 	}
 }
 
+func TestSponsoredPlacementsListActiveCampaignsAndDedupeEvents(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedSponsoredPlacementFixture(t, pool)
+	defer cleanupSponsoredPlacementFixture(t, pool)
+
+	repo := NewAffiliateRepository(pool)
+	placements, err := repo.ListActiveSponsoredPlacements(context.Background(), ports.ListActiveSponsoredPlacementsInput{
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatalf("list sponsored placements: %v", err)
+	}
+
+	var found ports.SponsoredPlacementRecord
+	for _, placement := range placements {
+		if placement.CampaignID == common.ID(itSponsoredCampaignActive) {
+			found = placement
+			break
+		}
+		if placement.CampaignID == common.ID(itSponsoredCampaignPaused) ||
+			placement.CampaignID == common.ID(itSponsoredCampaignOld) {
+			t.Fatalf("inactive campaign leaked into public placements: %+v", placement)
+		}
+	}
+	if found.CampaignID.IsZero() ||
+		found.BusinessHandle != "it-sponsored-atelier" ||
+		found.DesignHandle != "it-sponsored-design" ||
+		found.ImageURL != "https://images.test/sponsored.webp" {
+		t.Fatalf("expected active promoted design placement, got %+v", found)
+	}
+
+	first, err := repo.RecordSponsoredAdEvent(context.Background(), ports.RecordSponsoredAdEventInput{
+		EventID:     itSponsoredEvent,
+		CampaignID:  itSponsoredCampaignActive,
+		EventType:   "impression",
+		VisitorID:   "visitor-sponsored",
+		PageURL:     "https://xtiitch.test",
+		ReferrerURL: "https://search.test",
+		UserAgent:   "Integration browser",
+		IPHash:      "hashed-ip",
+	})
+	if err != nil {
+		t.Fatalf("record sponsored event: %v", err)
+	}
+	if first.EventID != common.ID(itSponsoredEvent) || first.Deduped {
+		t.Fatalf("expected inserted event, got %+v", first)
+	}
+
+	second, err := repo.RecordSponsoredAdEvent(context.Background(), ports.RecordSponsoredAdEventInput{
+		EventID:     itSponsoredEventDupe,
+		CampaignID:  itSponsoredCampaignActive,
+		EventType:   "impression",
+		VisitorID:   "visitor-sponsored",
+		PageURL:     "https://xtiitch.test",
+		ReferrerURL: "https://search.test",
+		UserAgent:   "Integration browser",
+		IPHash:      "hashed-ip",
+	})
+	if err != nil {
+		t.Fatalf("record duplicate sponsored event: %v", err)
+	}
+	if second.EventID != common.ID(itSponsoredEvent) || !second.Deduped {
+		t.Fatalf("expected duplicate to return existing event, got %+v", second)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var count int
+		if err := tx.QueryRow(context.Background(), `
+			select count(*)
+			from ad_events
+			where campaign_id = $1
+				and event_type = 'impression'
+				and visitor_id = 'visitor-sponsored'
+		`, itSponsoredCampaignActive).Scan(&count); err != nil {
+			t.Fatalf("count sponsored events: %v", err)
+		}
+		if count != 1 {
+			t.Fatalf("expected one deduped impression event, got %d", count)
+		}
+	})
+}
+
 func seedAffiliateClickFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAffiliateClickFixture(t, pool)
@@ -230,5 +321,52 @@ func cleanupAffiliateClickFixture(t *testing.T, pool *pgxpool.Pool) {
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from affiliates where affiliate_id = any($1)`,
 			[]string{itAffClickActive, itAffClickPaused})
+	})
+}
+
+func seedSponsoredPlacementFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	cleanupSponsoredPlacementFixture(t, pool)
+
+	var planID string
+	if err := pool.QueryRow(context.Background(), itPlanProbe).Scan(&planID); err != nil {
+		t.Fatalf("probe plan: %v", err)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into businesses (business_id, plan_id, name, handle, verification_status, operational_status)
+			values ($1, $2, 'IT Sponsored Atelier', 'it-sponsored-atelier', 'verified', 'active')
+		`, itSponsoredBusiness, planID)
+		mustExec(t, tx, `
+			insert into designs (design_id, business_id, title, images, handle, status)
+			values ($1, $2, 'IT Sponsored Design', array['https://images.test/sponsored.webp'], 'it-sponsored-design', 'active')
+		`, itSponsoredDesign, itSponsoredBusiness)
+		mustExec(t, tx, `
+			insert into ad_campaigns (
+				campaign_id,
+				advertiser_business_id,
+				placement_type,
+				target_ref_id,
+				headline,
+				description,
+				status,
+				pricing_model,
+				budget_minor,
+				starts_at,
+				ends_at
+			)
+			values
+				($1, $2, 'promoted_design', $3, 'Sponsored design', 'Visible on the public marketing site.', 'active', 'flat_time', 25000, now() - interval '1 day', now() + interval '7 days'),
+				($4, $2, 'featured_business', '', 'Paused placement', 'Should not render.', 'paused', 'flat_time', 25000, now() - interval '1 day', now() + interval '7 days'),
+				($5, $2, 'featured_business', '', 'Old placement', 'Should not render.', 'active', 'flat_time', 25000, now() - interval '10 days', now() - interval '1 day')
+		`, itSponsoredCampaignActive, itSponsoredBusiness, itSponsoredDesign, itSponsoredCampaignPaused, itSponsoredCampaignOld)
+	})
+}
+
+func cleanupSponsoredPlacementFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from businesses where business_id = $1`, itSponsoredBusiness)
 	})
 }

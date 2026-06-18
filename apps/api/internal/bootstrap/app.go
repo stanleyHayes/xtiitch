@@ -169,8 +169,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:       ids.UUIDGenerator{},
 	})
 
+	growthRepository := postgres.NewAffiliateRepository(db)
 	growthService := growthapp.NewService(growthapp.Dependencies{
-		Affiliates: postgres.NewAffiliateRepository(db),
+		Affiliates: growthRepository,
+		Sponsored:  growthRepository,
 		IDs:        ids.UUIDGenerator{},
 	})
 
@@ -189,7 +191,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Orders:       postgres.NewOrderRepository(db),
 		Bookings:     postgres.NewBookingRepository(db),
 		Promotions:   postgres.NewPromotionRepository(db),
-		Affiliates:   postgres.NewAffiliateRepository(db),
+		Affiliates:   growthRepository,
 		Availability: availabilityService,
 		Payments:     paymentService,
 		IDs:          ids.UUIDGenerator{},

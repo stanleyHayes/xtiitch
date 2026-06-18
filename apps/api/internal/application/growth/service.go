@@ -9,26 +9,31 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 var (
-	ErrInvalidInput      = errors.New("invalid growth input")
-	ErrAffiliateNotFound = errors.New("affiliate not found")
-	affiliateCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,30}[A-Z0-9]$`)
+	ErrInvalidInput        = errors.New("invalid growth input")
+	ErrAffiliateNotFound   = errors.New("affiliate not found")
+	ErrSponsoredAdNotFound = errors.New("sponsored ad not found")
+	affiliateCodePattern   = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,30}[A-Z0-9]$`)
+	uuidPattern            = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 )
 
 type Service struct {
 	affiliates ports.AffiliateClickRepository
+	sponsored  ports.SponsoredPlacementRepository
 	ids        ports.IDGenerator
 }
 
 type Dependencies struct {
 	Affiliates ports.AffiliateClickRepository
+	Sponsored  ports.SponsoredPlacementRepository
 	IDs        ports.IDGenerator
 }
 
 func NewService(deps Dependencies) Service {
-	return Service{affiliates: deps.Affiliates, ids: deps.IDs}
+	return Service{affiliates: deps.Affiliates, sponsored: deps.Sponsored, ids: deps.IDs}
 }
 
 type RecordAffiliateClickCommand struct {
@@ -74,6 +79,82 @@ func (s Service) RecordAffiliateClick(ctx context.Context, cmd RecordAffiliateCl
 	return record, nil
 }
 
+type ListSponsoredPlacementsCommand struct {
+	Limit int
+}
+
+func (s Service) ListSponsoredPlacements(
+	ctx context.Context,
+	cmd ListSponsoredPlacementsCommand,
+) ([]ports.SponsoredPlacementRecord, error) {
+	if s.sponsored == nil {
+		return nil, ErrInvalidInput
+	}
+	limit := cmd.Limit
+	if limit <= 0 {
+		limit = 6
+	}
+	if limit > 12 {
+		limit = 12
+	}
+	return s.sponsored.ListActiveSponsoredPlacements(ctx, ports.ListActiveSponsoredPlacementsInput{
+		Limit: limit,
+	})
+}
+
+type RecordSponsoredAdEventCommand struct {
+	CampaignID  string
+	EventType   string
+	VisitorID   string
+	PageURL     string
+	ReferrerURL string
+	UserAgent   string
+	IPAddress   string
+}
+
+func (s Service) RecordSponsoredAdEvent(
+	ctx context.Context,
+	cmd RecordSponsoredAdEventCommand,
+) (ports.SponsoredAdEventRecord, error) {
+	if s.sponsored == nil || s.ids == nil {
+		return ports.SponsoredAdEventRecord{}, ErrInvalidInput
+	}
+	campaignID := common.ID(strings.TrimSpace(cmd.CampaignID))
+	if campaignID.IsZero() || !uuidPattern.MatchString(campaignID.String()) {
+		return ports.SponsoredAdEventRecord{}, ErrInvalidInput
+	}
+	eventType := normalizeEventType(cmd.EventType)
+	if eventType == "" {
+		return ports.SponsoredAdEventRecord{}, ErrInvalidInput
+	}
+	visitorID := limitText(cmd.VisitorID, 120)
+	ipHash := hashIPAddress("xtiitch-sponsored-event:", cmd.IPAddress)
+	if visitorID == "" && ipHash == "" {
+		return ports.SponsoredAdEventRecord{}, ErrInvalidInput
+	}
+	if visitorID == "" {
+		visitorID = "ip:" + ipHash[:32]
+	}
+
+	record, err := s.sponsored.RecordSponsoredAdEvent(ctx, ports.RecordSponsoredAdEventInput{
+		EventID:     s.ids.NewID(),
+		CampaignID:  campaignID,
+		EventType:   eventType,
+		VisitorID:   visitorID,
+		PageURL:     limitText(cmd.PageURL, 512),
+		ReferrerURL: limitText(cmd.ReferrerURL, 512),
+		UserAgent:   limitText(cmd.UserAgent, 512),
+		IPHash:      ipHash,
+	})
+	if errors.Is(err, ports.ErrNotFound) {
+		return ports.SponsoredAdEventRecord{}, ErrSponsoredAdNotFound
+	}
+	if err != nil {
+		return ports.SponsoredAdEventRecord{}, err
+	}
+	return record, nil
+}
+
 func limitText(value string, maxLength int) string {
 	trimmed := strings.TrimSpace(value)
 	if len(trimmed) <= maxLength {
@@ -82,11 +163,30 @@ func limitText(value string, maxLength int) string {
 	return trimmed[:maxLength]
 }
 
-func hashIPAddress(ipAddress string) string {
+func hashIPAddress(parts ...string) string {
+	salt := "xtiitch-affiliate-click:"
+	ipAddress := ""
+	if len(parts) == 1 {
+		ipAddress = parts[0]
+	} else if len(parts) >= 2 {
+		salt = parts[0]
+		ipAddress = parts[1]
+	}
 	trimmed := strings.TrimSpace(ipAddress)
 	if trimmed == "" {
 		return ""
 	}
-	sum := sha256.Sum256([]byte("xtiitch-affiliate-click:" + strings.ToLower(trimmed)))
+	sum := sha256.Sum256([]byte(salt + strings.ToLower(trimmed)))
 	return hex.EncodeToString(sum[:])
+}
+
+func normalizeEventType(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "impression":
+		return "impression"
+	case "click":
+		return "click"
+	default:
+		return ""
+	}
 }

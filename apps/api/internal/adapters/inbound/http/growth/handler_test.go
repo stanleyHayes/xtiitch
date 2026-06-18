@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 func TestRecordAffiliateClickReturnsCreated(t *testing.T) {
@@ -100,9 +101,88 @@ func TestRecordAffiliateClickRejectsUnknownJSON(t *testing.T) {
 	}
 }
 
+func TestSponsoredPlacementsReturnsActiveCampaigns(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeGrowthService{}
+	router := chi.NewRouter()
+	NewHandler(service).Register(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/public/sponsored?limit=4", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.sponsoredLimit != 4 {
+		t.Fatalf("expected service limit 4, got %d", service.sponsoredLimit)
+	}
+	if !strings.Contains(response.Body.String(), `"campaign_id":"campaign-1"`) ||
+		!strings.Contains(response.Body.String(), `"business_name":"Demo Atelier"`) {
+		t.Fatalf("expected sponsored placement response, got %s", response.Body.String())
+	}
+}
+
+func TestRecordSponsoredEventReturnsCreated(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeGrowthService{}
+	router := chi.NewRouter()
+	NewHandler(service).Register(router)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/public/sponsored/campaign-1/events",
+		strings.NewReader(`{"event_type":"impression","visitor_id":"visitor-1","page_url":"https://xtiitch.test","referrer_url":"https://search.test"}`),
+	)
+	request.RemoteAddr = "198.51.100.10:4444"
+	request.Header.Set("User-Agent", "Test browser")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.sponsoredEvent.CampaignID != "campaign-1" ||
+		service.sponsoredEvent.EventType != "impression" ||
+		service.sponsoredEvent.VisitorID != "visitor-1" ||
+		service.sponsoredEvent.UserAgent != "Test browser" ||
+		service.sponsoredEvent.IPAddress != "198.51.100.10" {
+		t.Fatalf("unexpected sponsored event command: %+v", service.sponsoredEvent)
+	}
+	if !strings.Contains(response.Body.String(), `"event_id":"event-1"`) {
+		t.Fatalf("expected event id response, got %s", response.Body.String())
+	}
+}
+
+func TestRecordSponsoredEventMapsMissingCampaign(t *testing.T) {
+	t.Parallel()
+
+	router := chi.NewRouter()
+	NewHandler(&fakeGrowthService{sponsoredErr: growthapp.ErrSponsoredAdNotFound}).Register(router)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/public/sponsored/campaign-1/events",
+		strings.NewReader(`{"event_type":"click","visitor_id":"visitor-1"}`),
+	)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "sponsored_ad_not_found") {
+		t.Fatalf("expected 404 sponsored_ad_not_found, got %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 type fakeGrowthService struct {
-	command growthapp.RecordAffiliateClickCommand
-	err     error
+	command        growthapp.RecordAffiliateClickCommand
+	sponsoredEvent growthapp.RecordSponsoredAdEventCommand
+	sponsoredLimit int
+	err            error
+	sponsoredErr   error
 }
 
 func (service *fakeGrowthService) RecordAffiliateClick(
@@ -118,5 +198,47 @@ func (service *fakeGrowthService) RecordAffiliateClick(
 		AffiliateID: "affiliate-1",
 		Code:        command.Code,
 		ClickedAt:   time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+	}, nil
+}
+
+func (service *fakeGrowthService) ListSponsoredPlacements(
+	_ context.Context,
+	command growthapp.ListSponsoredPlacementsCommand,
+) ([]ports.SponsoredPlacementRecord, error) {
+	service.sponsoredLimit = command.Limit
+	if service.sponsoredErr != nil {
+		return nil, service.sponsoredErr
+	}
+	return []ports.SponsoredPlacementRecord{
+		{
+			CampaignID:     "campaign-1",
+			BusinessID:     "business-1",
+			BusinessName:   "Demo Atelier",
+			BusinessHandle: "demo-atelier",
+			PlacementType:  "featured_business",
+			TargetLabel:    "Demo Atelier",
+			Headline:       "Handmade occasion wear",
+			Description:    "A verified Xtiitch business.",
+			StoreHandle:    "demo-atelier",
+			ImageURL:       "https://images.test/demo.webp",
+			StartsAt:       time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+			EndsAt:         time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC),
+		},
+	}, nil
+}
+
+func (service *fakeGrowthService) RecordSponsoredAdEvent(
+	_ context.Context,
+	command growthapp.RecordSponsoredAdEventCommand,
+) (ports.SponsoredAdEventRecord, error) {
+	service.sponsoredEvent = command
+	if service.sponsoredErr != nil {
+		return ports.SponsoredAdEventRecord{}, service.sponsoredErr
+	}
+	return ports.SponsoredAdEventRecord{
+		EventID:    "event-1",
+		CampaignID: common.ID(command.CampaignID),
+		EventType:  command.EventType,
+		OccurredAt: time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
 	}, nil
 }

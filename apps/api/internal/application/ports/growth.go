@@ -12,6 +12,11 @@ type AffiliateClickRepository interface {
 	ReserveAffiliateAttribution(ctx context.Context, scope common.TenantScope, input ReserveAffiliateAttributionInput) (AffiliateAttributionReservation, error)
 }
 
+type SponsoredPlacementRepository interface {
+	ListActiveSponsoredPlacements(ctx context.Context, input ListActiveSponsoredPlacementsInput) ([]SponsoredPlacementRecord, error)
+	RecordSponsoredAdEvent(ctx context.Context, input RecordSponsoredAdEventInput) (SponsoredAdEventRecord, error)
+}
+
 type RecordAffiliateClickInput struct {
 	ClickID     common.ID
 	Code        string
@@ -47,4 +52,43 @@ type AffiliateAttributionReservation struct {
 	OrderID          common.ID
 	GrossMinor       int64
 	CommissionMinor  int64
+}
+
+type ListActiveSponsoredPlacementsInput struct {
+	Limit int
+}
+
+type SponsoredPlacementRecord struct {
+	CampaignID     common.ID
+	BusinessID     common.ID
+	BusinessName   string
+	BusinessHandle string
+	PlacementType  string
+	TargetLabel    string
+	Headline       string
+	Description    string
+	StoreHandle    string
+	DesignHandle   string
+	ImageURL       string
+	StartsAt       time.Time
+	EndsAt         time.Time
+}
+
+type RecordSponsoredAdEventInput struct {
+	EventID     common.ID
+	CampaignID  common.ID
+	EventType   string
+	VisitorID   string
+	PageURL     string
+	ReferrerURL string
+	UserAgent   string
+	IPHash      string
+}
+
+type SponsoredAdEventRecord struct {
+	EventID    common.ID
+	CampaignID common.ID
+	EventType  string
+	OccurredAt time.Time
+	Deduped    bool
 }
