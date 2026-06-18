@@ -48,6 +48,7 @@ type placeOrderBody struct {
 	AffiliateCode      string `json:"affiliate_code"`
 	AffiliateClickID   string `json:"affiliate_click_id"`
 	AffiliateVisitorID string `json:"affiliate_visitor_id"`
+	ReferralCode       string `json:"referral_code"`
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -69,6 +70,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		AffiliateCode:      body.AffiliateCode,
 		AffiliateClickID:   common.ID(body.AffiliateClickID),
 		AffiliateVisitorID: body.AffiliateVisitorID,
+		ReferralCode:       body.ReferralCode,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -90,6 +92,7 @@ type placeCustomOrderBody struct {
 	AffiliateCode      string            `json:"affiliate_code"`
 	AffiliateClickID   string            `json:"affiliate_click_id"`
 	AffiliateVisitorID string            `json:"affiliate_visitor_id"`
+	ReferralCode       string            `json:"referral_code"`
 	Measurements       map[string]string `json:"measurements"`
 }
 
@@ -112,6 +115,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		AffiliateCode:      body.AffiliateCode,
 		AffiliateClickID:   common.ID(body.AffiliateClickID),
 		AffiliateVisitorID: body.AffiliateVisitorID,
+		ReferralCode:       body.ReferralCode,
 		Measurements:       body.Measurements,
 	})
 	if err != nil {
@@ -132,6 +136,7 @@ type placeBookingBody struct {
 	AffiliateCode      string `json:"affiliate_code"`
 	AffiliateClickID   string `json:"affiliate_click_id"`
 	AffiliateVisitorID string `json:"affiliate_visitor_id"`
+	ReferralCode       string `json:"referral_code"`
 	SlotStart          string `json:"slot_start"`
 	Address            string `json:"address"`
 }
@@ -158,6 +163,7 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		AffiliateCode:      body.AffiliateCode,
 		AffiliateClickID:   common.ID(body.AffiliateClickID),
 		AffiliateVisitorID: body.AffiliateVisitorID,
+		ReferralCode:       body.ReferralCode,
 		SlotStart:          slotStart,
 		Address:            body.Address,
 	})

@@ -21,6 +21,7 @@ type Service interface {
 	RecordAffiliateClick(ctx context.Context, command growthapp.RecordAffiliateClickCommand) (ports.AffiliateClickRecord, error)
 	ListSponsoredPlacements(ctx context.Context, command growthapp.ListSponsoredPlacementsCommand) ([]ports.SponsoredPlacementRecord, error)
 	RecordSponsoredAdEvent(ctx context.Context, command growthapp.RecordSponsoredAdEventCommand) (ports.SponsoredAdEventRecord, error)
+	ResolveReferralCode(ctx context.Context, command growthapp.ResolveReferralCodeCommand) (ports.ReferralCodeRecord, error)
 }
 
 type Handler struct {
@@ -35,6 +36,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/public/affiliates/{code}/clicks", handler.recordAffiliateClick)
 	router.Get("/public/sponsored", handler.sponsoredPlacements)
 	router.Post("/public/sponsored/{id}/events", handler.recordSponsoredEvent)
+	router.Get("/public/referrals/{code}", handler.referralCode)
 }
 
 type affiliateClickRequest struct {
@@ -64,6 +66,26 @@ type sponsoredPlacementResponse struct {
 	ImageURL       string `json:"image_url"`
 	StartsAt       string `json:"starts_at"`
 	EndsAt         string `json:"ends_at"`
+}
+
+type referralCodeResponse struct {
+	ReferralCodeID       string  `json:"referral_code_id"`
+	ReferralProgrammeID  string  `json:"referral_programme_id"`
+	BusinessID           *string `json:"business_id"`
+	OwnerType            string  `json:"owner_type"`
+	Code                 string  `json:"code"`
+	Title                string  `json:"title"`
+	Audience             string  `json:"audience"`
+	ReferrerRewardKind   string  `json:"referrer_reward_kind"`
+	RefereeRewardKind    string  `json:"referee_reward_kind"`
+	RewardType           string  `json:"reward_type"`
+	RewardValue          int64   `json:"reward_value"`
+	MaxRewardMinor       *int64  `json:"max_reward_minor"`
+	QualifyingOrderMinor int64   `json:"qualifying_order_min_minor"`
+	RewardHoldDays       int     `json:"reward_hold_days"`
+	StartsAt             *string `json:"starts_at"`
+	EndsAt               *string `json:"ends_at"`
+	Status               string  `json:"status"`
 }
 
 func (handler Handler) recordAffiliateClick(w http.ResponseWriter, r *http.Request) {
@@ -157,6 +179,50 @@ func (handler Handler) recordSponsoredEvent(w http.ResponseWriter, r *http.Reque
 	})
 }
 
+func (handler Handler) referralCode(w http.ResponseWriter, r *http.Request) {
+	record, err := handler.service.ResolveReferralCode(r.Context(), growthapp.ResolveReferralCodeCommand{
+		Code: chi.URLParam(r, "code"),
+	})
+	if err != nil {
+		status, code := growthError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, toReferralCodeResponse(record))
+}
+
+func toReferralCodeResponse(record ports.ReferralCodeRecord) referralCodeResponse {
+	response := referralCodeResponse{
+		ReferralCodeID:       record.ReferralCodeID.String(),
+		ReferralProgrammeID:  record.ReferralProgrammeID.String(),
+		OwnerType:            record.OwnerType,
+		Code:                 record.Code,
+		Title:                record.Title,
+		Audience:             record.Audience,
+		ReferrerRewardKind:   record.ReferrerRewardKind,
+		RefereeRewardKind:    record.RefereeRewardKind,
+		RewardType:           record.RewardType,
+		RewardValue:          record.RewardValue,
+		MaxRewardMinor:       record.MaxRewardMinor,
+		QualifyingOrderMinor: record.QualifyingOrderMinor,
+		RewardHoldDays:       record.RewardHoldDays,
+		Status:               record.Status,
+	}
+	if record.BusinessID != nil {
+		value := record.BusinessID.String()
+		response.BusinessID = &value
+	}
+	if record.StartsAt != nil {
+		value := record.StartsAt.Format(time.RFC3339)
+		response.StartsAt = &value
+	}
+	if record.EndsAt != nil {
+		value := record.EndsAt.Format(time.RFC3339)
+		response.EndsAt = &value
+	}
+	return response
+}
+
 func growthError(err error) (int, string) {
 	switch {
 	case errors.Is(err, growthapp.ErrInvalidInput):
@@ -165,6 +231,8 @@ func growthError(err error) (int, string) {
 		return http.StatusNotFound, "affiliate_not_found"
 	case errors.Is(err, growthapp.ErrSponsoredAdNotFound):
 		return http.StatusNotFound, "sponsored_ad_not_found"
+	case errors.Is(err, growthapp.ErrReferralNotFound):
+		return http.StatusNotFound, "referral_not_found"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

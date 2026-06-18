@@ -21,7 +21,8 @@ import (
 func giveCustomerPhone(t *testing.T, pool *pgxpool.Pool, phone string) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
-		mustExec(t, tx, `update customers set phone = $2 where customer_id = $1`, itCustA, phone)
+		mustExec(t, tx, `update customers set phone = $2 where customer_id = any($1)`,
+			[]string{itCustA, itCustOK}, phone)
 	})
 }
 

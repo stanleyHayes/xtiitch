@@ -101,6 +101,46 @@ func TestRecordAffiliateClickRejectsUnknownJSON(t *testing.T) {
 	}
 }
 
+func TestReferralCodeReturnsPublicRewardDetails(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeGrowthService{}
+	router := chi.NewRouter()
+	NewHandler(service).Register(router)
+
+	request := httptest.NewRequest(http.MethodGet, "/public/referrals/REFAMA", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.referralCommand.Code != "REFAMA" {
+		t.Fatalf("expected referral command to receive code, got %+v", service.referralCommand)
+	}
+	if !strings.Contains(response.Body.String(), `"code":"REFAMA"`) ||
+		!strings.Contains(response.Body.String(), `"title":"Customer referrals"`) ||
+		!strings.Contains(response.Body.String(), `"qualifying_order_min_minor":10000`) {
+		t.Fatalf("expected referral reward response, got %s", response.Body.String())
+	}
+}
+
+func TestReferralCodeMapsMissingCode(t *testing.T) {
+	t.Parallel()
+
+	router := chi.NewRouter()
+	NewHandler(&fakeGrowthService{referralErr: growthapp.ErrReferralNotFound}).Register(router)
+	request := httptest.NewRequest(http.MethodGet, "/public/referrals/MISSING", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound || !strings.Contains(response.Body.String(), "referral_not_found") {
+		t.Fatalf("expected 404 referral_not_found, got %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestSponsoredPlacementsReturnsActiveCampaigns(t *testing.T) {
 	t.Parallel()
 
@@ -178,11 +218,13 @@ func TestRecordSponsoredEventMapsMissingCampaign(t *testing.T) {
 }
 
 type fakeGrowthService struct {
-	command        growthapp.RecordAffiliateClickCommand
-	sponsoredEvent growthapp.RecordSponsoredAdEventCommand
-	sponsoredLimit int
-	err            error
-	sponsoredErr   error
+	command         growthapp.RecordAffiliateClickCommand
+	sponsoredEvent  growthapp.RecordSponsoredAdEventCommand
+	referralCommand growthapp.ResolveReferralCodeCommand
+	sponsoredLimit  int
+	err             error
+	sponsoredErr    error
+	referralErr     error
 }
 
 func (service *fakeGrowthService) RecordAffiliateClick(
@@ -240,5 +282,34 @@ func (service *fakeGrowthService) RecordSponsoredAdEvent(
 		CampaignID: common.ID(command.CampaignID),
 		EventType:  command.EventType,
 		OccurredAt: time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+	}, nil
+}
+
+func (service *fakeGrowthService) ResolveReferralCode(
+	_ context.Context,
+	command growthapp.ResolveReferralCodeCommand,
+) (ports.ReferralCodeRecord, error) {
+	service.referralCommand = command
+	if service.referralErr != nil {
+		return ports.ReferralCodeRecord{}, service.referralErr
+	}
+	maxReward := int64(5000)
+	startsAt := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	return ports.ReferralCodeRecord{
+		ReferralCodeID:       "ref-code-1",
+		ReferralProgrammeID:  "ref-programme-1",
+		OwnerType:            "customer",
+		Code:                 command.Code,
+		Title:                "Customer referrals",
+		Audience:             "customers",
+		ReferrerRewardKind:   "voucher",
+		RefereeRewardKind:    "voucher",
+		RewardType:           "fixed",
+		RewardValue:          5000,
+		MaxRewardMinor:       &maxReward,
+		QualifyingOrderMinor: 10000,
+		RewardHoldDays:       14,
+		StartsAt:             &startsAt,
+		Status:               "active",
 	}, nil
 }

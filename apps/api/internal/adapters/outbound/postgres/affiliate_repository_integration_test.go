@@ -34,6 +34,16 @@ const (
 	itSponsoredCampaignOld    = "aaaaaaaa-7777-7777-7777-777777777785"
 	itSponsoredEvent          = "aaaaaaaa-7777-7777-7777-777777777786"
 	itSponsoredEventDupe      = "aaaaaaaa-7777-7777-7777-777777777787"
+
+	itAffRefBusiness  = "aaaaaaaa-6666-6666-6666-666666666681"
+	itAffRefReferrer  = "aaaaaaaa-6666-6666-6666-666666666682"
+	itAffRefReferee   = "aaaaaaaa-6666-6666-6666-666666666683"
+	itAffRefDesign    = "aaaaaaaa-6666-6666-6666-666666666684"
+	itAffRefOrder     = "aaaaaaaa-6666-6666-6666-666666666685"
+	itAffRefProgramme = "aaaaaaaa-6666-6666-6666-666666666686"
+	itAffRefCode      = "aaaaaaaa-6666-6666-6666-666666666687"
+	itAffRefRecord    = "aaaaaaaa-6666-6666-6666-666666666688"
+	itAffRefCodeValue = "ITAREFAMA"
 )
 
 func TestRecordAffiliateClickPersistsActiveCodeWithoutRawIP(t *testing.T) {
@@ -234,6 +244,88 @@ func TestSponsoredPlacementsListActiveCampaignsAndDedupeEvents(t *testing.T) {
 	})
 }
 
+func TestReferralCodeResolutionAndReservation(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedReferralAttributionFixture(t, pool)
+	defer cleanupReferralAttributionFixture(t, pool)
+
+	repo := NewAffiliateRepository(pool)
+	code, err := repo.ResolveReferralCode(context.Background(), ports.ResolveReferralCodeInput{
+		Code: "itarefama",
+	})
+	if err != nil {
+		t.Fatalf("resolve referral code: %v", err)
+	}
+	if code.ReferralCodeID != common.ID(itAffRefCode) ||
+		code.ReferralProgrammeID != common.ID(itAffRefProgramme) ||
+		code.Code != itAffRefCodeValue ||
+		code.OwnerCustomerID == nil ||
+		*code.OwnerCustomerID != common.ID(itAffRefReferrer) ||
+		code.QualifyingOrderMinor != 10000 ||
+		code.RewardValue != 5000 {
+		t.Fatalf("unexpected referral code record: %+v", code)
+	}
+
+	reservation, err := repo.ReserveReferralAttribution(
+		context.Background(),
+		common.TenantScope{BusinessID: itAffRefBusiness},
+		ports.ReserveReferralAttributionInput{
+			ReferralID:        itAffRefRecord,
+			BusinessID:        itAffRefBusiness,
+			OrderID:           itAffRefOrder,
+			RefereeCustomerID: itAffRefReferee,
+			Code:              "itarefama",
+			GrossMinor:        50000,
+		},
+	)
+	if err != nil {
+		t.Fatalf("reserve referral attribution: %v", err)
+	}
+	if reservation.ReferralID != common.ID(itAffRefRecord) ||
+		reservation.ReferralProgrammeID != common.ID(itAffRefProgramme) ||
+		reservation.ReferralCodeID != common.ID(itAffRefCode) ||
+		reservation.BusinessID != common.ID(itAffRefBusiness) ||
+		reservation.OrderID != common.ID(itAffRefOrder) ||
+		reservation.RefereeCustomerID != common.ID(itAffRefReferee) ||
+		reservation.GrossMinor != 50000 ||
+		reservation.Status != "pending" {
+		t.Fatalf("unexpected referral reservation: %+v", reservation)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		var status string
+		var source string
+		var referrer string
+		if err := tx.QueryRow(context.Background(), `
+			select status, metadata->>'source', coalesce(referrer_customer_id::text, '')
+			from referrals
+			where referral_id = $1
+		`, itAffRefRecord).Scan(&status, &source, &referrer); err != nil {
+			t.Fatalf("read referral reservation: %v", err)
+		}
+		if status != "pending" || source != "checkout" || referrer != itAffRefReferrer {
+			t.Fatalf("expected pending checkout referral, got status=%q source=%q referrer=%q", status, source, referrer)
+		}
+	})
+
+	_, err = repo.ReserveReferralAttribution(
+		context.Background(),
+		common.TenantScope{BusinessID: itAffRefBusiness},
+		ports.ReserveReferralAttributionInput{
+			ReferralID:        "aaaaaaaa-6666-6666-6666-666666666689",
+			BusinessID:        itAffRefBusiness,
+			OrderID:           itAffRefOrder,
+			RefereeCustomerID: itAffRefReferrer,
+			Code:              itAffRefCodeValue,
+			GrossMinor:        50000,
+		},
+	)
+	if !errors.Is(err, ports.ErrNotFound) {
+		t.Fatalf("expected self-referral to be unavailable, got %v", err)
+	}
+}
+
 func seedAffiliateClickFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAffiliateClickFixture(t, pool)
@@ -368,5 +460,73 @@ func cleanupSponsoredPlacementFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
 		mustExec(t, tx, `delete from businesses where business_id = $1`, itSponsoredBusiness)
+	})
+}
+
+func seedReferralAttributionFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	cleanupReferralAttributionFixture(t, pool)
+
+	var planID string
+	if err := pool.QueryRow(context.Background(), itPlanProbe).Scan(&planID); err != nil {
+		t.Fatalf("probe plan: %v", err)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into businesses (business_id, plan_id, name, handle, verification_status)
+			values ($1, $2, 'IT Referral Atelier', 'it-referral-atelier', 'verified')
+		`, itAffRefBusiness, planID)
+		mustExec(t, tx, `
+			insert into customers (customer_id, display_name)
+			values
+				($1, 'IT Referral Referrer'),
+				($2, 'IT Referral Referee')
+		`, itAffRefReferrer, itAffRefReferee)
+		mustExec(t, tx, `
+			insert into designs (design_id, business_id, title, handle, status)
+			values ($1, $2, 'IT Referral Design', 'it-referral-design', 'active')
+		`, itAffRefDesign, itAffRefBusiness)
+		mustExec(t, tx, `
+			insert into orders (order_id, business_id, customer_id, design_id,
+				order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status)
+			values ($1, $2, $3, $4, 'standard', 'band', 'ready_made', 'online', 50000, 0, 'draft')
+		`, itAffRefOrder, itAffRefBusiness, itAffRefReferee, itAffRefDesign)
+		mustExec(t, tx, `
+			insert into referral_programmes (
+				referral_programme_id,
+				title,
+				code_prefix,
+				audience,
+				referrer_reward_kind,
+				referee_reward_kind,
+				reward_type,
+				reward_value,
+				qualifying_order_min_minor,
+				status
+			)
+			values ($1, 'IT Referral Programme', 'ITAREF', 'customers', 'voucher', 'voucher', 'fixed', 5000, 10000, 'active')
+		`, itAffRefProgramme)
+		mustExec(t, tx, `
+			insert into referral_codes (
+				referral_code_id,
+				referral_programme_id,
+				owner_type,
+				owner_customer_id,
+				code,
+				status
+			)
+			values ($1, $2, 'customer', $3, $4, 'active')
+		`, itAffRefCode, itAffRefProgramme, itAffRefReferrer, itAffRefCodeValue)
+	})
+}
+
+func cleanupReferralAttributionFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from businesses where business_id = $1`, itAffRefBusiness)
+		mustExec(t, tx, `delete from referral_programmes where referral_programme_id = $1`, itAffRefProgramme)
+		mustExec(t, tx, `delete from customers where customer_id = any($1)`,
+			[]string{itAffRefReferrer, itAffRefReferee})
 	})
 }

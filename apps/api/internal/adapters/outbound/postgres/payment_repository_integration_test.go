@@ -26,6 +26,7 @@ const (
 	itBizA    = "11111111-1111-1111-1111-111111111111"
 	itBizB    = "22222222-2222-2222-2222-222222222222"
 	itCustA   = "aaaaaaaa-0000-0000-0000-000000000001"
+	itCustOK  = "aaaaaaaa-0000-0000-0000-000000000002"
 	itDesignA = "dddddddd-0000-0000-0000-000000000001"
 	itStage1  = "55555555-0000-0000-0000-000000000001"
 
@@ -41,12 +42,17 @@ const (
 	itPromoOK = "77777777-0000-0000-0000-0000000000a2"
 	itRedOK   = "77777777-0000-0000-0000-0000000000b2"
 
-	itPayAffiliate   = "99999999-0000-0000-0000-0000000000a2"
-	itPayAffClick    = "99999999-0000-0000-0000-0000000000b2"
-	itPayAffReserve  = "99999999-0000-0000-0000-0000000000c2"
-	itPayAffVisitor  = "it-payment-affiliate-visitor"
-	itPayAffCode     = "ITPAYAFF"
-	itPayAffCommRate = 1250
+	itPayAffiliate      = "99999999-0000-0000-0000-0000000000a2"
+	itPayAffClick       = "99999999-0000-0000-0000-0000000000b2"
+	itPayAffReserve     = "99999999-0000-0000-0000-0000000000c2"
+	itPayAffVisitor     = "it-payment-affiliate-visitor"
+	itPayAffCode        = "ITPAYAFF"
+	itPayAffCommRate    = 1250
+	itReferralProgramme = "99999999-1111-1111-1111-1111111111a1"
+	itReferralCode      = "99999999-1111-1111-1111-1111111111a2"
+	itReferralReferrer  = "99999999-1111-1111-1111-1111111111a3"
+	itReferralFail      = "99999999-1111-1111-1111-1111111111a4"
+	itReferralOK        = "99999999-1111-1111-1111-1111111111a5"
 
 	itPayCross = "00000000-0000-0000-0000-0000000000c1"
 	itRefCross = "xt_it_ref_cross"
@@ -124,7 +130,13 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 				values ($1, $2, 'IT Shop', $3, 'verified')
 			`, biz, planID, "it-"+biz[:8])
 		}
-		mustExec(t, tx, `insert into customers (customer_id, display_name) values ($1, 'IT Customer')`, itCustA)
+		mustExec(t, tx, `
+			insert into customers (customer_id, display_name)
+			values
+				($1, 'IT Failed Customer'),
+				($2, 'IT Successful Customer'),
+				($3, 'IT Referral Referrer')
+		`, itCustA, itCustOK, itReferralReferrer)
 		mustExec(t, tx, `
 			insert into designs (design_id, business_id, title, handle, status)
 			values ($1, $2, 'IT Design', 'it-design', 'active')
@@ -136,15 +148,15 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 
 		// Two draft orders in business A: one for the failed->success scenario,
 		// one for the happy/idempotent scenario. Both with their initiated payment.
-		for _, o := range []struct{ order, pay, ref string }{
-			{itOrderFail, itPayFail, itRefFail},
-			{itOrderOK, itPayOK, itRefOK},
+		for _, o := range []struct{ order, pay, ref, customer string }{
+			{itOrderFail, itPayFail, itRefFail, itCustA},
+			{itOrderOK, itPayOK, itRefOK, itCustOK},
 		} {
 			mustExec(t, tx, `
 				insert into orders (order_id, business_id, customer_id, design_id,
 					order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status)
 				values ($1, $2, $3, $4, 'standard', 'band', 'ready_made', 'online', $5, 0, 'draft')
-			`, o.order, itBizA, itCustA, itDesignA, itAmount)
+			`, o.order, itBizA, o.customer, itDesignA, itAmount)
 			mustExec(t, tx, `
 				insert into payments (payment_id, business_id, order_id, purpose, amount_minor,
 					currency, provider_reference, status, through_platform, commission_minor)
@@ -156,9 +168,10 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 			redemption string
 			order      string
 			code       string
+			customer   string
 		}{
-			{itPromoFail, itRedFail, itOrderFail, "ITFAIL10"},
-			{itPromoOK, itRedOK, itOrderOK, "ITOK10"},
+			{itPromoFail, itRedFail, itOrderFail, "ITFAIL10", itCustA},
+			{itPromoOK, itRedOK, itOrderOK, "ITOK10", itCustOK},
 		} {
 			mustExec(t, tx, `
 				insert into promotions (
@@ -173,7 +186,57 @@ func seedConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 					customer_id, discount_minor, status
 				)
 				values ($1, $2, $3, $4, $5, 5000, 'pending')
-			`, promo.redemption, promo.promotion, itBizA, promo.order, itCustA)
+			`, promo.redemption, promo.promotion, itBizA, promo.order, promo.customer)
+		}
+		mustExec(t, tx, `
+			insert into referral_programmes (
+				referral_programme_id,
+				title,
+				code_prefix,
+				audience,
+				referrer_reward_kind,
+				referee_reward_kind,
+				reward_type,
+				reward_value,
+				qualifying_order_min_minor,
+				status
+			)
+			values ($1, 'IT Referral Programme', 'ITREF', 'customers', 'voucher', 'voucher', 'fixed', 5000, 10000, 'active')
+		`, itReferralProgramme)
+		mustExec(t, tx, `
+			insert into referral_codes (
+				referral_code_id,
+				referral_programme_id,
+				owner_type,
+				owner_customer_id,
+				code,
+				status
+			)
+			values ($1, $2, 'customer', $3, 'ITREFAMA', 'active')
+		`, itReferralCode, itReferralProgramme, itReferralReferrer)
+		for _, referral := range []struct {
+			id      string
+			order   string
+			referee string
+		}{
+			{itReferralFail, itOrderFail, itCustA},
+			{itReferralOK, itOrderOK, itCustOK},
+		} {
+			mustExec(t, tx, `
+				insert into referrals (
+					referral_id,
+					referral_programme_id,
+					referral_code_id,
+					business_id,
+					order_id,
+					referee_customer_id,
+					referrer_customer_id,
+					gross_minor,
+					status,
+					metadata
+				)
+				values ($1, $2, $3, $4, $5, $6, $7, $8, 'pending', '{"source":"integration"}')
+			`, referral.id, itReferralProgramme, itReferralCode, itBizA, referral.order, referral.referee, itReferralReferrer, itAmount)
 		}
 		mustExec(t, tx, `
 			insert into affiliates (
@@ -225,7 +288,9 @@ func cleanupConfirmFixtures(t *testing.T, pool *pgxpool.Pool) {
 		mustExec(t, tx, `delete from affiliates where affiliate_id = $1`, itPayAffiliate)
 		// Businesses cascade to their payments, orders, stage_events, designs, stages.
 		mustExec(t, tx, `delete from businesses where business_id = any($1)`, []string{itBizA, itBizB})
-		mustExec(t, tx, `delete from customers where customer_id = $1`, itCustA)
+		mustExec(t, tx, `delete from referral_programmes where referral_programme_id = $1`, itReferralProgramme)
+		mustExec(t, tx, `delete from customers where customer_id = any($1)`,
+			[]string{itCustA, itCustOK, itReferralReferrer})
 	})
 }
 
@@ -370,6 +435,15 @@ type affiliateAttributionState struct {
 	reservationID     string
 }
 
+type referralAttributionState struct {
+	status     string
+	qualified  bool
+	source     string
+	referrerID string
+	refereeID  string
+	grossMinor int64
+}
+
 func readPaymentStatus(t *testing.T, pool *pgxpool.Pool, ref string) string {
 	t.Helper()
 	var status string
@@ -435,6 +509,34 @@ func readAffiliateAttributionState(t *testing.T, pool *pgxpool.Pool, orderID str
 			&state.reservationID,
 		); err != nil {
 			t.Fatalf("read affiliate attribution %s: %v", orderID, err)
+		}
+	})
+	return state
+}
+
+func readReferralAttributionState(t *testing.T, pool *pgxpool.Pool, orderID string) referralAttributionState {
+	t.Helper()
+	var state referralAttributionState
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(context.Background(), `
+			select
+				status,
+				qualified_at is not null,
+				metadata->>'source',
+				coalesce(referrer_customer_id::text, ''),
+				referee_customer_id::text,
+				gross_minor
+			from referrals
+			where order_id = $1
+		`, orderID).Scan(
+			&state.status,
+			&state.qualified,
+			&state.source,
+			&state.referrerID,
+			&state.refereeID,
+			&state.grossMinor,
+		); err != nil {
+			t.Fatalf("read referral attribution %s: %v", orderID, err)
 		}
 	})
 	return state
@@ -518,6 +620,10 @@ func TestConfirmFromProviderFailedThenSuccessDoesNotSettle(t *testing.T) {
 	if status != "void" || redeemed {
 		t.Fatalf("failed payment must void pending promotion redemption, status=%q redeemed=%v", status, redeemed)
 	}
+	referral := readReferralAttributionState(t, pool, itOrderFail)
+	if referral.status != "void" || referral.qualified || referral.source != "payment_failed" {
+		t.Fatalf("failed payment must void pending referral attribution, got %+v", referral)
+	}
 }
 
 // TestConfirmFromProviderSuccessConfirmsAndIsIdempotent covers the happy path
@@ -573,6 +679,15 @@ func TestConfirmFromProviderSuccessConfirmsAndIsIdempotent(t *testing.T) {
 		affiliate.source != "payment_success" ||
 		affiliate.reservationID != itPayAffReserve {
 		t.Fatalf("successful payment must materialize pending affiliate conversion, got %+v", affiliate)
+	}
+	referral := readReferralAttributionState(t, pool, itOrderOK)
+	if referral.status != "qualified" ||
+		!referral.qualified ||
+		referral.source != "payment_success" ||
+		referral.referrerID != itReferralReferrer ||
+		referral.refereeID != itCustOK ||
+		referral.grossMinor != itAmount {
+		t.Fatalf("successful payment must qualify pending referral attribution, got %+v", referral)
 	}
 }
 

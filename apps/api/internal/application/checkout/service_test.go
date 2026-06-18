@@ -181,6 +181,51 @@ func TestPlaceStandardOrderIgnoresUnavailableAffiliateAttribution(t *testing.T) 
 	}
 }
 
+func TestPlaceStandardOrderReservesReferralAttribution(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	referrals := &fakeReferrals{}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:    orders,
+		Payments:  payments,
+		Referrals: referrals,
+		IDs:       &seqIDs{ids: []common.ID{"order-1", "customer-1", "referral-1"}},
+	})
+
+	cmd := placeCommand()
+	cmd.ReferralCode = " amafriend "
+	res, err := svc.PlaceStandardOrder(context.Background(), cmd)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.OrderID != "order-1" || res.AmountMinor != 50000 {
+		t.Fatalf("unexpected result: %+v", res)
+	}
+	if !referrals.reserveCalled {
+		t.Fatal("expected referral attribution to be reserved")
+	}
+	if referrals.reserve.ReferralID != "referral-1" ||
+		referrals.reserve.BusinessID != testBusinessID ||
+		referrals.reserve.OrderID != "order-1" ||
+		referrals.reserve.RefereeCustomerID != "customer-1" ||
+		referrals.reserve.Code != "AMAFRIEND" ||
+		referrals.reserve.GrossMinor != 50000 {
+		t.Fatalf("unexpected referral reservation: %+v", referrals.reserve)
+	}
+}
+
 func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission(t *testing.T) {
 	t.Parallel()
 
@@ -975,6 +1020,34 @@ func (f *fakeAffiliates) ReserveAffiliateAttribution(_ context.Context, _ common
 		OrderID:         input.OrderID,
 		GrossMinor:      input.GrossMinor,
 		CommissionMinor: 5000,
+	}, nil
+}
+
+type fakeReferrals struct {
+	reserveCalled bool
+	reserve       ports.ReserveReferralAttributionInput
+	err           error
+}
+
+func (f *fakeReferrals) ResolveReferralCode(context.Context, ports.ResolveReferralCodeInput) (ports.ReferralCodeRecord, error) {
+	return ports.ReferralCodeRecord{}, nil
+}
+
+func (f *fakeReferrals) ReserveReferralAttribution(_ context.Context, _ common.TenantScope, input ports.ReserveReferralAttributionInput) (ports.ReferralAttributionReservation, error) {
+	f.reserveCalled = true
+	f.reserve = input
+	if f.err != nil {
+		return ports.ReferralAttributionReservation{}, f.err
+	}
+	return ports.ReferralAttributionReservation{
+		ReferralID:          input.ReferralID,
+		ReferralProgrammeID: "programme-1",
+		ReferralCodeID:      "code-1",
+		BusinessID:          input.BusinessID,
+		OrderID:             input.OrderID,
+		RefereeCustomerID:   input.RefereeCustomerID,
+		GrossMinor:          input.GrossMinor,
+		Status:              "pending",
 	}, nil
 }
 

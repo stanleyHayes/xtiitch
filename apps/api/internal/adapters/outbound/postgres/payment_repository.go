@@ -441,7 +441,10 @@ func applyPaymentFailure(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 		if err := voidPendingPromotionRedemptionsForOrder(ctx, tx, payment.businessID, payment.orderID.String); err != nil {
 			return err
 		}
-		return voidPendingAffiliateAttributionForOrder(ctx, tx, payment.businessID, payment.orderID.String)
+		if err := voidPendingAffiliateAttributionForOrder(ctx, tx, payment.businessID, payment.orderID.String); err != nil {
+			return err
+		}
+		return voidPendingReferralAttributionForOrder(ctx, tx, payment.businessID, payment.orderID.String)
 	}
 	return nil
 }
@@ -566,6 +569,9 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 	if err := applyPendingAffiliateAttributionForOrder(ctx, tx, businessID, orderID); err != nil {
 		return err
 	}
+	if err := qualifyPendingReferralAttributionForOrder(ctx, tx, businessID, orderID); err != nil {
+		return err
+	}
 
 	// The order is now confirmed; in the same transaction, record the intent to
 	// tell the customer. The dedup key makes a redelivered webhook a no-op.
@@ -640,6 +646,33 @@ func voidPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, bus
 	_, err := tx.Exec(ctx, `
 		update affiliate_attribution_reservations
 		set status = 'void', updated_at = now()
+		where business_id = $1
+			and order_id = $2
+			and status = 'pending'
+	`, businessID, orderID)
+	return err
+}
+
+func qualifyPendingReferralAttributionForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		update referrals
+		set status = 'qualified',
+			qualified_at = now(),
+			updated_at = now(),
+			metadata = metadata || jsonb_build_object('source', 'payment_success')
+		where business_id = $1
+			and order_id = $2
+			and status = 'pending'
+	`, businessID, orderID)
+	return err
+}
+
+func voidPendingReferralAttributionForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	_, err := tx.Exec(ctx, `
+		update referrals
+		set status = 'void',
+			updated_at = now(),
+			metadata = metadata || jsonb_build_object('source', 'payment_failed')
 		where business_id = $1
 			and order_id = $2
 			and status = 'pending'

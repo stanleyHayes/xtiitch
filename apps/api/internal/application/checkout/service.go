@@ -47,6 +47,7 @@ type Service struct {
 	bookings     ports.BookingRepository
 	promotions   ports.PromotionRepository
 	affiliates   ports.AffiliateClickRepository
+	referrals    ports.ReferralRepository
 	availability Availability
 	payments     Payments
 	ids          ports.IDGenerator
@@ -60,6 +61,7 @@ type Dependencies struct {
 	Bookings     ports.BookingRepository
 	Promotions   ports.PromotionRepository
 	Affiliates   ports.AffiliateClickRepository
+	Referrals    ports.ReferralRepository
 	Availability Availability
 	Payments     Payments
 	IDs          ports.IDGenerator
@@ -78,6 +80,7 @@ func NewService(deps Dependencies) Service {
 		bookings:     deps.Bookings,
 		promotions:   deps.Promotions,
 		affiliates:   deps.Affiliates,
+		referrals:    deps.Referrals,
 		availability: deps.Availability,
 		payments:     deps.Payments,
 		ids:          deps.IDs,
@@ -97,6 +100,7 @@ type PlaceStandardOrderCommand struct {
 	AffiliateCode      string
 	AffiliateClickID   common.ID
 	AffiliateVisitorID string
+	ReferralCode       string
 }
 
 type PlaceStandardOrderResult struct {
@@ -188,6 +192,12 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		orderID:    orderID,
 		grossMinor: chargeAmount,
 	})
+	s.reserveReferralAttribution(ctx, scope, referralCheckoutInput{
+		code:              cmd.ReferralCode,
+		orderID:           orderID,
+		refereeCustomerID: customerID,
+		grossMinor:        chargeAmount,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -272,6 +282,7 @@ type PlaceHomeVisitBookingCommand struct {
 	AffiliateCode      string
 	AffiliateClickID   common.ID
 	AffiliateVisitorID string
+	ReferralCode       string
 	SlotStart          time.Time
 	Address            string
 }
@@ -372,6 +383,12 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		orderID:    orderID,
 		grossMinor: deposit,
 	})
+	s.reserveReferralAttribution(ctx, scope, referralCheckoutInput{
+		code:              cmd.ReferralCode,
+		orderID:           orderID,
+		refereeCustomerID: customerID,
+		grossMinor:        deposit,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -419,6 +436,7 @@ type PlaceCustomOrderCommand struct {
 	AffiliateCode      string
 	AffiliateClickID   common.ID
 	AffiliateVisitorID string
+	ReferralCode       string
 	// Measurements maps the business's measurement field ids to entered values;
 	// only used (and required) for the self-measure route.
 	Measurements map[string]string
@@ -589,6 +607,12 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		orderID:    orderID,
 		grossMinor: chargeAmount,
 	})
+	s.reserveReferralAttribution(ctx, scope, referralCheckoutInput{
+		code:              cmd.ReferralCode,
+		orderID:           orderID,
+		refereeCustomerID: customerID,
+		grossMinor:        chargeAmount,
+	})
 
 	method := cmd.Method
 	if method == "" {
@@ -641,6 +665,13 @@ type affiliateCheckoutInput struct {
 	visitorID  string
 	orderID    common.ID
 	grossMinor int64
+}
+
+type referralCheckoutInput struct {
+	code              string
+	orderID           common.ID
+	refereeCustomerID common.ID
+	grossMinor        int64
 }
 
 func (s Service) reservePromotion(
@@ -736,6 +767,35 @@ func (s Service) reserveAffiliateAttribution(
 		"business_id", scope.BusinessID.String(),
 		"order_id", input.orderID.String(),
 		"affiliate_code", code,
+		"error", err)
+}
+
+func (s Service) reserveReferralAttribution(
+	ctx context.Context,
+	scope common.TenantScope,
+	input referralCheckoutInput,
+) {
+	code := normalizeCheckoutPromotionCode(input.code)
+	if code == "" || s.referrals == nil || input.orderID.IsZero() ||
+		input.refereeCustomerID.IsZero() || input.grossMinor <= 0 {
+		return
+	}
+
+	_, err := s.referrals.ReserveReferralAttribution(ctx, scope, ports.ReserveReferralAttributionInput{
+		ReferralID:        s.ids.NewID(),
+		BusinessID:        scope.BusinessID,
+		OrderID:           input.orderID,
+		RefereeCustomerID: input.refereeCustomerID,
+		Code:              code,
+		GrossMinor:        input.grossMinor,
+	})
+	if err == nil || errors.Is(err, ports.ErrNotFound) {
+		return
+	}
+	s.logger.ErrorContext(ctx, "checkout: failed to reserve referral attribution",
+		"business_id", scope.BusinessID.String(),
+		"order_id", input.orderID.String(),
+		"referral_code", code,
 		"error", err)
 }
 

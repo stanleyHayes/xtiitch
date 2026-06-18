@@ -16,6 +16,7 @@ var (
 	ErrInvalidInput        = errors.New("invalid growth input")
 	ErrAffiliateNotFound   = errors.New("affiliate not found")
 	ErrSponsoredAdNotFound = errors.New("sponsored ad not found")
+	ErrReferralNotFound    = errors.New("referral code not found")
 	affiliateCodePattern   = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,30}[A-Z0-9]$`)
 	uuidPattern            = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 )
@@ -23,17 +24,24 @@ var (
 type Service struct {
 	affiliates ports.AffiliateClickRepository
 	sponsored  ports.SponsoredPlacementRepository
+	referrals  ports.ReferralRepository
 	ids        ports.IDGenerator
 }
 
 type Dependencies struct {
 	Affiliates ports.AffiliateClickRepository
 	Sponsored  ports.SponsoredPlacementRepository
+	Referrals  ports.ReferralRepository
 	IDs        ports.IDGenerator
 }
 
 func NewService(deps Dependencies) Service {
-	return Service{affiliates: deps.Affiliates, sponsored: deps.Sponsored, ids: deps.IDs}
+	return Service{
+		affiliates: deps.Affiliates,
+		sponsored:  deps.Sponsored,
+		referrals:  deps.Referrals,
+		ids:        deps.IDs,
+	}
 }
 
 type RecordAffiliateClickCommand struct {
@@ -151,6 +159,33 @@ func (s Service) RecordSponsoredAdEvent(
 	}
 	if err != nil {
 		return ports.SponsoredAdEventRecord{}, err
+	}
+	return record, nil
+}
+
+type ResolveReferralCodeCommand struct {
+	Code string
+}
+
+func (s Service) ResolveReferralCode(
+	ctx context.Context,
+	cmd ResolveReferralCodeCommand,
+) (ports.ReferralCodeRecord, error) {
+	if s.referrals == nil {
+		return ports.ReferralCodeRecord{}, ErrInvalidInput
+	}
+	code := strings.ToUpper(strings.TrimSpace(cmd.Code))
+	if !affiliateCodePattern.MatchString(code) {
+		return ports.ReferralCodeRecord{}, ErrInvalidInput
+	}
+	record, err := s.referrals.ResolveReferralCode(ctx, ports.ResolveReferralCodeInput{
+		Code: code,
+	})
+	if errors.Is(err, ports.ErrNotFound) {
+		return ports.ReferralCodeRecord{}, ErrReferralNotFound
+	}
+	if err != nil {
+		return ports.ReferralCodeRecord{}, err
 	}
 	return record, nil
 }

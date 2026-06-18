@@ -17,6 +17,11 @@ type SponsoredPlacementRepository interface {
 	RecordSponsoredAdEvent(ctx context.Context, input RecordSponsoredAdEventInput) (SponsoredAdEventRecord, error)
 }
 
+type ReferralRepository interface {
+	ResolveReferralCode(ctx context.Context, input ResolveReferralCodeInput) (ReferralCodeRecord, error)
+	ReserveReferralAttribution(ctx context.Context, scope common.TenantScope, input ReserveReferralAttributionInput) (ReferralAttributionReservation, error)
+}
+
 type RecordAffiliateClickInput struct {
 	ClickID     common.ID
 	Code        string
@@ -91,4 +96,50 @@ type SponsoredAdEventRecord struct {
 	EventType  string
 	OccurredAt time.Time
 	Deduped    bool
+}
+
+type ResolveReferralCodeInput struct {
+	Code string
+}
+
+type ReferralCodeRecord struct {
+	ReferralCodeID       common.ID
+	ReferralProgrammeID  common.ID
+	BusinessID           *common.ID
+	OwnerType            string
+	OwnerCustomerID      *common.ID
+	OwnerBusinessID      *common.ID
+	Code                 string
+	Title                string
+	Audience             string
+	ReferrerRewardKind   string
+	RefereeRewardKind    string
+	RewardType           string
+	RewardValue          int64
+	MaxRewardMinor       *int64
+	QualifyingOrderMinor int64
+	RewardHoldDays       int
+	StartsAt             *time.Time
+	EndsAt               *time.Time
+	Status               string
+}
+
+type ReserveReferralAttributionInput struct {
+	ReferralID        common.ID
+	BusinessID        common.ID
+	OrderID           common.ID
+	RefereeCustomerID common.ID
+	Code              string
+	GrossMinor        int64
+}
+
+type ReferralAttributionReservation struct {
+	ReferralID          common.ID
+	ReferralProgrammeID common.ID
+	ReferralCodeID      common.ID
+	BusinessID          common.ID
+	OrderID             common.ID
+	RefereeCustomerID   common.ID
+	GrossMinor          int64
+	Status              string
 }
