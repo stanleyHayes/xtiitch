@@ -3318,7 +3318,7 @@ function WorkspaceRail({
             const activeGroup = group.items.some(
               (item) => item.section === section,
             );
-            const open = activeGroup || (openGroups[group.id] ?? true);
+            const open = openGroups[group.id] ?? true;
             const groupBadge = group.items.reduce((total, item) => {
               const value = Number(badges[item.section] ?? 0);
               return Number.isFinite(value) ? total + value : total;

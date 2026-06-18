@@ -27,6 +27,7 @@ import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import type { Route } from "./+types/design";
 import {
   api,
+  type AvailabilitySlot,
   type CustomSizeMode,
   type Design,
   type ReferralCode,
@@ -48,11 +49,22 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   if (!design) {
     throw new Response("Design not found", { status: 404 });
   }
-  const rewardCodes = rewardCodesFromRequest(request);
+  const rewardCodes = await rewardCodesFromRequest(request);
   const referralPreview = rewardCodes.referralCode
-    ? await api.referral(rewardCodes.referralCode)
+    ? await api.referral(rewardCodes.referralCode).catch(() => null)
     : null;
-  return { design, rewardCodes, referralPreview };
+  const availability =
+    design.store?.handle &&
+    design.customisation_allowed &&
+    design.store.settings.bespoke_enabled
+      ? await api.availability(design.store.handle).catch(() => null)
+      : null;
+  return {
+    design,
+    rewardCodes,
+    referralPreview,
+    visitSlots: availability?.slots ?? [],
+  };
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -84,6 +96,40 @@ export async function action({ request, params }: Route.ActionArgs) {
         standardError: null,
         customError: "Choose a bespoke route and add your name and email.",
       };
+    }
+
+    if (sizeMode === "home_visit") {
+      const slotStart = String(form.get("slot_start") ?? "").trim();
+      const address = String(form.get("address") ?? "").trim();
+      if (!slotStart || !address) {
+        return {
+          standardError: null,
+          customError: "Choose a visit slot and add the visit address.",
+        };
+      }
+
+      const response = await api.placeBooking(storeHandle, {
+        design_handle: params.handle,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
+        method,
+        ...attributionPayload(rewardCodes),
+        slot_start: slotStart,
+        address,
+      });
+
+      if (!response.ok) {
+        return {
+          standardError: null,
+          customError: customOrderMessage(response.error),
+        };
+      }
+
+      if (response.result.authorization_url) {
+        return redirect(response.result.authorization_url);
+      }
+      return redirect(`/track/${response.result.order_id}`);
     }
 
     const measurements = collectMeasurements(form);
@@ -179,9 +225,9 @@ function cleanRewardCode(value: FormDataEntryValue | string | null): string {
     .toUpperCase();
 }
 
-function rewardCodesFromRequest(request: Request): RewardCodes {
+async function rewardCodesFromRequest(request: Request): Promise<RewardCodes> {
   const url = new URL(request.url);
-  return {
+  const codes = {
     promoCode: cleanRewardCode(
       url.searchParams.get("promo_code") ?? url.searchParams.get("promo"),
     ),
@@ -205,6 +251,25 @@ function rewardCodesFromRequest(request: Request): RewardCodes {
         "",
     ).trim(),
   };
+
+  if (!codes.affiliateCode || codes.affiliateClickID) {
+    return codes;
+  }
+
+  const visitorID = codes.affiliateVisitorID || newAffiliateVisitorID();
+  const response = await api
+    .recordAffiliateClick(codes.affiliateCode, {
+      visitor_id: visitorID,
+      landing_url: request.url,
+      referrer_url: request.headers.get("referer") ?? "",
+    })
+    .catch(() => null);
+
+  return {
+    ...codes,
+    affiliateClickID: response?.ok ? response.result.click_id : "",
+    affiliateVisitorID: visitorID,
+  };
 }
 
 function rewardCodesFromForm(form: FormData): RewardCodes {
@@ -220,6 +285,12 @@ function rewardCodesFromForm(form: FormData): RewardCodes {
 function rewardPayload(codes: RewardCodes) {
   return {
     promo_code: codes.promoCode || undefined,
+    ...attributionPayload(codes),
+  };
+}
+
+function attributionPayload(codes: RewardCodes) {
+  return {
     referral_code: codes.referralCode || undefined,
     affiliate_code: codes.affiliateCode || undefined,
     affiliate_click_id: codes.affiliateClickID || undefined,
@@ -250,6 +321,8 @@ function customOrderMessage(code: string): string {
       return "This store has not enabled this bespoke order route yet.";
     case "promotion_unavailable":
       return "That promo code is not available for this bespoke request.";
+    case "slot_unavailable":
+      return "That home-visit slot is no longer available. Pick another open slot.";
     case "invalid_order":
       return "Check the bespoke route, contact details, and measurements, then try again.";
     case "not_found":
@@ -257,6 +330,14 @@ function customOrderMessage(code: string): string {
     default:
       return "The bespoke order could not start. Please try again shortly.";
   }
+}
+
+function newAffiliateVisitorID(): string {
+  const randomID = globalThis.crypto?.randomUUID?.();
+  if (randomID) {
+    return `xtv_${randomID}`;
+  }
+  return `xtv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
 function Gallery({ design }: { design: Design }) {
@@ -451,7 +532,11 @@ function RewardFields({
           defaultValue={codes.referralCode}
           fullWidth
         />
-        <input type="hidden" name="affiliate_code" value={codes.affiliateCode} />
+        <input
+          type="hidden"
+          name="affiliate_code"
+          value={codes.affiliateCode}
+        />
         <input
           type="hidden"
           name="affiliate_click_id"
@@ -692,6 +777,7 @@ type CustomRoute = {
 function customRoutes(
   store: StoreSummary,
   depositLabel: string,
+  visitSlots: AvailabilitySlot[],
 ): CustomRoute[] {
   const measurementFields = store.measurement_fields;
 
@@ -713,9 +799,11 @@ function customRoutes(
     {
       mode: "home_visit",
       title: "Home visit",
-      helper: `Start the request with the ${depositLabel} deposit, then the store captures measurements during the visit.`,
+      helper: `Pick an open visit slot, pay the ${depositLabel} deposit, then the store captures measurements at the address.`,
       icon: <HomeWorkRounded />,
-      enabled: true,
+      enabled: visitSlots.length > 0,
+      disabledReason:
+        "No home-visit slots are open for the next two weeks. Try self-measure or come to the shop.",
       takesPayment: true,
       showMeasurements: false,
       buttonLabel: "Pay visit deposit",
@@ -782,18 +870,70 @@ function MeasurementInputs({ store }: { store: StoreSummary }) {
   );
 }
 
+function formatVisitSlot(slot: AvailabilitySlot): string {
+  const start = new Date(slot.slot_start);
+  const end = new Date(slot.slot_end);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return slot.slot_start;
+  }
+  const day = new Intl.DateTimeFormat("en-GH", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "Africa/Accra",
+  }).format(start);
+  const time = new Intl.DateTimeFormat("en-GH", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Africa/Accra",
+  });
+  return `${day}, ${time.format(start)} - ${time.format(end)}`;
+}
+
+function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
+  return (
+    <>
+      <TextField
+        select
+        name="slot_start"
+        label="Visit slot"
+        defaultValue={slots[0]?.slot_start ?? ""}
+        required
+        fullWidth
+      >
+        {slots.slice(0, 12).map((slot) => (
+          <MenuItem key={slot.slot_start} value={slot.slot_start}>
+            {formatVisitSlot(slot)}
+          </MenuItem>
+        ))}
+      </TextField>
+      <TextField
+        name="address"
+        label="Visit address"
+        placeholder="House number, street, area, and nearby landmark"
+        required
+        fullWidth
+        multiline
+        minRows={2}
+      />
+    </>
+  );
+}
+
 function CustomRouteForm({
   route,
   store,
   isSubmitting,
   rewardCodes,
   referralPreview,
+  visitSlots,
 }: {
   route: CustomRoute;
   store: StoreSummary;
   isSubmitting: boolean;
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
+  visitSlots: AvailabilitySlot[];
 }) {
   return (
     <Box
@@ -865,12 +1005,16 @@ function CustomRouteForm({
             {route.showMeasurements ? (
               <MeasurementInputs store={store} />
             ) : null}
+            {route.mode === "home_visit" ? (
+              <VisitSlotFields slots={visitSlots} />
+            ) : null}
             <ContactFields />
             {route.takesPayment ? (
               <>
                 <RewardFields
                   codes={rewardCodes}
                   referralPreview={referralPreview}
+                  includePromo={route.mode !== "home_visit"}
                 />
                 <PaymentMethodField />
               </>
@@ -898,6 +1042,7 @@ function BespokeOrderPanel({
   error,
   rewardCodes,
   referralPreview,
+  visitSlots,
 }: {
   design: Design;
   store?: StoreSummary;
@@ -905,6 +1050,7 @@ function BespokeOrderPanel({
   error?: string | null;
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
+  visitSlots: AvailabilitySlot[];
 }) {
   const unavailableMessage = !store?.handle
     ? "This design needs a store connection before it can take bespoke requests."
@@ -917,7 +1063,7 @@ function BespokeOrderPanel({
   const depositLabel = store
     ? formatGHS(resolveDepositMinor(design, store))
     : "the deposit";
-  const routes = store ? customRoutes(store, depositLabel) : [];
+  const routes = store ? customRoutes(store, depositLabel, visitSlots) : [];
 
   return (
     <Box
@@ -973,6 +1119,7 @@ function BespokeOrderPanel({
               isSubmitting={isSubmitting}
               rewardCodes={rewardCodes}
               referralPreview={referralPreview}
+              visitSlots={visitSlots}
             />
           ))}
         </Stack>
@@ -988,6 +1135,7 @@ export default function DesignPage({
   const { design } = loaderData;
   const rewardCodes = loaderData.rewardCodes;
   const referralPreview = loaderData.referralPreview;
+  const visitSlots = loaderData.visitSlots;
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const store = design.store;
@@ -1156,6 +1304,7 @@ export default function DesignPage({
                 error={actionData?.customError}
                 rewardCodes={rewardCodes}
                 referralPreview={referralPreview}
+                visitSlots={visitSlots}
               />
             </Box>
           </Box>

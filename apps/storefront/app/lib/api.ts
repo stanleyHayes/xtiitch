@@ -75,6 +75,15 @@ export type CollectionPage = {
   designs: Design[];
 };
 
+export type AvailabilitySlot = {
+  slot_start: string;
+  slot_end: string;
+};
+
+export type AvailabilityPage = {
+  slots: AvailabilitySlot[];
+};
+
 async function getJSON<T>(path: string): Promise<T | null> {
   const response = await fetch(`${API_BASE}/v1${path}`);
   if (response.status === 404) {
@@ -119,6 +128,20 @@ export type PlaceCustomOrderInput = {
   measurements?: Record<string, string>;
 };
 
+export type PlaceBookingInput = {
+  design_handle: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  method: "momo" | "card";
+  affiliate_code?: string;
+  affiliate_click_id?: string;
+  affiliate_visitor_id?: string;
+  referral_code?: string;
+  slot_start: string;
+  address: string;
+};
+
 export type PlaceOrderResult = {
   order_id: string;
   reference: string;
@@ -131,15 +154,26 @@ export type PlaceOrderResponse =
   | { ok: true; result: PlaceOrderResult }
   | { ok: false; status: number; error: string };
 
-async function postJSON<T>(path: string, body: unknown): Promise<{ ok: true; result: T } | { ok: false; status: number; error: string }> {
+async function postJSON<T>(
+  path: string,
+  body: unknown,
+): Promise<
+  { ok: true; result: T } | { ok: false; status: number; error: string }
+> {
   const response = await fetch(`${API_BASE}/v1${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { error?: string } | null;
-    return { ok: false, status: response.status, error: payload?.error ?? "upstream_error" };
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      status: response.status,
+      error: payload?.error ?? "upstream_error",
+    };
   }
   return { ok: true, result: (await response.json()) as T };
 }
@@ -182,16 +216,48 @@ export type ReferralCode = {
   status: string;
 };
 
+export type AffiliateClickInput = {
+  visitor_id: string;
+  landing_url: string;
+  referrer_url: string;
+};
+
+export type AffiliateClick = {
+  click_id: string;
+  affiliate_id: string;
+  code: string;
+  clicked_at: string;
+};
+
 export const api = {
-  store: (handle: string) => getJSON<StorePage>(`/public/stores/${enc(handle)}`),
-  tracking: (orderId: string) => getJSON<Tracking>(`/public/orders/${enc(orderId)}`),
+  store: (handle: string) =>
+    getJSON<StorePage>(`/public/stores/${enc(handle)}`),
+  tracking: (orderId: string) =>
+    getJSON<Tracking>(`/public/orders/${enc(orderId)}`),
   search: (handle: string, query: string) =>
     getJSON<SearchPage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`),
   design: (handle: string) => getJSON<Design>(`/public/designs/${enc(handle)}`),
-  collection: (handle: string) => getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
-  referral: (code: string) => getJSON<ReferralCode>(`/public/referrals/${enc(code)}`),
+  collection: (handle: string) =>
+    getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
+  referral: (code: string) =>
+    getJSON<ReferralCode>(`/public/referrals/${enc(code)}`),
+  availability: (handle: string) =>
+    getJSON<AvailabilityPage>(`/public/stores/${enc(handle)}/availability`),
+  recordAffiliateClick: (code: string, input: AffiliateClickInput) =>
+    postJSON<AffiliateClick>(`/public/affiliates/${enc(code)}/clicks`, input),
   placeOrder: (storeHandle: string, input: PlaceOrderInput) =>
-    postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/orders`, input),
+    postJSON<PlaceOrderResult>(
+      `/public/stores/${enc(storeHandle)}/orders`,
+      input,
+    ),
   placeCustomOrder: (storeHandle: string, input: PlaceCustomOrderInput) =>
-    postJSON<PlaceOrderResult>(`/public/stores/${enc(storeHandle)}/custom-orders`, input),
+    postJSON<PlaceOrderResult>(
+      `/public/stores/${enc(storeHandle)}/custom-orders`,
+      input,
+    ),
+  placeBooking: (storeHandle: string, input: PlaceBookingInput) =>
+    postJSON<PlaceOrderResult>(
+      `/public/stores/${enc(storeHandle)}/bookings`,
+      input,
+    ),
 };

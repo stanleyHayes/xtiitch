@@ -13524,7 +13524,7 @@ function AdminRail({
         >
           {adminNavGroups.map((group) => {
             const activeGroup = group.items.some((item) => item.id === section);
-            const open = activeGroup || (openGroups[group.id] ?? true);
+            const open = openGroups[group.id] ?? true;
             const groupBadge = group.items.reduce((total, item) => {
               const value = Number(navBadge(item.id) ?? 0);
               return Number.isFinite(value) ? total + value : total;
