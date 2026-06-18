@@ -56,6 +56,8 @@ Follow-up storefront correction after visual review: the public store no longer 
 
 Storefront feature-completion polish: `apps/storefront` now has a store-level "How ordering works" journey, design-detail assurance cards for checkout/fit/tracking, same-store related-design discovery loaded from the public store catalogue, a collection-page back-to-store path, and a public `/track` lookup screen that accepts an order ID or pasted tracking URL. Verified with `pnpm --filter @xtiitch/storefront check`, `pnpm exec eslint apps/storefront --max-warnings=0`, `pnpm --filter @xtiitch/storefront test`, `pnpm --filter @xtiitch/storefront build`, `git diff --check`, and live route smokes for store, design detail, search, and tracking lookup.
 
+Storefront hardening continuation: account-free promo/referral reward use now dedupes by email/phone as well as generated customer id, and `pnpm load:storefront` provides a local configurable load smoke for storefront/catalogue read paths.
+
 Uncommitted feature slice: business-user management now has protected owner/admin API support for listing users, creating admin/staff accounts, and updating role/active state while keeping owner rows protected from this v1 mutation path. The business dashboard has a management-only `/dashboard/team` surface with active/admin/staff/inactive stats, create-access form, editable non-owner rows, owner protection messaging, and self-deactivation disabled in the UI. Verified with `go test ./internal/...` from `apps/api`, `pnpm --filter @xtiitch/dashboard check`, `pnpm exec eslint apps/dashboard --max-warnings=0`, `pnpm --filter @xtiitch/dashboard build`, direct API smokes for `GET`/`POST`/`PATCH /v1/auth/business/users`, and an authenticated live smoke for `http://127.0.0.1:3401/dashboard/team` after restarting the API dev server on `:8080`. The smoke created one inactive demo user, `team-smoke-1781638668@demo.test`, in the local demo database.
 
 Uncommitted business-user hardening continuation: measurement template management is now service-enforced as owner/admin only. `CreateField`, `UpdateField`, and `DeleteField` commands carry the actor role, staff callers receive `forbidden`/403 before repository writes, and staff can still record visit/shop measurements on eligible orders. Verified with `cd apps/api && go test ./internal/application/measurement ./internal/adapters/inbound/http/measurement`, `cd apps/api && go test ./internal/...`, `cd apps/api && go vet ./...`, and `cd apps/api && go build ./...`.
@@ -997,7 +999,7 @@ Scope:
 - Security review.
 - Tenant-isolation audit.
 - Webhook replay tests.
-- Load testing of storefront/catalogue read paths.
+- Load testing of storefront/catalogue read paths (`pnpm load:storefront`, configurable target/concurrency/budget).
 - Observability.
 - Operational runbooks.
 - Closed beta seed data and onboarding scripts.

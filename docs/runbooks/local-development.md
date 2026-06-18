@@ -58,3 +58,16 @@ are also copied to `provider_message_id`.
 curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 ```
+
+## Storefront Catalogue Load Smoke
+
+With the API and storefront dev servers running, exercise the public catalogue
+and storefront read paths:
+
+```sh
+pnpm load:storefront -- --handle demo-atelier --requests 80 --concurrency 8
+```
+
+Use `--api-url`, `--storefront-url`, `--design`, `--collection`,
+`--max-p95-ms`, and `--timeout-ms` to point the smoke at another environment or
+budget.
