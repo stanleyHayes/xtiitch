@@ -68,6 +68,7 @@ type Service interface {
 	CreateReferralProgramme(ctx context.Context, command adminauthapp.CreateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
 	UpdateReferralProgramme(ctx context.Context, command adminauthapp.UpdateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
 	ArchiveReferralProgramme(ctx context.Context, command adminauthapp.ArchiveReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
+	IssueReferralRewards(ctx context.Context, command adminauthapp.IssueReferralRewardsCommand) (ports.AdminReferralRewardIssueRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
@@ -137,6 +138,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/referral-programmes", handler.createReferralProgramme)
 		protected.Patch("/admin/referral-programmes/{id}", handler.updateReferralProgramme)
 		protected.Post("/admin/referral-programmes/{id}/archive", handler.archiveReferralProgramme)
+		protected.Post("/admin/referral-rewards/issue", handler.issueReferralRewards)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
@@ -368,6 +370,10 @@ type referralProgrammeUpsertRequest struct {
 
 type referralProgrammeArchiveRequest struct {
 	Reason string `json:"reason"`
+}
+
+type referralRewardIssueRequest struct {
+	Limit int `json:"limit"`
 }
 
 type riskReviewStatusRequest struct {
@@ -746,6 +752,15 @@ type affiliatePayoutResponse struct {
 	Notes           string `json:"notes"`
 	CreatedAt       string `json:"created_at"`
 	UpdatedAt       string `json:"updated_at"`
+}
+
+type referralRewardIssueResponse struct {
+	ReferralCount         int    `json:"referral_count"`
+	RewardCount           int    `json:"reward_count"`
+	VoucherCount          int    `json:"voucher_count"`
+	CommissionRebateCount int    `json:"commission_rebate_count"`
+	TotalRewardMinor      int64  `json:"total_reward_minor"`
+	IssuedAt              string `json:"issued_at"`
 }
 
 type referralProgrammeResponse struct {
@@ -2071,6 +2086,35 @@ func (handler Handler) archiveReferralProgramme(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, newReferralProgrammeResponse(record))
 }
 
+func (handler Handler) issueReferralRewards(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request referralRewardIssueRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.IssueReferralRewards(r.Context(), adminauthapp.IssueReferralRewardsCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Limit:       request.Limit,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newReferralRewardIssueResponse(record))
+}
+
 func (handler Handler) queueMoneyReplay(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -3380,6 +3424,17 @@ func newReferralProgrammeResponse(record ports.AdminReferralProgrammeRecord) ref
 		response.EndsAt = record.EndsAt.Format(time.RFC3339)
 	}
 	return response
+}
+
+func newReferralRewardIssueResponse(record ports.AdminReferralRewardIssueRecord) referralRewardIssueResponse {
+	return referralRewardIssueResponse{
+		ReferralCount:         record.ReferralCount,
+		RewardCount:           record.RewardCount,
+		VoucherCount:          record.VoucherCount,
+		CommissionRebateCount: record.CommissionRebateCount,
+		TotalRewardMinor:      record.TotalRewardMinor,
+		IssuedAt:              record.IssuedAt.Format(time.RFC3339),
+	}
 }
 
 func newRiskReviewResponse(record ports.AdminRiskReviewRecord) riskReviewResponse {

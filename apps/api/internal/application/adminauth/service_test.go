@@ -1922,6 +1922,61 @@ func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestIssueReferralRewardsRequiresGrowthPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 18, 12, 0, 0, 0, time.UTC)
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-1"},
+	)
+
+	record, err := service.IssueReferralRewards(context.Background(), IssueReferralRewardsCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		Limit:       999,
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("issue referral rewards: %v", err)
+	}
+	if businesses.issuedReferralRewards.ActorAdminUser != "operator-1" ||
+		businesses.issuedReferralRewards.Limit != 500 {
+		t.Fatalf("expected normalized reward issue input, got %+v", businesses.issuedReferralRewards)
+	}
+	if record.ReferralCount != 2 ||
+		record.RewardCount != 3 ||
+		record.VoucherCount != 2 ||
+		record.CommissionRebateCount != 1 ||
+		record.TotalRewardMinor != 10000 {
+		t.Fatalf("unexpected reward issue record: %+v", record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Issued referral rewards" ||
+		event.Metadata["reward_count"] != "3" ||
+		event.Metadata["voucher_count"] != "2" ||
+		event.Metadata["commission_rebate_count"] != "1" ||
+		event.Metadata["limit"] != "500" {
+		t.Fatalf("unexpected audit event: %+v", event)
+	}
+
+	_, err = service.IssueReferralRewards(context.Background(), IssueReferralRewardsCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -2456,6 +2511,7 @@ type fakeAdminBusinesses struct {
 	createdReferralProgramme   ports.CreateAdminReferralProgrammeInput
 	updatedReferralProgramme   ports.UpdateAdminReferralProgrammeInput
 	archivedReferralProgramme  ports.ArchiveAdminReferralProgrammeInput
+	issuedReferralRewards      ports.IssueAdminReferralRewardsInput
 	replay                     ports.QueueAdminMoneyReplayInput
 	hold                       ports.SetAdminSettlementReviewHoldInput
 	riskReviews                []ports.AdminRiskReviewRecord
@@ -3194,6 +3250,21 @@ func (repo *fakeAdminBusinesses) ArchiveAdminReferralProgramme(
 		"LAUNCH",
 		"archived",
 	), nil
+}
+
+func (repo *fakeAdminBusinesses) IssueAdminReferralRewards(
+	_ context.Context,
+	input ports.IssueAdminReferralRewardsInput,
+) (ports.AdminReferralRewardIssueRecord, error) {
+	repo.issuedReferralRewards = input
+	return ports.AdminReferralRewardIssueRecord{
+		ReferralCount:         2,
+		RewardCount:           3,
+		VoucherCount:          2,
+		CommissionRebateCount: 1,
+		TotalRewardMinor:      10000,
+		IssuedAt:              time.Now(),
+	}, nil
 }
 
 func fakeAdminReferralProgrammeRecord(

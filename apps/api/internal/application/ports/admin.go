@@ -67,6 +67,7 @@ type AdminBusinessRepository interface {
 	CreateAdminReferralProgramme(ctx context.Context, input CreateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
 	UpdateAdminReferralProgramme(ctx context.Context, input UpdateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
 	ArchiveAdminReferralProgramme(ctx context.Context, input ArchiveAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
+	IssueAdminReferralRewards(ctx context.Context, input IssueAdminReferralRewardsInput) (AdminReferralRewardIssueRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
@@ -793,6 +794,20 @@ type UpdateAdminReferralProgrammeInput struct {
 type ArchiveAdminReferralProgrammeInput struct {
 	ProgrammeID    common.ID
 	ActorAdminUser common.ID
+}
+
+type IssueAdminReferralRewardsInput struct {
+	ActorAdminUser common.ID
+	Limit          int
+}
+
+type AdminReferralRewardIssueRecord struct {
+	ReferralCount         int
+	RewardCount           int
+	VoucherCount          int
+	CommissionRebateCount int
+	TotalRewardMinor      int64
+	IssuedAt              time.Time
 }
 
 type AdminMoneyReplayRequestRecord struct {

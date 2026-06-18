@@ -464,6 +464,14 @@ type ArchiveReferralProgrammeCommand struct {
 	IPAddress   string
 }
 
+type IssueReferralRewardsCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Limit       int
+	UserAgent   string
+	IPAddress   string
+}
+
 type QueueMoneyReplayCommand struct {
 	ActorUserID       common.ID
 	ActorRole         admindomain.Role
@@ -2071,6 +2079,63 @@ func (s Service) ArchiveReferralProgramme(
 		UserAgent:   cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) IssueReferralRewards(
+	ctx context.Context,
+	cmd IssueReferralRewardsCommand,
+) (ports.AdminReferralRewardIssueRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminReferralRewardIssueRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminReferralRewardIssueRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminReferralRewardIssueRecord{}, authdomain.ErrForbidden
+	}
+
+	limit := cmd.Limit
+	if limit <= 0 {
+		limit = 50
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	record, err := s.businesses.IssueAdminReferralRewards(ctx, ports.IssueAdminReferralRewardsInput{
+		ActorAdminUser: cmd.ActorUserID,
+		Limit:          limit,
+	})
+	if err != nil {
+		return ports.AdminReferralRewardIssueRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Issued referral rewards",
+		TargetType:  "referral_rewards",
+		TargetID:    "batch",
+		TargetLabel: "Referral rewards",
+		Summary: "Issued " + intString(record.RewardCount) +
+			" referral rewards across " + intString(record.ReferralCount) + " referrals.",
+		Severity: admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"referral_count":          intString(record.ReferralCount),
+			"reward_count":            intString(record.RewardCount),
+			"voucher_count":           intString(record.VoucherCount),
+			"commission_rebate_count": intString(record.CommissionRebateCount),
+			"total_reward_minor":      intString64(record.TotalRewardMinor),
+			"limit":                   intString(limit),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminReferralRewardIssueRecord{}, err
 	}
 
 	return record, nil
