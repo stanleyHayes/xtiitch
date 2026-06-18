@@ -120,11 +120,13 @@ func (handler Handler) checkout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.InitiateCharge(r.Context(), paymentsapp.InitiateChargeCommand{
-		Scope:         principal.TenantScope(),
-		Purpose:       money.PaymentPurpose(request.Purpose),
-		AmountMinor:   request.AmountMinor,
-		Method:        money.PaymentMethod(request.Method),
-		CustomerEmail: request.CustomerEmail,
+		Scope:                      principal.TenantScope(),
+		ActorRole:                  principal.Role,
+		RequireMoneyManagementRole: true,
+		Purpose:                    money.PaymentPurpose(request.Purpose),
+		AmountMinor:                request.AmountMinor,
+		Method:                     money.PaymentMethod(request.Method),
+		CustomerEmail:              request.CustomerEmail,
 	})
 	if err != nil {
 		status, code := paymentError(err)

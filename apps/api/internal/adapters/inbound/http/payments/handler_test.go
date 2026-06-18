@@ -82,6 +82,9 @@ func TestCheckoutReturnsAuthorization(t *testing.T) {
 	if service.chargeCommand.Scope.BusinessID != common.ID("business-1") {
 		t.Fatalf("expected tenant scope from token, got %q", service.chargeCommand.Scope.BusinessID)
 	}
+	if service.chargeCommand.ActorRole != business.UserRoleOwner || !service.chargeCommand.RequireMoneyManagementRole {
+		t.Fatalf("expected protected checkout to require owner/admin role, got %+v", service.chargeCommand)
+	}
 }
 
 func TestVerifyBusinessPassesPrincipalRole(t *testing.T) {

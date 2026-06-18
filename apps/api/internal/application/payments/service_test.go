@@ -208,6 +208,22 @@ func TestMoneyManagementRequiresOwnerOrAdmin(t *testing.T) {
 	if payments.taking.TakingID != "" {
 		t.Fatalf("expected staff manual taking to stop before repository write: %+v", payments.taking)
 	}
+
+	_, err = service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:                      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:                  business.UserRoleStaff,
+		RequireMoneyManagementRole: true,
+		Purpose:                    money.PaymentPurposeStandardFull,
+		AmountMinor:                20000,
+		Method:                     money.PaymentMethodMomo,
+		CustomerEmail:              "buyer@example.com",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff protected checkout to be forbidden, got %v", err)
+	}
+	if provider.initCalled || len(payments.created) != 0 {
+		t.Fatalf("expected staff protected checkout to stop before provider/repository, provider=%v payments=%d", provider.initCalled, len(payments.created))
+	}
 }
 
 func TestHandleProviderEventRejectsBadSignature(t *testing.T) {
@@ -293,6 +309,7 @@ func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
 type fakeProvider struct {
 	subaccountRef     string
 	subaccountCreated bool
+	initCalled        bool
 	verifySig         bool
 	event             ports.ProviderChargeEvent
 	initResult        ports.InitializeTransactionResult
@@ -305,6 +322,7 @@ func (p *fakeProvider) CreateBusinessSubaccount(_ context.Context, _ ports.Creat
 }
 
 func (p *fakeProvider) InitializeTransaction(_ context.Context, input ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+	p.initCalled = true
 	p.initInput = input
 	return p.initResult, nil
 }
