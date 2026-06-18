@@ -544,21 +544,71 @@ func TestUpdateBusinessUserPassesManageableRoleAndActiveState(t *testing.T) {
 	}
 }
 
+func TestResetBusinessUserPasswordRequiresOwnerOrAdminAndHashesPassword(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"unused"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	err := service.ResetBusinessUserPassword(context.Background(), ResetBusinessUserPasswordCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleAdmin,
+		UserID:      "user-2",
+		NewPassword: "new-strong-password",
+	})
+	if err != nil {
+		t.Fatalf("reset business user password: %v", err)
+	}
+	if businesses.updatedPassword.UserID != "user-2" || businesses.updatedPassword.PasswordHash != "hashed:new-strong-password" {
+		t.Fatalf("expected hashed password update, got %+v", businesses.updatedPassword)
+	}
+
+	err = service.ResetBusinessUserPassword(context.Background(), ResetBusinessUserPasswordCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleStaff,
+		UserID:      "user-2",
+		NewPassword: "new-strong-password",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff reset to be forbidden, got %v", err)
+	}
+
+	err = service.ResetBusinessUserPassword(context.Background(), ResetBusinessUserPasswordCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
+		UserID:      "user-2",
+		NewPassword: "short",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected weak password to be rejected, got %v", err)
+	}
+}
+
 type fakeBusinessIdentityRepository struct {
-	created       ports.CreateBusinessWithOwnerInput
-	createErr     error
-	credentials   ports.BusinessUserCredentials
-	findErr       error
-	lookupHandle  string
-	lookupEmail   string
-	users         []ports.BusinessUserRecord
-	listScope     common.TenantScope
-	listErr       error
-	createdUser   ports.CreateBusinessUserInput
-	createUserErr error
-	updatedUser   ports.UpdateBusinessUserInput
-	updateScope   common.TenantScope
-	updateUserErr error
+	created           ports.CreateBusinessWithOwnerInput
+	createErr         error
+	credentials       ports.BusinessUserCredentials
+	findErr           error
+	lookupHandle      string
+	lookupEmail       string
+	users             []ports.BusinessUserRecord
+	listScope         common.TenantScope
+	listErr           error
+	createdUser       ports.CreateBusinessUserInput
+	createUserErr     error
+	updatedUser       ports.UpdateBusinessUserInput
+	updateScope       common.TenantScope
+	updateUserErr     error
+	updatedPassword   ports.UpdateBusinessUserPasswordInput
+	updatePasswordErr error
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
@@ -619,6 +669,12 @@ func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser(_ context.Context
 		Role:        input.Role,
 		IsActive:    input.IsActive,
 	}, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+	repo.updateScope = scope
+	repo.updatedPassword = input
+	return repo.updatePasswordErr
 }
 
 type countingPasswordHasher struct {

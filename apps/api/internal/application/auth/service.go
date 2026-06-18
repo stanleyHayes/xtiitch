@@ -289,6 +289,32 @@ func (s Service) UpdateBusinessUser(ctx context.Context, cmd UpdateBusinessUserC
 	})
 }
 
+type ResetBusinessUserPasswordCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	UserID      common.ID
+	NewPassword string
+}
+
+func (s Service) ResetBusinessUserPassword(ctx context.Context, cmd ResetBusinessUserPasswordCommand) error {
+	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.UserID.IsZero() || len(cmd.NewPassword) < minPasswordLength || len(cmd.NewPassword) > maxPasswordLength {
+		return authdomain.ErrInvalidInput
+	}
+
+	passwordHash, err := s.passwords.Hash(cmd.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	return s.businesses.UpdateBusinessUserPassword(ctx, cmd.Scope, ports.UpdateBusinessUserPasswordInput{
+		UserID:       cmd.UserID,
+		PasswordHash: passwordHash,
+	})
+}
+
 type normalizedRegistration struct {
 	BusinessName     string
 	BusinessHandle   string

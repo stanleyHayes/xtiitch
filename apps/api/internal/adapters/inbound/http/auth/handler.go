@@ -26,6 +26,7 @@ type Service interface {
 	ListBusinessUsers(ctx context.Context, command authapp.ListBusinessUsersCommand) ([]ports.BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
+	ResetBusinessUserPassword(ctx context.Context, command authapp.ResetBusinessUserPasswordCommand) error
 }
 
 type Handler struct {
@@ -49,6 +50,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/auth/business/users", handler.listBusinessUsers)
 		protected.Post("/auth/business/users", handler.createBusinessUser)
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
+		protected.Post("/auth/business/users/{id}/password", handler.resetBusinessUserPassword)
 	})
 }
 
@@ -85,6 +87,10 @@ type updateBusinessUserRequest struct {
 	DisplayName string `json:"display_name"`
 	Role        string `json:"role"`
 	IsActive    bool   `json:"is_active"`
+}
+
+type resetBusinessUserPasswordRequest struct {
+	Password string `json:"password"`
 }
 
 type meResponse struct {
@@ -297,6 +303,34 @@ func (handler Handler) updateBusinessUser(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, newBusinessUserResponse(user))
+}
+
+func (handler Handler) resetBusinessUserPassword(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request resetBusinessUserPasswordRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	err := handler.service.ResetBusinessUserPassword(r.Context(), authapp.ResetBusinessUserPasswordCommand{
+		Scope:       principal.TenantScope(),
+		ActorRole:   principal.Role,
+		UserID:      common.ID(chi.URLParam(r, "id")),
+		NewPassword: request.Password,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func decodeJSON(r *http.Request, value any) error {

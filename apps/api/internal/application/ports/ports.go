@@ -18,6 +18,7 @@ type BusinessIdentityRepository interface {
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserInput) (BusinessUserRecord, error)
+	UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserPasswordInput) error
 }
 
 type CreateBusinessWithOwnerInput struct {
@@ -69,6 +70,11 @@ type UpdateBusinessUserInput struct {
 	DisplayName string
 	Role        business.UserRole
 	IsActive    bool
+}
+
+type UpdateBusinessUserPasswordInput struct {
+	UserID       common.ID
+	PasswordHash string
 }
 
 type AuthSessionRepository interface {

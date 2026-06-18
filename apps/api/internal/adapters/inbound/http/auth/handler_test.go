@@ -369,6 +369,37 @@ func TestUpdateBusinessUserMapsForbidden(t *testing.T) {
 	}
 }
 
+func TestResetBusinessUserPasswordReturnsNoContent(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "owner-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleOwner,
+	}})
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/users/user-2/password", bytes.NewReader([]byte(`{
+		"password": "new-strong-password"
+	}`)))
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusNoContent, response.Code, response.Body.String())
+	}
+	if !service.resetUserPasswordCalled {
+		t.Fatal("expected reset password service to be called")
+	}
+	if service.resetUserPasswordCommand.Scope.BusinessID != "business-1" ||
+		service.resetUserPasswordCommand.ActorRole != business.UserRoleOwner ||
+		service.resetUserPasswordCommand.UserID != "user-2" ||
+		service.resetUserPasswordCommand.NewPassword != "new-strong-password" {
+		t.Fatalf("unexpected reset password command: %+v", service.resetUserPasswordCommand)
+	}
+}
+
 func newTestRouter(service *fakeAuthService) http.Handler {
 	return newTestRouterWithVerifier(service, fakeTokenVerifier{err: errors.New("no verifier")})
 }
@@ -389,23 +420,25 @@ func (v fakeTokenVerifier) VerifyAccessToken(_ context.Context, _ string) (ports
 }
 
 type fakeAuthService struct {
-	result            authapp.AuthResult
-	err               error
-	registerCalled    bool
-	registerCommand   authapp.RegisterBusinessCommand
-	loginCalled       bool
-	loginCommand      authapp.LoginBusinessCommand
-	refreshCalled     bool
-	logoutCalled      bool
-	users             []ports.BusinessUserRecord
-	businessUser      ports.BusinessUserRecord
-	userErr           error
-	listUsersCalled   bool
-	listUsersCommand  authapp.ListBusinessUsersCommand
-	createUserCalled  bool
-	createUserCommand authapp.CreateBusinessUserCommand
-	updateUserCalled  bool
-	updateUserCommand authapp.UpdateBusinessUserCommand
+	result                   authapp.AuthResult
+	err                      error
+	registerCalled           bool
+	registerCommand          authapp.RegisterBusinessCommand
+	loginCalled              bool
+	loginCommand             authapp.LoginBusinessCommand
+	refreshCalled            bool
+	logoutCalled             bool
+	users                    []ports.BusinessUserRecord
+	businessUser             ports.BusinessUserRecord
+	userErr                  error
+	listUsersCalled          bool
+	listUsersCommand         authapp.ListBusinessUsersCommand
+	createUserCalled         bool
+	createUserCommand        authapp.CreateBusinessUserCommand
+	updateUserCalled         bool
+	updateUserCommand        authapp.UpdateBusinessUserCommand
+	resetUserPasswordCalled  bool
+	resetUserPasswordCommand authapp.ResetBusinessUserPasswordCommand
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -471,4 +504,10 @@ func (service *fakeAuthService) UpdateBusinessUser(_ context.Context, command au
 		return ports.BusinessUserRecord{}, service.userErr
 	}
 	return service.businessUser, nil
+}
+
+func (service *fakeAuthService) ResetBusinessUserPassword(_ context.Context, command authapp.ResetBusinessUserPasswordCommand) error {
+	service.resetUserPasswordCalled = true
+	service.resetUserPasswordCommand = command
+	return service.userErr
 }

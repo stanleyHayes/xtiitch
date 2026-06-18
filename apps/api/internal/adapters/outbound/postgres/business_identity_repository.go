@@ -311,6 +311,35 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, s
 	return user, nil
 }
 
+func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		update business_users
+		set password_hash = $3,
+			updated_at = now()
+		where business_user_id = $1
+			and business_id = $2
+			and role <> 'owner'
+	`, input.UserID.String(), scope.BusinessID.String(), input.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrNotFound
+	}
+
+	return tx.Commit(ctx)
+}
+
 func scanBusinessUserRecord(row pgx.Row) (ports.BusinessUserRecord, error) {
 	var user ports.BusinessUserRecord
 	var role string

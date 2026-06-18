@@ -31,6 +31,7 @@ import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
+import LockResetRounded from "@mui/icons-material/LockResetRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
@@ -1200,6 +1201,28 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/team");
   }
 
+  if (intent === "reset_business_user_password") {
+    const userID = String(form.get("business_user_id") ?? "").trim();
+    if (!userID) {
+      return { teamError: "That team member could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/auth/business/users/${encodeURIComponent(userID)}/password`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: String(form.get("password") ?? ""),
+        }),
+      },
+    );
+    if (!response.ok) {
+      return { teamError: businessUserErrorMessage(response.status, "reset") };
+    }
+    return redirect("/dashboard/team");
+  }
+
   if (intent === "create_collection") {
     const sequence = parseSequence(form.get("sequence"));
     if (sequence === null) {
@@ -1612,7 +1635,7 @@ function rolePermissionMessage(role: string): string {
 
 function businessUserErrorMessage(
   status: number,
-  action: "create" | "update",
+  action: "create" | "update" | "reset",
 ): string {
   if (status === 403) {
     return "Only owners and admins can manage team access.";
@@ -1624,12 +1647,19 @@ function businessUserErrorMessage(
     return "That team member could not be found or is protected.";
   }
   if (status === 400) {
-    return action === "create"
-      ? "Add a name, valid email, password of at least 8 characters, and an admin or staff role."
-      : "Add a name and choose an admin or staff role before saving.";
+    if (action === "create") {
+      return "Add a name, valid email, password of at least 8 characters, and an admin or staff role.";
+    }
+    if (action === "reset") {
+      return "Use a temporary password between 8 and 72 characters.";
+    }
+    return "Add a name and choose an admin or staff role before saving.";
   }
-  return action === "create"
-    ? "Could not create that team member yet."
+  if (action === "create") {
+    return "Could not create that team member yet.";
+  }
+  return action === "reset"
+    ? "Could not reset that team member's password yet."
     : "Could not update that team member yet.";
 }
 
@@ -7794,90 +7824,135 @@ function BusinessUserRow({
             helper="Owner role changes stay outside this team desk."
           />
         ) : (
-          <Box
-            sx={{
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: {
-                xs: "1fr",
-                lg: "minmax(0, 1fr) 130px auto auto",
-              },
-              alignItems: "center",
-            }}
-          >
-            <Form method="post" style={{ display: "contents" }}>
-              <input type="hidden" name="intent" value="update_business_user" />
-              <input
-                type="hidden"
-                name="business_user_id"
-                value={user.business_user_id}
-              />
-              <input
-                type="hidden"
-                name="is_active"
-                value={user.is_active ? "true" : "false"}
-              />
-              <TextField
-                name="display_name"
-                label="Name"
-                size="small"
-                defaultValue={user.display_name}
-                required
-              />
-              <TextField
-                name="role"
-                label="Role"
-                select
-                size="small"
-                defaultValue={user.role === "admin" ? "admin" : "staff"}
-              >
-                {businessUserRoleOptions.map((role) => (
-                  <MenuItem key={role.value} value={role.value}>
-                    {role.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <Button
-                type="submit"
-                variant="outlined"
-                startIcon={<SaveRounded />}
-              >
-                Save
-              </Button>
-            </Form>
+          <Stack spacing={1}>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  lg: "minmax(0, 1fr) 130px auto auto",
+                },
+                alignItems: "center",
+              }}
+            >
+              <Form method="post" style={{ display: "contents" }}>
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="update_business_user"
+                />
+                <input
+                  type="hidden"
+                  name="business_user_id"
+                  value={user.business_user_id}
+                />
+                <input
+                  type="hidden"
+                  name="is_active"
+                  value={user.is_active ? "true" : "false"}
+                />
+                <TextField
+                  name="display_name"
+                  label="Name"
+                  size="small"
+                  defaultValue={user.display_name}
+                  required
+                />
+                <TextField
+                  name="role"
+                  label="Role"
+                  select
+                  size="small"
+                  defaultValue={user.role === "admin" ? "admin" : "staff"}
+                >
+                  {businessUserRoleOptions.map((role) => (
+                    <MenuItem key={role.value} value={role.value}>
+                      {role.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <Button
+                  type="submit"
+                  variant="outlined"
+                  startIcon={<SaveRounded />}
+                >
+                  Save
+                </Button>
+              </Form>
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="update_business_user"
+                />
+                <input
+                  type="hidden"
+                  name="business_user_id"
+                  value={user.business_user_id}
+                />
+                <input
+                  type="hidden"
+                  name="display_name"
+                  value={user.display_name}
+                />
+                <input
+                  type="hidden"
+                  name="role"
+                  value={user.role === "admin" ? "admin" : "staff"}
+                />
+                <input
+                  type="hidden"
+                  name="is_active"
+                  value={user.is_active ? "false" : "true"}
+                />
+                <Button
+                  type="submit"
+                  variant="outlined"
+                  color={user.is_active ? "error" : "success"}
+                  disabled={isCurrentUser}
+                  fullWidth
+                >
+                  {user.is_active ? "Deactivate" : "Reactivate"}
+                </Button>
+              </Form>
+            </Box>
             <Form method="post">
-              <input type="hidden" name="intent" value="update_business_user" />
+              <input
+                type="hidden"
+                name="intent"
+                value="reset_business_user_password"
+              />
               <input
                 type="hidden"
                 name="business_user_id"
                 value={user.business_user_id}
               />
-              <input
-                type="hidden"
-                name="display_name"
-                value={user.display_name}
-              />
-              <input
-                type="hidden"
-                name="role"
-                value={user.role === "admin" ? "admin" : "staff"}
-              />
-              <input
-                type="hidden"
-                name="is_active"
-                value={user.is_active ? "false" : "true"}
-              />
-              <Button
-                type="submit"
-                variant="outlined"
-                color={user.is_active ? "error" : "success"}
-                disabled={isCurrentUser}
-                fullWidth
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+                }}
               >
-                {user.is_active ? "Deactivate" : "Reactivate"}
-              </Button>
+                <TextField
+                  name="password"
+                  label="New temporary password"
+                  type="password"
+                  size="small"
+                  required
+                  slotProps={{ htmlInput: { minLength: 8, maxLength: 72 } }}
+                />
+                <Button
+                  type="submit"
+                  variant="text"
+                  startIcon={<LockResetRounded />}
+                >
+                  Reset password
+                </Button>
+              </Box>
             </Form>
-          </Box>
+          </Stack>
         )}
       </Stack>
     </Box>
