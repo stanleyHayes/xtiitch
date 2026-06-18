@@ -2,12 +2,15 @@
   "name": "@xtiitch/mobile",
   "version": "0.0.0",
   "private": true,
+  "exports": {
+    ".": "./src/surfaces.mjs"
+  },
   "scripts": {
     "android": "expo start --android",
-    "check": "echo \"mobile scaffold ready\"",
+    "check": "node --check src/surfaces.mjs && node --test test/*.test.mjs",
     "ios": "expo start --ios",
     "start": "expo start",
-    "test": "echo \"mobile tests not scaffolded yet\"",
+    "test": "node --test test/*.test.mjs",
     "web": "expo start --web"
   },
   "dependencies": {
