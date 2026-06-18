@@ -7234,7 +7234,7 @@ function splitDateTimeInputValue(value = ""): {
       : { date: "", time: "" };
   }
   return {
-    date: `${match[3]}/${match[2]}/${match[1]}`,
+    date: `${match[1]}-${match[2]}-${match[3]}`,
     time: `${match[4]}:${match[5]}`,
   };
 }
@@ -7369,13 +7369,14 @@ function StyledDateTimeField({
       >
         <TextField
           label="Date"
+          type="date"
           value={dateValue}
           onChange={(event) => setDateValue(event.target.value)}
-          placeholder="dd/mm/yyyy"
           required={required}
           disabled={disabled}
           size={size}
           slotProps={{
+            inputLabel: { shrink: true },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -7383,21 +7384,18 @@ function StyledDateTimeField({
                 </InputAdornment>
               ),
             },
-            htmlInput: {
-              inputMode: "numeric",
-              pattern: "(\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2})",
-            },
           }}
         />
         <TextField
           label="Time"
+          type="time"
           value={timeValue}
           onChange={(event) => setTimeValue(event.target.value)}
-          placeholder="HH:mm"
           required={required}
           disabled={disabled}
           size={size}
           slotProps={{
+            inputLabel: { shrink: true },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -7406,8 +7404,7 @@ function StyledDateTimeField({
               ),
             },
             htmlInput: {
-              inputMode: "numeric",
-              pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+              step: 300,
             },
           }}
         />
@@ -7444,13 +7441,14 @@ function StyledTimeField({
       />
       <TextField
         label={label}
+        type="time"
         value={timeValue}
         onChange={(event) => setTimeValue(event.target.value)}
-        placeholder="HH:mm"
         required={required}
         disabled={disabled}
         size={size}
         slotProps={{
+          inputLabel: { shrink: true },
           input: {
             startAdornment: (
               <InputAdornment position="start">
@@ -7459,8 +7457,7 @@ function StyledTimeField({
             ),
           },
           htmlInput: {
-            inputMode: "numeric",
-            pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+            step: 300,
           },
         }}
       />
@@ -9106,365 +9103,653 @@ function PromotionsSection({
                     />
                   </Box>
 
-                  {promotion.recentRedemptions.length > 0 ? (
-                    <Box
-                      sx={{
-                        display: "grid",
-                        gap: 1,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          md: "repeat(2, 1fr)",
-                        },
-                      }}
-                    >
-                      {promotion.recentRedemptions.map((redemption) => (
-                        <Box
-                          key={redemption.promotionRedemptionId}
-                          sx={{
-                            p: 1.1,
-                            border: "1px solid",
-                            borderColor: alpha(tokens.ink, 0.08),
-                            borderRadius: 1,
-                            bgcolor: alpha(tokens.white, 0.7),
-                            minWidth: 0,
-                          }}
-                        >
-                          <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Chip
-                              size="small"
-                              label={redemption.status}
-                              color={
-                                redemption.status === "applied"
-                                  ? "success"
-                                  : redemption.status === "pending"
-                                    ? "warning"
-                                    : "default"
-                              }
-                              variant="outlined"
-                              sx={{ textTransform: "capitalize" }}
-                            />
-                            <Typography sx={{ fontWeight: 900 }}>
-                              {formatGHS(redemption.discountMinor)}
-                            </Typography>
-                          </Stack>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              mt: 0.75,
-                              color: "text.secondary",
-                              overflowWrap: "anywhere",
-                            }}
-                          >
-                            {redemption.customerName ||
-                              (redemption.customerId
-                                ? `Customer ${shortID(redemption.customerId)}`
-                                : "Unknown customer")}
-                            {" · "}
-                            {redemption.orderId
-                              ? `Order ${shortID(redemption.orderId)}`
-                              : "No order linked"}
-                          </Typography>
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              display: "block",
-                              mt: 0.5,
-                              color: "text.secondary",
-                            }}
-                          >
-                            {shortTime(
-                              redemption.redeemedAt ?? redemption.createdAt,
-                            )}
-                          </Typography>
-                        </Box>
-                      ))}
-                    </Box>
-                  ) : null}
-
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-promotion:update"
-                    />
-                    <input
-                      type="hidden"
-                      name="promotion_id"
-                      value={promotion.promotionId}
-                    />
-                    <Stack spacing={1.25}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            md: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                        <TextField
-                          select
-                          label="Target"
-                          name="business_id"
-                          size="small"
-                          defaultValue={promotion.businessId ?? ""}
-                          disabled={archived}
-                        >
-                          <MenuItem value="">Platform-wide</MenuItem>
-                          {promotion.businessId &&
-                          !businesses.some(
-                            (business) => business.id === promotion.businessId,
-                          ) ? (
-                            <MenuItem value={promotion.businessId}>
-                              {promotionTargetLabel(promotion)}
-                            </MenuItem>
-                          ) : null}
-                          {businesses.map((business) => (
-                            <MenuItem key={business.id} value={business.id}>
-                              {business.name} · {business.handle}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Code"
-                          name="code"
-                          size="small"
-                          defaultValue={promotion.code}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Title"
-                          name="title"
-                          size="small"
-                          defaultValue={promotion.title}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          select
-                          label="Status"
-                          name="status"
-                          size="small"
-                          defaultValue={
-                            promotion.status === "archived"
-                              ? "paused"
-                              : promotion.status
-                          }
-                          disabled={archived}
-                        >
-                          {promotionStatusOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Discount"
-                          name="discount_type"
-                          size="small"
-                          defaultValue={promotion.discountType}
-                          disabled={archived}
-                        >
-                          {promotionDiscountTypeOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Value"
-                          name="discount_value"
-                          type="number"
-                          size="small"
-                          defaultValue={promotionValueDefault(promotion)}
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                        />
-                        <TextField
-                          label="Max cap"
-                          name="max_discount_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(
-                            promotion.maxDiscountMinor,
-                          )}
-                          disabled={archived}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  GHS
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, step: "0.01" },
-                          }}
-                        />
-                        <TextField
-                          label="Minimum spend"
-                          name="min_spend_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(
-                            promotion.minSpendMinor,
-                          )}
-                          disabled={archived}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  GHS
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, step: "0.01" },
-                          }}
-                        />
-                        <TextField
-                          select
-                          label="Funding"
-                          name="funding_source"
-                          size="small"
-                          defaultValue={promotion.fundingSource}
-                          disabled={archived}
-                        >
-                          {promotionFundingSourceOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Scope"
-                          name="scope"
-                          size="small"
-                          defaultValue={promotion.scope}
-                          disabled={archived}
-                        >
-                          {promotionScopeOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Collection ID"
-                          name="target_collection_id"
-                          size="small"
-                          defaultValue={promotion.targetCollectionId ?? ""}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Design ID"
-                          name="target_design_id"
-                          size="small"
-                          defaultValue={promotion.targetDesignId ?? ""}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Global limit"
-                          name="usage_limit_global"
-                          type="number"
-                          size="small"
-                          defaultValue={promotion.usageLimitGlobal ?? ""}
-                          placeholder="Unlimited"
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                        />
-                        <TextField
-                          label="Per-customer limit"
-                          name="usage_limit_per_customer"
-                          type="number"
-                          size="small"
-                          defaultValue={promotion.usageLimitPerCustomer ?? ""}
-                          placeholder="Unlimited"
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 1, step: 1 } }}
-                        />
-                        <StyledDateTimeField
-                          label="Starts"
-                          name="starts_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(
-                            promotion.startsAt,
-                          )}
-                          disabled={archived}
-                        />
-                        <StyledDateTimeField
-                          label="Ends"
-                          name="ends_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(promotion.endsAt)}
-                          disabled={archived}
-                        />
-                      </Box>
-                      <TextField
-                        label="Description"
-                        name="description"
-                        multiline
-                        minRows={2}
-                        size="small"
-                        defaultValue={promotion.description}
-                        disabled={archived}
-                      />
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={archived}
-                        sx={{ alignSelf: "flex-start" }}
-                      >
-                        Save promotion
-                      </Button>
-                    </Stack>
-                  </Form>
-
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-promotion:archive"
-                    />
-                    <input
-                      type="hidden"
-                      name="promotion_id"
-                      value={promotion.promotionId}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        label="Archive reason"
-                        name="reason"
-                        size="small"
-                        placeholder="Campaign ended"
-                        fullWidth
-                        disabled={archived}
-                      />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        disabled={archived}
-                        sx={{ minWidth: { sm: 140 } }}
-                      >
-                        Archive
-                      </Button>
-                    </Stack>
-                  </Form>
+                  <Button
+                    variant="outlined"
+                    endIcon={<ArrowForwardRounded />}
+                    onClick={() => setDetailID(promotion.promotionId)}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    View details
+                  </Button>
                 </Stack>
               </Panel>
             );
           })}
         </Box>
       ) : null}
+
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">Create promotion</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Add a platform-wide voucher or tie the offer to one store.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setCreateOpen(false)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <AdminPromotionCreateForm businesses={businesses} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(selectedPromotion)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box>
+              <Typography variant="h6">
+                {selectedPromotion?.title ?? "Promotion details"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Review redemptions, edit rules, or archive this promotion.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedPromotion ? (
+            <AdminPromotionDetailForm
+              promotion={selectedPromotion}
+              businesses={businesses}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+}
+
+function AdminPromotionCreateForm({
+  businesses,
+}: {
+  businesses: AdminBusiness[];
+}) {
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="admin-promotion:create" />
+      <Stack spacing={1.5}>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.5,
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "repeat(2, minmax(0, 1fr))",
+              xl: "1.1fr 1fr 1.4fr repeat(3, minmax(120px, 0.85fr))",
+            },
+          }}
+        >
+          <TextField
+            select
+            label="Target"
+            name="business_id"
+            size="small"
+            defaultValue=""
+          >
+            <MenuItem value="">Platform-wide</MenuItem>
+            {businesses.map((business) => (
+              <MenuItem key={business.id} value={business.id}>
+                {business.name} · {business.handle}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Code"
+            name="code"
+            placeholder="WELCOME10"
+            size="small"
+          />
+          <TextField label="Title" name="title" size="small" required />
+          <TextField
+            select
+            label="Discount"
+            name="discount_type"
+            size="small"
+            defaultValue="percentage"
+          >
+            {promotionDiscountTypeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Value"
+            name="discount_value"
+            type="number"
+            size="small"
+            defaultValue="10"
+            slotProps={{
+              htmlInput: { min: 0, step: "0.01" },
+            }}
+          />
+          <TextField
+            label="Max cap"
+            name="max_discount_ghs"
+            type="number"
+            size="small"
+            defaultValue="50.00"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { min: 0, step: "0.01" },
+            }}
+          />
+          <TextField
+            label="Minimum spend"
+            name="min_spend_ghs"
+            type="number"
+            size="small"
+            defaultValue="0.00"
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">GHS</InputAdornment>
+                ),
+              },
+              htmlInput: { min: 0, step: "0.01" },
+            }}
+          />
+          <TextField
+            select
+            label="Funding"
+            name="funding_source"
+            size="small"
+            defaultValue="business"
+          >
+            {promotionFundingSourceOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Scope"
+            name="scope"
+            size="small"
+            defaultValue="store"
+          >
+            {promotionScopeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Collection ID"
+            name="target_collection_id"
+            size="small"
+          />
+          <TextField label="Design ID" name="target_design_id" size="small" />
+          <TextField
+            select
+            label="Status"
+            name="status"
+            size="small"
+            defaultValue="active"
+          >
+            {promotionStatusOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Global limit"
+            name="usage_limit_global"
+            type="number"
+            size="small"
+            placeholder="Unlimited"
+            slotProps={{ htmlInput: { min: 1, step: 1 } }}
+          />
+          <TextField
+            label="Per-customer limit"
+            name="usage_limit_per_customer"
+            type="number"
+            size="small"
+            placeholder="Unlimited"
+            slotProps={{ htmlInput: { min: 1, step: 1 } }}
+          />
+          <StyledDateTimeField label="Starts" name="starts_at" size="small" />
+          <StyledDateTimeField label="Ends" name="ends_at" size="small" />
+        </Box>
+        <TextField
+          label="Description"
+          name="description"
+          multiline
+          minRows={2}
+          size="small"
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          startIcon={<LocalOfferRounded />}
+          sx={{ alignSelf: "flex-start" }}
+        >
+          Create promotion
+        </Button>
+      </Stack>
+    </Form>
+  );
+}
+
+function AdminPromotionDetailForm({
+  promotion,
+  businesses,
+}: {
+  promotion: AdminPromotion;
+  businesses: AdminBusiness[];
+}) {
+  const archived = promotion.status === "archived";
+
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+        }}
+      >
+        <DetailLine label="Discount" value={promotionDiscountLabel(promotion)} />
+        <DetailLine
+          label="Cap"
+          value={
+            typeof promotion.maxDiscountMinor === "number"
+              ? formatGHS(promotion.maxDiscountMinor)
+              : "No cap"
+          }
+        />
+        <DetailLine
+          label="Minimum spend"
+          value={formatGHS(promotion.minSpendMinor)}
+        />
+        <DetailLine
+          label="Redemptions"
+          value={`${promotion.redemptionCount} uses · ${formatGHS(
+            promotion.discountRedeemedMinor,
+          )}`}
+        />
+        <DetailLine
+          label="Limits"
+          value={`Global ${
+            promotion.usageLimitGlobal ?? "unlimited"
+          } · Customer ${promotion.usageLimitPerCustomer ?? "unlimited"}`}
+        />
+        <DetailLine
+          label="Funding"
+          value={`${promotion.fundingSource} · ${promotionScopeTargetLabel(
+            promotion,
+          )}`}
+        />
+        <DetailLine
+          label="Starts"
+          value={promotion.startsAt ? shortTime(promotion.startsAt) : "Now"}
+        />
+        <DetailLine
+          label="Ends"
+          value={promotion.endsAt ? shortTime(promotion.endsAt) : "Open"}
+        />
+      </Box>
+
+      {promotion.recentRedemptions.length > 0 ? (
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+          }}
+        >
+          {promotion.recentRedemptions.map((redemption) => (
+            <Box
+              key={redemption.promotionRedemptionId}
+              sx={{
+                p: 1.1,
+                border: "1px solid",
+                borderColor: alpha(tokens.ink, 0.08),
+                borderRadius: 1,
+                bgcolor: alpha(tokens.white, 0.7),
+                minWidth: 0,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ justifyContent: "space-between", alignItems: "center" }}
+              >
+                <Chip
+                  size="small"
+                  label={redemption.status}
+                  color={
+                    redemption.status === "applied"
+                      ? "success"
+                      : redemption.status === "pending"
+                        ? "warning"
+                        : "default"
+                  }
+                  variant="outlined"
+                  sx={{ textTransform: "capitalize" }}
+                />
+                <Typography sx={{ fontWeight: 900 }}>
+                  {formatGHS(redemption.discountMinor)}
+                </Typography>
+              </Stack>
+              <Typography
+                variant="body2"
+                sx={{
+                  mt: 0.75,
+                  color: "text.secondary",
+                  overflowWrap: "anywhere",
+                }}
+              >
+                {redemption.customerName ||
+                  (redemption.customerId
+                    ? `Customer ${shortID(redemption.customerId)}`
+                    : "Unknown customer")}
+                {" · "}
+                {redemption.orderId
+                  ? `Order ${shortID(redemption.orderId)}`
+                  : "No order linked"}
+              </Typography>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", mt: 0.5, color: "text.secondary" }}
+              >
+                {shortTime(redemption.redeemedAt ?? redemption.createdAt)}
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+      ) : (
+        <Alert severity="info">No recent redemptions have been recorded.</Alert>
+      )}
+
+      {archived ? (
+        <Alert severity="info">
+          Archived promotions stay visible for reporting and cannot be edited.
+        </Alert>
+      ) : null}
+
+      <Form method="post">
+        <input type="hidden" name="intent" value="admin-promotion:update" />
+        <input
+          type="hidden"
+          name="promotion_id"
+          value={promotion.promotionId}
+        />
+        <Stack spacing={1.25}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                md: "repeat(2, minmax(0, 1fr))",
+              },
+            }}
+          >
+            <TextField
+              select
+              label="Target"
+              name="business_id"
+              size="small"
+              defaultValue={promotion.businessId ?? ""}
+              disabled={archived}
+            >
+              <MenuItem value="">Platform-wide</MenuItem>
+              {promotion.businessId &&
+              !businesses.some(
+                (business) => business.id === promotion.businessId,
+              ) ? (
+                <MenuItem value={promotion.businessId}>
+                  {promotionTargetLabel(promotion)}
+                </MenuItem>
+              ) : null}
+              {businesses.map((business) => (
+                <MenuItem key={business.id} value={business.id}>
+                  {business.name} · {business.handle}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Code"
+              name="code"
+              size="small"
+              defaultValue={promotion.code}
+              disabled={archived}
+            />
+            <TextField
+              label="Title"
+              name="title"
+              size="small"
+              defaultValue={promotion.title}
+              required
+              disabled={archived}
+            />
+            <TextField
+              select
+              label="Status"
+              name="status"
+              size="small"
+              defaultValue={
+                promotion.status === "archived" ? "paused" : promotion.status
+              }
+              disabled={archived}
+            >
+              {promotionStatusOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Discount"
+              name="discount_type"
+              size="small"
+              defaultValue={promotion.discountType}
+              disabled={archived}
+            >
+              {promotionDiscountTypeOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Value"
+              name="discount_value"
+              type="number"
+              size="small"
+              defaultValue={promotionValueDefault(promotion)}
+              disabled={archived}
+              slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+            />
+            <TextField
+              label="Max cap"
+              name="max_discount_ghs"
+              type="number"
+              size="small"
+              defaultValue={moneyInputDefault(promotion.maxDiscountMinor)}
+              disabled={archived}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">GHS</InputAdornment>
+                  ),
+                },
+                htmlInput: { min: 0, step: "0.01" },
+              }}
+            />
+            <TextField
+              label="Minimum spend"
+              name="min_spend_ghs"
+              type="number"
+              size="small"
+              defaultValue={moneyInputDefault(promotion.minSpendMinor)}
+              disabled={archived}
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">GHS</InputAdornment>
+                  ),
+                },
+                htmlInput: { min: 0, step: "0.01" },
+              }}
+            />
+            <TextField
+              select
+              label="Funding"
+              name="funding_source"
+              size="small"
+              defaultValue={promotion.fundingSource}
+              disabled={archived}
+            >
+              {promotionFundingSourceOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              select
+              label="Scope"
+              name="scope"
+              size="small"
+              defaultValue={promotion.scope}
+              disabled={archived}
+            >
+              {promotionScopeOptions.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Collection ID"
+              name="target_collection_id"
+              size="small"
+              defaultValue={promotion.targetCollectionId ?? ""}
+              disabled={archived}
+            />
+            <TextField
+              label="Design ID"
+              name="target_design_id"
+              size="small"
+              defaultValue={promotion.targetDesignId ?? ""}
+              disabled={archived}
+            />
+            <TextField
+              label="Global limit"
+              name="usage_limit_global"
+              type="number"
+              size="small"
+              defaultValue={promotion.usageLimitGlobal ?? ""}
+              placeholder="Unlimited"
+              disabled={archived}
+              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+            />
+            <TextField
+              label="Per-customer limit"
+              name="usage_limit_per_customer"
+              type="number"
+              size="small"
+              defaultValue={promotion.usageLimitPerCustomer ?? ""}
+              placeholder="Unlimited"
+              disabled={archived}
+              slotProps={{ htmlInput: { min: 1, step: 1 } }}
+            />
+            <StyledDateTimeField
+              label="Starts"
+              name="starts_at"
+              size="small"
+              defaultValue={datetimeLocalDefault(promotion.startsAt)}
+              disabled={archived}
+            />
+            <StyledDateTimeField
+              label="Ends"
+              name="ends_at"
+              size="small"
+              defaultValue={datetimeLocalDefault(promotion.endsAt)}
+              disabled={archived}
+            />
+          </Box>
+          <TextField
+            label="Description"
+            name="description"
+            multiline
+            minRows={2}
+            size="small"
+            defaultValue={promotion.description}
+            disabled={archived}
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={archived}
+            sx={{ alignSelf: "flex-start" }}
+          >
+            Save promotion
+          </Button>
+        </Stack>
+      </Form>
+
+      <Form method="post">
+        <input type="hidden" name="intent" value="admin-promotion:archive" />
+        <input
+          type="hidden"
+          name="promotion_id"
+          value={promotion.promotionId}
+        />
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <TextField
+            label="Archive reason"
+            name="reason"
+            size="small"
+            placeholder="Campaign ended"
+            fullWidth
+            disabled={archived}
+          />
+          <Button
+            type="submit"
+            variant="outlined"
+            color="warning"
+            disabled={archived}
+            sx={{ minWidth: { sm: 140 } }}
+          >
+            Archive
+          </Button>
+        </Stack>
+      </Form>
     </Stack>
   );
 }

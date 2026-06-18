@@ -2922,7 +2922,7 @@ function splitDateTimeInputValue(value = ""): {
       : { date: "", time: "" };
   }
   return {
-    date: `${match[3]}/${match[2]}/${match[1]}`,
+    date: `${match[1]}-${match[2]}-${match[3]}`,
     time: `${match[4]}:${match[5]}`,
   };
 }
@@ -3065,14 +3065,15 @@ function StyledDateTimeField({
       >
         <TextField
           label="Date"
+          type="date"
           value={dateValue}
           onChange={(event) => setDateValue(event.target.value)}
-          placeholder="dd/mm/yyyy"
           required={required}
           disabled={disabled}
           size={size}
           fullWidth={fullWidth}
           slotProps={{
+            inputLabel: { shrink: true },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -3080,22 +3081,19 @@ function StyledDateTimeField({
                 </InputAdornment>
               ),
             },
-            htmlInput: {
-              inputMode: "numeric",
-              pattern: "(\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2})",
-            },
           }}
         />
         <TextField
           label="Time"
+          type="time"
           value={timeValue}
           onChange={(event) => setTimeValue(event.target.value)}
-          placeholder="HH:mm"
           required={required}
           disabled={disabled}
           size={size}
           fullWidth={fullWidth}
           slotProps={{
+            inputLabel: { shrink: true },
             input: {
               startAdornment: (
                 <InputAdornment position="start">
@@ -3104,8 +3102,7 @@ function StyledDateTimeField({
               ),
             },
             htmlInput: {
-              inputMode: "numeric",
-              pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+              step: 300,
             },
           }}
         />
@@ -3142,14 +3139,15 @@ function StyledTimeField({
       />
       <TextField
         label={label}
+        type="time"
         value={timeValue}
         onChange={(event) => setTimeValue(event.target.value)}
-        placeholder="HH:mm"
         required={required}
         disabled={disabled}
         size={size}
         fullWidth
         slotProps={{
+          inputLabel: { shrink: true },
           input: {
             startAdornment: (
               <InputAdornment position="start">
@@ -3158,8 +3156,7 @@ function StyledTimeField({
             ),
           },
           htmlInput: {
-            inputMode: "numeric",
-            pattern: "([01][0-9]|2[0-3]):[0-5][0-9]",
+            step: 300,
           },
         }}
       />

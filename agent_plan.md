@@ -1148,3 +1148,15 @@ Do not skip the plan update. This file is the handoff surface for the next agent
 - `pnpm --filter @xtiitch/marketing test` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
 - `pnpm lint` passed after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
 - `curl -I -s http://localhost:3005/` returned `200 OK` after the American Tractor-inspired typography, ticker, background animation, and image-depth pass.
+
+## Active Interaction Pattern
+
+- Entity-heavy dashboard/admin pages should default to a list-first workspace:
+  search and filters at the top, a primary button for creating a new entity,
+  compact rows or cards for scanning, and a separate detail surface for editing.
+- Current implementation pass applied the pattern to business dashboard
+  promotions, business dashboard team access, admin operator users, and admin
+  promotions. Remaining entity-heavy sections should follow the same shape when
+  touched: keep list surfaces scannable, place create forms in dedicated dialogs
+  or pages, and move deep edit/archive/payment/configuration controls into
+  focused detail dialogs or routes.
