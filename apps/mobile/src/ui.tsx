@@ -1,8 +1,10 @@
-// Shared presentational helpers for the customer screens: a centred
-// loading / empty / error state and a brand image-or-swatch tile, so every
-// screen handles the three async outcomes the same way.
+// Shared presentational helpers: a centred loading / empty / error state, a
+// brand image-or-swatch tile, and the studio order row — so every screen
+// handles async outcomes and renders orders the same way.
 import { ActivityIndicator, Image, StyleSheet, Text, View } from "react-native";
 
+import { formatGHS } from "./api";
+import { orderTone, type BusinessOrder } from "./businessApi";
 import { fonts, palette, radius, spacing, swatchFor } from "./theme";
 
 export function CenterState({
@@ -51,6 +53,31 @@ export function ImageTile({
   );
 }
 
+export function OrderRow({ order }: { order: BusinessOrder }) {
+  const tone = orderTone(order.status);
+  return (
+    <View style={styles.orderRow}>
+      <View style={styles.orderTop}>
+        <Text style={styles.orderDesign} numberOfLines={1}>
+          {order.design_title}
+        </Text>
+        <View style={[styles.statusPill, { backgroundColor: tone }]}>
+          <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
+        </View>
+      </View>
+      <Text style={styles.orderCustomer} numberOfLines={1}>
+        {order.customer_name} · {order.channel}
+      </Text>
+      <View style={styles.orderBottom}>
+        <Text style={styles.orderTotal}>{formatGHS(order.agreed_total_minor)}</Text>
+        <Text style={styles.orderSettled}>
+          {formatGHS(order.settled_minor)} settled
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   center: {
     flex: 1,
@@ -74,4 +101,54 @@ const styles = StyleSheet.create({
   },
   swatch: { justifyContent: "flex-end", overflow: "hidden" },
   swatchBar: { height: "32%", width: "60%", opacity: 0.7 },
+  orderRow: {
+    backgroundColor: palette.white,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.softBorder,
+    padding: spacing(2),
+    gap: spacing(0.75),
+  },
+  orderTop: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing(1),
+  },
+  orderDesign: {
+    flex: 1,
+    fontFamily: fonts.display,
+    fontSize: 17,
+    color: palette.ink,
+  },
+  statusPill: {
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing(1.25),
+    paddingVertical: spacing(0.5),
+  },
+  statusPillText: {
+    color: palette.white,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "capitalize",
+  },
+  orderCustomer: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: palette.mutedText,
+  },
+  orderBottom: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: spacing(1.25),
+    marginTop: spacing(0.5),
+  },
+  orderTotal: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: "800",
+    color: palette.burgundy,
+  },
+  orderSettled: { fontFamily: fonts.body, fontSize: 12, color: palette.mutedText },
 });

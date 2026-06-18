@@ -26,6 +26,9 @@ export default function RootLayout() {
         <Stack.Screen name="store/[handle]" options={{ title: "Store" }} />
         <Stack.Screen name="design/[handle]" options={{ title: "Design" }} />
         <Stack.Screen name="track/[id]" options={{ title: "Track order" }} />
+        <Stack.Screen name="business/login" options={{ title: "Studio sign-in" }} />
+        <Stack.Screen name="business/index" options={{ title: "Studio" }} />
+        <Stack.Screen name="business/orders" options={{ title: "Orders" }} />
       </Stack>
     </SafeAreaProvider>
   );

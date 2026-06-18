@@ -143,6 +143,22 @@ export default function HomeScreen() {
         </View>
       </Section>
 
+      <View style={styles.section}>
+        <Pressable
+          style={({ pressed }) => [styles.studioCard, pressed && styles.cardPressed]}
+          onPress={() => router.push("/business")}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={styles.studioKicker}>RUN A STUDIO?</Text>
+            <Text style={styles.studioTitle}>Open the studio console</Text>
+            <Text style={styles.studioHint}>
+              Sign in to manage orders, fulfilment, and takings.
+            </Text>
+          </View>
+          <Text style={styles.studioArrow}>›</Text>
+        </Pressable>
+      </View>
+
       <Text style={styles.footer}>Connected to {apiBaseUrl()}</Text>
     </ScrollView>
   );
@@ -358,6 +374,40 @@ const styles = StyleSheet.create({
     color: palette.ink,
     marginTop: spacing(0.5),
     lineHeight: 22,
+  },
+  studioCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(1.5),
+    backgroundColor: palette.ink,
+    borderRadius: radius.md,
+    padding: spacing(2.5),
+  },
+  studioKicker: {
+    color: palette.gold,
+    fontFamily: fonts.body,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.5,
+  },
+  studioTitle: {
+    color: palette.white,
+    fontFamily: fonts.display,
+    fontSize: 19,
+    fontWeight: "700",
+    marginTop: spacing(0.5),
+  },
+  studioHint: {
+    color: "rgba(255,255,255,0.7)",
+    fontFamily: fonts.body,
+    fontSize: 13,
+    marginTop: spacing(0.5),
+    lineHeight: 19,
+  },
+  studioArrow: {
+    color: palette.gold,
+    fontSize: 30,
+    fontWeight: "700",
   },
   footer: {
     textAlign: "center",
