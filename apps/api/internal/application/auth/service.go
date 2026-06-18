@@ -3,6 +3,7 @@ package authapp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -43,6 +44,8 @@ type Service struct {
 	passwords     ports.PasswordHasher
 	accessTokens  ports.TokenIssuer
 	refreshTokens ports.RefreshTokenIssuer
+	emails        ports.EmailSender
+	dashboardURL  string
 	ids           ports.IDGenerator
 	clock         ports.Clock
 }
@@ -53,6 +56,8 @@ type Dependencies struct {
 	Passwords     ports.PasswordHasher
 	AccessTokens  ports.TokenIssuer
 	RefreshTokens ports.RefreshTokenIssuer
+	Emails        ports.EmailSender
+	DashboardURL  string
 	IDs           ports.IDGenerator
 	Clock         ports.Clock
 }
@@ -64,6 +69,8 @@ func NewService(deps Dependencies) Service {
 		passwords:     deps.Passwords,
 		accessTokens:  deps.AccessTokens,
 		refreshTokens: deps.RefreshTokens,
+		emails:        deps.Emails,
+		dashboardURL:  strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 		ids:           deps.IDs,
 		clock:         deps.Clock,
 	}
@@ -249,7 +256,7 @@ func (s Service) CreateBusinessUser(ctx context.Context, cmd CreateBusinessUserC
 		return ports.BusinessUserRecord{}, err
 	}
 
-	return s.businesses.CreateBusinessUser(ctx, cmd.Scope, ports.CreateBusinessUserInput{
+	user, err := s.businesses.CreateBusinessUser(ctx, cmd.Scope, ports.CreateBusinessUserInput{
 		UserID:       s.ids.NewID(),
 		BusinessID:   cmd.Scope.BusinessID,
 		Email:        normalized.Email,
@@ -257,6 +264,11 @@ func (s Service) CreateBusinessUser(ctx context.Context, cmd CreateBusinessUserC
 		PasswordHash: passwordHash,
 		Role:         normalized.Role,
 	})
+	if err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+	_ = s.sendBusinessUserInvite(ctx, user)
+	return user, nil
 }
 
 type UpdateBusinessUserCommand struct {
@@ -392,6 +404,33 @@ func authorizeBusinessUserManagement(scope common.TenantScope, role business.Use
 
 func isManageableBusinessUserRole(role business.UserRole) bool {
 	return role == business.UserRoleAdmin || role == business.UserRoleStaff
+}
+
+func (s Service) sendBusinessUserInvite(ctx context.Context, user ports.BusinessUserRecord) error {
+	if s.emails == nil || strings.TrimSpace(user.Email) == "" {
+		return nil
+	}
+	loginURL := s.dashboardURL
+	if loginURL == "" {
+		loginURL = "https://app.xtiitch.com"
+	}
+	loginURL = strings.TrimRight(loginURL, "/") + "/login"
+	displayName := strings.TrimSpace(user.DisplayName)
+	if displayName == "" {
+		displayName = user.Email
+	}
+	subject := "You have been invited to Xtiitch"
+	body := fmt.Sprintf(
+		"Hi %s,\n\nYou have been added to the Xtiitch business dashboard as %s.\nOpen %s and sign in with this email address. For security, Xtiitch does not email temporary passwords, so ask your owner or admin for the temporary password they set for you.\n\nThanks,\nXtiitch",
+		displayName,
+		user.Role,
+		loginURL,
+	)
+	return s.emails.Send(ctx, ports.EmailMessage{
+		To:      user.Email,
+		Subject: subject,
+		Body:    body,
+	})
 }
 
 func normalizeEmail(value string) (string, error) {

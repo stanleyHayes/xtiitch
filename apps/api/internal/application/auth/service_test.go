@@ -499,6 +499,46 @@ func TestCreateBusinessUserRejectsOwnerRole(t *testing.T) {
 	}
 }
 
+func TestCreateBusinessUserSendsInviteEmailWithoutPassword(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	emails := &fakeEmailSender{}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		Emails:        emails,
+		DashboardURL:  "https://app.xtiitch.com",
+		IDs:           &sequenceIDs{ids: []common.ID{"user-2"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	_, err := service.CreateBusinessUser(context.Background(), CreateBusinessUserCommand{
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
+		DisplayName: "Kofi Staff",
+		Email:       "kofi@example.com",
+		Password:    "strong-password",
+		Role:        business.UserRoleStaff,
+	})
+	if err != nil {
+		t.Fatalf("create business user: %v", err)
+	}
+	if emails.message.To != "kofi@example.com" || emails.message.Subject == "" {
+		t.Fatalf("expected invite email, got %+v", emails.message)
+	}
+	if !strings.Contains(emails.message.Body, "https://app.xtiitch.com/login") ||
+		!strings.Contains(emails.message.Body, "staff") {
+		t.Fatalf("expected dashboard invite body, got %q", emails.message.Body)
+	}
+	if strings.Contains(emails.message.Body, "strong-password") {
+		t.Fatal("invite email must not include the temporary password")
+	}
+}
+
 func TestUpdateBusinessUserPassesManageableRoleAndActiveState(t *testing.T) {
 	t.Parallel()
 
@@ -727,6 +767,15 @@ func (fakePasswordHasher) Compare(hash string, password string) error {
 	if hash != "hashed:"+password {
 		return errors.New("password mismatch")
 	}
+	return nil
+}
+
+type fakeEmailSender struct {
+	message ports.EmailMessage
+}
+
+func (sender *fakeEmailSender) Send(_ context.Context, message ports.EmailMessage) error {
+	sender.message = message
 	return nil
 }
 

@@ -25,6 +25,7 @@ import (
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
+	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
@@ -81,6 +82,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Passwords:     authadapter.NewBcryptPasswordHasher(0),
 		AccessTokens:  jwtIssuer,
 		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
+		Emails:        emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		DashboardURL:  cfg.BusinessDashboardBaseURL,
 		IDs:           ids.UUIDGenerator{},
 		Clock:         clock.SystemClock{},
 	})

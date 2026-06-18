@@ -7623,7 +7623,8 @@ function TeamPanel({
               <Box>
                 <Typography sx={{ fontWeight: 900 }}>Create access</Typography>
                 <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  Add an admin or staff sign-in.
+                  Add an admin or staff sign-in; invite email sends when
+                  delivery is configured.
                 </Typography>
               </Box>
             </Stack>

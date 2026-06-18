@@ -8,6 +8,7 @@ type Config struct {
 	AdminBootstrapExtraUsers  string
 	AdminBootstrapPassword    string
 	AdminBootstrapRole        string
+	BusinessDashboardBaseURL  string
 	CloudinaryURL             string
 	DatabaseURL               string
 	Environment               string
@@ -38,6 +39,7 @@ func Load() Config {
 		AdminBootstrapExtraUsers:  getenv("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON", ""),
 		AdminBootstrapPassword:    getenv("ADMIN_BOOTSTRAP_PASSWORD", ""),
 		AdminBootstrapRole:        getenv("ADMIN_BOOTSTRAP_ROLE", "owner"),
+		BusinessDashboardBaseURL:  getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
 		CloudinaryURL:             getenv("CLOUDINARY_URL", ""),
 		// The API connects as the non-superuser application role so row-level
 		// security is enforced. Migrations run separately as the owner.
