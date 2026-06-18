@@ -412,6 +412,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let platformMetricsError: string | null = null;
   let operationsHealth: AdminOperationsHealth | null = null;
   let operationsHealthError: string | null = null;
+  let backendNotifications: AdminNotification[] = [];
+  let backendNotificationsError: string | null = null;
   let moneyRails: AdminMoneyRails | null = null;
   let moneyRailsError: string | null = null;
   let subscriptions: AdminSubscription[] = [];
@@ -482,6 +484,23 @@ export async function loader({ request }: Route.LoaderArgs) {
     if (error instanceof AdminApiError && error.status === 403) {
       operationsHealthError =
         "Your role cannot view the backend health summary.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    const notificationFeed = await adminApi.adminNotifications(accessToken);
+    backendNotifications = notificationFeed.notifications.map(
+      (notification) => ({
+        ...notification,
+        target: notification.target as Section,
+      }),
+    );
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      backendNotificationsError =
+        "Your role cannot view the backend notification feed.";
     } else {
       throw error;
     }
@@ -617,6 +636,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     platformMetricsError,
     operationsHealth,
     operationsHealthError,
+    backendNotifications,
+    backendNotificationsError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -3456,10 +3477,12 @@ function DetailLine({ label, value }: { label: string; value: string }) {
 
 function NotificationsSection({
   notifications,
+  notificationsError,
   preferences,
   onSelect,
 }: {
   notifications: AdminNotification[];
+  notificationsError: string | null;
   preferences: AdminProfileSettings["preferences"];
   onSelect: (section: Section) => void;
 }) {
@@ -3567,6 +3590,9 @@ function NotificationsSection({
         title="Notifications"
         helper="A live action center for verification, money rails, risk, and support signals."
       />
+      {notificationsError ? (
+        <Alert severity="warning">{notificationsError}</Alert>
+      ) : null}
 
       <Box
         sx={{
@@ -12752,6 +12778,8 @@ export default function AdminDashboard({
     platformMetricsError,
     operationsHealth,
     operationsHealthError,
+    backendNotifications,
+    backendNotificationsError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -12850,20 +12878,23 @@ export default function AdminDashboard({
   const openRiskCount = riskReviews.filter(
     (review) => review.status === "open",
   ).length;
-  const adminNotifications = buildAdminNotifications({
-    verificationCases,
-    moneyRails,
-    platformMetrics,
-    platformSettings,
-    subscriptions,
-    promotions,
-    adCampaigns,
-    affiliates,
-    referralProgrammes,
-    riskReviews,
-    supportTickets,
-    auditEvents,
-  });
+  const adminNotifications =
+    backendNotifications.length > 0
+      ? backendNotifications
+      : buildAdminNotifications({
+          verificationCases,
+          moneyRails,
+          platformMetrics,
+          platformSettings,
+          subscriptions,
+          promotions,
+          adCampaigns,
+          affiliates,
+          referralProgrammes,
+          riskReviews,
+          supportTickets,
+          auditEvents,
+        });
   const notificationCount = adminNotifications.filter(
     (notification) => notification.id !== "all-clear",
   ).length;
@@ -13180,6 +13211,7 @@ export default function AdminDashboard({
           {section === "notifications" ? (
             <NotificationsSection
               notifications={adminNotifications}
+              notificationsError={backendNotificationsError}
               preferences={profileSettings.preferences}
               onSelect={setSection}
             />

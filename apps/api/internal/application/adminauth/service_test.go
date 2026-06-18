@@ -2816,6 +2816,31 @@ func TestGetOperationsHealthSummarizesAllowedReadModels(t *testing.T) {
 		healthSignalStatus(supportHealth, "exports") != "ready" {
 		t.Fatalf("unexpected support-scoped health signals: %+v", supportHealth.Signals)
 	}
+
+	feed, err := service.GetAdminNotifications(context.Background(), GetAdminNotificationsCommand{
+		ActorRole: admindomain.RoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("get admin notifications: %v", err)
+	}
+	if len(feed.Notifications) == 0 ||
+		feed.Notifications[0].ID != "health-kyc" ||
+		feed.Notifications[0].Tone != "critical" ||
+		feed.Notifications[0].Category != "verification" {
+		t.Fatalf("unexpected owner notification feed: %+v", feed.Notifications)
+	}
+
+	supportFeed, err := service.GetAdminNotifications(context.Background(), GetAdminNotificationsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if err != nil {
+		t.Fatalf("get support admin notifications: %v", err)
+	}
+	if len(supportFeed.Notifications) != 2 ||
+		supportFeed.Notifications[0].Category != "support" ||
+		supportFeed.Notifications[1].Category != "audit" {
+		t.Fatalf("unexpected support notification feed: %+v", supportFeed.Notifications)
+	}
 }
 
 func healthSignalStatus(

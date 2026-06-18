@@ -95,6 +95,42 @@ export type AdminOperationsHealth = {
   updatedAt: string;
 };
 
+export type AdminNotificationFeedTone =
+  | "critical"
+  | "warning"
+  | "info"
+  | "success";
+
+export type AdminNotificationFeedCategory =
+  | "verification"
+  | "money"
+  | "subscriptions"
+  | "promotions"
+  | "ads"
+  | "affiliates"
+  | "referrals"
+  | "risk"
+  | "support"
+  | "platform"
+  | "audit";
+
+export type AdminNotificationFeedItem = {
+  id: string;
+  tone: AdminNotificationFeedTone;
+  category: AdminNotificationFeedCategory;
+  title: string;
+  helper: string;
+  meta: string;
+  source: string;
+  target: string;
+  targetLabel: string;
+};
+
+export type AdminNotificationFeed = {
+  notifications: AdminNotificationFeedItem[];
+  updatedAt: string;
+};
+
 export type AdminMoneyWebhookStatus =
   | "verified"
   | "failed"
@@ -686,6 +722,23 @@ type AdminOperationsHealthPayload = {
   audit_events: number;
   critical_audit_events: number;
   signals: AdminOperationsHealthSignalPayload[];
+  updated_at: string;
+};
+
+type AdminNotificationFeedItemPayload = {
+  id: string;
+  tone: AdminNotificationFeedTone;
+  category: AdminNotificationFeedCategory;
+  title: string;
+  helper: string;
+  meta: string;
+  source: string;
+  target: string;
+  target_label: string;
+};
+
+type AdminNotificationFeedPayload = {
+  notifications: AdminNotificationFeedItemPayload[];
   updated_at: string;
 };
 
@@ -1315,6 +1368,25 @@ function mapOperationsHealth(
   };
 }
 
+function mapAdminNotificationFeed(
+  payload: AdminNotificationFeedPayload,
+): AdminNotificationFeed {
+  return {
+    notifications: payload.notifications.map((notification) => ({
+      id: notification.id,
+      tone: notification.tone,
+      category: notification.category,
+      title: notification.title,
+      helper: notification.helper,
+      meta: notification.meta,
+      source: notification.source,
+      target: notification.target,
+      targetLabel: notification.target_label,
+    })),
+    updatedAt: payload.updated_at,
+  };
+}
+
 function mapMoneyRails(payload: AdminMoneyRailsPayload): AdminMoneyRails {
   return {
     webhookEvents: payload.webhook_events.map((event) => ({
@@ -1910,6 +1982,11 @@ export const adminApi = {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then(mapOperationsHealth),
+  adminNotifications: (accessToken: string) =>
+    requestJSON<AdminNotificationFeedPayload>("/admin/notifications", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapAdminNotificationFeed),
   moneyRails: (accessToken: string) =>
     requestJSON<AdminMoneyRailsPayload>("/admin/money-rails", {
       method: "GET",

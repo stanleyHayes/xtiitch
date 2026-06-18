@@ -154,6 +154,27 @@ type OperationsHealthSignal struct {
 	TargetLabel string
 }
 
+type GetAdminNotificationsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type AdminNotificationsResult struct {
+	Notifications []AdminNotificationRecord
+	UpdatedAt     time.Time
+}
+
+type AdminNotificationRecord struct {
+	ID          string
+	Tone        string
+	Category    string
+	Title       string
+	Helper      string
+	Meta        string
+	Source      string
+	Target      string
+	TargetLabel string
+}
+
 type ListSubscriptionsCommand struct {
 	ActorRole admindomain.Role
 }
@@ -1348,6 +1369,55 @@ func (s Service) GetOperationsHealth(
 		TargetLabel: "Open exports",
 	})
 	finalizeOperationsHealth(&result)
+	return result, nil
+}
+
+func (s Service) GetAdminNotifications(
+	ctx context.Context,
+	cmd GetAdminNotificationsCommand,
+) (AdminNotificationsResult, error) {
+	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand{
+		ActorRole: cmd.ActorRole,
+	})
+	if err != nil {
+		return AdminNotificationsResult{}, err
+	}
+
+	result := AdminNotificationsResult{UpdatedAt: health.UpdatedAt}
+	for _, status := range []string{"blocked", "watch"} {
+		for _, signal := range health.Signals {
+			if signal.Status != status {
+				continue
+			}
+			result.Notifications = append(result.Notifications, AdminNotificationRecord{
+				ID:          "health-" + signal.ID,
+				Tone:        notificationToneForSignal(signal.Status),
+				Category:    notificationCategoryForTarget(signal.Target),
+				Title:       signal.Label,
+				Helper:      signal.Helper,
+				Meta:        signal.Value,
+				Source:      "Operations health",
+				Target:      signal.Target,
+				TargetLabel: signal.TargetLabel,
+			})
+		}
+	}
+	if len(result.Notifications) == 0 {
+		result.Notifications = append(result.Notifications, AdminNotificationRecord{
+			ID:          "all-clear",
+			Tone:        "success",
+			Category:    "platform",
+			Title:       "No admin alerts waiting",
+			Helper:      "Verification, money rails, subscriptions, growth, risk, support, and audit signals are clear right now.",
+			Meta:        "Live queue",
+			Source:      "Admin console",
+			Target:      "overview",
+			TargetLabel: "Back to overview",
+		})
+	}
+	if len(result.Notifications) > 18 {
+		result.Notifications = result.Notifications[:18]
+	}
 	return result, nil
 }
 
@@ -4500,6 +4570,44 @@ func operatorAccessHealthHelper(inactiveUsers int) string {
 		return healthPlural(inactiveUsers, "inactive operator") + " remain visible for review."
 	}
 	return "All loaded operator accounts are active."
+}
+
+func notificationToneForSignal(status string) string {
+	switch status {
+	case "blocked":
+		return "critical"
+	case "watch":
+		return "warning"
+	default:
+		return "info"
+	}
+}
+
+func notificationCategoryForTarget(target string) string {
+	switch target {
+	case "verification":
+		return "verification"
+	case "money":
+		return "money"
+	case "subscriptions":
+		return "subscriptions"
+	case "promotions":
+		return "promotions"
+	case "ads":
+		return "ads"
+	case "affiliates":
+		return "affiliates"
+	case "referrals":
+		return "referrals"
+	case "risk":
+		return "risk"
+	case "support":
+		return "support"
+	case "audit":
+		return "audit"
+	default:
+		return "platform"
+	}
 }
 
 func normalizeProviderChargeStatus(status string) string {

@@ -40,6 +40,7 @@ type Service interface {
 	GetPlatformMetrics(ctx context.Context, command adminauthapp.GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error)
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
 	GetOperationsHealth(ctx context.Context, command adminauthapp.GetOperationsHealthCommand) (adminauthapp.OperationsHealthResult, error)
+	GetAdminNotifications(ctx context.Context, command adminauthapp.GetAdminNotificationsCommand) (adminauthapp.AdminNotificationsResult, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
@@ -117,6 +118,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/platform-metrics", handler.platformMetrics)
 		protected.Get("/admin/money-rails", handler.moneyRails)
 		protected.Get("/admin/operations-health", handler.operationsHealth)
+		protected.Get("/admin/notifications", handler.adminNotifications)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
@@ -569,6 +571,23 @@ type operationsHealthSignal struct {
 	Value       string `json:"value"`
 	Helper      string `json:"helper"`
 	Status      string `json:"status"`
+	Target      string `json:"target"`
+	TargetLabel string `json:"target_label"`
+}
+
+type adminNotificationsResponse struct {
+	Notifications []adminNotificationResponse `json:"notifications"`
+	UpdatedAt     string                      `json:"updated_at"`
+}
+
+type adminNotificationResponse struct {
+	ID          string `json:"id"`
+	Tone        string `json:"tone"`
+	Category    string `json:"category"`
+	Title       string `json:"title"`
+	Helper      string `json:"helper"`
+	Meta        string `json:"meta"`
+	Source      string `json:"source"`
 	Target      string `json:"target"`
 	TargetLabel string `json:"target_label"`
 }
@@ -1304,6 +1323,25 @@ func (handler Handler) operationsHealth(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusOK, newOperationsHealthResponse(health))
+}
+
+func (handler Handler) adminNotifications(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	notifications, err := handler.service.GetAdminNotifications(r.Context(), adminauthapp.GetAdminNotificationsCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAdminNotificationsResponse(notifications))
 }
 
 func (handler Handler) subscriptions(w http.ResponseWriter, r *http.Request) {
@@ -3483,6 +3521,29 @@ func newOperationsHealthResponse(
 		CriticalAuditEvents:  record.CriticalAuditEvents,
 		Signals:              signals,
 		UpdatedAt:            record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newAdminNotificationsResponse(
+	record adminauthapp.AdminNotificationsResult,
+) adminNotificationsResponse {
+	notifications := make([]adminNotificationResponse, 0, len(record.Notifications))
+	for _, notification := range record.Notifications {
+		notifications = append(notifications, adminNotificationResponse{
+			ID:          notification.ID,
+			Tone:        notification.Tone,
+			Category:    notification.Category,
+			Title:       notification.Title,
+			Helper:      notification.Helper,
+			Meta:        notification.Meta,
+			Source:      notification.Source,
+			Target:      notification.Target,
+			TargetLabel: notification.TargetLabel,
+		})
+	}
+	return adminNotificationsResponse{
+		Notifications: notifications,
+		UpdatedAt:     record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
