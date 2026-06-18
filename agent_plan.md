@@ -26,7 +26,7 @@ This is the intended product split. Keep new work aligned to these audience boun
 
 ## Handoff — 2026-06-16 (read this first if you are picking up)
 
-State of the backend and business dashboard (`apps/api`, Go hexagonal; `apps/dashboard`, React Router + MUI; money in integer pesewas; **Xtiitch never holds funds**). Latest feature commit on `main`: `b82ebec`. Recently shipped this session, each as one verified+committed slice:
+State of the backend and business dashboard (`apps/api`, Go hexagonal; `apps/dashboard`, React Router + MUI; money in integer pesewas; **Xtiitch never holds funds**). Latest feature commit on `main`: `4071122`. Recently shipped this session, each as one verified+committed slice:
 
 - Money tracker (`bd025f3`): manual takings + income summary.
 - Home-visit bookings (`20116f9`/`10c8178`) + booking management `GET/POST /v1/bookings…` cancel/reschedule (`92af171`).
@@ -37,7 +37,7 @@ State of the backend and business dashboard (`apps/api`, Go hexagonal; `apps/das
 - Worker live notification transport — `NOTIFICATION_TRANSPORT=http` renders WhatsApp/SMS lifecycle templates and posts provider-compatible JSON with auth headers, idempotency keys, timeout handling, retries through the existing outbox drain, and provider response/id storage via migration `000022`.
 - Measurement management backend — protected `GET/POST/PATCH/DELETE /v1/measurement-fields` plus `POST /v1/orders/{id}/measurements` for visit/shop staff entry, with tenant, field-key, route, and upsert tests (`d469cfb`).
 - Admin referral code issuance — operators can issue platform- or business-owned referral codes from active referral programmes; the API enforces active verified businesses, returns recent codes on programme records, records audit metadata, and the admin Referrals section now shows recent codes plus an issue-code form (`b82ebec`).
-- Admin refund/dispute reversal — money-rail operators can reverse a succeeded payment by provider reference, mark the payment reversed, void related promotion/referral ledgers, reverse affiliate conversions, archive generated referral reward vouchers, and audit the impact counts from the Money rails section.
+- Admin refund/dispute reversal — money-rail operators can reverse a succeeded payment by provider reference, mark the payment reversed, void related promotion/referral ledgers, reverse affiliate conversions, archive generated referral reward vouchers, and audit the impact counts from the Money rails section (`4071122`).
 - Business dashboard polish — `apps/dashboard` now has a branded login, proper workspace shell, richer production board, redesigned design studio, measurement field management, visit/shop measurement capture, and a single-doctype SSR response (`e21d39e`).
 - Business dashboard operations panels — the polished shell now exposes money summary/manual takings, booking queue reschedule/cancel, pickup/delivery handovers, notification log, and availability-window management over the existing protected APIs (`d634071`).
 - Business dashboard reporting snapshot — a full-width reports layer now derives seven-day recorded income, collection/completion rates, stage throughput, and follow-up radar signals from the already-loaded dashboard data (`1041db1`).
