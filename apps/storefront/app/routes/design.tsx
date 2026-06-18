@@ -25,6 +25,10 @@ import PointOfSaleRounded from "@mui/icons-material/PointOfSaleRounded";
 import SecurityRounded from "@mui/icons-material/SecurityRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import CardGiftcardRounded from "@mui/icons-material/CardGiftcardRounded";
+import GroupsRounded from "@mui/icons-material/GroupsRounded";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
+import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import type { Route } from "./+types/design";
 import {
   api,
@@ -121,20 +125,22 @@ export async function action({ request, params }: Route.ActionArgs) {
   if (intent === "custom") {
     const sizeMode = toCustomSizeMode(String(form.get("size_mode") ?? ""));
     if (!storeHandle || !sizeMode || !customerName || !customerEmail) {
-      return {
-        standardError: null,
-        customError: "Choose a bespoke route and add your name and email.",
-      };
+      return actionFailure(
+        rewardCodes,
+        null,
+        "Choose a bespoke route and add your name and email.",
+      );
     }
 
     if (sizeMode === "home_visit") {
       const slotStart = String(form.get("slot_start") ?? "").trim();
       const address = String(form.get("address") ?? "").trim();
       if (!slotStart || !address) {
-        return {
-          standardError: null,
-          customError: "Choose a visit slot and add the visit address.",
-        };
+        return actionFailure(
+          rewardCodes,
+          null,
+          "Choose a visit slot and add the visit address.",
+        );
       }
 
       const response = await api.placeBooking(storeHandle, {
@@ -149,10 +155,11 @@ export async function action({ request, params }: Route.ActionArgs) {
       });
 
       if (!response.ok) {
-        return {
-          standardError: null,
-          customError: customOrderMessage(response.error),
-        };
+        return actionFailure(
+          rewardCodes,
+          null,
+          customOrderMessage(response.error),
+        );
       }
 
       if (response.result.authorization_url) {
@@ -163,11 +170,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 
     const measurements = collectMeasurements(form);
     if (sizeMode === "self_measure" && Object.keys(measurements).length === 0) {
-      return {
-        standardError: null,
-        customError:
-          "Add at least one self-measurement before paying the deposit.",
-      };
+      return actionFailure(
+        rewardCodes,
+        null,
+        "Add at least one self-measurement before paying the deposit.",
+      );
     }
 
     const response = await api.placeCustomOrder(storeHandle, {
@@ -182,10 +189,11 @@ export async function action({ request, params }: Route.ActionArgs) {
     });
 
     if (!response.ok) {
-      return {
-        standardError: null,
-        customError: customOrderMessage(response.error),
-      };
+      return actionFailure(
+        rewardCodes,
+        null,
+        customOrderMessage(response.error),
+      );
     }
 
     if (response.result.authorization_url) {
@@ -196,10 +204,11 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   const sizeBandId = String(form.get("size_band_id") ?? "").trim();
   if (!storeHandle || !sizeBandId || !customerName || !customerEmail) {
-    return {
-      standardError: "Add your name, email, and size before checkout.",
-      customError: null,
-    };
+    return actionFailure(
+      rewardCodes,
+      "Add your name, email, and size before checkout.",
+      null,
+    );
   }
 
   const response = await api.placeOrder(storeHandle, {
@@ -213,16 +222,25 @@ export async function action({ request, params }: Route.ActionArgs) {
   });
 
   if (!response.ok) {
-    return {
-      standardError: checkoutMessage(response.error),
-      customError: null,
-    };
+    return actionFailure(rewardCodes, checkoutMessage(response.error), null);
   }
 
   if (response.result.authorization_url) {
     return redirect(response.result.authorization_url);
   }
   return redirect(`/track/${response.result.order_id}`);
+}
+
+function actionFailure(
+  rewardCodes: RewardCodes,
+  standardError: string | null,
+  customError: string | null,
+) {
+  return {
+    customError,
+    rewardCodes,
+    standardError,
+  };
 }
 
 function toCustomSizeMode(value: string): CustomSizeMode | null {
@@ -332,7 +350,7 @@ function checkoutMessage(code: string): string {
     case "store_not_verified":
       return "This store needs to finish payment verification before it can take online orders.";
     case "promotion_unavailable":
-      return "That promo code is not available for this order.";
+      return "That promo code is not available for this order. Check the code, remove it, or try a different reward.";
     case "invalid_order":
       return "Check the selected size and contact details, then try again.";
     case "not_found":
@@ -349,7 +367,7 @@ function customOrderMessage(code: string): string {
     case "store_cannot_take_order":
       return "This store has not enabled this bespoke order route yet.";
     case "promotion_unavailable":
-      return "That promo code is not available for this bespoke request.";
+      return "That promo code is not available for this bespoke request. Check the code, remove it, or try a different reward.";
     case "slot_unavailable":
       return "That home-visit slot is no longer available. Pick another open slot.";
     case "invalid_order":
@@ -523,6 +541,81 @@ function rewardValueLabel(referral: ReferralCode): string {
   return formatGHS(referral.reward_value);
 }
 
+type RewardCue = {
+  key: string;
+  icon: ReactNode;
+  label: string;
+  detail: string;
+  chip: string;
+  tone: "success" | "info" | "warning";
+};
+
+function rewardCues(
+  codes: RewardCodes,
+  referralPreview: ReferralCode | null | undefined,
+  includePromo: boolean,
+): RewardCue[] {
+  const cues: RewardCue[] = [];
+
+  if (includePromo && codes.promoCode) {
+    cues.push({
+      key: "promo",
+      icon: <LocalOfferRounded />,
+      label: `Promo ${codes.promoCode}`,
+      detail:
+        "Discounts are checked before Paystack opens and reduce the amount charged when the code qualifies.",
+      chip: "Checked at checkout",
+      tone: "info",
+    });
+  }
+
+  if (referralPreview) {
+    cues.push({
+      key: "referral",
+      icon: <CardGiftcardRounded />,
+      label: referralPreview.title,
+      detail: `Referral preview: ${rewardValueLabel(referralPreview)} referee reward after the qualifying paid order.`,
+      chip: "Referral found",
+      tone: "success",
+    });
+  } else if (codes.referralCode) {
+    cues.push({
+      key: "referral",
+      icon: <CardGiftcardRounded />,
+      label: `Referral ${codes.referralCode}`,
+      detail:
+        "We could not preview this referral yet, but checkout will still attempt a non-blocking validation.",
+      chip: "Pending validation",
+      tone: "warning",
+    });
+  }
+
+  if (codes.affiliateCode) {
+    cues.push({
+      key: "affiliate",
+      icon: <GroupsRounded />,
+      label: `Partner link ${codes.affiliateCode}`,
+      detail:
+        "Attribution is attached to the order for the partner programme. It does not change the shopper price.",
+      chip: codes.affiliateClickID ? "Click recorded" : "Link captured",
+      tone: codes.affiliateClickID ? "success" : "info",
+    });
+  }
+
+  return cues;
+}
+
+function rewardTone(tone: RewardCue["tone"]) {
+  switch (tone) {
+    case "success":
+      return tokens.success;
+    case "warning":
+      return tokens.warning;
+    default:
+      return tokens.burgundy;
+  }
+}
+
 function RewardFields({
   codes,
   referralPreview,
@@ -532,19 +625,49 @@ function RewardFields({
   referralPreview?: ReferralCode | null;
   includePromo?: boolean;
 }) {
+  const cues = rewardCues(codes, referralPreview, includePromo);
+
   return (
     <Box
       sx={{
         p: 1.5,
         borderRadius: "8px",
-        bgcolor: alpha(tokens.success, 0.055),
+        bgcolor: alpha(tokens.success, 0.045),
         border: "1px solid",
         borderColor: alpha(tokens.success, 0.14),
       }}
     >
-      <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 1 }}>
-        <SecurityRounded sx={{ color: tokens.success }} />
-        <Typography sx={{ fontWeight: 950 }}>Rewards &amp; codes</Typography>
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1}
+        sx={{
+          alignItems: { xs: "flex-start", sm: "center" },
+          justifyContent: "space-between",
+          mb: 1,
+        }}
+      >
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <SecurityRounded sx={{ color: tokens.success }} />
+          <Box>
+            <Typography sx={{ fontWeight: 950 }}>Rewards &amp; codes</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Optional codes are applied before payment; tracking stays private.
+            </Typography>
+          </Box>
+        </Stack>
+        {cues.length > 0 ? (
+          <Chip
+            icon={<VerifiedRounded />}
+            label={`${cues.length} active`}
+            size="small"
+            sx={{
+              bgcolor: alpha(tokens.success, 0.1),
+              color: tokens.success,
+              fontWeight: 900,
+              "& .MuiChip-icon": { color: tokens.success },
+            }}
+          />
+        ) : null}
       </Stack>
       <Stack spacing={1.25}>
         {includePromo ? (
@@ -552,14 +675,28 @@ function RewardFields({
             name="promo_code"
             label="Promo code"
             defaultValue={codes.promoCode}
+            helperText="Store or platform voucher. The final discount is confirmed at checkout."
             fullWidth
+            slotProps={{
+              htmlInput: {
+                autoCapitalize: "characters",
+                spellCheck: false,
+              },
+            }}
           />
         ) : null}
         <TextField
           name="referral_code"
           label="Referral code"
           defaultValue={codes.referralCode}
+          helperText="Use a referral code from the store or Xtiitch programme."
           fullWidth
+          slotProps={{
+            htmlInput: {
+              autoCapitalize: "characters",
+              spellCheck: false,
+            },
+          }}
         />
         <input
           type="hidden"
@@ -576,16 +713,77 @@ function RewardFields({
           name="affiliate_visitor_id"
           value={codes.affiliateVisitorID}
         />
-        {referralPreview ? (
-          <Alert severity="success">
-            {referralPreview.title}: referee reward preview{" "}
-            {rewardValueLabel(referralPreview)}
-          </Alert>
-        ) : codes.referralCode ? (
+        {cues.length > 0 ? (
+          <Stack spacing={1}>
+            {cues.map((cue) => {
+              const tone = rewardTone(cue.tone);
+              return (
+                <Box
+                  key={cue.key}
+                  sx={{
+                    p: 1.15,
+                    borderRadius: "8px",
+                    border: "1px solid",
+                    borderColor: alpha(tone, 0.16),
+                    bgcolor: alpha(tone, 0.06),
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "flex-start" }}
+                  >
+                    <Box
+                      sx={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: "8px",
+                        display: "grid",
+                        placeItems: "center",
+                        color: tone,
+                        bgcolor: alpha(tone, 0.1),
+                        flexShrink: 0,
+                      }}
+                    >
+                      {cue.icon}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography sx={{ fontWeight: 950 }}>
+                          {cue.label}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={cue.chip}
+                          sx={{
+                            height: 22,
+                            bgcolor: alpha(tone, 0.1),
+                            color: tone,
+                            fontWeight: 900,
+                          }}
+                        />
+                      </Stack>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.35, color: "text.secondary" }}
+                      >
+                        {cue.detail}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              );
+            })}
+          </Stack>
+        ) : (
           <Alert severity="info">
-            We will validate this referral code when checkout starts.
+            No code yet. You can leave these blank and still place the order.
           </Alert>
-        ) : null}
+        )}
       </Stack>
     </Box>
   );
@@ -1326,7 +1524,7 @@ export default function DesignPage({
   actionData,
 }: Route.ComponentProps) {
   const { design } = loaderData;
-  const rewardCodes = loaderData.rewardCodes;
+  const rewardCodes = actionData?.rewardCodes ?? loaderData.rewardCodes;
   const referralPreview = loaderData.referralPreview;
   const visitSlots = loaderData.visitSlots;
   const relatedDesigns = loaderData.relatedDesigns;

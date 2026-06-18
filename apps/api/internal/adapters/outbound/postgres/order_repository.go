@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -594,7 +595,7 @@ func (repo OrderRepository) GetTracking(ctx context.Context, orderID common.ID) 
 		return order.Tracking{}, err
 	}
 
-	tracking, err := loadTracking(ctx, tx, orderID)
+	tracking, err := loadTrackingByPublicKey(ctx, tx, orderID.String())
 	if err != nil {
 		return order.Tracking{}, err
 	}
@@ -602,6 +603,42 @@ func (repo OrderRepository) GetTracking(ctx context.Context, orderID common.ID) 
 		return order.Tracking{}, err
 	}
 	return tracking, nil
+}
+
+func loadTrackingByPublicKey(ctx context.Context, tx pgx.Tx, rawKey string) (order.Tracking, error) {
+	trackingKey := strings.TrimSpace(rawKey)
+	if trackingKey == "" {
+		return order.Tracking{}, ErrNotFound
+	}
+
+	if isLikelyUUID(trackingKey) {
+		tracking, err := loadTracking(ctx, tx, common.ID(trackingKey))
+		if err == nil || !errors.Is(err, ErrNotFound) {
+			return tracking, err
+		}
+	}
+
+	orderID, err := lookupOrderIDByProviderReference(ctx, tx, trackingKey)
+	if err != nil {
+		return order.Tracking{}, err
+	}
+	return loadTracking(ctx, tx, orderID)
+}
+
+func lookupOrderIDByProviderReference(ctx context.Context, tx pgx.Tx, providerReference string) (common.ID, error) {
+	var orderID string
+	if err := tx.QueryRow(ctx, `
+		select order_id::text from payments
+		where provider_reference = $1 and order_id is not null
+		order by created_at desc
+		limit 1
+	`, providerReference).Scan(&orderID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
+	return common.ID(orderID), nil
 }
 
 func loadTracking(ctx context.Context, tx pgx.Tx, orderID common.ID) (order.Tracking, error) {
@@ -675,4 +712,25 @@ func loadTracking(ctx context.Context, tx pgx.Tx, orderID common.ID) (order.Trac
 		tracking.Handover = &handover
 	}
 	return tracking, nil
+}
+
+func isLikelyUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index, char := range value {
+		switch index {
+		case 8, 13, 18, 23:
+			if char != '-' {
+				return false
+			}
+		default:
+			if !((char >= '0' && char <= '9') ||
+				(char >= 'a' && char <= 'f') ||
+				(char >= 'A' && char <= 'F')) {
+				return false
+			}
+		}
+	}
+	return true
 }

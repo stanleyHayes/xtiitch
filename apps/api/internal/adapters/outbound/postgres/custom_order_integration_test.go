@@ -126,6 +126,18 @@ func TestCreateCustomOrderSelfMeasureThenDepositConfirmsAtFirstBespokeStage(t *t
 	if stageFlow != "bespoke" || stageSeq != 1 || colour != "red" {
 		t.Fatalf("expected confirmation at the first bespoke (red) stage, got flow=%q seq=%d colour=%q", stageFlow, stageSeq, colour)
 	}
+
+	tracking, err := orders.GetTracking(ctx, common.ID("xt_co_self"))
+	if err != nil {
+		t.Fatalf("track by provider reference: %v", err)
+	}
+	if tracking.OrderID != orderID || tracking.Status != "confirmed" || tracking.StageName != "Order received" {
+		t.Fatalf("unexpected provider-reference tracking result: %+v", tracking)
+	}
+
+	if _, err := orders.GetTracking(ctx, common.ID("not-a-tracking-key")); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected not found for malformed tracking key, got %v", err)
+	}
 }
 
 func TestCreateCustomOrderRejectsUnknownMeasurementField(t *testing.T) {
