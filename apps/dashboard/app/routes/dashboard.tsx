@@ -28,12 +28,7 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import {
-  alpha,
-  styled,
-  type SxProps,
-  type Theme,
-} from "@mui/material/styles";
+import { alpha, styled, type SxProps, type Theme } from "@mui/material/styles";
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
@@ -2912,9 +2907,7 @@ function splitDateTimeInputValue(value = ""): {
   date: string;
   time: string;
 } {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(
-    value.trim(),
-  );
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
   if (!match) {
     const fallback = datetimeLocalValue(value);
     return fallback && fallback !== value
@@ -2980,6 +2973,129 @@ function composeDateTimeValue(dateValue: string, timeValue: string): string {
   return date && time ? `${date}T${time}` : "";
 }
 
+const monthOptions = [
+  { value: "01", label: "Jan" },
+  { value: "02", label: "Feb" },
+  { value: "03", label: "Mar" },
+  { value: "04", label: "Apr" },
+  { value: "05", label: "May" },
+  { value: "06", label: "Jun" },
+  { value: "07", label: "Jul" },
+  { value: "08", label: "Aug" },
+  { value: "09", label: "Sep" },
+  { value: "10", label: "Oct" },
+  { value: "11", label: "Nov" },
+  { value: "12", label: "Dec" },
+];
+
+const hourOptions = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, "0"),
+);
+
+const defaultMinuteOptions = Array.from({ length: 12 }, (_, index) =>
+  String(index * 5).padStart(2, "0"),
+);
+
+const periodOptions = ["AM", "PM"] as const;
+
+function optionListWithSelected(options: string[], selected: string): string[] {
+  return selected && !options.includes(selected)
+    ? [...options, selected].sort((a, b) => Number(a) - Number(b))
+    : options;
+}
+
+function splitDateParts(value: string): {
+  year: string;
+  month: string;
+  day: string;
+} {
+  const normalised = normaliseDateInput(value);
+  if (!normalised) {
+    return { year: "", month: "", day: "" };
+  }
+  const [year = "", month = "", day = ""] = normalised.split("-");
+  return { year, month, day };
+}
+
+function splitTimeParts(value: string): {
+  hour: string;
+  minute: string;
+  period: (typeof periodOptions)[number] | "";
+} {
+  const normalised = normaliseTimeInput(value);
+  if (!normalised) {
+    return { hour: "", minute: "", period: "" };
+  }
+  const [hourRaw = "0", minute = ""] = normalised.split(":");
+  const hours = Number.parseInt(hourRaw, 10);
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+  return {
+    hour: String(displayHour).padStart(2, "0"),
+    minute,
+    period,
+  };
+}
+
+function composeDateInputValue(
+  year: string,
+  month: string,
+  day: string,
+): string {
+  return normaliseDateInput(`${year}-${month}-${day}`) ?? "";
+}
+
+function composeTimeInputValue(
+  hour: string,
+  minute: string,
+  period: string,
+): string {
+  if (!hour || !minute || !period) {
+    return "";
+  }
+  const parsedHour = Number.parseInt(hour, 10);
+  const parsedMinute = Number.parseInt(minute, 10);
+  if (
+    parsedHour < 1 ||
+    parsedHour > 12 ||
+    parsedMinute < 0 ||
+    parsedMinute > 59
+  ) {
+    return "";
+  }
+  const hours24 = period === "PM" ? (parsedHour % 12) + 12 : parsedHour % 12;
+  return (
+    normaliseTimeInput(
+      `${String(hours24).padStart(2, "0")}:${String(parsedMinute).padStart(2, "0")}`,
+    ) ?? ""
+  );
+}
+
+function dayOptionsFor(year: string, month: string): string[] {
+  const parsedYear = Number.parseInt(year, 10);
+  const parsedMonth = Number.parseInt(month, 10);
+  const maxDay =
+    Number.isInteger(parsedYear) &&
+    Number.isInteger(parsedMonth) &&
+    parsedMonth >= 1 &&
+    parsedMonth <= 12
+      ? new Date(Date.UTC(parsedYear, parsedMonth, 0)).getUTCDate()
+      : 31;
+  return Array.from({ length: maxDay }, (_, index) =>
+    String(index + 1).padStart(2, "0"),
+  );
+}
+
+function yearOptionsFor(selectedYear: string): string[] {
+  const current = new Date().getFullYear();
+  const years = Array.from({ length: 8 }, (_, index) =>
+    String(current - 1 + index),
+  );
+  return selectedYear && !years.includes(selectedYear)
+    ? [...years, selectedYear].sort((a, b) => Number(a) - Number(b))
+    : years;
+}
+
 function minutesToTime(value: number): string {
   const hours = Math.floor(value / 60);
   const minutes = value % 60;
@@ -3014,6 +3130,13 @@ const StyledTemporalField = styled(Box)(({ theme }) => ({
     fontWeight: 800,
     letterSpacing: 0,
   },
+  "& .MuiSelect-select": {
+    fontWeight: 800,
+    letterSpacing: 0,
+  },
+  "& .MuiSelect-icon": {
+    color: alpha(tokens.burgundy, 0.68),
+  },
   "& .MuiInputAdornment-root .MuiSvgIcon-root": {
     color: alpha(tokens.burgundy, 0.78),
   },
@@ -3037,9 +3160,31 @@ function StyledDateTimeField({
   fullWidth?: boolean;
 }) {
   const initial = splitDateTimeInputValue(defaultValue);
-  const [dateValue, setDateValue] = useState(initial.date);
-  const [timeValue, setTimeValue] = useState(initial.time);
+  const initialDate = splitDateParts(initial.date);
+  const initialTime = splitTimeParts(initial.time);
+  const [dateYear, setDateYear] = useState(initialDate.year);
+  const [dateMonth, setDateMonth] = useState(initialDate.month);
+  const [dateDay, setDateDay] = useState(initialDate.day);
+  const [timeHour, setTimeHour] = useState(initialTime.hour);
+  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
+  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
+  const dayOptions = useMemo(
+    () => dayOptionsFor(dateYear, dateMonth),
+    [dateYear, dateMonth],
+  );
+  const minuteOptions = useMemo(
+    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
+    [timeMinute],
+  );
+  const dateValue = composeDateInputValue(dateYear, dateMonth, dateDay);
+  const timeValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
   const hiddenValue = composeDateTimeValue(dateValue, timeValue);
+
+  useEffect(() => {
+    if (dateDay && !dayOptions.includes(dateDay)) {
+      setDateDay("");
+    }
+  }, [dateDay, dayOptions]);
 
   return (
     <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
@@ -3060,52 +3205,150 @@ function StyledDateTimeField({
         sx={{
           display: "grid",
           gap: 0.75,
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 0.78fr" },
         }}
       >
-        <TextField
-          label="Date"
-          type="date"
-          value={dateValue}
-          onChange={(event) => setDateValue(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-          fullWidth={fullWidth}
-          slotProps={{
-            inputLabel: { shrink: true },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <CalendarMonthRounded fontSize="small" />
-                </InputAdornment>
-              ),
+        <Box
+          sx={{
+            display: "grid",
+            gap: 0.75,
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "0.9fr 1fr 1.2fr" },
+          }}
+        >
+          <TextField
+            select
+            label="Day"
+            value={dateDay}
+            onChange={(event) => setDateDay(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+            slotProps={{
+              inputLabel: { shrink: true },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarMonthRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          >
+            <MenuItem value="">Day</MenuItem>
+            {dayOptions.map((day) => (
+              <MenuItem key={day} value={day}>
+                {day}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Month"
+            value={dateMonth}
+            onChange={(event) => setDateMonth(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+          >
+            <MenuItem value="">Month</MenuItem>
+            {monthOptions.map((month) => (
+              <MenuItem key={month.value} value={month.value}>
+                {month.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Year"
+            value={dateYear}
+            onChange={(event) => setDateYear(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+            sx={{ gridColumn: { xs: "1 / -1", sm: "auto" } }}
+          >
+            <MenuItem value="">Year</MenuItem>
+            {yearOptionsFor(dateYear).map((year) => (
+              <MenuItem key={year} value={year}>
+                {year}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 0.75,
+            gridTemplateColumns: {
+              xs: "1fr 1fr 0.9fr",
+              sm: "0.9fr 0.9fr 0.8fr",
             },
           }}
-        />
-        <TextField
-          label="Time"
-          type="time"
-          value={timeValue}
-          onChange={(event) => setTimeValue(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-          fullWidth={fullWidth}
-          slotProps={{
-            inputLabel: { shrink: true },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <ScheduleRounded fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-            htmlInput: {
-              step: 300,
-            },
-          }}
-        />
+        >
+          <TextField
+            select
+            label="Hour"
+            value={timeHour}
+            onChange={(event) => setTimeHour(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+            slotProps={{
+              inputLabel: { shrink: true },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <ScheduleRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          >
+            <MenuItem value="">Hour</MenuItem>
+            {hourOptions.map((hour) => (
+              <MenuItem key={hour} value={hour}>
+                {hour}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Minute"
+            value={timeMinute}
+            onChange={(event) => setTimeMinute(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+          >
+            <MenuItem value="">Minute</MenuItem>
+            {minuteOptions.map((minute) => (
+              <MenuItem key={minute} value={minute}>
+                {minute}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="AM/PM"
+            value={timePeriod}
+            onChange={(event) => setTimePeriod(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            fullWidth={fullWidth}
+          >
+            <MenuItem value="">--</MenuItem>
+            {periodOptions.map((period) => (
+              <MenuItem key={period} value={period}>
+                {period}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
       </Box>
     </StyledTemporalField>
   );
@@ -3126,8 +3369,15 @@ function StyledTimeField({
   disabled?: boolean;
   size?: "small" | "medium";
 }) {
-  const [timeValue, setTimeValue] = useState(defaultValue);
-  const hiddenValue = normaliseTimeInput(timeValue) ?? "";
+  const initialTime = splitTimeParts(defaultValue);
+  const [timeHour, setTimeHour] = useState(initialTime.hour);
+  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
+  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
+  const minuteOptions = useMemo(
+    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
+    [timeMinute],
+  );
+  const hiddenValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
 
   return (
     <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
@@ -3137,29 +3387,82 @@ function StyledTimeField({
         value={hiddenValue}
         disabled={disabled}
       />
-      <TextField
-        label={label}
-        type="time"
-        value={timeValue}
-        onChange={(event) => setTimeValue(event.target.value)}
-        required={required}
-        disabled={disabled}
-        size={size}
-        fullWidth
-        slotProps={{
-          inputLabel: { shrink: true },
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <ScheduleRounded fontSize="small" />
-              </InputAdornment>
-            ),
-          },
-          htmlInput: {
-            step: 300,
-          },
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+      >
+        {label}
+        {required ? " *" : ""}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 0.75,
+          gridTemplateColumns: { xs: "1fr 1fr 0.9fr", sm: "0.9fr 0.9fr 0.8fr" },
         }}
-      />
+      >
+        <TextField
+          select
+          label="Hour"
+          value={timeHour}
+          onChange={(event) => setTimeHour(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+          fullWidth
+          slotProps={{
+            inputLabel: { shrink: true },
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <ScheduleRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+        >
+          <MenuItem value="">Hour</MenuItem>
+          {hourOptions.map((hour) => (
+            <MenuItem key={hour} value={hour}>
+              {hour}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="Minute"
+          value={timeMinute}
+          onChange={(event) => setTimeMinute(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+          fullWidth
+        >
+          <MenuItem value="">Minute</MenuItem>
+          {minuteOptions.map((minute) => (
+            <MenuItem key={minute} value={minute}>
+              {minute}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="AM/PM"
+          value={timePeriod}
+          onChange={(event) => setTimePeriod(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+          fullWidth
+        >
+          <MenuItem value="">--</MenuItem>
+          {periodOptions.map((period) => (
+            <MenuItem key={period} value={period}>
+              {period}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Box>
     </StyledTemporalField>
   );
 }
@@ -3659,7 +3962,10 @@ function WorkspaceRail({
               borderRadius: 1.5,
               bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.16),
               border: "1px solid",
-              borderColor: alpha(verified ? tokens.success : tokens.warning, 0.5),
+              borderColor: alpha(
+                verified ? tokens.success : tokens.warning,
+                0.5,
+              ),
               "& .MuiChip-label": { px: 1 },
               "& .MuiChip-icon": {
                 fontSize: 15,
@@ -9256,79 +9562,93 @@ function BusinessUserRow({
         py: 1.6,
         borderTop: "1px solid",
         borderColor: "divider",
+        display: "flex",
+        alignItems: "center",
+        gap: { xs: 1.5, md: 2 },
+        transition: "background-color 160ms ease",
+        "&:hover": {
+          bgcolor: alpha(tokens.burgundy, 0.02),
+        },
       }}
     >
-      <Stack spacing={1.4}>
+      <Box
+        sx={{
+          width: { xs: 44, md: 50 },
+          height: { xs: 44, md: 50 },
+          borderRadius: "50%",
+          display: "grid",
+          placeItems: "center",
+          flexShrink: 0,
+          bgcolor: alpha(tone, 0.1),
+          color: tone,
+          fontWeight: 900,
+          fontSize: { xs: "0.95rem", md: "1rem" },
+          border: "1px solid",
+          borderColor: alpha(tone, 0.18),
+          boxShadow: `0 8px 20px ${alpha(tone, 0.08)}`,
+        }}
+      >
+        {businessUserInitials(user)}
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={1.5}
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", flexWrap: "wrap", gap: 0.6 }}
+        >
+          <Typography sx={{ fontWeight: 900 }} noWrap>
+            {user.display_name || user.email}
+          </Typography>
+          <ToneChip label={roleLabel(user.role)} tone={tone} />
+          <ToneChip
+            label={user.is_active ? "Active" : "Inactive"}
+            tone={user.is_active ? tokens.success : tokens.warning}
+          />
+          {isCurrentUser ? (
+            <Chip size="small" variant="outlined" label="You" />
+          ) : null}
+        </Stack>
+        <Typography
+          variant="body2"
+          sx={{ color: "text.secondary", overflowWrap: "anywhere", mt: 0.25 }}
+        >
+          {user.email}
+        </Typography>
+      </Box>
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={{ xs: 0.5, md: 1.5 }}
+        sx={{
+          alignItems: { xs: "flex-end", md: "center" },
+          flexShrink: 0,
+        }}
+      >
+        <Typography
+          variant="caption"
           sx={{
-            alignItems: { xs: "stretch", md: "center" },
-            justifyContent: "space-between",
+            color: "text.secondary",
+            fontWeight: 800,
+            whiteSpace: "nowrap",
+            textAlign: { xs: "right", md: "left" },
           }}
         >
-          <Stack direction="row" spacing={1.25} sx={{ minWidth: 0 }}>
-            <Box
-              sx={{
-                width: 48,
-                height: 48,
-                borderRadius: 1.5,
-                display: "grid",
-                placeItems: "center",
-                flexShrink: 0,
-                bgcolor: alpha(tone, 0.1),
-                color: tone,
-                fontWeight: 900,
-                border: "1px solid",
-                borderColor: alpha(tone, 0.18),
-              }}
-            >
-              {businessUserInitials(user)}
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {user.display_name || user.email}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
-              >
-                {user.email}
-              </Typography>
-              <Stack
-                direction="row"
-                spacing={0.8}
-                sx={{ mt: 0.85, flexWrap: "wrap" }}
-              >
-                <ToneChip label={roleLabel(user.role)} tone={tone} />
-                <ToneChip
-                  label={user.is_active ? "Active" : "Inactive"}
-                  tone={user.is_active ? tokens.success : tokens.warning}
-                />
-                {isCurrentUser ? (
-                  <Chip size="small" variant="outlined" label="You" />
-                ) : null}
-              </Stack>
-            </Box>
-          </Stack>
-          <Typography
-            variant="caption"
-            sx={{
-              color: "text.secondary",
-              fontWeight: 800,
-              textAlign: { xs: "left", md: "right" },
-            }}
-          >
-            {businessUserJoinedLabel(user)}
-          </Typography>
-        </Stack>
+          {businessUserJoinedLabel(user)}
+        </Typography>
         <Button
           variant="outlined"
-          startIcon={<VisibilityRounded />}
+          size="small"
+          startIcon={<VisibilityRounded fontSize="small" />}
           onClick={onView}
-          sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
+          sx={{
+            minWidth: 0,
+            px: 1.25,
+            py: 0.5,
+            borderRadius: 999,
+            fontWeight: 800,
+            textTransform: "none",
+          }}
         >
-          View details
+          View
         </Button>
       </Stack>
     </Box>
@@ -9446,7 +9766,11 @@ function BusinessUserDetailForm({
               name="business_user_id"
               value={user.business_user_id}
             />
-            <input type="hidden" name="display_name" value={user.display_name} />
+            <input
+              type="hidden"
+              name="display_name"
+              value={user.display_name}
+            />
             <input
               type="hidden"
               name="role"
@@ -10933,8 +11257,8 @@ export default function Dashboard({
                               variant="body2"
                               sx={{ color: "text.secondary" }}
                             >
-                              Edit details, imagery, pricing, and availability for
-                              this piece.
+                              Edit details, imagery, pricing, and availability
+                              for this piece.
                             </Typography>
                           </Box>
                           <DesignRow

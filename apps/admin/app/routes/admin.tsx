@@ -27,12 +27,7 @@ import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import {
-  alpha,
-  styled,
-  type SxProps,
-  type Theme,
-} from "@mui/material/styles";
+import { alpha, styled, type SxProps, type Theme } from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import AccountBalanceRounded from "@mui/icons-material/AccountBalanceRounded";
 import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
@@ -7224,9 +7219,7 @@ function splitDateTimeInputValue(value = ""): {
   date: string;
   time: string;
 } {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(
-    value.trim(),
-  );
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(value.trim());
   if (!match) {
     const fallback = datetimeLocalDefault(value);
     return fallback && fallback !== value
@@ -7292,6 +7285,129 @@ function composeDateTimeValue(dateValue: string, timeValue: string): string {
   return date && time ? `${date}T${time}` : "";
 }
 
+const monthOptions = [
+  { value: "01", label: "Jan" },
+  { value: "02", label: "Feb" },
+  { value: "03", label: "Mar" },
+  { value: "04", label: "Apr" },
+  { value: "05", label: "May" },
+  { value: "06", label: "Jun" },
+  { value: "07", label: "Jul" },
+  { value: "08", label: "Aug" },
+  { value: "09", label: "Sep" },
+  { value: "10", label: "Oct" },
+  { value: "11", label: "Nov" },
+  { value: "12", label: "Dec" },
+];
+
+const hourOptions = Array.from({ length: 12 }, (_, index) =>
+  String(index + 1).padStart(2, "0"),
+);
+
+const defaultMinuteOptions = Array.from({ length: 12 }, (_, index) =>
+  String(index * 5).padStart(2, "0"),
+);
+
+const periodOptions = ["AM", "PM"] as const;
+
+function optionListWithSelected(options: string[], selected: string): string[] {
+  return selected && !options.includes(selected)
+    ? [...options, selected].sort((a, b) => Number(a) - Number(b))
+    : options;
+}
+
+function splitDateParts(value: string): {
+  year: string;
+  month: string;
+  day: string;
+} {
+  const normalised = normaliseDateInput(value);
+  if (!normalised) {
+    return { year: "", month: "", day: "" };
+  }
+  const [year = "", month = "", day = ""] = normalised.split("-");
+  return { year, month, day };
+}
+
+function splitTimeParts(value: string): {
+  hour: string;
+  minute: string;
+  period: (typeof periodOptions)[number] | "";
+} {
+  const normalised = normaliseTimeInput(value);
+  if (!normalised) {
+    return { hour: "", minute: "", period: "" };
+  }
+  const [hourRaw = "0", minute = ""] = normalised.split(":");
+  const hours = Number.parseInt(hourRaw, 10);
+  const period = hours >= 12 ? "PM" : "AM";
+  const displayHour = hours % 12 || 12;
+  return {
+    hour: String(displayHour).padStart(2, "0"),
+    minute,
+    period,
+  };
+}
+
+function composeDateInputValue(
+  year: string,
+  month: string,
+  day: string,
+): string {
+  return normaliseDateInput(`${year}-${month}-${day}`) ?? "";
+}
+
+function composeTimeInputValue(
+  hour: string,
+  minute: string,
+  period: string,
+): string {
+  if (!hour || !minute || !period) {
+    return "";
+  }
+  const parsedHour = Number.parseInt(hour, 10);
+  const parsedMinute = Number.parseInt(minute, 10);
+  if (
+    parsedHour < 1 ||
+    parsedHour > 12 ||
+    parsedMinute < 0 ||
+    parsedMinute > 59
+  ) {
+    return "";
+  }
+  const hours24 = period === "PM" ? (parsedHour % 12) + 12 : parsedHour % 12;
+  return (
+    normaliseTimeInput(
+      `${String(hours24).padStart(2, "0")}:${String(parsedMinute).padStart(2, "0")}`,
+    ) ?? ""
+  );
+}
+
+function dayOptionsFor(year: string, month: string): string[] {
+  const parsedYear = Number.parseInt(year, 10);
+  const parsedMonth = Number.parseInt(month, 10);
+  const maxDay =
+    Number.isInteger(parsedYear) &&
+    Number.isInteger(parsedMonth) &&
+    parsedMonth >= 1 &&
+    parsedMonth <= 12
+      ? new Date(Date.UTC(parsedYear, parsedMonth, 0)).getUTCDate()
+      : 31;
+  return Array.from({ length: maxDay }, (_, index) =>
+    String(index + 1).padStart(2, "0"),
+  );
+}
+
+function yearOptionsFor(selectedYear: string): string[] {
+  const current = new Date().getFullYear();
+  const years = Array.from({ length: 8 }, (_, index) =>
+    String(current - 1 + index),
+  );
+  return selectedYear && !years.includes(selectedYear)
+    ? [...years, selectedYear].sort((a, b) => Number(a) - Number(b))
+    : years;
+}
+
 const StyledTemporalField = styled(Box)(({ theme }) => ({
   border: `1px solid ${alpha(tokens.ink, 0.1)}`,
   borderRadius: 20,
@@ -7320,6 +7436,13 @@ const StyledTemporalField = styled(Box)(({ theme }) => ({
     fontWeight: 800,
     letterSpacing: 0,
   },
+  "& .MuiSelect-select": {
+    fontWeight: 800,
+    letterSpacing: 0,
+  },
+  "& .MuiSelect-icon": {
+    color: alpha(tokens.burgundy, 0.68),
+  },
   "& .MuiInputAdornment-root .MuiSvgIcon-root": {
     color: alpha(tokens.burgundy, 0.78),
   },
@@ -7341,9 +7464,31 @@ function StyledDateTimeField({
   size?: "small" | "medium";
 }) {
   const initial = splitDateTimeInputValue(defaultValue);
-  const [dateValue, setDateValue] = useState(initial.date);
-  const [timeValue, setTimeValue] = useState(initial.time);
+  const initialDate = splitDateParts(initial.date);
+  const initialTime = splitTimeParts(initial.time);
+  const [dateYear, setDateYear] = useState(initialDate.year);
+  const [dateMonth, setDateMonth] = useState(initialDate.month);
+  const [dateDay, setDateDay] = useState(initialDate.day);
+  const [timeHour, setTimeHour] = useState(initialTime.hour);
+  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
+  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
+  const dayOptions = useMemo(
+    () => dayOptionsFor(dateYear, dateMonth),
+    [dateYear, dateMonth],
+  );
+  const minuteOptions = useMemo(
+    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
+    [timeMinute],
+  );
+  const dateValue = composeDateInputValue(dateYear, dateMonth, dateDay);
+  const timeValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
   const hiddenValue = composeDateTimeValue(dateValue, timeValue);
+
+  useEffect(() => {
+    if (dateDay && !dayOptions.includes(dateDay)) {
+      setDateDay("");
+    }
+  }, [dateDay, dayOptions]);
 
   return (
     <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
@@ -7364,50 +7509,144 @@ function StyledDateTimeField({
         sx={{
           display: "grid",
           gap: 0.75,
-          gridTemplateColumns: { xs: "1fr", sm: "1fr 0.78fr" },
         }}
       >
-        <TextField
-          label="Date"
-          type="date"
-          value={dateValue}
-          onChange={(event) => setDateValue(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-          slotProps={{
-            inputLabel: { shrink: true },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <CalendarMonthRounded fontSize="small" />
-                </InputAdornment>
-              ),
+        <Box
+          sx={{
+            display: "grid",
+            gap: 0.75,
+            gridTemplateColumns: { xs: "1fr 1fr", sm: "0.9fr 1fr 1.2fr" },
+          }}
+        >
+          <TextField
+            select
+            label="Day"
+            value={dateDay}
+            onChange={(event) => setDateDay(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            slotProps={{
+              inputLabel: { shrink: true },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <CalendarMonthRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          >
+            <MenuItem value="">Day</MenuItem>
+            {dayOptions.map((day) => (
+              <MenuItem key={day} value={day}>
+                {day}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Month"
+            value={dateMonth}
+            onChange={(event) => setDateMonth(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+          >
+            <MenuItem value="">Month</MenuItem>
+            {monthOptions.map((month) => (
+              <MenuItem key={month.value} value={month.value}>
+                {month.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Year"
+            value={dateYear}
+            onChange={(event) => setDateYear(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            sx={{ gridColumn: { xs: "1 / -1", sm: "auto" } }}
+          >
+            <MenuItem value="">Year</MenuItem>
+            {yearOptionsFor(dateYear).map((year) => (
+              <MenuItem key={year} value={year}>
+                {year}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 0.75,
+            gridTemplateColumns: {
+              xs: "1fr 1fr 0.9fr",
+              sm: "0.9fr 0.9fr 0.8fr",
             },
           }}
-        />
-        <TextField
-          label="Time"
-          type="time"
-          value={timeValue}
-          onChange={(event) => setTimeValue(event.target.value)}
-          required={required}
-          disabled={disabled}
-          size={size}
-          slotProps={{
-            inputLabel: { shrink: true },
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <ScheduleRounded fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-            htmlInput: {
-              step: 300,
-            },
-          }}
-        />
+        >
+          <TextField
+            select
+            label="Hour"
+            value={timeHour}
+            onChange={(event) => setTimeHour(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+            slotProps={{
+              inputLabel: { shrink: true },
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <ScheduleRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          >
+            <MenuItem value="">Hour</MenuItem>
+            {hourOptions.map((hour) => (
+              <MenuItem key={hour} value={hour}>
+                {hour}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Minute"
+            value={timeMinute}
+            onChange={(event) => setTimeMinute(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+          >
+            <MenuItem value="">Minute</MenuItem>
+            {minuteOptions.map((minute) => (
+              <MenuItem key={minute} value={minute}>
+                {minute}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="AM/PM"
+            value={timePeriod}
+            onChange={(event) => setTimePeriod(event.target.value)}
+            required={required}
+            disabled={disabled}
+            size={size}
+          >
+            <MenuItem value="">--</MenuItem>
+            {periodOptions.map((period) => (
+              <MenuItem key={period} value={period}>
+                {period}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
       </Box>
     </StyledTemporalField>
   );
@@ -7428,8 +7667,15 @@ function StyledTimeField({
   disabled?: boolean;
   size?: "small" | "medium";
 }) {
-  const [timeValue, setTimeValue] = useState(defaultValue);
-  const hiddenValue = normaliseTimeInput(timeValue) ?? "";
+  const initialTime = splitTimeParts(defaultValue);
+  const [timeHour, setTimeHour] = useState(initialTime.hour);
+  const [timeMinute, setTimeMinute] = useState(initialTime.minute);
+  const [timePeriod, setTimePeriod] = useState<string>(initialTime.period);
+  const minuteOptions = useMemo(
+    () => optionListWithSelected(defaultMinuteOptions, timeMinute),
+    [timeMinute],
+  );
+  const hiddenValue = composeTimeInputValue(timeHour, timeMinute, timePeriod);
 
   return (
     <StyledTemporalField data-disabled={disabled ? "true" : undefined}>
@@ -7439,29 +7685,203 @@ function StyledTimeField({
         value={hiddenValue}
         disabled={disabled}
       />
-      <TextField
-        label={label}
-        type="time"
-        value={timeValue}
-        onChange={(event) => setTimeValue(event.target.value)}
-        required={required}
-        disabled={disabled}
-        size={size}
-        slotProps={{
-          inputLabel: { shrink: true },
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <ScheduleRounded fontSize="small" />
-              </InputAdornment>
-            ),
-          },
-          htmlInput: {
-            step: 300,
-          },
+      <Typography
+        variant="caption"
+        sx={{ color: "text.secondary", display: "block", mb: 0.5 }}
+      >
+        {label}
+        {required ? " *" : ""}
+      </Typography>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 0.75,
+          gridTemplateColumns: { xs: "1fr 1fr 0.9fr", sm: "0.9fr 0.9fr 0.8fr" },
         }}
-      />
+      >
+        <TextField
+          select
+          label="Hour"
+          value={timeHour}
+          onChange={(event) => setTimeHour(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+          slotProps={{
+            inputLabel: { shrink: true },
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <ScheduleRounded fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+          }}
+        >
+          <MenuItem value="">Hour</MenuItem>
+          {hourOptions.map((hour) => (
+            <MenuItem key={hour} value={hour}>
+              {hour}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="Minute"
+          value={timeMinute}
+          onChange={(event) => setTimeMinute(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+        >
+          <MenuItem value="">Minute</MenuItem>
+          {minuteOptions.map((minute) => (
+            <MenuItem key={minute} value={minute}>
+              {minute}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          select
+          label="AM/PM"
+          value={timePeriod}
+          onChange={(event) => setTimePeriod(event.target.value)}
+          required={required}
+          disabled={disabled}
+          size={size}
+        >
+          <MenuItem value="">--</MenuItem>
+          {periodOptions.map((period) => (
+            <MenuItem key={period} value={period}>
+              {period}
+            </MenuItem>
+          ))}
+        </TextField>
+      </Box>
     </StyledTemporalField>
+  );
+}
+
+function BillingOperationCard({
+  icon,
+  title,
+  helper,
+  tone,
+  chips,
+  intent,
+  noteLabel,
+  noteDefault,
+  actionLabel,
+  actionIcon,
+}: {
+  icon: ReactNode;
+  title: string;
+  helper: string;
+  tone: string;
+  chips: string[];
+  intent: string;
+  noteLabel: string;
+  noteDefault: string;
+  actionLabel: string;
+  actionIcon: ReactNode;
+}) {
+  return (
+    <Box
+      sx={{
+        p: { xs: 1.5, md: 1.75 },
+        border: "1px solid",
+        borderColor: alpha(tone, 0.18),
+        borderRadius: 2,
+        bgcolor: alpha(tokens.white, 0.72),
+        minWidth: 0,
+      }}
+    >
+      <Stack spacing={1.4}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1.15}
+          sx={{ alignItems: { xs: "flex-start", sm: "center" } }}
+        >
+          <Box
+            sx={{
+              width: 42,
+              height: 42,
+              borderRadius: 1.5,
+              display: "grid",
+              placeItems: "center",
+              flexShrink: 0,
+              color: tone,
+              bgcolor: alpha(tone, 0.1),
+              border: "1px solid",
+              borderColor: alpha(tone, 0.16),
+            }}
+          >
+            {icon}
+          </Box>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ alignItems: "center", flexWrap: "wrap" }}
+            >
+              <Typography sx={{ fontWeight: 950 }}>{title}</Typography>
+              {chips.map((chip) => (
+                <Chip
+                  key={chip}
+                  size="small"
+                  label={chip}
+                  sx={{
+                    bgcolor: alpha(tone, 0.09),
+                    border: "1px solid",
+                    borderColor: alpha(tone, 0.18),
+                    color: tone,
+                    fontWeight: 900,
+                  }}
+                />
+              ))}
+            </Stack>
+            <Typography
+              variant="body2"
+              sx={{ mt: 0.35, color: "text.secondary" }}
+            >
+              {helper}
+            </Typography>
+          </Box>
+        </Stack>
+        <Form method="post">
+          <input type="hidden" name="intent" value={intent} />
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) auto" },
+              alignItems: "center",
+            }}
+          >
+            <TextField
+              size="small"
+              name="reason"
+              label={noteLabel}
+              defaultValue={noteDefault}
+              fullWidth
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={actionIcon}
+              sx={{
+                justifySelf: { xs: "stretch", md: "end" },
+                height: 44,
+                px: 2.5,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {actionLabel}
+            </Button>
+          </Box>
+        </Form>
+      </Stack>
+    </Box>
   );
 }
 
@@ -7708,155 +8128,42 @@ function SubscriptionsSection({
         />
       </Box>
 
-      <Box
+      <Panel
         sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+          p: { xs: 2, md: 2.5 },
+          borderColor: alpha(tokens.success, 0.2),
+          backgroundImage: `
+            radial-gradient(circle at 96% 6%, ${alpha(tokens.success, 0.12)}, transparent 30%),
+            linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          `,
         }}
       >
-        <Panel
-          sx={{
-            p: { xs: 2, md: 2.5 },
-            borderColor: alpha(
-              overdueIssuedInvoiceCount || expiredGraceCount
-                ? tokens.warning
-                : tokens.success,
-              0.22,
-            ),
-            backgroundImage: `
-              radial-gradient(circle at 100% 0%, ${alpha(tokens.warning, overdueIssuedInvoiceCount || expiredGraceCount ? 0.18 : 0.08)}, transparent 34%),
-              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.78)})
-            `,
-          }}
-        >
-          <Stack spacing={1.5}>
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 1.5,
-                  display: "grid",
-                  placeItems: "center",
-                  color: overdueIssuedInvoiceCount || expiredGraceCount
-                    ? tokens.warning
-                    : tokens.success,
-                  bgcolor: alpha(
-                    overdueIssuedInvoiceCount || expiredGraceCount
-                      ? tokens.warning
-                      : tokens.success,
-                    0.1,
-                  ),
-                  flexShrink: 0,
-                }}
-              >
-                <SyncRounded />
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h6">Billing sweep</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  Close overdue invoices and expired grace windows.
-                </Typography>
-              </Box>
-            </Stack>
-            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
+        <Stack spacing={2}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.5}
+            sx={{
+              alignItems: { xs: "stretch", md: "flex-start" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6">Billing operations</Typography>
+              <Typography sx={{ color: "text.secondary", maxWidth: 760 }}>
+                Run controlled billing jobs without moving funds until a charge
+                or invoice action explicitly does it.
+              </Typography>
+            </Box>
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ flexWrap: "wrap", justifyContent: { md: "flex-end" } }}
+            >
               <Chip
                 size="small"
-                label={`${overdueIssuedInvoiceCount} overdue invoices`}
+                label={`${overdueIssuedInvoiceCount} overdue`}
                 color={overdueIssuedInvoiceCount ? "warning" : "success"}
                 variant={overdueIssuedInvoiceCount ? "filled" : "outlined"}
-              />
-              <Chip
-                size="small"
-                label={`${expiredGraceCount} expired grace`}
-                color={expiredGraceCount ? "warning" : "success"}
-                variant={expiredGraceCount ? "filled" : "outlined"}
-              />
-            </Stack>
-            <Form method="post">
-              <input
-                type="hidden"
-                name="intent"
-                value="admin-subscription-billing:sweep"
-              />
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1,
-                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
-                  alignItems: "center",
-                }}
-              >
-                <TextField
-                  size="small"
-                  name="reason"
-                  label="Sweep note"
-                  defaultValue="Operator billing sweep"
-                  fullWidth
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<SyncRounded />}
-                  sx={{
-                    minHeight: 44,
-                    minWidth: { sm: 150 },
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Run sweep
-                </Button>
-              </Box>
-            </Form>
-          </Stack>
-        </Panel>
-
-        <Panel
-          sx={{
-            p: { xs: 2, md: 2.5 },
-            borderColor: alpha(
-              recurringBlockedCount ? tokens.warning : tokens.success,
-              0.22,
-            ),
-            backgroundImage: `
-              radial-gradient(circle at 100% 0%, ${alpha(tokens.success, recurringReadyRows.length ? 0.15 : 0.07)}, transparent 34%),
-              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.78)})
-            `,
-          }}
-        >
-          <Stack spacing={1.5}>
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-              <Box
-                sx={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 1.5,
-                  display: "grid",
-                  placeItems: "center",
-                  color: recurringBlockedCount ? tokens.warning : tokens.success,
-                  bgcolor: alpha(
-                    recurringBlockedCount ? tokens.warning : tokens.success,
-                    0.1,
-                  ),
-                  flexShrink: 0,
-                }}
-              >
-                <CreditCardRounded />
-              </Box>
-              <Box sx={{ minWidth: 0 }}>
-                <Typography variant="h6">Recurring charges</Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  Charge ready subscriptions with saved authorizations.
-                </Typography>
-              </Box>
-            </Stack>
-            <Stack direction="row" spacing={0.75} sx={{ flexWrap: "wrap" }}>
-              <Chip
-                size="small"
-                label={`${recurringDueRows.length} due`}
-                color={recurringDueRows.length ? "warning" : "success"}
-                variant={recurringDueRows.length ? "filled" : "outlined"}
               />
               <Chip
                 size="small"
@@ -7871,44 +8178,56 @@ function SubscriptionsSection({
                 variant="outlined"
               />
             </Stack>
-            <Form method="post">
-              <input
-                type="hidden"
-                name="intent"
-                value="admin-subscription-recurring:sweep"
-              />
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1,
-                  gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
-                  alignItems: "center",
-                }}
-              >
-                <TextField
-                  size="small"
-                  name="reason"
-                  label="Charge note"
-                  defaultValue="Operator recurring charge sweep"
-                  fullWidth
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<CreditCardRounded />}
-                  sx={{
-                    minHeight: 44,
-                    minWidth: { sm: 150 },
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  Run charges
-                </Button>
-              </Box>
-            </Form>
           </Stack>
-        </Panel>
-      </Box>
+
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1.25,
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "repeat(2, minmax(0, 1fr))",
+              },
+            }}
+          >
+            <BillingOperationCard
+              icon={<SyncRounded />}
+              title="Billing sweep"
+              helper="Fail overdue invoices and cancel subscriptions whose grace window has expired."
+              tone={
+                overdueIssuedInvoiceCount || expiredGraceCount
+                  ? tokens.warning
+                  : tokens.success
+              }
+              chips={[
+                `${overdueIssuedInvoiceCount} overdue invoices`,
+                `${expiredGraceCount} expired grace`,
+              ]}
+              intent="admin-subscription-billing:sweep"
+              noteLabel="Sweep note"
+              noteDefault="Operator billing sweep"
+              actionLabel="Run sweep"
+              actionIcon={<SyncRounded />}
+            />
+            <BillingOperationCard
+              icon={<CreditCardRounded />}
+              title="Recurring charges"
+              helper="Charge due recurring subscriptions through saved Paystack authorizations."
+              tone={recurringBlockedCount ? tokens.warning : tokens.success}
+              chips={[
+                `${recurringDueRows.length} due`,
+                `${recurringReadyRows.length} ready`,
+                `${recurringBlockedCount} blocked`,
+              ]}
+              intent="admin-subscription-recurring:sweep"
+              noteLabel="Charge note"
+              noteDefault="Operator recurring charge sweep"
+              actionLabel="Run charges"
+              actionIcon={<CreditCardRounded />}
+            />
+          </Box>
+        </Stack>
+      </Panel>
 
       <Stack spacing={1}>
         <Typography variant="h6">Package controls</Typography>
@@ -8198,14 +8517,14 @@ function SubscriptionsSection({
         sx={{
           display: "grid",
           gap: 2,
-          gridTemplateColumns: { xs: "1fr", xl: "repeat(3, minmax(0, 1fr))" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            lg: "repeat(2, minmax(0, 1fr))",
+          },
         }}
       >
         {planRows.map((row) => (
-          <SubscriptionPlanSummaryCard
-            key={row.plan.code}
-            row={row}
-          />
+          <SubscriptionPlanSummaryCard key={row.plan.code} row={row} />
         ))}
       </Box>
 
@@ -8213,7 +8532,7 @@ function SubscriptionsSection({
         sx={{
           display: "grid",
           gap: 2,
-          gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 380px" },
+          gridTemplateColumns: { xs: "1fr", xl: "minmax(0, 1fr) 340px" },
           alignItems: "start",
         }}
       >
@@ -8270,10 +8589,14 @@ function SubscriptionsSection({
                   sx={{
                     p: { xs: 1.5, md: 2 },
                     border: "1px solid",
-                    borderColor: alpha(color, 0.2),
+                    borderColor: alpha(color, 0.18),
                     borderRadius: 2,
-                    bgcolor: alpha(tokens.white, 0.72),
-                    backgroundImage: `linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%)`,
+                    bgcolor: alpha(tokens.white, 0.82),
+                    backgroundImage: `
+                      linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 34%),
+                      linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.62)})
+                    `,
+                    boxShadow: `0 16px 40px ${alpha(tokens.ink, 0.045)}`,
                   }}
                 >
                   <Form method="post">
@@ -8358,7 +8681,7 @@ function SubscriptionsSection({
                           gridTemplateColumns: {
                             xs: "1fr",
                             sm: "repeat(2, minmax(0, 1fr))",
-                            xl: "150px 150px minmax(180px, 1fr) auto",
+                            xl: "150px 160px minmax(220px, 1fr) auto",
                           },
                           alignItems: "center",
                         }}
@@ -8400,8 +8723,9 @@ function SubscriptionsSection({
                           type="submit"
                           variant="contained"
                           sx={{
-                            minHeight: 44,
-                            minWidth: { xl: 96 },
+                            height: 44,
+                            minWidth: { xl: 104 },
+                            justifySelf: { xs: "stretch", xl: "end" },
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -8466,7 +8790,7 @@ function SubscriptionsSection({
                             gap: 1,
                             gridTemplateColumns: {
                               xs: "1fr",
-                              md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                              md: "minmax(220px, 1fr) minmax(220px, 1fr) max-content",
                             },
                             alignItems: "center",
                           }}
@@ -8490,12 +8814,13 @@ function SubscriptionsSection({
                             variant="outlined"
                             startIcon={<CreditCardRounded />}
                             sx={{
-                              minHeight: 44,
-                              minWidth: { md: 176 },
+                              height: 44,
+                              minWidth: { md: 148 },
+                              justifySelf: { xs: "stretch", md: "end" },
                               whiteSpace: "nowrap",
                             }}
                           >
-                            Create auth link
+                            Create auth
                           </Button>
                         </Box>
                       </Form>
@@ -8516,7 +8841,7 @@ function SubscriptionsSection({
                             gap: 1,
                             gridTemplateColumns: {
                               xs: "1fr",
-                              md: "minmax(0, 1fr) minmax(0, 1fr) auto",
+                              md: "minmax(220px, 1fr) minmax(220px, 1fr) max-content",
                             },
                             alignItems: "center",
                           }}
@@ -8541,8 +8866,9 @@ function SubscriptionsSection({
                             color="success"
                             startIcon={<CheckCircleRounded />}
                             sx={{
-                              minHeight: 44,
-                              minWidth: { md: 160 },
+                              height: 44,
+                              minWidth: { md: 136 },
+                              justifySelf: { xs: "stretch", md: "end" },
                               whiteSpace: "nowrap",
                             }}
                           >
@@ -8644,8 +8970,9 @@ function SubscriptionsSection({
                               variant="outlined"
                               color="success"
                               sx={{
-                                minHeight: 44,
+                                height: 44,
                                 minWidth: { sm: 130 },
+                                justifySelf: { xs: "stretch", sm: "end" },
                                 whiteSpace: "nowrap",
                               }}
                             >
@@ -8687,8 +9014,9 @@ function SubscriptionsSection({
                               variant="outlined"
                               color="warning"
                               sx={{
-                                minHeight: 44,
+                                height: 44,
                                 minWidth: { sm: 130 },
+                                justifySelf: { xs: "stretch", sm: "end" },
                                 whiteSpace: "nowrap",
                               }}
                             >
@@ -8718,7 +9046,6 @@ function SubscriptionsSection({
                             gridTemplateColumns: {
                               xs: "1fr",
                               md: "repeat(2, minmax(0, 1fr))",
-                              xl: "repeat(4, minmax(0, 1fr))",
                             },
                           }}
                         >
@@ -8753,7 +9080,7 @@ function SubscriptionsSection({
                           sx={{
                             mt: 1,
                             alignSelf: "flex-start",
-                            minHeight: 44,
+                            height: 44,
                             whiteSpace: "nowrap",
                           }}
                         >
@@ -8856,23 +9183,25 @@ function SubscriptionPlanSummaryCard({
   return (
     <Panel
       sx={{
-        p: { xs: 2, md: 2.5 },
-        minHeight: 360,
-        borderColor: alpha(row.visual.tone, 0.18),
+        p: { xs: 1.75, md: 2 },
+        borderColor: alpha(row.visual.tone, row.plan.isActive ? 0.2 : 0.16),
         backgroundImage: `
-          radial-gradient(circle at 92% 4%, ${alpha(row.visual.tone, 0.2)}, transparent 36%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          radial-gradient(circle at 96% 0%, ${alpha(row.visual.tone, row.plan.isActive ? 0.16 : 0.08)}, transparent 32%),
+          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.66)})
         `,
       }}
     >
-      <Stack spacing={2} sx={{ height: "100%" }}>
+      <Stack spacing={1.5}>
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1}
-          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
+          sx={{
+            alignItems: { xs: "flex-start", sm: "flex-start" },
+            justifyContent: "space-between",
+          }}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5">{row.plan.name}</Typography>
+            <Typography variant="h6">{row.plan.name}</Typography>
             <Typography
               variant="body2"
               sx={{ mt: 0.4, color: "text.secondary" }}
@@ -8882,77 +9211,109 @@ function SubscriptionPlanSummaryCard({
           </Box>
           <Chip
             size="small"
-            label={row.plan.isActive ? row.plan.code : "Archived"}
+            label={
+              row.plan.isActive ? row.plan.code : `${row.plan.code} archived`
+            }
             sx={{
               textTransform: "capitalize",
               bgcolor: alpha(row.visual.tone, 0.12),
               color: row.visual.tone,
               fontWeight: 900,
+              maxWidth: "100%",
             }}
           />
         </Stack>
 
         <Box
           sx={{
-            p: 1.5,
-            border: "1px solid",
-            borderColor: alpha(row.visual.tone, 0.16),
-            borderRadius: 1.5,
-            bgcolor: alpha(tokens.white, 0.74),
+            display: "grid",
+            gap: 1,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "1.1fr 0.85fr 0.95fr",
+            },
           }}
         >
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
-            sx={{ justifyContent: "space-between", alignItems: { sm: "end" } }}
+          <Box
+            sx={{
+              p: 1.35,
+              border: "1px solid",
+              borderColor: alpha(row.visual.tone, 0.16),
+              borderRadius: 1.5,
+              bgcolor: alpha(tokens.white, 0.78),
+            }}
           >
-            <Box>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Package fee
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Package fee
+            </Typography>
+            <Typography variant="h5" sx={{ lineHeight: 1.08 }}>
+              {monthlyFee}
+            </Typography>
+            {row.plan.monthlyFeeMinor > 0 ? (
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                per month
               </Typography>
-              <Typography variant="h4" sx={{ lineHeight: 1 }}>
-                {monthlyFee}
-              </Typography>
-              {row.plan.monthlyFeeMinor > 0 ? (
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  per month
-                </Typography>
-              ) : null}
-            </Box>
-            <Box sx={{ textAlign: { xs: "left", sm: "right" } }}>
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                Commission
-              </Typography>
-              <Typography sx={{ fontWeight: 950, fontSize: 26 }}>
-                {commissionRate}
-              </Typography>
-            </Box>
-          </Stack>
+            ) : null}
+          </Box>
+          <PlanStatTile
+            label="Commission"
+            value={commissionRate}
+            tone={row.visual.tone}
+          />
+          <PlanStatTile
+            label="Base MRR"
+            value={formatGHS(row.estimatedMrrMinor)}
+            tone={row.visual.tone}
+          />
         </Box>
 
         <Box
           sx={{
             display: "grid",
             gap: 1,
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              lg: "repeat(4, minmax(0, 1fr))",
+            },
           }}
         >
-          <PlanStatTile label="Design limit" value={planDesignLimitLabel(row.plan)} />
+          <PlanStatTile
+            label="Design limit"
+            value={planDesignLimitLabel(row.plan)}
+            tone={row.visual.tone}
+          />
           <PlanStatTile
             label="Businesses"
-            value={`${row.activeTotal}/${row.businessTotal}`}
-            helper="active / total"
+            value={`${row.activeTotal} active / ${row.businessTotal} total`}
+            tone={row.visual.tone}
           />
-          <PlanStatTile label="Base MRR" value={formatGHS(row.estimatedMrrMinor)} />
-          <PlanStatTile label="GMV" value={formatGHS(row.gmvMinor)} />
-        </Box>
-
-        <Box sx={{ mt: "auto" }}>
-          <Divider sx={{ mb: 1.25 }} />
-          <DetailLine
+          <PlanStatTile
+            label="GMV"
+            value={formatGHS(row.gmvMinor)}
+            tone={row.visual.tone}
+          />
+          <PlanStatTile
             label="Commission earned"
             value={formatGHS(row.commissionMinor)}
+            tone={row.visual.tone}
           />
+        </Box>
+
+        <Box
+          sx={{
+            p: 1.2,
+            border: "1px solid",
+            borderColor: alpha(row.visual.tone, 0.12),
+            borderRadius: 1.5,
+            bgcolor: alpha(row.visual.tone, 0.055),
+          }}
+        >
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {row.businessTotal
+              ? `${row.businessTotal} businesses are currently mapped to this package.`
+              : "No businesses are currently mapped to this package."}
+          </Typography>
         </Box>
       </Stack>
     </Panel>
@@ -8963,10 +9324,12 @@ function PlanStatTile({
   label,
   value,
   helper,
+  tone = tokens.ink,
 }: {
   label: string;
   value: string;
   helper?: string;
+  tone?: string;
 }) {
   return (
     <Box
@@ -8974,7 +9337,7 @@ function PlanStatTile({
         p: 1.15,
         borderRadius: 1.25,
         border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.08),
+        borderColor: alpha(tone, 0.12),
         bgcolor: alpha(tokens.white, 0.68),
         minWidth: 0,
       }}
@@ -9595,7 +9958,10 @@ function AdminPromotionDetailForm({
           gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
         }}
       >
-        <DetailLine label="Discount" value={promotionDiscountLabel(promotion)} />
+        <DetailLine
+          label="Discount"
+          value={promotionDiscountLabel(promotion)}
+        />
         <DetailLine
           label="Cap"
           value={
@@ -12002,14 +12368,8 @@ function ReferralsSection({
                   gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
                 }}
               >
-                <StyledDateTimeField
-                  label="Starts"
-                  name="starts_at"
-                />
-                <StyledDateTimeField
-                  label="Ends"
-                  name="ends_at"
-                />
+                <StyledDateTimeField label="Starts" name="starts_at" />
+                <StyledDateTimeField label="Ends" name="ends_at" />
               </Box>
               <TextField label="Notes" name="notes" multiline minRows={2} />
             </Stack>
@@ -13314,11 +13674,7 @@ function AdminUsersSection({
   );
 }
 
-function AdminOperatorCreateForm({
-  roles,
-}: {
-  roles: AdminRoleDefinition[];
-}) {
+function AdminOperatorCreateForm({ roles }: { roles: AdminRoleDefinition[] }) {
   return (
     <Form method="post">
       <input type="hidden" name="intent" value="admin-user:create" />
@@ -14436,7 +14792,10 @@ function AdminRail({
                 border: "1px solid",
                 borderColor: alpha(roleTone(adminRole as AdminRole), 0.5),
                 "& .MuiChip-label": { px: 1 },
-                "& .MuiChip-icon": { fontSize: 15, color: alpha(tokens.white, 0.85) },
+                "& .MuiChip-icon": {
+                  fontSize: 15,
+                  color: alpha(tokens.white, 0.85),
+                },
               }}
             />
             <Chip

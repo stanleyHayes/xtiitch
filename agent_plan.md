@@ -240,6 +240,8 @@ Uncommitted worker notification-transport continuation: added a live HTTP notifi
 
 Uncommitted UI control polish: standardized button and input radii across `apps/admin`, `apps/dashboard`, `apps/storefront`, and `apps/marketing` (pill buttons at `999px`, controls at `16px`) and added `control`/`button` tokens to `@xtiitch/design-tokens`. Added a shared `StyledDateTimeField` pattern to `apps/admin` and `apps/dashboard` for date/time form entry with local `dd/mm/yyyy` + `HH:mm` inputs. Removed unused `Dialog`/`DialogContent`/`DialogTitle` imports from `apps/admin` introduced during the polish pass. Updated `docs/design/style-guide.md` to document the radius rules. Verified with `pnpm check`, `pnpm test`, production builds for admin/dashboard/storefront/marketing, `go test ./internal/... && go vet ./... && go build ./...` from `apps/api`, and `git diff --check`.
 
+Uncommitted dashboard team-list redesign: redesigned the single team member row in `apps/dashboard` `/dashboard/team` to a compact horizontal layout with a circular avatar, inline role/status/"You" chips, right-aligned join date, and a small pill "View" button. Also refined the shared `StyledDateTimeField` in `apps/admin` and `apps/dashboard` to use dropdown selects for month/day/year/hour/minute/period. Verified with `pnpm check`, `pnpm test`, production builds for admin/dashboard, and `git diff --check`.
+
 How to run + verify (dev):
 
 - Demo Postgres runs in docker container `xtiitch-demo-pg` on `localhost:5450` (db/owner `xtiitch`/`xtiitch`, app role `xtiitch_app`). Migrations `000001`–`000037` are applied locally.
