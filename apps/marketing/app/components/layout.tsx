@@ -15,6 +15,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
@@ -26,6 +27,7 @@ import PrivacyTipRoundedIcon from "@mui/icons-material/PrivacyTipRounded";
 import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import { navLinks, site } from "../content";
 
 export function Logo({
@@ -322,6 +324,7 @@ const footerGroups: {
     icon: <StorefrontRoundedIcon />,
     links: [
       { label: "Features", href: "/features", icon: <Inventory2RoundedIcon /> },
+      { label: "Growth", href: "/growth", icon: <TrendingUpRoundedIcon /> },
       {
         label: "How it works",
         href: "/how-it-works",
@@ -371,6 +374,7 @@ const footerGroups: {
 
 const footerProof: { label: string; icon: ReactNode }[] = [
   { label: "Branded storefront", icon: <StorefrontRoundedIcon /> },
+  { label: "Growth programmes", icon: <CampaignRoundedIcon /> },
   { label: "Paystack payments", icon: <PaymentsRoundedIcon /> },
   { label: "Order tracking", icon: <TimelineRoundedIcon /> },
 ];

@@ -18,6 +18,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CircleIcon from "@mui/icons-material/Circle";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
@@ -41,6 +42,7 @@ const pageHeroIcons: Record<string, SvgIconComponent> = {
   FAQ: HelpRoundedIcon,
   Features: Inventory2RoundedIcon,
   "For customers": GroupsRoundedIcon,
+  Growth: TrendingUpRoundedIcon,
   "How it works": ChecklistRoundedIcon,
   "Payment policy": PaymentsRoundedIcon,
   Pricing: PaymentsRoundedIcon,
