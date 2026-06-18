@@ -69,6 +69,7 @@ type AdminBusinessRepository interface {
 	CreateAdminReferralProgramme(ctx context.Context, input CreateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
 	UpdateAdminReferralProgramme(ctx context.Context, input UpdateAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
 	ArchiveAdminReferralProgramme(ctx context.Context, input ArchiveAdminReferralProgrammeInput) (AdminReferralProgrammeRecord, error)
+	CreateAdminReferralCode(ctx context.Context, input CreateAdminReferralCodeInput) (AdminReferralCodeRecord, error)
 	IssueAdminReferralRewards(ctx context.Context, input IssueAdminReferralRewardsInput) (AdminReferralRewardIssueRecord, error)
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
@@ -792,8 +793,28 @@ type AdminReferralProgrammeRecord struct {
 	StartsAt                *time.Time
 	EndsAt                  *time.Time
 	Notes                   string
+	RecentCodes             []AdminReferralCodeRecord
 	CreatedAt               time.Time
 	UpdatedAt               time.Time
+}
+
+type AdminReferralCodeRecord struct {
+	ReferralCodeID  common.ID
+	ProgrammeID     common.ID
+	BusinessID      *common.ID
+	BusinessName    string
+	BusinessHandle  string
+	OwnerType       string
+	OwnerBusinessID *common.ID
+	OwnerCustomerID *common.ID
+	OwnerLabel      string
+	Code            string
+	Status          string
+	ReferralCount   int
+	QualifiedCount  int
+	RewardedCount   int
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
 
 type CreateAdminReferralProgrammeInput struct {
@@ -836,6 +857,16 @@ type UpdateAdminReferralProgrammeInput struct {
 
 type ArchiveAdminReferralProgrammeInput struct {
 	ProgrammeID    common.ID
+	ActorAdminUser common.ID
+}
+
+type CreateAdminReferralCodeInput struct {
+	ReferralCodeID common.ID
+	ProgrammeID    common.ID
+	BusinessID     *common.ID
+	OwnerType      string
+	Code           string
+	Status         string
 	ActorAdminUser common.ID
 }
 

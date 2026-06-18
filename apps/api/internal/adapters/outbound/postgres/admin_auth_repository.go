@@ -3603,6 +3603,14 @@ func (repo AdminAuthRepository) ListAdminReferralProgrammes(ctx context.Context)
 		return nil, err
 	}
 
+	codesByProgramme, err := listAdminReferralCodes(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		records[index].RecentCodes = codesByProgramme[records[index].ProgrammeID]
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -3691,6 +3699,12 @@ func (repo AdminAuthRepository) CreateAdminReferralProgramme(
 		return ports.AdminReferralProgrammeRecord{}, err
 	}
 
+	codesByProgramme, err := listAdminReferralCodesForProgramme(ctx, tx, record.ProgrammeID)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	record.RecentCodes = codesByProgramme[record.ProgrammeID]
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminReferralProgrammeRecord{}, err
 	}
@@ -3763,6 +3777,12 @@ func (repo AdminAuthRepository) UpdateAdminReferralProgramme(
 		return ports.AdminReferralProgrammeRecord{}, err
 	}
 
+	codesByProgramme, err := listAdminReferralCodesForProgramme(ctx, tx, record.ProgrammeID)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	record.RecentCodes = codesByProgramme[record.ProgrammeID]
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminReferralProgrammeRecord{}, err
 	}
@@ -3802,8 +3822,103 @@ func (repo AdminAuthRepository) ArchiveAdminReferralProgramme(
 		return ports.AdminReferralProgrammeRecord{}, err
 	}
 
+	codesByProgramme, err := listAdminReferralCodesForProgramme(ctx, tx, record.ProgrammeID)
+	if err != nil {
+		return ports.AdminReferralProgrammeRecord{}, err
+	}
+	record.RecentCodes = codesByProgramme[record.ProgrammeID]
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminReferralCode(
+	ctx context.Context,
+	input ports.CreateAdminReferralCodeInput,
+) (ports.AdminReferralCodeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+
+	record, err := scanAdminReferralCodeRecord(tx.QueryRow(ctx, `
+		with programme as (
+			select referral_programme_id
+			from referral_programmes
+			where referral_programme_id = $2::uuid
+				and status = 'active'
+		),
+		owner_context as (
+			select
+				null::uuid as business_id
+			where $3 = 'platform'
+			union all
+			select
+				b.business_id
+			from businesses b
+			where $3 = 'business'
+				and b.business_id = $4::uuid
+				and b.verification_status = 'verified'
+				and b.operational_status = 'active'
+		),
+		inserted as (
+			insert into referral_codes (
+				referral_code_id,
+				referral_programme_id,
+				business_id,
+				owner_type,
+				owner_business_id,
+				code,
+				status,
+				metadata
+			)
+			select
+				$1::uuid,
+				programme.referral_programme_id,
+				owner_context.business_id,
+				$3,
+				case when $3 = 'business' then owner_context.business_id else null end,
+				$5,
+				$6,
+				jsonb_build_object(
+					'source',
+					'admin_issue',
+					'issued_by_admin_user_id',
+					$7::text
+				)
+			from programme
+			cross join owner_context
+			returning *
+		)
+		`+adminReferralCodeSelect("inserted")+`
+	`, input.ReferralCodeID.String(),
+		input.ProgrammeID.String(),
+		input.OwnerType,
+		nullableIDArg(input.BusinessID),
+		input.Code,
+		input.Status,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if referralCodeTaken(err) {
+			return ports.AdminReferralCodeRecord{}, authdomain.ErrInvalidInput
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminReferralCodeRecord{}, ErrNotFound
+		}
+		return ports.AdminReferralCodeRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminReferralCodeRecord{}, err
 	}
 
 	return record, nil
@@ -5068,6 +5183,96 @@ func scanAdminReferralProgrammeRecord(row pgx.Row) (ports.AdminReferralProgramme
 	return record, nil
 }
 
+func scanAdminReferralCodeRecord(row pgx.Row) (ports.AdminReferralCodeRecord, error) {
+	var record ports.AdminReferralCodeRecord
+	var businessID pgtype.Text
+	var ownerBusinessID pgtype.Text
+	var ownerCustomerID pgtype.Text
+	if err := row.Scan(
+		&record.ReferralCodeID,
+		&record.ProgrammeID,
+		&businessID,
+		&record.BusinessName,
+		&record.BusinessHandle,
+		&record.OwnerType,
+		&ownerBusinessID,
+		&ownerCustomerID,
+		&record.OwnerLabel,
+		&record.Code,
+		&record.Status,
+		&record.ReferralCount,
+		&record.QualifiedCount,
+		&record.RewardedCount,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+	record.BusinessID = commonIDPtr(businessID)
+	record.OwnerBusinessID = commonIDPtr(ownerBusinessID)
+	record.OwnerCustomerID = commonIDPtr(ownerCustomerID)
+	return record, nil
+}
+
+func listAdminReferralCodes(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminReferralCodeRecord, error) {
+	rows, err := tx.Query(ctx, `
+		with ranked as (
+			select
+				referral_codes.*,
+				row_number() over (
+					partition by referral_programme_id
+					order by updated_at desc, created_at desc
+				) as rank
+			from referral_codes
+		)
+		`+adminReferralCodeSelect("ranked")+`
+		where rc.rank <= 5
+		order by rc.referral_programme_id, rc.updated_at desc, rc.created_at desc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanAdminReferralCodeRows(rows)
+}
+
+func listAdminReferralCodesForProgramme(
+	ctx context.Context,
+	tx pgx.Tx,
+	programmeID common.ID,
+) (map[common.ID][]ports.AdminReferralCodeRecord, error) {
+	rows, err := tx.Query(ctx, adminReferralCodeSelect("referral_codes")+`
+		where rc.referral_programme_id = $1::uuid
+		order by rc.updated_at desc, rc.created_at desc
+		limit 5
+	`, programmeID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return scanAdminReferralCodeRows(rows)
+}
+
+func scanAdminReferralCodeRows(rows pgx.Rows) (map[common.ID][]ports.AdminReferralCodeRecord, error) {
+	out := map[common.ID][]ports.AdminReferralCodeRecord{}
+	for rows.Next() {
+		record, err := scanAdminReferralCodeRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[record.ProgrammeID] = append(out[record.ProgrammeID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func listAdminPromotionRedemptions(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -5739,6 +5944,45 @@ func adminReferralProgrammeSelect(source string) string {
 	`
 }
 
+func adminReferralCodeSelect(source string) string {
+	return `
+		select
+			rc.referral_code_id::text,
+			rc.referral_programme_id::text,
+			rc.business_id::text,
+			coalesce(b.name, '') as business_name,
+			coalesce(b.handle, '') as business_handle,
+			rc.owner_type,
+			rc.owner_business_id::text,
+			rc.owner_customer_id::text,
+			case
+				when rc.owner_type = 'business' then coalesce(owner_business.name, 'Business referral')
+				when rc.owner_type = 'customer' then coalesce(c.display_name, c.email, 'Customer referral')
+				else 'Platform'
+			end as owner_label,
+			rc.code,
+			rc.status,
+			coalesce(stats.referral_count, 0)::int,
+			coalesce(stats.qualified_count, 0)::int,
+			coalesce(stats.rewarded_count, 0)::int,
+			rc.created_at,
+			rc.updated_at
+		from ` + source + ` rc
+		left join businesses b on b.business_id = rc.business_id
+		left join businesses owner_business on owner_business.business_id = rc.owner_business_id
+		left join customers c on c.customer_id = rc.owner_customer_id
+		left join (
+			select
+				referral_code_id,
+				count(*)::int as referral_count,
+				count(*) filter (where status in ('qualified', 'rewarded'))::int as qualified_count,
+				count(*) filter (where status = 'rewarded')::int as rewarded_count
+			from referrals
+			group by referral_code_id
+		) stats on stats.referral_code_id = rc.referral_code_id
+	`
+}
+
 func queryAdminMoneyPayoutReview(
 	ctx context.Context,
 	tx pgx.Tx,
@@ -6268,6 +6512,11 @@ func affiliateCodeTaken(err error) bool {
 func referralProgrammeCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "referral_programmes_code_prefix_unique_idx"
+}
+
+func referralCodeTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "referral_codes_code_unique_idx"
 }
 
 func isOpenAdCampaignPayment(err error) bool {

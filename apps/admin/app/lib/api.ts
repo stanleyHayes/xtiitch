@@ -400,6 +400,27 @@ export type AdminReferralProgrammeStatus =
   | "active"
   | "paused"
   | "archived";
+export type AdminReferralCodeOwnerType = "platform" | "business" | "customer";
+export type AdminReferralCodeStatus = "active" | "paused" | "archived";
+
+export type AdminReferralCode = {
+  referralCodeId: string;
+  programmeId: string;
+  businessId?: string;
+  businessName: string;
+  businessHandle: string;
+  ownerType: AdminReferralCodeOwnerType;
+  ownerBusinessId?: string;
+  ownerCustomerId?: string;
+  ownerLabel: string;
+  code: string;
+  status: AdminReferralCodeStatus;
+  referralCount: number;
+  qualifiedCount: number;
+  rewardedCount: number;
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type AdminReferralProgramme = {
   programmeId: string;
@@ -417,6 +438,7 @@ export type AdminReferralProgramme = {
   startsAt?: string;
   endsAt?: string;
   notes: string;
+  codes: AdminReferralCode[];
   createdAt: string;
   updatedAt: string;
 };
@@ -889,6 +911,26 @@ type AdminReferralProgrammePayload = {
   starts_at?: string;
   ends_at?: string;
   notes: string;
+  codes?: AdminReferralCodePayload[];
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminReferralCodePayload = {
+  referral_code_id: string;
+  programme_id: string;
+  business_id?: string;
+  business_name: string;
+  business_handle: string;
+  owner_type: AdminReferralCodeOwnerType;
+  owner_business_id?: string;
+  owner_customer_id?: string;
+  owner_label: string;
+  code: string;
+  status: AdminReferralCodeStatus;
+  referral_count: number;
+  qualified_count: number;
+  rewarded_count: number;
   created_at: string;
   updated_at: string;
 };
@@ -1441,6 +1483,28 @@ function mapReferralProgramme(
     startsAt: payload.starts_at,
     endsAt: payload.ends_at,
     notes: payload.notes,
+    codes: (payload.codes ?? []).map(mapReferralCode),
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapReferralCode(payload: AdminReferralCodePayload): AdminReferralCode {
+  return {
+    referralCodeId: payload.referral_code_id,
+    programmeId: payload.programme_id,
+    businessId: payload.business_id,
+    businessName: payload.business_name,
+    businessHandle: payload.business_handle,
+    ownerType: payload.owner_type,
+    ownerBusinessId: payload.owner_business_id,
+    ownerCustomerId: payload.owner_customer_id,
+    ownerLabel: payload.owner_label,
+    code: payload.code,
+    status: payload.status,
+    referralCount: payload.referral_count,
+    qualifiedCount: payload.qualified_count,
+    rewardedCount: payload.rewarded_count,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -2325,6 +2389,29 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapReferralProgramme),
+  createReferralCode: (
+    accessToken: string,
+    programmeId: string,
+    input: {
+      businessId?: string;
+      ownerType: Exclude<AdminReferralCodeOwnerType, "customer">;
+      code: string;
+      status: Exclude<AdminReferralCodeStatus, "archived">;
+    },
+  ) =>
+    requestJSON<AdminReferralCodePayload>(
+      `/admin/referral-programmes/${encodeURIComponent(programmeId)}/codes`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          business_id: input.businessId,
+          owner_type: input.ownerType,
+          code: input.code,
+          status: input.status,
+        }),
+      },
+    ).then(mapReferralCode),
   queueMoneyReplay: (
     accessToken: string,
     input: { providerReference: string; reason: string },

@@ -42,6 +42,11 @@ const (
 	itAdminRefRewardReferral  = "ffffffff-5555-5555-5555-555555555551"
 	itAdminRefRewardAdmin     = "77777777-7777-7777-7777-777777777773"
 
+	itAdminRefCodeBiz       = "66666666-3333-3333-3333-333333333331"
+	itAdminRefCodeProgramme = "dddddddd-3333-3333-3333-333333333331"
+	itAdminRefCode          = "eeeeeeee-3333-3333-3333-333333333331"
+	itAdminRefCodeAdmin     = "77777777-3333-3333-3333-333333333331"
+
 	itAdminAdPayBiz      = "66666666-4444-4444-4444-444444444441"
 	itAdminAdPayAdmin    = "77777777-4444-4444-4444-444444444441"
 	itAdminAdPayCampaign = "88888888-4444-4444-4444-444444444441"
@@ -437,6 +442,74 @@ func TestIssueAdminReferralRewardsCreatesVoucherRewardsOnce(t *testing.T) {
 	}
 }
 
+func TestCreateAdminReferralCodeReturnsRecentProgrammeCode(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminReferralCodeFixture(t, pool)
+	defer cleanupAdminReferralCodeFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+	businessID := common.ID(itAdminRefCodeBiz)
+
+	code, err := repo.CreateAdminReferralCode(ctx, ports.CreateAdminReferralCodeInput{
+		ReferralCodeID: common.ID(itAdminRefCode),
+		ProgrammeID:    common.ID(itAdminRefCodeProgramme),
+		BusinessID:     &businessID,
+		OwnerType:      "business",
+		Code:           "ITCODEAMA",
+		Status:         "active",
+		ActorAdminUser: common.ID(itAdminRefCodeAdmin),
+	})
+	if err != nil {
+		t.Fatalf("create referral code: %v", err)
+	}
+	if code.BusinessID == nil ||
+		*code.BusinessID != businessID ||
+		code.OwnerBusinessID == nil ||
+		*code.OwnerBusinessID != businessID ||
+		code.OwnerLabel != "IT Referral Code Shop" ||
+		code.BusinessName != "IT Referral Code Shop" ||
+		code.BusinessHandle != "it-referral-code-shop" ||
+		code.Code != "ITCODEAMA" ||
+		code.Status != "active" {
+		t.Fatalf("unexpected referral code record: %+v", code)
+	}
+
+	programmes, err := repo.ListAdminReferralProgrammes(ctx)
+	if err != nil {
+		t.Fatalf("list referral programmes: %v", err)
+	}
+	var found ports.AdminReferralProgrammeRecord
+	for _, programme := range programmes {
+		if programme.ProgrammeID == common.ID(itAdminRefCodeProgramme) {
+			found = programme
+			break
+		}
+	}
+	if found.ProgrammeID.IsZero() {
+		t.Fatal("expected seeded referral programme in admin list")
+	}
+	if len(found.RecentCodes) != 1 ||
+		found.RecentCodes[0].ReferralCodeID != common.ID(itAdminRefCode) ||
+		found.RecentCodes[0].OwnerLabel != "IT Referral Code Shop" {
+		t.Fatalf("expected recent issued code on programme, got %+v", found.RecentCodes)
+	}
+
+	_, err = repo.CreateAdminReferralCode(ctx, ports.CreateAdminReferralCodeInput{
+		ReferralCodeID: "eeeeeeee-3333-3333-3333-333333333332",
+		ProgrammeID:    common.ID(itAdminRefCodeProgramme),
+		BusinessID:     &businessID,
+		OwnerType:      "business",
+		Code:           "ITCODEAMA",
+		Status:         "active",
+		ActorAdminUser: common.ID(itAdminRefCodeAdmin),
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected duplicate code to be invalid, got %v", err)
+	}
+}
+
 func seedAdminSubscriptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAdminSubscriptionFixture(t, pool)
@@ -670,6 +743,39 @@ func seedAdminReferralRewardFixture(t *testing.T, pool *pgxpool.Pool) {
 	})
 }
 
+func seedAdminReferralCodeFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	cleanupAdminReferralCodeFixture(t, pool)
+
+	var planID string
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+		t.Fatalf("probe standard plan: %v", err)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into businesses (business_id, plan_id, name, handle, verification_status, operational_status)
+			values ($1, $2, 'IT Referral Code Shop', 'it-referral-code-shop', 'verified', 'active')
+		`, itAdminRefCodeBiz, planID)
+		mustExec(t, tx, `
+			insert into referral_programmes (
+				referral_programme_id,
+				title,
+				code_prefix,
+				audience,
+				referrer_reward_kind,
+				referee_reward_kind,
+				reward_type,
+				reward_value,
+				qualifying_order_min_minor,
+				reward_hold_days,
+				status
+			)
+			values ($1, 'IT Code Programme', 'ITCODE', 'businesses', 'commission_rebate', 'none', 'fixed', 2500, 10000, 14, 'active')
+		`, itAdminRefCodeProgramme)
+	})
+}
+
 func seedAdminAdCampaignPaymentFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	cleanupAdminAdCampaignPaymentFixture(t, pool)
@@ -753,6 +859,14 @@ func cleanupAdminReferralRewardFixture(t *testing.T, pool *pgxpool.Pool) {
 		mustExec(t, tx, `delete from customers where customer_id = any($1)`,
 			[]string{itAdminRefRewardReferrer, itAdminRefRewardReferee})
 		mustExec(t, tx, `delete from admin_users where admin_user_id = $1`, itAdminRefRewardAdmin)
+	})
+}
+
+func cleanupAdminReferralCodeFixture(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `delete from referral_programmes where referral_programme_id = $1`, itAdminRefCodeProgramme)
+		mustExec(t, tx, `delete from businesses where business_id = $1`, itAdminRefCodeBiz)
 	})
 }
 

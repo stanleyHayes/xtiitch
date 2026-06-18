@@ -482,6 +482,18 @@ type ArchiveReferralProgrammeCommand struct {
 	IPAddress   string
 }
 
+type CreateReferralCodeCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	ProgrammeID common.ID
+	BusinessID  *common.ID
+	OwnerType   string
+	Code        string
+	Status      string
+	UserAgent   string
+	IPAddress   string
+}
+
 type IssueReferralRewardsCommand struct {
 	ActorUserID common.ID
 	ActorRole   admindomain.Role
@@ -2204,6 +2216,58 @@ func (s Service) ArchiveReferralProgramme(
 		UserAgent:   cmd.UserAgent,
 	}); err != nil {
 		return ports.AdminReferralProgrammeRecord{}, err
+	}
+
+	return record, nil
+}
+
+func (s Service) CreateReferralCode(
+	ctx context.Context,
+	cmd CreateReferralCodeCommand,
+) (ports.AdminReferralCodeRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.ProgrammeID.IsZero() {
+		return ports.AdminReferralCodeRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageGrowth); err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminReferralCodeRecord{}, authdomain.ErrForbidden
+	}
+
+	input, err := normalizeCreateReferralCodeInput(cmd, s.ids.NewID())
+	if err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+
+	record, err := s.businesses.CreateAdminReferralCode(ctx, input)
+	if err != nil {
+		return ports.AdminReferralCodeRecord{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Issued referral code",
+		TargetType:  "referral_code",
+		TargetID:    record.ReferralCodeID.String(),
+		TargetLabel: record.Code,
+		Summary: "Issued " + record.OwnerType + " referral code " +
+			record.Code + " for " + fallbackString(record.OwnerLabel, "platform growth") + ".",
+		Severity: admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"referral_programme_id": record.ProgrammeID.String(),
+			"business_id":           optionalIDMetadata(record.BusinessID),
+			"owner_type":            record.OwnerType,
+			"owner_business_id":     optionalIDMetadata(record.OwnerBusinessID),
+			"owner_customer_id":     optionalIDMetadata(record.OwnerCustomerID),
+			"code":                  record.Code,
+			"status":                record.Status,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminReferralCodeRecord{}, err
 	}
 
 	return record, nil
@@ -4443,6 +4507,51 @@ func validReferralCodePrefix(value string) bool {
 	return validPromotionCode(value) && len(value) <= 24
 }
 
+func normalizeCreateReferralCodeInput(
+	cmd CreateReferralCodeCommand,
+	referralCodeID common.ID,
+) (ports.CreateAdminReferralCodeInput, error) {
+	ownerType := strings.TrimSpace(cmd.OwnerType)
+	if ownerType == "" {
+		ownerType = "platform"
+	}
+	if ownerType != "platform" && ownerType != "business" {
+		return ports.CreateAdminReferralCodeInput{}, authdomain.ErrInvalidInput
+	}
+
+	var businessID *common.ID
+	if ownerType == "business" {
+		if cmd.BusinessID == nil || cmd.BusinessID.IsZero() {
+			return ports.CreateAdminReferralCodeInput{}, authdomain.ErrInvalidInput
+		}
+		id := *cmd.BusinessID
+		businessID = &id
+	}
+
+	code := normalizePromotionCode(cmd.Code)
+	if !validReferralCode(code) {
+		return ports.CreateAdminReferralCodeInput{}, authdomain.ErrInvalidInput
+	}
+	status := normalizePromotionOption(cmd.Status, "active")
+	if status != "active" && status != "paused" {
+		return ports.CreateAdminReferralCodeInput{}, authdomain.ErrInvalidInput
+	}
+
+	return ports.CreateAdminReferralCodeInput{
+		ReferralCodeID: referralCodeID,
+		ProgrammeID:    cmd.ProgrammeID,
+		BusinessID:     businessID,
+		OwnerType:      ownerType,
+		Code:           code,
+		Status:         status,
+		ActorAdminUser: cmd.ActorUserID,
+	}, nil
+}
+
+func validReferralCode(value string) bool {
+	return len(value) >= 3 && len(value) <= 32 && validPromotionCode(value)
+}
+
 func referralProgrammeAuditSummary(record ports.AdminReferralProgrammeRecord) string {
 	return record.Title + " uses prefix " + record.CodePrefix +
 		" for " + record.Audience + "."
@@ -4510,6 +4619,13 @@ func fallbackString(value string, fallback string) string {
 		return fallback
 	}
 	return value
+}
+
+func optionalIDMetadata(value *common.ID) string {
+	if value == nil {
+		return ""
+	}
+	return value.String()
 }
 
 func permissionsString(permissions []admindomain.Permission) string {

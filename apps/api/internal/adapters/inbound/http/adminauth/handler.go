@@ -69,6 +69,7 @@ type Service interface {
 	CreateReferralProgramme(ctx context.Context, command adminauthapp.CreateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
 	UpdateReferralProgramme(ctx context.Context, command adminauthapp.UpdateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
 	ArchiveReferralProgramme(ctx context.Context, command adminauthapp.ArchiveReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
+	CreateReferralCode(ctx context.Context, command adminauthapp.CreateReferralCodeCommand) (ports.AdminReferralCodeRecord, error)
 	IssueReferralRewards(ctx context.Context, command adminauthapp.IssueReferralRewardsCommand) (ports.AdminReferralRewardIssueRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
@@ -139,6 +140,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/referral-programmes", handler.referralProgrammes)
 		protected.Post("/admin/referral-programmes", handler.createReferralProgramme)
 		protected.Patch("/admin/referral-programmes/{id}", handler.updateReferralProgramme)
+		protected.Post("/admin/referral-programmes/{id}/codes", handler.createReferralCode)
 		protected.Post("/admin/referral-programmes/{id}/archive", handler.archiveReferralProgramme)
 		protected.Post("/admin/referral-rewards/issue", handler.issueReferralRewards)
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
@@ -376,6 +378,13 @@ type referralProgrammeUpsertRequest struct {
 
 type referralProgrammeArchiveRequest struct {
 	Reason string `json:"reason"`
+}
+
+type referralCodeCreateRequest struct {
+	BusinessID string `json:"business_id"`
+	OwnerType  string `json:"owner_type"`
+	Code       string `json:"code"`
+	Status     string `json:"status"`
 }
 
 type referralRewardIssueRequest struct {
@@ -794,23 +803,43 @@ type referralRewardIssueResponse struct {
 }
 
 type referralProgrammeResponse struct {
-	ProgrammeID             string `json:"programme_id"`
-	Title                   string `json:"title"`
-	CodePrefix              string `json:"code_prefix"`
-	Audience                string `json:"audience"`
-	ReferrerRewardKind      string `json:"referrer_reward_kind"`
-	RefereeRewardKind       string `json:"referee_reward_kind"`
-	RewardType              string `json:"reward_type"`
-	RewardValue             int64  `json:"reward_value"`
-	MaxRewardMinor          *int64 `json:"max_reward_minor,omitempty"`
-	QualifyingOrderMinMinor int64  `json:"qualifying_order_min_minor"`
-	RewardHoldDays          int    `json:"reward_hold_days"`
-	Status                  string `json:"status"`
-	StartsAt                string `json:"starts_at,omitempty"`
-	EndsAt                  string `json:"ends_at,omitempty"`
-	Notes                   string `json:"notes"`
-	CreatedAt               string `json:"created_at"`
-	UpdatedAt               string `json:"updated_at"`
+	ProgrammeID             string                 `json:"programme_id"`
+	Title                   string                 `json:"title"`
+	CodePrefix              string                 `json:"code_prefix"`
+	Audience                string                 `json:"audience"`
+	ReferrerRewardKind      string                 `json:"referrer_reward_kind"`
+	RefereeRewardKind       string                 `json:"referee_reward_kind"`
+	RewardType              string                 `json:"reward_type"`
+	RewardValue             int64                  `json:"reward_value"`
+	MaxRewardMinor          *int64                 `json:"max_reward_minor,omitempty"`
+	QualifyingOrderMinMinor int64                  `json:"qualifying_order_min_minor"`
+	RewardHoldDays          int                    `json:"reward_hold_days"`
+	Status                  string                 `json:"status"`
+	StartsAt                string                 `json:"starts_at,omitempty"`
+	EndsAt                  string                 `json:"ends_at,omitempty"`
+	Notes                   string                 `json:"notes"`
+	Codes                   []referralCodeResponse `json:"codes"`
+	CreatedAt               string                 `json:"created_at"`
+	UpdatedAt               string                 `json:"updated_at"`
+}
+
+type referralCodeResponse struct {
+	ReferralCodeID  string `json:"referral_code_id"`
+	ProgrammeID     string `json:"programme_id"`
+	BusinessID      string `json:"business_id,omitempty"`
+	BusinessName    string `json:"business_name"`
+	BusinessHandle  string `json:"business_handle"`
+	OwnerType       string `json:"owner_type"`
+	OwnerBusinessID string `json:"owner_business_id,omitempty"`
+	OwnerCustomerID string `json:"owner_customer_id,omitempty"`
+	OwnerLabel      string `json:"owner_label"`
+	Code            string `json:"code"`
+	Status          string `json:"status"`
+	ReferralCount   int    `json:"referral_count"`
+	QualifiedCount  int    `json:"qualified_count"`
+	RewardedCount   int    `json:"rewarded_count"`
+	CreatedAt       string `json:"created_at"`
+	UpdatedAt       string `json:"updated_at"`
 }
 
 type subscriptionEventResponse struct {
@@ -2118,6 +2147,39 @@ func (handler Handler) updateReferralProgramme(w http.ResponseWriter, r *http.Re
 	}
 
 	writeJSON(w, http.StatusOK, newReferralProgrammeResponse(record))
+}
+
+func (handler Handler) createReferralCode(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request referralCodeCreateRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.CreateReferralCode(r.Context(), adminauthapp.CreateReferralCodeCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		ProgrammeID: common.ID(chi.URLParam(r, "id")),
+		BusinessID:  optionalCommonID(request.BusinessID),
+		OwnerType:   request.OwnerType,
+		Code:        request.Code,
+		Status:      request.Status,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newReferralCodeResponse(record))
 }
 
 func (handler Handler) archiveReferralProgramme(w http.ResponseWriter, r *http.Request) {
@@ -3510,6 +3572,37 @@ func newReferralProgrammeResponse(record ports.AdminReferralProgrammeRecord) ref
 	}
 	if record.EndsAt != nil {
 		response.EndsAt = record.EndsAt.Format(time.RFC3339)
+	}
+	for _, code := range record.RecentCodes {
+		response.Codes = append(response.Codes, newReferralCodeResponse(code))
+	}
+	return response
+}
+
+func newReferralCodeResponse(record ports.AdminReferralCodeRecord) referralCodeResponse {
+	response := referralCodeResponse{
+		ReferralCodeID: record.ReferralCodeID.String(),
+		ProgrammeID:    record.ProgrammeID.String(),
+		BusinessName:   record.BusinessName,
+		BusinessHandle: record.BusinessHandle,
+		OwnerType:      record.OwnerType,
+		OwnerLabel:     record.OwnerLabel,
+		Code:           record.Code,
+		Status:         record.Status,
+		ReferralCount:  record.ReferralCount,
+		QualifiedCount: record.QualifiedCount,
+		RewardedCount:  record.RewardedCount,
+		CreatedAt:      record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:      record.UpdatedAt.Format(time.RFC3339),
+	}
+	if record.BusinessID != nil {
+		response.BusinessID = record.BusinessID.String()
+	}
+	if record.OwnerBusinessID != nil {
+		response.OwnerBusinessID = record.OwnerBusinessID.String()
+	}
+	if record.OwnerCustomerID != nil {
+		response.OwnerCustomerID = record.OwnerCustomerID.String()
 	}
 	return response
 }

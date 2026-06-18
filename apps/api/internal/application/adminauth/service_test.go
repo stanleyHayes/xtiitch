@@ -1989,6 +1989,78 @@ func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestCreateReferralCodeRequiresGrowthPermissionAndAudits(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 18, 13, 0, 0, 0, time.UTC)
+	businessID := common.ID("business-1")
+	businesses := &fakeAdminBusinesses{}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"referral-code-1", "audit-code-1", "referral-code-invalid"},
+	)
+
+	record, err := service.CreateReferralCode(context.Background(), CreateReferralCodeCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		ProgrammeID: "programme-1",
+		BusinessID:  &businessID,
+		OwnerType:   " business ",
+		Code:        " ama-team ",
+		Status:      "paused",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("create referral code: %v", err)
+	}
+	if record.ReferralCodeID != "referral-code-1" ||
+		businesses.createdReferralCode.ProgrammeID != "programme-1" ||
+		businesses.createdReferralCode.BusinessID == nil ||
+		*businesses.createdReferralCode.BusinessID != businessID ||
+		businesses.createdReferralCode.OwnerType != "business" ||
+		businesses.createdReferralCode.Code != "AMA-TEAM" ||
+		businesses.createdReferralCode.Status != "paused" {
+		t.Fatalf("expected normalized referral code input, got input=%+v record=%+v", businesses.createdReferralCode, record)
+	}
+	if len(audits.created) != 1 {
+		t.Fatalf("expected one audit event, got %d", len(audits.created))
+	}
+	event := audits.created[0]
+	if event.Action != "Issued referral code" ||
+		event.Metadata["referral_programme_id"] != "programme-1" ||
+		event.Metadata["business_id"] != businessID.String() ||
+		event.Metadata["owner_business_id"] != businessID.String() ||
+		event.Metadata["code"] != "AMA-TEAM" ||
+		event.Metadata["status"] != "paused" {
+		t.Fatalf("unexpected referral code audit event: %+v", event)
+	}
+
+	_, err = service.CreateReferralCode(context.Background(), CreateReferralCodeCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		ProgrammeID: "programme-1",
+		Code:        "SUPPORT1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+
+	_, err = service.CreateReferralCode(context.Background(), CreateReferralCodeCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		ProgrammeID: "programme-1",
+		OwnerType:   "business",
+		Code:        "NO",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected invalid code input, got %v", err)
+	}
+}
+
 func TestIssueReferralRewardsRequiresGrowthPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -2580,6 +2652,7 @@ type fakeAdminBusinesses struct {
 	createdReferralProgramme   ports.CreateAdminReferralProgrammeInput
 	updatedReferralProgramme   ports.UpdateAdminReferralProgrammeInput
 	archivedReferralProgramme  ports.ArchiveAdminReferralProgrammeInput
+	createdReferralCode        ports.CreateAdminReferralCodeInput
 	issuedReferralRewards      ports.IssueAdminReferralRewardsInput
 	replay                     ports.QueueAdminMoneyReplayInput
 	hold                       ports.SetAdminSettlementReviewHoldInput
@@ -3359,6 +3432,31 @@ func (repo *fakeAdminBusinesses) ArchiveAdminReferralProgramme(
 		"LAUNCH",
 		"archived",
 	), nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminReferralCode(
+	_ context.Context,
+	input ports.CreateAdminReferralCodeInput,
+) (ports.AdminReferralCodeRecord, error) {
+	repo.createdReferralCode = input
+	record := ports.AdminReferralCodeRecord{
+		ReferralCodeID: input.ReferralCodeID,
+		ProgrammeID:    input.ProgrammeID,
+		BusinessID:     input.BusinessID,
+		OwnerType:      input.OwnerType,
+		Code:           input.Code,
+		Status:         input.Status,
+		OwnerLabel:     "Platform",
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
+	}
+	if input.BusinessID != nil {
+		record.OwnerBusinessID = input.BusinessID
+		record.BusinessName = "Ama Stitches"
+		record.BusinessHandle = "ama-stitches"
+		record.OwnerLabel = "Ama Stitches"
+	}
+	return record, nil
 }
 
 func (repo *fakeAdminBusinesses) IssueAdminReferralRewards(

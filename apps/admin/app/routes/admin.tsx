@@ -91,6 +91,8 @@ import {
   type AdminPromotionStatus,
   type AdminProfileSettings,
   type AdminReferralAudience,
+  type AdminReferralCodeOwnerType,
+  type AdminReferralCodeStatus,
   type AdminReferralProgramme,
   type AdminReferralProgrammeStatus,
   type AdminReferralRefereeRewardKind,
@@ -1317,6 +1319,34 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-referral-code:create") {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      await adminApi.createReferralCode(
+        accessToken,
+        String(form.get("programme_id") ?? ""),
+        {
+          businessId: String(form.get("business_id") ?? "") || undefined,
+          ownerType: readReferralCodeOwnerType(form.get("owner_type")),
+          code: String(form.get("code") ?? ""),
+          status: readReferralCodeStatus(form.get("status")),
+        },
+      );
+      return {
+        section: "referrals",
+        severity: "success",
+        message: "Referral code issued.",
+      };
+    } catch (error) {
+      return {
+        section: "referrals",
+        severity: "error",
+        message: adminReferralProgrammeActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-referral-programme:create" ||
     intent === "admin-referral-programme:update" ||
@@ -1701,6 +1731,18 @@ function readReferralEditableStatus(
     return status;
   }
   return "draft";
+}
+
+function readReferralCodeOwnerType(
+  value: FormDataEntryValue | null,
+): Exclude<AdminReferralCodeOwnerType, "customer"> {
+  return String(value ?? "") === "business" ? "business" : "platform";
+}
+
+function readReferralCodeStatus(
+  value: FormDataEntryValue | null,
+): Exclude<AdminReferralCodeStatus, "archived"> {
+  return String(value ?? "") === "paused" ? "paused" : "active";
 }
 
 function readAffiliateCommissionValue(
@@ -5916,6 +5958,22 @@ const referralStatusOptions: {
   { value: "paused", label: "Paused" },
 ];
 
+const referralCodeOwnerOptions: {
+  value: Exclude<AdminReferralCodeOwnerType, "customer">;
+  label: string;
+}[] = [
+  { value: "platform", label: "Platform" },
+  { value: "business", label: "Business" },
+];
+
+const referralCodeStatusOptions: {
+  value: Exclude<AdminReferralCodeStatus, "archived">;
+  label: string;
+}[] = [
+  { value: "active", label: "Active" },
+  { value: "paused", label: "Paused" },
+];
+
 function subscriptionStatusLabel(status: AdminSubscriptionStatus): string {
   return (
     subscriptionStatusOptions.find((option) => option.value === status)
@@ -9662,10 +9720,12 @@ function AffiliatesSection({
 function ReferralsSection({
   programmes,
   referralProgrammesError,
+  businesses,
   actionData,
 }: {
   programmes: AdminReferralProgramme[];
   referralProgrammesError: string | null;
+  businesses: AdminBusiness[];
   actionData?: AdminActionFeedback;
 }) {
   const activeProgrammes = programmes.filter(
@@ -9679,6 +9739,15 @@ function ReferralsSection({
   );
   const archivedProgrammes = programmes.filter(
     (programme) => programme.status === "archived",
+  );
+  const issuedCodeCount = programmes.reduce(
+    (total, programme) => total + programme.codes.length,
+    0,
+  );
+  const eligibleBusinesses = businesses.filter(
+    (business) =>
+      business.verificationStatus === "verified" &&
+      business.operationalStatus === "active",
   );
 
   return (
@@ -9724,10 +9793,10 @@ function ReferralsSection({
           trend="No new rewards"
         />
         <MetricCard
-          label="Archived"
-          value={String(archivedProgrammes.length)}
-          helper="Closed programmes"
-          trend="Audit retained"
+          label="Issued codes"
+          value={String(issuedCodeCount)}
+          helper="Latest codes loaded"
+          trend={`${archivedProgrammes.length} archived`}
         />
       </Box>
 
@@ -9995,6 +10064,196 @@ function ReferralsSection({
                       </Typography>
                     </Box>
                   ) : null}
+
+                  <Box
+                    sx={{
+                      p: 1.25,
+                      border: "1px solid",
+                      borderColor: alpha(tokens.ink, 0.08),
+                      borderRadius: 1,
+                      bgcolor: alpha(tokens.white, 0.74),
+                    }}
+                  >
+                    <Stack spacing={1.25}>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        sx={{
+                          alignItems: { sm: "center" },
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Box>
+                          <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                            Issued codes
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                            {programme.codes.length
+                              ? `${programme.codes.length} recent code${
+                                  programme.codes.length === 1 ? "" : "s"
+                                }`
+                              : "No codes issued"}
+                          </Typography>
+                        </Box>
+                        <Chip
+                          size="small"
+                          label={`${programme.codes.reduce(
+                            (total, code) => total + code.referralCount,
+                            0,
+                          )} referrals`}
+                          variant="outlined"
+                        />
+                      </Stack>
+
+                      {programme.codes.length > 0 ? (
+                        <Stack spacing={0.75}>
+                          {programme.codes.map((code) => (
+                            <Box
+                              key={code.referralCodeId}
+                              sx={{
+                                display: "grid",
+                                gap: 1,
+                                gridTemplateColumns: {
+                                  xs: "1fr",
+                                  sm: "minmax(0, 1.2fr) minmax(0, 1fr) auto",
+                                },
+                                alignItems: "center",
+                                p: 1,
+                                borderRadius: 1,
+                                bgcolor: alpha(tokens.ink, 0.035),
+                              }}
+                            >
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography
+                                  sx={{ fontWeight: 900, overflowWrap: "anywhere" }}
+                                >
+                                  {code.code}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  sx={{ color: "text.secondary" }}
+                                >
+                                  {code.ownerLabel || "Platform"} ·{" "}
+                                  {shortTime(code.updatedAt)}
+                                </Typography>
+                              </Box>
+                              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                                {code.referralCount} total · {code.qualifiedCount} qualified
+                              </Typography>
+                              <Chip
+                                size="small"
+                                label={code.status}
+                                sx={{
+                                  justifySelf: { sm: "end" },
+                                  bgcolor: alpha(
+                                    code.status === "active"
+                                      ? tokens.success
+                                      : tokens.warning,
+                                    0.12,
+                                  ),
+                                  color:
+                                    code.status === "active"
+                                      ? tokens.success
+                                      : tokens.warning,
+                                  fontWeight: 900,
+                                }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                      ) : null}
+
+                      <Divider />
+
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-referral-code:create"
+                        />
+                        <input
+                          type="hidden"
+                          name="programme_id"
+                          value={programme.programmeId}
+                        />
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              md: "1fr 1fr 1.2fr auto",
+                            },
+                            alignItems: "center",
+                          }}
+                        >
+                          <TextField
+                            select
+                            label="Owner"
+                            name="owner_type"
+                            size="small"
+                            defaultValue="platform"
+                            disabled={archived || programme.status !== "active"}
+                          >
+                            {referralCodeOwnerOptions.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            select
+                            label="Business"
+                            name="business_id"
+                            size="small"
+                            defaultValue=""
+                            disabled={
+                              archived ||
+                              programme.status !== "active" ||
+                              eligibleBusinesses.length === 0
+                            }
+                          >
+                            <MenuItem value="">None</MenuItem>
+                            {eligibleBusinesses.map((business) => (
+                              <MenuItem key={business.id} value={business.id}>
+                                {business.name}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            label="Code"
+                            name="code"
+                            size="small"
+                            placeholder={`${programme.codePrefix}AMA`}
+                            required
+                            disabled={archived || programme.status !== "active"}
+                          />
+                          <TextField
+                            select
+                            label="Status"
+                            name="status"
+                            size="small"
+                            defaultValue="active"
+                            disabled={archived || programme.status !== "active"}
+                          >
+                            {referralCodeStatusOptions.map((option) => (
+                              <MenuItem key={option.value} value={option.value}>
+                                {option.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                        </Box>
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          disabled={archived || programme.status !== "active"}
+                          sx={{ mt: 1.25 }}
+                        >
+                          Issue code
+                        </Button>
+                      </Form>
+                    </Stack>
+                  </Box>
 
                   <Form method="post">
                     <input
@@ -12702,6 +12961,7 @@ export default function AdminDashboard({
             <ReferralsSection
               programmes={referralProgrammes}
               referralProgrammesError={referralProgrammesError}
+              businesses={adminBusinesses}
               actionData={actionFeedback}
             />
           ) : null}
