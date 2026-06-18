@@ -2841,6 +2841,31 @@ func TestGetOperationsHealthSummarizesAllowedReadModels(t *testing.T) {
 		supportFeed.Notifications[1].Category != "audit" {
 		t.Fatalf("unexpected support notification feed: %+v", supportFeed.Notifications)
 	}
+
+	reports, err := service.GetAdminReports(context.Background(), GetAdminReportsCommand{
+		ActorRole: admindomain.RoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("get admin reports: %v", err)
+	}
+	if len(reports.Items) == 0 ||
+		reports.Items[0].ID != "kyc" ||
+		reports.Items[0].Status != "blocked" ||
+		healthReportStatus(reports, "exports") != "ready" {
+		t.Fatalf("unexpected owner report feed: %+v", reports.Items)
+	}
+
+	supportReports, err := service.GetAdminReports(context.Background(), GetAdminReportsCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if err != nil {
+		t.Fatalf("get support admin reports: %v", err)
+	}
+	if healthReportStatus(supportReports, "payments") != "" ||
+		healthReportStatus(supportReports, "trust") != "blocked" ||
+		healthReportStatus(supportReports, "audit") != "blocked" {
+		t.Fatalf("unexpected support report feed: %+v", supportReports.Items)
+	}
 }
 
 func healthSignalStatus(
@@ -2850,6 +2875,15 @@ func healthSignalStatus(
 	for _, signal := range record.Signals {
 		if signal.ID == id {
 			return signal.Status
+		}
+	}
+	return ""
+}
+
+func healthReportStatus(record AdminReportsResult, id string) string {
+	for _, item := range record.Items {
+		if item.ID == id {
+			return item.Status
 		}
 	}
 	return ""

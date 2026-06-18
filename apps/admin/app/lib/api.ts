@@ -131,6 +131,21 @@ export type AdminNotificationFeed = {
   updatedAt: string;
 };
 
+export type AdminReportFeedItem = {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+  status: AdminOperationsHealthStatus;
+  target: string;
+  targetLabel: string;
+};
+
+export type AdminReportFeed = {
+  items: AdminReportFeedItem[];
+  updatedAt: string;
+};
+
 export type AdminMoneyWebhookStatus =
   | "verified"
   | "failed"
@@ -739,6 +754,21 @@ type AdminNotificationFeedItemPayload = {
 
 type AdminNotificationFeedPayload = {
   notifications: AdminNotificationFeedItemPayload[];
+  updated_at: string;
+};
+
+type AdminReportFeedItemPayload = {
+  id: string;
+  label: string;
+  value: string;
+  helper: string;
+  status: AdminOperationsHealthStatus;
+  target: string;
+  target_label: string;
+};
+
+type AdminReportFeedPayload = {
+  items: AdminReportFeedItemPayload[];
   updated_at: string;
 };
 
@@ -1387,6 +1417,21 @@ function mapAdminNotificationFeed(
   };
 }
 
+function mapAdminReportFeed(payload: AdminReportFeedPayload): AdminReportFeed {
+  return {
+    items: payload.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      value: item.value,
+      helper: item.helper,
+      status: item.status,
+      target: item.target,
+      targetLabel: item.target_label,
+    })),
+    updatedAt: payload.updated_at,
+  };
+}
+
 function mapMoneyRails(payload: AdminMoneyRailsPayload): AdminMoneyRails {
   return {
     webhookEvents: payload.webhook_events.map((event) => ({
@@ -1987,6 +2032,11 @@ export const adminApi = {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then(mapAdminNotificationFeed),
+  adminReports: (accessToken: string) =>
+    requestJSON<AdminReportFeedPayload>("/admin/reports", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapAdminReportFeed),
   moneyRails: (accessToken: string) =>
     requestJSON<AdminMoneyRailsPayload>("/admin/money-rails", {
       method: "GET",

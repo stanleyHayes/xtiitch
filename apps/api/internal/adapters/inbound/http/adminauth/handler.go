@@ -41,6 +41,7 @@ type Service interface {
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
 	GetOperationsHealth(ctx context.Context, command adminauthapp.GetOperationsHealthCommand) (adminauthapp.OperationsHealthResult, error)
 	GetAdminNotifications(ctx context.Context, command adminauthapp.GetAdminNotificationsCommand) (adminauthapp.AdminNotificationsResult, error)
+	GetAdminReports(ctx context.Context, command adminauthapp.GetAdminReportsCommand) (adminauthapp.AdminReportsResult, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
@@ -119,6 +120,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/money-rails", handler.moneyRails)
 		protected.Get("/admin/operations-health", handler.operationsHealth)
 		protected.Get("/admin/notifications", handler.adminNotifications)
+		protected.Get("/admin/reports", handler.adminReports)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
@@ -588,6 +590,21 @@ type adminNotificationResponse struct {
 	Helper      string `json:"helper"`
 	Meta        string `json:"meta"`
 	Source      string `json:"source"`
+	Target      string `json:"target"`
+	TargetLabel string `json:"target_label"`
+}
+
+type adminReportsResponse struct {
+	Items     []adminReportResponse `json:"items"`
+	UpdatedAt string                `json:"updated_at"`
+}
+
+type adminReportResponse struct {
+	ID          string `json:"id"`
+	Label       string `json:"label"`
+	Value       string `json:"value"`
+	Helper      string `json:"helper"`
+	Status      string `json:"status"`
 	Target      string `json:"target"`
 	TargetLabel string `json:"target_label"`
 }
@@ -1342,6 +1359,25 @@ func (handler Handler) adminNotifications(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusOK, newAdminNotificationsResponse(notifications))
+}
+
+func (handler Handler) adminReports(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	reports, err := handler.service.GetAdminReports(r.Context(), adminauthapp.GetAdminReportsCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAdminReportsResponse(reports))
 }
 
 func (handler Handler) subscriptions(w http.ResponseWriter, r *http.Request) {
@@ -3544,6 +3580,25 @@ func newAdminNotificationsResponse(
 	return adminNotificationsResponse{
 		Notifications: notifications,
 		UpdatedAt:     record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newAdminReportsResponse(record adminauthapp.AdminReportsResult) adminReportsResponse {
+	items := make([]adminReportResponse, 0, len(record.Items))
+	for _, item := range record.Items {
+		items = append(items, adminReportResponse{
+			ID:          item.ID,
+			Label:       item.Label,
+			Value:       item.Value,
+			Helper:      item.Helper,
+			Status:      item.Status,
+			Target:      item.Target,
+			TargetLabel: item.TargetLabel,
+		})
+	}
+	return adminReportsResponse{
+		Items:     items,
+		UpdatedAt: record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

@@ -414,6 +414,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   let operationsHealthError: string | null = null;
   let backendNotifications: AdminNotification[] = [];
   let backendNotificationsError: string | null = null;
+  let backendReportItems: AdminReportItem[] = [];
+  let backendReportsError: string | null = null;
   let moneyRails: AdminMoneyRails | null = null;
   let moneyRailsError: string | null = null;
   let subscriptions: AdminSubscription[] = [];
@@ -501,6 +503,20 @@ export async function loader({ request }: Route.LoaderArgs) {
     if (error instanceof AdminApiError && error.status === 403) {
       backendNotificationsError =
         "Your role cannot view the backend notification feed.";
+    } else {
+      throw error;
+    }
+  }
+
+  try {
+    const reportFeed = await adminApi.adminReports(accessToken);
+    backendReportItems = reportFeed.items.map((item) => ({
+      ...item,
+      target: item.target as Section,
+    }));
+  } catch (error) {
+    if (error instanceof AdminApiError && error.status === 403) {
+      backendReportsError = "Your role cannot view the backend report feed.";
     } else {
       throw error;
     }
@@ -638,6 +654,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     operationsHealthError,
     backendNotifications,
     backendNotificationsError,
+    backendReportItems,
+    backendReportsError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -3945,6 +3963,8 @@ function NotificationsSection({
 function ReportsSection({
   platformMetrics,
   platformSettings,
+  backendReportItems,
+  backendReportsError,
   adminBusinesses,
   verificationCases,
   moneyRails,
@@ -3960,6 +3980,8 @@ function ReportsSection({
 }: {
   platformMetrics: AdminPlatformMetrics | null;
   platformSettings: AdminPlatformSettings;
+  backendReportItems: AdminReportItem[];
+  backendReportsError: string | null;
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
   moneyRails: AdminMoneyRails | null;
@@ -4069,7 +4091,7 @@ function ReportsSection({
   const warningAudit = auditEvents.filter(
     (event) => event.severity === "warning",
   );
-  const reportItems: AdminReportItem[] = [
+  const derivedReportItems: AdminReportItem[] = [
     {
       id: "kyc",
       label: "Business verification",
@@ -4228,6 +4250,8 @@ function ReportsSection({
       targetLabel: "Open settings",
     },
   ];
+  const reportItems =
+    backendReportItems.length > 0 ? backendReportItems : derivedReportItems;
   const blockedCount = reportItems.filter(
     (item) => item.status === "blocked",
   ).length;
@@ -4243,6 +4267,9 @@ function ReportsSection({
         title="Reports"
         helper="A compact posture view for compliance, money controls, platform policy, and operator follow-up."
       />
+      {backendReportsError ? (
+        <Alert severity="warning">{backendReportsError}</Alert>
+      ) : null}
       <Form
         method="post"
         reloadDocument
@@ -12780,6 +12807,8 @@ export default function AdminDashboard({
     operationsHealthError,
     backendNotifications,
     backendNotificationsError,
+    backendReportItems,
+    backendReportsError,
     moneyRails,
     moneyRailsError,
     subscriptions,
@@ -13221,6 +13250,8 @@ export default function AdminDashboard({
             <ReportsSection
               platformMetrics={platformMetrics}
               platformSettings={platformSettings}
+              backendReportItems={backendReportItems}
+              backendReportsError={backendReportsError}
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}
               moneyRails={moneyRails}

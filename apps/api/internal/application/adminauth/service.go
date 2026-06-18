@@ -175,6 +175,25 @@ type AdminNotificationRecord struct {
 	TargetLabel string
 }
 
+type GetAdminReportsCommand struct {
+	ActorRole admindomain.Role
+}
+
+type AdminReportsResult struct {
+	Items     []AdminReportRecord
+	UpdatedAt time.Time
+}
+
+type AdminReportRecord struct {
+	ID          string
+	Label       string
+	Value       string
+	Helper      string
+	Status      string
+	Target      string
+	TargetLabel string
+}
+
 type ListSubscriptionsCommand struct {
 	ActorRole admindomain.Role
 }
@@ -1417,6 +1436,31 @@ func (s Service) GetAdminNotifications(
 	}
 	if len(result.Notifications) > 18 {
 		result.Notifications = result.Notifications[:18]
+	}
+	return result, nil
+}
+
+func (s Service) GetAdminReports(
+	ctx context.Context,
+	cmd GetAdminReportsCommand,
+) (AdminReportsResult, error) {
+	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand{
+		ActorRole: cmd.ActorRole,
+	})
+	if err != nil {
+		return AdminReportsResult{}, err
+	}
+	result := AdminReportsResult{UpdatedAt: health.UpdatedAt}
+	for _, signal := range health.Signals {
+		result.Items = append(result.Items, AdminReportRecord{
+			ID:          signal.ID,
+			Label:       signal.Label,
+			Value:       signal.Value,
+			Helper:      signal.Helper,
+			Status:      signal.Status,
+			Target:      signal.Target,
+			TargetLabel: signal.TargetLabel,
+		})
 	}
 	return result, nil
 }
