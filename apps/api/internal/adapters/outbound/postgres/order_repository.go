@@ -656,5 +656,23 @@ func loadTracking(ctx context.Context, tx pgx.Tx, orderID common.ID) (order.Trac
 	if err := rows.Err(); err != nil {
 		return order.Tracking{}, err
 	}
+
+	var handover order.HandoverTracking
+	if err := tx.QueryRow(ctx, `
+		select method, status, recipient_name, recipient_phone, address, courier, note, updated_at
+		from handovers
+		where order_id = $1
+		order by (status in ('pending', 'dispatched')) desc, updated_at desc, created_at desc
+		limit 1
+	`, orderID.String()).Scan(
+		&handover.Method, &handover.Status, &handover.RecipientName, &handover.RecipientPhone,
+		&handover.Address, &handover.Courier, &handover.Note, &handover.UpdatedAt,
+	); err != nil {
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return order.Tracking{}, err
+		}
+	} else {
+		tracking.Handover = &handover
+	}
 	return tracking, nil
 }

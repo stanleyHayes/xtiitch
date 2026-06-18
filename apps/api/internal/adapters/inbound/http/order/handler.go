@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
@@ -227,7 +228,7 @@ func toTrackingResponse(tracking order.Tracking) map[string]any {
 			"is_complete": stage.IsComplete,
 		})
 	}
-	return map[string]any{
+	response := map[string]any{
 		"order_id":     tracking.OrderID.String(),
 		"design_title": tracking.DesignTitle,
 		"store_name":   tracking.StoreName,
@@ -236,6 +237,19 @@ func toTrackingResponse(tracking order.Tracking) map[string]any {
 		"colour":       tracking.Colour,
 		"stages":       stages,
 	}
+	if tracking.Handover != nil {
+		response["handover"] = map[string]any{
+			"method":          tracking.Handover.Method,
+			"status":          tracking.Handover.Status,
+			"recipient_name":  tracking.Handover.RecipientName,
+			"recipient_phone": tracking.Handover.RecipientPhone,
+			"address":         tracking.Handover.Address,
+			"courier":         tracking.Handover.Courier,
+			"note":            tracking.Handover.Note,
+			"updated_at":      tracking.Handover.UpdatedAt.Format(time.RFC3339),
+		}
+	}
+	return response
 }
 
 func writeServiceError(w http.ResponseWriter, err error) {

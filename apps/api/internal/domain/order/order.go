@@ -1,6 +1,10 @@
 package order
 
-import "github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+import (
+	"time"
+
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+)
 
 type Status string
 
@@ -133,4 +137,18 @@ type Tracking struct {
 	StageName   string
 	Colour      Colour
 	Stages      []Stage
+	Handover    *HandoverTracking
+}
+
+// HandoverTracking is the customer-safe last-leg status attached to an order's
+// public tracking page once pickup or delivery has been arranged.
+type HandoverTracking struct {
+	Method         string
+	Status         string
+	RecipientName  string
+	RecipientPhone string
+	Address        string
+	Courier        string
+	Note           string
+	UpdatedAt      time.Time
 }

@@ -133,6 +133,57 @@ func TestCreateWalkInPassesActorRole(t *testing.T) {
 	}
 }
 
+func TestTrackingSerializesHandover(t *testing.T) {
+	t.Parallel()
+
+	updatedAt := time.Date(2026, 6, 18, 9, 45, 0, 0, time.UTC)
+	service := &fakeOrderService{tracking: order.Tracking{
+		OrderID:     "order-1",
+		DesignTitle: "Kente wrap dress",
+		StoreName:   "Demo Atelier",
+		Status:      order.StatusFulfilled,
+		StageName:   "Ready",
+		Colour:      order.ColourGreen,
+		Handover: &order.HandoverTracking{
+			Method:         "delivery",
+			Status:         "dispatched",
+			RecipientName:  "Ama Boateng",
+			RecipientPhone: "+233200000000",
+			Address:        "Osu, Accra",
+			Courier:        "Courier GH",
+			Note:           "Call on arrival",
+			UpdatedAt:      updatedAt,
+		},
+	}}
+	router := newOrderRouter(service, fakeOrderVerifier{})
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/public/orders/order-1", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", response.Code, response.Body.String())
+	}
+	var body struct {
+		Handover struct {
+			Method         string `json:"method"`
+			Status         string `json:"status"`
+			RecipientName  string `json:"recipient_name"`
+			RecipientPhone string `json:"recipient_phone"`
+			Address        string `json:"address"`
+			Courier        string `json:"courier"`
+			Note           string `json:"note"`
+			UpdatedAt      string `json:"updated_at"`
+		} `json:"handover"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Handover.Method != "delivery" || body.Handover.Status != "dispatched" ||
+		body.Handover.RecipientName != "Ama Boateng" || body.Handover.UpdatedAt != updatedAt.Format(time.RFC3339) {
+		t.Fatalf("handover was not serialized correctly: %+v", body.Handover)
+	}
+}
+
 func TestSetAgreedTotalMapsForbidden(t *testing.T) {
 	t.Parallel()
 
@@ -175,6 +226,7 @@ type fakeOrderService struct {
 	createCommand    orderapp.CreateWalkInOrderCommand
 	advanceErr       error
 	advanceCommand   orderapp.AdvanceStageCommand
+	tracking         order.Tracking
 	setAgreedErr     error
 	setAgreedCommand orderapp.SetAgreedTotalCommand
 	collectCommand   orderapp.CollectBalanceCommand
@@ -195,7 +247,7 @@ func (s *fakeOrderService) AdvanceStage(_ context.Context, command orderapp.Adva
 }
 
 func (s *fakeOrderService) GetTracking(context.Context, common.ID) (order.Tracking, error) {
-	return order.Tracking{}, nil
+	return s.tracking, nil
 }
 
 func (s *fakeOrderService) SetAgreedTotal(_ context.Context, command orderapp.SetAgreedTotalCommand) error {

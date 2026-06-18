@@ -12,7 +12,9 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CircleIcon from "@mui/icons-material/Circle";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import RadioButtonUncheckedRounded from "@mui/icons-material/RadioButtonUncheckedRounded";
+import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import type { Route } from "./+types/track";
 import { api, type Tracking, type TrackingStage } from "../lib/api";
@@ -52,8 +54,134 @@ const headline: Record<string, string> = {
   green: "Ready",
 };
 
+type TrackingHandover = {
+  method: "pickup" | "delivery" | string;
+  status: "pending" | "dispatched" | "completed" | "cancelled" | string;
+  recipient_name: string;
+  recipient_phone: string;
+  address: string;
+  courier: string;
+  note: string;
+  updated_at: string;
+};
+
+type TrackingWithHandover = Tracking & {
+  handover?: TrackingHandover | null;
+};
+
+const handoverStatusLabels: Record<string, string> = {
+  pending: "Arranged",
+  dispatched: "On the way",
+  completed: "Completed",
+  cancelled: "Cancelled",
+};
+
 function paletteFor(colour: string): Palette {
   return palettes[colour] ?? redPalette;
+}
+
+function formatHandoverMethod(method: string) {
+  return method === "delivery" ? "Delivery" : "Pickup";
+}
+
+function formatHandoverStatus(status: string) {
+  return handoverStatusLabels[status] ?? "Handover";
+}
+
+function HandoverPanel({
+  handover,
+  storeName,
+}: {
+  handover?: TrackingHandover | null;
+  storeName: string;
+}) {
+  const method = handover?.method ?? "pickup";
+  const isDelivery = method === "delivery";
+  const status = handover ? formatHandoverStatus(handover.status) : "Being arranged";
+  const icon = isDelivery ? <LocalShippingRounded /> : <ShoppingBagRounded />;
+
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        borderRadius: "8px",
+        bgcolor: alpha(tokens.charcoal, 0.04),
+        border: "1px solid",
+        borderColor: alpha(tokens.charcoal, 0.1),
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{ alignItems: { sm: "center" } }}
+      >
+        <Box
+          aria-hidden
+          sx={{
+            width: 42,
+            height: 42,
+            borderRadius: "8px",
+            display: "grid",
+            placeItems: "center",
+            bgcolor: alpha(tokens.burgundy, 0.1),
+            color: tokens.burgundy,
+            flexShrink: 0,
+          }}
+        >
+          {icon}
+        </Box>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", flexWrap: "wrap" }}
+          >
+            <Typography sx={{ fontWeight: 950 }}>
+              {handover ? formatHandoverMethod(method) : "Handover"}
+            </Typography>
+            <Chip
+              size="small"
+              label={status}
+              sx={{
+                bgcolor: alpha(tokens.burgundy, 0.08),
+                color: tokens.burgundy,
+                fontWeight: 900,
+              }}
+            />
+          </Stack>
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+            {handover
+              ? isDelivery
+                ? handover.address || "Delivery details are being finalised."
+                : "Pickup is handled directly with the store."
+              : `${storeName} will add pickup or delivery details when the piece is ready.`}
+          </Typography>
+        </Box>
+      </Stack>
+
+      {handover ? (
+        <Stack spacing={0.75} sx={{ mt: 1.25 }}>
+          {handover.recipient_name || handover.recipient_phone ? (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {handover.recipient_name}
+              {handover.recipient_name && handover.recipient_phone ? " · " : ""}
+              {handover.recipient_phone}
+            </Typography>
+          ) : null}
+          {handover.courier ? (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Courier: {handover.courier}
+            </Typography>
+          ) : null}
+          {handover.note ? (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              {handover.note}
+            </Typography>
+          ) : null}
+        </Stack>
+      ) : null}
+    </Box>
+  );
 }
 
 function StageRow({ stage }: { stage: TrackingStage }) {
@@ -120,8 +248,9 @@ function StageRow({ stage }: { stage: TrackingStage }) {
 }
 
 export default function Track({ loaderData }: Route.ComponentProps) {
-  const tracking: Tracking = loaderData.tracking;
+  const tracking = loaderData.tracking as TrackingWithHandover;
   const fulfilled = tracking.status === "fulfilled";
+  const showHandover = fulfilled || Boolean(tracking.handover);
   const colour = fulfilled ? "green" : tracking.colour;
   const palette = paletteFor(colour);
   const title = fulfilled ? "Ready" : (headline[colour] ?? tracking.stage_name);
@@ -341,6 +470,16 @@ export default function Track({ loaderData }: Route.ComponentProps) {
               </Box>
 
               <Divider />
+
+              {showHandover ? (
+                <>
+                  <HandoverPanel
+                    handover={tracking.handover}
+                    storeName={tracking.store_name}
+                  />
+                  <Divider />
+                </>
+              ) : null}
 
               <Stack spacing={1}>
                 {tracking.stages.map((stage) => (
