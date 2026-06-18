@@ -5632,6 +5632,9 @@ function DesignRow({
 }
 
 function MeasurementFieldRow({ field }: { field: MeasurementField }) {
+  const updateFormID = `measurement-field-update-${field.field_id}`;
+  const deleteFormID = `measurement-field-delete-${field.field_id}`;
+
   return (
     <Box
       sx={{
@@ -5639,7 +5642,7 @@ function MeasurementFieldRow({ field }: { field: MeasurementField }) {
         gap: 1.25,
         gridTemplateColumns: {
           xs: "1fr",
-          md: "minmax(0, 1fr) 96px 110px auto",
+          md: "minmax(0, 1fr) 96px 110px 104px",
         },
         alignItems: "center",
         py: 1.5,
@@ -5648,7 +5651,7 @@ function MeasurementFieldRow({ field }: { field: MeasurementField }) {
         borderColor: "divider",
       }}
     >
-      <Form method="post" style={{ display: "contents" }}>
+      <Form id={updateFormID} method="post" style={{ display: "contents" }}>
         <input type="hidden" name="intent" value="update_measurement_field" />
         <input type="hidden" name="field_id" value={field.field_id} />
         <TextField
@@ -5680,35 +5683,65 @@ function MeasurementFieldRow({ field }: { field: MeasurementField }) {
           slotProps={{ htmlInput: { min: 0 } }}
           required
         />
-        <Stack
-          direction="row"
-          spacing={0.75}
-          sx={{ justifyContent: { xs: "flex-start", md: "flex-end" } }}
-        >
-          <Tooltip title="Save field">
-            <IconButton
-              type="submit"
-              color="primary"
-              aria-label={`Save ${field.label}`}
-            >
-              <SaveRounded />
-            </IconButton>
-          </Tooltip>
-        </Stack>
       </Form>
-      <Form method="post">
+      <Form id={deleteFormID} method="post" style={{ display: "contents" }}>
         <input type="hidden" name="intent" value="delete_measurement_field" />
         <input type="hidden" name="field_id" value={field.field_id} />
+      </Form>
+      <Stack
+        direction="row"
+        spacing={0.75}
+        sx={{
+          gridColumn: { xs: "1 / -1", md: "auto" },
+          alignItems: "center",
+          justifyContent: { xs: "flex-start", md: "flex-end" },
+          minWidth: 0,
+          flexWrap: "nowrap",
+        }}
+      >
+        <Tooltip title="Save field">
+          <IconButton
+            type="submit"
+            form={updateFormID}
+            color="primary"
+            aria-label={`Save ${field.label}`}
+            sx={{
+              width: 44,
+              height: 44,
+              flex: "0 0 auto",
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.2),
+              bgcolor: alpha(tokens.burgundy, 0.07),
+              "&:hover": {
+                bgcolor: alpha(tokens.burgundy, 0.13),
+              },
+            }}
+          >
+            <SaveRounded />
+          </IconButton>
+        </Tooltip>
         <Tooltip title="Delete field">
           <IconButton
             type="submit"
+            form={deleteFormID}
             color="error"
             aria-label={`Delete ${field.label}`}
+            sx={{
+              width: 44,
+              height: 44,
+              flex: "0 0 auto",
+              border: "1px solid",
+              borderColor: (theme) => alpha(theme.palette.error.main, 0.24),
+              bgcolor: (theme) => alpha(theme.palette.error.main, 0.06),
+              "&:hover": {
+                bgcolor: (theme) => alpha(theme.palette.error.main, 0.12),
+              },
+            }}
           >
             <DeleteOutlineRounded />
           </IconButton>
         </Tooltip>
-      </Form>
+      </Stack>
     </Box>
   );
 }
