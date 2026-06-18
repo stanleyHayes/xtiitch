@@ -8380,20 +8380,61 @@ function SubscriptionsSection({
                   </Form>
 
                   {canCaptureAuthorization ? (
-                    <FormGroupLabel>Recurring authorization</FormGroupLabel>
-                  ) : null}
-                  {canCaptureAuthorization ? (
                     <Box
+                      component="details"
                       sx={{
                         mt: 1.25,
-                        display: "grid",
-                        gap: 1,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          xl: "repeat(2, minmax(0, 1fr))",
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: alpha(tokens.ink, 0.1),
+                        bgcolor: alpha(tokens.panel, 0.4),
+                        p: 1.25,
+                        "& > summary": {
+                          cursor: "pointer",
+                          listStyle: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 1,
+                          "&::-webkit-details-marker": { display: "none" },
                         },
+                        "&[open] > summary": { mb: 1.25 },
                       }}
                     >
+                      <Box component="summary">
+                        <Box
+                          component="span"
+                          sx={{
+                            fontWeight: 900,
+                            fontSize: 13,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            color: alpha(tokens.ink, 0.6),
+                          }}
+                        >
+                          Recurring authorization
+                        </Box>
+                        <Box
+                          component="span"
+                          sx={{
+                            fontSize: 12,
+                            fontWeight: 800,
+                            color: alpha(tokens.burgundy, 0.85),
+                          }}
+                        >
+                          Manage
+                        </Box>
+                      </Box>
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            xl: "repeat(2, minmax(0, 1fr))",
+                          },
+                        }}
+                      >
                       <Form method="post">
                         <input
                           type="hidden"
@@ -8497,6 +8538,7 @@ function SubscriptionsSection({
                           </Button>
                         </Box>
                       </Form>
+                      </Box>
                     </Box>
                   ) : null}
 
