@@ -7519,6 +7519,7 @@ function SubscriptionsSection({
   actionData?: AdminActionFeedback;
   onSelect: (section: Section) => void;
 }) {
+  const [manageBusinessId, setManageBusinessId] = useState<string | null>(null);
   const billableSubscriptions = subscriptions.filter(
     (subscription) =>
       subscription.monthlyFeeMinor > 0 && subscription.status !== "canceled",
@@ -8216,19 +8217,15 @@ function SubscriptionsSection({
                     boxShadow: `0 16px 40px ${alpha(tokens.ink, 0.045)}`,
                   }}
                 >
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-subscription:update"
-                    />
-                    <input
-                      type="hidden"
-                      name="business_id"
-                      value={subscription.businessId}
-                    />
-                    <Stack spacing={1.5}>
-                      <Box>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.5}
+                    sx={{
+                      alignItems: { sm: "flex-start" },
+                      justifyContent: "space-between",
+                    }}
+                  >
+                      <Box sx={{ minWidth: 0 }}>
                         <Stack
                           direction="row"
                           spacing={1}
@@ -8291,6 +8288,55 @@ function SubscriptionsSection({
                           {subscriptionDesignUsageLabel(subscription)}
                         </Typography>
                       </Box>
+                    <Button
+                      variant="contained"
+                      startIcon={<SettingsRounded />}
+                      onClick={() => setManageBusinessId(subscription.businessId)}
+                      sx={{
+                        flexShrink: 0,
+                        whiteSpace: "nowrap",
+                        alignSelf: { xs: "stretch", sm: "flex-start" },
+                      }}
+                    >
+                      Manage billing
+                    </Button>
+                  </Stack>
+                  <Dialog
+                    open={manageBusinessId === subscription.businessId}
+                    onClose={() => setManageBusinessId(null)}
+                    fullWidth
+                    maxWidth="md"
+                  >
+                    <DialogTitle sx={{ pb: 0.5 }}>
+                      <Typography
+                        component="span"
+                        sx={{ display: "block", fontWeight: 900, fontSize: 18 }}
+                      >
+                        {subscription.businessName}
+                      </Typography>
+                      <Typography
+                        component="span"
+                        variant="body2"
+                        sx={{ display: "block", color: "text.secondary" }}
+                      >
+                        {subscription.planName} ·{" "}
+                        {billingModeLabel(subscription.billingMode)} billing ·{" "}
+                        {subscription.handle}.xtiitch.com
+                      </Typography>
+                    </DialogTitle>
+                    <DialogContent dividers>
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-subscription:update"
+                        />
+                        <input
+                          type="hidden"
+                          name="business_id"
+                          value={subscription.businessId}
+                        />
+                        <Stack spacing={1.5}>
                       <FormGroupLabel>Billing state</FormGroupLabel>
                       <Box
                         sx={{
@@ -8752,6 +8798,8 @@ function SubscriptionsSection({
                       </Form>
                     ) : null}
                   </Stack>
+                    </DialogContent>
+                  </Dialog>
                 </Box>
               );
             })}
