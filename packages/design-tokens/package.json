@@ -11,10 +11,11 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "echo \"design token tests not needed yet\""
+    "test": "tsx --test src/*.test.ts"
   },
   "devDependencies": {
+    "@types/node": "25.9.3",
+    "tsx": "4.22.4",
     "typescript": "6.0.3"
   }
 }
-

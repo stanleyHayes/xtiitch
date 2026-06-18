@@ -5,13 +5,14 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "echo \"api client tests not scaffolded yet\""
+    "test": "tsx --test src/*.test.ts"
   },
   "dependencies": {
     "zod": "4.4.3"
   },
   "devDependencies": {
+    "@types/node": "25.9.3",
+    "tsx": "4.22.4",
     "typescript": "6.0.3"
   }
 }
-
