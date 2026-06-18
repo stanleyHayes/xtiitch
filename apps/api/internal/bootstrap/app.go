@@ -87,11 +87,22 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
 	adminAuthRepository := postgres.NewAdminAuthRepository(db)
+	var paymentProvider ports.PaymentProvider
+	if cfg.PaystackSecretKey != "" {
+		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, cfg.PaystackWebhookKey)
+	} else {
+		// No live key: deterministic dev provider with real webhook-signature
+		// verification, so the money path runs locally and in tests.
+		logger.Warn("paystack secret key not set; using dev payment provider")
+		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
+	}
+
 	adminAuthService := adminauthapp.NewService(adminauthapp.Dependencies{
 		Users:         adminAuthRepository,
 		Sessions:      adminAuthRepository,
 		Audits:        adminAuthRepository,
 		Businesses:    adminAuthRepository,
+		Payments:      paymentProvider,
 		Passwords:     authadapter.NewBcryptPasswordHasher(0),
 		AccessTokens:  jwtIssuer,
 		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
@@ -107,16 +118,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		logger.Info("admin bootstrap user ensured", "email", adminUser.Email, "role", adminUser.Role)
 	}
 	adminAuthenticator := adminauthhttp.NewAuthenticator(jwtIssuer)
-
-	var paymentProvider ports.PaymentProvider
-	if cfg.PaystackSecretKey != "" {
-		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, cfg.PaystackWebhookKey)
-	} else {
-		// No live key: deterministic dev provider with real webhook-signature
-		// verification, so the money path runs locally and in tests.
-		logger.Warn("paystack secret key not set; using dev payment provider")
-		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
-	}
 
 	paymentService := paymentsapp.NewService(paymentsapp.Dependencies{
 		Provider:   paymentProvider,

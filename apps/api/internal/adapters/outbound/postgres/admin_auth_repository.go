@@ -2576,6 +2576,14 @@ func (repo AdminAuthRepository) ListAdminAdCampaigns(ctx context.Context) ([]por
 		return nil, err
 	}
 
+	paymentsByCampaign, err := listAdminAdCampaignPayments(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		records[index].RecentPayments = paymentsByCampaign[records[index].CampaignID]
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -2676,6 +2684,10 @@ func (repo AdminAuthRepository) CreateAdminAdCampaign(
 		}
 		return ports.AdminAdCampaignRecord{}, err
 	}
+	record.RecentPayments, err = listAdminAdCampaignPaymentsForCampaign(ctx, tx, record.CampaignID)
+	if err != nil {
+		return ports.AdminAdCampaignRecord{}, err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAdCampaignRecord{}, err
@@ -2763,6 +2775,10 @@ func (repo AdminAuthRepository) UpdateAdminAdCampaign(
 		}
 		return ports.AdminAdCampaignRecord{}, err
 	}
+	record.RecentPayments, err = listAdminAdCampaignPaymentsForCampaign(ctx, tx, record.CampaignID)
+	if err != nil {
+		return ports.AdminAdCampaignRecord{}, err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAdCampaignRecord{}, err
@@ -2802,12 +2818,221 @@ func (repo AdminAuthRepository) ArchiveAdminAdCampaign(
 		}
 		return ports.AdminAdCampaignRecord{}, err
 	}
+	record.RecentPayments, err = listAdminAdCampaignPaymentsForCampaign(ctx, tx, record.CampaignID)
+	if err != nil {
+		return ports.AdminAdCampaignRecord{}, err
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminAdCampaignRecord{}, err
 	}
 
 	return record, nil
+}
+
+func (repo AdminAuthRepository) GetAdminAdCampaignPaymentIntent(
+	ctx context.Context,
+	campaignID common.ID,
+) (ports.AdminAdCampaignPaymentIntentRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAdCampaignPaymentIntentRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAdCampaignPaymentIntentRecord{}, err
+	}
+
+	var intent ports.AdminAdCampaignPaymentIntentRecord
+	var openPaymentID pgtype.Text
+	var openProvider pgtype.Text
+	var openProviderReference pgtype.Text
+	var openPaymentURL pgtype.Text
+	var openCurrency pgtype.Text
+	var openStatus pgtype.Text
+	var openFailureReason pgtype.Text
+	var openAmountMinor pgtype.Int8
+	var openCreatedAt pgtype.Timestamptz
+	var openUpdatedAt pgtype.Timestamptz
+	var openPaidAt pgtype.Timestamptz
+	var openFailedAt pgtype.Timestamptz
+	err = tx.QueryRow(ctx, `
+		with paid as (
+			select
+				campaign_id,
+				coalesce(sum(amount_minor) filter (where status = 'paid'), 0)::bigint as paid_minor
+			from ad_campaign_payments
+			group by campaign_id
+		)
+		select
+			c.campaign_id::text,
+			c.advertiser_business_id::text,
+			b.name,
+			coalesce(owner.email, ''),
+			c.headline,
+			c.budget_minor::bigint,
+			coalesce(paid.paid_minor, 0)::bigint,
+			greatest(c.budget_minor - coalesce(paid.paid_minor, 0), 0)::bigint,
+			open_payment.payment_id::text,
+			open_payment.provider,
+			open_payment.provider_reference,
+			open_payment.payment_url,
+			open_payment.amount_minor,
+			open_payment.currency,
+			open_payment.status,
+			open_payment.paid_at,
+			open_payment.failed_at,
+			open_payment.failure_reason,
+			open_payment.created_at,
+			open_payment.updated_at
+		from ad_campaigns c
+		join businesses b on b.business_id = c.advertiser_business_id
+		left join paid on paid.campaign_id = c.campaign_id
+		left join lateral (
+			select u.email
+			from business_users u
+			where u.business_id = b.business_id and u.role = 'owner'
+			order by u.created_at
+			limit 1
+		) owner on true
+		left join lateral (
+			select *
+			from ad_campaign_payments ap
+			where ap.campaign_id = c.campaign_id and ap.status = 'initiated'
+			order by ap.created_at desc
+			limit 1
+		) open_payment on true
+		where c.campaign_id = $1::uuid
+			and c.status <> 'archived'
+	`, campaignID.String()).Scan(
+		&intent.CampaignID,
+		&intent.BusinessID,
+		&intent.BusinessName,
+		&intent.OwnerEmail,
+		&intent.Headline,
+		&intent.BudgetMinor,
+		&intent.PaidMinor,
+		&intent.DueMinor,
+		&openPaymentID,
+		&openProvider,
+		&openProviderReference,
+		&openPaymentURL,
+		&openAmountMinor,
+		&openCurrency,
+		&openStatus,
+		&openPaidAt,
+		&openFailedAt,
+		&openFailureReason,
+		&openCreatedAt,
+		&openUpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAdCampaignPaymentIntentRecord{}, ErrNotFound
+		}
+		return ports.AdminAdCampaignPaymentIntentRecord{}, err
+	}
+	if openPaymentID.Valid {
+		intent.OpenPayment = &ports.AdminAdCampaignPaymentRecord{
+			PaymentID:         common.ID(openPaymentID.String),
+			CampaignID:        intent.CampaignID,
+			BusinessID:        intent.BusinessID,
+			Provider:          openProvider.String,
+			ProviderReference: openProviderReference.String,
+			PaymentURL:        openPaymentURL.String,
+			AmountMinor:       openAmountMinor.Int64,
+			Currency:          openCurrency.String,
+			Status:            openStatus.String,
+			PaidAt:            timestamptzPtr(openPaidAt),
+			FailedAt:          timestamptzPtr(openFailedAt),
+			FailureReason:     openFailureReason.String,
+			CreatedAt:         openCreatedAt.Time,
+			UpdatedAt:         openUpdatedAt.Time,
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAdCampaignPaymentIntentRecord{}, err
+	}
+
+	return intent, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminAdCampaignPayment(
+	ctx context.Context,
+	input ports.CreateAdminAdCampaignPaymentInput,
+) (ports.AdminAdCampaignPaymentRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminAdCampaignPaymentRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminAdCampaignPaymentRecord{}, err
+	}
+
+	payment, err := scanAdminAdCampaignPaymentRecord(tx.QueryRow(ctx, `
+		with eligible_campaign as (
+			select c.campaign_id, c.advertiser_business_id
+			from ad_campaigns c
+			where c.campaign_id = $2::uuid
+				and c.advertiser_business_id = $3::uuid
+				and c.status <> 'archived'
+		),
+		inserted as (
+			insert into ad_campaign_payments (
+				payment_id,
+				campaign_id,
+				advertiser_business_id,
+				provider,
+				provider_reference,
+				payment_url,
+				amount_minor,
+				currency,
+				status,
+				requested_by_admin_user_id
+			)
+			select
+				$1::uuid,
+				eligible_campaign.campaign_id,
+				eligible_campaign.advertiser_business_id,
+				'paystack',
+				$4,
+				$5,
+				$6,
+				$7,
+				'initiated',
+				$8::uuid
+			from eligible_campaign
+			returning *
+		)
+		`+adminAdCampaignPaymentSelect("inserted")+`
+	`, input.PaymentID.String(),
+		input.CampaignID.String(),
+		input.BusinessID.String(),
+		input.ProviderReference,
+		input.PaymentURL,
+		input.AmountMinor,
+		input.Currency,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminAdCampaignPaymentRecord{}, ErrNotFound
+		}
+		if isOpenAdCampaignPayment(err) {
+			return ports.AdminAdCampaignPaymentRecord{}, ports.ErrPaymentInFlight
+		}
+		return ports.AdminAdCampaignPaymentRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminAdCampaignPaymentRecord{}, err
+	}
+
+	return payment, nil
 }
 
 func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]ports.AdminAffiliateRecord, error) {
@@ -4550,6 +4775,33 @@ func scanAdminAdCampaignRecord(row pgx.Row) (ports.AdminAdCampaignRecord, error)
 	return record, nil
 }
 
+func scanAdminAdCampaignPaymentRecord(row pgx.Row) (ports.AdminAdCampaignPaymentRecord, error) {
+	var record ports.AdminAdCampaignPaymentRecord
+	var paidAt pgtype.Timestamptz
+	var failedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&record.PaymentID,
+		&record.CampaignID,
+		&record.BusinessID,
+		&record.Provider,
+		&record.ProviderReference,
+		&record.PaymentURL,
+		&record.AmountMinor,
+		&record.Currency,
+		&record.Status,
+		&paidAt,
+		&failedAt,
+		&record.FailureReason,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminAdCampaignPaymentRecord{}, err
+	}
+	record.PaidAt = timestamptzPtr(paidAt)
+	record.FailedAt = timestamptzPtr(failedAt)
+	return record, nil
+}
+
 func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 	var record ports.AdminAffiliateRecord
 	if err := row.Scan(
@@ -5354,6 +5606,83 @@ func adminAdCampaignSelect(source string) string {
 	`
 }
 
+func adminAdCampaignPaymentSelect(source string) string {
+	return `
+		select
+			ap.payment_id::text,
+			ap.campaign_id::text,
+			ap.advertiser_business_id::text,
+			ap.provider,
+			ap.provider_reference,
+			ap.payment_url,
+			ap.amount_minor::bigint,
+			ap.currency,
+			ap.status,
+			ap.paid_at,
+			ap.failed_at,
+			ap.failure_reason,
+			ap.created_at,
+			ap.updated_at
+		from ` + source + ` ap
+	`
+}
+
+func listAdminAdCampaignPayments(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminAdCampaignPaymentRecord, error) {
+	rows, err := tx.Query(ctx, adminAdCampaignPaymentSelect("ad_campaign_payments")+`
+		order by ap.created_at desc
+		limit 500
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := map[common.ID][]ports.AdminAdCampaignPaymentRecord{}
+	for rows.Next() {
+		record, err := scanAdminAdCampaignPaymentRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		payments[record.CampaignID] = append(payments[record.CampaignID], record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return payments, nil
+}
+
+func listAdminAdCampaignPaymentsForCampaign(
+	ctx context.Context,
+	tx pgx.Tx,
+	campaignID common.ID,
+) ([]ports.AdminAdCampaignPaymentRecord, error) {
+	rows, err := tx.Query(ctx, adminAdCampaignPaymentSelect("ad_campaign_payments")+`
+		where ap.campaign_id = $1::uuid
+		order by ap.created_at desc
+		limit 10
+	`, campaignID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminAdCampaignPaymentRecord{}
+	for rows.Next() {
+		record, err := scanAdminAdCampaignPaymentRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
 func adminAffiliatesQuery() string {
 	return adminAffiliateSelect("affiliates")
 }
@@ -5939,6 +6268,11 @@ func affiliateCodeTaken(err error) bool {
 func referralProgrammeCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "referral_programmes_code_prefix_unique_idx"
+}
+
+func isOpenAdCampaignPayment(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "ad_campaign_payments_one_open_idx"
 }
 
 func nullableTextArg(value string) any {

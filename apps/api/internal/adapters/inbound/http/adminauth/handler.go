@@ -57,6 +57,7 @@ type Service interface {
 	CreateAdCampaign(ctx context.Context, command adminauthapp.CreateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	UpdateAdCampaign(ctx context.Context, command adminauthapp.UpdateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
+	CollectAdCampaignPayment(ctx context.Context, command adminauthapp.CollectAdCampaignPaymentCommand) (adminauthapp.AdCampaignPaymentResult, error)
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
 	ListAffiliateAttribution(ctx context.Context, command adminauthapp.ListAffiliateAttributionCommand) ([]ports.AdminAffiliateAttributionRecord, error)
 	UpdateAffiliateConversionStatus(ctx context.Context, command adminauthapp.UpdateAffiliateConversionStatusCommand) (ports.AdminAffiliateConversionRecord, error)
@@ -126,6 +127,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/ad-campaigns", handler.adCampaigns)
 		protected.Post("/admin/ad-campaigns", handler.createAdCampaign)
 		protected.Patch("/admin/ad-campaigns/{id}", handler.updateAdCampaign)
+		protected.Post("/admin/ad-campaigns/{id}/payments", handler.collectAdCampaignPayment)
 		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
 		protected.Get("/admin/affiliates", handler.affiliates)
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
@@ -318,6 +320,10 @@ type adCampaignUpsertRequest struct {
 
 type adCampaignArchiveRequest struct {
 	Reason string `json:"reason"`
+}
+
+type adCampaignPaymentRequest struct {
+	CustomerEmail string `json:"customer_email"`
 }
 
 type affiliateUpsertRequest struct {
@@ -663,28 +669,52 @@ type promotionRedemptionResponse struct {
 }
 
 type adCampaignResponse struct {
-	CampaignID      string `json:"campaign_id"`
-	BusinessID      string `json:"business_id"`
-	BusinessName    string `json:"business_name"`
-	BusinessHandle  string `json:"business_handle"`
-	PlacementType   string `json:"placement_type"`
-	TargetRefID     string `json:"target_ref_id"`
-	TargetLabel     string `json:"target_label"`
-	Headline        string `json:"headline"`
-	Description     string `json:"description"`
-	Status          string `json:"status"`
-	PricingModel    string `json:"pricing_model"`
-	BudgetMinor     int64  `json:"budget_minor"`
-	SpendMinor      int64  `json:"spend_minor"`
-	DailyCapMinor   *int64 `json:"daily_cap_minor,omitempty"`
-	StartsAt        string `json:"starts_at"`
-	EndsAt          string `json:"ends_at"`
-	ImpressionCount int    `json:"impression_count"`
-	ClickCount      int    `json:"click_count"`
-	ClickRateBPS    int    `json:"click_rate_bps"`
-	ReviewNote      string `json:"review_note"`
-	CreatedAt       string `json:"created_at"`
-	UpdatedAt       string `json:"updated_at"`
+	CampaignID      string                      `json:"campaign_id"`
+	BusinessID      string                      `json:"business_id"`
+	BusinessName    string                      `json:"business_name"`
+	BusinessHandle  string                      `json:"business_handle"`
+	PlacementType   string                      `json:"placement_type"`
+	TargetRefID     string                      `json:"target_ref_id"`
+	TargetLabel     string                      `json:"target_label"`
+	Headline        string                      `json:"headline"`
+	Description     string                      `json:"description"`
+	Status          string                      `json:"status"`
+	PricingModel    string                      `json:"pricing_model"`
+	BudgetMinor     int64                       `json:"budget_minor"`
+	SpendMinor      int64                       `json:"spend_minor"`
+	DailyCapMinor   *int64                      `json:"daily_cap_minor,omitempty"`
+	StartsAt        string                      `json:"starts_at"`
+	EndsAt          string                      `json:"ends_at"`
+	ImpressionCount int                         `json:"impression_count"`
+	ClickCount      int                         `json:"click_count"`
+	ClickRateBPS    int                         `json:"click_rate_bps"`
+	ReviewNote      string                      `json:"review_note"`
+	Payments        []adCampaignPaymentResponse `json:"payments"`
+	CreatedAt       string                      `json:"created_at"`
+	UpdatedAt       string                      `json:"updated_at"`
+}
+
+type adCampaignPaymentResponse struct {
+	PaymentID         string `json:"payment_id"`
+	CampaignID        string `json:"campaign_id"`
+	BusinessID        string `json:"business_id"`
+	Provider          string `json:"provider"`
+	ProviderReference string `json:"provider_reference"`
+	PaymentURL        string `json:"payment_url"`
+	AmountMinor       int64  `json:"amount_minor"`
+	Currency          string `json:"currency"`
+	Status            string `json:"status"`
+	PaidAt            string `json:"paid_at,omitempty"`
+	FailedAt          string `json:"failed_at,omitempty"`
+	FailureReason     string `json:"failure_reason"`
+	CreatedAt         string `json:"created_at"`
+	UpdatedAt         string `json:"updated_at"`
+}
+
+type adCampaignPaymentCollectResponse struct {
+	Payment          adCampaignPaymentResponse `json:"payment"`
+	Created          bool                      `json:"created"`
+	AuthorizationURL string                    `json:"authorization_url"`
 }
 
 type affiliateResponse struct {
@@ -1717,6 +1747,40 @@ func (handler Handler) archiveAdCampaign(w http.ResponseWriter, r *http.Request)
 	}
 
 	writeJSON(w, http.StatusOK, newAdCampaignResponse(record))
+}
+
+func (handler Handler) collectAdCampaignPayment(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request adCampaignPaymentRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	result, err := handler.service.CollectAdCampaignPayment(r.Context(), adminauthapp.CollectAdCampaignPaymentCommand{
+		ActorUserID:   principal.AdminUserID,
+		ActorRole:     principal.Role,
+		CampaignID:    common.ID(chi.URLParam(r, "id")),
+		CustomerEmail: request.CustomerEmail,
+		UserAgent:     r.UserAgent(),
+		IPAddress:     requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, adCampaignPaymentCollectResponse{
+		Payment:          newAdCampaignPaymentResponse(result.Payment),
+		Created:          result.Created,
+		AuthorizationURL: result.AuthorizationURL,
+	})
 }
 
 func (handler Handler) affiliates(w http.ResponseWriter, r *http.Request) {
@@ -3286,6 +3350,10 @@ func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {
 }
 
 func newAdCampaignResponse(record ports.AdminAdCampaignRecord) adCampaignResponse {
+	payments := make([]adCampaignPaymentResponse, 0, len(record.RecentPayments))
+	for _, payment := range record.RecentPayments {
+		payments = append(payments, newAdCampaignPaymentResponse(payment))
+	}
 	return adCampaignResponse{
 		CampaignID:      record.CampaignID.String(),
 		BusinessID:      record.BusinessID.String(),
@@ -3307,8 +3375,28 @@ func newAdCampaignResponse(record ports.AdminAdCampaignRecord) adCampaignRespons
 		ClickCount:      record.ClickCount,
 		ClickRateBPS:    record.ClickRateBPS,
 		ReviewNote:      record.ReviewNote,
+		Payments:        payments,
 		CreatedAt:       record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:       record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newAdCampaignPaymentResponse(record ports.AdminAdCampaignPaymentRecord) adCampaignPaymentResponse {
+	return adCampaignPaymentResponse{
+		PaymentID:         record.PaymentID.String(),
+		CampaignID:        record.CampaignID.String(),
+		BusinessID:        record.BusinessID.String(),
+		Provider:          record.Provider,
+		ProviderReference: record.ProviderReference,
+		PaymentURL:        record.PaymentURL,
+		AmountMinor:       record.AmountMinor,
+		Currency:          record.Currency,
+		Status:            record.Status,
+		PaidAt:            optionalTimeString(record.PaidAt),
+		FailedAt:          optionalTimeString(record.FailedAt),
+		FailureReason:     record.FailureReason,
+		CreatedAt:         record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:         record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -3661,6 +3749,8 @@ func authError(err error) (int, string) {
 		return http.StatusConflict, "subscription_billing_unavailable"
 	case errors.Is(err, ports.ErrSubscriptionInvoiceOpen):
 		return http.StatusConflict, "subscription_invoice_open"
+	case errors.Is(err, ports.ErrPaymentInFlight):
+		return http.StatusConflict, "payment_in_flight"
 	case errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	default:

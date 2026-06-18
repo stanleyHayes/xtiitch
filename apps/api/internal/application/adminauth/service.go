@@ -28,6 +28,7 @@ type Service struct {
 	sessions      ports.AdminSessionRepository
 	audits        ports.AdminAuditRepository
 	businesses    ports.AdminBusinessRepository
+	payments      ports.PaymentProvider
 	passwords     ports.PasswordHasher
 	accessTokens  ports.AdminTokenIssuer
 	refreshTokens ports.RefreshTokenIssuer
@@ -40,6 +41,7 @@ type Dependencies struct {
 	Sessions      ports.AdminSessionRepository
 	Audits        ports.AdminAuditRepository
 	Businesses    ports.AdminBusinessRepository
+	Payments      ports.PaymentProvider
 	Passwords     ports.PasswordHasher
 	AccessTokens  ports.AdminTokenIssuer
 	RefreshTokens ports.RefreshTokenIssuer
@@ -53,6 +55,7 @@ func NewService(deps Dependencies) Service {
 		sessions:      deps.Sessions,
 		audits:        deps.Audits,
 		businesses:    deps.Businesses,
+		payments:      deps.Payments,
 		passwords:     deps.Passwords,
 		accessTokens:  deps.AccessTokens,
 		refreshTokens: deps.RefreshTokens,
@@ -326,6 +329,21 @@ type ArchiveAdCampaignCommand struct {
 	Reason      string
 	UserAgent   string
 	IPAddress   string
+}
+
+type CollectAdCampaignPaymentCommand struct {
+	ActorUserID   common.ID
+	ActorRole     admindomain.Role
+	CampaignID    common.ID
+	CustomerEmail string
+	UserAgent     string
+	IPAddress     string
+}
+
+type AdCampaignPaymentResult struct {
+	Payment          ports.AdminAdCampaignPaymentRecord
+	Created          bool
+	AuthorizationURL string
 }
 
 type ListAffiliatesCommand struct {
@@ -1651,6 +1669,113 @@ func (s Service) ArchiveAdCampaign(
 	}
 
 	return record, nil
+}
+
+func (s Service) CollectAdCampaignPayment(
+	ctx context.Context,
+	cmd CollectAdCampaignPaymentCommand,
+) (AdCampaignPaymentResult, error) {
+	if cmd.ActorUserID.IsZero() || cmd.CampaignID.IsZero() {
+		return AdCampaignPaymentResult{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageAds); err != nil {
+		return AdCampaignPaymentResult{}, err
+	}
+	if s.businesses == nil || s.payments == nil {
+		return AdCampaignPaymentResult{}, authdomain.ErrForbidden
+	}
+
+	intent, err := s.businesses.GetAdminAdCampaignPaymentIntent(ctx, cmd.CampaignID)
+	if err != nil {
+		return AdCampaignPaymentResult{}, err
+	}
+	if intent.OpenPayment != nil {
+		return AdCampaignPaymentResult{
+			Payment:          *intent.OpenPayment,
+			Created:          false,
+			AuthorizationURL: intent.OpenPayment.PaymentURL,
+		}, nil
+	}
+	if intent.DueMinor <= 0 {
+		return AdCampaignPaymentResult{}, authdomain.ErrInvalidInput
+	}
+
+	customerEmail := ""
+	if strings.TrimSpace(cmd.CustomerEmail) != "" {
+		customerEmail, err = normalizeEmail(cmd.CustomerEmail)
+		if err != nil {
+			return AdCampaignPaymentResult{}, authdomain.ErrInvalidInput
+		}
+	}
+	if customerEmail == "" {
+		customerEmail, err = normalizeEmail(intent.OwnerEmail)
+		if err != nil {
+			return AdCampaignPaymentResult{}, authdomain.ErrInvalidInput
+		}
+	}
+
+	paymentID := s.ids.NewID()
+	reference := "xt_ad_" + s.ids.NewID().String()
+	providerResult, err := s.payments.InitializeTransaction(ctx, ports.InitializeTransactionInput{
+		BusinessID:      intent.BusinessID,
+		CustomerEmail:   customerEmail,
+		AmountMinor:     intent.DueMinor,
+		CommissionMinor: 0,
+		Currency:        common.CurrencyGHS,
+		Reference:       reference,
+	})
+	if err != nil {
+		return AdCampaignPaymentResult{}, err
+	}
+	providerReference := providerResult.ProviderReference
+	if providerReference == "" {
+		providerReference = reference
+	}
+
+	payment, err := s.businesses.CreateAdminAdCampaignPayment(ctx, ports.CreateAdminAdCampaignPaymentInput{
+		PaymentID:         paymentID,
+		CampaignID:        intent.CampaignID,
+		BusinessID:        intent.BusinessID,
+		ProviderReference: providerReference,
+		PaymentURL:        providerResult.AuthorizationURL,
+		AmountMinor:       intent.DueMinor,
+		Currency:          common.CurrencyGHS,
+		ActorAdminUser:    cmd.ActorUserID,
+	})
+	if err != nil {
+		return AdCampaignPaymentResult{}, err
+	}
+
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Created sponsored placement payment link",
+		TargetType:  "ad_campaign_payment",
+		TargetID:    payment.PaymentID.String(),
+		TargetLabel: intent.Headline,
+		Summary: "Created Paystack collection link for " +
+			moneySummary(payment.AmountMinor) + " sponsored-placement budget.",
+		Severity: admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"campaign_id":        intent.CampaignID.String(),
+			"business_id":        intent.BusinessID.String(),
+			"provider":           payment.Provider,
+			"provider_reference": payment.ProviderReference,
+			"amount_minor":       strconv.FormatInt(payment.AmountMinor, 10),
+			"currency":           payment.Currency,
+			"customer_email":     customerEmail,
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return AdCampaignPaymentResult{}, err
+	}
+
+	return AdCampaignPaymentResult{
+		Payment:          payment,
+		Created:          true,
+		AuthorizationURL: payment.PaymentURL,
+	}, nil
 }
 
 func (s Service) ListAffiliates(

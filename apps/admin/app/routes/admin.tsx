@@ -1168,6 +1168,31 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-ad-campaign-payment:collect") {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      const result = await adminApi.collectAdCampaignPayment(
+        accessToken,
+        String(form.get("campaign_id") ?? ""),
+        String(form.get("customer_email") ?? ""),
+      );
+      return {
+        section: "ads",
+        severity: "success",
+        message: result.created
+          ? "Sponsored placement payment link created."
+          : "Existing sponsored placement payment link is still open.",
+      };
+    } catch (error) {
+      return {
+        section: "ads",
+        severity: "error",
+        message: adminAdCampaignActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-affiliate:create" ||
     intent === "admin-affiliate:update" ||
@@ -1965,6 +1990,8 @@ function adminAdCampaignActionError(error: unknown): string {
         return "Your role cannot manage sponsored placements.";
       case "invalid_input":
         return "Check the business, placement, headline, budget, and date window.";
+      case "payment_in_flight":
+        return "That placement already has an open payment link.";
       case "not_found":
         return "That campaign or eligible verified business could not be found.";
       default:
@@ -6006,6 +6033,20 @@ function adCampaignStatusColor(status: AdminAdCampaignStatus): string {
   }
 }
 
+function adCampaignPaymentStatusColor(status: string): string {
+  switch (status) {
+    case "paid":
+      return tokens.success;
+    case "failed":
+    case "void":
+      return tokens.danger;
+    case "initiated":
+      return tokens.warning;
+    default:
+      return tokens.mutedText;
+  }
+}
+
 function affiliateStatusLabel(status: AdminAffiliateStatus): string {
   return (
     affiliateStatusOptions.find((option) => option.value === status)?.label ??
@@ -8033,6 +8074,28 @@ function AdsSection({
     (total, campaign) => total + campaign.budgetMinor,
     0,
   );
+  const collectedMinor = campaigns.reduce(
+    (total, campaign) =>
+      total +
+      campaign.payments.reduce(
+        (paymentTotal, payment) =>
+          paymentTotal +
+          (payment.status === "paid" ? payment.amountMinor : 0),
+        0,
+      ),
+    0,
+  );
+  const openPaymentMinor = campaigns.reduce(
+    (total, campaign) =>
+      total +
+      campaign.payments.reduce(
+        (paymentTotal, payment) =>
+          paymentTotal +
+          (payment.status === "initiated" ? payment.amountMinor : 0),
+        0,
+      ),
+    0,
+  );
   const impressions = campaigns.reduce(
     (total, campaign) => total + campaign.impressionCount,
     0,
@@ -8079,10 +8142,14 @@ function AdsSection({
           trend={`${completedCampaigns.length} completed`}
         />
         <MetricCard
-          label="Booked budget"
-          value={formatGHS(bookedMinor)}
-          helper="Prepaid campaign value"
-          trend="Flat-time v1"
+          label="Collected budget"
+          value={formatGHS(collectedMinor)}
+          helper={`${formatGHS(bookedMinor)} booked campaign value`}
+          trend={
+            openPaymentMinor > 0
+              ? `${formatGHS(openPaymentMinor)} open`
+              : "Paystack ready"
+          }
         />
         <MetricCard
           label="Engagement"
@@ -8285,6 +8352,16 @@ function AdsSection({
           {campaigns.map((campaign) => {
             const archived = campaign.status === "archived";
             const color = adCampaignStatusColor(campaign.status);
+            const paidMinor = campaign.payments.reduce(
+              (total, payment) =>
+                total + (payment.status === "paid" ? payment.amountMinor : 0),
+              0,
+            );
+            const dueMinor = Math.max(campaign.budgetMinor - paidMinor, 0);
+            const openPayment = campaign.payments.find(
+              (payment) => payment.status === "initiated",
+            );
+            const latestPayments = campaign.payments.slice(0, 3);
             return (
               <Panel
                 key={campaign.campaignId}
@@ -8347,9 +8424,9 @@ function AdsSection({
                     <DetailLine label="Target" value={campaign.targetLabel} />
                     <DetailLine
                       label="Budget"
-                      value={`${formatGHS(campaign.spendMinor)} spent / ${formatGHS(
+                      value={`${formatGHS(paidMinor)} collected / ${formatGHS(
                         campaign.budgetMinor,
-                      )}`}
+                      )} booked`}
                     />
                     <DetailLine
                       label="Daily cap"
@@ -8402,6 +8479,213 @@ function AdsSection({
                       ) : null}
                     </Box>
                   ) : null}
+
+                  <Box
+                    sx={{
+                      p: 1.5,
+                      border: "1px solid",
+                      borderColor: alpha(
+                        openPayment
+                          ? tokens.warning
+                          : dueMinor > 0
+                            ? tokens.info
+                            : tokens.success,
+                        0.18,
+                      ),
+                      borderRadius: 1.5,
+                      bgcolor: alpha(tokens.white, 0.72),
+                    }}
+                  >
+                    <Stack spacing={1.5}>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        sx={{
+                          alignItems: { xs: "flex-start", sm: "center" },
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ alignItems: "center" }}
+                        >
+                          <PaymentsRounded sx={{ color: tokens.burgundy }} />
+                          <Box>
+                            <Typography variant="subtitle1">
+                              Payment collection
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              {dueMinor > 0
+                                ? `${formatGHS(dueMinor)} still due for this placement.`
+                                : "Booked budget has been collected."}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ flexWrap: "wrap" }}
+                        >
+                          <Chip
+                            size="small"
+                            label={
+                              openPayment
+                                ? "Payment link open"
+                                : dueMinor > 0
+                                  ? "Awaiting collection"
+                                  : "Paid"
+                            }
+                            sx={{
+                              bgcolor: alpha(
+                                openPayment
+                                  ? tokens.warning
+                                  : dueMinor > 0
+                                    ? tokens.info
+                                    : tokens.success,
+                                0.12,
+                              ),
+                              color: openPayment
+                                ? tokens.warning
+                                : dueMinor > 0
+                                  ? tokens.info
+                                  : tokens.success,
+                              fontWeight: 900,
+                            }}
+                          />
+                          {openPayment?.paymentUrl ? (
+                            <Button
+                              component="a"
+                              href={openPayment.paymentUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              size="small"
+                              variant="outlined"
+                              endIcon={<ArrowForwardRounded />}
+                            >
+                              Open link
+                            </Button>
+                          ) : null}
+                        </Stack>
+                      </Stack>
+
+                      <Box
+                        sx={{
+                          display: "grid",
+                          gap: 1,
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(3, 1fr)",
+                          },
+                        }}
+                      >
+                        <DetailLine label="Collected" value={formatGHS(paidMinor)} />
+                        <DetailLine label="Due" value={formatGHS(dueMinor)} />
+                        <DetailLine
+                          label="Open"
+                          value={
+                            openPayment
+                              ? `${formatGHS(openPayment.amountMinor)} · ${openPayment.providerReference}`
+                              : "No open link"
+                          }
+                        />
+                      </Box>
+
+                      {latestPayments.length > 0 ? (
+                        <Stack spacing={0.75}>
+                          {latestPayments.map((payment) => {
+                            const paymentColor = adCampaignPaymentStatusColor(
+                              payment.status,
+                            );
+                            return (
+                              <Stack
+                                key={payment.paymentId}
+                                direction={{ xs: "column", sm: "row" }}
+                                spacing={1}
+                                sx={{
+                                  alignItems: { xs: "flex-start", sm: "center" },
+                                  justifyContent: "space-between",
+                                  p: 1,
+                                  border: "1px solid",
+                                  borderColor: alpha(tokens.ink, 0.08),
+                                  borderRadius: 1,
+                                  bgcolor: alpha(tokens.panel, 0.56),
+                                }}
+                              >
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{
+                                      fontWeight: 900,
+                                      overflowWrap: "anywhere",
+                                    }}
+                                  >
+                                    {payment.providerReference}
+                                  </Typography>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{ color: "text.secondary" }}
+                                  >
+                                    {formatGHS(payment.amountMinor)} ·{" "}
+                                    {shortTime(payment.updatedAt)}
+                                  </Typography>
+                                </Box>
+                                <Chip
+                                  size="small"
+                                  label={payment.status}
+                                  sx={{
+                                    bgcolor: alpha(paymentColor, 0.12),
+                                    color: paymentColor,
+                                    fontWeight: 900,
+                                    textTransform: "capitalize",
+                                  }}
+                                />
+                              </Stack>
+                            );
+                          })}
+                        </Stack>
+                      ) : null}
+
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="admin-ad-campaign-payment:collect"
+                        />
+                        <input
+                          type="hidden"
+                          name="campaign_id"
+                          value={campaign.campaignId}
+                        />
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                        >
+                          <TextField
+                            label="Advertiser email"
+                            name="customer_email"
+                            size="small"
+                            type="email"
+                            placeholder="Defaults to business owner"
+                            fullWidth
+                            disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                          />
+                          <Button
+                            type="submit"
+                            variant="contained"
+                            startIcon={<PaymentsRounded />}
+                            disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                            sx={{ minWidth: { sm: 170 } }}
+                          >
+                            Collect payment
+                          </Button>
+                        </Stack>
+                      </Form>
+                    </Stack>
+                  </Box>
 
                   <Form method="post">
                     <input

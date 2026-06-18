@@ -258,6 +258,7 @@ type ConfirmPaymentResult struct {
 	AlreadyProcessed         bool
 	PaymentFound             bool
 	SubscriptionInvoiceFound bool
+	AdCampaignPaymentFound   bool
 	BusinessID               common.ID
 }
 

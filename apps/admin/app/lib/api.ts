@@ -286,6 +286,24 @@ export type AdminAdCampaign = {
   clickCount: number;
   clickRateBps: number;
   reviewNote: string;
+  payments: AdminAdCampaignPayment[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminAdCampaignPayment = {
+  paymentId: string;
+  campaignId: string;
+  businessId: string;
+  provider: "paystack";
+  providerReference: string;
+  paymentUrl: string;
+  amountMinor: number;
+  currency: string;
+  status: "initiated" | "paid" | "failed" | "void";
+  paidAt?: string;
+  failedAt?: string;
+  failureReason: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -760,8 +778,32 @@ type AdminAdCampaignPayload = {
   click_count: number;
   click_rate_bps: number;
   review_note: string;
+  payments: AdminAdCampaignPaymentPayload[];
   created_at: string;
   updated_at: string;
+};
+
+type AdminAdCampaignPaymentPayload = {
+  payment_id: string;
+  campaign_id: string;
+  business_id: string;
+  provider: "paystack";
+  provider_reference: string;
+  payment_url: string;
+  amount_minor: number;
+  currency: string;
+  status: "initiated" | "paid" | "failed" | "void";
+  paid_at?: string;
+  failed_at?: string;
+  failure_reason: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminAdCampaignPaymentCollectPayload = {
+  payment: AdminAdCampaignPaymentPayload;
+  created: boolean;
+  authorization_url: string;
 };
 
 type AdminAffiliatePayload = {
@@ -1274,6 +1316,28 @@ function mapAdCampaign(payload: AdminAdCampaignPayload): AdminAdCampaign {
     clickCount: payload.click_count,
     clickRateBps: payload.click_rate_bps,
     reviewNote: payload.review_note,
+    payments: (payload.payments ?? []).map(mapAdCampaignPayment),
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapAdCampaignPayment(
+  payload: AdminAdCampaignPaymentPayload,
+): AdminAdCampaignPayment {
+  return {
+    paymentId: payload.payment_id,
+    campaignId: payload.campaign_id,
+    businessId: payload.business_id,
+    provider: payload.provider,
+    providerReference: payload.provider_reference,
+    paymentUrl: payload.payment_url,
+    amountMinor: payload.amount_minor,
+    currency: payload.currency,
+    status: payload.status,
+    paidAt: payload.paid_at,
+    failedAt: payload.failed_at,
+    failureReason: payload.failure_reason,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -1988,6 +2052,23 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapAdCampaign),
+  collectAdCampaignPayment: (
+    accessToken: string,
+    campaignId: string,
+    customerEmail: string,
+  ) =>
+    requestJSON<AdminAdCampaignPaymentCollectPayload>(
+      `/admin/ad-campaigns/${encodeURIComponent(campaignId)}/payments`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ customer_email: customerEmail }),
+      },
+    ).then((payload) => ({
+      payment: mapAdCampaignPayment(payload.payment),
+      created: payload.created,
+      authorizationUrl: payload.authorization_url,
+    })),
   affiliates: async (accessToken: string) => {
     const payload = await requestJSON<{ affiliates: AdminAffiliatePayload[] }>(
       "/admin/affiliates",

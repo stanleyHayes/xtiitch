@@ -1429,6 +1429,73 @@ func TestAdCampaignsRequirePermissionAndAudit(t *testing.T) {
 	}
 }
 
+func TestCollectAdCampaignPaymentCreatesProviderLinkAndAudit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{
+		adPaymentIntent: ports.AdminAdCampaignPaymentIntentRecord{
+			CampaignID:   "campaign-1",
+			BusinessID:   "business-1",
+			BusinessName: "Ama Stitches",
+			OwnerEmail:   "owner@example.com",
+			Headline:     "Featured Atelier",
+			BudgetMinor:  50000,
+			PaidMinor:    12500,
+			DueMinor:     37500,
+		},
+	}
+	service, audits := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"payment-1", "reference-1", "audit-1"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	result, err := service.CollectAdCampaignPayment(context.Background(), CollectAdCampaignPaymentCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+		CampaignID:  "campaign-1",
+		UserAgent:   "test-agent",
+		IPAddress:   "127.0.0.1",
+	})
+	if err != nil {
+		t.Fatalf("collect ad campaign payment: %v", err)
+	}
+	if provider.initialized.CustomerEmail != "owner@example.com" ||
+		provider.initialized.AmountMinor != 37500 ||
+		provider.initialized.SubaccountRef != "" ||
+		provider.initialized.Reference != "xt_ad_reference-1" {
+		t.Fatalf("expected platform Paystack transaction, got %+v", provider.initialized)
+	}
+	if businesses.createdAdCampaignPayment.PaymentID != "payment-1" ||
+		businesses.createdAdCampaignPayment.ProviderReference != "PAY_xt_ad_reference-1" ||
+		businesses.createdAdCampaignPayment.PaymentURL == "" {
+		t.Fatalf("expected stored campaign payment input, got %+v", businesses.createdAdCampaignPayment)
+	}
+	if !result.Created ||
+		result.Payment.AmountMinor != 37500 ||
+		result.AuthorizationURL != "https://paystack.test/xt_ad_reference-1" {
+		t.Fatalf("unexpected payment result: %+v", result)
+	}
+	if len(audits.created) != 1 ||
+		audits.created[0].Action != "Created sponsored placement payment link" ||
+		audits.created[0].Metadata["provider_reference"] != "PAY_xt_ad_reference-1" {
+		t.Fatalf("unexpected audit event: %+v", audits.created)
+	}
+
+	_, err = service.CollectAdCampaignPayment(context.Background(), CollectAdCampaignPaymentCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		CampaignID:  "campaign-1",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestAdCampaignValidation(t *testing.T) {
 	t.Parallel()
 
@@ -2500,6 +2567,8 @@ type fakeAdminBusinesses struct {
 	createdAdCampaign          ports.CreateAdminAdCampaignInput
 	updatedAdCampaign          ports.UpdateAdminAdCampaignInput
 	archivedAdCampaign         ports.ArchiveAdminAdCampaignInput
+	adPaymentIntent            ports.AdminAdCampaignPaymentIntentRecord
+	createdAdCampaignPayment   ports.CreateAdminAdCampaignPaymentInput
 	affiliates                 []ports.AdminAffiliateRecord
 	createdAffiliate           ports.CreateAdminAffiliateInput
 	updatedAffiliate           ports.UpdateAdminAffiliateInput
@@ -2992,6 +3061,46 @@ func (repo *fakeAdminBusinesses) ArchiveAdminAdCampaign(
 	), nil
 }
 
+func (repo *fakeAdminBusinesses) GetAdminAdCampaignPaymentIntent(
+	context.Context,
+	common.ID,
+) (ports.AdminAdCampaignPaymentIntentRecord, error) {
+	if !repo.adPaymentIntent.CampaignID.IsZero() {
+		return repo.adPaymentIntent, nil
+	}
+	return ports.AdminAdCampaignPaymentIntentRecord{
+		CampaignID:   "campaign-1",
+		BusinessID:   "business-1",
+		BusinessName: "Ama Stitches",
+		OwnerEmail:   "owner@example.com",
+		Headline:     "Featured Atelier",
+		BudgetMinor:  50000,
+		PaidMinor:    12500,
+		DueMinor:     37500,
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminAdCampaignPayment(
+	_ context.Context,
+	input ports.CreateAdminAdCampaignPaymentInput,
+) (ports.AdminAdCampaignPaymentRecord, error) {
+	repo.createdAdCampaignPayment = input
+	now := time.Now()
+	return ports.AdminAdCampaignPaymentRecord{
+		PaymentID:         input.PaymentID,
+		CampaignID:        input.CampaignID,
+		BusinessID:        input.BusinessID,
+		Provider:          "paystack",
+		ProviderReference: input.ProviderReference,
+		PaymentURL:        input.PaymentURL,
+		AmountMinor:       input.AmountMinor,
+		Currency:          input.Currency,
+		Status:            "initiated",
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}, nil
+}
+
 func fakeAdminAdCampaignRecord(
 	campaignID common.ID,
 	businessID common.ID,
@@ -3478,6 +3587,36 @@ type fakeAdminTokenIssuer struct{}
 
 func (fakeAdminTokenIssuer) IssueAdminAccessToken(_ context.Context, input ports.AdminAccessTokenInput) (string, error) {
 	return "admin-access:" + input.Subject.String() + ":" + string(input.Role), nil
+}
+
+type fakePaymentProvider struct {
+	initialized ports.InitializeTransactionInput
+}
+
+func (fakePaymentProvider) CreateBusinessSubaccount(
+	context.Context,
+	ports.CreateBusinessSubaccountInput,
+) (ports.CreateBusinessSubaccountResult, error) {
+	return ports.CreateBusinessSubaccountResult{}, nil
+}
+
+func (provider *fakePaymentProvider) InitializeTransaction(
+	_ context.Context,
+	input ports.InitializeTransactionInput,
+) (ports.InitializeTransactionResult, error) {
+	provider.initialized = input
+	return ports.InitializeTransactionResult{
+		AuthorizationURL:  "https://paystack.test/" + input.Reference,
+		ProviderReference: "PAY_" + input.Reference,
+	}, nil
+}
+
+func (fakePaymentProvider) VerifyWebhookSignature([]byte, string) bool {
+	return true
+}
+
+func (fakePaymentProvider) ParseChargeEvent([]byte) (ports.ProviderChargeEvent, error) {
+	return ports.ProviderChargeEvent{}, nil
 }
 
 type fakeRefreshTokens struct{}

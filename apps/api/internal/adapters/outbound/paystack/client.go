@@ -69,15 +69,18 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 			Reference        string `json:"reference"`
 		} `json:"data"`
 	}
-	if err := c.post(ctx, "/transaction/initialize", map[string]any{
-		"email":              input.CustomerEmail,
-		"amount":             input.AmountMinor,
-		"currency":           input.Currency,
-		"reference":          input.Reference,
-		"subaccount":         input.SubaccountRef,
-		"transaction_charge": input.CommissionMinor,
-		"bearer":             "subaccount",
-	}, &response); err != nil {
+	body := map[string]any{
+		"email":     input.CustomerEmail,
+		"amount":    input.AmountMinor,
+		"currency":  input.Currency,
+		"reference": input.Reference,
+	}
+	if input.SubaccountRef != "" {
+		body["subaccount"] = input.SubaccountRef
+		body["transaction_charge"] = input.CommissionMinor
+		body["bearer"] = "subaccount"
+	}
+	if err := c.post(ctx, "/transaction/initialize", body, &response); err != nil {
 		return ports.InitializeTransactionResult{}, err
 	}
 

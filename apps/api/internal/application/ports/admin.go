@@ -56,6 +56,8 @@ type AdminBusinessRepository interface {
 	CreateAdminAdCampaign(ctx context.Context, input CreateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	UpdateAdminAdCampaign(ctx context.Context, input UpdateAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	ArchiveAdminAdCampaign(ctx context.Context, input ArchiveAdminAdCampaignInput) (AdminAdCampaignRecord, error)
+	GetAdminAdCampaignPaymentIntent(ctx context.Context, campaignID common.ID) (AdminAdCampaignPaymentIntentRecord, error)
+	CreateAdminAdCampaignPayment(ctx context.Context, input CreateAdminAdCampaignPaymentInput) (AdminAdCampaignPaymentRecord, error)
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
 	UpdateAdminAffiliateConversionStatus(ctx context.Context, input UpdateAdminAffiliateConversionStatusInput) (AdminAffiliateConversionRecord, error)
@@ -565,8 +567,38 @@ type AdminAdCampaignRecord struct {
 	ClickCount      int
 	ClickRateBPS    int
 	ReviewNote      string
+	RecentPayments  []AdminAdCampaignPaymentRecord
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type AdminAdCampaignPaymentRecord struct {
+	PaymentID         common.ID
+	CampaignID        common.ID
+	BusinessID        common.ID
+	Provider          string
+	ProviderReference string
+	PaymentURL        string
+	AmountMinor       int64
+	Currency          string
+	Status            string
+	PaidAt            *time.Time
+	FailedAt          *time.Time
+	FailureReason     string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+
+type AdminAdCampaignPaymentIntentRecord struct {
+	CampaignID   common.ID
+	BusinessID   common.ID
+	BusinessName string
+	OwnerEmail   string
+	Headline     string
+	BudgetMinor  int64
+	PaidMinor    int64
+	DueMinor     int64
+	OpenPayment  *AdminAdCampaignPaymentRecord
 }
 
 type CreateAdminAdCampaignInput struct {
@@ -606,6 +638,17 @@ type UpdateAdminAdCampaignInput struct {
 type ArchiveAdminAdCampaignInput struct {
 	CampaignID     common.ID
 	ActorAdminUser common.ID
+}
+
+type CreateAdminAdCampaignPaymentInput struct {
+	PaymentID         common.ID
+	CampaignID        common.ID
+	BusinessID        common.ID
+	ProviderReference string
+	PaymentURL        string
+	AmountMinor       int64
+	Currency          string
+	ActorAdminUser    common.ID
 }
 
 type AdminAffiliateRecord struct {
