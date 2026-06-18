@@ -1,3 +1,4 @@
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -34,6 +35,7 @@ export function meta({ data }: Route.MetaArgs) {
 
 export default function CollectionPage({ loaderData }: Route.ComponentProps) {
   const { collection, designs } = loaderData;
+  const store = designs.find((design) => design.store)?.store;
 
   const customisableCount = designs.filter(
     (design) => design.customisation_allowed,
@@ -158,6 +160,18 @@ export default function CollectionPage({ loaderData }: Route.ComponentProps) {
                   </Typography>
                 </Box>
               ))}
+              <Button
+                component={RouterLink}
+                to={store ? `/store/${store.handle}` : "/"}
+                variant="outlined"
+                sx={{
+                  color: tokens.white,
+                  borderColor: alpha(tokens.white, 0.28),
+                  "&:hover": { borderColor: alpha(tokens.white, 0.56) },
+                }}
+              >
+                Back to store
+              </Button>
               <Button
                 href="#collection-designs"
                 variant="contained"

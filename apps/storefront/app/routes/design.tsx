@@ -20,6 +20,7 @@ import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import HomeWorkRounded from "@mui/icons-material/HomeWorkRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import PointOfSaleRounded from "@mui/icons-material/PointOfSaleRounded";
 import SecurityRounded from "@mui/icons-material/SecurityRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
@@ -35,6 +36,7 @@ import {
 } from "../lib/api";
 import { formatGHS, priceLabel } from "../lib/format";
 import { tokens } from "../theme";
+import { DesignCard } from "../components/storefront";
 
 type RewardCodes = {
   promoCode: string;
@@ -50,21 +52,48 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw new Response("Design not found", { status: 404 });
   }
   const rewardCodes = await rewardCodesFromRequest(request);
-  const referralPreview = rewardCodes.referralCode
-    ? await api.referral(rewardCodes.referralCode).catch(() => null)
-    : null;
-  const availability =
+  const [referralPreview, availability, storePage] = await Promise.all([
+    rewardCodes.referralCode
+      ? api.referral(rewardCodes.referralCode).catch(() => null)
+      : Promise.resolve(null),
     design.store?.handle &&
     design.customisation_allowed &&
     design.store.settings.bespoke_enabled
-      ? await api.availability(design.store.handle).catch(() => null)
-      : null;
+      ? api.availability(design.store.handle).catch(() => null)
+      : Promise.resolve(null),
+    design.store?.handle
+      ? api.store(design.store.handle).catch(() => null)
+      : Promise.resolve(null),
+  ]);
   return {
     design,
     rewardCodes,
     referralPreview,
     visitSlots: availability?.slots ?? [],
+    relatedDesigns: relatedDesignsFor(design, storePage?.designs ?? []),
   };
+}
+
+function relatedDesignsFor(current: Design, designs: Design[]): Design[] {
+  const sameCollection = (design: Design) =>
+    Boolean(current.collection_id) &&
+    design.collection_id === current.collection_id;
+
+  return designs
+    .filter(
+      (design) =>
+        design.design_id !== current.design_id &&
+        design.handle !== current.handle,
+    )
+    .sort((a, b) => {
+      const collectionDelta =
+        Number(sameCollection(b)) - Number(sameCollection(a));
+      if (collectionDelta !== 0) {
+        return collectionDelta;
+      }
+      return a.sequence - b.sequence || a.title.localeCompare(b.title);
+    })
+    .slice(0, 3);
 }
 
 export function meta({ data }: Route.MetaArgs) {
@@ -655,6 +684,90 @@ function DetailSignal({
   );
 }
 
+function CustomerPromiseBand({
+  design,
+  store,
+  visitSlots,
+}: {
+  design: Design;
+  store?: StoreSummary;
+  visitSlots: AvailabilitySlot[];
+}) {
+  const brand = store?.brand_color || tokens.burgundy;
+  const promises = [
+    {
+      title: "Clear checkout",
+      helper: store
+        ? `Orders start through ${store.name}'s Xtiitch checkout route.`
+        : "Orders start through Xtiitch when the store is connected.",
+      icon: <SecurityRounded />,
+    },
+    {
+      title: "Fit options",
+      helper: design.customisation_allowed
+        ? visitSlots.length > 0
+          ? "Listed size, self-measure, shop measurement, and home visit routes are visible below."
+          : "Listed size, self-measure, and shop measurement routes are visible below."
+        : "This piece is configured for listed-size ordering.",
+      icon: <StraightenRounded />,
+    },
+    {
+      title: "Track after ordering",
+      helper:
+        "After payment or request submission, you get a private tracking link for production updates.",
+      icon: <LocalShippingRounded />,
+    },
+  ];
+
+  return (
+    <Box
+      sx={{
+        mt: 2.5,
+        display: "grid",
+        gap: 1.25,
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: "repeat(3, minmax(0, 1fr))",
+        },
+      }}
+    >
+      {promises.map((promise) => (
+        <Box
+          key={promise.title}
+          sx={{
+            p: 1.35,
+            borderRadius: "8px",
+            border: "1px solid",
+            borderColor: alpha(brand, 0.12),
+            bgcolor: alpha(brand, 0.04),
+          }}
+        >
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: "8px",
+                display: "grid",
+                placeItems: "center",
+                color: brand,
+                bgcolor: alpha(brand, 0.08),
+                flexShrink: 0,
+              }}
+            >
+              {promise.icon}
+            </Box>
+            <Typography sx={{ fontWeight: 950 }}>{promise.title}</Typography>
+          </Stack>
+          <Typography variant="body2" sx={{ mt: 0.8, color: "text.secondary" }}>
+            {promise.helper}
+          </Typography>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
 function StandardOrderPanel({
   design,
   store,
@@ -1128,6 +1241,86 @@ function BespokeOrderPanel({
   );
 }
 
+function RelatedDesigns({
+  designs,
+  store,
+}: {
+  designs: Design[];
+  store?: StoreSummary;
+}) {
+  if (designs.length === 0) {
+    return null;
+  }
+
+  const brand = store?.brand_color || tokens.burgundy;
+
+  return (
+    <Box
+      sx={{
+        mt: { xs: 4, md: 5 },
+        pt: { xs: 3, md: 4 },
+        borderTop: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+      }}
+    >
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={2}
+        sx={{
+          mb: 2.5,
+          alignItems: { xs: "flex-start", sm: "flex-end" },
+          justifyContent: "space-between",
+        }}
+      >
+        <Box>
+          <Typography
+            variant="caption"
+            sx={{
+              color: brand,
+              fontWeight: 900,
+              textTransform: "uppercase",
+            }}
+          >
+            Keep browsing
+          </Typography>
+          <Typography variant="h5" component="h2">
+            More from {store?.name ?? "this store"}
+          </Typography>
+          <Typography sx={{ color: "text.secondary", maxWidth: 620 }}>
+            Similar pieces from the same storefront, kept close so shoppers can
+            compare before ordering.
+          </Typography>
+        </Box>
+        {store?.handle ? (
+          <Button
+            component={RouterLink}
+            to={`/store/${store.handle}`}
+            variant="outlined"
+            sx={{ flexShrink: 0 }}
+          >
+            View store
+          </Button>
+        ) : null}
+      </Stack>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2.5,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(3, minmax(0, 1fr))",
+          },
+        }}
+      >
+        {designs.map((design, index) => (
+          <DesignCard key={design.design_id} design={design} index={index} />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 export default function DesignPage({
   loaderData,
   actionData,
@@ -1136,6 +1329,7 @@ export default function DesignPage({
   const rewardCodes = loaderData.rewardCodes;
   const referralPreview = loaderData.referralPreview;
   const visitSlots = loaderData.visitSlots;
+  const relatedDesigns = loaderData.relatedDesigns;
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const store = design.store;
@@ -1155,6 +1349,16 @@ export default function DesignPage({
         bgcolor: "background.default",
         backgroundImage: `linear-gradient(${alpha(brand, 0.035)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(brand, 0.035)} 1px, transparent 1px)`,
         backgroundSize: "40px 40px",
+        "@keyframes storeSurfaceIn": {
+          from: { opacity: 0, transform: "translateY(10px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
+        "@media (prefers-reduced-motion: reduce)": {
+          "*, *::before, *::after": {
+            animationDuration: "1ms !important",
+            transitionDuration: "1ms !important",
+          },
+        },
       }}
     >
       <Container sx={{ py: { xs: 3, md: 5 } }}>
@@ -1278,6 +1482,12 @@ export default function DesignPage({
               <Box sx={{ mt: 2.5 }}>
                 <SizePriceList design={design} />
               </Box>
+
+              <CustomerPromiseBand
+                design={design}
+                store={store}
+                visitSlots={visitSlots}
+              />
             </Box>
 
             <Box
@@ -1309,6 +1519,7 @@ export default function DesignPage({
             </Box>
           </Box>
         </Box>
+        <RelatedDesigns designs={relatedDesigns} store={store} />
       </Container>
     </Box>
   );
