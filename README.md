@@ -8,6 +8,7 @@ Read these first:
 - [docs/design/style-guide.md](docs/design/style-guide.md)
 - [docs/quality/sonarqube.md](docs/quality/sonarqube.md)
 - [docs/compliance/ghana-compliance.md](docs/compliance/ghana-compliance.md)
+- [docs/runbooks/launch-validation.md](docs/runbooks/launch-validation.md)
 - [docs/architecture/scalability.md](docs/architecture/scalability.md)
 - [docs/marketing/marketing-site-plan.md](docs/marketing/marketing-site-plan.md)
 - `Xtiitch-Product-Definition.pdf`
