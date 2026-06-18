@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -16,7 +18,11 @@ func TestCreateFieldNormalizesAndAssignsID(t *testing.T) {
 	service := NewService(Dependencies{Measurements: repo, IDs: &seqIDs{ids: []common.ID{"field-1"}}})
 
 	field, err := service.CreateField(context.Background(), CreateFieldCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, Label: "  Chest  ", Unit: " IN ", Sequence: 3,
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleOwner,
+		Label:     "  Chest  ",
+		Unit:      " IN ",
+		Sequence:  3,
 	})
 	if err != nil {
 		t.Fatalf("create field: %v", err)
@@ -33,9 +39,9 @@ func TestCreateFieldRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	cases := []CreateFieldCommand{
-		{Scope: common.TenantScope{BusinessID: "b1"}, Label: " ", Unit: "cm"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, Label: "Chest", Unit: "yards"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, Label: "Chest", Unit: "cm", Sequence: -1},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, Label: " ", Unit: "cm"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, Label: "Chest", Unit: "yards"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, Label: "Chest", Unit: "cm", Sequence: -1},
 	}
 	for _, cmd := range cases {
 		if _, err := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{ids: []common.ID{"field-1"}}}).CreateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
@@ -54,7 +60,12 @@ func TestUpdateFieldNormalizesPartialPatch(t *testing.T) {
 	unit := " CM "
 
 	field, err := service.UpdateField(context.Background(), UpdateFieldCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, FieldID: "field-1", Label: &label, Unit: &unit, Sequence: &sequence,
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleAdmin,
+		FieldID:   "field-1",
+		Label:     &label,
+		Unit:      &unit,
+		Sequence:  &sequence,
 	})
 	if err != nil {
 		t.Fatalf("update field: %v", err)
@@ -71,16 +82,48 @@ func TestUpdateFieldRejectsEmptyOrInvalidPatch(t *testing.T) {
 	badUnit := "mm"
 	negative := -1
 	cases := []UpdateFieldCommand{
-		{Scope: common.TenantScope{BusinessID: "b1"}, FieldID: ""},
-		{Scope: common.TenantScope{BusinessID: "b1"}, FieldID: "field-1"},
-		{Scope: common.TenantScope{BusinessID: "b1"}, FieldID: "field-1", Label: &blank},
-		{Scope: common.TenantScope{BusinessID: "b1"}, FieldID: "field-1", Unit: &badUnit},
-		{Scope: common.TenantScope{BusinessID: "b1"}, FieldID: "field-1", Sequence: &negative},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: ""},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: "field-1"},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: "field-1", Label: &blank},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: "field-1", Unit: &badUnit},
+		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: "field-1", Sequence: &negative},
 	}
 	for _, cmd := range cases {
 		if _, err := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{}}).UpdateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("expected invalid input for %+v, got %v", cmd, err)
 		}
+	}
+}
+
+func TestMeasurementTemplateManagementRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{ids: []common.ID{"field-1"}}})
+	if _, err := service.CreateField(context.Background(), CreateFieldCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleStaff,
+		Label:     "Chest",
+		Unit:      "cm",
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff create to be forbidden, got %v", err)
+	}
+
+	label := "Chest"
+	if _, err := service.UpdateField(context.Background(), UpdateFieldCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleStaff,
+		FieldID:   "field-1",
+		Label:     &label,
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff update to be forbidden, got %v", err)
+	}
+
+	if err := service.DeleteField(context.Background(), DeleteFieldCommand{
+		Scope:     common.TenantScope{BusinessID: "b1"},
+		ActorRole: business.UserRoleStaff,
+		FieldID:   "field-1",
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff delete to be forbidden, got %v", err)
 	}
 }
 

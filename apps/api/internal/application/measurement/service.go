@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -41,13 +43,17 @@ func (s Service) ListFields(ctx context.Context, scope common.TenantScope) ([]po
 }
 
 type CreateFieldCommand struct {
-	Scope    common.TenantScope
-	Label    string
-	Unit     string
-	Sequence int
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Label     string
+	Unit      string
+	Sequence  int
 }
 
 func (s Service) CreateField(ctx context.Context, cmd CreateFieldCommand) (ports.BusinessMeasurementField, error) {
+	if err := authorizeTemplateManagement(cmd.ActorRole); err != nil {
+		return ports.BusinessMeasurementField{}, err
+	}
 	label := strings.TrimSpace(cmd.Label)
 	unit := normalizeUnit(cmd.Unit)
 	if label == "" || !validUnit(unit) || cmd.Sequence < 0 {
@@ -64,14 +70,18 @@ func (s Service) CreateField(ctx context.Context, cmd CreateFieldCommand) (ports
 }
 
 type UpdateFieldCommand struct {
-	Scope    common.TenantScope
-	FieldID  common.ID
-	Label    *string
-	Unit     *string
-	Sequence *int
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	FieldID   common.ID
+	Label     *string
+	Unit      *string
+	Sequence  *int
 }
 
 func (s Service) UpdateField(ctx context.Context, cmd UpdateFieldCommand) (ports.BusinessMeasurementField, error) {
+	if err := authorizeTemplateManagement(cmd.ActorRole); err != nil {
+		return ports.BusinessMeasurementField{}, err
+	}
 	if cmd.FieldID == "" || (cmd.Label == nil && cmd.Unit == nil && cmd.Sequence == nil) {
 		return ports.BusinessMeasurementField{}, ErrInvalidInput
 	}
@@ -102,11 +112,20 @@ func (s Service) UpdateField(ctx context.Context, cmd UpdateFieldCommand) (ports
 	return s.measurements.UpdateField(ctx, cmd.Scope, cmd.FieldID, input)
 }
 
-func (s Service) DeleteField(ctx context.Context, scope common.TenantScope, fieldID common.ID) error {
-	if fieldID == "" {
+type DeleteFieldCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	FieldID   common.ID
+}
+
+func (s Service) DeleteField(ctx context.Context, cmd DeleteFieldCommand) error {
+	if err := authorizeTemplateManagement(cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.FieldID == "" {
 		return ErrInvalidInput
 	}
-	return s.measurements.DeleteField(ctx, scope, fieldID)
+	return s.measurements.DeleteField(ctx, cmd.Scope, cmd.FieldID)
 }
 
 type RecordOrderMeasurementsCommand struct {
@@ -148,6 +167,13 @@ func validUnit(unit string) bool {
 
 func validStaffSource(source string) bool {
 	return source == SourceVisit || source == SourceShop
+}
+
+func authorizeTemplateManagement(role business.UserRole) error {
+	if role == business.UserRoleOwner || role == business.UserRoleAdmin {
+		return nil
+	}
+	return authdomain.ErrForbidden
 }
 
 func normalizeValues(values map[string]string) (map[string]string, error) {

@@ -11,6 +11,7 @@ import (
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	measurementapp "github.com/xcreativs/xtiitch/apps/api/internal/application/measurement"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -20,7 +21,7 @@ type Service interface {
 	ListFields(ctx context.Context, scope common.TenantScope) ([]ports.BusinessMeasurementField, error)
 	CreateField(ctx context.Context, command measurementapp.CreateFieldCommand) (ports.BusinessMeasurementField, error)
 	UpdateField(ctx context.Context, command measurementapp.UpdateFieldCommand) (ports.BusinessMeasurementField, error)
-	DeleteField(ctx context.Context, scope common.TenantScope, fieldID common.ID) error
+	DeleteField(ctx context.Context, command measurementapp.DeleteFieldCommand) error
 	RecordOrderMeasurements(ctx context.Context, command measurementapp.RecordOrderMeasurementsCommand) (ports.OrderMeasurement, error)
 }
 
@@ -80,10 +81,11 @@ func (handler Handler) createField(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	field, err := handler.service.CreateField(r.Context(), measurementapp.CreateFieldCommand{
-		Scope:    principal.TenantScope(),
-		Label:    body.Label,
-		Unit:     body.Unit,
-		Sequence: body.Sequence,
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		Label:     body.Label,
+		Unit:      body.Unit,
+		Sequence:  body.Sequence,
 	})
 	if err != nil {
 		writeMeasurementError(w, err)
@@ -110,11 +112,12 @@ func (handler Handler) updateField(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	field, err := handler.service.UpdateField(r.Context(), measurementapp.UpdateFieldCommand{
-		Scope:    principal.TenantScope(),
-		FieldID:  common.ID(chi.URLParam(r, "id")),
-		Label:    body.Label,
-		Unit:     body.Unit,
-		Sequence: body.Sequence,
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		FieldID:   common.ID(chi.URLParam(r, "id")),
+		Label:     body.Label,
+		Unit:      body.Unit,
+		Sequence:  body.Sequence,
 	})
 	if err != nil {
 		writeMeasurementError(w, err)
@@ -129,7 +132,11 @@ func (handler Handler) deleteField(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if err := handler.service.DeleteField(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id"))); err != nil {
+	if err := handler.service.DeleteField(r.Context(), measurementapp.DeleteFieldCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		FieldID:   common.ID(chi.URLParam(r, "id")),
+	}); err != nil {
 		writeMeasurementError(w, err)
 		return
 	}
@@ -194,6 +201,8 @@ func writeMeasurementError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_input")
 	case errors.Is(err, measurementapp.ErrInvalidMeasurementSource):
 		writeError(w, http.StatusBadRequest, "invalid_measurement_source")
+	case errors.Is(err, authdomain.ErrForbidden):
+		writeError(w, http.StatusForbidden, "forbidden")
 	case errors.Is(err, ports.ErrUnknownMeasurementField):
 		writeError(w, http.StatusBadRequest, "unknown_measurement_field")
 	case errors.Is(err, ports.ErrMeasurementSequenceTaken):
