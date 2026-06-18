@@ -1,7 +1,7 @@
 // Single source of marketing copy for the site. Every claim here is grounded in
 // Xtiitch-Product-Definition.pdf / Xtiitch-Technical-Specification.pdf and the
 // compliance rules in docs/marketing/marketing-site-plan.md. Do not add claims
-// the product does not yet make (esp. refunds — policy is still being settled).
+// the product does not yet make.
 
 export const site = {
   name: "Xtiitch",
@@ -328,7 +328,7 @@ export const faqs: Faq[] = [
   {
     question: "What about cancellations and refunds?",
     answer:
-      "Because payments settle directly to the business and Xtiitch holds no funds, refunds and cancellations are arranged with the business. The full cancellation and refund terms are being finalised and will be published before public launch.",
+      "Because payments settle directly to the business and Xtiitch holds no funds, refund and cancellation requests start with the business. Xtiitch records the request, payment status and any provider-confirmed reversal so the customer, business and operator can see the same trail.",
   },
   {
     question: "Is my information safe?",

@@ -360,6 +360,11 @@ const footerGroups: {
     links: [
       { label: "Privacy", href: "/privacy", icon: <PrivacyTipRoundedIcon /> },
       { label: "Terms", href: "/terms", icon: <ArticleRoundedIcon /> },
+      {
+        label: "Payment policy",
+        href: "/payment-policy",
+        icon: <PaymentsRoundedIcon />,
+      },
     ],
   },
 ];

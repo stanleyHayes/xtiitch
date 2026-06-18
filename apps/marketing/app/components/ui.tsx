@@ -42,6 +42,7 @@ const pageHeroIcons: Record<string, SvgIconComponent> = {
   Features: Inventory2RoundedIcon,
   "For customers": GroupsRoundedIcon,
   "How it works": ChecklistRoundedIcon,
+  "Payment policy": PaymentsRoundedIcon,
   Pricing: PaymentsRoundedIcon,
   Privacy: SecurityRoundedIcon,
   "Security and trust": SecurityRoundedIcon,

@@ -36,7 +36,7 @@ const termSections = [
   },
   {
     title: "Refunds and cancellations",
-    body: "Because Xtiitch does not hold funds, refunds and cancellations must be handled through the business and the payment provider flow. The final refund and cancellation policy must be published before live payments are enabled.",
+    body: "Refunds, order cancellations, subscription changes and disputes follow the public payment policy. Because Xtiitch does not hold funds, provider-confirmed reversals are handled through the business payment flow and recorded by the platform.",
   },
   {
     title: "Acceptable use",
@@ -64,8 +64,8 @@ export default function Terms() {
           }}
         >
           This is a launch-draft terms page for implementation and legal review.
-          Final terms, refund rules and subscription terms must be approved
-          before public launch.
+          Final terms and payment-policy language must be approved before public
+          launch.
         </Alert>
         <PolicySectionList items={termSections} />
       </Section>
@@ -75,7 +75,7 @@ export default function Terms() {
           align="left"
           eyebrow="Before launch"
           title="Policies that must be finalized"
-          subtitle="Subscription renewal, failed payments, cancellation, refund handling, chargebacks, support SLAs and business verification requirements must be finalized before the site is public."
+          subtitle="The payment policy now covers refunds, cancellations, subscription renewal, failed payments and chargebacks. Final legal review, support SLAs and business verification requirements must still be approved before the site is public."
         />
       </Section>
     </>
