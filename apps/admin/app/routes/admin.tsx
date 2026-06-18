@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -41,6 +42,7 @@ import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
 import FileDownloadRounded from "@mui/icons-material/FileDownloadRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
+import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import LightModeRounded from "@mui/icons-material/LightModeRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
@@ -101,6 +103,7 @@ import {
   type AdminReferralProgramme,
   type AdminReferralProgrammeStatus,
   type AdminReferralRefereeRewardKind,
+  type AdminReferralRewardIssue,
   type AdminReferralRewardKind,
   type AdminReferralRewardType,
   type AdminRiskLevel,
@@ -228,6 +231,13 @@ type AdminNavItem = {
   label: string;
   helper: string;
   icon: ReactNode;
+};
+
+type AdminNavGroup = {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  items: AdminNavItem[];
 };
 
 const adminRailWidth = 296;
@@ -359,6 +369,64 @@ const navItems: AdminNavItem[] = [
     label: "Audit log",
     helper: "Operator trail",
     icon: <HistoryRounded />,
+  },
+];
+
+function adminNavItem(id: Section): AdminNavItem {
+  const item = navItems.find((candidate) => candidate.id === id);
+  if (!item) {
+    throw new Error(`Missing admin nav item: ${id}`);
+  }
+  return item;
+}
+
+function adminNavItems(ids: Section[]): AdminNavItem[] {
+  return ids.map((id) => adminNavItem(id));
+}
+
+const adminNavGroups: AdminNavGroup[] = [
+  {
+    id: "command",
+    label: "Command",
+    icon: <TrendingUpRounded />,
+    items: adminNavItems([
+      "overview",
+      "notifications",
+      "reports",
+      "exports",
+      "health",
+      "readiness",
+    ]),
+  },
+  {
+    id: "growth",
+    label: "Growth",
+    icon: <CampaignRounded />,
+    items: adminNavItems([
+      "subscriptions",
+      "promotions",
+      "ads",
+      "affiliates",
+      "referrals",
+    ]),
+  },
+  {
+    id: "access",
+    label: "Access",
+    icon: <PeopleAltRounded />,
+    items: adminNavItems([
+      "users",
+      "roles",
+      "verification",
+      "businesses",
+      "customers",
+    ]),
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    icon: <ShieldRounded />,
+    items: adminNavItems(["money", "risk", "support", "settings", "audit"]),
   },
 ];
 
@@ -1507,6 +1575,28 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-referral-rewards:issue") {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      const result = await adminApi.issueReferralRewards(
+        accessToken,
+        readInt(form.get("limit"), 50),
+      );
+      return {
+        section: "referrals",
+        severity: "success",
+        message: referralRewardIssueActionMessage(result),
+      };
+    } catch (error) {
+      return {
+        section: "referrals",
+        severity: "error",
+        message: adminReferralProgrammeActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-referral-programme:create" ||
     intent === "admin-referral-programme:update" ||
@@ -2262,6 +2352,16 @@ function adminReferralProgrammeActionError(error: unknown): string {
     }
   }
   return "The referral programme change could not be saved.";
+}
+
+function referralRewardIssueActionMessage(
+  result: AdminReferralRewardIssue,
+): string {
+  if (result.rewardCount === 0) {
+    return "No due referral rewards were ready to issue.";
+  }
+
+  return `Issued ${result.rewardCount} referral rewards across ${result.referralCount} referrals: ${result.voucherCount} vouchers, ${result.commissionRebateCount} commission rebates, ${formatGHS(result.totalRewardMinor)} fixed reward value.`;
 }
 
 function adminRiskActionError(error: unknown): string {
@@ -11266,6 +11366,59 @@ function ReferralsSection({
         </Panel>
       ) : null}
 
+      {!referralProgrammesError ? (
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-referral-rewards:issue"
+            />
+            <Stack
+              direction={{ xs: "column", lg: "row" }}
+              spacing={2}
+              sx={{
+                justifyContent: "space-between",
+                alignItems: { lg: "end" },
+              }}
+            >
+              <Box sx={{ maxWidth: 760 }}>
+                <Typography variant="h6">Issue due rewards</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Runs the idempotent reward issuer for qualified referrals that
+                  have passed their hold window. Voucher rewards become
+                  single-use promotion codes; commission rebates stay pending
+                  for finance review.
+                </Typography>
+              </Box>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.25}
+                sx={{ width: { xs: "100%", lg: "auto" } }}
+              >
+                <TextField
+                  label="Batch limit"
+                  name="limit"
+                  type="number"
+                  size="small"
+                  defaultValue={50}
+                  sx={{ minWidth: { sm: 150 } }}
+                  slotProps={{ htmlInput: { min: 1, max: 500, step: 1 } }}
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SyncRounded />}
+                  sx={{ whiteSpace: "nowrap" }}
+                >
+                  Issue rewards
+                </Button>
+              </Stack>
+            </Stack>
+          </Form>
+        </Panel>
+      ) : null}
+
       {!referralProgrammesError && programmes.length === 0 ? (
         <Alert severity="info">
           No referral programmes are registered yet.
@@ -13112,6 +13265,138 @@ function AdminRail({
     }
     return null;
   };
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(adminNavGroups.map((group) => [group.id, true])),
+  );
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((current) => ({
+      ...current,
+      [groupId]: !(current[groupId] ?? true),
+    }));
+  };
+  const renderNavItem = (
+    item: AdminNavItem,
+    compact: boolean,
+    onClose?: () => void,
+  ) => {
+    const selected = item.id === section;
+    const badge = navBadge(item.id);
+    const button = (
+      <ListItemButton
+        selected={selected}
+        onClick={() => {
+          onSelect(item.id);
+          onClose?.();
+        }}
+        sx={{
+          borderRadius: 1.5,
+          minHeight: 52,
+          px: compact ? 1 : 1.4,
+          justifyContent: compact ? "center" : "flex-start",
+          position: "relative",
+          overflow: "hidden",
+          color: tokens.white,
+          border: "1px solid",
+          borderColor: selected ? alpha(tokens.white, 0.18) : "transparent",
+          bgcolor: selected
+            ? alpha(tokens.white, 0.13)
+            : alpha(tokens.white, 0.035),
+          transition:
+            "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+          "&::before": {
+            content: '""',
+            position: "absolute",
+            left: 0,
+            top: 8,
+            bottom: 8,
+            width: 3,
+            borderRadius: 4,
+            bgcolor: selected ? tokens.warning : "transparent",
+          },
+          "&.Mui-selected": {
+            bgcolor: alpha(tokens.white, 0.13),
+          },
+          "&.Mui-selected:hover, &:hover": {
+            bgcolor: alpha(tokens.white, 0.17),
+            transform: compact ? "translateY(-1px)" : "translateX(2px)",
+          },
+        }}
+      >
+        <ListItemIcon
+          sx={{
+            minWidth: compact ? 0 : 38,
+            color: selected ? tokens.white : alpha(tokens.white, 0.62),
+            justifyContent: "center",
+          }}
+        >
+          <Badge
+            color="error"
+            badgeContent={badge ? Number(badge) : 0}
+            invisible={!badge}
+            max={99}
+            sx={{
+              "& .MuiBadge-badge": {
+                bgcolor: tokens.burgundy,
+                color: tokens.white,
+                border: `1px solid ${alpha(tokens.white, 0.28)}`,
+              },
+            }}
+          >
+            {item.icon}
+          </Badge>
+        </ListItemIcon>
+        {!compact ? (
+          <>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography
+                component="span"
+                sx={{
+                  display: "block",
+                  fontWeight: selected ? 900 : 760,
+                  fontSize: 14,
+                }}
+                noWrap
+              >
+                {item.label}
+              </Typography>
+              <Typography
+                component="span"
+                variant="caption"
+                sx={{
+                  display: "block",
+                  color: alpha(tokens.white, 0.56),
+                }}
+                noWrap
+              >
+                {item.helper}
+              </Typography>
+            </Box>
+            {badge ? (
+              <Chip
+                size="small"
+                label={badge}
+                sx={{
+                  height: 22,
+                  color: tokens.white,
+                  bgcolor: alpha(tokens.burgundy, 0.72),
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.14),
+                }}
+              />
+            ) : null}
+          </>
+        ) : null}
+      </ListItemButton>
+    );
+
+    return compact ? (
+      <Tooltip title={item.label} placement="right">
+        {button}
+      </Tooltip>
+    ) : (
+      button
+    );
+  };
 
   const renderRailContent = ({
     compact,
@@ -13125,9 +13410,7 @@ function AdminRail({
       sx={{
         minHeight: "100%",
         p: compact ? 1 : { xs: 1.25, sm: 1.5 },
-        pb: compact
-          ? 1
-          : "calc(12px + env(safe-area-inset-bottom))",
+        pb: compact ? 1 : "calc(12px + env(safe-area-inset-bottom))",
       }}
     >
       <Box
@@ -13231,130 +13514,123 @@ function AdminRail({
       </Box>
 
       <Box sx={{ flex: 1 }}>
-        {!compact ? (
-          <Typography
-            variant="caption"
-            sx={{
-              display: "block",
-              px: 1,
-              color: alpha(tokens.white, 0.58),
-              fontWeight: 900,
-              textTransform: "uppercase",
-            }}
-          >
-            Console
-          </Typography>
-        ) : null}
         <List
           sx={{
             p: 0,
             mt: compact ? 0 : 0.85,
             display: "grid",
-            gap: 0.65,
+            gap: compact ? 0.7 : 1,
           }}
         >
-          {navItems.map((item) => {
-            const selected = item.id === section;
-            const badge = navBadge(item.id);
-            const button = (
-              <ListItemButton
-                key={item.id}
-                selected={selected}
-                onClick={() => {
-                  onSelect(item.id);
-                  onClose?.();
-                }}
-                sx={{
-                  borderRadius: 1.5,
-                  minHeight: 52,
-                  px: compact ? 1 : 1.4,
-                  justifyContent: compact ? "center" : "flex-start",
-                  position: "relative",
-                  overflow: "hidden",
-                  color: tokens.white,
-                  border: "1px solid",
-                  borderColor: selected
-                    ? alpha(tokens.white, 0.18)
-                    : "transparent",
-                  bgcolor: selected
-                    ? alpha(tokens.white, 0.13)
-                    : alpha(tokens.white, 0.035),
-                  transition:
-                    "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-                  "&::before": {
-                    content: '""',
-                    position: "absolute",
-                    left: 0,
-                    top: 8,
-                    bottom: 8,
-                    width: 3,
-                    borderRadius: 4,
-                    bgcolor: selected ? tokens.warning : "transparent",
-                  },
-                  "&.Mui-selected": {
-                    bgcolor: alpha(tokens.white, 0.13),
-                  },
-                  "&.Mui-selected:hover, &:hover": {
-                    bgcolor: alpha(tokens.white, 0.17),
-                    transform: compact ? "translateY(-1px)" : "translateX(2px)",
-                  },
-                }}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: compact ? 0 : 38,
-                    color: selected ? tokens.white : alpha(tokens.white, 0.62),
-                    justifyContent: "center",
-                  }}
-                >
-                  <Badge
-                    color="error"
-                    badgeContent={badge ? Number(badge) : 0}
-                    invisible={!badge}
-                    max={99}
+          {adminNavGroups.map((group) => {
+            const activeGroup = group.items.some((item) => item.id === section);
+            const open = activeGroup || (openGroups[group.id] ?? true);
+            const groupBadge = group.items.reduce((total, item) => {
+              const value = Number(navBadge(item.id) ?? 0);
+              return Number.isFinite(value) ? total + value : total;
+            }, 0);
+
+            return (
+              <Box key={group.id}>
+                {compact ? (
+                  <Tooltip title={group.label} placement="right">
+                    <IconButton
+                      aria-label={`${group.label} navigation group`}
+                      aria-expanded={open}
+                      onClick={() => toggleGroup(group.id)}
+                      sx={{
+                        width: "100%",
+                        height: 40,
+                        color: activeGroup ? tokens.warning : tokens.white,
+                        border: "1px solid",
+                        borderColor: activeGroup
+                          ? alpha(tokens.warning, 0.28)
+                          : alpha(tokens.white, 0.1),
+                        bgcolor: activeGroup
+                          ? alpha(tokens.warning, 0.12)
+                          : alpha(tokens.white, 0.045),
+                        borderRadius: 1.5,
+                        "&:hover": { bgcolor: alpha(tokens.white, 0.14) },
+                      }}
+                    >
+                      <Badge
+                        color="error"
+                        badgeContent={groupBadge}
+                        invisible={groupBadge === 0}
+                        max={99}
+                        sx={{
+                          "& .MuiBadge-badge": {
+                            bgcolor: tokens.burgundy,
+                            color: tokens.white,
+                            border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                          },
+                        }}
+                      >
+                        {group.icon}
+                      </Badge>
+                    </IconButton>
+                  </Tooltip>
+                ) : (
+                  <Button
+                    type="button"
+                    onClick={() => toggleGroup(group.id)}
+                    startIcon={group.icon}
+                    endIcon={
+                      open ? (
+                        <KeyboardArrowDownRounded />
+                      ) : (
+                        <ChevronRightRounded />
+                      )
+                    }
+                    aria-expanded={open}
+                    fullWidth
                     sx={{
-                      "& .MuiBadge-badge": {
-                        bgcolor: tokens.burgundy,
-                        color: tokens.white,
-                        border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                      minHeight: 38,
+                      justifyContent: "flex-start",
+                      color: tokens.white,
+                      border: "1px solid",
+                      borderColor: activeGroup
+                        ? alpha(tokens.warning, 0.28)
+                        : alpha(tokens.white, 0.1),
+                      bgcolor: activeGroup
+                        ? alpha(tokens.warning, 0.12)
+                        : alpha(tokens.white, 0.055),
+                      "& .MuiButton-startIcon": {
+                        color: activeGroup
+                          ? tokens.warning
+                          : alpha(tokens.white, 0.68),
+                      },
+                      "& .MuiButton-endIcon": {
+                        ml: "auto",
+                        color: alpha(tokens.white, 0.62),
+                      },
+                      "&:hover": {
+                        bgcolor: alpha(tokens.white, 0.13),
+                        borderColor: alpha(tokens.white, 0.18),
                       },
                     }}
                   >
-                    {item.icon}
-                  </Badge>
-                </ListItemIcon>
-                {!compact ? (
-                  <>
-                    <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Typography
-                        component="span"
-                        sx={{
-                          display: "block",
-                          fontWeight: selected ? 900 : 760,
-                          fontSize: 14,
-                        }}
-                        noWrap
-                      >
-                        {item.label}
-                      </Typography>
-                      <Typography
-                        component="span"
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          color: alpha(tokens.white, 0.56),
-                        }}
-                        noWrap
-                      >
-                        {item.helper}
-                      </Typography>
+                    <Box
+                      component="span"
+                      sx={{
+                        minWidth: 0,
+                        flex: 1,
+                        textAlign: "left",
+                        fontSize: 12,
+                        fontWeight: 950,
+                        letterSpacing: 0,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {group.label}
                     </Box>
-                    {badge ? (
+                    {groupBadge > 0 ? (
                       <Chip
                         size="small"
-                        label={badge}
+                        label={groupBadge}
                         sx={{
-                          height: 22,
+                          height: 20,
+                          mr: 0.5,
                           color: tokens.white,
                           bgcolor: alpha(tokens.burgundy, 0.72),
                           border: "1px solid",
@@ -13362,17 +13638,25 @@ function AdminRail({
                         }}
                       />
                     ) : null}
-                  </>
-                ) : null}
-              </ListItemButton>
-            );
-
-            return compact ? (
-              <Tooltip key={item.id} title={item.label} placement="right">
-                {button}
-              </Tooltip>
-            ) : (
-              button
+                  </Button>
+                )}
+                <Collapse in={open} timeout="auto" unmountOnExit>
+                  <List
+                    sx={{
+                      p: 0,
+                      mt: 0.65,
+                      display: "grid",
+                      gap: 0.65,
+                    }}
+                  >
+                    {group.items.map((item) => (
+                      <Box key={item.id}>
+                        {renderNavItem(item, compact, onClose)}
+                      </Box>
+                    ))}
+                  </List>
+                </Collapse>
+              </Box>
             );
           })}
         </List>

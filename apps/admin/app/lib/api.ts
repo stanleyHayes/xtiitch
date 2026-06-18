@@ -563,6 +563,15 @@ export type AdminReferralProgramme = {
   updatedAt: string;
 };
 
+export type AdminReferralRewardIssue = {
+  referralCount: number;
+  rewardCount: number;
+  voucherCount: number;
+  commissionRebateCount: number;
+  totalRewardMinor: number;
+  issuedAt: string;
+};
+
 export type AdminAuditSeverity = "info" | "warning" | "critical";
 
 export type AdminVerificationStatus =
@@ -1183,6 +1192,15 @@ type AdminReferralCodePayload = {
   rewarded_count: number;
   created_at: string;
   updated_at: string;
+};
+
+type AdminReferralRewardIssuePayload = {
+  referral_count: number;
+  reward_count: number;
+  voucher_count: number;
+  commission_rebate_count: number;
+  total_reward_minor: number;
+  issued_at: string;
 };
 
 type AdminRiskReviewPayload = {
@@ -1866,6 +1884,19 @@ function mapReferralProgramme(
     codes: (payload.codes ?? []).map(mapReferralCode),
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
+  };
+}
+
+function mapReferralRewardIssue(
+  payload: AdminReferralRewardIssuePayload,
+): AdminReferralRewardIssue {
+  return {
+    referralCount: payload.referral_count,
+    rewardCount: payload.reward_count,
+    voucherCount: payload.voucher_count,
+    commissionRebateCount: payload.commission_rebate_count,
+    totalRewardMinor: payload.total_reward_minor,
+    issuedAt: payload.issued_at,
   };
 }
 
@@ -2875,6 +2906,15 @@ export const adminApi = {
         }),
       },
     ).then(mapReferralCode),
+  issueReferralRewards: (accessToken: string, limit: number) =>
+    requestJSON<AdminReferralRewardIssuePayload>(
+      "/admin/referral-rewards/issue",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ limit }),
+      },
+    ).then(mapReferralRewardIssue),
   queueMoneyReplay: (
     accessToken: string,
     input: { providerReference: string; reason: string },

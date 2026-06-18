@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Checkbox from "@mui/material/Checkbox";
 import Chip from "@mui/material/Chip";
+import Collapse from "@mui/material/Collapse";
 import Divider from "@mui/material/Divider";
 import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -29,6 +30,8 @@ import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
+import KeyboardArrowRightRounded from "@mui/icons-material/KeyboardArrowRightRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LockResetRounded from "@mui/icons-material/LockResetRounded";
@@ -271,6 +274,13 @@ type WorkspaceNavItem = {
   label: string;
   helper: string;
   icon: ReactNode;
+};
+
+type WorkspaceNavGroup = {
+  id: string;
+  label: string;
+  icon: ReactNode;
+  items: WorkspaceNavItem[];
 };
 
 type OrderFilter =
@@ -519,6 +529,84 @@ const staffWorkspaceNav: WorkspaceNavItem[] = [
   },
 ];
 
+function workspaceNavItem(
+  items: WorkspaceNavItem[],
+  section: DashboardSection,
+): WorkspaceNavItem {
+  const item = items.find((candidate) => candidate.section === section);
+  if (!item) {
+    throw new Error(`Missing dashboard nav item: ${section}`);
+  }
+  return item;
+}
+
+function workspaceNavItems(
+  items: WorkspaceNavItem[],
+  sections: DashboardSection[],
+): WorkspaceNavItem[] {
+  return sections.map((section) => workspaceNavItem(items, section));
+}
+
+const managementWorkspaceGroups: WorkspaceNavGroup[] = [
+  {
+    id: "command",
+    label: "Command",
+    icon: <TuneRounded />,
+    items: workspaceNavItems(managementWorkspaceNav, ["overview", "reports"]),
+  },
+  {
+    id: "operations",
+    label: "Operations",
+    icon: <TimelineRounded />,
+    items: workspaceNavItems(managementWorkspaceNav, [
+      "orders",
+      "money",
+      "visits",
+      "handovers",
+      "messages",
+    ]),
+  },
+  {
+    id: "storefront",
+    label: "Storefront",
+    icon: <StorefrontRounded />,
+    items: workspaceNavItems(managementWorkspaceNav, [
+      "catalogue",
+      "promotions",
+    ]),
+  },
+  {
+    id: "setup",
+    label: "Setup",
+    icon: <SettingsRounded />,
+    items: workspaceNavItems(managementWorkspaceNav, [
+      "measurements",
+      "availability",
+      "settings",
+      "team",
+    ]),
+  },
+];
+
+const staffWorkspaceGroups: WorkspaceNavGroup[] = [
+  {
+    id: "shift",
+    label: "Shift work",
+    icon: <TuneRounded />,
+    items: workspaceNavItems(staffWorkspaceNav, ["tasks", "orders"]),
+  },
+  {
+    id: "customers",
+    label: "Customer flow",
+    icon: <PeopleAltRounded />,
+    items: workspaceNavItems(staffWorkspaceNav, [
+      "visits",
+      "handovers",
+      "messages",
+    ]),
+  },
+];
+
 const staffAllowedIntents = new Set([
   "advance",
   "record_measurements",
@@ -610,9 +698,7 @@ function dashboardUpstreamStatus(status: number): number {
 }
 
 function isRedirectResponse(error: unknown): error is Response {
-  return (
-    error instanceof Response && error.status >= 300 && error.status < 400
-  );
+  return error instanceof Response && error.status >= 300 && error.status < 400;
 }
 
 async function readDashboardJSON<T>(
@@ -3073,7 +3159,7 @@ function WorkspaceRail({
   profile,
   currentUser,
   verified,
-  workspaceItems,
+  workspaceGroups,
   section,
   storefrontURL,
   badges,
@@ -3083,7 +3169,7 @@ function WorkspaceRail({
   profile: Profile;
   currentUser: CurrentUser;
   verified: boolean;
-  workspaceItems: WorkspaceNavItem[];
+  workspaceGroups: WorkspaceNavGroup[];
   section: DashboardSection;
   storefrontURL: string;
   badges: Partial<Record<DashboardSection, string | undefined>>;
@@ -3101,6 +3187,15 @@ function WorkspaceRail({
     backgroundSize: "34px 34px, 34px 34px, auto",
     scrollbarWidth: "none",
     "&::-webkit-scrollbar": { display: "none" },
+  };
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(workspaceGroups.map((group) => [group.id, true])),
+  );
+  const toggleGroup = (groupId: string) => {
+    setOpenGroups((current) => ({
+      ...current,
+      [groupId]: !(current[groupId] ?? true),
+    }));
   };
 
   const renderRailContent = ({ inDrawer = false }: { inDrawer?: boolean }) => (
@@ -3218,108 +3313,187 @@ function WorkspaceRail({
           minHeight: inDrawer ? "auto" : 0,
         }}
       >
-        <Typography
-          variant="caption"
-          sx={{
-            display: "block",
-            color: alpha(tokens.white, 0.58),
-            fontWeight: 900,
-            px: 1,
-            textTransform: "uppercase",
-          }}
-        >
-          Studio workspace
-        </Typography>
-        <Stack spacing={0.65} sx={{ mt: 0.9, display: "grid" }}>
-          {workspaceItems.map((item) => {
-            const active = item.section === section;
-            const badge = badges[item.section];
+        <Stack spacing={0.9} sx={{ display: "grid" }}>
+          {workspaceGroups.map((group) => {
+            const activeGroup = group.items.some(
+              (item) => item.section === section,
+            );
+            const open = activeGroup || (openGroups[group.id] ?? true);
+            const groupBadge = group.items.reduce((total, item) => {
+              const value = Number(badges[item.section] ?? 0);
+              return Number.isFinite(value) ? total + value : total;
+            }, 0);
+
             return (
-              <Button
-                key={item.href}
-                component={RouterLink}
-                to={item.href}
-                startIcon={item.icon}
-                aria-current={active ? "page" : undefined}
-                onClick={inDrawer ? onCloseMobile : undefined}
-                sx={{
-                  minHeight: 54,
-                  minWidth: 0,
-                  justifyContent: "flex-start",
-                  position: "relative",
-                  overflow: "hidden",
-                  color: tokens.white,
-                  bgcolor: active
-                    ? alpha(tokens.white, 0.13)
-                    : alpha(tokens.white, 0.035),
-                  border: "1px solid",
-                  borderColor: active
-                    ? alpha(tokens.white, 0.18)
-                    : "transparent",
-                  "&::before": {
-                    content: '""',
-                    position: "absolute",
-                    left: 0,
-                    top: 7,
-                    bottom: 7,
-                    width: 3,
-                    borderRadius: 4,
-                    bgcolor: active ? tokens.gold : "transparent",
-                  },
-                  "& .MuiButton-startIcon": {
-                    color: active ? tokens.white : alpha(tokens.white, 0.62),
-                  },
-                  "&:hover": {
-                    bgcolor: alpha(tokens.white, 0.17),
-                    borderColor: alpha(tokens.white, 0.16),
+              <Box key={group.id}>
+                <Button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  startIcon={group.icon}
+                  endIcon={
+                    open ? (
+                      <KeyboardArrowDownRounded />
+                    ) : (
+                      <KeyboardArrowRightRounded />
+                    )
+                  }
+                  aria-expanded={open}
+                  fullWidth
+                  sx={{
+                    minHeight: 38,
+                    justifyContent: "flex-start",
                     color: tokens.white,
-                    transform: "translateX(2px)",
-                    "& .MuiButton-startIcon": { color: tokens.white },
-                  },
-                  transition:
-                    "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-                }}
-              >
-                <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
-                  <Typography
+                    border: "1px solid",
+                    borderColor: activeGroup
+                      ? alpha(tokens.gold, 0.28)
+                      : alpha(tokens.white, 0.1),
+                    bgcolor: activeGroup
+                      ? alpha(tokens.gold, 0.12)
+                      : alpha(tokens.white, 0.055),
+                    "& .MuiButton-startIcon": {
+                      color: activeGroup
+                        ? tokens.gold
+                        : alpha(tokens.white, 0.68),
+                    },
+                    "& .MuiButton-endIcon": {
+                      ml: "auto",
+                      color: alpha(tokens.white, 0.62),
+                    },
+                    "&:hover": {
+                      bgcolor: alpha(tokens.white, 0.13),
+                      borderColor: alpha(tokens.white, 0.18),
+                    },
+                  }}
+                >
+                  <Box
                     component="span"
                     sx={{
-                      display: "block",
-                      fontWeight: active ? 900 : 780,
-                      fontSize: 14,
-                      lineHeight: 1.15,
+                      minWidth: 0,
+                      flex: 1,
+                      textAlign: "left",
+                      fontSize: 12,
+                      fontWeight: 950,
+                      letterSpacing: 0,
+                      textTransform: "uppercase",
                     }}
-                    noWrap
                   >
-                    {item.label}
-                  </Typography>
-                  <Typography
-                    component="span"
-                    variant="caption"
-                    sx={{
-                      display: "block",
-                      color: alpha(tokens.white, 0.56),
-                      lineHeight: 1.1,
-                    }}
-                    noWrap
-                  >
-                    {item.helper}
-                  </Typography>
-                </Box>
-                {badge ? (
-                  <Chip
-                    size="small"
-                    label={badge}
-                    sx={{
-                      height: 22,
-                      color: tokens.white,
-                      bgcolor: alpha(tokens.burgundy, 0.72),
-                      border: "1px solid",
-                      borderColor: alpha(tokens.white, 0.14),
-                    }}
-                  />
-                ) : null}
-              </Button>
+                    {group.label}
+                  </Box>
+                  {groupBadge > 0 ? (
+                    <Chip
+                      size="small"
+                      label={groupBadge}
+                      sx={{
+                        height: 20,
+                        mr: 0.5,
+                        color: tokens.white,
+                        bgcolor: alpha(tokens.burgundy, 0.72),
+                        border: "1px solid",
+                        borderColor: alpha(tokens.white, 0.14),
+                      }}
+                    />
+                  ) : null}
+                </Button>
+                <Collapse in={open} timeout="auto" unmountOnExit>
+                  <Stack spacing={0.65} sx={{ mt: 0.65, display: "grid" }}>
+                    {group.items.map((item) => {
+                      const active = item.section === section;
+                      const badge = badges[item.section];
+                      return (
+                        <Button
+                          key={item.href}
+                          component={RouterLink}
+                          to={item.href}
+                          startIcon={item.icon}
+                          aria-current={active ? "page" : undefined}
+                          onClick={inDrawer ? onCloseMobile : undefined}
+                          sx={{
+                            minHeight: 54,
+                            minWidth: 0,
+                            justifyContent: "flex-start",
+                            position: "relative",
+                            overflow: "hidden",
+                            color: tokens.white,
+                            bgcolor: active
+                              ? alpha(tokens.white, 0.13)
+                              : alpha(tokens.white, 0.035),
+                            border: "1px solid",
+                            borderColor: active
+                              ? alpha(tokens.white, 0.18)
+                              : "transparent",
+                            "&::before": {
+                              content: '""',
+                              position: "absolute",
+                              left: 0,
+                              top: 7,
+                              bottom: 7,
+                              width: 3,
+                              borderRadius: 4,
+                              bgcolor: active ? tokens.gold : "transparent",
+                            },
+                            "& .MuiButton-startIcon": {
+                              color: active
+                                ? tokens.white
+                                : alpha(tokens.white, 0.62),
+                            },
+                            "&:hover": {
+                              bgcolor: alpha(tokens.white, 0.17),
+                              borderColor: alpha(tokens.white, 0.16),
+                              color: tokens.white,
+                              transform: "translateX(2px)",
+                              "& .MuiButton-startIcon": {
+                                color: tokens.white,
+                              },
+                            },
+                            transition:
+                              "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                          }}
+                        >
+                          <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                            <Typography
+                              component="span"
+                              sx={{
+                                display: "block",
+                                fontWeight: active ? 900 : 780,
+                                fontSize: 14,
+                                lineHeight: 1.15,
+                              }}
+                              noWrap
+                            >
+                              {item.label}
+                            </Typography>
+                            <Typography
+                              component="span"
+                              variant="caption"
+                              sx={{
+                                display: "block",
+                                color: alpha(tokens.white, 0.56),
+                                lineHeight: 1.1,
+                              }}
+                              noWrap
+                            >
+                              {item.helper}
+                            </Typography>
+                          </Box>
+                          {badge ? (
+                            <Chip
+                              size="small"
+                              label={badge}
+                              sx={{
+                                height: 22,
+                                color: tokens.white,
+                                bgcolor: alpha(tokens.burgundy, 0.72),
+                                border: "1px solid",
+                                borderColor: alpha(tokens.white, 0.14),
+                              }}
+                            />
+                          ) : null}
+                        </Button>
+                      );
+                    })}
+                  </Stack>
+                </Collapse>
+              </Box>
             );
           })}
         </Stack>
@@ -8844,7 +9018,9 @@ export default function Dashboard({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const verified = profile.verification_status === "verified";
   const canManage = canManageDashboard(currentUser.role);
-  const workspaceItems = canManage ? managementWorkspaceNav : staffWorkspaceNav;
+  const workspaceGroups = canManage
+    ? managementWorkspaceGroups
+    : staffWorkspaceGroups;
   const filteredOrders = filterOrders(orders, orderFilter);
   const returnTo = `/dashboard/orders?orders=${orderFilter}`;
   const liveOrders = orders.filter(
@@ -9209,7 +9385,7 @@ export default function Dashboard({
           profile={profile}
           currentUser={currentUser}
           verified={verified}
-          workspaceItems={workspaceItems}
+          workspaceGroups={workspaceGroups}
           section={section}
           storefrontURL={storefrontURL}
           badges={railBadges}
