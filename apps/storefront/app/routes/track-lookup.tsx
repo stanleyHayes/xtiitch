@@ -126,25 +126,55 @@ export default function TrackLookup() {
             alignItems: "center",
           }}
         >
-          <Box>
-            <Button
-              component={RouterLink}
-              to="/"
-              startIcon={<StorefrontRounded />}
-              sx={{ mb: 2, color: "text.secondary" }}
+          <Box component="header">
+            <Stack
+              spacing={1.5}
+              sx={{ mb: { xs: 2, md: 2.5 }, alignItems: "flex-start" }}
             >
-              Back to storefronts
-            </Button>
-            <Typography
-              variant="caption"
-              sx={{
-                color: tokens.burgundy,
-                fontWeight: 900,
-                textTransform: "uppercase",
-              }}
-            >
-              Customer tracking
-            </Typography>
+              <Button
+                component={RouterLink}
+                to="/"
+                variant="text"
+                startIcon={<StorefrontRounded />}
+                sx={{
+                  px: 0,
+                  minHeight: 36,
+                  color: "text.secondary",
+                  fontWeight: 800,
+                  "& .MuiButton-startIcon": {
+                    mr: 1,
+                    color: "inherit",
+                  },
+                  "&:hover": {
+                    bgcolor: "transparent",
+                    color: tokens.burgundy,
+                  },
+                }}
+              >
+                Back to storefronts
+              </Button>
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  width: "fit-content",
+                  px: 1.25,
+                  py: 0.55,
+                  borderRadius: 999,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.burgundy, 0.16),
+                  bgcolor: alpha(tokens.burgundy, 0.07),
+                  color: tokens.burgundy,
+                  fontWeight: 950,
+                  letterSpacing: 0.3,
+                  lineHeight: 1,
+                  textTransform: "uppercase",
+                }}
+              >
+                Customer tracking
+              </Typography>
+            </Stack>
             <Typography
               variant="h2"
               component="h1"
