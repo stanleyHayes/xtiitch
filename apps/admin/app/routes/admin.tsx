@@ -183,6 +183,7 @@ type AdminNotification = {
 type AdminReportStatus = "ready" | "watch" | "blocked";
 type AdminExportDatasetId =
   | "report-posture"
+  | "launch-readiness"
   | "businesses"
   | "verification"
   | "money"
@@ -369,6 +370,7 @@ const auditFilters: { value: AuditFilter; label: string }[] = [
 
 const serverExportDatasetIds: AdminExportDatasetId[] = [
   "report-posture",
+  "launch-readiness",
   "businesses",
   "verification",
   "money",
@@ -4573,6 +4575,7 @@ function ExportsSection({
   platformMetrics,
   platformSettings,
   profileSettings,
+  launchReadiness,
   adminUsers,
   adminBusinesses,
   verificationCases,
@@ -4592,6 +4595,7 @@ function ExportsSection({
   platformMetrics: AdminPlatformMetrics | null;
   platformSettings: AdminPlatformSettings;
   profileSettings: AdminProfileSettings;
+  launchReadiness: AdminLaunchReadiness | null;
   adminUsers: AdminUser[];
   adminBusinesses: AdminBusiness[];
   verificationCases: AdminVerificationCase[];
@@ -4661,6 +4665,42 @@ function ExportsSection({
           platformSettings.maintenanceMode ? "Maintenance" : "Live",
           `${platformSettings.verificationSlaHours}h SLA`,
         ],
+      ],
+    },
+    {
+      id: "launch-readiness",
+      title: "Launch readiness",
+      helper:
+        "Production gate checklist for credentials, providers, legal review, and quality scan setup.",
+      source: "readiness",
+      sourceLabel: "Open readiness",
+      tone:
+        (launchReadiness?.blockedCount ?? 0) > 0
+          ? "blocked"
+          : (launchReadiness?.watchCount ?? 0) > 0
+            ? "watch"
+            : "ready",
+      rows: [
+        [
+          "Category",
+          "Gate",
+          "Status",
+          "Summary",
+          "Detail",
+          "Action",
+          "Target",
+          "Updated",
+        ],
+        ...(launchReadiness?.checks ?? []).map((check) => [
+          check.category,
+          check.label,
+          check.status,
+          check.summary,
+          check.detail,
+          check.action,
+          check.targetLabel,
+          launchReadiness?.updatedAt ? shortTime(launchReadiness.updatedAt) : "",
+        ]),
       ],
     },
     {
@@ -13539,6 +13579,7 @@ export default function AdminDashboard({
               platformMetrics={platformMetrics}
               platformSettings={platformSettings}
               profileSettings={profileSettings}
+              launchReadiness={launchReadiness}
               adminUsers={adminUsers}
               adminBusinesses={adminBusinesses}
               verificationCases={verificationCases}

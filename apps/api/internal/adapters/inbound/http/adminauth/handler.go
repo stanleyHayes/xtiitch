@@ -2908,6 +2908,27 @@ func (handler Handler) exportDatasetRows(
 			{"Platform policy", boolCSV(!settings.MaintenanceMode, "Live", "Maintenance"), fmt.Sprintf("%dh verification SLA", settings.VerificationSLAHours)},
 			{"Payout review threshold", moneyCSV(int64(settings.PayoutReviewThresholdPesewas)), "Admin settlement review threshold"},
 		}, nil
+	case "launch-readiness":
+		readiness, err := handler.service.GetLaunchReadiness(ctx, adminauthapp.GetLaunchReadinessCommand{
+			ActorRole: principal.Role,
+		})
+		if err != nil {
+			return nil, err
+		}
+		rows := [][]string{{"Category", "Gate", "Status", "Summary", "Detail", "Action", "Target", "Updated"}}
+		for _, check := range readiness.Checks {
+			rows = append(rows, []string{
+				check.Category,
+				check.Label,
+				check.Status,
+				check.Summary,
+				check.Detail,
+				check.Action,
+				check.TargetLabel,
+				timeCSV(readiness.UpdatedAt),
+			})
+		}
+		return rows, nil
 	case "businesses":
 		records, err := handler.service.ListBusinesses(ctx, adminauthapp.ListBusinessesCommand{ActorRole: principal.Role})
 		if err != nil {
