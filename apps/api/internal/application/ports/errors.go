@@ -44,6 +44,10 @@ var ErrSubscriptionBillingUnavailable = errors.New("subscription billing unavail
 // subscription invoice while one is still open.
 var ErrSubscriptionInvoiceOpen = errors.New("subscription invoice already open")
 
+// ErrPlanLimitExceeded is returned when a tenant-scoped write would exceed the
+// business's current subscription/package entitlement.
+var ErrPlanLimitExceeded = errors.New("plan limit exceeded")
+
 // ErrSlotTaken is returned when a home-visit slot cannot be held because it is
 // already held/booked, or is not an offerable open slot. The partial unique
 // index on bookings makes this race-proof.

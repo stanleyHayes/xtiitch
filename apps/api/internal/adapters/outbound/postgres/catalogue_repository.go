@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -101,6 +102,9 @@ func (repo CatalogueRepository) CreateDesign(ctx context.Context, scope common.T
 		images = []string{}
 	}
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		if err := ensureDesignCapacity(ctx, tx, input.BusinessID); err != nil {
+			return err
+		}
 		_, err := tx.Exec(ctx, `
 			insert into designs (
 				design_id, business_id, collection_id, title, description, images,
@@ -213,6 +217,26 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 
 func (repo CatalogueRepository) SetDesignStatus(ctx context.Context, scope common.TenantScope, designID common.ID, status catalogue.Status) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		if status == catalogue.StatusActive {
+			var currentStatus string
+			err := tx.QueryRow(ctx, `
+				select status
+				from designs
+				where design_id = $1 and business_id = $2
+				for update
+			`, designID.String(), scope.BusinessID.String()).Scan(&currentStatus)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			if err != nil {
+				return err
+			}
+			if currentStatus != string(catalogue.StatusActive) {
+				if err := ensureDesignCapacity(ctx, tx, scope.BusinessID); err != nil {
+					return err
+				}
+			}
+		}
 		tag, err := tx.Exec(ctx, `
 			update designs set status = $3, updated_at = now()
 			where design_id = $1 and business_id = $2
@@ -300,6 +324,34 @@ func (repo CatalogueRepository) ListDesignPrices(ctx context.Context, scope comm
 		return rows.Err()
 	})
 	return prices, err
+}
+
+func ensureDesignCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	var limit sql.NullInt64
+	var activeCount int64
+	err := tx.QueryRow(ctx, `
+		select p.design_limit::bigint,
+			(
+				select count(*)::bigint
+				from designs d
+				where d.business_id = b.business_id
+					and d.status = 'active'
+			) as active_designs
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1
+		for update of b
+	`, businessID.String()).Scan(&limit, &activeCount)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if limit.Valid && activeCount >= limit.Int64 {
+		return ports.ErrPlanLimitExceeded
+	}
+	return nil
 }
 
 func (repo CatalogueRepository) inTenantTx(ctx context.Context, scope common.TenantScope, fn func(tx pgx.Tx) error) error {

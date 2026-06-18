@@ -673,6 +673,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "promotion_code_taken")
 		return
 	}
+	if errors.Is(err, ports.ErrPlanLimitExceeded) {
+		writeError(w, http.StatusConflict, "plan_limit_exceeded")
+		return
+	}
 	writeRepoError(w, err)
 }
 
