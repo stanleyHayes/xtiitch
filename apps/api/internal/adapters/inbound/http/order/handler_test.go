@@ -103,6 +103,34 @@ func TestAdvanceStageRejectsInvalidOrderState(t *testing.T) {
 	if response.Code != http.StatusConflict {
 		t.Fatalf("expected 409, got %d (%s)", response.Code, response.Body.String())
 	}
+	if service.advanceCommand.Scope.BusinessID != "business-1" ||
+		service.advanceCommand.ActorRole != business.UserRoleOwner ||
+		service.advanceCommand.OrderID != "order-1" {
+		t.Fatalf("unexpected advance command: %+v", service.advanceCommand)
+	}
+}
+
+func TestCreateWalkInPassesActorRole(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeOrderService{createdOrderID: "order-1"}
+	router := newOrderRouter(service, fakeOrderVerifier{
+		principal: ports.VerifiedAccessToken{Subject: "admin-1", BusinessID: "business-1", Role: business.UserRoleAdmin},
+	})
+	request := httptest.NewRequest(http.MethodPost, "/orders", strings.NewReader(`{"design_id":"design-1","customer_name":"Ama Boateng"}`))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.createCommand.Scope.BusinessID != "business-1" ||
+		service.createCommand.ActorRole != business.UserRoleAdmin ||
+		service.createCommand.DesignID != "design-1" {
+		t.Fatalf("unexpected create command: %+v", service.createCommand)
+	}
 }
 
 func TestSetAgreedTotalMapsForbidden(t *testing.T) {
@@ -143,21 +171,26 @@ func (v fakeOrderVerifier) VerifyAccessToken(_ context.Context, _ string) (ports
 
 type fakeOrderService struct {
 	orders           []ports.OrderSummary
+	createdOrderID   common.ID
+	createCommand    orderapp.CreateWalkInOrderCommand
 	advanceErr       error
+	advanceCommand   orderapp.AdvanceStageCommand
 	setAgreedErr     error
 	setAgreedCommand orderapp.SetAgreedTotalCommand
 	collectCommand   orderapp.CollectBalanceCommand
 }
 
-func (s *fakeOrderService) CreateWalkInOrder(context.Context, orderapp.CreateWalkInOrderCommand) (common.ID, error) {
-	return "", nil
+func (s *fakeOrderService) CreateWalkInOrder(_ context.Context, command orderapp.CreateWalkInOrderCommand) (common.ID, error) {
+	s.createCommand = command
+	return s.createdOrderID, nil
 }
 
 func (s *fakeOrderService) ListOrders(context.Context, common.TenantScope) ([]ports.OrderSummary, error) {
 	return s.orders, nil
 }
 
-func (s *fakeOrderService) AdvanceStage(context.Context, common.TenantScope, common.ID) (order.Tracking, error) {
+func (s *fakeOrderService) AdvanceStage(_ context.Context, command orderapp.AdvanceStageCommand) (order.Tracking, error) {
+	s.advanceCommand = command
 	return order.Tracking{}, s.advanceErr
 }
 

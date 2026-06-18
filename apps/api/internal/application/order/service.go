@@ -44,6 +44,7 @@ func NewService(deps Dependencies) Service {
 
 type CreateWalkInOrderCommand struct {
 	Scope            common.TenantScope
+	ActorRole        business.UserRole
 	DesignID         common.ID
 	SizeBandID       *common.ID
 	CustomerName     string
@@ -55,6 +56,9 @@ type CreateWalkInOrderCommand struct {
 // CreateWalkInOrder records an in-person order against one of the business's
 // designs and returns the order reference (the customer's tracking key).
 func (s Service) CreateWalkInOrder(ctx context.Context, cmd CreateWalkInOrderCommand) (common.ID, error) {
+	if err := authorizeOrderOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
 	name := strings.TrimSpace(cmd.CustomerName)
 	if cmd.DesignID == "" || name == "" {
 		return "", ErrInvalidInput
@@ -79,8 +83,20 @@ func (s Service) ListOrders(ctx context.Context, scope common.TenantScope) ([]po
 	return s.orders.ListOrders(ctx, scope)
 }
 
-func (s Service) AdvanceStage(ctx context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error) {
-	return s.orders.AdvanceStage(ctx, scope, orderID)
+type AdvanceStageCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	OrderID   common.ID
+}
+
+func (s Service) AdvanceStage(ctx context.Context, cmd AdvanceStageCommand) (order.Tracking, error) {
+	if err := authorizeOrderOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return order.Tracking{}, err
+	}
+	if cmd.OrderID.IsZero() {
+		return order.Tracking{}, ErrInvalidInput
+	}
+	return s.orders.AdvanceStage(ctx, cmd.Scope, cmd.OrderID)
 }
 
 // GetTracking is the public "where is my cloth?" read, keyed by order reference.
@@ -190,4 +206,16 @@ func authorizeOrderMoneyManagement(scope common.TenantScope, role business.UserR
 		return nil
 	}
 	return authdomain.ErrForbidden
+}
+
+func authorizeOrderOperation(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return ErrInvalidInput
+	}
+	switch role {
+	case business.UserRoleOwner, business.UserRoleAdmin, business.UserRoleStaff:
+		return nil
+	default:
+		return authdomain.ErrForbidden
+	}
 }

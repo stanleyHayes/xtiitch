@@ -23,7 +23,7 @@ const maxBodyBytes = 1 << 20
 type Service interface {
 	CreateWalkInOrder(ctx context.Context, command orderapp.CreateWalkInOrderCommand) (common.ID, error)
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error)
-	AdvanceStage(ctx context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error)
+	AdvanceStage(ctx context.Context, command orderapp.AdvanceStageCommand) (order.Tracking, error)
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
 	SetAgreedTotal(ctx context.Context, command orderapp.SetAgreedTotalCommand) error
 	CollectBalance(ctx context.Context, command orderapp.CollectBalanceCommand) (orderapp.CollectBalanceResult, error)
@@ -74,6 +74,7 @@ func (handler Handler) createWalkIn(w http.ResponseWriter, r *http.Request) {
 
 	cmd := orderapp.CreateWalkInOrderCommand{
 		Scope:            principal.TenantScope(),
+		ActorRole:        principal.Role,
 		DesignID:         common.ID(body.DesignID),
 		CustomerName:     body.CustomerName,
 		CustomerPhone:    body.CustomerPhone,
@@ -135,7 +136,11 @@ func (handler Handler) advance(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	tracking, err := handler.service.AdvanceStage(r.Context(), principal.TenantScope(), common.ID(chi.URLParam(r, "id")))
+	tracking, err := handler.service.AdvanceStage(r.Context(), orderapp.AdvanceStageCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		OrderID:   common.ID(chi.URLParam(r, "id")),
+	})
 	if err != nil {
 		writeServiceError(w, err)
 		return

@@ -22,12 +22,12 @@ func TestCreateWalkInOrderRejectsMissingDesignOrCustomer(t *testing.T) {
 	service := NewService(Dependencies{Orders: &fakeOrderRepo{}, IDs: &seqIDs{ids: []common.ID{"order-1", "customer-1"}}})
 
 	if _, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, DesignID: "", CustomerName: "Ama",
+		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, DesignID: "", CustomerName: "Ama",
 	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected invalid input for missing design, got %v", err)
 	}
 	if _, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, DesignID: "d1", CustomerName: "  ",
+		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, DesignID: "d1", CustomerName: "  ",
 	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("expected invalid input for missing customer, got %v", err)
 	}
@@ -41,6 +41,7 @@ func TestCreateWalkInOrderRecordsScopedInput(t *testing.T) {
 
 	id, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
 		Scope:        common.TenantScope{BusinessID: "b1"},
+		ActorRole:    business.UserRoleStaff,
 		DesignID:     "d1",
 		CustomerName: "  Ama Boateng  ",
 	})
@@ -58,8 +59,54 @@ func TestCreateWalkInOrderRecordsScopedInput(t *testing.T) {
 	}
 }
 
+func TestOrderOperationsRequireKnownBusinessRole(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeOrderRepo{}
+	service := NewService(Dependencies{Orders: repo, IDs: &seqIDs{ids: []common.ID{"order-1", "customer-1"}}})
+	scope := common.TenantScope{BusinessID: "b1"}
+
+	if _, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
+		Scope:        scope,
+		ActorRole:    business.UserRole("viewer"),
+		DesignID:     "d1",
+		CustomerName: "Ama Boateng",
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected unknown role to be forbidden for walk-in creation, got %v", err)
+	}
+	if repo.createCalled {
+		t.Fatal("walk-in creation should stop before repository write")
+	}
+
+	if _, err := service.AdvanceStage(context.Background(), AdvanceStageCommand{
+		Scope:     scope,
+		ActorRole: business.UserRole("viewer"),
+		OrderID:   "o1",
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected unknown role to be forbidden for stage advancement, got %v", err)
+	}
+	if repo.advanceCalled {
+		t.Fatal("stage advancement should stop before repository write")
+	}
+
+	if _, err := service.AdvanceStage(context.Background(), AdvanceStageCommand{
+		Scope:     common.TenantScope{},
+		ActorRole: business.UserRoleStaff,
+		OrderID:   "o1",
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected missing scope to be invalid, got %v", err)
+	}
+	if repo.advanceCalled {
+		t.Fatal("stage advancement should not reach the repository without a tenant scope")
+	}
+}
+
 type fakeOrderRepo struct {
 	input          ports.CreateWalkInOrderInput
+	createCalled   bool
+	advanceCalled  bool
+	advanceScope   common.TenantScope
+	advanceOrderID common.ID
 	agreedTotalSet int64
 	setAgreedErr   error
 	billing        ports.OrderBilling
@@ -67,6 +114,7 @@ type fakeOrderRepo struct {
 }
 
 func (r *fakeOrderRepo) CreateWalkInOrder(_ context.Context, _ common.TenantScope, input ports.CreateWalkInOrderInput) error {
+	r.createCalled = true
 	r.input = input
 	return nil
 }
@@ -99,7 +147,10 @@ func (r *fakeOrderRepo) ListOrders(_ context.Context, _ common.TenantScope) ([]p
 	return nil, nil
 }
 
-func (r *fakeOrderRepo) AdvanceStage(_ context.Context, _ common.TenantScope, _ common.ID) (order.Tracking, error) {
+func (r *fakeOrderRepo) AdvanceStage(_ context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error) {
+	r.advanceCalled = true
+	r.advanceScope = scope
+	r.advanceOrderID = orderID
 	return order.Tracking{}, nil
 }
 
