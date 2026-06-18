@@ -42,6 +42,7 @@ type Service interface {
 	GetOperationsHealth(ctx context.Context, command adminauthapp.GetOperationsHealthCommand) (adminauthapp.OperationsHealthResult, error)
 	GetAdminNotifications(ctx context.Context, command adminauthapp.GetAdminNotificationsCommand) (adminauthapp.AdminNotificationsResult, error)
 	GetAdminReports(ctx context.Context, command adminauthapp.GetAdminReportsCommand) (adminauthapp.AdminReportsResult, error)
+	GetLaunchReadiness(ctx context.Context, command adminauthapp.GetLaunchReadinessCommand) (adminauthapp.LaunchReadinessResult, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
@@ -121,6 +122,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/operations-health", handler.operationsHealth)
 		protected.Get("/admin/notifications", handler.adminNotifications)
 		protected.Get("/admin/reports", handler.adminReports)
+		protected.Get("/admin/launch-readiness", handler.launchReadiness)
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
@@ -605,6 +607,27 @@ type adminReportResponse struct {
 	Value       string `json:"value"`
 	Helper      string `json:"helper"`
 	Status      string `json:"status"`
+	Target      string `json:"target"`
+	TargetLabel string `json:"target_label"`
+}
+
+type launchReadinessResponse struct {
+	Environment  string                         `json:"environment"`
+	ReadyCount   int                            `json:"ready_count"`
+	WatchCount   int                            `json:"watch_count"`
+	BlockedCount int                            `json:"blocked_count"`
+	Checks       []launchReadinessCheckResponse `json:"checks"`
+	UpdatedAt    string                         `json:"updated_at"`
+}
+
+type launchReadinessCheckResponse struct {
+	ID          string `json:"id"`
+	Category    string `json:"category"`
+	Label       string `json:"label"`
+	Status      string `json:"status"`
+	Summary     string `json:"summary"`
+	Detail      string `json:"detail"`
+	Action      string `json:"action"`
 	Target      string `json:"target"`
 	TargetLabel string `json:"target_label"`
 }
@@ -1378,6 +1401,25 @@ func (handler Handler) adminReports(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newAdminReportsResponse(reports))
+}
+
+func (handler Handler) launchReadiness(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	readiness, err := handler.service.GetLaunchReadiness(r.Context(), adminauthapp.GetLaunchReadinessCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newLaunchReadinessResponse(readiness))
 }
 
 func (handler Handler) subscriptions(w http.ResponseWriter, r *http.Request) {
@@ -3599,6 +3641,31 @@ func newAdminReportsResponse(record adminauthapp.AdminReportsResult) adminReport
 	return adminReportsResponse{
 		Items:     items,
 		UpdatedAt: record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newLaunchReadinessResponse(record adminauthapp.LaunchReadinessResult) launchReadinessResponse {
+	checks := make([]launchReadinessCheckResponse, 0, len(record.Checks))
+	for _, check := range record.Checks {
+		checks = append(checks, launchReadinessCheckResponse{
+			ID:          check.ID,
+			Category:    check.Category,
+			Label:       check.Label,
+			Status:      check.Status,
+			Summary:     check.Summary,
+			Detail:      check.Detail,
+			Action:      check.Action,
+			Target:      check.Target,
+			TargetLabel: check.TargetLabel,
+		})
+	}
+	return launchReadinessResponse{
+		Environment:  record.Environment,
+		ReadyCount:   record.ReadyCount,
+		WatchCount:   record.WatchCount,
+		BlockedCount: record.BlockedCount,
+		Checks:       checks,
+		UpdatedAt:    record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

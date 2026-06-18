@@ -108,6 +108,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
 		IDs:           ids.UUIDGenerator{},
 		Clock:         clock.SystemClock{},
+		Readiness:     adminLaunchReadinessConfig(cfg),
 	})
 	for _, command := range adminBootstrapUsers {
 		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)
@@ -292,6 +293,36 @@ func adminBootstrapCommands(cfg config.Config) ([]adminauthapp.BootstrapAdminCom
 	}
 
 	return commands, nil
+}
+
+func adminLaunchReadinessConfig(cfg config.Config) adminauthapp.AdminLaunchReadinessConfig {
+	notificationTransport := strings.TrimSpace(cfg.NotificationTransport)
+	if notificationTransport == "" {
+		notificationTransport = "log"
+	}
+	return adminauthapp.AdminLaunchReadinessConfig{
+		Environment: strings.TrimSpace(cfg.Environment),
+		AdminBootstrapOwnerConfigured: strings.TrimSpace(cfg.AdminBootstrapEmail) != "" &&
+			strings.TrimSpace(cfg.AdminBootstrapPassword) != "",
+		CloudinaryConfigured:      strings.TrimSpace(cfg.CloudinaryURL) != "",
+		ExpoAccessTokenConfigured: strings.TrimSpace(cfg.ExpoAccessToken) != "",
+		JWTSigningKeyDefault: strings.TrimSpace(cfg.JWTSigningKey) == "" ||
+			strings.TrimSpace(cfg.JWTSigningKey) == "change-me-for-local-development",
+		MarketingWaitlistEmailReady: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
+			strings.TrimSpace(cfg.ResendFromEmail) != "" &&
+			strings.TrimSpace(cfg.MarketingWaitlistEmailTo) != "",
+		MarketingWaitlistWebhookReady: strings.TrimSpace(cfg.MarketingWaitlistWebhook) != "" &&
+			strings.TrimSpace(cfg.MarketingWaitlistSecret) != "",
+		NotificationHTTPReady: strings.EqualFold(notificationTransport, "http") &&
+			strings.TrimSpace(cfg.NotificationHTTPURL) != "" &&
+			strings.TrimSpace(cfg.NotificationHTTPAuthValue) != "",
+		NotificationTransport:     strings.ToLower(notificationTransport),
+		PaystackSecretConfigured:  strings.TrimSpace(cfg.PaystackSecretKey) != "",
+		PaystackWebhookConfigured: strings.TrimSpace(cfg.PaystackWebhookKey) != "",
+		ResendConfigured: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
+			strings.TrimSpace(cfg.ResendFromEmail) != "",
+		SonarHostConfigured: strings.TrimSpace(cfg.SonarHostURL) != "",
+	}
 }
 
 func defaultAdminDisplayName(role admindomain.Role) string {

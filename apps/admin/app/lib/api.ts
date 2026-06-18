@@ -146,6 +146,27 @@ export type AdminReportFeed = {
   updatedAt: string;
 };
 
+export type AdminLaunchReadinessCheck = {
+  id: string;
+  category: string;
+  label: string;
+  status: AdminOperationsHealthStatus;
+  summary: string;
+  detail: string;
+  action: string;
+  target: string;
+  targetLabel: string;
+};
+
+export type AdminLaunchReadiness = {
+  environment: string;
+  readyCount: number;
+  watchCount: number;
+  blockedCount: number;
+  checks: AdminLaunchReadinessCheck[];
+  updatedAt: string;
+};
+
 export type AdminMoneyWebhookStatus =
   | "verified"
   | "failed"
@@ -769,6 +790,27 @@ type AdminReportFeedItemPayload = {
 
 type AdminReportFeedPayload = {
   items: AdminReportFeedItemPayload[];
+  updated_at: string;
+};
+
+type AdminLaunchReadinessCheckPayload = {
+  id: string;
+  category: string;
+  label: string;
+  status: AdminOperationsHealthStatus;
+  summary: string;
+  detail: string;
+  action: string;
+  target: string;
+  target_label: string;
+};
+
+type AdminLaunchReadinessPayload = {
+  environment: string;
+  ready_count: number;
+  watch_count: number;
+  blocked_count: number;
+  checks: AdminLaunchReadinessCheckPayload[];
   updated_at: string;
 };
 
@@ -1432,6 +1474,29 @@ function mapAdminReportFeed(payload: AdminReportFeedPayload): AdminReportFeed {
   };
 }
 
+function mapAdminLaunchReadiness(
+  payload: AdminLaunchReadinessPayload,
+): AdminLaunchReadiness {
+  return {
+    environment: payload.environment,
+    readyCount: payload.ready_count,
+    watchCount: payload.watch_count,
+    blockedCount: payload.blocked_count,
+    checks: payload.checks.map((check) => ({
+      id: check.id,
+      category: check.category,
+      label: check.label,
+      status: check.status,
+      summary: check.summary,
+      detail: check.detail,
+      action: check.action,
+      target: check.target,
+      targetLabel: check.target_label,
+    })),
+    updatedAt: payload.updated_at,
+  };
+}
+
 function mapMoneyRails(payload: AdminMoneyRailsPayload): AdminMoneyRails {
   return {
     webhookEvents: payload.webhook_events.map((event) => ({
@@ -2037,6 +2102,11 @@ export const adminApi = {
       method: "GET",
       headers: { Authorization: `Bearer ${accessToken}` },
     }).then(mapAdminReportFeed),
+  launchReadiness: (accessToken: string) =>
+    requestJSON<AdminLaunchReadinessPayload>("/admin/launch-readiness", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    }).then(mapAdminLaunchReadiness),
   moneyRails: (accessToken: string) =>
     requestJSON<AdminMoneyRailsPayload>("/admin/money-rails", {
       method: "GET",

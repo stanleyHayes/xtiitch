@@ -2868,6 +2868,51 @@ func TestGetOperationsHealthSummarizesAllowedReadModels(t *testing.T) {
 	}
 }
 
+func TestGetLaunchReadinessRequiresSettingsAndSummarizesConfig(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 18, 11, 0, 0, 0, time.UTC)
+	service := newTestService(&fakeAdminUsers{}, &fakeAdminSessions{}, now, []common.ID{"unused"})
+	service.readiness = AdminLaunchReadinessConfig{
+		Environment:                   "production",
+		AdminBootstrapOwnerConfigured: true,
+		CloudinaryConfigured:          true,
+		ExpoAccessTokenConfigured:     true,
+		JWTSigningKeyDefault:          false,
+		MarketingWaitlistEmailReady:   true,
+		NotificationHTTPReady:         true,
+		NotificationTransport:         "http",
+		PaystackSecretConfigured:      true,
+		PaystackWebhookConfigured:     true,
+		SonarHostConfigured:           true,
+	}
+
+	result, err := service.GetLaunchReadiness(context.Background(), GetLaunchReadinessCommand{
+		ActorRole: admindomain.RoleOwner,
+	})
+	if err != nil {
+		t.Fatalf("get launch readiness: %v", err)
+	}
+	if result.Environment != "production" ||
+		result.ReadyCount != 7 ||
+		result.WatchCount != 1 ||
+		result.BlockedCount != 1 ||
+		launchReadinessStatus(result, "paystack-sandbox") != "watch" ||
+		launchReadinessStatus(result, "legal-policy") != "blocked" {
+		t.Fatalf("unexpected readiness result: %+v", result)
+	}
+	if !result.UpdatedAt.Equal(now) {
+		t.Fatalf("expected fixed updated_at, got %v", result.UpdatedAt)
+	}
+
+	_, err = service.GetLaunchReadiness(context.Background(), GetLaunchReadinessCommand{
+		ActorRole: admindomain.RoleSupport,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support to be forbidden, got %v", err)
+	}
+}
+
 func healthSignalStatus(
 	record OperationsHealthResult,
 	id string,
@@ -2875,6 +2920,15 @@ func healthSignalStatus(
 	for _, signal := range record.Signals {
 		if signal.ID == id {
 			return signal.Status
+		}
+	}
+	return ""
+}
+
+func launchReadinessStatus(record LaunchReadinessResult, id string) string {
+	for _, check := range record.Checks {
+		if check.ID == id {
+			return check.Status
 		}
 	}
 	return ""
