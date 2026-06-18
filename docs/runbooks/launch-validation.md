@@ -138,7 +138,8 @@ Before public launch, collect owner and qualified legal sign-off for:
 
 Record the approver, date, document version, and any conditions in the launch
 ticket. Do not represent policy text as legally approved until this is complete.
-Set `XTIITCH_LEGAL_REVIEW_CONFIRMED=true` only after that approval is recorded.
+Set `XTIITCH_LEGAL_REVIEW_CONFIRMED=true` only after that approval is recorded;
+the admin Launch Readiness screen will then move this gate to ready.
 
 ## Growth Policy Decisions
 
@@ -152,7 +153,8 @@ The growth code paths are built, but launch needs owner sign-off for:
 - Precedence when a promo, referral, and affiliate all touch one order.
 - Commercial policy for subscription billing, grace, and downgrade timing.
 
-Set `XTIITCH_GROWTH_POLICY_CONFIRMED=true` only after these owner decisions are recorded.
+Set `XTIITCH_GROWTH_POLICY_CONFIRMED=true` only after these owner decisions are
+recorded; the admin Launch Readiness screen will then move this gate to ready.
 
 ## Evidence Template
 

@@ -1,6 +1,9 @@
 package config
 
-import "os"
+import (
+	"os"
+	"strings"
+)
 
 type Config struct {
 	AdminBootstrapDisplayName string
@@ -13,10 +16,12 @@ type Config struct {
 	DatabaseURL               string
 	Environment               string
 	ExpoAccessToken           string
+	GrowthPolicyConfirmed     bool
 	HTTPAddr                  string
 	JWTAudience               string
 	JWTIssuer                 string
 	JWTSigningKey             string
+	LegalReviewConfirmed      bool
 	MarketingWaitlistEmailTo  string
 	MarketingWaitlistWebhook  string
 	MarketingWaitlistSecret   string
@@ -48,10 +53,12 @@ func Load() Config {
 		DatabaseURL:              getenv("DATABASE_URL", "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable"),
 		Environment:              getenv("APP_ENV", "development"),
 		ExpoAccessToken:          getenv("EXPO_ACCESS_TOKEN", ""),
+		GrowthPolicyConfirmed:    getenvBool("XTIITCH_GROWTH_POLICY_CONFIRMED"),
 		HTTPAddr:                 getenv("API_HTTP_ADDR", ":8080"),
 		JWTAudience:              getenv("JWT_AUDIENCE", "xtiitch-clients"),
 		JWTIssuer:                getenv("JWT_ISSUER", "xtiitch-api"),
 		JWTSigningKey:            getenv("JWT_SIGNING_KEY", "change-me-for-local-development"),
+		LegalReviewConfirmed:     getenvBool("XTIITCH_LEGAL_REVIEW_CONFIRMED"),
 		MarketingWaitlistEmailTo: getenv("MARKETING_WAITLIST_EMAIL_TO", ""),
 		MarketingWaitlistWebhook: getenv("MARKETING_WAITLIST_WEBHOOK_URL", ""),
 		MarketingWaitlistSecret:  getenv("MARKETING_WAITLIST_WEBHOOK_SECRET", ""),
@@ -79,4 +86,13 @@ func getenv(key string, fallback string) string {
 	}
 
 	return fallback
+}
+
+func getenvBool(key string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(key))) {
+	case "1", "true", "yes":
+		return true
+	default:
+		return false
+	}
 }

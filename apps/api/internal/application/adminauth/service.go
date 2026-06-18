@@ -206,7 +206,9 @@ type AdminLaunchReadinessConfig struct {
 	AdminBootstrapOwnerConfigured bool
 	CloudinaryConfigured          bool
 	ExpoAccessTokenConfigured     bool
+	GrowthPolicyConfirmed         bool
 	JWTSigningKeyDefault          bool
+	LegalReviewConfirmed          bool
 	MarketingWaitlistEmailReady   bool
 	MarketingWaitlistWebhookReady bool
 	NotificationHTTPReady         bool
@@ -4675,15 +4677,34 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 			TargetLabel: "Open notifications",
 		},
 		{
-			ID:          "legal-policy",
-			Category:    "Compliance",
-			Label:       "Legal policy review",
-			Status:      "blocked",
-			Summary:     "Privacy, terms, refund, cancellation, renewal, and chargeback language still need owner/legal sign-off.",
+			ID:       "legal-policy",
+			Category: "Compliance",
+			Label:    "Legal policy review",
+			Status:   healthStatus(!cfg.LegalReviewConfirmed, false),
+			Summary: readinessSummary(
+				cfg.LegalReviewConfirmed,
+				"Legal and owner sign-off is recorded for launch policy language.",
+				"Privacy, terms, refund, cancellation, renewal, and chargeback language still need owner/legal sign-off.",
+			),
 			Detail:      "This is intentionally a human gate; the app cannot self-certify legal approval.",
-			Action:      "Complete legal review before public launch.",
+			Action:      "Set XTIITCH_LEGAL_REVIEW_CONFIRMED=true only after approval is recorded.",
 			Target:      "settings",
 			TargetLabel: "Open settings",
+		},
+		{
+			ID:       "growth-policy",
+			Category: "Growth",
+			Label:    "Growth policy decisions",
+			Status:   healthStatus(!cfg.GrowthPolicyConfirmed, false),
+			Summary: readinessSummary(
+				cfg.GrowthPolicyConfirmed,
+				"Owner sign-off is recorded for promotions, referrals, affiliates, sponsored placements, and subscription policy.",
+				"Growth and monetisation owner decisions still need final sign-off before launch.",
+			),
+			Detail:      "Confirm funding defaults, opt-in rules, payout/KYC thresholds, sponsored pricing, voucher scope, reward precedence, and subscription timing before turning growth features public.",
+			Action:      "Set XTIITCH_GROWTH_POLICY_CONFIRMED=true only after the owner decisions are recorded.",
+			Target:      "promotions",
+			TargetLabel: "Open promotions",
 		},
 		{
 			ID:       "quality-scan",

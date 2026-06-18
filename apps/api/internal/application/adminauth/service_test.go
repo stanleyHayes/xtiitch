@@ -2914,7 +2914,9 @@ func TestGetLaunchReadinessRequiresSettingsAndSummarizesConfig(t *testing.T) {
 		AdminBootstrapOwnerConfigured: true,
 		CloudinaryConfigured:          true,
 		ExpoAccessTokenConfigured:     true,
+		GrowthPolicyConfirmed:         true,
 		JWTSigningKeyDefault:          false,
+		LegalReviewConfirmed:          true,
 		MarketingWaitlistEmailReady:   true,
 		NotificationHTTPReady:         true,
 		NotificationTransport:         "http",
@@ -2932,11 +2934,12 @@ func TestGetLaunchReadinessRequiresSettingsAndSummarizesConfig(t *testing.T) {
 		t.Fatalf("get launch readiness: %v", err)
 	}
 	if result.Environment != "production" ||
-		result.ReadyCount != 7 ||
+		result.ReadyCount != 9 ||
 		result.WatchCount != 1 ||
-		result.BlockedCount != 1 ||
+		result.BlockedCount != 0 ||
 		launchReadinessStatus(result, "paystack-sandbox") != "watch" ||
-		launchReadinessStatus(result, "legal-policy") != "blocked" {
+		launchReadinessStatus(result, "legal-policy") != "ready" ||
+		launchReadinessStatus(result, "growth-policy") != "ready" {
 		t.Fatalf("unexpected readiness result: %+v", result)
 	}
 	if !result.UpdatedAt.Equal(now) {

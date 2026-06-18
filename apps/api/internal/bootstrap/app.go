@@ -309,8 +309,10 @@ func adminLaunchReadinessConfig(cfg config.Config) adminauthapp.AdminLaunchReadi
 			strings.TrimSpace(cfg.AdminBootstrapPassword) != "",
 		CloudinaryConfigured:      strings.TrimSpace(cfg.CloudinaryURL) != "",
 		ExpoAccessTokenConfigured: strings.TrimSpace(cfg.ExpoAccessToken) != "",
+		GrowthPolicyConfirmed:     cfg.GrowthPolicyConfirmed,
 		JWTSigningKeyDefault: strings.TrimSpace(cfg.JWTSigningKey) == "" ||
 			strings.TrimSpace(cfg.JWTSigningKey) == "change-me-for-local-development",
+		LegalReviewConfirmed: cfg.LegalReviewConfirmed,
 		MarketingWaitlistEmailReady: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
 			strings.TrimSpace(cfg.ResendFromEmail) != "" &&
 			strings.TrimSpace(cfg.MarketingWaitlistEmailTo) != "",
