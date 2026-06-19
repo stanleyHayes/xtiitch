@@ -1,5 +1,9 @@
+// Guard `process` so this module is safe if it ends up in the client bundle (it is
+// imported for shared values like PLAN_BENEFITS). The actual API_BASE is only used
+// server-side; in the browser it resolves to the default and is never fetched with.
 export const adminApiBase = (
-  process.env.XTIITCH_API_URL ?? "http://localhost:8080"
+  (typeof process !== "undefined" ? process.env.XTIITCH_API_URL : undefined) ??
+  "http://localhost:8080"
 ).replace(/\/+$/, "");
 
 const API_BASE = adminApiBase;
@@ -318,11 +322,11 @@ export type AdminSubscriptionAuthorizationLink = {
 
 // Predefined package benefits an admin can grant. Mirrors the canonical Go
 // catalogue in apps/api/internal/domain/business/features.go — keep in sync.
-export const PLAN_BENEFITS: ReadonlyArray<{
+export const PLAN_BENEFITS: readonly {
   key: string;
   label: string;
   description: string;
-}> = [
+}[] = [
   {
     key: "custom_brand_color",
     label: "Storefront accent colour",
