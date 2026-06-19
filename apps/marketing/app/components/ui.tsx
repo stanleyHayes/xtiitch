@@ -318,7 +318,7 @@ export function PageHero({
                 // (a fixed dark rgba vanished on the dark paper).
                 color: (theme) =>
                   theme.palette.mode === "dark"
-                    ? "rgba(255, 247, 242, 0.1)"
+                    ? "rgba(255, 247, 242, 0.14)"
                     : "rgba(21, 17, 26, 0.14)",
                 animation: "xtiitch-float-mark 8s ease-in-out infinite",
                 "@media (prefers-reduced-motion: reduce)": {
@@ -359,7 +359,10 @@ export function PageHero({
                   width: 42,
                   height: 3,
                   borderRadius: 1,
-                  bgcolor: "rgba(21,17,26,0.32)",
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(255, 247, 242, 0.32)"
+                      : "rgba(21, 17, 26, 0.32)",
                   transformOrigin: "left center",
                   animation:
                     "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1) 260ms both",
