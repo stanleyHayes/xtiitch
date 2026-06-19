@@ -3960,6 +3960,7 @@ function WorkspaceRail({
                   key={item.href}
                   component={RouterLink}
                   to={item.href}
+                  fullWidth
                   startIcon={compact ? undefined : item.icon}
                   aria-current={active ? "page" : undefined}
                   onClick={inDrawer ? onCloseMobile : undefined}

@@ -17,7 +17,7 @@ export const tokens = {
 export type AppThemeMode = XtiitchThemeMode;
 export const fontStylesheetHref = xtiitchFonts.googleFontsHref;
 
-const controlRadius = 16;
+const controlRadius = 8;
 const buttonRadius = 999;
 
 export function createAppTheme(mode: AppThemeMode = "light"): Theme {
