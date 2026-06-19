@@ -120,7 +120,11 @@ export default function BusinessOrdersScreen() {
       ) : (
         <View style={styles.list}>
           {visible.map((order) => (
-            <OrderRow key={order.order_id} order={order} />
+            <OrderRow
+              key={order.order_id}
+              order={order}
+              onPress={() => router.push(`/business/order/${order.order_id}`)}
+            />
           ))}
         </View>
       )}

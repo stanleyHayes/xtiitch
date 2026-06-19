@@ -1,6 +1,7 @@
 // Authenticated business-surface client. Every call goes through authedFetch,
 // which handles the Bearer header and one silent token refresh. A
 // session_expired result means the caller should route back to login.
+import { type Tracking } from "./api";
 import { authedFetch, SessionExpiredError } from "./auth";
 
 export type BusinessProfile = {
@@ -30,9 +31,12 @@ export type AuthedResult<T> =
   | { ok: true; data: T }
   | { ok: false; expired: boolean; error: string };
 
-async function get<T>(path: string): Promise<AuthedResult<T>> {
+async function request<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<AuthedResult<T>> {
   try {
-    const response = await authedFetch(path);
+    const response = await authedFetch(path, init);
     if (!response.ok) {
       return { ok: false, expired: false, error: `upstream_${response.status}` };
     }
@@ -46,8 +50,14 @@ async function get<T>(path: string): Promise<AuthedResult<T>> {
 }
 
 export const businessApi = {
-  me: () => get<BusinessProfile>("/auth/business/me"),
-  orders: () => get<{ orders: BusinessOrder[] }>("/orders"),
+  me: () => request<BusinessProfile>("/auth/business/me"),
+  orders: () => request<{ orders: BusinessOrder[] }>("/orders"),
+  // Advance an order to its next fulfilment stage. The API returns the updated
+  // tracking (current stage + the full ordered stage list).
+  advanceOrder: (orderId: string) =>
+    request<Tracking>(`/orders/${encodeURIComponent(orderId)}/advance`, {
+      method: "POST",
+    }),
 };
 
 const TERMINAL_STATUSES = new Set([

@@ -136,7 +136,11 @@ export default function BusinessDashboardScreen() {
       ) : (
         <View style={styles.orderList}>
           {recent.map((order) => (
-            <OrderRow key={order.order_id} order={order} />
+            <OrderRow
+              key={order.order_id}
+              order={order}
+              onPress={() => router.push(`/business/order/${order.order_id}`)}
+            />
           ))}
         </View>
       )}
