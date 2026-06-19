@@ -1,8 +1,9 @@
-import { Form, redirect } from "react-router";
+import { Form, redirect, useNavigation } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
@@ -73,6 +74,8 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Login({ actionData }: Route.ComponentProps) {
+  const navigation = useNavigation();
+  const isSubmitting = navigation.state === "submitting";
   return (
     <Box
       sx={{
@@ -294,9 +297,15 @@ export default function Login({ actionData }: Route.ComponentProps) {
                   type="submit"
                   variant="contained"
                   size="large"
-                  endIcon={<LoginRounded />}
+                  disabled={isSubmitting}
+                  startIcon={
+                    isSubmitting ? (
+                      <CircularProgress size={18} color="inherit" thickness={5} />
+                    ) : undefined
+                  }
+                  endIcon={isSubmitting ? undefined : <LoginRounded />}
                 >
-                  Sign in
+                  {isSubmitting ? "Signing in..." : "Sign in"}
                 </Button>
               </Stack>
             </Form>

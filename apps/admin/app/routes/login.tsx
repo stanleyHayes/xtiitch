@@ -6,6 +6,7 @@ import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
+import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
 import { alpha } from "@mui/material/styles";
@@ -483,7 +484,12 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     variant="contained"
                     size="large"
                     disabled={isSubmitting}
-                    endIcon={<ArrowForwardRounded />}
+                    startIcon={
+                      isSubmitting ? (
+                        <CircularProgress size={18} color="inherit" thickness={5} />
+                      ) : undefined
+                    }
+                    endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
                     sx={{ minHeight: 48 }}
                   >
                     {isSubmitting ? "Checking access..." : "Open console"}
