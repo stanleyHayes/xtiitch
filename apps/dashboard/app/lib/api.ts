@@ -11,6 +11,9 @@ export type StoreSettings = {
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
   brand_color: string;
+  logo_url?: string;
+  banner_url?: string;
+  layout_variant?: string;
 };
 
 export type StoreSummary = {

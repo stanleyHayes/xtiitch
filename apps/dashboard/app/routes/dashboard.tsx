@@ -53,6 +53,7 @@ import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LightModeRounded from "@mui/icons-material/LightModeRounded";
 import LockResetRounded from "@mui/icons-material/LockResetRounded";
+import LockRounded from "@mui/icons-material/LockRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
@@ -88,6 +89,9 @@ type Profile = {
   handle: string;
   verification_status: string;
   plan: string;
+  // Resolved plan benefits, e.g. { custom_logo: true }. Drives which storefront
+  // customizations the dashboard unlocks; the API enforces the same set.
+  entitlements: Record<string, boolean>;
 };
 
 type UserRole = "owner" | "admin" | "staff";
@@ -117,6 +121,9 @@ type StoreSettings = {
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
   brand_color: string;
+  logo_url: string;
+  banner_url: string;
+  layout_variant: string;
 };
 
 type CollectionSummary = {
@@ -401,7 +408,70 @@ const defaultStoreSettings: StoreSettings = {
   delivery_enabled: false,
   dispatch_enabled: false,
   brand_color: tokens.burgundy,
+  logo_url: "",
+  banner_url: "",
+  layout_variant: "standard",
 };
+
+// PlanGatedControl wraps a storefront-customization input. When the business's
+// plan does not grant the benefit it renders a locked, non-editable hint instead
+// of the control, so nothing gated is submitted (the API enforces this too).
+function PlanGatedControl({
+  locked,
+  title,
+  description,
+  children,
+}: {
+  locked: boolean;
+  title: string;
+  description: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Box sx={{ mt: 2 }}>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: "center", mb: 0.75 }}
+      >
+        <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{title}</Typography>
+        {locked ? (
+          <Chip
+            size="small"
+            icon={<LockRounded sx={{ fontSize: 14 }} />}
+            label="Upgrade"
+            sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: 11 } }}
+          />
+        ) : null}
+      </Stack>
+      {locked ? (
+        <Box
+          sx={{
+            p: 1.25,
+            borderRadius: 1.5,
+            border: "1px dashed",
+            borderColor: "divider",
+            bgcolor: "rgba(var(--surface-rgb), 0.5)",
+          }}
+        >
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {description} Available on a higher package — ask an owner to upgrade.
+          </Typography>
+        </Box>
+      ) : (
+        <>
+          {children}
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", display: "block", mt: 0.5 }}
+          >
+            {description}
+          </Typography>
+        </>
+      )}
+    </Box>
+  );
+}
 
 const defaultMoneySummary: MoneySummary = {
   through_platform_minor: 0,
@@ -1391,6 +1461,11 @@ export async function action({ request }: Route.ActionArgs) {
         delivery_enabled: form.get("delivery_enabled") === "on",
         dispatch_enabled: form.get("dispatch_enabled") === "on",
         brand_color: brandColor || tokens.burgundy,
+        // Plan-gated customizations. The API re-checks entitlements and coerces
+        // anything the plan does not grant back to defaults, so it is safe to send.
+        logo_url: String(form.get("logo_url") ?? "").trim(),
+        banner_url: String(form.get("banner_url") ?? "").trim(),
+        layout_variant: String(form.get("layout_variant") ?? "standard").trim(),
       }),
     });
     if (!response.ok) {
@@ -8489,18 +8564,64 @@ function StoreSettingsPanel({
                   </Typography>
                 </Box>
               </Stack>
-              <TextField
-                name="brand_color"
-                label="Brand colour"
-                type="color"
-                defaultValue={settings.brand_color || tokens.burgundy}
-                fullWidth
-                sx={{ mt: 2 }}
-              />
-              <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                This colour is used on the public store header and customer
-                trust moments.
-              </Typography>
+              <PlanGatedControl
+                locked={!(profile.entitlements ?? {}).custom_brand_color}
+                title="Brand colour"
+                description="Used on the public store header and customer trust moments."
+              >
+                <TextField
+                  name="brand_color"
+                  type="color"
+                  defaultValue={settings.brand_color || tokens.burgundy}
+                  fullWidth
+                  size="small"
+                />
+              </PlanGatedControl>
+              <PlanGatedControl
+                locked={!(profile.entitlements ?? {}).custom_logo}
+                title="Storefront logo URL"
+                description="Shown on the storefront in place of the Xtiitch mark."
+              >
+                <TextField
+                  name="logo_url"
+                  type="url"
+                  placeholder="https://…/logo.png"
+                  defaultValue={settings.logo_url}
+                  fullWidth
+                  size="small"
+                />
+              </PlanGatedControl>
+              <PlanGatedControl
+                locked={!(profile.entitlements ?? {}).custom_banner}
+                title="Hero banner image URL"
+                description="Replaces the default storefront hero image."
+              >
+                <TextField
+                  name="banner_url"
+                  type="url"
+                  placeholder="https://…/banner.jpg"
+                  defaultValue={settings.banner_url}
+                  fullWidth
+                  size="small"
+                />
+              </PlanGatedControl>
+              <PlanGatedControl
+                locked={!(profile.entitlements ?? {}).custom_layout}
+                title="Storefront layout"
+                description="How the storefront hero is composed."
+              >
+                <TextField
+                  select
+                  name="layout_variant"
+                  defaultValue={settings.layout_variant || "standard"}
+                  fullWidth
+                  size="small"
+                >
+                  <MenuItem value="standard">Standard</MenuItem>
+                  <MenuItem value="spotlight">Spotlight</MenuItem>
+                  <MenuItem value="minimal">Minimal</MenuItem>
+                </TextField>
+              </PlanGatedControl>
             </Box>
 
             <Box
