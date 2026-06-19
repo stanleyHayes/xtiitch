@@ -22,12 +22,7 @@ import StarRounded from "@mui/icons-material/StarRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
-import type {
-  Collection,
-  Design,
-  PublicShop,
-  StoreSummary,
-} from "../lib/api";
+import type { Collection, Design, PublicShop, StoreSummary } from "../lib/api";
 import { ThemeModeToggle } from "../theme-mode";
 import TextField from "./form-text-field";
 import { priceLabel } from "../lib/format";
@@ -63,6 +58,26 @@ export function StoreHeader({
 }) {
   const brand = store.brand_color || "#800020";
   const onBrand = contrastText(brand);
+  // Plan-gated storefront customizations (the API only returns these for entitled
+  // plans; otherwise they fall back to the Xtiitch defaults below).
+  const logoURL = store.settings.logo_url?.trim() ?? "";
+  const bannerURL = store.settings.banner_url?.trim() ?? "";
+  const layout = store.settings.layout_variant || "standard";
+  const heroImage = bannerURL || "/images/storefront-atelier-hero.webp";
+  const heroGradient =
+    layout === "minimal"
+      ? `linear-gradient(120deg, ${alpha(brand, 0.98)}, ${alpha(brand, 0.9)})`
+      : layout === "spotlight"
+        ? `linear-gradient(90deg, ${alpha(brand, 0.82)} 0%, ${alpha(brand, 0.4)} 52%, ${alpha(brand, 0.12)} 100%)`
+        : `linear-gradient(90deg, ${alpha(brand, 0.96)} 0%, ${alpha(brand, 0.88)} 46%, ${alpha(brand, 0.46)} 100%)`;
+  const heroBackground =
+    layout === "minimal" ? heroGradient : `${heroGradient}, url("${heroImage}")`;
+  const heroMinHeight =
+    layout === "minimal"
+      ? { xs: 420, md: 460 }
+      : layout === "spotlight"
+        ? { xs: 540, md: 620 }
+        : { xs: 500, md: 560 };
   const customisableCount = designs.filter(
     (design) => design.customisation_allowed,
   ).length;
@@ -76,13 +91,10 @@ export function StoreHeader({
         color: onBrand,
         position: "relative",
         overflow: "hidden",
-        backgroundImage: `
-          linear-gradient(90deg, ${alpha(brand, 0.96)} 0%, ${alpha(brand, 0.88)} 46%, ${alpha(brand, 0.46)} 100%),
-          url("/images/storefront-atelier-hero.webp")
-        `,
+        backgroundImage: heroBackground,
         backgroundSize: "cover",
         backgroundPosition: "center",
-        minHeight: { xs: 500, md: 560 },
+        minHeight: heroMinHeight,
         display: "flex",
         flexDirection: "column",
         "&::after": {
@@ -119,13 +131,23 @@ export function StoreHeader({
               borderRadius: 1.5,
               display: "grid",
               placeItems: "center",
-              bgcolor: alpha(onBrand, 0.13),
+              overflow: "hidden",
+              bgcolor: logoURL ? alpha(onBrand, 0.95) : alpha(onBrand, 0.13),
               border: "1px solid",
               borderColor: alpha(onBrand, 0.18),
               flexShrink: 0,
             }}
           >
-            <StorefrontOutlined />
+            {logoURL ? (
+              <Box
+                component="img"
+                src={logoURL}
+                alt={`${store.name} logo`}
+                sx={{ width: "100%", height: "100%", objectFit: "contain" }}
+              />
+            ) : (
+              <StorefrontOutlined />
+            )}
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 900 }} noWrap>
@@ -900,7 +922,8 @@ function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
         bgcolor: "rgb(var(--surface-rgb))",
-        transition: "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
+        transition:
+          "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
         "&:hover": {
           transform: "translateY(-4px)",
           boxShadow: `0 22px 48px ${alpha(tokens.ink, 0.14)}`,
@@ -1011,7 +1034,10 @@ export function DesignCard({
         overflow: "hidden",
         borderRadius: 2,
         border: featured ? "1.5px solid" : "1px solid",
-        borderColor: featured ? alpha(tokens.burgundy, 0.55) : alpha(tokens.ink, 0.08),
+        borderColor: (theme) =>
+          featured || theme.palette.mode === "dark"
+            ? alpha(theme.palette.primary.main, featured ? 0.58 : 0.32)
+            : alpha(tokens.ink, 0.08),
         bgcolor: "rgb(var(--surface-rgb))",
         boxShadow: featured
           ? `0 18px 44px ${alpha(tokens.burgundy, 0.16)}`
@@ -1024,8 +1050,13 @@ export function DesignCard({
         },
         "&:hover": {
           transform: "translateY(-6px)",
-          boxShadow: `0 30px 64px ${alpha(tokens.ink, 0.16)}`,
-          borderColor: alpha(tokens.burgundy, 0.24),
+          boxShadow: (theme) =>
+            `0 30px 64px ${
+              theme.palette.mode === "dark"
+                ? alpha("#000000", 0.34)
+                : alpha(tokens.ink, 0.16)
+            }`,
+          borderColor: (theme) => alpha(theme.palette.primary.main, 0.46),
         },
         "&:hover img": {
           transform: "scale(1.06)",
@@ -1107,7 +1138,10 @@ export function DesignCard({
                 bgcolor: "rgba(var(--surface-rgb), 0.92)",
                 backdropFilter: "blur(8px)",
                 border: "1px solid",
-                borderColor: alpha(tokens.ink, 0.08),
+                borderColor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? alpha(theme.palette.common.white, 0.16)
+                    : alpha(tokens.ink, 0.08),
                 boxShadow: `0 6px 16px ${alpha(tokens.ink, 0.12)}`,
               }}
             >
@@ -1117,7 +1151,10 @@ export function DesignCard({
                   fontWeight: 800,
                   letterSpacing: "0.09em",
                   textTransform: "uppercase",
-                  color: tokens.burgundy,
+                  color: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? "rgba(255, 215, 224, 0.96)"
+                      : tokens.burgundy,
                 }}
               >
                 Made to measure
@@ -1149,7 +1186,10 @@ export function DesignCard({
                 py: 0.85,
                 borderRadius: 999,
                 bgcolor: "rgba(var(--surface-rgb), 0.96)",
-                color: tokens.burgundy,
+                color: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 215, 224, 0.96)"
+                    : tokens.burgundy,
                 fontWeight: 800,
                 fontSize: 13,
                 boxShadow: `0 12px 28px ${alpha(tokens.ink, 0.24)}`,
@@ -1181,9 +1221,13 @@ export function DesignCard({
             <Typography
               sx={{
                 fontSize: { xs: 19, sm: 18 },
-                fontWeight: 900,
-                color: tokens.burgundy,
+                fontWeight: 800,
+                color: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 146, 173, 0.98)"
+                    : tokens.burgundy,
                 letterSpacing: "0.01em",
+                whiteSpace: "nowrap",
               }}
             >
               {priceLabel(design.prices)}
@@ -1191,10 +1235,16 @@ export function DesignCard({
             <Typography
               variant="caption"
               sx={{
-                color: alpha(tokens.ink, 0.5),
+                color: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 247, 242, 0.68)"
+                    : alpha(tokens.ink, 0.56),
+                fontSize: 11,
                 fontWeight: 800,
                 textTransform: "uppercase",
-                letterSpacing: "0.06em",
+                letterSpacing: "0.04em",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
             >
               {priced ? "Size pricing" : "Request quote"}
@@ -1204,7 +1254,10 @@ export function DesignCard({
             aria-hidden
             sx={{
               height: "1px",
-              backgroundImage: `linear-gradient(90deg, ${alpha("#c58b2c", 0.65)}, ${alpha(tokens.ink, 0.08)} 40%)`,
+              backgroundImage: (theme) =>
+                theme.palette.mode === "dark"
+                  ? `linear-gradient(90deg, ${alpha(theme.palette.warning.main, 0.72)}, ${alpha(theme.palette.common.white, 0.1)} 42%)`
+                  : `linear-gradient(90deg, ${alpha("#c58b2c", 0.65)}, ${alpha(tokens.ink, 0.08)} 40%)`,
             }}
           />
           <Typography

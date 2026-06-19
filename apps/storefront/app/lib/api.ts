@@ -11,6 +11,10 @@ export type StoreSettings = {
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
   brand_color: string;
+  // Plan-gated customizations (empty/"standard" when not set or not entitled).
+  logo_url?: string;
+  banner_url?: string;
+  layout_variant?: string;
 };
 
 export type MeasurementField = {
