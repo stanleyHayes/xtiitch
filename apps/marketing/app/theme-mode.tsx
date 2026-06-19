@@ -123,7 +123,14 @@ export function ThemeModeToggle({ sx }: { sx?: SxProps<Theme> }) {
         onClick={toggleMode}
         aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
         size="small"
-        sx={{ color: "text.secondary", ...sx }}
+        sx={{
+          color: "text.primary",
+          border: "1px solid",
+          borderColor: "divider",
+          borderRadius: 1.5,
+          "&:hover": { color: "primary.main", borderColor: "primary.main" },
+          ...sx,
+        }}
       >
         {isDark ? (
           <LightModeRounded fontSize="small" />
