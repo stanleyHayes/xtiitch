@@ -4903,15 +4903,12 @@ function WorkspaceHeader({
         {meta.icon}
       </Box>
       <Stack
-        direction={{ xs: "column", lg: "row" }}
-        spacing={2.5}
+        spacing={2.25}
         sx={{
           position: "relative",
-          justifyContent: "space-between",
-          alignItems: { xs: "stretch", lg: "flex-end" },
         }}
       >
-        <Box sx={{ maxWidth: 800 }}>
+        <Box sx={{ maxWidth: 920 }}>
           <Typography
             variant="overline"
             sx={{ color: alpha(tokens.white, 0.68), fontWeight: 900 }}
@@ -4950,10 +4947,14 @@ function WorkspaceHeader({
         </Box>
         <Box
           sx={{
-            minWidth: { lg: 360 },
             display: "grid",
-            gap: 1,
-            gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr", lg: "1fr" },
+            gap: 1.25,
+            width: "100%",
+            maxWidth: 980,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+            },
           }}
         >
           <HeaderSignal
@@ -5392,7 +5393,10 @@ function StoreReadinessPanel({
           mt: 2,
           height: 9,
           borderRadius: 999,
-          bgcolor: alpha(tokens.ink, 0.08),
+          bgcolor: (theme) =>
+            theme.palette.mode === "dark"
+              ? alpha(tokens.white, 0.14)
+              : alpha(tokens.ink, 0.08),
           overflow: "hidden",
         }}
       >
@@ -5428,7 +5432,7 @@ function StoreReadinessPanel({
               color: "text.primary",
               bgcolor: step.done
                 ? alpha(tokens.success, 0.045)
-                : alpha(tokens.white, 0.72),
+                : "rgba(var(--surface-rgb), 0.72)",
               "&:hover": {
                 bgcolor: step.done
                   ? alpha(tokens.success, 0.075)
@@ -8518,7 +8522,7 @@ function StoreSettingsPanel({
                     borderRadius: 2,
                     bgcolor: feature.checked
                       ? alpha(tokens.burgundy, 0.055)
-                      : alpha(tokens.white, 0.72),
+                      : "rgba(var(--surface-rgb), 0.72)",
                   }}
                 >
                   <FormControlLabel
@@ -8942,7 +8946,7 @@ function PriceBoardPanel({
                             borderRadius: 2,
                             bgcolor: price
                               ? alpha(tokens.success, 0.045)
-                              : alpha(tokens.white, 0.72),
+                              : "rgba(var(--surface-rgb), 0.72)",
                             alignItems: "center",
                           }}
                         >
