@@ -7935,9 +7935,9 @@ function SubscriptionsSection({
             }}
           >
             <Box>
-              <Typography variant="h6">Package controls</Typography>
+              <Typography sx={{ fontWeight: 800 }}>Add a package</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Add a package definition only when you need a new billing tier.
+                Create a new billing tier only when you need one.
               </Typography>
             </Box>
             <Button
@@ -8401,6 +8401,13 @@ function SubscriptionsSection({
         </Box>
       ) : null}
 
+      <Stack spacing={1} sx={{ mt: 1 }}>
+        <Typography variant="h6">Plan performance</Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          Active subscribers, recurring revenue and commission for each package
+          — the editable definitions are above.
+        </Typography>
+      </Stack>
       <Box
         sx={{
           display: "grid",
