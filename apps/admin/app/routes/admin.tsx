@@ -56,6 +56,8 @@ import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import ViewListRounded from "@mui/icons-material/ViewListRounded";
+import GridViewRounded from "@mui/icons-material/GridViewRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -3616,10 +3618,12 @@ function BusinessRow({
   business,
   selected,
   onInspect,
+  compact = false,
 }: {
   business: AdminBusiness;
   selected: boolean;
   onInspect: (business: AdminBusiness) => void;
+  compact?: boolean;
 }) {
   const isSuspended = business.operationalStatus === "suspended";
   const accent = statusColor(business.status);
@@ -3660,11 +3664,13 @@ function BusinessRow({
         sx={{
           display: "grid",
           gap: 2,
-          gridTemplateColumns: {
-            xs: "1fr",
-            md: "minmax(220px, 1.4fr) repeat(3, minmax(120px, 0.7fr)) auto",
-          },
-          alignItems: "center",
+          gridTemplateColumns: compact
+            ? "1fr"
+            : {
+                xs: "1fr",
+                md: "minmax(220px, 1.4fr) repeat(3, minmax(120px, 0.7fr)) auto",
+              },
+          alignItems: compact ? "stretch" : "center",
         }}
       >
         <Box sx={{ minWidth: 0 }}>
@@ -15929,6 +15935,7 @@ export default function AdminDashboard({
   const [businessQuery, setBusinessQuery] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [businessView, setBusinessView] = useState<"list" | "card">("list");
   const [selectedBusiness, setSelectedBusiness] =
     useState<AdminBusiness | null>(adminBusinesses[0] ?? null);
   const [selectedCustomer, setSelectedCustomer] =
@@ -16600,6 +16607,35 @@ export default function AdminDashboard({
                       </MenuItem>
                     ))}
                   </TextField>
+                  <ToggleButtonGroup
+                    exclusive
+                    value={businessView}
+                    onChange={(_event, next) => {
+                      if (next) setBusinessView(next as "list" | "card");
+                    }}
+                    aria-label="Business view"
+                    sx={{
+                      alignSelf: { xs: "stretch", md: "center" },
+                      "& .MuiToggleButton-root": {
+                        px: 1.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        color: "text.secondary",
+                        "&.Mui-selected": {
+                          color: "primary.main",
+                          bgcolor: (theme) =>
+                            alpha(theme.palette.primary.main, 0.12),
+                        },
+                      },
+                    }}
+                  >
+                    <ToggleButton value="list" aria-label="List view">
+                      <ViewListRounded fontSize="small" />
+                    </ToggleButton>
+                    <ToggleButton value="card" aria-label="Card view">
+                      <GridViewRounded fontSize="small" />
+                    </ToggleButton>
+                  </ToggleButtonGroup>
                 </Stack>
               </Panel>
               <Box
@@ -16612,26 +16648,43 @@ export default function AdminDashboard({
                   },
                 }}
               >
-                <Stack spacing={1.5}>
+                <Box
+                  sx={
+                    businessView === "card"
+                      ? {
+                          display: "grid",
+                          gap: 1.5,
+                          alignContent: "start",
+                          gridTemplateColumns: {
+                            xs: "1fr",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                          },
+                        }
+                      : { display: "flex", flexDirection: "column", gap: 1.5 }
+                  }
+                >
                   {filteredBusinesses.map((business) => (
                     <BusinessRow
                       key={business.id}
                       business={business}
                       selected={selectedBusiness?.id === business.id}
                       onInspect={setSelectedBusiness}
+                      compact={businessView === "card"}
                     />
                   ))}
                   {filteredBusinesses.length === 0 ? (
-                    <Panel sx={{ p: 3, textAlign: "center" }}>
-                      <Typography sx={{ fontWeight: 800 }}>
-                        No businesses match this view.
-                      </Typography>
-                      <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-                        Clear the search or choose another status.
-                      </Typography>
-                    </Panel>
+                    <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
+                      <Panel sx={{ p: 3, textAlign: "center" }}>
+                        <Typography sx={{ fontWeight: 800 }}>
+                          No businesses match this view.
+                        </Typography>
+                        <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                          Clear the search or choose another status.
+                        </Typography>
+                      </Panel>
+                    </Box>
                   ) : null}
-                </Stack>
+                </Box>
                 <BusinessInspector
                   business={selectedBusiness}
                   onReviewPayments={() => setSection("money")}
