@@ -3434,26 +3434,22 @@ function CustomerDirectoryPanel({
           }}
         />
       </Panel>
-      <Stack spacing={1.5}>
-        {visibleCustomers.map((customer) => (
-          <CustomerRow
-            key={customer.id}
-            customer={customer}
-            selected={selectedCustomer?.id === customer.id}
-            onInspect={onInspect}
-          />
-        ))}
-        {!error && visibleCustomers.length === 0 ? (
-          <Panel sx={{ p: 3, textAlign: "center" }}>
-            <Typography sx={{ fontWeight: 800 }}>
-              No customers match this view.
-            </Typography>
-            <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-              Clear the search to return to the full customer directory.
-            </Typography>
-          </Panel>
-        ) : null}
-      </Stack>
+      {!error && visibleCustomers.length === 0 ? (
+        <Panel sx={{ p: 3, textAlign: "center" }}>
+          <Typography sx={{ fontWeight: 800 }}>
+            No customers match this view.
+          </Typography>
+          <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+            Clear the search to return to the full customer directory.
+          </Typography>
+        </Panel>
+      ) : (
+        <CustomerTable
+          customers={visibleCustomers}
+          selectedId={selectedCustomer?.id ?? null}
+          onInspect={onInspect}
+        />
+      )}
       <Drawer
         anchor="right"
         open={Boolean(selectedCustomer)}
@@ -3502,115 +3498,109 @@ function CustomerStat({
   );
 }
 
-function CustomerRow({
-  customer,
-  selected,
+// CustomerTable is the scannable directory view: one row per customer with their
+// activity, GMV and last-active; a row click (or Inspect) opens the detail drawer.
+function CustomerTable({
+  customers,
+  selectedId,
   onInspect,
 }: {
-  customer: AdminCustomer;
-  selected: boolean;
+  customers: AdminCustomer[];
+  selectedId: string | null;
   onInspect: (customer: AdminCustomer) => void;
 }) {
-  const contact = customer.email || customer.phone || "No contact on file";
-  const lastBusiness = customer.lastBusinessName
-    ? `${customer.lastBusinessName} · ${customer.lastBusinessHandle}`
-    : "No linked business activity";
-
   return (
-    <Panel
-      sx={{
-        p: { xs: 2, md: 2.25 },
-        borderColor: selected
-          ? alpha(tokens.burgundy, 0.42)
-          : alpha(tokens.ink, 0.08),
-        backgroundImage: selected
-          ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.08)}, transparent 36%)`
-          : undefined,
-      }}
-    >
-      <Stack
-        direction={{ xs: "column", lg: "row" }}
-        spacing={2}
-        sx={{ justifyContent: "space-between", alignItems: "stretch" }}
-      >
-        <Stack direction="row" spacing={1.5} sx={{ minWidth: 0 }}>
-          <Avatar
-            sx={{
-              bgcolor: alpha(tokens.burgundy, 0.12),
-              color: tokens.burgundy,
-              border: "1px solid",
-              borderColor: alpha(tokens.burgundy, 0.18),
-            }}
-          >
-            <PeopleAltRounded />
-          </Avatar>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" sx={{ overflowWrap: "anywhere" }}>
-              {customer.displayName || contact}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
-            >
-              {contact}
-            </Typography>
-            <Stack
-              direction="row"
-              spacing={0.75}
-              sx={{ mt: 1, flexWrap: "wrap" }}
-            >
-              <Chip
-                size="small"
-                label={`${customer.tenantCount} businesses`}
-                variant="outlined"
-              />
-              <Chip
-                size="small"
-                label={`${customer.orderCount} orders`}
-                variant="outlined"
-              />
-              {customer.customOrderCount > 0 ? (
-                <Chip
-                  size="small"
-                  label={`${customer.customOrderCount} custom`}
-                  sx={{
-                    bgcolor: alpha(tokens.warning, 0.16),
-                    color: "text.primary",
-                  }}
-                />
-              ) : null}
-            </Stack>
-          </Box>
-        </Stack>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 1.5,
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(3, minmax(0, 1fr)) auto",
-            },
-            minWidth: { lg: 520 },
-            alignItems: "center",
-          }}
-        >
-          <DetailLine label="GMV" value={formatGHS(customer.gmvMinor)} />
-          <DetailLine label="Last business" value={lastBusiness} />
-          <DetailLine
-            label="Last active"
-            value={shortTime(customer.lastActive)}
-          />
-          <Button
-            type="button"
-            variant={selected ? "contained" : "outlined"}
-            endIcon={<ArrowForwardRounded />}
-            onClick={() => onInspect(customer)}
-          >
-            Inspect
-          </Button>
-        </Box>
-      </Stack>
-    </Panel>
+    <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
+      <Table sx={{ minWidth: 760 }}>
+        <TableHead>
+          <TableRow>
+            <TableCell>Customer</TableCell>
+            <TableCell>Activity</TableCell>
+            <TableCell align="right">GMV</TableCell>
+            <TableCell>Last active</TableCell>
+            <TableCell align="right">Actions</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {customers.map((customer) => {
+            const rowContact =
+              customer.email || customer.phone || "No contact on file";
+            return (
+              <TableRow
+                key={customer.id}
+                hover
+                selected={selectedId === customer.id}
+                sx={{ cursor: "pointer" }}
+                onClick={() => onInspect(customer)}
+              >
+                <TableCell sx={{ minWidth: 0 }}>
+                  <Stack
+                    direction="row"
+                    spacing={1.25}
+                    sx={{ alignItems: "center", minWidth: 0 }}
+                  >
+                    <Avatar
+                      sx={{
+                        width: 34,
+                        height: 34,
+                        bgcolor: alpha(tokens.burgundy, 0.12),
+                        color: tokens.burgundy,
+                      }}
+                    >
+                      <PeopleAltRounded fontSize="small" />
+                    </Avatar>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 800 }} noWrap>
+                        {customer.displayName || rowContact}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                        noWrap
+                      >
+                        {rowContact}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {customer.orderCount} orders · {customer.tenantCount}{" "}
+                    businesses
+                    {customer.customOrderCount > 0
+                      ? ` · ${customer.customOrderCount} custom`
+                      : ""}
+                  </Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Typography sx={{ fontWeight: 700 }}>
+                    {formatGHS(customer.gmvMinor)}
+                  </Typography>
+                </TableCell>
+                <TableCell>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {shortTime(customer.lastActive)}
+                  </Typography>
+                </TableCell>
+                <TableCell
+                  align="right"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ArrowForwardRounded />}
+                    onClick={() => onInspect(customer)}
+                  >
+                    Inspect
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </TableContainer>
   );
 }
 
