@@ -84,6 +84,26 @@ export type AvailabilityPage = {
   slots: AvailabilitySlot[];
 };
 
+export type PublicShopDesign = {
+  title: string;
+  handle: string;
+  image: string;
+  price_minor: number;
+};
+
+export type PublicShop = {
+  business_id: string;
+  name: string;
+  handle: string;
+  brand_color: string;
+  design_count: number;
+  designs: PublicShopDesign[];
+};
+
+export type PublicShopsPage = {
+  shops: PublicShop[];
+};
+
 async function getJSON<T>(path: string): Promise<T | null> {
   const response = await fetch(`${API_BASE}/v1${path}`);
   if (response.status === 404) {
@@ -243,6 +263,7 @@ export const api = {
     getJSON<ReferralCode>(`/public/referrals/${enc(code)}`),
   availability: (handle: string) =>
     getJSON<AvailabilityPage>(`/public/stores/${enc(handle)}/availability`),
+  shops: () => getJSON<PublicShopsPage>(`/public/shops`),
   recordAffiliateClick: (code: string, input: AffiliateClickInput) =>
     postJSON<AffiliateClick>(`/public/affiliates/${enc(code)}/clicks`, input),
   placeOrder: (storeHandle: string, input: PlaceOrderInput) =>

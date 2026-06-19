@@ -18,10 +18,16 @@ import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import StarRounded from "@mui/icons-material/StarRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
-import type { Collection, Design, StoreSummary } from "../lib/api";
+import type {
+  Collection,
+  Design,
+  PublicShop,
+  StoreSummary,
+} from "../lib/api";
 import TextField from "./form-text-field";
 import { priceLabel } from "../lib/format";
 import { tokens } from "../theme";
@@ -704,13 +710,16 @@ export function StoreView({
   designs,
   query,
   collections = [],
+  marketplace = [],
 }: {
   store: StoreSummary;
   designs: Design[];
   query: string;
   collections?: Collection[];
+  marketplace?: PublicShop[];
 }) {
   const brand = store.brand_color || tokens.burgundy;
+  const otherShops = marketplace.filter((shop) => shop.handle !== store.handle);
 
   return (
     <Box
@@ -787,10 +796,157 @@ export function StoreView({
               }}
             />
           </Stack>
-          <DesignGrid designs={designs} />
+          <DesignGrid designs={designs} featuredFirst={!query} />
         </Container>
       </Box>
+
+      {!query && otherShops.length > 0 ? (
+        <MarketplaceStrip shops={otherShops} brand={brand} />
+      ) : null}
     </Box>
+  );
+}
+
+// A cross-shop discovery rail shown at the foot of every storefront: other
+// verified, active studios on Xtiitch, so a customer who lands on one store can
+// keep browsing the marketplace. (Sponsored placements slot in here once ad
+// campaigns are live; until then it lists peers.)
+function MarketplaceStrip({
+  shops,
+  brand,
+}: {
+  shops: PublicShop[];
+  brand: string;
+}) {
+  return (
+    <Box
+      component="section"
+      sx={{
+        borderTop: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: alpha(tokens.cream, 0.5),
+      }}
+    >
+      <Container sx={{ py: { xs: 5, md: 7 } }}>
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          sx={{
+            mb: 3,
+            gap: 1,
+            alignItems: { xs: "flex-start", sm: "flex-end" },
+            justifyContent: "space-between",
+          }}
+        >
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "0.08em",
+              }}
+            >
+              More on Xtiitch
+            </Typography>
+            <Typography variant="h5" component="h2">
+              Discover other studios
+            </Typography>
+          </Box>
+          <Button
+            component={RouterLink}
+            to="/"
+            endIcon={<ArrowForwardRounded />}
+            sx={{ color: brand, fontWeight: 800, whiteSpace: "nowrap" }}
+          >
+            Browse all
+          </Button>
+        </Stack>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2,
+            gridTemplateColumns: {
+              xs: "minmax(0, 1fr)",
+              sm: "repeat(2, minmax(0, 1fr))",
+              md: "repeat(3, minmax(0, 1fr))",
+              lg: "repeat(4, minmax(0, 1fr))",
+            },
+          }}
+        >
+          {shops.slice(0, 8).map((shop) => (
+            <MarketplaceShopCard key={shop.business_id} shop={shop} />
+          ))}
+        </Box>
+      </Container>
+    </Box>
+  );
+}
+
+function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
+  const shopBrand = shop.brand_color || tokens.burgundy;
+  const cover = shop.designs.find((design) => design.image)?.image;
+  return (
+    <Card
+      component={RouterLink}
+      to={`/store/${shop.handle}`}
+      sx={{
+        textDecoration: "none",
+        height: "100%",
+        overflow: "hidden",
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: tokens.white,
+        transition: "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
+        "&:hover": {
+          transform: "translateY(-4px)",
+          boxShadow: `0 22px 48px ${alpha(tokens.ink, 0.14)}`,
+          borderColor: alpha(shopBrand, 0.3),
+        },
+      }}
+    >
+      <Box
+        sx={{
+          height: 116,
+          position: "relative",
+          background: cover
+            ? `center/cover no-repeat url(${cover})`
+            : `linear-gradient(135deg, ${shopBrand}, ${alpha(shopBrand, 0.65)})`,
+        }}
+      >
+        <Box
+          aria-hidden
+          sx={{
+            position: "absolute",
+            inset: 0,
+            background: `linear-gradient(180deg, ${alpha(tokens.ink, 0)} 40%, ${alpha(tokens.ink, 0.42)} 100%)`,
+          }}
+        />
+      </Box>
+      <Box sx={{ p: 2 }}>
+        <Typography
+          sx={{
+            fontWeight: 900,
+            fontSize: 17,
+            color: tokens.ink,
+            lineHeight: 1.15,
+            display: "-webkit-box",
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {shop.name}
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", fontWeight: 700 }}
+        >
+          {shop.design_count} {shop.design_count === 1 ? "piece" : "pieces"}
+        </Typography>
+      </Box>
+    </Card>
   );
 }
 
@@ -839,9 +995,11 @@ function DesignImage({ design }: { design: Design }) {
 export function DesignCard({
   design,
   index = 0,
+  featured = false,
 }: {
   design: Design;
   index?: number;
+  featured?: boolean;
 }) {
   const priced = design.prices.length > 0;
   return (
@@ -850,10 +1008,12 @@ export function DesignCard({
         height: "100%",
         overflow: "hidden",
         borderRadius: 2,
-        border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.08),
+        border: featured ? "1.5px solid" : "1px solid",
+        borderColor: featured ? alpha(tokens.burgundy, 0.55) : alpha(tokens.ink, 0.08),
         bgcolor: tokens.white,
-        boxShadow: `0 14px 36px ${alpha(tokens.ink, 0.06)}`,
+        boxShadow: featured
+          ? `0 18px 44px ${alpha(tokens.burgundy, 0.16)}`
+          : `0 14px 36px ${alpha(tokens.ink, 0.06)}`,
         transition:
           "transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease",
         "@media (prefers-reduced-motion: no-preference)": {
@@ -903,6 +1063,36 @@ export function DesignCard({
               background: `linear-gradient(180deg, ${alpha(tokens.ink, 0)} 54%, ${alpha(tokens.ink, 0.46)} 100%)`,
             }}
           />
+          {featured ? (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 12,
+                right: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 1.25,
+                py: 0.4,
+                borderRadius: 999,
+                bgcolor: tokens.burgundy,
+                color: tokens.white,
+                boxShadow: `0 6px 16px ${alpha(tokens.burgundy, 0.4)}`,
+              }}
+            >
+              <StarRounded sx={{ fontSize: 13 }} />
+              <Typography
+                sx={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  letterSpacing: "0.09em",
+                  textTransform: "uppercase",
+                }}
+              >
+                Featured
+              </Typography>
+            </Box>
+          ) : null}
           {design.customisation_allowed ? (
             <Box
               sx={{
@@ -1050,7 +1240,13 @@ export function DesignCard({
   );
 }
 
-export function DesignGrid({ designs }: { designs: Design[] }) {
+export function DesignGrid({
+  designs,
+  featuredFirst = false,
+}: {
+  designs: Design[];
+  featuredFirst?: boolean;
+}) {
   if (designs.length === 0) {
     return (
       <Box
@@ -1086,7 +1282,12 @@ export function DesignGrid({ designs }: { designs: Design[] }) {
       }}
     >
       {designs.map((design, index) => (
-        <DesignCard key={design.design_id} design={design} index={index} />
+        <DesignCard
+          key={design.design_id}
+          design={design}
+          index={index}
+          featured={featuredFirst && index === 0}
+        />
       ))}
     </Box>
   );

@@ -15,10 +15,14 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       designs: result.designs,
       collections: [],
       query,
+      marketplace: [],
     };
   }
 
-  const page = await api.store(params.handle);
+  const [page, shopsPage] = await Promise.all([
+    api.store(params.handle),
+    api.shops(),
+  ]);
   if (!page) {
     throw new Response("Store not found", { status: 404 });
   }
@@ -27,6 +31,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     designs: page.designs,
     collections: page.collections,
     query: "",
+    marketplace: shopsPage?.shops ?? [],
   };
 }
 
@@ -42,13 +47,14 @@ export function meta({ data }: Route.MetaArgs) {
 }
 
 export default function Store({ loaderData }: Route.ComponentProps) {
-  const { store, designs, collections, query } = loaderData;
+  const { store, designs, collections, query, marketplace } = loaderData;
   return (
     <StoreView
       store={store}
       designs={designs}
       collections={collections}
       query={query}
+      marketplace={marketplace}
     />
   );
 }

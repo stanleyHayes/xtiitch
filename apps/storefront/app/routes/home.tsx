@@ -31,10 +31,14 @@ export async function loader({ request }: Route.LoaderArgs) {
       designs: page.designs,
       collections: [],
       query,
+      marketplace: [],
     };
   }
 
-  const page = await api.store(handle);
+  const [page, shopsPage] = await Promise.all([
+    api.store(handle),
+    api.shops(),
+  ]);
   if (!page) {
     throw new Response("Store not found", { status: 404 });
   }
@@ -44,6 +48,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     designs: page.designs,
     collections: page.collections,
     query: "",
+    marketplace: shopsPage?.shops ?? [],
   };
 }
 
@@ -75,6 +80,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         designs={loaderData.designs}
         collections={loaderData.collections}
         query={loaderData.query}
+        marketplace={loaderData.marketplace}
       />
     );
   }
