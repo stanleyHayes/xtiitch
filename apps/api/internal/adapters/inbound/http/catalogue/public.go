@@ -111,3 +111,50 @@ type publicDesignResponse struct {
 	designResponse
 	Store storeSummary `json:"store"`
 }
+
+type publicShopDesignResponse struct {
+	Title      string `json:"title"`
+	Handle     string `json:"handle"`
+	Image      string `json:"image"`
+	PriceMinor int64  `json:"price_minor"`
+}
+
+type publicShopResponse struct {
+	BusinessID  string                     `json:"business_id"`
+	Name        string                     `json:"name"`
+	Handle      string                     `json:"handle"`
+	BrandColor  string                     `json:"brand_color"`
+	DesignCount int                        `json:"design_count"`
+	Designs     []publicShopDesignResponse `json:"designs"`
+}
+
+func toPublicShopResponse(shop ports.PublicShop) publicShopResponse {
+	designs := make([]publicShopDesignResponse, 0, len(shop.Designs))
+	for _, d := range shop.Designs {
+		designs = append(designs, publicShopDesignResponse{
+			Title: d.Title, Handle: d.Handle, Image: d.Image, PriceMinor: d.PriceMinor,
+		})
+	}
+	return publicShopResponse{
+		BusinessID:  shop.BusinessID.String(),
+		Name:        shop.Name,
+		Handle:      shop.Handle,
+		BrandColor:  shop.BrandColor,
+		DesignCount: shop.DesignCount,
+		Designs:     designs,
+	}
+}
+
+// publicShops serves the discovery directory of verified, active storefronts.
+func (handler Handler) publicShops(w http.ResponseWriter, r *http.Request) {
+	shops, err := handler.service.ListPublicShops(r.Context())
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]publicShopResponse, 0, len(shops))
+	for _, shop := range shops {
+		out = append(out, toPublicShopResponse(shop))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"shops": out})
+}

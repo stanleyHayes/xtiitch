@@ -92,6 +92,29 @@ type StorefrontRepository interface {
 	ListActiveCollections(ctx context.Context, businessID common.ID) ([]catalogue.Collection, error)
 	GetActiveCollectionByHandle(ctx context.Context, handle string) (StorefrontCollection, error)
 	SearchActiveDesigns(ctx context.Context, businessID common.ID, query string) ([]StorefrontDesign, error)
+	// ListPublicShops returns the public directory of verified, active shops, each
+	// with a small sample of its active designs. Cross-tenant and RLS-bypassed,
+	// like store resolution.
+	ListPublicShops(ctx context.Context) ([]PublicShop, error)
+}
+
+// PublicShopDesign is a lightweight design sample for the discovery directory.
+type PublicShopDesign struct {
+	Title      string
+	Handle     string
+	Image      string
+	PriceMinor int64
+}
+
+// PublicShop is a single verified, active storefront as listed in the public
+// shops directory on the marketing site.
+type PublicShop struct {
+	BusinessID  common.ID
+	Name        string
+	Handle      string
+	BrandColor  string
+	DesignCount int
+	Designs     []PublicShopDesign
 }
 
 type Storefront struct {

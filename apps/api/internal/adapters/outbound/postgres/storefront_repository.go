@@ -51,6 +51,80 @@ func (repo StorefrontRepository) ResolveStore(ctx context.Context, handle string
 	return store, err
 }
 
+// ListPublicShops returns every verified, active storefront for the public
+// directory, each with a sample of its active designs. Reads run with the RLS
+// bypass; only the public, non-sensitive fields are projected.
+func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.PublicShop, error) {
+	var shops []ports.PublicShop
+	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			select b.business_id, b.name, b.handle,
+				coalesce(nullif(ss.brand_color, ''), '#800020'),
+				(select count(*) from designs d
+					where d.business_id = b.business_id and d.status = 'active')
+			from businesses b
+			join store_settings ss on ss.business_id = b.business_id
+			where b.verification_status = 'verified'
+				and b.operational_status = 'active'
+			order by b.name
+		`)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var shop ports.PublicShop
+			if err := rows.Scan(
+				&shop.BusinessID, &shop.Name, &shop.Handle, &shop.BrandColor, &shop.DesignCount,
+			); err != nil {
+				return err
+			}
+			shops = append(shops, shop)
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+		for i := range shops {
+			samples, err := loadShopSamples(ctx, tx, shops[i].BusinessID)
+			if err != nil {
+				return err
+			}
+			shops[i].Designs = samples
+		}
+		return nil
+	})
+	return shops, err
+}
+
+func loadShopSamples(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]ports.PublicShopDesign, error) {
+	rows, err := tx.Query(ctx, `
+		select d.title, d.handle, d.images,
+			coalesce((select min(dp.price_minor) from design_prices dp
+				where dp.design_id = d.design_id), 0)
+		from designs d
+		where d.business_id = $1 and d.status = 'active'
+		order by d.sequence, d.title
+		limit 4
+	`, businessID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	samples := []ports.PublicShopDesign{}
+	for rows.Next() {
+		var sample ports.PublicShopDesign
+		var images []string
+		if err := rows.Scan(&sample.Title, &sample.Handle, &images, &sample.PriceMinor); err != nil {
+			return nil, err
+		}
+		if len(images) > 0 {
+			sample.Image = images[0]
+		}
+		samples = append(samples, sample)
+	}
+	return samples, rows.Err()
+}
+
 func (repo StorefrontRepository) ListActiveDesigns(ctx context.Context, businessID common.ID) ([]ports.StorefrontDesign, error) {
 	var results []ports.StorefrontDesign
 	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {

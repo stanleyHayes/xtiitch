@@ -857,6 +857,10 @@ func (f fakeStorefront) GetActiveCollectionByHandle(context.Context, string) (po
 	return ports.StorefrontCollection{}, nil
 }
 
+func (f fakeStorefront) ListPublicShops(context.Context) ([]ports.PublicShop, error) {
+	return nil, nil
+}
+
 func (f fakeStorefront) SearchActiveDesigns(context.Context, common.ID, string) ([]ports.StorefrontDesign, error) {
 	return nil, nil
 }

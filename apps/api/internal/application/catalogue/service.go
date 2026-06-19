@@ -330,6 +330,11 @@ func (s Service) GetStoreCollection(ctx context.Context, handle string) (ports.S
 	return s.storefront.GetActiveCollectionByHandle(ctx, strings.TrimSpace(handle))
 }
 
+// ListPublicShops returns the public directory of verified, active storefronts.
+func (s Service) ListPublicShops(ctx context.Context) ([]ports.PublicShop, error) {
+	return s.storefront.ListPublicShops(ctx)
+}
+
 func (s Service) SearchStore(ctx context.Context, handle string, query string) (ports.Storefront, []ports.StorefrontDesign, error) {
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(handle))
 	if err != nil {

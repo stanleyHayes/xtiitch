@@ -31,6 +31,7 @@ func NewHandler(service catalogueapp.Service, authenticator authhttp.Authenticat
 
 func (handler Handler) Register(router chi.Router) {
 	// Public storefront — no account required.
+	router.Get("/public/shops", handler.publicShops)
 	router.Get("/public/stores/{handle}", handler.publicStore)
 	router.Get("/public/stores/{handle}/search", handler.publicSearch)
 	router.Get("/public/designs/{handle}", handler.publicDesign)
