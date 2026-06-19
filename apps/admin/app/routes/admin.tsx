@@ -389,20 +389,12 @@ function adminNavItems(ids: Section[]): AdminNavItem[] {
   return ids.map((id) => adminNavItem(id));
 }
 
+// Overview is rendered standalone at the top of the rail (see renderNavItem in
+// the sidebar). The remaining groups flow in order, with Command last — it is no
+// longer pinned to the bottom.
+const adminOverviewNavId: Section = "overview";
+
 const adminNavGroups: AdminNavGroup[] = [
-  {
-    id: "command",
-    label: "Command",
-    icon: <TrendingUpRounded />,
-    items: adminNavItems([
-      "overview",
-      "notifications",
-      "reports",
-      "exports",
-      "health",
-      "readiness",
-    ]),
-  },
   {
     id: "growth",
     label: "Growth",
@@ -432,6 +424,18 @@ const adminNavGroups: AdminNavGroup[] = [
     label: "Operations",
     icon: <ShieldRounded />,
     items: adminNavItems(["money", "risk", "support", "settings", "audit"]),
+  },
+  {
+    id: "command",
+    label: "Command",
+    icon: <TrendingUpRounded />,
+    items: adminNavItems([
+      "notifications",
+      "reports",
+      "exports",
+      "health",
+      "readiness",
+    ]),
   },
 ];
 
@@ -14791,12 +14795,6 @@ function AdminRail({
     }
     return null;
   };
-  const primaryNavGroups = adminNavGroups.filter(
-    (group) => group.id !== "command",
-  );
-  const commandNavGroups = adminNavGroups.filter(
-    (group) => group.id === "command",
-  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       adminNavGroups.map((group) => [
@@ -15294,29 +15292,18 @@ function AdminRail({
             gap: compact ? 0.65 : 0.85,
           }}
         >
-          {primaryNavGroups.map((group) =>
+          {/* Overview stands alone at the top — not inside the Command group. */}
+          {renderNavItem(adminNavItem(adminOverviewNavId), compact, onClose)}
+          <Box
+            sx={{
+              height: "1px",
+              my: 0.4,
+              bgcolor: alpha(tokens.white, 0.08),
+            }}
+          />
+          {/* All groups flow in order; Command is simply the last group now. */}
+          {adminNavGroups.map((group) =>
             renderNavGroup(group, compact, onClose),
-          )}
-        </List>
-      </Box>
-
-      <Box
-        sx={{
-          mt: "auto",
-          pt: compact ? 0.85 : 1.1,
-          borderTop: "1px solid",
-          borderColor: alpha(tokens.white, 0.1),
-        }}
-      >
-        <List
-          sx={{
-            p: 0,
-            display: "grid",
-            gap: compact ? 0.65 : 0.85,
-          }}
-        >
-          {commandNavGroups.map((group) =>
-            renderNavGroup(group, compact, onClose, "bottom"),
           )}
         </List>
       </Box>
