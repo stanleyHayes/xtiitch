@@ -41,6 +41,18 @@ export default function handleRequest(
             const withStyles = html.replace("</head>", `${styleTags}</head>`);
 
             responseHeaders.set("Content-Type", "text/html; charset=utf-8");
+            // Baseline browser hardening; SAMEORIGIN so a business may still embed
+            // its own storefront while cross-site clickjacking stays blocked.
+            responseHeaders.set("X-Content-Type-Options", "nosniff");
+            responseHeaders.set("X-Frame-Options", "SAMEORIGIN");
+            responseHeaders.set(
+              "Referrer-Policy",
+              "strict-origin-when-cross-origin",
+            );
+            responseHeaders.set(
+              "Permissions-Policy",
+              "geolocation=(), microphone=(), camera=()",
+            );
             resolve(
               new Response(withStyles, {
                 headers: responseHeaders,
