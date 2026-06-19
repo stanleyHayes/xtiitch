@@ -126,6 +126,18 @@ type StoreSettings = {
   layout_variant: string;
 };
 
+type WaitlistEntry = {
+  entry_id: string;
+  design_id: string;
+  design_title: string;
+  design_handle: string;
+  customer_name: string;
+  customer_contact: string;
+  note: string;
+  status: string;
+  created_at: string;
+};
+
 type CollectionSummary = {
   collection_id: string;
   name: string;
@@ -922,6 +934,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   let collections: CollectionSummary[] = [];
   let sizeBands: SizeBand[] = [];
   let promotions: BusinessPromotion[] = [];
+  let waitlistEntries: WaitlistEntry[] = [];
   const orders = ordersData.orders ?? [];
 
   if (canManage) {
@@ -935,6 +948,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       collectionsResult,
       sizeBandsResult,
       promotionsResult,
+      waitlistResult,
     ] = await Promise.all([
       loadDashboardJSON<{ designs: Design[] }>(
         request,
@@ -990,6 +1004,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         { promotions: [] },
         "Promotions could not be loaded right now.",
       ),
+      loadDashboardJSON<{ entries: WaitlistEntry[] }>(
+        request,
+        "/waitlist-entries",
+        { entries: [] },
+        "Design waiting lists could not be loaded right now.",
+      ),
     ]);
     const designsData = readResult(designsResult);
     const moneySummaryData = readResult(moneySummaryResult);
@@ -1000,6 +1020,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const collectionsData = readResult(collectionsResult);
     const sizeBandsData = readResult(sizeBandsResult);
     const promotionsData = readResult(promotionsResult);
+    const waitlistData = readResult(waitlistResult);
 
     const listedDesigns = designsData.designs ?? [];
     let designPriceWarning = false;
@@ -1034,6 +1055,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     collections = collectionsData.collections ?? [];
     sizeBands = sizeBandsData.size_bands ?? [];
     promotions = promotionsData.promotions ?? [];
+    waitlistEntries = waitlistData.entries ?? [];
   }
 
   return {
@@ -1053,6 +1075,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     collections,
     sizeBands,
     promotions,
+    waitlistEntries,
     section,
     orderFilter,
     dataWarnings: uniqueDashboardWarnings(dataWarnings),
@@ -1473,6 +1496,24 @@ export async function action({ request }: Route.ActionArgs) {
         settingsError:
           "Could not save storefront settings. Check the brand colour and feature switches.",
       };
+    }
+    return redirect("/dashboard/settings");
+  }
+
+  if (intent === "update_waitlist_status") {
+    const entryId = String(form.get("entry_id") ?? "").trim();
+    const status = String(form.get("status") ?? "").trim();
+    const response = await apiFetch(
+      request,
+      `/waitlist-entries/${encodeURIComponent(entryId)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      },
+    );
+    if (!response.ok) {
+      return { settingsError: "Could not update that waiting-list entry." };
     }
     return redirect("/dashboard/settings");
   }
@@ -8431,6 +8472,114 @@ function DesignImageUploadPanel({
   );
 }
 
+function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
+  const statuses = [
+    { value: "waiting", label: "Waiting" },
+    { value: "notified", label: "Notified" },
+    { value: "closed", label: "Closed" },
+  ];
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 }, mt: 2 }}>
+      <Stack
+        direction="row"
+        spacing={1.25}
+        sx={{ alignItems: "center", mb: 0.5 }}
+      >
+        <NotificationsRounded sx={{ color: "primary.main" }} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 900 }}>Design waiting lists</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Customers who registered interest in a design from your storefront.
+          </Typography>
+        </Box>
+      </Stack>
+      {entries.length === 0 ? (
+        <EmptyState
+          icon={<NotificationsRounded sx={{ fontSize: 38 }} />}
+          title="No waiting-list sign-ups yet"
+          helper="When a customer joins a design's waiting list on your storefront, they appear here."
+        />
+      ) : (
+        <Stack spacing={1.25} sx={{ mt: 1.5 }}>
+          {entries.map((entry) => (
+            <Box
+              key={entry.entry_id}
+              sx={{
+                p: 1.5,
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                bgcolor: "rgba(var(--surface-rgb), 0.72)",
+              }}
+            >
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: { sm: "center" },
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800 }} noWrap>
+                    {entry.customer_name}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "text.secondary" }}
+                    noWrap
+                  >
+                    {entry.customer_contact} ·{" "}
+                    {entry.design_title || entry.design_handle}
+                  </Typography>
+                  {entry.note ? (
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary", display: "block", mt: 0.25 }}
+                    >
+                      “{entry.note}”
+                    </Typography>
+                  ) : null}
+                </Box>
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="update_waitlist_status"
+                  />
+                  <input type="hidden" name="entry_id" value={entry.entry_id} />
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ alignItems: "center", flexShrink: 0 }}
+                  >
+                    <TextField
+                      select
+                      name="status"
+                      size="small"
+                      defaultValue={entry.status}
+                      sx={{ minWidth: 130 }}
+                    >
+                      {statuses.map((status) => (
+                        <MenuItem key={status.value} value={status.value}>
+                          {status.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <Button type="submit" size="small" variant="outlined">
+                      Update
+                    </Button>
+                  </Stack>
+                </Form>
+              </Stack>
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
 function StoreSettingsPanel({
   settings,
   profile,
@@ -11467,6 +11616,7 @@ export default function Dashboard({
     collections,
     sizeBands,
     promotions,
+    waitlistEntries,
     section,
     orderFilter,
     dataWarnings,
@@ -12676,11 +12826,16 @@ export default function Dashboard({
                 ) : null}
 
                 {canManage && section === "settings" ? (
-                  <StoreSettingsPanel
-                    settings={storeSettings}
-                    profile={profile}
-                    error={action.settingsError}
-                  />
+                  <>
+                    <StoreSettingsPanel
+                      settings={storeSettings}
+                      profile={profile}
+                      error={action.settingsError}
+                    />
+                    {(profile.entitlements ?? {}).design_waitlist ? (
+                      <WaitlistEntriesPanel entries={waitlistEntries} />
+                    ) : null}
+                  </>
                 ) : null}
 
                 {canManage && section === "team" ? (
