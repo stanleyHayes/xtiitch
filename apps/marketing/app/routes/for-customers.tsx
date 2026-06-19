@@ -89,15 +89,32 @@ export default function ForCustomers() {
               }}
             >
               <Typography
-                variant="body2"
-                sx={{ color: "primary.main", fontWeight: 800, mb: 1 }}
+                aria-hidden
+                component="p"
+                sx={{
+                  position: "absolute",
+                  right: 18,
+                  top: 8,
+                  fontWeight: 800,
+                  fontSize: 74,
+                  lineHeight: 1,
+                  color: "rgba(128,0,32,0.07)",
+                  pointerEvents: "none",
+                }}
               >
                 {String(index + 1).padStart(2, "0")}
               </Typography>
-              <Typography variant="h6" component="h3" sx={{ mb: 1 }}>
+              <Typography
+                variant="h6"
+                component="h3"
+                sx={{ mb: 1, position: "relative" }}
+              >
                 {point.title}
               </Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", position: "relative" }}
+              >
                 {point.body}
               </Typography>
             </Box>

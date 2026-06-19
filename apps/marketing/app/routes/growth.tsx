@@ -238,7 +238,7 @@ function GrowthLoop() {
                 position: "absolute",
                 right: 16,
                 top: 10,
-                fontFamily: "DM Serif Display, Instrument Sans, serif",
+                fontFamily: "Inter Tight, system-ui, sans-serif",
                 fontSize: 72,
                 lineHeight: 1,
                 color: `${accent}12`,
