@@ -3823,7 +3823,7 @@ function WorkspaceRail({
     inDrawer: boolean,
     compact: boolean,
     placement: "main" | "bottom" = "main",
-    solo: boolean = false,
+    solo = false,
   ) => {
     const activeGroup = group.items.some((item) => item.section === section);
     const open = openGroups[group.id] ?? true;
@@ -3837,121 +3837,139 @@ function WorkspaceRail({
       <Box key={group.id}>
         {!solo &&
           (compact ? (
-          <Tooltip title={group.label} placement="right">
-            <IconButton
-              aria-label={`${group.label} navigation group`}
-              aria-expanded={open}
-              onClick={() => toggleGroup(group.id)}
-              sx={{
-                width: "100%",
-                height: 40,
-                color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
-                border: "1px solid",
-                borderColor: activeGroup
-                  ? alpha(groupTone, 0.34)
-                  : alpha(tokens.white, 0.1),
-                bgcolor: activeGroup
-                  ? alpha(groupTone, 0.12)
-                  : alpha(tokens.white, 0.035),
-                borderRadius: 1.25,
-                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
-              }}
-            >
-              <Badge
-                color="error"
-                badgeContent={groupBadge}
-                invisible={groupBadge === 0}
-                max={99}
+            <Tooltip title={group.label} placement="right">
+              <IconButton
+                aria-label={`${group.label} navigation group`}
+                aria-expanded={open}
+                onClick={() => toggleGroup(group.id)}
                 sx={{
-                  "& .MuiBadge-badge": {
-                    bgcolor: tokens.burgundy,
-                    color: tokens.white,
-                    border: `1px solid ${alpha(tokens.white, 0.28)}`,
-                  },
+                  width: "100%",
+                  height: 40,
+                  color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
+                  border: "1px solid",
+                  borderColor: activeGroup
+                    ? alpha(groupTone, 0.34)
+                    : alpha(tokens.white, 0.1),
+                  bgcolor: activeGroup
+                    ? alpha(groupTone, 0.12)
+                    : alpha(tokens.white, 0.035),
+                  borderRadius: 1.25,
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
                 }}
               >
-                {group.icon}
-              </Badge>
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Button
-            type="button"
-            onClick={() => toggleGroup(group.id)}
-            startIcon={group.icon}
-            endIcon={
-              open ? (
-                <KeyboardArrowDownRounded />
-              ) : (
-                <KeyboardArrowRightRounded />
-              )
-            }
-            aria-expanded={open}
-            fullWidth
-            sx={{
-              minHeight: 36,
-              justifyContent: "flex-start",
-              color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
-              borderRadius: 1.25,
-              border: "1px solid",
-              borderColor: activeGroup ? alpha(groupTone, 0.3) : "transparent",
-              bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
-              position: "relative",
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                left: 0,
-                top: 9,
-                bottom: 9,
-                width: 2,
-                borderRadius: 4,
-                bgcolor: activeGroup ? groupTone : "transparent",
-              },
-              "& .MuiButton-startIcon": {
-                color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
-              },
-              "& .MuiButton-endIcon": {
-                ml: "auto",
-                color: alpha(tokens.white, 0.56),
-              },
-              "&:hover": {
-                bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                borderColor: alpha(tokens.white, 0.1),
-              },
-            }}
-          >
-            <Box
-              component="span"
+                <Badge
+                  color="error"
+                  badgeContent={groupBadge}
+                  invisible={groupBadge === 0}
+                  max={99}
+                  sx={{
+                    "& .MuiBadge-badge": {
+                      bgcolor: tokens.burgundy,
+                      color: tokens.white,
+                      border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                    },
+                  }}
+                >
+                  {group.icon}
+                </Badge>
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => toggleGroup(group.id)}
+              startIcon={group.icon}
+              endIcon={
+                open ? (
+                  <KeyboardArrowDownRounded />
+                ) : (
+                  <KeyboardArrowRightRounded />
+                )
+              }
+              aria-expanded={open}
+              fullWidth
               sx={{
-                minWidth: 0,
-                flex: 1,
-                textAlign: "left",
-                fontSize: 12,
-                fontWeight: 950,
-                letterSpacing: 0,
-                textTransform: "uppercase",
+                minHeight: 36,
+                justifyContent: "flex-start",
+                color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
+                borderRadius: 1.25,
+                border: "1px solid",
+                borderColor: activeGroup
+                  ? alpha(groupTone, 0.3)
+                  : "transparent",
+                bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
+                position: "relative",
+                "&::before": {
+                  content: '""',
+                  position: "absolute",
+                  left: 0,
+                  top: 9,
+                  bottom: 9,
+                  width: 2,
+                  borderRadius: 4,
+                  bgcolor: activeGroup ? groupTone : "transparent",
+                },
+                "& .MuiButton-startIcon": {
+                  color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
+                },
+                "& .MuiButton-endIcon": {
+                  ml: "auto",
+                  color: alpha(tokens.white, 0.56),
+                },
+                "&:hover": {
+                  bgcolor: "rgba(var(--surface-rgb), 0.08)",
+                  borderColor: alpha(tokens.white, 0.1),
+                },
               }}
             >
-              {group.label}
-            </Box>
-            {groupBadge > 0 ? (
-              <Chip
-                size="small"
-                label={groupBadge}
+              <Box
+                component="span"
                 sx={{
-                  height: 20,
-                  mr: 0.5,
-                  color: tokens.white,
-                  bgcolor: alpha(tokens.burgundy, 0.72),
-                  border: "1px solid",
-                  borderColor: alpha(tokens.white, 0.14),
+                  minWidth: 0,
+                  flex: 1,
+                  textAlign: "left",
+                  fontSize: 12,
+                  fontWeight: 950,
+                  letterSpacing: 0,
+                  textTransform: "uppercase",
                 }}
-              />
-            ) : null}
-          </Button>
+              >
+                {group.label}
+              </Box>
+              {groupBadge > 0 ? (
+                <Chip
+                  size="small"
+                  label={groupBadge}
+                  sx={{
+                    height: 20,
+                    mr: 0.5,
+                    color: tokens.white,
+                    bgcolor: alpha(tokens.burgundy, 0.72),
+                    border: "1px solid",
+                    borderColor: alpha(tokens.white, 0.14),
+                  }}
+                />
+              ) : null}
+            </Button>
           ))}
         <Collapse in={solo || open} timeout="auto" unmountOnExit>
-          <Stack spacing={0.55} sx={{ mt: 0.6, display: "grid" }}>
+          <Stack
+            spacing={0.55}
+            sx={{
+              mt: 0.6,
+              display: "grid",
+              // Indent + a connecting rail so grouped items read as nested under
+              // their header (solo Overview has no header, so no indent).
+              ...(solo
+                ? {}
+                : {
+                    ml: 1.25,
+                    pl: 1.5,
+                    borderLeft: "1px solid",
+                    borderColor: alpha(tokens.white, 0.14),
+                  }),
+            }}
+          >
             {group.items.map((item) => {
               const active = item.section === section;
               const badge = badges[item.section];
@@ -4158,7 +4176,7 @@ function WorkspaceRail({
                   component="span"
                   aria-hidden
                   sx={{
-                    fontFamily: '"DM Serif Display", serif',
+                    fontFamily: '"Fraunces", serif',
                     fontSize: 24,
                     lineHeight: 1,
                     mt: "2px",
@@ -4184,7 +4202,7 @@ function WorkspaceRail({
                 <Box sx={{ minWidth: 0 }}>
                   <Typography
                     sx={{
-                      fontFamily: '"DM Serif Display", serif',
+                      fontFamily: '"Fraunces", serif',
                       fontSize: 19,
                       lineHeight: 1.15,
                       color: tokens.white,
@@ -4801,7 +4819,8 @@ function WorkspaceTopBar({
                     py: 1.1,
                     gap: 1.25,
                     "&:hover": {
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                      bgcolor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.08),
                     },
                   }}
                 >
@@ -4815,7 +4834,8 @@ function WorkspaceTopBar({
                       display: "grid",
                       placeItems: "center",
                       color: "primary.main",
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                      bgcolor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.1),
                     }}
                   >
                     {entry.icon}
@@ -12255,7 +12275,7 @@ export default function Dashboard({
                             <Box sx={{ p: { xs: 2, md: 2.5 }, pb: 1 }}>
                               <Typography
                                 sx={{
-                                  fontFamily: '"DM Serif Display", serif',
+                                  fontFamily: '"Fraunces", serif',
                                   fontSize: 22,
                                   lineHeight: 1.15,
                                 }}
