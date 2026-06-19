@@ -1,4 +1,9 @@
-const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
+// Imported into the client bundle (SponsoredRail), so never touch `process` at
+// import time in the browser; the API calls only run server-side anyway.
+const readEnv = (key: string): string | undefined =>
+  typeof process !== "undefined" ? process.env[key] : undefined;
+
+const API_BASE = readEnv("XTIITCH_API_URL") ?? "http://localhost:8080";
 
 export type SponsoredPlacement = {
   campaignId: string;
@@ -117,7 +122,7 @@ function mapSponsoredPlacement(
 }
 
 function storefrontHref(storeHandle: string, designHandle: string): string {
-  const configured = process.env.XTIITCH_STOREFRONT_BASE_URL?.replace(
+  const configured = readEnv("XTIITCH_STOREFRONT_BASE_URL")?.replace(
     /\/+$/,
     "",
   );

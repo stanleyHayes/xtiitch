@@ -1,7 +1,14 @@
 // Public shops directory client for the discovery pages. Reads the
 // unauthenticated /public/shops endpoint (verified, active storefronts) and
 // resolves storefront links the same way the sponsored placements do.
-const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
+// This module is pulled into the client bundle via components/directory.tsx, so
+// `process` must never be touched at import time in the browser. Read env only
+// when it actually exists (server / SSR); the loaders that hit the API only run
+// there anyway.
+const readEnv = (key: string): string | undefined =>
+  typeof process !== "undefined" ? process.env[key] : undefined;
+
+const API_BASE = readEnv("XTIITCH_API_URL") ?? "http://localhost:8080";
 
 export type DirectoryDesign = {
   title: string;
@@ -94,7 +101,7 @@ function mapShop(payload: ShopPayload): DirectoryShop {
 }
 
 function storefrontHref(storeHandle: string, designHandle = ""): string {
-  const configured = process.env.XTIITCH_STOREFRONT_BASE_URL?.replace(
+  const configured = readEnv("XTIITCH_STOREFRONT_BASE_URL")?.replace(
     /\/+$/,
     "",
   );
