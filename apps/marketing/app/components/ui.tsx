@@ -526,7 +526,9 @@ export function StepList({ items }: { items: Step[] }) {
             borderColor: index === 0 ? "rgba(128,0,32,0.26)" : "divider",
             borderRadius: 1,
             bgcolor:
-              index === 0 ? "rgba(255,255,255,0.94)" : "background.paper",
+              index === 0
+                ? "rgba(var(--surface-rgb),0.94)"
+                : "background.paper",
             minHeight: 168,
             boxShadow:
               index === 0 ? "0 28px 68px -54px rgba(128,0,32,0.72)" : "none",
@@ -1072,7 +1074,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
             borderWidth: plan.highlight ? 2 : 1,
             opacity: plan.available ? 1 : 0.92,
             bgcolor: plan.highlight
-              ? "rgba(255,255,255,0.98)"
+              ? "rgba(var(--surface-rgb),0.98)"
               : "background.paper",
             transform: plan.highlight ? { md: "translateY(-10px)" } : "none",
             boxShadow: plan.highlight

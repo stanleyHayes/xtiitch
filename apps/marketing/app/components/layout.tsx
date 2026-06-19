@@ -517,7 +517,7 @@ export function Header() {
         top: 0,
         py: { xs: 1, md: 1.25 },
         backdropFilter: "saturate(180%) blur(14px)",
-        backgroundColor: "rgba(250, 246, 242, 0.78)",
+        backgroundColor: "rgba(var(--surface-rgb), 0.78)",
         borderBottom: "1px solid rgba(233,222,214,0.72)",
         animation: "xtiitch-rise-in 520ms cubic-bezier(0.2, 0.8, 0.2, 1)",
         "@media (prefers-reduced-motion: reduce)": {
@@ -552,7 +552,7 @@ export function Header() {
               mr: 1,
               p: 0.5,
               borderRadius: 1,
-              bgcolor: "rgba(250,246,242,0.8)",
+              bgcolor: "rgba(var(--surface-rgb),0.8)",
               border: "1px solid",
               borderColor: "divider",
             }}

@@ -1618,10 +1618,10 @@ export default function DesignPage({
                   icon={<SecurityRounded />}
                   label="Secure Xtiitch checkout"
                   sx={{
-                    bgcolor: alpha(tokens.ink, 0.06),
-                    color: tokens.ink,
+                    bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08),
+                    color: "text.primary",
                     fontWeight: 900,
-                    "& .MuiChip-icon": { color: tokens.ink },
+                    "& .MuiChip-icon": { color: "text.primary" },
                   }}
                 />
               </Stack>

@@ -266,7 +266,7 @@ export function StoreHeader({
                 maxWidth: 560,
                 "& .MuiOutlinedInput-root": {
                   bgcolor: "rgba(var(--surface-rgb), 0.96)",
-                  color: tokens.ink,
+                  color: "text.primary",
                   boxShadow: `0 16px 42px ${alpha(tokens.ink, 0.16)}`,
                 },
               }}
@@ -931,7 +931,7 @@ function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
           sx={{
             fontWeight: 900,
             fontSize: 17,
-            color: tokens.ink,
+            color: "text.primary",
             lineHeight: 1.15,
             display: "-webkit-box",
             WebkitLineClamp: 1,
@@ -1212,7 +1212,7 @@ export function DesignCard({
             sx={{
               fontSize: { xs: 22, sm: 21 },
               lineHeight: 1.06,
-              color: tokens.ink,
+              color: "text.primary",
               mt: 0.25,
               display: "-webkit-box",
               WebkitLineClamp: 2,
