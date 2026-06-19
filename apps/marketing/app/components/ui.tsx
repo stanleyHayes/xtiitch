@@ -314,7 +314,12 @@ export function PageHero({
                 right: { sm: 10, md: 20 },
                 bottom: { sm: 10, md: 8 },
                 fontSize: { sm: 190, md: 248 },
-                color: "rgba(21,17,26,0.14)",
+                // Subtle watermark: ink on the light hero, cream on the dark one
+                // (a fixed dark rgba vanished on the dark paper).
+                color: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? "rgba(255, 247, 242, 0.1)"
+                    : "rgba(21, 17, 26, 0.14)",
                 animation: "xtiitch-float-mark 8s ease-in-out infinite",
                 "@media (prefers-reduced-motion: reduce)": {
                   animation: "none",
