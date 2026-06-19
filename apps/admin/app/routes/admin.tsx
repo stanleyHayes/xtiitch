@@ -3065,6 +3065,7 @@ function VerificationCard({
 }) {
   const accent = riskColor(item.riskLevel);
   const isHeld = item.status === "pending";
+  const [expanded, setExpanded] = useState(false);
 
   return (
     <Panel
@@ -3101,13 +3102,28 @@ function VerificationCard({
                 {item.handle}.xtiitch.com · {item.ownerName} · {item.ownerEmail}
               </Typography>
             </Box>
-            <Stack direction="row" spacing={1}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", flexWrap: "wrap" }}
+            >
               <RiskChip level={item.riskLevel} />
               <StatusChip status={item.status} />
               <Chip size="small" label={item.plan} variant="outlined" />
+              <Button
+                size="small"
+                variant={expanded ? "outlined" : "contained"}
+                onClick={() => setExpanded((value) => !value)}
+              >
+                {expanded ? "Hide details" : "Review case"}
+              </Button>
             </Stack>
           </Stack>
-          <Typography sx={{ color: "text.secondary" }}>{item.notes}</Typography>
+          <Collapse in={expanded} unmountOnExit>
+            <Stack spacing={2} sx={{ mt: 2 }}>
+              <Typography sx={{ color: "text.secondary" }}>
+                {item.notes}
+              </Typography>
           <Box
             sx={{
               display: "grid",
@@ -3264,6 +3280,8 @@ function VerificationCard({
               </Button>
             </Stack>
           </Stack>
+            </Stack>
+          </Collapse>
         </Stack>
       </Form>
     </Panel>
