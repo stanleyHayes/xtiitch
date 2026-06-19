@@ -7,7 +7,7 @@ import {
   Text,
   View,
 } from "react-native";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Stack, useFocusEffect, useRouter } from "expo-router";
 
 import { loadSession } from "../../src/auth";
 import {
@@ -84,6 +84,15 @@ export default function BusinessOrdersScreen() {
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.burgundy} />
       }
     >
+      <Stack.Screen
+        options={{
+          headerRight: () => (
+            <Pressable onPress={() => router.push("/business/new-order")} hitSlop={10}>
+              <Text style={styles.headerAction}>+ New</Text>
+            </Pressable>
+          ),
+        }}
+      />
       <View style={styles.tabs}>
         {FILTERS.map((tab) => {
           const active = filter === tab.key;
@@ -135,6 +144,12 @@ export default function BusinessOrdersScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
+  headerAction: {
+    color: palette.white,
+    fontFamily: fonts.body,
+    fontWeight: "800",
+    fontSize: 14,
+  },
   tabs: { flexDirection: "row", gap: spacing(1), marginBottom: spacing(2.5) },
   tab: {
     flexDirection: "row",

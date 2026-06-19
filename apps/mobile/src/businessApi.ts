@@ -55,6 +55,29 @@ export type CollectBalanceResult = {
   amount_minor: number;
 };
 
+export type BusinessDesign = {
+  design_id: string;
+  title: string;
+  handle: string;
+  status: string;
+  images: string[];
+};
+
+export type SizeBand = {
+  size_band_id: string;
+  label: string;
+  sequence: number;
+};
+
+export type CreateWalkInInput = {
+  design_id: string;
+  size_band_id?: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  agreed_total_minor?: number;
+};
+
 export const businessApi = {
   me: () => request<BusinessProfile>("/auth/business/me"),
   orders: () => request<{ orders: BusinessOrder[] }>("/orders"),
@@ -84,6 +107,16 @@ export const businessApi = {
         body: JSON.stringify({ method }),
       },
     ),
+  // The studio's own catalogue + size bands, for composing a walk-in order.
+  designs: () => request<{ designs: BusinessDesign[] }>("/designs"),
+  sizeBands: () => request<{ size_bands: SizeBand[] }>("/size-bands"),
+  // Record an in-person (walk-in) order against one of the studio's designs.
+  createWalkIn: (input: CreateWalkInInput) =>
+    request<{ order_id: string }>("/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
 };
 
 const TERMINAL_STATUSES = new Set([

@@ -119,6 +119,13 @@ export default function BusinessDashboardScreen() {
         <Kpi label="Settled" value={formatGHS(settledMinor)} tone={palette.success} wide />
       </View>
 
+      <Pressable
+        style={({ pressed }) => [styles.newOrderCta, pressed && { opacity: 0.9 }]}
+        onPress={() => router.push("/business/new-order")}
+      >
+        <Text style={styles.newOrderCtaText}>+ New walk-in order</Text>
+      </Pressable>
+
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel}>Recent orders</Text>
         <Pressable onPress={() => router.push("/business/orders")}>
@@ -201,6 +208,19 @@ const styles = StyleSheet.create({
     padding: spacing(2),
   },
   kpiWide: { flexBasis: "100%" },
+  newOrderCta: {
+    backgroundColor: palette.burgundy,
+    borderRadius: radius.pill,
+    paddingVertical: spacing(1.75),
+    alignItems: "center",
+    marginTop: spacing(2),
+  },
+  newOrderCtaText: {
+    color: palette.white,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: "800",
+  },
   kpiValue: {
     fontFamily: fonts.display,
     fontSize: 26,
