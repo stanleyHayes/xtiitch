@@ -1,13 +1,30 @@
+// Aligned to Xtiitch-Brand-Guidelines v1.0 (XCreativs Technologies). Wine
+// leads; Graphite is secondary text; Line is the border; red/amber/green are
+// reserved for in-product order status, never decoration. Legacy names kept as
+// aliases so existing app themes keep resolving.
 export const xtiitchColors = {
+  // Brand
+  wine: "#800020",
   burgundy: "#800020",
+  deepWine: "#5c0118",
+  wineTint: "#f3e1e5",
   ink: "#15111a",
   cream: "#faf6f2",
+  // Neutral
+  graphite: "#565b63",
+  mutedText: "#565b63",
+  mauve: "#9a7a80",
+  line: "#e7ded7",
+  softBorder: "#e7ded7",
   white: "#ffffff",
-  softBorder: "#e9ded6",
-  mutedText: "#6f6672",
-  success: "#237a4b",
-  warning: "#b87914",
-  danger: "#a92727",
+  paper: "#ffffff",
+  // Functional · order status (reserved — never decoration)
+  statusReceived: "#c0392b",
+  statusInProgress: "#b8860b",
+  statusReady: "#1e8e4e",
+  success: "#1e8e4e",
+  warning: "#b8860b",
+  danger: "#c0392b",
   info: "#315f8f",
 } as const;
 

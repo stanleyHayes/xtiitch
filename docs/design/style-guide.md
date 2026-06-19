@@ -2,6 +2,13 @@
 
 This guide is mandatory for agents designing or implementing Xtiitch UI. It turns the product definition into practical visual and interaction rules.
 
+## Brand source of truth (Brand Guidelines v1.0)
+
+- **Colour:** Wine `#800020` (primary, "leads"), Deep Wine `#5C0118`, Wine Tint `#F3E1E5`, Ink `#15111A`, Cream `#FAF6F2`; neutrals Graphite `#565B63` (secondary text), Mauve `#9A7A80`, Line `#E7DED7`, Paper `#FFFFFF`. **Red `#C0392B` / Amber `#B8860B` / Green `#1E8E4E` are reserved for in-product order status — never decoration.** Tokens live in `packages/design-tokens`.
+- **Type:** **Inter Tight** is the single typeface — Display/Heading ExtraBold (800), Subhead SemiBold (600), Body Regular (400), Caption Medium (500, often UPPERCASE). (Replaces the old DM Serif Display + Instrument Sans pairing.)
+- **Logo:** the **ii-stitch mark** (two dots + two columns + a seam) — not an "X". Horizontal lockup by default; vector masters in `assets/brand/svg`. Motto: **"Fashion, in good order."**
+- **Pattern:** a quiet field of running stitches (`pattern-*.svg`), low-contrast texture only.
+
 ## Product Feel
 
 Xtiitch is a fashion-business operating system, not a generic SaaS dashboard. It should feel:

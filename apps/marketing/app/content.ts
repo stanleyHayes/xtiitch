@@ -7,6 +7,7 @@ export const site = {
   name: "Xtiitch",
   company: "XCreativs Technologies",
   tagline: "The operating system for fashion.",
+  motto: "Fashion, in good order.",
   promise:
     "Give your fashion business a real online store, one place to run orders and customers, and a clean way to take payment — and finally let your customers see where their garment has reached.",
   oneLiner:

@@ -32,6 +32,33 @@ import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import { site } from "../content";
 
+// The ii-stitch brand mark (two stitches joined by a seam), per the brand
+// guidelines — replaces the old "X" placeholder tile.
+export function XtiitchMark({
+  color = "#800020",
+  size = 32,
+  sx,
+}: {
+  color?: string;
+  size?: number;
+  sx?: object;
+}) {
+  return (
+    <Box
+      aria-hidden
+      component="svg"
+      viewBox="1.4 3.8 97.2 97.2"
+      sx={{ width: size, height: size, display: "block", ...sx }}
+    >
+      <line x1="37" y1="40" x2="37" y2="74" stroke={color} strokeWidth="15" strokeLinecap="round" />
+      <line x1="63" y1="40" x2="63" y2="74" stroke={color} strokeWidth="15" strokeLinecap="round" />
+      <circle cx="37" cy="22" r="8.2" fill={color} />
+      <circle cx="63" cy="22" r="8.2" fill={color} />
+      <path d="M37 72.5 Q50 91 63 72.5" stroke={color} strokeWidth="4.5" fill="none" strokeLinecap="round" />
+    </Box>
+  );
+}
+
 export function Logo({
   onClick,
   tone = "dark",
@@ -58,33 +85,18 @@ export function Logo({
         },
       }}
     >
-      <Box
-        aria-hidden
+      <XtiitchMark
+        color={isLight ? "#faf6f2" : "#800020"}
+        size={30}
         sx={{
-          width: 34,
-          height: 34,
-          borderRadius: 1,
-          bgcolor: isLight ? "common.white" : "primary.main",
-          color: isLight ? "primary.main" : "primary.contrastText",
-          display: "grid",
-          placeItems: "center",
-          fontWeight: 800,
-          fontSize: 20,
-          lineHeight: 1,
-          transition: "transform 220ms ease, box-shadow 220ms ease",
-          ".MuiBox-root:hover > &": {
-            transform: "rotate(-3deg) scale(1.04)",
-            boxShadow: isLight
-              ? "0 16px 34px -24px rgba(255,255,255,0.72)"
-              : "0 16px 34px -24px rgba(128,0,32,0.82)",
-          },
+          flexShrink: 0,
+          transition: "transform 220ms ease",
+          ".MuiBox-root:hover > &": { transform: "translateY(-2px)" },
         }}
-      >
-        X
-      </Box>
+      />
       <Typography
         component="span"
-        sx={{ fontWeight: 800, fontSize: 22, letterSpacing: 0 }}
+        sx={{ fontWeight: 800, fontSize: 23, letterSpacing: "-0.01em" }}
       >
         Xtiitch
       </Typography>
@@ -570,11 +582,18 @@ export function Header() {
             sx={{
               display: { xs: "inline-flex", md: "none" },
               ml: "auto",
-              color: "text.primary",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "background.default",
+              width: 44,
+              height: 44,
+              color: "common.white",
+              bgcolor: "primary.main",
+              borderRadius: 1.5,
+              boxShadow: "0 10px 24px -12px rgba(128,0,32,0.7)",
+              transition: "transform 180ms ease, background-color 180ms ease",
+              "&:hover": {
+                bgcolor: "primary.dark",
+                transform: "translateY(-1px)",
+              },
+              "&:active": { transform: "translateY(0)" },
             }}
           >
             <MenuIcon />

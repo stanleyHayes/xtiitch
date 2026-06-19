@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 380" width="600" height="380"><defs><pattern id="pp" width="102.4" height="102.4" patternUnits="userSpaceOnUse">
+<g stroke="#FAF6F2" stroke-width="3.2" stroke-linecap="round" opacity="0.5">
+<line x1="9.600000000000001" y1="22.400000000000002" x2="41.6" y2="22.400000000000002"/>
+<line x1="60.800000000000004" y1="73.60000000000001" x2="92.80000000000001" y2="73.60000000000001"/></g>
+<g fill="#FAF6F2" opacity="0.5"><circle cx="9.600000000000001" cy="22.400000000000002" r="2.72"/><circle cx="41.6" cy="22.400000000000002" r="2.72"/>
+<circle cx="60.800000000000004" cy="73.60000000000001" r="2.72"/><circle cx="92.80000000000001" cy="73.60000000000001" r="2.72"/></g></pattern></defs><rect width="600" height="380" fill="#800020"/><rect width="600" height="380" fill="url(#pp)"/></svg>

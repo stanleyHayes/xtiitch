@@ -3,46 +3,40 @@ import { createTheme, type Theme } from "@mui/material/styles";
 // Xtiitch brand tokens. These mirror packages/design-tokens (the cross-app
 // source of truth) and docs/design/style-guide.md. Kept local so the marketing
 // app builds without a workspace package build step; values must stay in sync.
+// Aligned to Xtiitch-Brand-Guidelines v1.0. Wine leads; Graphite is secondary
+// text; Line is the border; red/amber/green are reserved for order status.
 export const tokens = {
-  burgundy: "#800020",
-  burgundyDark: "#5c0017",
+  burgundy: "#800020", // Wine (primary)
+  burgundyDark: "#5c0118", // Deep Wine
   ink: "#15111a",
   cream: "#faf6f2",
-  white: "#ffffff",
-  softBorder: "#e9ded6",
-  mutedText: "#6f6672",
-  blush: "#f3e5df",
+  white: "#ffffff", // Paper
+  softBorder: "#e7ded7", // Line
+  mutedText: "#565b63", // Graphite (secondary text)
+  blush: "#f3e1e5", // Wine Tint
+  mauve: "#9a7a80",
   cocoa: "#35242d",
-  brass: "#b87914",
-  leaf: "#2f6b4f",
-  success: "#237a4b",
-  warning: "#b87914",
-  danger: "#a92727",
+  brass: "#b8860b",
+  leaf: "#1e8e4e",
+  success: "#1e8e4e", // order status · Ready
+  warning: "#b8860b", // order status · In progress
+  danger: "#c0392b", // order status · Received
   info: "#315f8f",
 } as const;
 
+// Inter Tight is the single brand typeface — wordmark to smallest label.
 const bodyFontStack = [
-  "Instrument Sans",
-  "Roboto",
+  "Inter Tight",
   "system-ui",
   "-apple-system",
   "Segoe UI",
+  "Roboto",
   "Helvetica",
   "Arial",
   "sans-serif",
 ].join(", ");
 
-const displayFontStack = [
-  "DM Serif Display",
-  "Instrument Sans",
-  "Roboto",
-  "system-ui",
-  "-apple-system",
-  "Segoe UI",
-  "Helvetica",
-  "Arial",
-  "sans-serif",
-].join(", ");
+const displayFontStack = bodyFontStack;
 
 const controlRadius = 16;
 const buttonRadius = 999;
@@ -71,42 +65,42 @@ export const theme: Theme = createTheme({
     // The style guide forbids negative letter spacing and viewport-scaled type.
     h1: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "3rem",
       lineHeight: 1,
       letterSpacing: 0,
     },
     h2: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "2.35rem",
       lineHeight: 1.05,
       letterSpacing: 0,
     },
     h3: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "1.8rem",
       lineHeight: 1.08,
       letterSpacing: 0,
     },
     h4: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "1.25rem",
       lineHeight: 1.25,
       letterSpacing: 0,
     },
     h5: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "1.125rem",
       lineHeight: 1.3,
       letterSpacing: 0,
     },
     h6: {
       fontFamily: displayFontStack,
-      fontWeight: 400,
+      fontWeight: 800,
       fontSize: "1rem",
       lineHeight: 1.3,
       letterSpacing: 0,
