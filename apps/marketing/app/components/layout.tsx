@@ -307,6 +307,27 @@ function MegaMenu({ active }: { active: string }) {
   }, [active]);
   useEffect(() => () => cancelClose(), []);
 
+  // Close on outside click or Escape so a panel can never get stuck — and so
+  // click-to-open works reliably on touch and trackpads where hover is flaky.
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: Event) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest("[data-mega-group]")) {
+        setOpen(null);
+      }
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(null);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
   return (
     <>
       {navGroups.map((group) => {
@@ -315,6 +336,7 @@ function MegaMenu({ active }: { active: string }) {
         return (
           <Box
             key={group.label}
+            data-mega-group=""
             onMouseEnter={() => {
               cancelClose();
               setOpen(group.label);
@@ -327,7 +349,11 @@ function MegaMenu({ active }: { active: string }) {
               type="button"
               aria-haspopup="true"
               aria-expanded={isOpen}
-              onClick={() => setOpen(isOpen ? null : group.label)}
+              onClick={() =>
+                setOpen((current) =>
+                  current === group.label ? null : group.label,
+                )
+              }
               sx={{
                 appearance: "none",
                 cursor: "pointer",

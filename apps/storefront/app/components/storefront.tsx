@@ -843,25 +843,35 @@ export function DesignCard({
   design: Design;
   index?: number;
 }) {
+  const priced = design.prices.length > 0;
   return (
     <Card
       sx={{
         height: "100%",
         overflow: "hidden",
-        borderRadius: 1,
-        borderColor: alpha(tokens.ink, 0.1),
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        bgcolor: tokens.white,
+        boxShadow: `0 14px 36px ${alpha(tokens.ink, 0.06)}`,
         transition:
-          "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
-        bgcolor: alpha(tokens.white, 0.98),
-        boxShadow: `0 14px 36px ${alpha(tokens.ink, 0.07)}`,
+          "transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease",
         "@media (prefers-reduced-motion: no-preference)": {
           animation: "storeSurfaceIn 420ms ease both",
           animationDelay: `${Math.min(index, 8) * 40}ms`,
         },
         "&:hover": {
-          transform: "translateY(-4px)",
-          boxShadow: `0 22px 52px ${alpha(tokens.ink, 0.13)}`,
-          borderColor: alpha(tokens.burgundy, 0.22),
+          transform: "translateY(-6px)",
+          boxShadow: `0 30px 64px ${alpha(tokens.ink, 0.16)}`,
+          borderColor: alpha(tokens.burgundy, 0.24),
+        },
+        "&:hover img": {
+          transform: "scale(1.06)",
+          filter: "saturate(1.02) contrast(1.04)",
+        },
+        "&:hover .design-reveal": {
+          opacity: 1,
+          transform: "translateY(0)",
         },
       }}
     >
@@ -873,10 +883,6 @@ export function DesignCard({
           display: "flex",
           flexDirection: "column",
           alignItems: "stretch",
-          "&:hover img": {
-            transform: "scale(1.025)",
-            filter: "saturate(1) contrast(1.06)",
-          },
         }}
       >
         <Box
@@ -885,65 +891,82 @@ export function DesignCard({
             width: "100%",
             overflow: "hidden",
             bgcolor: alpha(tokens.cream, 0.72),
-            "&::after": {
-              content: '""',
-              position: "absolute",
-              inset: 0,
-              background: `linear-gradient(180deg, ${alpha(
-                tokens.ink,
-                0,
-              )} 42%, ${alpha(tokens.ink, 0.56)} 100%)`,
-              pointerEvents: "none",
-            },
           }}
         >
           <DesignImage design={design} />
-          <Stack
-            direction="row"
+          <Box
+            aria-hidden
             sx={{
               position: "absolute",
-              left: 12,
-              right: 12,
-              bottom: 12,
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 1,
-              flexWrap: "wrap",
-              zIndex: 1,
+              inset: 0,
+              pointerEvents: "none",
+              background: `linear-gradient(180deg, ${alpha(tokens.ink, 0)} 54%, ${alpha(tokens.ink, 0.46)} 100%)`,
+            }}
+          />
+          {design.customisation_allowed ? (
+            <Box
+              sx={{
+                position: "absolute",
+                top: 12,
+                left: 12,
+                px: 1.25,
+                py: 0.4,
+                borderRadius: 999,
+                bgcolor: alpha(tokens.white, 0.92),
+                backdropFilter: "blur(8px)",
+                border: "1px solid",
+                borderColor: alpha(tokens.ink, 0.08),
+                boxShadow: `0 6px 16px ${alpha(tokens.ink, 0.12)}`,
+              }}
+            >
+              <Typography
+                sx={{
+                  fontSize: 10.5,
+                  fontWeight: 800,
+                  letterSpacing: "0.09em",
+                  textTransform: "uppercase",
+                  color: tokens.burgundy,
+                }}
+              >
+                Made to measure
+              </Typography>
+            </Box>
+          ) : null}
+          <Box
+            className="design-reveal"
+            sx={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              p: 1.5,
+              display: "flex",
+              justifyContent: "center",
+              pointerEvents: "none",
+              opacity: { xs: 1, md: 0 },
+              transform: { md: "translateY(10px)" },
+              transition: "opacity 240ms ease, transform 240ms ease",
             }}
           >
-            <Chip
-              size="small"
-              color="primary"
-              label={priceLabel(design.prices)}
+            <Box
               sx={{
-                bgcolor: alpha(tokens.white, 0.92),
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.75,
+                px: 1.75,
+                py: 0.85,
+                borderRadius: 999,
+                bgcolor: alpha(tokens.white, 0.96),
                 color: tokens.burgundy,
-                fontWeight: 900,
-                backdropFilter: "blur(10px)",
-                boxShadow: `0 8px 22px ${alpha(tokens.ink, 0.16)}`,
-                maxWidth: "100%",
-                "& .MuiChip-label": {
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                },
+                fontWeight: 800,
+                fontSize: 13,
+                boxShadow: `0 12px 28px ${alpha(tokens.ink, 0.24)}`,
               }}
-            />
-            {design.customisation_allowed ? (
-              <Chip
-                size="small"
-                label="Custom fit"
-                sx={{
-                  bgcolor: alpha(tokens.ink, 0.78),
-                  color: tokens.white,
-                  fontWeight: 900,
-                  backdropFilter: "blur(10px)",
-                  border: "1px solid",
-                  borderColor: alpha(tokens.white, 0.2),
-                }}
-              />
-            ) : null}
-          </Stack>
+            >
+              View design
+              <ArrowForwardRounded sx={{ fontSize: 16 }} />
+            </Box>
+          </Box>
         </Box>
         <CardContent
           sx={{
@@ -951,45 +974,62 @@ export function DesignCard({
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            gap: 1.25,
+            gap: 0.85,
             p: { xs: 2, sm: 2.25 },
           }}
         >
           <Stack
             direction="row"
-            spacing={1.5}
-            sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
+            sx={{
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              gap: 1,
+            }}
           >
             <Typography
-              variant="h6"
               sx={{
-                fontSize: { xs: 24, sm: 22 },
-                lineHeight: 1.04,
-                color: tokens.ink,
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-                overflow: "hidden",
-              }}
-            >
-              {design.title}
-            </Typography>
-            <Box
-              sx={{
-                width: 36,
-                height: 36,
-                borderRadius: 1,
-                display: "grid",
-                placeItems: "center",
-                flexShrink: 0,
-                bgcolor: alpha(tokens.burgundy, 0.08),
+                fontSize: { xs: 19, sm: 18 },
+                fontWeight: 900,
                 color: tokens.burgundy,
+                letterSpacing: "0.01em",
               }}
-              aria-hidden="true"
             >
-              <ArrowForwardRounded fontSize="small" />
-            </Box>
+              {priceLabel(design.prices)}
+            </Typography>
+            <Typography
+              variant="caption"
+              sx={{
+                color: alpha(tokens.ink, 0.5),
+                fontWeight: 800,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+              }}
+            >
+              {priced ? "Size pricing" : "Request quote"}
+            </Typography>
           </Stack>
+          <Box
+            aria-hidden
+            sx={{
+              height: "1px",
+              backgroundImage: `linear-gradient(90deg, ${alpha("#c58b2c", 0.65)}, ${alpha(tokens.ink, 0.08)} 40%)`,
+            }}
+          />
+          <Typography
+            variant="h6"
+            sx={{
+              fontSize: { xs: 22, sm: 21 },
+              lineHeight: 1.06,
+              color: tokens.ink,
+              mt: 0.25,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {design.title}
+          </Typography>
           <Typography
             variant="body2"
             sx={{
@@ -998,40 +1038,12 @@ export function DesignCard({
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-              minHeight: 42,
               lineHeight: 1.5,
             }}
           >
             {design.description ||
               "A store-ready piece with order details handled on Xtiitch."}
           </Typography>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{
-              alignItems: "center",
-              justifyContent: "space-between",
-              mt: "auto",
-              pt: 0.75,
-            }}
-          >
-            <Typography
-              variant="caption"
-              sx={{
-                color: tokens.burgundy,
-                fontWeight: 900,
-                textTransform: "uppercase",
-              }}
-            >
-              View design
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", fontWeight: 800 }}
-            >
-              {design.prices.length > 0 ? "Size pricing" : "Request quote"}
-            </Typography>
-          </Stack>
         </CardContent>
       </CardActionArea>
     </Card>
