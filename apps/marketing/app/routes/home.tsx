@@ -37,7 +37,7 @@ import {
   trustPoints,
 } from "../content";
 import {
-  loadSponsoredPlacements,
+  loadSponsoredOrFeatured,
   recordSponsoredEvent,
   type SponsoredEventInput,
   type SponsoredPlacement,
@@ -98,7 +98,7 @@ export function meta(): MetaDescriptor[] {
 }
 
 export async function loader(): Promise<{ sponsored: SponsoredPlacement[] }> {
-  return { sponsored: await loadSponsoredPlacements(4) };
+  return { sponsored: await loadSponsoredOrFeatured(4) };
 }
 
 export async function action({
@@ -652,7 +652,9 @@ function SponsoredPlacements({
                 component="img"
                 src={
                   placement.imageUrl ||
-                  sponsoredFallbackImages[index % sponsoredFallbackImages.length]
+                  sponsoredFallbackImages[
+                    index % sponsoredFallbackImages.length
+                  ]
                 }
                 alt=""
                 loading="lazy"
@@ -734,7 +736,9 @@ function SponsoredPlacements({
                   rel="noreferrer sponsored"
                   variant="contained"
                   endIcon={<ArrowForwardRoundedIcon />}
-                  onClick={() => sendSponsoredEvent(placement.campaignId, "click")}
+                  onClick={() =>
+                    sendSponsoredEvent(placement.campaignId, "click")
+                  }
                 >
                   Visit storefront
                 </Button>
@@ -956,7 +960,8 @@ export default function Home() {
         <Container
           sx={{
             position: "relative",
-            py: { xs: 0, md: 0 },
+            pt: { xs: 3, md: 5 },
+            pb: { xs: 4, md: 5 },
           }}
         >
           <Box
@@ -964,8 +969,7 @@ export default function Home() {
               position: "relative",
               display: "grid",
               gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-              mt: { xs: -3, md: -5 },
-              mb: { xs: 4, md: 5 },
+              mb: 0,
               bgcolor: "background.paper",
               border: "1px solid",
               borderColor: "divider",
@@ -1006,18 +1010,31 @@ export default function Home() {
                   },
                   borderColor: "divider",
                   overflow: "hidden",
-                  bgcolor:
-                    index === 1 ? "rgba(250,246,242,0.68)" : "background.paper",
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? index === 1
+                        ? "rgba(224,182,90,0.1)"
+                        : "background.paper"
+                      : index === 1
+                        ? "rgba(250,246,242,0.68)"
+                        : "background.paper",
                   transition:
                     "transform 200ms ease, background-color 200ms ease, box-shadow 200ms ease",
                   ...homeRiseSx(300 + index * 80),
                   "&:hover": {
                     transform: "translateY(-3px)",
-                    bgcolor:
-                      index === 1
-                        ? "rgba(250,246,242,0.84)"
-                        : "rgba(255,255,255,0.92)",
-                    boxShadow: "0 24px 60px -52px rgba(21,17,26,0.56)",
+                    bgcolor: (theme) =>
+                      theme.palette.mode === "dark"
+                        ? index === 1
+                          ? "rgba(224,182,90,0.16)"
+                          : "rgba(255,247,242,0.065)"
+                        : index === 1
+                          ? "rgba(250,246,242,0.84)"
+                          : "rgba(255,255,255,0.92)",
+                    boxShadow: (theme) =>
+                      theme.palette.mode === "dark"
+                        ? "0 24px 60px -48px rgba(0,0,0,0.72)"
+                        : "0 24px 60px -52px rgba(21,17,26,0.56)",
                   },
                 }}
               >

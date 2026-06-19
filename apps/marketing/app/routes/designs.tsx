@@ -11,7 +11,7 @@ import {
   type DirectoryDesign,
 } from "../lib/directory";
 import {
-  loadSponsoredPlacements,
+  loadSponsoredOrFeatured,
   type SponsoredPlacement,
 } from "../lib/sponsored";
 
@@ -30,7 +30,7 @@ export async function loader(): Promise<{
 }> {
   const [shops, sponsored] = await Promise.all([
     loadPublicShops(),
-    loadSponsoredPlacements(3),
+    loadSponsoredOrFeatured(3),
   ]);
   return {
     designs: flattenDesigns(shops),

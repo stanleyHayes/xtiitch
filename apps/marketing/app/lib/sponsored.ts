@@ -60,6 +60,39 @@ export async function loadSponsoredPlacements(
   }
 }
 
+// Paid placements come first; if there are none yet (demo / pre-campaign), fall
+// back to featuring verified, active studios so the rails always carry real
+// businesses. Labelled "Featured studio", not "Sponsored".
+export async function loadSponsoredOrFeatured(
+  limit = 4,
+): Promise<SponsoredPlacement[]> {
+  const sponsored = await loadSponsoredPlacements(limit);
+  if (sponsored.length > 0) {
+    return sponsored;
+  }
+  const { loadPublicShops } = await import("./directory");
+  const shops = await loadPublicShops();
+  return shops.slice(0, limit).map((shop) => ({
+    campaignId: `featured-${shop.businessId}`,
+    businessId: shop.businessId,
+    businessName: shop.name,
+    businessHandle: shop.handle,
+    placementType: "featured_business" as const,
+    targetLabel: "Featured studio",
+    headline: shop.name,
+    description:
+      shop.designCount > 0
+        ? `${shop.designCount} ${shop.designCount === 1 ? "piece" : "pieces"} ready to order`
+        : "Verified Xtiitch storefront",
+    storeHandle: shop.handle,
+    designHandle: shop.designs[0]?.handle ?? "",
+    imageUrl: shop.designs[0]?.image ?? "",
+    startsAt: "",
+    endsAt: "",
+    href: shop.href,
+  }));
+}
+
 export type SponsoredEventInput = {
   campaignId: string;
   eventType: "impression" | "click";

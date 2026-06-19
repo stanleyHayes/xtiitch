@@ -13,7 +13,7 @@ import {
   type DirectoryShop,
 } from "../lib/directory";
 import {
-  loadSponsoredPlacements,
+  loadSponsoredOrFeatured,
   type SponsoredPlacement,
 } from "../lib/sponsored";
 
@@ -33,7 +33,7 @@ export async function loader(): Promise<{
 }> {
   const [shops, sponsored] = await Promise.all([
     loadPublicShops(),
-    loadSponsoredPlacements(4),
+    loadSponsoredOrFeatured(4),
   ]);
   return { shops, designs: flattenDesigns(shops), sponsored };
 }
