@@ -8287,6 +8287,44 @@ function SubscriptionsSection({
                     />
                     <PlanStatTile label="Code" value={plan.code} />
                   </Box>
+                  <Box sx={{ mt: 1.5 }}>
+                    <Typography
+                      sx={{
+                        fontSize: 11,
+                        fontWeight: 800,
+                        letterSpacing: 0.4,
+                        textTransform: "uppercase",
+                        color: "text.secondary",
+                        mb: 0.75,
+                      }}
+                    >
+                      Benefits
+                    </Typography>
+                    {grantedPlanBenefitKeys(plan.features).length > 0 ? (
+                      <Stack
+                        direction="row"
+                        sx={{ flexWrap: "wrap", gap: 0.75 }}
+                      >
+                        {PLAN_BENEFITS.filter(
+                          (benefit) => plan.features[benefit.key],
+                        ).map((benefit) => (
+                          <Chip
+                            key={benefit.key}
+                            size="small"
+                            label={benefit.label}
+                            variant="outlined"
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        No storefront-customization benefits.
+                      </Typography>
+                    )}
+                  </Box>
                   <Button
                     type="button"
                     variant="outlined"
