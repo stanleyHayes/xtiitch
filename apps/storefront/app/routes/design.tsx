@@ -1256,7 +1256,7 @@ function CustomRouteForm({
           : alpha(tokens.ink, 0.06),
         borderRadius: "8px",
         bgcolor: route.enabled
-          ? alpha(tokens.white, 0.86)
+          ? "rgba(var(--surface-rgb), 0.86)"
           : alpha(tokens.ink, 0.025),
       }}
     >

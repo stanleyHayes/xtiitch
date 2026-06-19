@@ -99,7 +99,9 @@ export const xtiitchThemeColors = {
     primary: "#b82a4b",
     primaryDark: "#7f0928",
     primarySoft: "rgba(184, 42, 75, 0.18)",
-    secondary: "#f4d8c8",
+    // Secondary is an inverse *dark surface* (white contrastText) used for the
+    // footer and CTA bands — it must stay dark in dark mode, not a light accent.
+    secondary: "#241b29",
     success: "#5dc884",
     warning: "#e0b65a",
     danger: "#f06c64",
