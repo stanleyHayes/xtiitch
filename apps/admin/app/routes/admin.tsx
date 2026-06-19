@@ -3357,42 +3357,46 @@ function CustomerDirectoryPanel({
           }}
         />
       </Panel>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: {
-            xs: "1fr",
-            xl: "minmax(0, 1fr) 380px",
+      <Stack spacing={1.5}>
+        {visibleCustomers.map((customer) => (
+          <CustomerRow
+            key={customer.id}
+            customer={customer}
+            selected={selectedCustomer?.id === customer.id}
+            onInspect={onInspect}
+          />
+        ))}
+        {!error && visibleCustomers.length === 0 ? (
+          <Panel sx={{ p: 3, textAlign: "center" }}>
+            <Typography sx={{ fontWeight: 800 }}>
+              No customers match this view.
+            </Typography>
+            <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+              Clear the search to return to the full customer directory.
+            </Typography>
+          </Panel>
+        ) : null}
+      </Stack>
+      <Drawer
+        anchor="right"
+        open={Boolean(selectedCustomer)}
+        onClose={onCloseInspector}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: "100%", sm: 460 },
+              maxWidth: "100%",
+              bgcolor: "background.default",
+              p: { xs: 2, sm: 2.5 },
+            },
           },
-          alignItems: "start",
         }}
       >
-        <Stack spacing={1.5}>
-          {visibleCustomers.map((customer) => (
-            <CustomerRow
-              key={customer.id}
-              customer={customer}
-              selected={selectedCustomer?.id === customer.id}
-              onInspect={onInspect}
-            />
-          ))}
-          {!error && visibleCustomers.length === 0 ? (
-            <Panel sx={{ p: 3, textAlign: "center" }}>
-              <Typography sx={{ fontWeight: 800 }}>
-                No customers match this view.
-              </Typography>
-              <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-                Clear the search to return to the full customer directory.
-              </Typography>
-            </Panel>
-          ) : null}
-        </Stack>
         <CustomerInspector
           customer={selectedCustomer}
           onClose={onCloseInspector}
         />
-      </Box>
+      </Drawer>
     </Stack>
   );
 }
@@ -16659,59 +16663,71 @@ export default function AdminDashboard({
                 </Stack>
               </Panel>
               <Box
-                sx={{
-                  display: "grid",
-                  gap: 2,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    xl: "minmax(0, 1fr) 380px",
+                sx={
+                  businessView === "card"
+                    ? {
+                        display: "grid",
+                        gap: 1.5,
+                        alignContent: "start",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          xl: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }
+                    : { display: "flex", flexDirection: "column", gap: 1.5 }
+                }
+              >
+                {filteredBusinesses.map((business) => (
+                  <BusinessRow
+                    key={business.id}
+                    business={business}
+                    selected={selectedBusiness?.id === business.id}
+                    onInspect={setSelectedBusiness}
+                    compact={businessView === "card"}
+                  />
+                ))}
+                {filteredBusinesses.length === 0 ? (
+                  <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
+                    <Panel sx={{ p: 3, textAlign: "center" }}>
+                      <Typography sx={{ fontWeight: 800 }}>
+                        No businesses match this view.
+                      </Typography>
+                      <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                        Clear the search or choose another status.
+                      </Typography>
+                    </Panel>
+                  </Box>
+                ) : null}
+              </Box>
+              <Drawer
+                anchor="right"
+                open={Boolean(selectedBusiness)}
+                onClose={() => setSelectedBusiness(null)}
+                slotProps={{
+                  paper: {
+                    sx: {
+                      width: { xs: "100%", sm: 460 },
+                      maxWidth: "100%",
+                      bgcolor: "background.default",
+                      p: { xs: 2, sm: 2.5 },
+                    },
                   },
                 }}
               >
-                <Box
-                  sx={
-                    businessView === "card"
-                      ? {
-                          display: "grid",
-                          gap: 1.5,
-                          alignContent: "start",
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            sm: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }
-                      : { display: "flex", flexDirection: "column", gap: 1.5 }
-                  }
-                >
-                  {filteredBusinesses.map((business) => (
-                    <BusinessRow
-                      key={business.id}
-                      business={business}
-                      selected={selectedBusiness?.id === business.id}
-                      onInspect={setSelectedBusiness}
-                      compact={businessView === "card"}
-                    />
-                  ))}
-                  {filteredBusinesses.length === 0 ? (
-                    <Box sx={{ gridColumn: { sm: "1 / -1" } }}>
-                      <Panel sx={{ p: 3, textAlign: "center" }}>
-                        <Typography sx={{ fontWeight: 800 }}>
-                          No businesses match this view.
-                        </Typography>
-                        <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-                          Clear the search or choose another status.
-                        </Typography>
-                      </Panel>
-                    </Box>
-                  ) : null}
-                </Box>
                 <BusinessInspector
                   business={selectedBusiness}
-                  onReviewPayments={() => setSection("money")}
-                  onOpenAudit={() => setSection("audit")}
+                  onReviewPayments={() => {
+                    setSection("money");
+                    setSelectedBusiness(null);
+                  }}
+                  onOpenAudit={() => {
+                    setSection("audit");
+                    setSelectedBusiness(null);
+                  }}
                   onClose={() => setSelectedBusiness(null)}
                 />
-              </Box>
+              </Drawer>
             </Stack>
           ) : null}
 
