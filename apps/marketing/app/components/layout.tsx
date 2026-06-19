@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link as RouterLink, useLocation } from "react-router";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
@@ -17,6 +17,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
@@ -28,7 +29,7 @@ import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
-import { navLinks, site } from "../content";
+import { site } from "../content";
 
 export function Logo({
   onClick,
@@ -90,58 +91,354 @@ export function Logo({
   );
 }
 
-function NavItems({
-  active,
+type NavItem = {
+  label: string;
+  href: string;
+  description: string;
+  icon: ReactNode;
+};
+
+type NavGroup = { label: string; blurb: string; items: NavItem[] };
+
+// Grouped navigation. Keeping the top bar to a couple of rich dropdowns instead
+// of a long row of links — each entry carries an icon, a one-line description
+// and a soft background decoration.
+const navGroups: NavGroup[] = [
+  {
+    label: "Platform",
+    blurb: "Everything to run a fashion business in one place.",
+    items: [
+      {
+        label: "Features",
+        href: "/features",
+        description: "Storefront, catalogue, orders, payments and tracking.",
+        icon: <Inventory2RoundedIcon />,
+      },
+      {
+        label: "How it works",
+        href: "/how-it-works",
+        description: "From store setup to taking payment, step by step.",
+        icon: <ChecklistRoundedIcon />,
+      },
+      {
+        label: "Pricing",
+        href: "/pricing",
+        description: "Free to start; a small share only on sales.",
+        icon: <LocalOfferRoundedIcon />,
+      },
+      {
+        label: "Growth",
+        href: "/growth",
+        description: "Promotions, referrals, affiliates and sponsored slots.",
+        icon: <TrendingUpRoundedIcon />,
+      },
+    ],
+  },
+  {
+    label: "Why Xtiitch",
+    blurb: "Built for trust, and for the people who buy.",
+    items: [
+      {
+        label: "For customers",
+        href: "/for-customers",
+        description: "Browse, order and follow “where is my cloth?”.",
+        icon: <GroupsRoundedIcon />,
+      },
+      {
+        label: "Security",
+        href: "/security",
+        description: "Tenant isolation, Paystack payments, no held funds.",
+        icon: <SecurityRoundedIcon />,
+      },
+      {
+        label: "FAQ",
+        href: "/faq",
+        description: "Answers on payments, deposits, refunds and safety.",
+        icon: <HelpRoundedIcon />,
+      },
+    ],
+  },
+];
+
+const NAV_ACCENTS = [
+  "rgba(128,0,32,0.16)",
+  "rgba(197,139,44,0.20)",
+  "rgba(49,95,143,0.16)",
+  "rgba(35,122,75,0.16)",
+];
+
+function MegaItem({
+  item,
+  index,
+  active = false,
   onNavigate,
-  mobile = false,
 }: {
-  active: string;
+  item: NavItem;
+  index: number;
+  active?: boolean;
   onNavigate?: () => void;
-  mobile?: boolean;
 }) {
   return (
-    <>
-      {navLinks.map((item) => {
-        const isActive = active === item.href;
-        return (
-          <Link
-            key={item.href}
-            component={RouterLink}
-            to={item.href}
-            onClick={onNavigate}
-            underline="none"
-            aria-current={isActive ? "page" : undefined}
-            sx={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: mobile ? "space-between" : "center",
-              minHeight: mobile ? 48 : 40,
-              px: mobile ? 1.5 : 1.25,
-              py: mobile ? 1.25 : 1,
-              borderRadius: 1,
-              fontWeight: 700,
-              color: isActive ? "primary.main" : "text.primary",
-              bgcolor: isActive ? "rgba(128,0,32,0.08)" : "transparent",
-              border: "1px solid",
-              borderColor: isActive ? "rgba(128,0,32,0.14)" : "transparent",
-              whiteSpace: "nowrap",
-              transition:
-                "transform 180ms ease, color 180ms ease, background-color 180ms ease, border-color 180ms ease",
-              "&:hover": {
-                transform: "translateY(-1px)",
-                color: "primary.main",
-                bgcolor: "rgba(128,0,32,0.06)",
-                borderColor: "rgba(128,0,32,0.12)",
-              },
-            }}
-          >
+    <Box
+      component={RouterLink}
+      to={item.href}
+      onClick={onNavigate}
+      sx={{
+        position: "relative",
+        overflow: "hidden",
+        display: "flex",
+        gap: 1.5,
+        alignItems: "flex-start",
+        p: 1.5,
+        borderRadius: 1.5,
+        textDecoration: "none",
+        color: active ? "primary.main" : "text.primary",
+        border: "1px solid",
+        borderColor: active ? "rgba(128,0,32,0.16)" : "transparent",
+        bgcolor: active ? "rgba(128,0,32,0.06)" : "transparent",
+        transition:
+          "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          top: -30,
+          right: -26,
+          width: 100,
+          height: 100,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${NAV_ACCENTS[index % NAV_ACCENTS.length]}, transparent 68%)`,
+          pointerEvents: "none",
+          transition: "transform 260ms ease",
+        },
+        "&:hover": {
+          transform: "translateY(-2px)",
+          bgcolor: "rgba(128,0,32,0.04)",
+          borderColor: "rgba(128,0,32,0.12)",
+          "& .mega-ico": { transform: "rotate(-4deg) scale(1.06)" },
+          "& .mega-go": { opacity: 1, transform: "translateX(0)" },
+          "&::after": { transform: "scale(1.18)" },
+        },
+      }}
+    >
+      <Box
+        className="mega-ico"
+        aria-hidden
+        sx={{
+          flexShrink: 0,
+          width: 44,
+          height: 44,
+          borderRadius: 1.25,
+          display: "grid",
+          placeItems: "center",
+          color: "primary.main",
+          background:
+            "linear-gradient(135deg, rgba(128,0,32,0.10), rgba(197,139,44,0.16))",
+          border: "1px solid rgba(128,0,32,0.12)",
+          transition: "transform 220ms ease",
+          "& svg": { fontSize: 22 },
+        }}
+      >
+        {item.icon}
+      </Box>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: 15, lineHeight: 1.3 }}>
             {item.label}
-            {mobile ? (
-              <ArrowForwardRoundedIcon fontSize="small" aria-hidden />
-            ) : null}
-          </Link>
+          </Typography>
+          <ArrowForwardRoundedIcon
+            className="mega-go"
+            sx={{
+              fontSize: 15,
+              color: "primary.main",
+              opacity: 0,
+              transform: "translateX(-4px)",
+              transition: "opacity 180ms ease, transform 180ms ease",
+            }}
+          />
+        </Box>
+        <Typography
+          variant="body2"
+          sx={{ mt: 0.25, color: "text.secondary", fontSize: 12.5, lineHeight: 1.45 }}
+        >
+          {item.description}
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function MegaMenu({ active }: { active: string }) {
+  const [open, setOpen] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose = () => {
+    if (timer.current) {
+      clearTimeout(timer.current);
+      timer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    timer.current = setTimeout(() => setOpen(null), 140);
+  };
+
+  // Close whenever the route changes.
+  useEffect(() => {
+    setOpen(null);
+  }, [active]);
+  useEffect(() => () => cancelClose(), []);
+
+  return (
+    <>
+      {navGroups.map((group) => {
+        const isOpen = open === group.label;
+        const hasActive = group.items.some((i) => i.href === active);
+        return (
+          <Box
+            key={group.label}
+            onMouseEnter={() => {
+              cancelClose();
+              setOpen(group.label);
+            }}
+            onMouseLeave={scheduleClose}
+            sx={{ position: "relative" }}
+          >
+            <Box
+              component="button"
+              type="button"
+              aria-haspopup="true"
+              aria-expanded={isOpen}
+              onClick={() => setOpen(isOpen ? null : group.label)}
+              sx={{
+                appearance: "none",
+                cursor: "pointer",
+                font: "inherit",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                minHeight: 40,
+                px: 1.5,
+                py: 1,
+                borderRadius: 1,
+                fontWeight: 700,
+                whiteSpace: "nowrap",
+                color: isOpen || hasActive ? "primary.main" : "text.primary",
+                bgcolor:
+                  isOpen || hasActive ? "rgba(128,0,32,0.08)" : "transparent",
+                border: "1px solid",
+                borderColor:
+                  isOpen || hasActive ? "rgba(128,0,32,0.14)" : "transparent",
+                transition:
+                  "color 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                "&:hover": {
+                  color: "primary.main",
+                  bgcolor: "rgba(128,0,32,0.06)",
+                },
+              }}
+            >
+              {group.label}
+              <ExpandMoreRoundedIcon
+                aria-hidden
+                sx={{
+                  fontSize: 18,
+                  transition: "transform 200ms ease",
+                  transform: isOpen ? "rotate(180deg)" : "none",
+                }}
+              />
+            </Box>
+
+            <Box
+              role="menu"
+              sx={{
+                position: "absolute",
+                top: "100%",
+                left: 0,
+                pt: 1.25,
+                zIndex: (t) => t.zIndex.appBar + 2,
+                opacity: isOpen ? 1 : 0,
+                visibility: isOpen ? "visible" : "hidden",
+                transform: isOpen ? "translateY(0)" : "translateY(-8px)",
+                transition:
+                  "opacity 190ms ease, transform 190ms ease, visibility 190ms",
+                pointerEvents: isOpen ? "auto" : "none",
+              }}
+            >
+              <Box
+                sx={{
+                  width: 392,
+                  p: 1.5,
+                  borderRadius: 2,
+                  bgcolor: "rgba(255,255,255,0.98)",
+                  backdropFilter: "saturate(180%) blur(14px)",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  boxShadow: "0 30px 70px -38px rgba(21,17,26,0.6)",
+                }}
+              >
+                <Typography
+                  variant="body2"
+                  sx={{
+                    px: 1.5,
+                    pt: 0.5,
+                    pb: 1,
+                    color: "text.secondary",
+                    fontWeight: 700,
+                    fontSize: 12,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {group.blurb}
+                </Typography>
+                <Stack spacing={0.5}>
+                  {group.items.map((item, i) => (
+                    <MegaItem
+                      key={item.href}
+                      item={item}
+                      index={i}
+                      active={item.href === active}
+                    />
+                  ))}
+                </Stack>
+              </Box>
+            </Box>
+          </Box>
         );
       })}
+    </>
+  );
+}
+
+function MobileNav({ onNavigate }: { onNavigate: () => void }) {
+  return (
+    <>
+      {navGroups.map((group) => (
+        <Box key={group.label} sx={{ mb: 1.5 }}>
+          <Typography
+            sx={{
+              px: 0.5,
+              mb: 0.75,
+              fontWeight: 800,
+              fontSize: 12,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+              color: "text.secondary",
+            }}
+          >
+            {group.label}
+          </Typography>
+          <Stack spacing={0.5}>
+            {group.items.map((item, i) => (
+              <MegaItem
+                key={item.href}
+                item={item}
+                index={i}
+                onNavigate={onNavigate}
+              />
+            ))}
+          </Stack>
+        </Box>
+      ))}
     </>
   );
 }
@@ -202,7 +499,7 @@ export function Header() {
               borderColor: "divider",
             }}
           >
-            <NavItems active={pathname} />
+            <MegaMenu active={pathname} />
           </Box>
           <Stack
             direction="row"
@@ -296,7 +593,7 @@ export function Header() {
         </Box>
         <Divider sx={{ my: 2.25 }} />
         <Stack component="nav" aria-label="Mobile navigation" spacing={0.75}>
-          <NavItems active={pathname} onNavigate={close} mobile />
+          <MobileNav onNavigate={close} />
           <Button
             component={RouterLink}
             to={site.primaryCta.href}
