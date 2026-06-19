@@ -16,6 +16,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded";
 import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
+import CheckroomRoundedIcon from "@mui/icons-material/CheckroomRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
@@ -104,6 +105,24 @@ type NavGroup = { label: string; blurb: string; items: NavItem[] };
 // of a long row of links — each entry carries an icon, a one-line description
 // and a soft background decoration.
 const navGroups: NavGroup[] = [
+  {
+    label: "Discover",
+    blurb: "Browse real shops and designs on Xtiitch.",
+    items: [
+      {
+        label: "Shops",
+        href: "/shops",
+        description: "Verified studios running their storefronts on Xtiitch.",
+        icon: <StorefrontRoundedIcon />,
+      },
+      {
+        label: "Designs",
+        href: "/designs",
+        description: "Browse pieces and order from the studio directly.",
+        icon: <CheckroomRoundedIcon />,
+      },
+    ],
+  },
   {
     label: "Platform",
     blurb: "Everything to run a fashion business in one place.",
