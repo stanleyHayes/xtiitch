@@ -739,6 +739,7 @@ function SponsoredPlacements({
                   onClick={() =>
                     sendSponsoredEvent(placement.campaignId, "click")
                   }
+                  sx={{ whiteSpace: "nowrap", flexShrink: 0 }}
                 >
                   Visit storefront
                 </Button>
