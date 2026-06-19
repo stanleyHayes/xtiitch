@@ -58,7 +58,7 @@ export default function Pricing() {
                 border: "1px solid",
                 borderColor: index === 0 ? "rgba(128,0,32,0.26)" : "divider",
                 borderRadius: 1,
-                bgcolor: "rgba(255,255,255,0.86)",
+                bgcolor: "rgba(var(--surface-rgb), 0.86)",
               }}
             >
               <Chip
@@ -100,7 +100,7 @@ export default function Pricing() {
                 borderRadius: 1,
                 border: "1px solid",
                 borderColor: "divider",
-                bgcolor: "rgba(255,255,255,0.78)",
+                bgcolor: "rgba(var(--surface-rgb), 0.78)",
               }}
             >
               <InfoOutlinedIcon

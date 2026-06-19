@@ -620,7 +620,7 @@ export function MeasurementRouteGrid({
               borderRadius: 1,
               border: "1px solid",
               borderColor: index === 0 ? `${accent}55` : "divider",
-              bgcolor: "rgba(255,255,255,0.86)",
+              bgcolor: "rgba(var(--surface-rgb), 0.86)",
               overflow: "hidden",
               minHeight: 254,
               boxShadow:
@@ -830,7 +830,7 @@ export function ProductPreview() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.84)",
+              bgcolor: "rgba(var(--surface-rgb), 0.84)",
               boxShadow:
                 index === 0 ? "0 24px 60px -48px rgba(128,0,32,0.78)" : "none",
               backdropFilter: "blur(10px)",
@@ -892,7 +892,7 @@ export function ProductPreview() {
             border: "1px solid",
             borderColor: "rgba(128,0,32,0.14)",
             borderRadius: 1,
-            bgcolor: "rgba(255,255,255,0.72)",
+            bgcolor: "rgba(var(--surface-rgb), 0.72)",
             boxShadow: "0 22px 60px -48px rgba(21,17,26,0.62)",
             overflow: "hidden",
             "&:before": {
@@ -1203,7 +1203,7 @@ export function FaqList({ items }: { items: Faq[] }) {
             borderRadius: 1,
             mb: 1.5,
             "&:before": { display: "none" },
-            bgcolor: "rgba(255,255,255,0.88)",
+            bgcolor: "rgba(var(--surface-rgb), 0.88)",
             overflow: "hidden",
             transition:
               "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
@@ -1282,7 +1282,7 @@ export function PolicySectionList({
               border: "1px solid",
               borderColor: index === 0 ? `${accent}55` : "divider",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.88)",
+              bgcolor: "rgba(var(--surface-rgb), 0.88)",
               overflow: "hidden",
               boxShadow:
                 index === 0
@@ -1502,7 +1502,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
               border: "1px solid",
               borderColor: "rgba(255,255,255,0.24)",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.08)",
+              bgcolor: "rgba(var(--surface-rgb), 0.08)",
               backdropFilter: "blur(14px)",
               boxShadow: "0 28px 80px -56px rgba(0,0,0,0.78)",
               ...riseInSx(140),
@@ -1515,7 +1515,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
               sx={{
                 mb: 1.5,
                 color: "common.white",
-                bgcolor: "rgba(255,255,255,0.12)",
+                bgcolor: "rgba(var(--surface-rgb), 0.12)",
                 border: "1px solid rgba(255,255,255,0.22)",
                 "& .MuiChip-icon": { color: "common.white" },
               }}
@@ -1531,7 +1531,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
                 color: "primary.main",
                 minHeight: 58,
                 px: 2.5,
-                "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
+                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
               }}
               endIcon={<ArrowForwardRoundedIcon />}
             >
@@ -1566,7 +1566,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) {
                   color: "common.white",
                   minHeight: 36,
                   px: 1,
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.12)" },
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.12)" },
                 }}
                 endIcon={<ArrowForwardRoundedIcon />}
               >

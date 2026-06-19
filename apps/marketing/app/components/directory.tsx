@@ -83,7 +83,7 @@ export function ShopCard({ shop }: { shop: DirectoryShop }) {
           sx={{
             position: "relative",
             mt: 1.5,
-            bgcolor: "rgba(255,255,255,0.2)",
+            bgcolor: "rgba(var(--surface-rgb), 0.2)",
             color: "common.white",
             fontWeight: 700,
           }}
@@ -224,7 +224,7 @@ export function SponsoredRail({ placements }: { placements: SponsoredPlacement[]
                 left: 12,
                 top: 12,
                 borderRadius: 1,
-                bgcolor: "rgba(255,255,255,0.92)",
+                bgcolor: "rgba(var(--surface-rgb), 0.92)",
                 color: "primary.main",
                 fontWeight: 800,
               }}

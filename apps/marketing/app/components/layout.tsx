@@ -426,7 +426,7 @@ function MegaMenu({ active }: { active: string }) {
                   width: 392,
                   p: 1.5,
                   borderRadius: 2,
-                  bgcolor: "rgba(255,255,255,0.98)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.98)",
                   backdropFilter: "saturate(180%) blur(14px)",
                   border: "1px solid",
                   borderColor: "divider",
@@ -536,7 +536,7 @@ export function Header() {
             border: "1px solid",
             borderColor: "divider",
             borderRadius: 1,
-            bgcolor: "rgba(255,255,255,0.8)",
+            bgcolor: "rgba(var(--surface-rgb), 0.8)",
             boxShadow: "0 18px 44px -34px rgba(21,17,26,0.52)",
           }}
         >
@@ -848,7 +848,7 @@ export function Footer() {
                 sx={{
                   bgcolor: "common.white",
                   color: "primary.main",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
                 }}
               >
                 {site.primaryCta.label}
@@ -863,7 +863,7 @@ export function Footer() {
                   borderColor: "rgba(255,255,255,0.4)",
                   "&:hover": {
                     borderColor: "common.white",
-                    bgcolor: "rgba(255,255,255,0.08)",
+                    bgcolor: "rgba(var(--surface-rgb), 0.08)",
                   },
                 }}
               >
@@ -888,7 +888,7 @@ export function Footer() {
                   px: 1.5,
                   borderRadius: 999,
                   color: "rgba(255,255,255,0.86)",
-                  bgcolor: "rgba(255,255,255,0.08)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.08)",
                   border: "1px solid rgba(255,255,255,0.16)",
                   "& svg": { fontSize: 17, color: "rgba(232,196,128,0.9)" },
                 }}
@@ -931,7 +931,7 @@ export function Footer() {
                 px: 1.75,
                 py: 1.25,
                 borderRadius: 2,
-                bgcolor: "rgba(255,255,255,0.05)",
+                bgcolor: "rgba(var(--surface-rgb), 0.05)",
                 border: "1px solid rgba(255,255,255,0.14)",
               }}
             >
@@ -1039,7 +1039,7 @@ export function Footer() {
                           borderRadius: 1,
                           display: "grid",
                           placeItems: "center",
-                          bgcolor: "rgba(255,255,255,0.06)",
+                          bgcolor: "rgba(var(--surface-rgb), 0.06)",
                         }}
                       >
                         {link.icon}

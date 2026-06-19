@@ -159,7 +159,7 @@ export default function Contact() {
                       alignItems: "flex-start",
                       p: 1.5,
                       borderRadius: 1,
-                      bgcolor: "rgba(255,255,255,0.08)",
+                      bgcolor: "rgba(var(--surface-rgb), 0.08)",
                       border: "1px solid rgba(255,255,255,0.14)",
                     }}
                   >
@@ -228,7 +228,7 @@ export default function Contact() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.9)",
+              bgcolor: "rgba(var(--surface-rgb), 0.9)",
               boxShadow: "0 28px 80px -58px rgba(21,17,26,0.64)",
               position: { md: "sticky" },
               top: { md: 110 },

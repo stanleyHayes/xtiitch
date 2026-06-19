@@ -62,7 +62,7 @@ export default function HowItWorks() {
                 border: "1px solid",
                 borderColor: "divider",
                 borderRadius: 1,
-                bgcolor: "rgba(255,255,255,0.78)",
+                bgcolor: "rgba(var(--surface-rgb), 0.78)",
               }}
             >
               <Box
@@ -118,7 +118,7 @@ export default function HowItWorks() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.72)",
+              bgcolor: "rgba(var(--surface-rgb), 0.72)",
             }}
           >
             <TrackingPreview />

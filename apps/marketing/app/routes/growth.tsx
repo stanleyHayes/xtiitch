@@ -86,7 +86,7 @@ function ProgrammeCard({
         border: "1px solid",
         borderColor: index === 0 ? `${accent}55` : "divider",
         borderRadius: 1,
-        bgcolor: "rgba(255,255,255,0.9)",
+        bgcolor: "rgba(var(--surface-rgb), 0.9)",
         overflow: "hidden",
         boxShadow:
           index === 0
@@ -206,7 +206,7 @@ function GrowthLoop() {
         borderColor: "divider",
         borderRadius: 1,
         overflow: "hidden",
-        bgcolor: "rgba(255,255,255,0.84)",
+        bgcolor: "rgba(var(--surface-rgb), 0.84)",
         boxShadow: "0 26px 70px -56px rgba(21,17,26,0.56)",
       }}
     >
@@ -363,7 +363,7 @@ export default function Growth() {
                 label="Built around direct settlement"
                 sx={{
                   mb: 1.5,
-                  bgcolor: "rgba(255,255,255,0.14)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.14)",
                   color: "common.white",
                   border: "1px solid rgba(255,255,255,0.22)",
                 }}
@@ -450,7 +450,7 @@ export default function Growth() {
                     borderColor:
                       index === 0 ? "rgba(128,0,32,0.28)" : "divider",
                     borderRadius: 1,
-                    bgcolor: "rgba(255,255,255,0.84)",
+                    bgcolor: "rgba(var(--surface-rgb), 0.84)",
                   }}
                 >
                   <Box

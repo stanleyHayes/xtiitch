@@ -98,7 +98,12 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          html: { overflowX: "hidden" },
+          html: {
+            overflowX: "hidden",
+            // Glass-card fills read this; flips so the same rgba(var(--surface-rgb), a)
+            // is near-white on light and a lifted dark panel on dark.
+            "--surface-rgb": mode === "dark" ? "36, 27, 41" : "255, 255, 255",
+          },
           body: {
             overflowX: "hidden",
             backgroundColor: colors.background,

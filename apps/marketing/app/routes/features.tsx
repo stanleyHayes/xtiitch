@@ -46,7 +46,7 @@ export default function Features() {
             border: "1px solid",
             borderColor: "rgba(128,0,32,0.16)",
             borderRadius: 1,
-            bgcolor: "rgba(255,255,255,0.82)",
+            bgcolor: "rgba(var(--surface-rgb), 0.82)",
             boxShadow: "0 26px 70px -56px rgba(21,17,26,0.56)",
           }}
         >

@@ -53,7 +53,7 @@ export default function ForCustomers() {
               border: "1px solid",
               borderColor: "divider",
               borderRadius: 1,
-              bgcolor: "rgba(255,255,255,0.72)",
+              bgcolor: "rgba(var(--surface-rgb), 0.72)",
             }}
           >
             <TrackingPreview />
@@ -83,7 +83,7 @@ export default function ForCustomers() {
                 borderRadius: 1,
                 border: "1px solid",
                 borderColor: "divider",
-                bgcolor: "rgba(255,255,255,0.82)",
+                bgcolor: "rgba(var(--surface-rgb), 0.82)",
                 minHeight: 210,
                 overflow: "hidden",
               }}

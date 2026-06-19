@@ -211,7 +211,7 @@ function Hero() {
                 fontWeight: 700,
                 color: "common.white",
                 borderColor: "rgba(255,255,255,0.6)",
-                bgcolor: "rgba(255,255,255,0.08)",
+                bgcolor: "rgba(var(--surface-rgb), 0.08)",
                 ...homeRiseSx(80),
               }}
               variant="outlined"
@@ -271,7 +271,7 @@ function Hero() {
                 sx={{
                   bgcolor: "common.white",
                   color: "primary.main",
-                  "&:hover": { bgcolor: "rgba(255,255,255,0.9)" },
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
                 }}
               >
                 {site.primaryCta.label}
@@ -286,7 +286,7 @@ function Hero() {
                   borderColor: "rgba(255,255,255,0.62)",
                   "&:hover": {
                     borderColor: "common.white",
-                    bgcolor: "rgba(255,255,255,0.08)",
+                    bgcolor: "rgba(var(--surface-rgb), 0.08)",
                   },
                 }}
               >
@@ -686,7 +686,7 @@ function SponsoredPlacements({
                   left: 16,
                   top: 16,
                   borderRadius: 1,
-                  bgcolor: "rgba(255,255,255,0.92)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.92)",
                   color: "primary.main",
                   fontWeight: 800,
                 }}
@@ -817,7 +817,7 @@ function GrowthProgrammesTeaser() {
                   border: "1px solid",
                   borderColor: index === 0 ? `${accent}55` : "divider",
                   borderRadius: 1,
-                  bgcolor: "rgba(255,255,255,0.86)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.86)",
                   overflow: "hidden",
                   boxShadow:
                     index === 0
