@@ -31,6 +31,7 @@ import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import { site } from "../content";
+import { ThemeModeToggle } from "../theme-mode";
 
 // The ii-stitch brand mark (two stitches joined by a seam), per the brand
 // guidelines — replaces the old "X" placeholder tile.
@@ -563,6 +564,7 @@ export function Header() {
             spacing={1}
             sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
           >
+            <ThemeModeToggle />
             <Button
               component={RouterLink}
               to={site.primaryCta.href}
@@ -623,18 +625,21 @@ export function Header() {
           }}
         >
           <Logo onClick={close} />
-          <IconButton
-            aria-label="Close menu"
-            onClick={close}
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "background.paper",
-            }}
-          >
-            <CloseIcon />
-          </IconButton>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+            <ThemeModeToggle />
+            <IconButton
+              aria-label="Close menu"
+              onClick={close}
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "background.paper",
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Stack>
         </Box>
         <Box
           sx={{

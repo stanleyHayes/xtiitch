@@ -8,14 +8,13 @@ import {
   isRouteErrorResponse,
   type LinksFunction,
 } from "react-router";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
-import { theme, tokens } from "./theme";
+import { fontStylesheetHref, tokens } from "./theme";
+import { ThemeModeProvider } from "./theme-mode";
 import { Header, Footer } from "./components/layout";
 
 export const links: LinksFunction = () => [
@@ -35,7 +34,7 @@ export const links: LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap",
+    href: fontStylesheetHref,
   },
 ];
 
@@ -53,8 +52,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <Links />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
+        <ThemeModeProvider>
           <Box
             sx={{
               display: "flex",
@@ -68,7 +66,7 @@ export function Layout({ children }: { children: ReactNode }) {
             </Box>
             <Footer />
           </Box>
-        </ThemeProvider>
+        </ThemeModeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>
@@ -84,7 +82,9 @@ export function ErrorBoundary({ error }: { error: unknown }) {
   const is404 = isRouteErrorResponse(error) && error.status === 404;
   const title = is404 ? "Page not found" : "Something went wrong";
   const code = is404 ? "404" : "Error";
-  const heading = is404 ? "This page took a wrong stitch" : "Something came undone";
+  const heading = is404
+    ? "This page took a wrong stitch"
+    : "Something came undone";
   const message = is404
     ? "We couldn't find that page — it may have moved, or the link wasn't quite right. Let's get you back in good order."
     : "We hit an unexpected error. Give it a moment and try again.";
@@ -142,17 +142,49 @@ export function ErrorBoundary({ error }: { error: unknown }) {
               aria-hidden
               component="svg"
               viewBox="1.4 3.8 97.2 97.2"
-              sx={{ width: 64, height: 64, mx: "auto", display: "block", mb: 3 }}
+              sx={{
+                width: 64,
+                height: 64,
+                mx: "auto",
+                display: "block",
+                mb: 3,
+              }}
             >
-              <line x1="37" y1="40" x2="37" y2="74" stroke="#800020" strokeWidth="15" strokeLinecap="round" />
-              <line x1="63" y1="40" x2="63" y2="74" stroke="#800020" strokeWidth="15" strokeLinecap="round" />
+              <line
+                x1="37"
+                y1="40"
+                x2="37"
+                y2="74"
+                stroke="#800020"
+                strokeWidth="15"
+                strokeLinecap="round"
+              />
+              <line
+                x1="63"
+                y1="40"
+                x2="63"
+                y2="74"
+                stroke="#800020"
+                strokeWidth="15"
+                strokeLinecap="round"
+              />
               <circle cx="37" cy="22" r="8.2" fill="#800020" />
               <circle cx="63" cy="22" r="8.2" fill="#800020" />
-              <path d="M37 72.5 Q50 91 63 72.5" stroke="#800020" strokeWidth="4.5" fill="none" strokeLinecap="round" />
+              <path
+                d="M37 72.5 Q50 91 63 72.5"
+                stroke="#800020"
+                strokeWidth="4.5"
+                fill="none"
+                strokeLinecap="round"
+              />
             </Box>
             <Typography
               variant="overline"
-              sx={{ color: "primary.main", fontWeight: 800, letterSpacing: "0.1em" }}
+              sx={{
+                color: "primary.main",
+                fontWeight: 800,
+                letterSpacing: "0.1em",
+              }}
             >
               {code} · {title}
             </Typography>

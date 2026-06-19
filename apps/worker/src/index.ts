@@ -81,7 +81,7 @@ if (config.outboxDrainEnabled) {
       removeOnFail: 50,
     },
   );
-  await queue.add(drainJobName, {}, { jobId: `${drainJobId}:startup`, removeOnComplete: true, removeOnFail: 50 });
+  await queue.add(drainJobName, {}, { jobId: `${drainJobId}-startup`, removeOnComplete: true, removeOnFail: 50 });
   console.log(
     {
       queueName: config.queueName,
@@ -108,7 +108,7 @@ if (config.subscriptionBillingSweepEnabled) {
     billingSweepJobName,
     {},
     {
-      jobId: `${billingSweepJobId}:startup`,
+      jobId: `${billingSweepJobId}-startup`,
       removeOnComplete: true,
       removeOnFail: 50,
     },

@@ -63,6 +63,7 @@ import SupportAgentRounded from "@mui/icons-material/SupportAgentRounded";
 import SyncRounded from "@mui/icons-material/SyncRounded";
 import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import WorkspacePremiumRounded from "@mui/icons-material/WorkspacePremiumRounded";
 import type { Route } from "./+types/admin";
 import {
@@ -128,6 +129,7 @@ import {
 import { logOut, requireAdminContext, type AdminSession } from "../lib/session";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
+import { useThemeMode } from "../theme-mode";
 
 type Section =
   | "overview"
@@ -7243,12 +7245,10 @@ function normaliseTimeInput(value: string): string | null {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-const periodOptions = ["AM", "PM"] as const;
-
 function splitTimeParts(value: string): {
   hour: string;
   minute: string;
-  period: (typeof periodOptions)[number] | "";
+  period: "AM" | "PM" | "";
 } {
   const normalised = normaliseTimeInput(value);
   if (!normalised) {
@@ -7402,6 +7402,8 @@ function BillingOperationCard({
   actionLabel: string;
   actionIcon: ReactNode;
 }) {
+  const [open, setOpen] = useState(false);
+
   return (
     <Box
       sx={{
@@ -7465,38 +7467,91 @@ function BillingOperationCard({
             </Typography>
           </Box>
         </Stack>
-        <Form method="post">
-          <input type="hidden" name="intent" value={intent} />
-          <Box
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ alignItems: { xs: "stretch", sm: "center" } }}
+        >
+          <Button
+            type="button"
+            variant="contained"
+            startIcon={actionIcon}
+            onClick={() => setOpen(true)}
             sx={{
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: { xs: "1fr", md: "minmax(0, 1fr) auto" },
-              alignItems: "center",
+              alignSelf: { xs: "stretch", sm: "flex-start" },
+              whiteSpace: "nowrap",
             }}
           >
-            <TextField
-              size="small"
-              name="reason"
-              label={noteLabel}
-              defaultValue={noteDefault}
-              fullWidth
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={actionIcon}
-              sx={{
-                justifySelf: { xs: "stretch", md: "end" },
-                height: 44,
-                px: 2.5,
-                whiteSpace: "nowrap",
-              }}
+            {actionLabel}
+          </Button>
+        </Stack>
+        <Dialog
+          open={open}
+          onClose={() => setOpen(false)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle sx={{ pb: 0.5 }}>
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", justifyContent: "space-between" }}
             >
-              {actionLabel}
-            </Button>
-          </Box>
-        </Form>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  component="span"
+                  sx={{ display: "block", fontWeight: 950 }}
+                >
+                  {title}
+                </Typography>
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ display: "block", color: "text.secondary" }}
+                >
+                  Confirm the operator note before running this job.
+                </Typography>
+              </Box>
+              <IconButton aria-label="Close" onClick={() => setOpen(false)}>
+                <CloseRounded />
+              </IconButton>
+            </Stack>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Form method="post">
+              <input type="hidden" name="intent" value={intent} />
+              <Stack spacing={2}>
+                <TextField
+                  size="small"
+                  name="reason"
+                  label={noteLabel}
+                  defaultValue={noteDefault}
+                  fullWidth
+                />
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{ justifyContent: "flex-end" }}
+                >
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => setOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={actionIcon}
+                  >
+                    {actionLabel}
+                  </Button>
+                </Stack>
+              </Stack>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </Stack>
     </Box>
   );
@@ -7520,6 +7575,8 @@ function SubscriptionsSection({
   onSelect: (section: Section) => void;
 }) {
   const [manageBusinessId, setManageBusinessId] = useState<string | null>(null);
+  const [createPlanOpen, setCreatePlanOpen] = useState(false);
+  const [planDialogId, setPlanDialogId] = useState<string | null>(null);
   const billableSubscriptions = subscriptions.filter(
     (subscription) =>
       subscription.monthlyFeeMinor > 0 && subscription.status !== "canceled",
@@ -7858,95 +7915,177 @@ function SubscriptionsSection({
       {plansError ? <Alert severity="warning">{plansError}</Alert> : null}
       {!plansError ? (
         <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-          <Form method="post">
-            <input type="hidden" name="intent" value="admin-plan:create" />
-            <Stack spacing={1.5}>
+          <Stack
+            direction={{ xs: "column", md: "row" }}
+            spacing={1.5}
+            sx={{
+              alignItems: { xs: "stretch", md: "center" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Box>
+              <Typography variant="h6">Package controls</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Add a package definition only when you need a new billing tier.
+              </Typography>
+            </Box>
+            <Button
+              type="button"
+              variant="contained"
+              startIcon={<WorkspacePremiumRounded />}
+              onClick={() => setCreatePlanOpen(true)}
+              sx={{ alignSelf: { xs: "stretch", md: "center" } }}
+            >
+              New package
+            </Button>
+          </Stack>
+          <Dialog
+            open={createPlanOpen}
+            onClose={() => setCreatePlanOpen(false)}
+            fullWidth
+            maxWidth="md"
+          >
+            <DialogTitle sx={{ pb: 0.5 }}>
               <Stack
-                direction={{ xs: "column", md: "row" }}
-                spacing={1.5}
-                sx={{ justifyContent: "space-between" }}
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center", justifyContent: "space-between" }}
               >
-                <Box>
-                  <Typography variant="h6">Create package</Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    component="span"
+                    sx={{ display: "block", fontWeight: 950 }}
+                  >
+                    Create package
+                  </Typography>
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    sx={{ display: "block", color: "text.secondary" }}
+                  >
                     Add a package definition for future business assignments.
                   </Typography>
                 </Box>
-                <Button
-                  type="submit"
-                  variant="contained"
-                  startIcon={<WorkspacePremiumRounded />}
-                  sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setCreatePlanOpen(false)}
                 >
-                  Create package
-                </Button>
+                  <CloseRounded />
+                </IconButton>
               </Stack>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "repeat(2, minmax(0, 1fr))",
-                    xl: "1fr 1.3fr repeat(3, minmax(120px, 0.8fr))",
-                  },
-                }}
-              >
-                <TextField
-                  label="Code"
-                  name="code"
-                  placeholder="pro-plus"
-                  size="small"
-                  required
-                />
-                <TextField
-                  label="Name"
-                  name="name"
-                  placeholder="Pro Plus"
-                  size="small"
-                  required
-                />
-                <TextField
-                  label="Monthly fee"
-                  name="monthly_fee_ghs"
-                  type="number"
-                  size="small"
-                  defaultValue="0.00"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">GHS</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <TextField
-                  label="Commission"
-                  name="commission_bps"
-                  type="number"
-                  size="small"
-                  defaultValue="100"
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">bps</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, max: 10000, step: 1 },
-                  }}
-                />
-                <TextField
-                  label="Design limit"
-                  name="design_limit"
-                  type="number"
-                  size="small"
-                  placeholder="Unlimited"
-                  slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                />
-              </Box>
-            </Stack>
-          </Form>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Form method="post">
+                <input type="hidden" name="intent" value="admin-plan:create" />
+                <Stack spacing={2}>
+                  <Box>
+                    <FormGroupLabel>Identity</FormGroupLabel>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 1.25,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <TextField
+                        label="Code"
+                        name="code"
+                        placeholder="pro-plus"
+                        size="small"
+                        required
+                      />
+                      <TextField
+                        label="Name"
+                        name="name"
+                        placeholder="Pro Plus"
+                        size="small"
+                        required
+                      />
+                    </Box>
+                  </Box>
+                  <Box>
+                    <FormGroupLabel>Pricing & limits</FormGroupLabel>
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 1.25,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <TextField
+                        label="Monthly fee"
+                        name="monthly_fee_ghs"
+                        type="number"
+                        size="small"
+                        defaultValue="0.00"
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                GHS
+                              </InputAdornment>
+                            ),
+                          },
+                          htmlInput: { min: 0, step: "0.01" },
+                        }}
+                      />
+                      <TextField
+                        label="Commission"
+                        name="commission_bps"
+                        type="number"
+                        size="small"
+                        defaultValue="100"
+                        slotProps={{
+                          input: {
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                bps
+                              </InputAdornment>
+                            ),
+                          },
+                          htmlInput: { min: 0, max: 10000, step: 1 },
+                        }}
+                      />
+                      <TextField
+                        label="Design limit"
+                        name="design_limit"
+                        type="number"
+                        size="small"
+                        placeholder="Unlimited"
+                        slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                      />
+                    </Box>
+                  </Box>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{ justifyContent: "flex-end" }}
+                  >
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      onClick={() => setCreatePlanOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={<WorkspacePremiumRounded />}
+                    >
+                      Create package
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Form>
+            </DialogContent>
+          </Dialog>
         </Panel>
       ) : null}
       {!plansError && plans.length === 0 ? (
@@ -8006,124 +8145,244 @@ function SubscriptionsSection({
                     />
                   </Stack>
 
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-plan:update"
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.25,
+                      gridTemplateColumns: {
+                        xs: "repeat(2, minmax(0, 1fr))",
+                        md: "repeat(4, minmax(0, 1fr))",
+                      },
+                    }}
+                  >
+                    <PlanStatTile
+                      label="Monthly fee"
+                      value={formatGHS(plan.monthlyFeeMinor)}
                     />
-                    <input type="hidden" name="plan_id" value={plan.planId} />
-                    <Stack spacing={1.25}>
-                      <Box
+                    <PlanStatTile
+                      label="Commission"
+                      value={`${plan.commissionBps / 100}%`}
+                    />
+                    <PlanStatTile
+                      label="Design limit"
+                      value={planDesignLimitLabel(plan)}
+                    />
+                    <PlanStatTile label="Code" value={plan.code} />
+                  </Box>
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    startIcon={<SettingsRounded />}
+                    onClick={() => setPlanDialogId(plan.planId)}
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    Edit package
+                  </Button>
+                  <Dialog
+                    open={planDialogId === plan.planId}
+                    onClose={() => setPlanDialogId(null)}
+                    fullWidth
+                    maxWidth="md"
+                  >
+                    <DialogTitle sx={{ pb: 0.5 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1.25}
                         sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            md: "repeat(2, minmax(0, 1fr))",
-                          },
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        <TextField
-                          label="Name"
-                          name="name"
-                          size="small"
-                          defaultValue={plan.name}
-                          required
-                        />
-                        <TextField
-                          label="Code"
-                          size="small"
-                          defaultValue={plan.code}
-                          disabled
-                        />
-                        <TextField
-                          label="Monthly fee"
-                          name="monthly_fee_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={planMonthlyFeeDefault(plan)}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  GHS
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, step: "0.01" },
-                          }}
-                        />
-                        <TextField
-                          label="Commission"
-                          name="commission_bps"
-                          type="number"
-                          size="small"
-                          defaultValue={plan.commissionBps}
-                          slotProps={{
-                            input: {
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  bps
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, max: 10000, step: 1 },
-                          }}
-                        />
-                        <TextField
-                          label="Design limit"
-                          name="design_limit"
-                          type="number"
-                          size="small"
-                          defaultValue={plan.designLimit ?? ""}
-                          placeholder="Unlimited"
-                          slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                        />
-                        <TextField
-                          select
-                          label="Status"
-                          name="is_active"
-                          size="small"
-                          defaultValue={String(plan.isActive)}
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography
+                            component="span"
+                            sx={{ display: "block", fontWeight: 950 }}
+                          >
+                            Edit {plan.name}
+                          </Typography>
+                          <Typography
+                            component="span"
+                            variant="body2"
+                            sx={{ display: "block", color: "text.secondary" }}
+                          >
+                            Update package pricing, limits, and availability.
+                          </Typography>
+                        </Box>
+                        <IconButton
+                          aria-label="Close"
+                          onClick={() => setPlanDialogId(null)}
                         >
-                          <MenuItem value="true">Active</MenuItem>
-                          <MenuItem value="false">Archived</MenuItem>
-                        </TextField>
-                      </Box>
-                      <Button type="submit" variant="outlined">
-                        Save package
-                      </Button>
-                    </Stack>
-                  </Form>
-
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-plan:archive"
-                    />
-                    <input type="hidden" name="plan_id" value={plan.planId} />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        label="Archive reason"
-                        name="reason"
-                        size="small"
-                        placeholder="Replaced by new package"
-                        fullWidth
-                        disabled={!plan.isActive}
-                      />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        disabled={!plan.isActive}
-                        sx={{ minWidth: { sm: 140 } }}
-                      >
-                        Archive
-                      </Button>
-                    </Stack>
-                  </Form>
+                          <CloseRounded />
+                        </IconButton>
+                      </Stack>
+                    </DialogTitle>
+                    <DialogContent dividers>
+                      <Stack spacing={2.25}>
+                        <Form method="post">
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="admin-plan:update"
+                          />
+                          <input
+                            type="hidden"
+                            name="plan_id"
+                            value={plan.planId}
+                          />
+                          <Stack spacing={2}>
+                            <Box>
+                              <FormGroupLabel>Package details</FormGroupLabel>
+                              <Box
+                                sx={{
+                                  display: "grid",
+                                  gap: 1.25,
+                                  gridTemplateColumns: {
+                                    xs: "1fr",
+                                    sm: "repeat(2, minmax(0, 1fr))",
+                                  },
+                                }}
+                              >
+                                <TextField
+                                  label="Name"
+                                  name="name"
+                                  size="small"
+                                  defaultValue={plan.name}
+                                  required
+                                />
+                                <TextField
+                                  label="Code"
+                                  size="small"
+                                  defaultValue={plan.code}
+                                  disabled
+                                />
+                              </Box>
+                            </Box>
+                            <Box>
+                              <FormGroupLabel>Pricing & limits</FormGroupLabel>
+                              <Box
+                                sx={{
+                                  display: "grid",
+                                  gap: 1.25,
+                                  gridTemplateColumns: {
+                                    xs: "1fr",
+                                    md: "repeat(4, minmax(0, 1fr))",
+                                  },
+                                }}
+                              >
+                                <TextField
+                                  label="Monthly fee"
+                                  name="monthly_fee_ghs"
+                                  type="number"
+                                  size="small"
+                                  defaultValue={planMonthlyFeeDefault(plan)}
+                                  slotProps={{
+                                    input: {
+                                      startAdornment: (
+                                        <InputAdornment position="start">
+                                          GHS
+                                        </InputAdornment>
+                                      ),
+                                    },
+                                    htmlInput: { min: 0, step: "0.01" },
+                                  }}
+                                />
+                                <TextField
+                                  label="Commission"
+                                  name="commission_bps"
+                                  type="number"
+                                  size="small"
+                                  defaultValue={plan.commissionBps}
+                                  slotProps={{
+                                    input: {
+                                      endAdornment: (
+                                        <InputAdornment position="end">
+                                          bps
+                                        </InputAdornment>
+                                      ),
+                                    },
+                                    htmlInput: { min: 0, max: 10000, step: 1 },
+                                  }}
+                                />
+                                <TextField
+                                  label="Design limit"
+                                  name="design_limit"
+                                  type="number"
+                                  size="small"
+                                  defaultValue={plan.designLimit ?? ""}
+                                  placeholder="Unlimited"
+                                  slotProps={{ htmlInput: { min: 0, step: 1 } }}
+                                />
+                                <TextField
+                                  select
+                                  label="Status"
+                                  name="is_active"
+                                  size="small"
+                                  defaultValue={String(plan.isActive)}
+                                >
+                                  <MenuItem value="true">Active</MenuItem>
+                                  <MenuItem value="false">Archived</MenuItem>
+                                </TextField>
+                              </Box>
+                            </Box>
+                            <Stack
+                              direction={{ xs: "column", sm: "row" }}
+                              spacing={1}
+                              sx={{ justifyContent: "flex-end" }}
+                            >
+                              <Button
+                                type="button"
+                                variant="outlined"
+                                onClick={() => setPlanDialogId(null)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button type="submit" variant="contained">
+                                Save package
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        </Form>
+                        <Divider />
+                        <Form method="post">
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="admin-plan:archive"
+                          />
+                          <input
+                            type="hidden"
+                            name="plan_id"
+                            value={plan.planId}
+                          />
+                          <Stack spacing={1.25}>
+                            <FormGroupLabel>Archive package</FormGroupLabel>
+                            <TextField
+                              label="Archive reason"
+                              name="reason"
+                              size="small"
+                              placeholder="Replaced by new package"
+                              fullWidth
+                              disabled={!plan.isActive}
+                            />
+                            <Stack
+                              direction={{ xs: "column", sm: "row" }}
+                              spacing={1}
+                              sx={{ justifyContent: "flex-end" }}
+                            >
+                              <Button
+                                type="submit"
+                                variant="outlined"
+                                color="warning"
+                                disabled={!plan.isActive}
+                              >
+                                Archive package
+                              </Button>
+                            </Stack>
+                          </Stack>
+                        </Form>
+                      </Stack>
+                    </DialogContent>
+                  </Dialog>
                 </Stack>
               </Panel>
             );
@@ -8225,73 +8484,73 @@ function SubscriptionsSection({
                       justifyContent: "space-between",
                     }}
                   >
-                      <Box sx={{ minWidth: 0 }}>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{ alignItems: "center", flexWrap: "wrap" }}
-                        >
-                          <Typography sx={{ fontWeight: 900 }}>
-                            {subscription.businessName}
-                          </Typography>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center", flexWrap: "wrap" }}
+                      >
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {subscription.businessName}
+                        </Typography>
+                        <Chip
+                          size="small"
+                          label={subscription.planName}
+                          variant="outlined"
+                        />
+                        <Chip
+                          size="small"
+                          label={subscriptionStatusLabel(subscription.status)}
+                          sx={{
+                            bgcolor: alpha(color, 0.11),
+                            color,
+                            textTransform: "capitalize",
+                          }}
+                        />
+                        {typeof subscription.designLimit === "number" &&
+                        subscription.designCount > subscription.designLimit ? (
                           <Chip
                             size="small"
-                            label={subscription.planName}
+                            label="Over limit"
+                            color="warning"
                             variant="outlined"
                           />
-                          <Chip
-                            size="small"
-                            label={subscriptionStatusLabel(subscription.status)}
-                            sx={{
-                              bgcolor: alpha(color, 0.11),
-                              color,
-                              textTransform: "capitalize",
-                            }}
-                          />
-                          {typeof subscription.designLimit === "number" &&
-                          subscription.designCount >
-                            subscription.designLimit ? (
-                            <Chip
-                              size="small"
-                              label="Over limit"
-                              color="warning"
-                              variant="outlined"
-                            />
-                          ) : null}
-                        </Stack>
-                        <Typography
-                          variant="body2"
-                          sx={{ mt: 0.65, color: "text.secondary" }}
-                        >
-                          {subscription.handle}.xtiitch.com ·{" "}
-                          {formatGHS(subscription.gmvMinor)} GMV ·{" "}
-                          {formatGHS(subscription.monthlyFeeMinor)} monthly fee
-                        </Typography>
-                        <Typography sx={{ mt: 0.75 }}>
-                          {billingModeLabel(subscription.billingMode)} billing ·{" "}
-                          {subscription.nextBillingAt
-                            ? `Next billing ${shortTime(subscription.nextBillingAt)}`
-                            : "No scheduled billing date"}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            mt: 0.55,
-                            color:
-                              typeof subscription.designLimit === "number" &&
-                              subscription.designCount >
-                                subscription.designLimit
-                                ? tokens.warning
-                                : "text.secondary",
-                          }}
-                        >
-                          {subscriptionDesignUsageLabel(subscription)}
-                        </Typography>
-                      </Box>
+                        ) : null}
+                      </Stack>
+                      <Typography
+                        variant="body2"
+                        sx={{ mt: 0.65, color: "text.secondary" }}
+                      >
+                        {subscription.handle}.xtiitch.com ·{" "}
+                        {formatGHS(subscription.gmvMinor)} GMV ·{" "}
+                        {formatGHS(subscription.monthlyFeeMinor)} monthly fee
+                      </Typography>
+                      <Typography sx={{ mt: 0.75 }}>
+                        {billingModeLabel(subscription.billingMode)} billing ·{" "}
+                        {subscription.nextBillingAt
+                          ? `Next billing ${shortTime(subscription.nextBillingAt)}`
+                          : "No scheduled billing date"}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          mt: 0.55,
+                          color:
+                            typeof subscription.designLimit === "number" &&
+                            subscription.designCount > subscription.designLimit
+                              ? tokens.warning
+                              : "text.secondary",
+                        }}
+                      >
+                        {subscriptionDesignUsageLabel(subscription)}
+                      </Typography>
+                    </Box>
                     <Button
                       variant="contained"
                       startIcon={<SettingsRounded />}
-                      onClick={() => setManageBusinessId(subscription.businessId)}
+                      onClick={() =>
+                        setManageBusinessId(subscription.businessId)
+                      }
                       sx={{
                         flexShrink: 0,
                         whiteSpace: "nowrap",
@@ -8337,467 +8596,461 @@ function SubscriptionsSection({
                           value={subscription.businessId}
                         />
                         <Stack spacing={1.5}>
-                      <FormGroupLabel>Billing state</FormGroupLabel>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            sm: "repeat(2, minmax(0, 1fr))",
-                            xl: "150px 160px minmax(220px, 1fr) auto",
-                          },
-                          alignItems: "center",
-                        }}
-                      >
-                        <TextField
-                          select
-                          size="small"
-                          label="Status"
-                          name="status"
-                          defaultValue={subscription.status}
-                        >
-                          {subscriptionStatusOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          size="small"
-                          label="Mode"
-                          name="billing_mode"
-                          defaultValue={subscription.billingMode}
-                        >
-                          {subscriptionBillingModeOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          size="small"
-                          label="Reason"
-                          name="reason"
-                          defaultValue=""
-                          placeholder="Operator note"
-                        />
-                        <Button
-                          type="submit"
-                          variant="contained"
-                          sx={{
-                            height: 44,
-                            minWidth: { xl: 104 },
-                            justifySelf: { xs: "stretch", xl: "end" },
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Save
-                        </Button>
-                      </Box>
-                    </Stack>
-                    <Box
-                      sx={{
-                        mt: 1.25,
-                        display: "grid",
-                        gap: 1,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          md: "repeat(2, minmax(0, 1fr))",
-                        },
-                      }}
-                    >
-                      <TextField
-                        size="small"
-                        label="Paystack customer ref"
-                        name="provider_customer_ref"
-                        defaultValue={subscription.providerCustomerRef}
-                        placeholder="CUS_..."
-                      />
-                      <TextField
-                        size="small"
-                        label="Paystack auth/subscription ref"
-                        name="provider_subscription_ref"
-                        defaultValue={subscription.providerSubscriptionRef}
-                        placeholder="AUTH_... or SUB_..."
-                      />
-                    </Box>
-                  </Form>
+                          <Box>
+                            <FormGroupLabel>Billing state</FormGroupLabel>
+                            <Box
+                              sx={{
+                                display: "grid",
+                                gap: 1,
+                                gridTemplateColumns: {
+                                  xs: "1fr",
+                                  sm: "repeat(2, minmax(0, 1fr))",
+                                  lg: "150px 160px minmax(220px, 1fr)",
+                                },
+                              }}
+                            >
+                              <TextField
+                                select
+                                size="small"
+                                label="Status"
+                                name="status"
+                                defaultValue={subscription.status}
+                              >
+                                {subscriptionStatusOptions.map((option) => (
+                                  <MenuItem
+                                    key={option.value}
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </MenuItem>
+                                ))}
+                              </TextField>
+                              <TextField
+                                select
+                                size="small"
+                                label="Mode"
+                                name="billing_mode"
+                                defaultValue={subscription.billingMode}
+                              >
+                                {subscriptionBillingModeOptions.map(
+                                  (option) => (
+                                    <MenuItem
+                                      key={option.value}
+                                      value={option.value}
+                                    >
+                                      {option.label}
+                                    </MenuItem>
+                                  ),
+                                )}
+                              </TextField>
+                              <TextField
+                                size="small"
+                                label="Reason"
+                                name="reason"
+                                defaultValue=""
+                                placeholder="Operator note"
+                              />
+                            </Box>
+                          </Box>
+                          <Box>
+                            <FormGroupLabel>Provider references</FormGroupLabel>
+                            <Box
+                              sx={{
+                                display: "grid",
+                                gap: 1,
+                                gridTemplateColumns: {
+                                  xs: "1fr",
+                                  md: "repeat(2, minmax(0, 1fr))",
+                                },
+                              }}
+                            >
+                              <TextField
+                                size="small"
+                                label="Paystack customer ref"
+                                name="provider_customer_ref"
+                                defaultValue={subscription.providerCustomerRef}
+                                placeholder="CUS_..."
+                              />
+                              <TextField
+                                size="small"
+                                label="Paystack auth/subscription ref"
+                                name="provider_subscription_ref"
+                                defaultValue={
+                                  subscription.providerSubscriptionRef
+                                }
+                                placeholder="AUTH_... or SUB_..."
+                              />
+                            </Box>
+                          </Box>
+                          <Stack
+                            direction={{ xs: "column", sm: "row" }}
+                            spacing={1}
+                            sx={{ justifyContent: "flex-end" }}
+                          >
+                            <Button type="submit" variant="contained">
+                              Save billing state
+                            </Button>
+                          </Stack>
+                        </Stack>
+                      </Form>
 
-                  {canCaptureAuthorization ? (
-                    <Box
-                      component="details"
-                      sx={{
-                        mt: 1.25,
-                        borderRadius: 1.5,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.ink, 0.1),
-                        bgcolor: alpha(tokens.panel, 0.4),
-                        p: 1.25,
-                        "& > summary": {
-                          cursor: "pointer",
-                          listStyle: "none",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          gap: 1,
-                          "&::-webkit-details-marker": { display: "none" },
-                        },
-                        "&[open] > summary": { mb: 1.25 },
-                      }}
-                    >
-                      <Box component="summary">
+                      {canCaptureAuthorization ? (
                         <Box
-                          component="span"
+                          component="details"
                           sx={{
-                            fontWeight: 900,
-                            fontSize: 13,
-                            letterSpacing: "0.06em",
-                            textTransform: "uppercase",
-                            color: alpha(tokens.ink, 0.6),
-                          }}
-                        >
-                          Recurring authorization
-                        </Box>
-                        <Box
-                          component="span"
-                          sx={{
-                            fontSize: 12,
-                            fontWeight: 800,
-                            color: alpha(tokens.burgundy, 0.85),
-                          }}
-                        >
-                          Manage
-                        </Box>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            xl: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="admin-subscription-authorization:init"
-                        />
-                        <input
-                          type="hidden"
-                          name="business_id"
-                          value={subscription.businessId}
-                        />
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              md: "minmax(220px, 1fr) minmax(220px, 1fr) max-content",
+                            mt: 1.25,
+                            borderRadius: 1.5,
+                            border: "1px solid",
+                            borderColor: alpha(tokens.ink, 0.1),
+                            bgcolor: alpha(tokens.panel, 0.4),
+                            p: 1.25,
+                            "& > summary": {
+                              cursor: "pointer",
+                              listStyle: "none",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              gap: 1,
+                              "&::-webkit-details-marker": { display: "none" },
                             },
-                            alignItems: "center",
+                            "&[open] > summary": { mb: 1.25 },
                           }}
                         >
-                          <TextField
-                            size="small"
-                            name="callback_url"
-                            label="Callback URL"
-                            placeholder="https://admin.xtiitch.com/admin?section=subscriptions"
-                            fullWidth
-                          />
-                          <TextField
-                            size="small"
-                            name="reason"
-                            label="Link note"
-                            defaultValue="Create recurring authorization link"
-                            fullWidth
-                          />
-                          <Button
-                            type="submit"
-                            variant="outlined"
-                            startIcon={<CreditCardRounded />}
+                          <Box component="summary">
+                            <Box
+                              component="span"
+                              sx={{
+                                fontWeight: 900,
+                                fontSize: 13,
+                                letterSpacing: "0.06em",
+                                textTransform: "uppercase",
+                                color: alpha(tokens.ink, 0.6),
+                              }}
+                            >
+                              Recurring authorization
+                            </Box>
+                            <Box
+                              component="span"
+                              sx={{
+                                fontSize: 12,
+                                fontWeight: 800,
+                                color: alpha(tokens.burgundy, 0.85),
+                              }}
+                            >
+                              Manage
+                            </Box>
+                          </Box>
+                          <Box
                             sx={{
-                              height: 44,
-                              minWidth: { md: 148 },
-                              justifySelf: { xs: "stretch", md: "end" },
-                              whiteSpace: "nowrap",
+                              display: "grid",
+                              gap: 1,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                xl: "repeat(2, minmax(0, 1fr))",
+                              },
                             }}
                           >
-                            Create auth
-                          </Button>
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="admin-subscription-authorization:init"
+                              />
+                              <input
+                                type="hidden"
+                                name="business_id"
+                                value={subscription.businessId}
+                              />
+                              <Stack spacing={1}>
+                                <Box
+                                  sx={{
+                                    display: "grid",
+                                    gap: 1,
+                                    gridTemplateColumns: {
+                                      xs: "1fr",
+                                      md: "repeat(2, minmax(0, 1fr))",
+                                    },
+                                  }}
+                                >
+                                  <TextField
+                                    size="small"
+                                    name="callback_url"
+                                    label="Callback URL"
+                                    placeholder="https://admin.xtiitch.com/admin?section=subscriptions"
+                                    fullWidth
+                                  />
+                                  <TextField
+                                    size="small"
+                                    name="reason"
+                                    label="Link note"
+                                    defaultValue="Create recurring authorization link"
+                                    fullWidth
+                                  />
+                                </Box>
+                                <Stack
+                                  direction={{ xs: "column", sm: "row" }}
+                                  spacing={1}
+                                  sx={{ justifyContent: "flex-end" }}
+                                >
+                                  <Button
+                                    type="submit"
+                                    variant="outlined"
+                                    startIcon={<CreditCardRounded />}
+                                  >
+                                    Create auth
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </Form>
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="admin-subscription-authorization:verify"
+                              />
+                              <input
+                                type="hidden"
+                                name="business_id"
+                                value={subscription.businessId}
+                              />
+                              <Stack spacing={1}>
+                                <Box
+                                  sx={{
+                                    display: "grid",
+                                    gap: 1,
+                                    gridTemplateColumns: {
+                                      xs: "1fr",
+                                      md: "repeat(2, minmax(0, 1fr))",
+                                    },
+                                  }}
+                                >
+                                  <TextField
+                                    size="small"
+                                    name="reference"
+                                    label="Paystack reference"
+                                    placeholder="authorization reference"
+                                    fullWidth
+                                  />
+                                  <TextField
+                                    size="small"
+                                    name="reason"
+                                    label="Verify note"
+                                    defaultValue="Verify recurring authorization"
+                                    fullWidth
+                                  />
+                                </Box>
+                                <Stack
+                                  direction={{ xs: "column", sm: "row" }}
+                                  spacing={1}
+                                  sx={{ justifyContent: "flex-end" }}
+                                >
+                                  <Button
+                                    type="submit"
+                                    variant="outlined"
+                                    color="success"
+                                    startIcon={<CheckCircleRounded />}
+                                  >
+                                    Verify auth
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </Form>
+                          </Box>
                         </Box>
-                      </Form>
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="admin-subscription-authorization:verify"
-                        />
-                        <input
-                          type="hidden"
-                          name="business_id"
-                          value={subscription.businessId}
-                        />
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              md: "minmax(220px, 1fr) minmax(220px, 1fr) max-content",
-                            },
-                            alignItems: "center",
-                          }}
-                        >
-                          <TextField
-                            size="small"
-                            name="reference"
-                            label="Paystack reference"
-                            placeholder="authorization reference"
-                            fullWidth
-                          />
-                          <TextField
-                            size="small"
-                            name="reason"
-                            label="Verify note"
-                            defaultValue="Verify recurring authorization"
-                            fullWidth
-                          />
-                          <Button
-                            type="submit"
-                            variant="outlined"
-                            color="success"
-                            startIcon={<CheckCircleRounded />}
-                            sx={{
-                              height: 44,
-                              minWidth: { md: 136 },
-                              justifySelf: { xs: "stretch", md: "end" },
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            Verify auth
-                          </Button>
-                        </Box>
-                      </Form>
-                      </Box>
-                    </Box>
-                  ) : null}
-
-                  <Divider sx={{ my: 1.5 }} />
-                  <Stack spacing={1.25}>
-                    <Stack
-                      direction={{ xs: "column", md: "row" }}
-                      spacing={1}
-                      sx={{
-                        justifyContent: "space-between",
-                        alignItems: { md: "center" },
-                      }}
-                    >
-                      <Box>
-                        <Typography sx={{ fontWeight: 900 }}>
-                          Invoice control
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          {latestInvoice
-                            ? `${latestInvoice.invoiceRef} · ${invoiceStatusLabel(
-                                latestInvoice.status,
-                              )} · ${formatGHS(latestInvoice.amountMinor)}`
-                            : "No package invoice has been issued yet."}
-                        </Typography>
-                      </Box>
-                      {latestInvoice ? (
-                        <Chip
-                          size="small"
-                          label={`Due ${shortTime(latestInvoice.dueAt)}`}
-                          color={
-                            latestInvoice.status === "issued"
-                              ? "warning"
-                              : latestInvoice.status === "paid"
-                                ? "success"
-                                : "default"
-                          }
-                          variant={
-                            latestInvoice.status === "paid"
-                              ? "filled"
-                              : "outlined"
-                          }
-                          sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
-                        />
                       ) : null}
-                    </Stack>
 
-                    {openInvoice ? (
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            lg: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                        <Form method="post">
-                          <input
-                            type="hidden"
-                            name="intent"
-                            value="admin-subscription-invoice:paid"
-                          />
-                          <input
-                            type="hidden"
-                            name="invoice_id"
-                            value={openInvoice.invoiceId}
-                          />
+                      <Divider sx={{ my: 1.5 }} />
+                      <Stack spacing={1.25}>
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={1}
+                          sx={{
+                            justifyContent: "space-between",
+                            alignItems: { md: "center" },
+                          }}
+                        >
+                          <Box>
+                            <Typography sx={{ fontWeight: 900 }}>
+                              Invoice control
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              {latestInvoice
+                                ? `${latestInvoice.invoiceRef} · ${invoiceStatusLabel(
+                                    latestInvoice.status,
+                                  )} · ${formatGHS(latestInvoice.amountMinor)}`
+                                : "No package invoice has been issued yet."}
+                            </Typography>
+                          </Box>
+                          {latestInvoice ? (
+                            <Chip
+                              size="small"
+                              label={`Due ${shortTime(latestInvoice.dueAt)}`}
+                              color={
+                                latestInvoice.status === "issued"
+                                  ? "warning"
+                                  : latestInvoice.status === "paid"
+                                    ? "success"
+                                    : "default"
+                              }
+                              variant={
+                                latestInvoice.status === "paid"
+                                  ? "filled"
+                                  : "outlined"
+                              }
+                              sx={{
+                                alignSelf: { xs: "flex-start", md: "center" },
+                              }}
+                            />
+                          ) : null}
+                        </Stack>
+
+                        {openInvoice ? (
                           <Box
                             sx={{
                               display: "grid",
                               gap: 1,
                               gridTemplateColumns: {
                                 xs: "1fr",
-                                sm: "minmax(0, 1fr) auto",
+                                lg: "repeat(2, minmax(0, 1fr))",
                               },
-                              alignItems: "center",
                             }}
                           >
-                            <TextField
-                              size="small"
-                              name="reason"
-                              label="Paid note"
-                              placeholder="Paystack payment confirmed"
-                              fullWidth
-                            />
-                            <Button
-                              type="submit"
-                              variant="outlined"
-                              color="success"
-                              sx={{
-                                height: 44,
-                                minWidth: { sm: 130 },
-                                justifySelf: { xs: "stretch", sm: "end" },
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Mark paid
-                            </Button>
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="admin-subscription-invoice:paid"
+                              />
+                              <input
+                                type="hidden"
+                                name="invoice_id"
+                                value={openInvoice.invoiceId}
+                              />
+                              <Stack spacing={1}>
+                                <TextField
+                                  size="small"
+                                  name="reason"
+                                  label="Paid note"
+                                  placeholder="Paystack payment confirmed"
+                                  fullWidth
+                                />
+                                <Stack
+                                  direction={{ xs: "column", sm: "row" }}
+                                  spacing={1}
+                                  sx={{ justifyContent: "flex-end" }}
+                                >
+                                  <Button
+                                    type="submit"
+                                    variant="outlined"
+                                    color="success"
+                                  >
+                                    Mark paid
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </Form>
+                            <Form method="post">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="admin-subscription-invoice:failed"
+                              />
+                              <input
+                                type="hidden"
+                                name="invoice_id"
+                                value={openInvoice.invoiceId}
+                              />
+                              <Stack spacing={1}>
+                                <TextField
+                                  size="small"
+                                  name="reason"
+                                  label="Failure note"
+                                  placeholder="Card failed or link expired"
+                                  fullWidth
+                                />
+                                <Stack
+                                  direction={{ xs: "column", sm: "row" }}
+                                  spacing={1}
+                                  sx={{ justifyContent: "flex-end" }}
+                                >
+                                  <Button
+                                    type="submit"
+                                    variant="outlined"
+                                    color="warning"
+                                  >
+                                    Mark failed
+                                  </Button>
+                                </Stack>
+                              </Stack>
+                            </Form>
                           </Box>
-                        </Form>
-                        <Form method="post">
-                          <input
-                            type="hidden"
-                            name="intent"
-                            value="admin-subscription-invoice:failed"
-                          />
-                          <input
-                            type="hidden"
-                            name="invoice_id"
-                            value={openInvoice.invoiceId}
-                          />
-                          <Box
-                            sx={{
-                              display: "grid",
-                              gap: 1,
-                              gridTemplateColumns: {
-                                xs: "1fr",
-                                sm: "minmax(0, 1fr) auto",
-                              },
-                              alignItems: "center",
-                            }}
-                          >
-                            <TextField
-                              size="small"
-                              name="reason"
-                              label="Failure note"
-                              placeholder="Card failed or link expired"
-                              fullWidth
-                            />
-                            <Button
-                              type="submit"
-                              variant="outlined"
-                              color="warning"
-                              sx={{
-                                height: 44,
-                                minWidth: { sm: 130 },
-                                justifySelf: { xs: "stretch", sm: "end" },
-                                whiteSpace: "nowrap",
-                              }}
-                            >
-                              Mark failed
-                            </Button>
-                          </Box>
-                        </Form>
-                      </Box>
-                    ) : null}
+                        ) : null}
 
-                    {canIssueInvoice ? (
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="admin-subscription-invoice:issue"
-                        />
-                        <input
-                          type="hidden"
-                          name="business_id"
-                          value={subscription.businessId}
-                        />
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              md: "repeat(2, minmax(0, 1fr))",
-                            },
-                          }}
-                        >
-                          <TextField
-                            size="small"
-                            name="provider_invoice_ref"
-                            label="Provider ref"
-                            placeholder="Paystack invoice/link id"
-                          />
-                          <TextField
-                            size="small"
-                            name="payment_url"
-                            label="Payment link"
-                            placeholder="https://paystack.com/pay/..."
-                          />
-                          <StyledDateTimeField
-                            size="small"
-                            name="due_at"
-                            label="Due date"
-                          />
-                          <TextField
-                            size="small"
-                            name="reason"
-                            label="Issue note"
-                            placeholder="Monthly package billing"
-                          />
-                        </Box>
-                        <Button
-                          type="submit"
-                          variant="outlined"
-                          startIcon={<WorkspacePremiumRounded />}
-                          sx={{
-                            mt: 1,
-                            alignSelf: "flex-start",
-                            height: 44,
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          Issue invoice
-                        </Button>
-                      </Form>
-                    ) : null}
-                  </Stack>
+                        {canIssueInvoice ? (
+                          <Form method="post">
+                            <input
+                              type="hidden"
+                              name="intent"
+                              value="admin-subscription-invoice:issue"
+                            />
+                            <input
+                              type="hidden"
+                              name="business_id"
+                              value={subscription.businessId}
+                            />
+                            <Box
+                              sx={{
+                                display: "grid",
+                                gap: 1,
+                                gridTemplateColumns: {
+                                  xs: "1fr",
+                                  md: "repeat(2, minmax(0, 1fr))",
+                                },
+                              }}
+                            >
+                              <TextField
+                                size="small"
+                                name="provider_invoice_ref"
+                                label="Provider ref"
+                                placeholder="Paystack invoice/link id"
+                              />
+                              <TextField
+                                size="small"
+                                name="payment_url"
+                                label="Payment link"
+                                placeholder="https://paystack.com/pay/..."
+                              />
+                              <StyledDateTimeField
+                                size="small"
+                                name="due_at"
+                                label="Due date"
+                              />
+                              <TextField
+                                size="small"
+                                name="reason"
+                                label="Issue note"
+                                placeholder="Monthly package billing"
+                              />
+                            </Box>
+                            <Button
+                              type="submit"
+                              variant="outlined"
+                              startIcon={<WorkspacePremiumRounded />}
+                              sx={{
+                                mt: 1,
+                                alignSelf: "flex-start",
+                                height: 44,
+                                whiteSpace: "nowrap",
+                              }}
+                            >
+                              Issue invoice
+                            </Button>
+                          </Form>
+                        ) : null}
+                      </Stack>
                     </DialogContent>
                   </Dialog>
                 </Box>
@@ -8955,10 +9208,7 @@ function SubscriptionPlanSummaryCard({
             >
               Package fee
             </Typography>
-            <Typography
-              variant="h4"
-              sx={{ lineHeight: 1.05, fontWeight: 950 }}
-            >
+            <Typography variant="h4" sx={{ lineHeight: 1.05, fontWeight: 950 }}>
               {monthlyFee}
             </Typography>
             {row.plan.monthlyFeeMinor > 0 ? (
@@ -9025,10 +9275,7 @@ function SubscriptionPlanSummaryCard({
             value={`${row.activeTotal} active`}
             helper={`${row.businessTotal} total`}
           />
-          <PlanStatTile
-            label="GMV"
-            value={formatGHS(row.gmvMinor)}
-          />
+          <PlanStatTile label="GMV" value={formatGHS(row.gmvMinor)} />
           <PlanStatTile
             label="Commission earned"
             value={formatGHS(row.commissionMinor)}
@@ -10208,7 +10455,35 @@ function AdsSection({
             fullWidth
             maxWidth="md"
           >
-            <DialogTitle>Create ad placement</DialogTitle>
+            <DialogTitle sx={{ pb: 0.5 }}>
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center", justifyContent: "space-between" }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    component="span"
+                    sx={{ display: "block", fontWeight: 950 }}
+                  >
+                    Create ad placement
+                  </Typography>
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    sx={{ display: "block", color: "text.secondary" }}
+                  >
+                    Set the business, placement, budget, and review note.
+                  </Typography>
+                </Box>
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setAdDialogOpen(false)}
+                >
+                  <CloseRounded />
+                </IconButton>
+              </Stack>
+            </DialogTitle>
             <DialogContent dividers>
               <Form method="post">
                 <input
@@ -10219,157 +10494,173 @@ function AdsSection({
                 <input type="hidden" name="pricing_model" value="flat_time" />
                 <Stack spacing={2}>
                   <FormGroupLabel>Campaign</FormGroupLabel>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    md: "repeat(2, minmax(0, 1fr))",
-                    xl: "1.2fr 1fr 1fr 1fr",
-                  },
-                }}
-              >
-                <TextField
-                  select
-                  label="Business"
-                  name="business_id"
-                  size="small"
-                  required
-                  disabled={eligibleBusinesses.length === 0}
-                  defaultValue={eligibleBusinesses[0]?.id ?? ""}
-                >
-                  {eligibleBusinesses.map((business) => (
-                    <MenuItem key={business.id} value={business.id}>
-                      {business.name} · {business.handle}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Placement"
-                  name="placement_type"
-                  size="small"
-                  defaultValue="featured_business"
-                >
-                  {adPlacementOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Target ref"
-                  name="target_ref_id"
-                  size="small"
-                  placeholder="Design ID when promoted design"
-                />
-                <TextField
-                  select
-                  label="Status"
-                  name="status"
-                  size="small"
-                  defaultValue="pending_review"
-                >
-                  {adCampaignStatusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Headline"
-                  name="headline"
-                  size="small"
-                  required
-                />
-              </Box>
-              <FormGroupLabel>Budget &amp; schedule</FormGroupLabel>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, minmax(0, 1fr))",
-                    xl: "repeat(4, minmax(0, 1fr))",
-                  },
-                }}
-              >
-                <TextField
-                  label="Budget"
-                  name="budget_ghs"
-                  type="number"
-                  size="small"
-                  defaultValue="0.00"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">GHS</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <TextField
-                  label="Daily cap"
-                  name="daily_cap_ghs"
-                  type="number"
-                  size="small"
-                  placeholder="Optional"
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">GHS</InputAdornment>
-                      ),
-                    },
-                    htmlInput: { min: 0, step: "0.01" },
-                  }}
-                />
-                <StyledDateTimeField
-                  label="Starts"
-                  name="starts_at"
-                  size="small"
-                  required
-                />
-                <StyledDateTimeField
-                  label="Ends"
-                  name="ends_at"
-                  size="small"
-                  required
-                />
-              </Box>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                }}
-              >
-                <TextField
-                  label="Description"
-                  name="description"
-                  multiline
-                  minRows={2}
-                  size="small"
-                />
-                <TextField
-                  label="Review note"
-                  name="review_note"
-                  multiline
-                  minRows={2}
-                  size="small"
-                />
-              </Box>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    startIcon={<CampaignRounded />}
-                    disabled={eligibleBusinesses.length === 0}
-                    sx={{ alignSelf: "flex-start" }}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        md: "repeat(2, minmax(0, 1fr))",
+                        xl: "1.2fr 1fr 1fr 1fr",
+                      },
+                    }}
                   >
-                    Create placement
-                  </Button>
+                    <TextField
+                      select
+                      label="Business"
+                      name="business_id"
+                      size="small"
+                      required
+                      disabled={eligibleBusinesses.length === 0}
+                      defaultValue={eligibleBusinesses[0]?.id ?? ""}
+                    >
+                      {eligibleBusinesses.map((business) => (
+                        <MenuItem key={business.id} value={business.id}>
+                          {business.name} · {business.handle}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="Placement"
+                      name="placement_type"
+                      size="small"
+                      defaultValue="featured_business"
+                    >
+                      {adPlacementOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Target ref"
+                      name="target_ref_id"
+                      size="small"
+                      placeholder="Design ID when promoted design"
+                    />
+                    <TextField
+                      select
+                      label="Status"
+                      name="status"
+                      size="small"
+                      defaultValue="pending_review"
+                    >
+                      {adCampaignStatusOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Headline"
+                      name="headline"
+                      size="small"
+                      required
+                    />
+                  </Box>
+                  <FormGroupLabel>Budget &amp; schedule</FormGroupLabel>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, minmax(0, 1fr))",
+                        xl: "repeat(4, minmax(0, 1fr))",
+                      },
+                    }}
+                  >
+                    <TextField
+                      label="Budget"
+                      name="budget_ghs"
+                      type="number"
+                      size="small"
+                      defaultValue="0.00"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              GHS
+                            </InputAdornment>
+                          ),
+                        },
+                        htmlInput: { min: 0, step: "0.01" },
+                      }}
+                    />
+                    <TextField
+                      label="Daily cap"
+                      name="daily_cap_ghs"
+                      type="number"
+                      size="small"
+                      placeholder="Optional"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              GHS
+                            </InputAdornment>
+                          ),
+                        },
+                        htmlInput: { min: 0, step: "0.01" },
+                      }}
+                    />
+                    <StyledDateTimeField
+                      label="Starts"
+                      name="starts_at"
+                      size="small"
+                      required
+                    />
+                    <StyledDateTimeField
+                      label="Ends"
+                      name="ends_at"
+                      size="small"
+                      required
+                    />
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                    }}
+                  >
+                    <TextField
+                      label="Description"
+                      name="description"
+                      multiline
+                      minRows={2}
+                      size="small"
+                    />
+                    <TextField
+                      label="Review note"
+                      name="review_note"
+                      multiline
+                      minRows={2}
+                      size="small"
+                    />
+                  </Box>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{ justifyContent: "flex-end" }}
+                  >
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      onClick={() => setAdDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      startIcon={<CampaignRounded />}
+                      disabled={eligibleBusinesses.length === 0}
+                    >
+                      Create placement
+                    </Button>
+                  </Stack>
                 </Stack>
               </Form>
             </DialogContent>
@@ -11148,7 +11439,35 @@ function AffiliatesSection({
             fullWidth
             maxWidth="md"
           >
-            <DialogTitle>Register affiliate partner</DialogTitle>
+            <DialogTitle sx={{ pb: 0.5 }}>
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{ alignItems: "center", justifyContent: "space-between" }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    component="span"
+                    sx={{ display: "block", fontWeight: 950 }}
+                  >
+                    Register affiliate partner
+                  </Typography>
+                  <Typography
+                    component="span"
+                    variant="body2"
+                    sx={{ display: "block", color: "text.secondary" }}
+                  >
+                    Add partner identity, commission terms, and payout details.
+                  </Typography>
+                </Box>
+                <IconButton
+                  aria-label="Close"
+                  onClick={() => setAffiliateDialogOpen(false)}
+                >
+                  <CloseRounded />
+                </IconButton>
+              </Stack>
+            </DialogTitle>
             <DialogContent dividers>
               <Form method="post">
                 <input
@@ -11158,113 +11477,134 @@ function AffiliatesSection({
                 />
                 <Stack spacing={2}>
                   <FormGroupLabel>Affiliate</FormGroupLabel>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-                }}
-              >
-                <TextField
-                  select
-                  label="Entity"
-                  name="entity_type"
-                  defaultValue="person"
-                >
-                  {affiliateEntityOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Code"
-                  name="code"
-                  required
-                  placeholder="SEWINGPRO"
-                />
-                <TextField label="Display name" name="display_name" required />
-                <TextField label="Contact name" name="contact_name" />
-                <TextField label="Email" name="email" type="email" />
-                <TextField label="Phone" name="phone" />
-                <TextField label="Website" name="website_url" type="url" />
-              </Box>
-              <FormGroupLabel>Commission &amp; payout</FormGroupLabel>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-                }}
-              >
-                <TextField
-                  select
-                  label="Commission"
-                  name="commission_model"
-                  defaultValue="percentage"
-                >
-                  {affiliateCommissionOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Commission value"
-                  name="commission_value"
-                  type="number"
-                  required
-                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                />
-                <TextField
-                  label="Cookie window"
-                  name="cookie_window_days"
-                  type="number"
-                  defaultValue={30}
-                  slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
-                />
-                <TextField
-                  select
-                  label="Payout mode"
-                  name="payout_mode"
-                  defaultValue="voucher"
-                >
-                  {affiliatePayoutOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Status"
-                  name="status"
-                  defaultValue="pending_review"
-                >
-                  {affiliateStatusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                }}
-              >
-                <TextField label="Payout reference" name="payout_reference" />
-                <TextField label="Notes" name="notes" multiline minRows={2} />
-              </Box>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    sx={{ alignSelf: "flex-start" }}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    }}
                   >
-                    Create partner
-                  </Button>
+                    <TextField
+                      select
+                      label="Entity"
+                      name="entity_type"
+                      defaultValue="person"
+                    >
+                      {affiliateEntityOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Code"
+                      name="code"
+                      required
+                      placeholder="SEWINGPRO"
+                    />
+                    <TextField
+                      label="Display name"
+                      name="display_name"
+                      required
+                    />
+                    <TextField label="Contact name" name="contact_name" />
+                    <TextField label="Email" name="email" type="email" />
+                    <TextField label="Phone" name="phone" />
+                    <TextField label="Website" name="website_url" type="url" />
+                  </Box>
+                  <FormGroupLabel>Commission &amp; payout</FormGroupLabel>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    }}
+                  >
+                    <TextField
+                      select
+                      label="Commission"
+                      name="commission_model"
+                      defaultValue="percentage"
+                    >
+                      {affiliateCommissionOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Commission value"
+                      name="commission_value"
+                      type="number"
+                      required
+                      slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                    />
+                    <TextField
+                      label="Cookie window"
+                      name="cookie_window_days"
+                      type="number"
+                      defaultValue={30}
+                      slotProps={{ htmlInput: { min: 1, max: 365, step: 1 } }}
+                    />
+                    <TextField
+                      select
+                      label="Payout mode"
+                      name="payout_mode"
+                      defaultValue="voucher"
+                    >
+                      {affiliatePayoutOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="Status"
+                      name="status"
+                      defaultValue="pending_review"
+                    >
+                      {affiliateStatusOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                    }}
+                  >
+                    <TextField
+                      label="Payout reference"
+                      name="payout_reference"
+                    />
+                    <TextField
+                      label="Notes"
+                      name="notes"
+                      multiline
+                      minRows={2}
+                    />
+                  </Box>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{ justifyContent: "flex-end" }}
+                  >
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      onClick={() => setAffiliateDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" variant="contained">
+                      Create partner
+                    </Button>
+                  </Stack>
                 </Stack>
               </Form>
             </DialogContent>
@@ -12873,10 +13213,10 @@ function RolePermissionMatrix({ roles }: { roles: AdminRoleDefinition[] }) {
     <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
       <Stack spacing={2}>
         <Box>
-          <Typography variant="h6">Role permissions</Typography>
+          <Typography variant="h6">Role summary</Typography>
           <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            Current role grants. Manage the permission set from the Roles
-            section.
+            Current roles at a glance. Open the Roles section to inspect or edit
+            grants.
           </Typography>
         </Box>
         <Stack spacing={1.25}>
@@ -12891,37 +13231,25 @@ function RolePermissionMatrix({ roles }: { roles: AdminRoleDefinition[] }) {
                 bgcolor: alpha(roleTone(role.role), 0.055),
               }}
             >
-              <Stack spacing={1}>
-                <Stack
-                  direction="row"
-                  sx={{ alignItems: "center", justifyContent: "space-between" }}
-                >
+              <Stack
+                direction="row"
+                sx={{ alignItems: "center", justifyContent: "space-between" }}
+              >
+                <Box sx={{ minWidth: 0 }}>
                   <Typography sx={{ fontWeight: 900 }}>{role.label}</Typography>
-                  <Chip
-                    size="small"
-                    label={`${role.permissions.length} grants`}
-                    sx={{
-                      bgcolor: alpha(roleTone(role.role), 0.12),
-                      color: roleTone(role.role),
-                      fontWeight: 900,
-                    }}
-                  />
-                </Stack>
-                <Stack
-                  direction="row"
-                  spacing={0.75}
-                  sx={{ flexWrap: "wrap", gap: 0.75 }}
-                >
-                  {role.permissions.map((permission) => (
-                    <Chip
-                      key={permission}
-                      size="small"
-                      label={permissionLabel(permission)}
-                      variant="outlined"
-                      sx={{ bgcolor: alpha(tokens.white, 0.56) }}
-                    />
-                  ))}
-                </Stack>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {role.role}
+                  </Typography>
+                </Box>
+                <Chip
+                  size="small"
+                  label={`${role.permissions.length} grants`}
+                  sx={{
+                    bgcolor: alpha(roleTone(role.role), 0.12),
+                    color: roleTone(role.role),
+                    fontWeight: 900,
+                  }}
+                />
               </Stack>
             </Box>
           ))}
@@ -12940,12 +13268,16 @@ function RolePermissionsSection({
   permissions: AdminPermissionDefinition[];
   actionData?: AdminActionFeedback;
 }) {
+  const [detailRoleId, setDetailRoleId] = useState<AdminRole | null>(null);
+  const [editRoleId, setEditRoleId] = useState<AdminRole | null>(null);
   const totalGrants = roles.reduce(
     (sum, role) => sum + role.permissions.length,
     0,
   );
   const ownerGrants =
     roles.find((role) => role.role === "owner")?.permissions.length ?? 0;
+  const detailRole = roles.find((role) => role.role === detailRoleId) ?? null;
+  const editRole = roles.find((role) => role.role === editRoleId) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -12993,72 +13325,91 @@ function RolePermissionsSection({
           Role permissions could not be loaded from the admin API.
         </Alert>
       ) : (
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" },
-            alignItems: "start",
-          }}
-        >
-          {roles.map((role) => (
-            <Panel
-              key={role.role}
+        <Panel sx={{ overflow: "hidden" }}>
+          <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
               sx={{
-                p: { xs: 2, md: 2.5 },
-                borderColor: alpha(roleTone(role.role), 0.18),
-                backgroundImage: `linear-gradient(180deg, ${alpha(
-                  roleTone(role.role),
-                  0.075,
-                )}, transparent 38%)`,
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
               }}
             >
-              <Form method="post">
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="admin-role-permissions:update"
-                />
-                <input type="hidden" name="role" value={role.role} />
-                <Stack spacing={2}>
+              <Box>
+                <Typography variant="h6">Roles</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {roles.length} roles configured. Open a role to inspect or
+                  edit its grants.
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={`${totalGrants} total grants`}
+                variant="outlined"
+              />
+            </Stack>
+          </Box>
+          <Divider />
+          <Stack spacing={0}>
+            {roles.map((role) => (
+              <Box
+                key={role.role}
+                sx={{
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.5,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  "&:first-of-type": { borderTop: 0 },
+                }}
+              >
+                <Stack
+                  direction={{ xs: "column", md: "row" }}
+                  spacing={1.5}
+                  sx={{
+                    alignItems: { xs: "stretch", md: "center" },
+                    justifyContent: "space-between",
+                  }}
+                >
                   <Stack
                     direction="row"
                     spacing={1.25}
+                    sx={{ alignItems: "center" }}
+                  >
+                    <Box
+                      sx={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 1.5,
+                        display: "grid",
+                        placeItems: "center",
+                        bgcolor: alpha(roleTone(role.role), 0.12),
+                        color: roleTone(role.role),
+                        flexShrink: 0,
+                      }}
+                    >
+                      <AdminPanelSettingsRounded />
+                    </Box>
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 900 }} noWrap>
+                        {role.label}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {role.role}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
                     sx={{
                       alignItems: "center",
-                      justifyContent: "space-between",
+                      justifyContent: { xs: "flex-start", md: "flex-end" },
+                      flexWrap: "wrap",
                     }}
                   >
-                    <Stack
-                      direction="row"
-                      spacing={1.25}
-                      sx={{ alignItems: "center" }}
-                    >
-                      <Box
-                        sx={{
-                          width: 42,
-                          height: 42,
-                          borderRadius: 1.5,
-                          display: "grid",
-                          placeItems: "center",
-                          bgcolor: alpha(roleTone(role.role), 0.12),
-                          color: roleTone(role.role),
-                        }}
-                      >
-                        <AdminPanelSettingsRounded />
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontWeight: 900 }}>
-                          {role.label}
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          {role.role}
-                        </Typography>
-                      </Box>
-                    </Stack>
                     <Chip
                       size="small"
                       label={`${role.permissions.length} grants`}
@@ -13068,116 +13419,289 @@ function RolePermissionsSection({
                         fontWeight: 900,
                       }}
                     />
+                    <Tooltip title="View permissions">
+                      <IconButton
+                        aria-label={`View permissions for ${role.label}`}
+                        onClick={() => setDetailRoleId(role.role)}
+                        sx={{
+                          border: "1px solid",
+                          borderColor: alpha(roleTone(role.role), 0.18),
+                          bgcolor: alpha(roleTone(role.role), 0.05),
+                        }}
+                      >
+                        <VisibilityRounded />
+                      </IconButton>
+                    </Tooltip>
+                    <Tooltip title="Edit permissions">
+                      <IconButton
+                        aria-label={`Edit permissions for ${role.label}`}
+                        onClick={() => setEditRoleId(role.role)}
+                        sx={{
+                          border: "1px solid",
+                          borderColor: alpha(tokens.burgundy, 0.18),
+                          bgcolor: alpha(tokens.burgundy, 0.05),
+                        }}
+                      >
+                        <SettingsRounded />
+                      </IconButton>
+                    </Tooltip>
                   </Stack>
+                </Stack>
+              </Box>
+            ))}
+          </Stack>
+        </Panel>
+      )}
 
-                  <Stack spacing={1}>
-                    {permissions.map((permission) => {
-                      const protectedPermission = isProtectedOwnerPermission(
-                        role.role,
-                        permission.permission,
-                      );
-                      const checked =
-                        roleHasPermission(role, permission.permission) ||
-                        protectedPermission;
+      <Dialog
+        open={Boolean(detailRole)}
+        onClose={() => setDetailRoleId(null)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle sx={{ pb: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontWeight: 950 }}
+              >
+                {detailRole?.label ?? "Role permissions"}
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                {detailRole?.permissions.length ?? 0} grants assigned.
+              </Typography>
+            </Box>
+            <IconButton
+              aria-label="Close"
+              onClick={() => setDetailRoleId(null)}
+            >
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.25}>
+            {detailRole?.permissions.map((permission) => (
+              <Box
+                key={permission}
+                sx={{
+                  p: 1.25,
+                  borderRadius: 1.25,
+                  border: "1px solid",
+                  borderColor: alpha(roleTone(detailRole.role), 0.16),
+                  bgcolor: alpha(roleTone(detailRole.role), 0.045),
+                }}
+              >
+                <Typography sx={{ fontWeight: 900 }}>
+                  {permissionLabel(permission)}
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {permissionDescription(permission)}
+                </Typography>
+              </Box>
+            ))}
+            {detailRole?.permissions.length === 0 ? (
+              <Alert severity="info">
+                No permissions are assigned to this role.
+              </Alert>
+            ) : null}
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{ justifyContent: "flex-end", pt: 1 }}
+            >
+              <Button
+                type="button"
+                variant="outlined"
+                onClick={() => setDetailRoleId(null)}
+              >
+                Close
+              </Button>
+              {detailRole ? (
+                <Button
+                  type="button"
+                  variant="contained"
+                  startIcon={<SettingsRounded />}
+                  onClick={() => {
+                    setEditRoleId(detailRole.role);
+                    setDetailRoleId(null);
+                  }}
+                >
+                  Edit permissions
+                </Button>
+              ) : null}
+            </Stack>
+          </Stack>
+        </DialogContent>
+      </Dialog>
 
-                      return (
-                        <Box
-                          key={permission.permission}
+      <Dialog
+        open={Boolean(editRole)}
+        onClose={() => setEditRoleId(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle sx={{ pb: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontWeight: 950 }}
+              >
+                Edit {editRole?.label ?? "role"} permissions
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                Grant only the capabilities this role should use.
+              </Typography>
+            </Box>
+            <IconButton aria-label="Close" onClick={() => setEditRoleId(null)}>
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {editRole ? (
+            <Form key={editRole.role} method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-role-permissions:update"
+              />
+              <input type="hidden" name="role" value={editRole.role} />
+              <Stack spacing={2}>
+                <Stack spacing={1}>
+                  {permissions.map((permission) => {
+                    const protectedPermission = isProtectedOwnerPermission(
+                      editRole.role,
+                      permission.permission,
+                    );
+                    const checked =
+                      roleHasPermission(editRole, permission.permission) ||
+                      protectedPermission;
+
+                    return (
+                      <Box
+                        key={permission.permission}
+                        sx={{
+                          p: 1.25,
+                          borderRadius: 1.25,
+                          border: "1px solid",
+                          borderColor: checked
+                            ? alpha(roleTone(editRole.role), 0.26)
+                            : alpha(tokens.ink, 0.08),
+                          bgcolor: checked
+                            ? alpha(roleTone(editRole.role), 0.055)
+                            : alpha(tokens.white, 0.54),
+                        }}
+                      >
+                        {protectedPermission ? (
+                          <input
+                            type="hidden"
+                            name="permissions"
+                            value={permission.permission}
+                          />
+                        ) : null}
+                        <FormControlLabel
                           sx={{
-                            p: 1.25,
-                            borderRadius: 1.25,
-                            border: "1px solid",
-                            borderColor: checked
-                              ? alpha(roleTone(role.role), 0.26)
-                              : alpha(tokens.ink, 0.08),
-                            bgcolor: checked
-                              ? alpha(roleTone(role.role), 0.055)
-                              : alpha(tokens.white, 0.54),
+                            m: 0,
+                            alignItems: "flex-start",
+                            ".MuiFormControlLabel-label": { width: "100%" },
                           }}
-                        >
-                          {protectedPermission ? (
-                            <input
-                              type="hidden"
+                          control={
+                            <Checkbox
                               name="permissions"
                               value={permission.permission}
+                              defaultChecked={checked}
+                              disabled={protectedPermission}
+                              sx={{ pt: 0.2 }}
                             />
-                          ) : null}
-                          <FormControlLabel
-                            sx={{
-                              m: 0,
-                              alignItems: "flex-start",
-                              ".MuiFormControlLabel-label": { width: "100%" },
-                            }}
-                            control={
-                              <Checkbox
-                                name="permissions"
-                                value={permission.permission}
-                                defaultChecked={checked}
-                                disabled={protectedPermission}
-                                sx={{ pt: 0.2 }}
-                              />
-                            }
-                            label={
-                              <Box>
-                                <Stack
-                                  direction="row"
-                                  spacing={0.75}
-                                  sx={{
-                                    alignItems: "center",
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  <Typography sx={{ fontWeight: 900 }}>
-                                    {permission.label}
-                                  </Typography>
-                                  {protectedPermission ? (
-                                    <Chip
-                                      size="small"
-                                      label="Required"
-                                      sx={{
-                                        height: 22,
-                                        bgcolor: alpha(tokens.burgundy, 0.1),
-                                        color: tokens.burgundy,
-                                        fontWeight: 900,
-                                      }}
-                                    />
-                                  ) : null}
-                                </Stack>
-                                <Typography
-                                  variant="body2"
-                                  sx={{ color: "text.secondary" }}
-                                >
-                                  {permissionDescription(permission.permission)}
+                          }
+                          label={
+                            <Box>
+                              <Stack
+                                direction="row"
+                                spacing={0.75}
+                                sx={{ alignItems: "center", flexWrap: "wrap" }}
+                              >
+                                <Typography sx={{ fontWeight: 900 }}>
+                                  {permission.label}
                                 </Typography>
-                              </Box>
-                            }
-                          />
-                        </Box>
-                      );
-                    })}
-                  </Stack>
+                                {protectedPermission ? (
+                                  <Chip
+                                    size="small"
+                                    label="Required"
+                                    sx={{
+                                      height: 22,
+                                      bgcolor: alpha(tokens.burgundy, 0.1),
+                                      color: tokens.burgundy,
+                                      fontWeight: 900,
+                                    }}
+                                  />
+                                ) : null}
+                              </Stack>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {permissionDescription(permission.permission)}
+                              </Typography>
+                            </Box>
+                          }
+                        />
+                      </Box>
+                    );
+                  })}
+                </Stack>
 
-                  {role.role === "owner" ? (
-                    <Alert severity="info">
-                      Owner recovery permissions are locked so the platform can
-                      always manage roles and operator access.
-                    </Alert>
-                  ) : null}
+                {editRole.role === "owner" ? (
+                  <Alert severity="info">
+                    Owner recovery permissions are locked so the platform can
+                    always manage roles and operator access.
+                  </Alert>
+                ) : null}
 
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{ justifyContent: "flex-end" }}
+                >
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => setEditRoleId(null)}
+                  >
+                    Cancel
+                  </Button>
                   <Button
                     type="submit"
                     variant="contained"
                     startIcon={<AdminPanelSettingsRounded />}
-                    sx={{ alignSelf: "flex-start" }}
                   >
                     Save permissions
                   </Button>
                 </Stack>
-              </Form>
-            </Panel>
-          ))}
-        </Box>
-      )}
+              </Stack>
+            </Form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </Stack>
   );
 }
@@ -14267,8 +14791,21 @@ function AdminRail({
     }
     return null;
   };
+  const primaryNavGroups = adminNavGroups.filter(
+    (group) => group.id !== "command",
+  );
+  const commandNavGroups = adminNavGroups.filter(
+    (group) => group.id === "command",
+  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(adminNavGroups.map((group) => [group.id, true])),
+    Object.fromEntries(
+      adminNavGroups.map((group) => [
+        group.id,
+        group.id === "command"
+          ? group.items.some((item) => item.id === section)
+          : true,
+      ]),
+    ),
   );
   const toggleGroup = (groupId: string) => {
     setOpenGroups((current) => ({
@@ -14291,18 +14828,16 @@ function AdminRail({
           onClose?.();
         }}
         sx={{
-          borderRadius: 1.5,
-          minHeight: 52,
+          borderRadius: 1.25,
+          minHeight: compact ? 44 : 48,
           px: compact ? 1 : 1.4,
           justifyContent: compact ? "center" : "flex-start",
           position: "relative",
           overflow: "hidden",
-          color: tokens.white,
+          color: selected ? tokens.white : alpha(tokens.white, 0.88),
           border: "1px solid",
-          borderColor: selected ? alpha(tokens.white, 0.18) : "transparent",
-          bgcolor: selected
-            ? alpha(tokens.white, 0.13)
-            : alpha(tokens.white, 0.035),
+          borderColor: selected ? alpha(tokens.gold, 0.24) : "transparent",
+          bgcolor: selected ? alpha(tokens.white, 0.11) : "transparent",
           transition:
             "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
           "&::before": {
@@ -14313,13 +14848,13 @@ function AdminRail({
             bottom: 8,
             width: 3,
             borderRadius: 4,
-            bgcolor: selected ? tokens.warning : "transparent",
+            bgcolor: selected ? tokens.gold : "transparent",
           },
           "&.Mui-selected": {
-            bgcolor: alpha(tokens.white, 0.13),
+            bgcolor: alpha(tokens.white, 0.11),
           },
           "&.Mui-selected:hover, &:hover": {
-            bgcolor: alpha(tokens.white, 0.17),
+            bgcolor: alpha(tokens.white, 0.09),
             transform: compact ? "translateY(-1px)" : "translateX(2px)",
           },
         }}
@@ -14327,7 +14862,7 @@ function AdminRail({
         <ListItemIcon
           sx={{
             minWidth: compact ? 0 : 38,
-            color: selected ? tokens.white : alpha(tokens.white, 0.62),
+            color: selected ? tokens.gold : alpha(tokens.white, 0.58),
             justifyContent: "center",
           }}
         >
@@ -14397,6 +14932,150 @@ function AdminRail({
       </Tooltip>
     ) : (
       button
+    );
+  };
+
+  const renderNavGroup = (
+    group: AdminNavGroup,
+    compact: boolean,
+    onClose?: () => void,
+    placement: "main" | "bottom" = "main",
+  ) => {
+    const activeGroup = group.items.some((item) => item.id === section);
+    const open = openGroups[group.id] ?? true;
+    const groupBadge = group.items.reduce((total, item) => {
+      const value = Number(navBadge(item.id) ?? 0);
+      return Number.isFinite(value) ? total + value : total;
+    }, 0);
+    const groupTone = placement === "bottom" ? tokens.gold : tokens.warning;
+
+    return (
+      <Box key={group.id}>
+        {compact ? (
+          <Tooltip title={group.label} placement="right">
+            <IconButton
+              aria-label={`${group.label} navigation group`}
+              aria-expanded={open}
+              onClick={() => toggleGroup(group.id)}
+              sx={{
+                width: "100%",
+                height: 40,
+                color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
+                border: "1px solid",
+                borderColor: activeGroup
+                  ? alpha(groupTone, 0.34)
+                  : alpha(tokens.white, 0.1),
+                bgcolor: activeGroup
+                  ? alpha(groupTone, 0.12)
+                  : alpha(tokens.white, 0.035),
+                borderRadius: 1.25,
+                "&:hover": { bgcolor: alpha(tokens.white, 0.1) },
+              }}
+            >
+              <Badge
+                color="error"
+                badgeContent={groupBadge}
+                invisible={groupBadge === 0}
+                max={99}
+                sx={{
+                  "& .MuiBadge-badge": {
+                    bgcolor: tokens.burgundy,
+                    color: tokens.white,
+                    border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                  },
+                }}
+              >
+                {group.icon}
+              </Badge>
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            type="button"
+            onClick={() => toggleGroup(group.id)}
+            startIcon={group.icon}
+            endIcon={
+              open ? <KeyboardArrowDownRounded /> : <ChevronRightRounded />
+            }
+            aria-expanded={open}
+            fullWidth
+            sx={{
+              minHeight: 36,
+              justifyContent: "flex-start",
+              color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
+              borderRadius: 1.25,
+              border: "1px solid",
+              borderColor: activeGroup ? alpha(groupTone, 0.3) : "transparent",
+              bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
+              position: "relative",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                top: 9,
+                bottom: 9,
+                width: 2,
+                borderRadius: 4,
+                bgcolor: activeGroup ? groupTone : "transparent",
+              },
+              "& .MuiButton-startIcon": {
+                color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
+              },
+              "& .MuiButton-endIcon": {
+                ml: "auto",
+                color: alpha(tokens.white, 0.56),
+              },
+              "&:hover": {
+                bgcolor: alpha(tokens.white, 0.08),
+                borderColor: alpha(tokens.white, 0.1),
+              },
+            }}
+          >
+            <Box
+              component="span"
+              sx={{
+                minWidth: 0,
+                flex: 1,
+                textAlign: "left",
+                fontSize: 12,
+                fontWeight: 950,
+                letterSpacing: 0,
+                textTransform: "uppercase",
+              }}
+            >
+              {group.label}
+            </Box>
+            {groupBadge > 0 ? (
+              <Chip
+                size="small"
+                label={groupBadge}
+                sx={{
+                  height: 20,
+                  mr: 0.5,
+                  color: tokens.white,
+                  bgcolor: alpha(tokens.burgundy, 0.72),
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.14),
+                }}
+              />
+            ) : null}
+          </Button>
+        )}
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <List
+            sx={{
+              p: 0,
+              mt: 0.6,
+              display: "grid",
+              gap: 0.55,
+            }}
+          >
+            {group.items.map((item) => (
+              <Box key={item.id}>{renderNavItem(item, compact, onClose)}</Box>
+            ))}
+          </List>
+        </Collapse>
+      </Box>
     );
   };
 
@@ -14515,7 +15194,7 @@ function AdminRail({
                     sx={{
                       fontSize: 10,
                       fontWeight: 800,
-                      letterSpacing: "0.14em",
+                      letterSpacing: 0,
                       textTransform: "uppercase",
                       color: tokens.gold,
                       whiteSpace: "nowrap",
@@ -14606,152 +15285,39 @@ function AdminRail({
         ) : null}
       </Box>
 
-      <Box sx={{ flex: 1 }}>
+      <Box sx={{ flex: 1, minHeight: 0 }}>
         <List
           sx={{
             p: 0,
             mt: compact ? 0 : 0.85,
             display: "grid",
-            gap: compact ? 0.7 : 1,
+            gap: compact ? 0.65 : 0.85,
           }}
         >
-          {adminNavGroups.map((group) => {
-            const activeGroup = group.items.some((item) => item.id === section);
-            const open = openGroups[group.id] ?? true;
-            const groupBadge = group.items.reduce((total, item) => {
-              const value = Number(navBadge(item.id) ?? 0);
-              return Number.isFinite(value) ? total + value : total;
-            }, 0);
+          {primaryNavGroups.map((group) =>
+            renderNavGroup(group, compact, onClose),
+          )}
+        </List>
+      </Box>
 
-            return (
-              <Box key={group.id}>
-                {compact ? (
-                  <Tooltip title={group.label} placement="right">
-                    <IconButton
-                      aria-label={`${group.label} navigation group`}
-                      aria-expanded={open}
-                      onClick={() => toggleGroup(group.id)}
-                      sx={{
-                        width: "100%",
-                        height: 40,
-                        color: activeGroup ? tokens.warning : tokens.white,
-                        border: "1px solid",
-                        borderColor: activeGroup
-                          ? alpha(tokens.warning, 0.28)
-                          : alpha(tokens.white, 0.1),
-                        bgcolor: activeGroup
-                          ? alpha(tokens.warning, 0.12)
-                          : alpha(tokens.white, 0.045),
-                        borderRadius: 1.5,
-                        "&:hover": { bgcolor: alpha(tokens.white, 0.14) },
-                      }}
-                    >
-                      <Badge
-                        color="error"
-                        badgeContent={groupBadge}
-                        invisible={groupBadge === 0}
-                        max={99}
-                        sx={{
-                          "& .MuiBadge-badge": {
-                            bgcolor: tokens.burgundy,
-                            color: tokens.white,
-                            border: `1px solid ${alpha(tokens.white, 0.28)}`,
-                          },
-                        }}
-                      >
-                        {group.icon}
-                      </Badge>
-                    </IconButton>
-                  </Tooltip>
-                ) : (
-                  <Button
-                    type="button"
-                    onClick={() => toggleGroup(group.id)}
-                    startIcon={group.icon}
-                    endIcon={
-                      open ? (
-                        <KeyboardArrowDownRounded />
-                      ) : (
-                        <ChevronRightRounded />
-                      )
-                    }
-                    aria-expanded={open}
-                    fullWidth
-                    sx={{
-                      minHeight: 38,
-                      justifyContent: "flex-start",
-                      color: tokens.white,
-                      border: "1px solid",
-                      borderColor: activeGroup
-                        ? alpha(tokens.warning, 0.28)
-                        : alpha(tokens.white, 0.1),
-                      bgcolor: activeGroup
-                        ? alpha(tokens.warning, 0.12)
-                        : alpha(tokens.white, 0.055),
-                      "& .MuiButton-startIcon": {
-                        color: activeGroup
-                          ? tokens.warning
-                          : alpha(tokens.white, 0.68),
-                      },
-                      "& .MuiButton-endIcon": {
-                        ml: "auto",
-                        color: alpha(tokens.white, 0.62),
-                      },
-                      "&:hover": {
-                        bgcolor: alpha(tokens.white, 0.13),
-                        borderColor: alpha(tokens.white, 0.18),
-                      },
-                    }}
-                  >
-                    <Box
-                      component="span"
-                      sx={{
-                        minWidth: 0,
-                        flex: 1,
-                        textAlign: "left",
-                        fontSize: 12,
-                        fontWeight: 950,
-                        letterSpacing: 0,
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {group.label}
-                    </Box>
-                    {groupBadge > 0 ? (
-                      <Chip
-                        size="small"
-                        label={groupBadge}
-                        sx={{
-                          height: 20,
-                          mr: 0.5,
-                          color: tokens.white,
-                          bgcolor: alpha(tokens.burgundy, 0.72),
-                          border: "1px solid",
-                          borderColor: alpha(tokens.white, 0.14),
-                        }}
-                      />
-                    ) : null}
-                  </Button>
-                )}
-                <Collapse in={open} timeout="auto" unmountOnExit>
-                  <List
-                    sx={{
-                      p: 0,
-                      mt: 0.65,
-                      display: "grid",
-                      gap: 0.65,
-                    }}
-                  >
-                    {group.items.map((item) => (
-                      <Box key={item.id}>
-                        {renderNavItem(item, compact, onClose)}
-                      </Box>
-                    ))}
-                  </List>
-                </Collapse>
-              </Box>
-            );
-          })}
+      <Box
+        sx={{
+          mt: "auto",
+          pt: compact ? 0.85 : 1.1,
+          borderTop: "1px solid",
+          borderColor: alpha(tokens.white, 0.1),
+        }}
+      >
+        <List
+          sx={{
+            p: 0,
+            display: "grid",
+            gap: compact ? 0.65 : 0.85,
+          }}
+        >
+          {commandNavGroups.map((group) =>
+            renderNavGroup(group, compact, onClose, "bottom"),
+          )}
         </List>
       </Box>
 
@@ -14807,11 +15373,10 @@ function AdminRail({
     scrollbarWidth: "none",
     "&::-webkit-scrollbar": { display: "none" },
     backgroundImage: `
-      linear-gradient(${alpha(tokens.white, 0.055)} 1px, transparent 1px),
-      linear-gradient(90deg, ${alpha(tokens.white, 0.055)} 1px, transparent 1px),
-      linear-gradient(160deg, ${alpha(tokens.burgundy, 0.42)}, transparent 46%)
+      linear-gradient(180deg, ${alpha(tokens.white, 0.06)} 0%, transparent 22%),
+      linear-gradient(155deg, ${alpha(tokens.burgundy, 0.66)} 0%, ${tokens.charcoal} 48%, ${alpha(tokens.ink, 0.98)} 100%)
     `,
-    backgroundSize: "34px 34px, 34px 34px, auto",
+    boxShadow: `inset -1px 0 0 ${alpha(tokens.white, 0.08)}`,
   };
 
   return (
@@ -15025,7 +15590,7 @@ function AdminTopBar({
               </Badge>
             </IconButton>
           </Tooltip>
-          <Tooltip title={darkChrome ? "Use light chrome" : "Use dark chrome"}>
+          <Tooltip title={darkChrome ? "Use light theme" : "Use dark theme"}>
             <IconButton
               aria-label="Toggle theme"
               onClick={onToggleDarkChrome}
@@ -15241,7 +15806,7 @@ export default function AdminDashboard({
   const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
-  const [darkChrome, setDarkChrome] = useState(false);
+  const { isDark: darkChrome, toggleMode } = useThemeMode();
 
   const pendingCount = verificationCases.filter(
     (item) => item.status === "pending" || item.status === "unverified",
@@ -15463,7 +16028,7 @@ export default function AdminDashboard({
           notificationCount={notificationCount}
           onOpenMobileNav={() => setMobileNavOpen(true)}
           onToggleCollapsed={() => setRailCollapsed((value) => !value)}
-          onToggleDarkChrome={() => setDarkChrome((value) => !value)}
+          onToggleDarkChrome={toggleMode}
           onSelect={setSection}
         />
 

@@ -79,20 +79,22 @@ function reactRouterCriticalCssFallback(): Plugin {
   return {
     name: "xtiitch-react-router-critical-css-fallback",
     configureServer(server) {
-      server.middlewares.use((
-        request: IncomingMessage,
-        response: ServerResponse,
-        next: () => void,
-      ) => {
-        if (request.url?.startsWith("/@react-router/critical.css")) {
-          response.statusCode = 200;
-          response.setHeader("Content-Type", "text/css");
-          response.end("");
-          return;
-        }
+      server.middlewares.use(
+        (
+          request: IncomingMessage,
+          response: ServerResponse,
+          next: () => void,
+        ) => {
+          if (request.url?.startsWith("/@react-router/critical.css")) {
+            response.statusCode = 200;
+            response.setHeader("Content-Type", "text/css");
+            response.end("");
+            return;
+          }
 
-        next();
-      });
+          next();
+        },
+      );
     },
   };
 }
@@ -133,6 +135,7 @@ export default defineConfig({
       "@emotion/styled",
       "@emotion/cache",
       "@emotion/server",
+      "@xtiitch/design-tokens",
       "react-transition-group",
     ],
   },

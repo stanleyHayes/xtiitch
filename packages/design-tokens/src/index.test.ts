@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   xtiitchColors,
+  xtiitchFonts,
   xtiitchRadii,
   xtiitchSpacing,
+  xtiitchThemeColors,
   xtiitchTypography,
+  getXtiitchThemeColors,
 } from "./index";
 
 test("brand colors expose the shared Xtiitch palette", () => {
@@ -16,6 +19,20 @@ test("brand colors expose the shared Xtiitch palette", () => {
   // Order-status colours (reserved for in-product status, never decoration).
   assert.equal(xtiitchColors.statusReady, "#1e8e4e");
   assert.equal(xtiitchColors.success, "#1e8e4e");
+});
+
+test("web theme modes expose semantic light and dark surfaces", () => {
+  assert.equal(xtiitchThemeColors.light.background, "#faf6f2");
+  assert.equal(xtiitchThemeColors.light.surface, "#ffffff");
+  assert.equal(xtiitchThemeColors.dark.mode, "dark");
+  assert.equal(xtiitchThemeColors.dark.background, "#120d14");
+  assert.equal(getXtiitchThemeColors("dark").text, "#fff7f2");
+});
+
+test("web typography uses the single Inter Tight brand typeface", () => {
+  assert.match(xtiitchFonts.display, /Inter Tight/);
+  assert.match(xtiitchFonts.body, /Inter Tight/);
+  assert.match(xtiitchFonts.googleFontsHref, /Inter\+Tight/);
 });
 
 test("layout tokens keep the web and mobile apps on the same scale", () => {

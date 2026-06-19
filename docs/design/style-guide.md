@@ -5,7 +5,7 @@ This guide is mandatory for agents designing or implementing Xtiitch UI. It turn
 ## Brand source of truth (Brand Guidelines v1.0)
 
 - **Colour:** Wine `#800020` (primary, "leads"), Deep Wine `#5C0118`, Wine Tint `#F3E1E5`, Ink `#15111A`, Cream `#FAF6F2`; neutrals Graphite `#565B63` (secondary text), Mauve `#9A7A80`, Line `#E7DED7`, Paper `#FFFFFF`. **Red `#C0392B` / Amber `#B8860B` / Green `#1E8E4E` are reserved for in-product order status — never decoration.** Tokens live in `packages/design-tokens`.
-- **Type:** **Inter Tight** is the single typeface — Display/Heading ExtraBold (800), Subhead SemiBold (600), Body Regular (400), Caption Medium (500, often UPPERCASE). (Replaces the old DM Serif Display + Instrument Sans pairing.)
+- **Type:** `DM Serif Display` is the title and heading face; `Instrument Sans` is the primary body/UI face, with `DM Sans` as the secondary sans fallback. Tokens live in `packages/design-tokens`.
 - **Logo:** the **ii-stitch mark** (two dots + two columns + a seam) — not an "X". Horizontal lockup by default; vector masters in `assets/brand/svg`. Motto: **"Fashion, in good order."**
 - **Pattern:** a quiet field of running stitches (`pattern-*.svg`), low-contrast texture only.
 
@@ -44,6 +44,8 @@ Recommended supporting tokens:
 | Info        | `#315f8f` | Neutral system information             |
 
 Do not let the app become one-note burgundy. Burgundy is the signature, not the whole painting.
+
+Dark theme uses the same semantic token names as light theme. Keep dark surfaces warm and operational rather than pure black: dark page backgrounds, slightly raised panels, muted cream text, burgundy only for priority actions and active states, and status colors reserved for status meaning.
 
 ## Typography
 

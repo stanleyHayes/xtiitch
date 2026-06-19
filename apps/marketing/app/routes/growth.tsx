@@ -238,7 +238,7 @@ function GrowthLoop() {
                 position: "absolute",
                 right: 16,
                 top: 10,
-                fontFamily: "Inter Tight, system-ui, sans-serif",
+                fontFamily: "inherit",
                 fontSize: 72,
                 lineHeight: 1,
                 color: `${accent}12`,
@@ -447,7 +447,8 @@ export default function Growth() {
                     alignItems: "flex-start",
                     p: 2,
                     border: "1px solid",
-                    borderColor: index === 0 ? "rgba(128,0,32,0.28)" : "divider",
+                    borderColor:
+                      index === 0 ? "rgba(128,0,32,0.28)" : "divider",
                     borderRadius: 1,
                     bgcolor: "rgba(255,255,255,0.84)",
                   }}
@@ -466,7 +467,9 @@ export default function Growth() {
                   >
                     <Icon fontSize="small" />
                   </Box>
-                  <Typography sx={{ color: "text.secondary" }}>{rule}</Typography>
+                  <Typography sx={{ color: "text.secondary" }}>
+                    {rule}
+                  </Typography>
                 </Box>
               );
             })}

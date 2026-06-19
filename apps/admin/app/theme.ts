@@ -1,113 +1,149 @@
 import { createTheme, type Theme } from "@mui/material/styles";
+import {
+  getXtiitchThemeColors,
+  xtiitchColors,
+  xtiitchFonts,
+  type XtiitchThemeMode,
+} from "@xtiitch/design-tokens";
 
 export const tokens = {
-  burgundy: "#800020",
-  ink: "#15111a",
-  cream: "#faf6f2",
-  white: "#ffffff",
-  softBorder: "#e7ded7",
-  mutedText: "#565b63",
-  success: "#1e8e4e",
-  warning: "#b8860b",
-  danger: "#c0392b",
-  info: "#315f8f",
-  panel: "#fffaf7",
-  charcoal: "#201923",
-  gold: "#c58b2c",
+  ...xtiitchColors,
 } as const;
 
-// Inter Tight is the single brand typeface.
-const bodyFontStack = [
-  "Inter Tight",
-  "system-ui",
-  "-apple-system",
-  "Segoe UI",
-  "Roboto",
-  "Helvetica",
-  "Arial",
-  "sans-serif",
-].join(", ");
-
-const displayFontStack = bodyFontStack;
+export type AppThemeMode = XtiitchThemeMode;
+export const fontStylesheetHref = xtiitchFonts.googleFontsHref;
 
 const controlRadius = 16;
 const buttonRadius = 999;
 
-export const theme: Theme = createTheme({
-  cssVariables: true,
-  palette: {
-    mode: "light",
-    primary: { main: tokens.burgundy, contrastText: tokens.white },
-    secondary: { main: tokens.ink, contrastText: tokens.white },
-    success: { main: tokens.success },
-    warning: { main: tokens.warning },
-    error: { main: tokens.danger },
-    info: { main: tokens.info },
-    background: { default: tokens.cream, paper: tokens.white },
-    text: { primary: tokens.ink, secondary: tokens.mutedText },
-    divider: tokens.softBorder,
-  },
-  shape: { borderRadius: 8 },
-  typography: {
-    fontFamily: bodyFontStack,
-    h1: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    h2: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    h3: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    h4: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    h5: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    h6: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
-    button: { textTransform: "none", fontWeight: 700 },
-  },
-  components: {
-    MuiButton: {
-      defaultProps: { disableElevation: true },
-      styleOverrides: { root: { borderRadius: buttonRadius, minHeight: 42 } },
+export function createAppTheme(mode: AppThemeMode = "light"): Theme {
+  const colors = getXtiitchThemeColors(mode);
+
+  return createTheme({
+    cssVariables: true,
+    palette: {
+      mode,
+      primary: {
+        main: colors.primary,
+        dark: colors.primaryDark,
+        contrastText: tokens.white,
+      },
+      secondary: { main: colors.secondary, contrastText: tokens.white },
+      success: { main: colors.success },
+      warning: { main: colors.warning },
+      error: { main: colors.danger },
+      info: { main: colors.info },
+      background: { default: colors.background, paper: colors.surface },
+      text: { primary: colors.text, secondary: colors.textMuted },
+      divider: colors.border,
     },
-    MuiTextField: {
-      defaultProps: { variant: "outlined" },
+    shape: { borderRadius: 8 },
+    typography: {
+      fontFamily: xtiitchFonts.body,
+      h1: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      h2: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      h3: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      h4: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      h5: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      h6: {
+        fontFamily: xtiitchFonts.display,
+        fontWeight: 800,
+        letterSpacing: 0,
+      },
+      button: { textTransform: "none", fontWeight: 700 },
     },
-    MuiOutlinedInput: {
-      styleOverrides: {
-        root: {
-          borderRadius: controlRadius,
-          backgroundColor: tokens.white,
-          minHeight: 46,
-          transition:
-            "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
-          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
-          "&.MuiInputBase-multiline": {
-            minHeight: "auto",
-            alignItems: "flex-start",
+    components: {
+      MuiCssBaseline: {
+        styleOverrides: {
+          html: { colorScheme: mode },
+          body: {
+            backgroundColor: colors.background,
+            color: colors.text,
+            textRendering: "optimizeLegibility",
+            WebkitFontSmoothing: "antialiased",
+            MozOsxFontSmoothing: "grayscale",
+            scrollbarColor: `${colors.primary} ${colors.scrollbarTrack}`,
           },
-          "&.Mui-focused": {
-            boxShadow: `0 0 0 3px ${tokens.burgundy}1f`,
+          "::selection": {
+            backgroundColor: colors.selectionBg,
+            color: colors.selectionText,
           },
         },
       },
-    },
-    MuiFilledInput: {
-      styleOverrides: {
-        root: {
-          borderRadius: controlRadius,
-          overflow: "hidden",
-          minHeight: 46,
-          "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+      MuiButton: {
+        defaultProps: { disableElevation: true },
+        styleOverrides: { root: { borderRadius: buttonRadius, minHeight: 42 } },
+      },
+      MuiTextField: {
+        defaultProps: { variant: "outlined" },
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: controlRadius,
+            backgroundColor: colors.field,
+            minHeight: 46,
+            transition:
+              "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+            "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+            "&.MuiInputBase-multiline": {
+              minHeight: "auto",
+              alignItems: "flex-start",
+            },
+            "&.Mui-focused": {
+              boxShadow: `0 0 0 3px ${colors.focusRing}`,
+            },
+          },
         },
       },
-    },
-    MuiAutocomplete: {
-      styleOverrides: {
-        root: {
-          "& .MuiOutlinedInput-root": { borderRadius: controlRadius },
+      MuiFilledInput: {
+        styleOverrides: {
+          root: {
+            borderRadius: controlRadius,
+            overflow: "hidden",
+            minHeight: 46,
+            "&.MuiInputBase-sizeSmall": { minHeight: 40 },
+          },
         },
       },
+      MuiAutocomplete: {
+        styleOverrides: {
+          root: {
+            "& .MuiOutlinedInput-root": { borderRadius: controlRadius },
+          },
+        },
+      },
+      MuiPaper: {
+        defaultProps: { elevation: 0 },
+        styleOverrides: {
+          root: { backgroundImage: "none", backgroundColor: colors.surface },
+        },
+      },
+      MuiChip: {
+        styleOverrides: { root: { fontWeight: 700 } },
+      },
     },
-    MuiPaper: {
-      defaultProps: { elevation: 0 },
-      styleOverrides: { root: { backgroundImage: "none" } },
-    },
-    MuiChip: {
-      styleOverrides: { root: { fontWeight: 700 } },
-    },
-  },
-});
+  });
+}
+
+export const theme: Theme = createAppTheme();

@@ -90,6 +90,7 @@ export default defineConfig({
       "@emotion/styled",
       "@emotion/cache",
       "@emotion/server",
+      "@xtiitch/design-tokens",
       "react-transition-group",
     ],
   },

@@ -28,6 +28,7 @@ import type {
   PublicShop,
   StoreSummary,
 } from "../lib/api";
+import { ThemeModeToggle } from "../theme-mode";
 import TextField from "./form-text-field";
 import { priceLabel } from "../lib/format";
 import { tokens } from "../theme";
@@ -142,8 +143,9 @@ export function StoreHeader({
         <Stack
           direction="row"
           spacing={1}
-          sx={{ display: { xs: "none", sm: "flex" } }}
+          sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center" }}
         >
+          <ThemeModeToggle sx={{ color: onBrand }} />
           <Button
             href="#designs"
             variant="contained"

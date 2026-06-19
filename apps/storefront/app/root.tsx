@@ -8,13 +8,12 @@ import {
   isRouteErrorResponse,
   type LinksFunction,
 } from "react-router";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import { theme, tokens } from "./theme";
+import { fontStylesheetHref, tokens } from "./theme";
+import { ThemeModeProvider } from "./theme-mode";
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -27,7 +26,7 @@ export const links: LinksFunction = () => [
   },
   {
     rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap",
+    href: fontStylesheetHref,
   },
 ];
 
@@ -43,10 +42,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <Links />
       </head>
       <body suppressHydrationWarning>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
-        </ThemeProvider>
+        <ThemeModeProvider>{children}</ThemeModeProvider>
         <ScrollRestoration />
         <Scripts />
       </body>

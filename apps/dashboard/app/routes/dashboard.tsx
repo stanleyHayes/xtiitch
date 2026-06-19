@@ -8,6 +8,8 @@ import {
   type ReactNode,
 } from "react";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
+import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ButtonBase from "@mui/material/ButtonBase";
@@ -22,6 +24,7 @@ import Drawer from "@mui/material/Drawer";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
+import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MuiLink from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
@@ -35,9 +38,12 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
+import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
@@ -45,6 +51,7 @@ import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRound
 import KeyboardArrowRightRounded from "@mui/icons-material/KeyboardArrowRightRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
+import LightModeRounded from "@mui/icons-material/LightModeRounded";
 import LockResetRounded from "@mui/icons-material/LockResetRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
@@ -74,6 +81,7 @@ import TextField from "../components/form-text-field";
 import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
+import { useThemeMode } from "../theme-mode";
 
 type Profile = {
   name: string;
@@ -377,6 +385,7 @@ type CloudinaryUploadResult = {
 };
 
 const dashboardRailWidth = 304;
+const dashboardRailCollapsedWidth = 88;
 
 const dashboardFallbackDesignImages = [
   "/images/dashboard-atelier-review.webp",
@@ -1722,7 +1731,9 @@ export async function action({ request }: Route.ActionArgs) {
     let images: string[] = [];
     if (file instanceof File && file.size > 0) {
       if (!file.type.startsWith("image/")) {
-        return { designError: "Upload an image file such as JPG, PNG, or WebP." };
+        return {
+          designError: "Upload an image file such as JPG, PNG, or WebP.",
+        };
       }
       if (file.size > 10 * 1024 * 1024) {
         return { designError: "Keep design images under 10 MB." };
@@ -3756,6 +3767,7 @@ function WorkspaceRail({
   section,
   storefrontURL,
   badges,
+  collapsed,
   mobileOpen,
   onCloseMobile,
 }: {
@@ -3766,6 +3778,7 @@ function WorkspaceRail({
   section: DashboardSection;
   storefrontURL: string;
   badges: Partial<Record<DashboardSection, string | undefined>>;
+  collapsed: boolean;
   mobileOpen: boolean;
   onCloseMobile: () => void;
 }) {
@@ -3773,16 +3786,28 @@ function WorkspaceRail({
     bgcolor: tokens.charcoal,
     color: tokens.white,
     backgroundImage: `
-      linear-gradient(${alpha(tokens.white, 0.05)} 1px, transparent 1px),
-      linear-gradient(90deg, ${alpha(tokens.white, 0.05)} 1px, transparent 1px),
-      linear-gradient(145deg, ${alpha(tokens.burgundy, 0.48)}, transparent 50%)
+      linear-gradient(180deg, ${alpha(tokens.white, 0.06)} 0%, transparent 22%),
+      linear-gradient(155deg, ${alpha(tokens.burgundy, 0.62)} 0%, ${tokens.charcoal} 50%, ${alpha(tokens.ink, 0.98)} 100%)
     `,
-    backgroundSize: "34px 34px, 34px 34px, auto",
+    boxShadow: `inset -1px 0 0 ${alpha(tokens.white, 0.08)}`,
     scrollbarWidth: "none",
     "&::-webkit-scrollbar": { display: "none" },
   };
+  const primaryWorkspaceGroups = workspaceGroups.filter(
+    (group) => group.id !== "command",
+  );
+  const commandWorkspaceGroups = workspaceGroups.filter(
+    (group) => group.id === "command",
+  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(workspaceGroups.map((group) => [group.id, true])),
+    Object.fromEntries(
+      workspaceGroups.map((group) => [
+        group.id,
+        group.id === "command"
+          ? group.items.some((item) => item.section === section)
+          : true,
+      ]),
+    ),
   );
   const toggleGroup = (groupId: string) => {
     setOpenGroups((current) => ({
@@ -3791,436 +3816,603 @@ function WorkspaceRail({
     }));
   };
 
-  const renderRailContent = ({ inDrawer = false }: { inDrawer?: boolean }) => (
-    <Stack
-      spacing={{ xs: 1.2, lg: 1.6 }}
-      sx={{
-        minHeight: inDrawer ? "100dvh" : "100%",
-        width: "100%",
-        p: { xs: 1.25, sm: 1.5 },
-        pb: inDrawer
-          ? "calc(16px + env(safe-area-inset-bottom))"
-          : { xs: 1.25, sm: 1.5 },
-      }}
-    >
-      <Box
+  const renderWorkspaceGroup = (
+    group: WorkspaceNavGroup,
+    inDrawer: boolean,
+    compact: boolean,
+    placement: "main" | "bottom" = "main",
+  ) => {
+    const activeGroup = group.items.some((item) => item.section === section);
+    const open = openGroups[group.id] ?? true;
+    const groupBadge = group.items.reduce((total, item) => {
+      const value = Number(badges[item.section] ?? 0);
+      return Number.isFinite(value) ? total + value : total;
+    }, 0);
+    const groupTone = placement === "bottom" ? tokens.gold : tokens.warning;
+
+    return (
+      <Box key={group.id}>
+        {compact ? (
+          <Tooltip title={group.label} placement="right">
+            <IconButton
+              aria-label={`${group.label} navigation group`}
+              aria-expanded={open}
+              onClick={() => toggleGroup(group.id)}
+              sx={{
+                width: "100%",
+                height: 40,
+                color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
+                border: "1px solid",
+                borderColor: activeGroup
+                  ? alpha(groupTone, 0.34)
+                  : alpha(tokens.white, 0.1),
+                bgcolor: activeGroup
+                  ? alpha(groupTone, 0.12)
+                  : alpha(tokens.white, 0.035),
+                borderRadius: 1.25,
+                "&:hover": { bgcolor: alpha(tokens.white, 0.1) },
+              }}
+            >
+              <Badge
+                color="error"
+                badgeContent={groupBadge}
+                invisible={groupBadge === 0}
+                max={99}
+                sx={{
+                  "& .MuiBadge-badge": {
+                    bgcolor: tokens.burgundy,
+                    color: tokens.white,
+                    border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                  },
+                }}
+              >
+                {group.icon}
+              </Badge>
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            type="button"
+            onClick={() => toggleGroup(group.id)}
+            startIcon={group.icon}
+            endIcon={
+              open ? (
+                <KeyboardArrowDownRounded />
+              ) : (
+                <KeyboardArrowRightRounded />
+              )
+            }
+            aria-expanded={open}
+            fullWidth
+            sx={{
+              minHeight: 36,
+              justifyContent: "flex-start",
+              color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
+              borderRadius: 1.25,
+              border: "1px solid",
+              borderColor: activeGroup ? alpha(groupTone, 0.3) : "transparent",
+              bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
+              position: "relative",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                left: 0,
+                top: 9,
+                bottom: 9,
+                width: 2,
+                borderRadius: 4,
+                bgcolor: activeGroup ? groupTone : "transparent",
+              },
+              "& .MuiButton-startIcon": {
+                color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
+              },
+              "& .MuiButton-endIcon": {
+                ml: "auto",
+                color: alpha(tokens.white, 0.56),
+              },
+              "&:hover": {
+                bgcolor: alpha(tokens.white, 0.08),
+                borderColor: alpha(tokens.white, 0.1),
+              },
+            }}
+          >
+            <Box
+              component="span"
+              sx={{
+                minWidth: 0,
+                flex: 1,
+                textAlign: "left",
+                fontSize: 12,
+                fontWeight: 950,
+                letterSpacing: 0,
+                textTransform: "uppercase",
+              }}
+            >
+              {group.label}
+            </Box>
+            {groupBadge > 0 ? (
+              <Chip
+                size="small"
+                label={groupBadge}
+                sx={{
+                  height: 20,
+                  mr: 0.5,
+                  color: tokens.white,
+                  bgcolor: alpha(tokens.burgundy, 0.72),
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.14),
+                }}
+              />
+            ) : null}
+          </Button>
+        )}
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <Stack spacing={0.55} sx={{ mt: 0.6, display: "grid" }}>
+            {group.items.map((item) => {
+              const active = item.section === section;
+              const badge = badges[item.section];
+              const itemButton = (
+                <Button
+                  key={item.href}
+                  component={RouterLink}
+                  to={item.href}
+                  startIcon={compact ? undefined : item.icon}
+                  aria-current={active ? "page" : undefined}
+                  onClick={inDrawer ? onCloseMobile : undefined}
+                  sx={{
+                    minHeight: compact ? 44 : 48,
+                    minWidth: 0,
+                    px: compact ? 1 : 1.4,
+                    justifyContent: compact ? "center" : "flex-start",
+                    position: "relative",
+                    overflow: "hidden",
+                    color: active ? tokens.white : alpha(tokens.white, 0.88),
+                    bgcolor: active ? alpha(tokens.white, 0.11) : "transparent",
+                    border: "1px solid",
+                    borderColor: active
+                      ? alpha(tokens.gold, 0.24)
+                      : "transparent",
+                    borderRadius: 1.25,
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      left: 0,
+                      top: 7,
+                      bottom: 7,
+                      width: 3,
+                      borderRadius: 4,
+                      bgcolor: active ? tokens.gold : "transparent",
+                    },
+                    "& .MuiButton-startIcon": {
+                      color: active ? tokens.gold : alpha(tokens.white, 0.58),
+                    },
+                    "&:hover": {
+                      bgcolor: alpha(tokens.white, 0.09),
+                      borderColor: alpha(tokens.white, 0.12),
+                      color: tokens.white,
+                      transform: compact
+                        ? "translateY(-1px)"
+                        : "translateX(2px)",
+                      "& .MuiButton-startIcon": {
+                        color: active ? tokens.gold : tokens.white,
+                      },
+                    },
+                    transition:
+                      "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
+                  }}
+                >
+                  {compact ? (
+                    <Badge
+                      color="error"
+                      badgeContent={badge ? Number(badge) : 0}
+                      invisible={!badge}
+                      max={99}
+                      sx={{
+                        "& .MuiBadge-badge": {
+                          bgcolor: tokens.burgundy,
+                          color: tokens.white,
+                          border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                        },
+                      }}
+                    >
+                      {item.icon}
+                    </Badge>
+                  ) : (
+                    <>
+                      <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
+                        <Typography
+                          component="span"
+                          sx={{
+                            display: "block",
+                            fontWeight: active ? 900 : 780,
+                            fontSize: 14,
+                            lineHeight: 1.15,
+                          }}
+                          noWrap
+                        >
+                          {item.label}
+                        </Typography>
+                        <Typography
+                          component="span"
+                          variant="caption"
+                          sx={{
+                            display: "block",
+                            color: alpha(tokens.white, 0.56),
+                            lineHeight: 1.1,
+                          }}
+                          noWrap
+                        >
+                          {item.helper}
+                        </Typography>
+                      </Box>
+                      {badge ? (
+                        <Chip
+                          size="small"
+                          label={badge}
+                          sx={{
+                            height: 22,
+                            color: tokens.white,
+                            bgcolor: alpha(tokens.burgundy, 0.72),
+                            border: "1px solid",
+                            borderColor: alpha(tokens.white, 0.14),
+                          }}
+                        />
+                      ) : null}
+                    </>
+                  )}
+                </Button>
+              );
+
+              return (
+                <Box key={item.href}>
+                  {compact ? (
+                    <Tooltip title={item.label} placement="right">
+                      {itemButton}
+                    </Tooltip>
+                  ) : (
+                    itemButton
+                  )}
+                </Box>
+              );
+            })}
+          </Stack>
+        </Collapse>
+      </Box>
+    );
+  };
+
+  const renderRailContent = ({ inDrawer = false }: { inDrawer?: boolean }) => {
+    const compact = collapsed && !inDrawer;
+
+    return (
+      <Stack
+        spacing={{ xs: 1.2, lg: 1.6 }}
         sx={{
-          position: "relative",
-          overflow: "hidden",
-          p: 1.25,
-          border: "1px solid",
-          borderColor: alpha(tokens.gold, 0.22),
-          borderRadius: 2.5,
-          color: tokens.white,
-          backgroundColor: alpha(tokens.white, 0.05),
-          backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${alpha(tokens.gold, 0.16)} 0%, transparent 44%), linear-gradient(150deg, ${alpha(tokens.burgundy, 0.5)} 0%, ${alpha(tokens.ink, 0)} 62%)`,
-          backdropFilter: "blur(14px)",
-          boxShadow: `0 18px 44px ${alpha(tokens.ink, 0.42)}, inset 0 1px 0 ${alpha(tokens.white, 0.12)}`,
-          "&::before": {
-            content: '""',
-            position: "absolute",
-            insetInline: 14,
-            top: 0,
-            height: "1px",
-            background: `linear-gradient(90deg, transparent, ${alpha(tokens.gold, 0.7)}, transparent)`,
-          },
+          minHeight: inDrawer ? "100dvh" : "100%",
+          width: "100%",
+          p: compact ? 1 : { xs: 1.25, sm: 1.5 },
+          pb: inDrawer
+            ? "calc(16px + env(safe-area-inset-bottom))"
+            : compact
+              ? 1
+              : { xs: 1.25, sm: 1.5 },
         }}
       >
-        <Stack
-          direction="row"
-          spacing={1.25}
-          sx={{ alignItems: "center", justifyContent: "space-between" }}
+        <Box
+          sx={{
+            position: "relative",
+            overflow: "hidden",
+            p: compact ? 0.75 : 1.25,
+            border: "1px solid",
+            borderColor: alpha(tokens.gold, 0.22),
+            borderRadius: 2.5,
+            color: tokens.white,
+            backgroundColor: alpha(tokens.white, 0.05),
+            backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${alpha(tokens.gold, 0.16)} 0%, transparent 44%), linear-gradient(150deg, ${alpha(tokens.burgundy, 0.5)} 0%, ${alpha(tokens.ink, 0)} 62%)`,
+            backdropFilter: "blur(14px)",
+            boxShadow: `0 18px 44px ${alpha(tokens.ink, 0.42)}, inset 0 1px 0 ${alpha(tokens.white, 0.12)}`,
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              insetInline: 14,
+              top: 0,
+              height: "1px",
+              background: `linear-gradient(90deg, transparent, ${alpha(tokens.gold, 0.7)}, transparent)`,
+            },
+          }}
         >
           <Stack
             direction="row"
             spacing={1.25}
-            sx={{ alignItems: "center", minWidth: 0 }}
+            sx={{
+              alignItems: "center",
+              justifyContent: compact ? "center" : "space-between",
+            }}
           >
-            <Box
-              sx={{
-                position: "relative",
-                width: 48,
-                height: 48,
-                borderRadius: 2,
-                display: "grid",
-                placeItems: "center",
-                flexShrink: 0,
-                color: tokens.white,
-                backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
-                border: `1px solid ${alpha(tokens.gold, 0.5)}`,
-                boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
-              }}
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", minWidth: 0 }}
             >
-              <Typography
-                component="span"
-                aria-hidden
+              <Box
                 sx={{
-                  fontFamily: '"DM Serif Display", serif',
-                  fontSize: 24,
-                  lineHeight: 1,
-                  mt: "2px",
-                }}
-              >
-                {(profile.name?.trim()?.[0] ?? "X").toUpperCase()}
-              </Typography>
-              <StorefrontRounded
-                sx={{
-                  position: "absolute",
-                  right: -6,
-                  bottom: -6,
-                  fontSize: 17,
-                  p: "2px",
-                  borderRadius: "50%",
-                  color: tokens.charcoal,
-                  bgcolor: tokens.gold,
-                  boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
-                }}
-              />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                sx={{
-                  fontFamily: '"DM Serif Display", serif',
-                  fontSize: 19,
-                  lineHeight: 1.15,
+                  position: "relative",
+                  width: compact ? 44 : 48,
+                  height: compact ? 44 : 48,
+                  borderRadius: 2,
+                  display: "grid",
+                  placeItems: "center",
+                  flexShrink: 0,
                   color: tokens.white,
+                  backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
+                  border: `1px solid ${alpha(tokens.gold, 0.5)}`,
+                  boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
                 }}
-                noWrap
-              >
-                {profile.name}
-              </Typography>
-              <Stack
-                direction="row"
-                spacing={0.75}
-                sx={{ alignItems: "center", mt: 0.25, minWidth: 0 }}
               >
                 <Typography
                   component="span"
+                  aria-hidden
                   sx={{
-                    fontSize: 10.5,
-                    fontWeight: 800,
-                    letterSpacing: "0.14em",
-                    textTransform: "uppercase",
-                    color: tokens.gold,
-                    whiteSpace: "nowrap",
+                    fontFamily: '"DM Serif Display", serif',
+                    fontSize: 24,
+                    lineHeight: 1,
+                    mt: "2px",
                   }}
                 >
-                  {profile.plan} plan
+                  {(profile.name?.trim()?.[0] ?? "X").toUpperCase()}
                 </Typography>
-                <Box
+                <StorefrontRounded
                   sx={{
-                    width: 3,
-                    height: 3,
+                    position: "absolute",
+                    right: -6,
+                    bottom: -6,
+                    fontSize: 17,
+                    p: "2px",
                     borderRadius: "50%",
-                    bgcolor: alpha(tokens.white, 0.4),
-                    flexShrink: 0,
+                    color: tokens.charcoal,
+                    bgcolor: tokens.gold,
+                    boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
                   }}
                 />
-                <Typography
-                  component="span"
-                  sx={{
-                    fontSize: 11.5,
-                    fontWeight: 700,
-                    color: alpha(tokens.white, 0.62),
-                  }}
-                  noWrap
-                >
-                  {profile.handle}
-                </Typography>
-              </Stack>
-            </Box>
-          </Stack>
-          {inDrawer ? (
-            <IconButton
-              aria-label="Close navigation"
-              onClick={onCloseMobile}
-              sx={{
-                color: tokens.white,
-                border: "1px solid",
-                borderColor: alpha(tokens.white, 0.14),
-                bgcolor: alpha(tokens.white, 0.06),
-                flexShrink: 0,
-              }}
-            >
-              <CloseRounded />
-            </IconButton>
-          ) : null}
-        </Stack>
-        <Stack
-          direction="row"
-          spacing={0.75}
-          sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}
-        >
-          <Chip
-            size="small"
-            icon={verified ? <VerifiedUserRounded /> : <WarningAmberRounded />}
-            label={verified ? "Verified" : "Needs review"}
-            sx={{
-              height: 26,
-              fontWeight: 700,
-              color: tokens.white,
-              borderRadius: 1.5,
-              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.16),
-              border: "1px solid",
-              borderColor: alpha(
-                verified ? tokens.success : tokens.warning,
-                0.5,
-              ),
-              "& .MuiChip-label": { px: 1 },
-              "& .MuiChip-icon": {
-                fontSize: 15,
-                color: verified ? tokens.success : tokens.gold,
-              },
-            }}
-          />
-          <Chip
-            size="small"
-            label={roleLabel(currentUser.role)}
-            sx={{
-              height: 26,
-              fontWeight: 700,
-              color: tokens.white,
-              borderRadius: 1.5,
-              backgroundImage: `linear-gradient(135deg, ${alpha(roleTone(currentUser.role), 0.34)}, ${alpha(roleTone(currentUser.role), 0.14)})`,
-              border: "1px solid",
-              borderColor: alpha(roleTone(currentUser.role), 0.5),
-              "& .MuiChip-label": { px: 1 },
-            }}
-          />
-        </Stack>
-      </Box>
-
-      <Box
-        sx={{
-          flex: inDrawer ? "0 0 auto" : 1,
-          minHeight: inDrawer ? "auto" : 0,
-        }}
-      >
-        <Stack spacing={0.9} sx={{ display: "grid" }}>
-          {workspaceGroups.map((group) => {
-            const activeGroup = group.items.some(
-              (item) => item.section === section,
-            );
-            const open = openGroups[group.id] ?? true;
-            const groupBadge = group.items.reduce((total, item) => {
-              const value = Number(badges[item.section] ?? 0);
-              return Number.isFinite(value) ? total + value : total;
-            }, 0);
-
-            return (
-              <Box key={group.id}>
-                <Button
-                  type="button"
-                  onClick={() => toggleGroup(group.id)}
-                  startIcon={group.icon}
-                  endIcon={
-                    open ? (
-                      <KeyboardArrowDownRounded />
-                    ) : (
-                      <KeyboardArrowRightRounded />
-                    )
-                  }
-                  aria-expanded={open}
-                  fullWidth
-                  sx={{
-                    minHeight: 38,
-                    justifyContent: "flex-start",
-                    color: tokens.white,
-                    border: "1px solid",
-                    borderColor: activeGroup
-                      ? alpha(tokens.gold, 0.28)
-                      : alpha(tokens.white, 0.1),
-                    bgcolor: activeGroup
-                      ? alpha(tokens.gold, 0.12)
-                      : alpha(tokens.white, 0.055),
-                    "& .MuiButton-startIcon": {
-                      color: activeGroup
-                        ? tokens.gold
-                        : alpha(tokens.white, 0.68),
-                    },
-                    "& .MuiButton-endIcon": {
-                      ml: "auto",
-                      color: alpha(tokens.white, 0.62),
-                    },
-                    "&:hover": {
-                      bgcolor: alpha(tokens.white, 0.13),
-                      borderColor: alpha(tokens.white, 0.18),
-                    },
-                  }}
-                >
-                  <Box
-                    component="span"
+              </Box>
+              {!compact ? (
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
                     sx={{
-                      minWidth: 0,
-                      flex: 1,
-                      textAlign: "left",
-                      fontSize: 12,
-                      fontWeight: 950,
-                      letterSpacing: 0,
-                      textTransform: "uppercase",
+                      fontFamily: '"DM Serif Display", serif',
+                      fontSize: 19,
+                      lineHeight: 1.15,
+                      color: tokens.white,
                     }}
+                    noWrap
                   >
-                    {group.label}
-                  </Box>
-                  {groupBadge > 0 ? (
-                    <Chip
-                      size="small"
-                      label={groupBadge}
+                    {profile.name}
+                  </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ alignItems: "center", mt: 0.25, minWidth: 0 }}
+                  >
+                    <Typography
+                      component="span"
                       sx={{
-                        height: 20,
-                        mr: 0.5,
-                        color: tokens.white,
-                        bgcolor: alpha(tokens.burgundy, 0.72),
-                        border: "1px solid",
-                        borderColor: alpha(tokens.white, 0.14),
+                        fontSize: 10.5,
+                        fontWeight: 800,
+                        letterSpacing: 0,
+                        textTransform: "uppercase",
+                        color: tokens.gold,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {profile.plan} plan
+                    </Typography>
+                    <Box
+                      sx={{
+                        width: 3,
+                        height: 3,
+                        borderRadius: "50%",
+                        bgcolor: alpha(tokens.white, 0.4),
+                        flexShrink: 0,
                       }}
                     />
-                  ) : null}
-                </Button>
-                <Collapse in={open} timeout="auto" unmountOnExit>
-                  <Stack spacing={0.65} sx={{ mt: 0.65, display: "grid" }}>
-                    {group.items.map((item) => {
-                      const active = item.section === section;
-                      const badge = badges[item.section];
-                      return (
-                        <Button
-                          key={item.href}
-                          component={RouterLink}
-                          to={item.href}
-                          startIcon={item.icon}
-                          aria-current={active ? "page" : undefined}
-                          onClick={inDrawer ? onCloseMobile : undefined}
-                          sx={{
-                            minHeight: 54,
-                            minWidth: 0,
-                            justifyContent: "flex-start",
-                            position: "relative",
-                            overflow: "hidden",
-                            color: tokens.white,
-                            bgcolor: active
-                              ? alpha(tokens.white, 0.13)
-                              : alpha(tokens.white, 0.035),
-                            border: "1px solid",
-                            borderColor: active
-                              ? alpha(tokens.white, 0.18)
-                              : "transparent",
-                            "&::before": {
-                              content: '""',
-                              position: "absolute",
-                              left: 0,
-                              top: 7,
-                              bottom: 7,
-                              width: 3,
-                              borderRadius: 4,
-                              bgcolor: active ? tokens.gold : "transparent",
-                            },
-                            "& .MuiButton-startIcon": {
-                              color: active
-                                ? tokens.white
-                                : alpha(tokens.white, 0.62),
-                            },
-                            "&:hover": {
-                              bgcolor: alpha(tokens.white, 0.17),
-                              borderColor: alpha(tokens.white, 0.16),
-                              color: tokens.white,
-                              transform: "translateX(2px)",
-                              "& .MuiButton-startIcon": {
-                                color: tokens.white,
-                              },
-                            },
-                            transition:
-                              "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-                          }}
-                        >
-                          <Box sx={{ minWidth: 0, flex: 1, textAlign: "left" }}>
-                            <Typography
-                              component="span"
-                              sx={{
-                                display: "block",
-                                fontWeight: active ? 900 : 780,
-                                fontSize: 14,
-                                lineHeight: 1.15,
-                              }}
-                              noWrap
-                            >
-                              {item.label}
-                            </Typography>
-                            <Typography
-                              component="span"
-                              variant="caption"
-                              sx={{
-                                display: "block",
-                                color: alpha(tokens.white, 0.56),
-                                lineHeight: 1.1,
-                              }}
-                              noWrap
-                            >
-                              {item.helper}
-                            </Typography>
-                          </Box>
-                          {badge ? (
-                            <Chip
-                              size="small"
-                              label={badge}
-                              sx={{
-                                height: 22,
-                                color: tokens.white,
-                                bgcolor: alpha(tokens.burgundy, 0.72),
-                                border: "1px solid",
-                                borderColor: alpha(tokens.white, 0.14),
-                              }}
-                            />
-                          ) : null}
-                        </Button>
-                      );
-                    })}
+                    <Typography
+                      component="span"
+                      sx={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: alpha(tokens.white, 0.62),
+                      }}
+                      noWrap
+                    >
+                      {profile.handle}
+                    </Typography>
                   </Stack>
-                </Collapse>
-              </Box>
-            );
-          })}
-        </Stack>
-      </Box>
+                </Box>
+              ) : null}
+            </Stack>
+            {inDrawer ? (
+              <IconButton
+                aria-label="Close navigation"
+                onClick={onCloseMobile}
+                sx={{
+                  color: tokens.white,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.14),
+                  bgcolor: alpha(tokens.white, 0.06),
+                  flexShrink: 0,
+                }}
+              >
+                <CloseRounded />
+              </IconButton>
+            ) : null}
+          </Stack>
+          {!compact ? (
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}
+            >
+              <Chip
+                size="small"
+                icon={
+                  verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
+                }
+                label={verified ? "Verified" : "Needs review"}
+                sx={{
+                  height: 26,
+                  fontWeight: 700,
+                  color: tokens.white,
+                  borderRadius: 1.5,
+                  bgcolor: alpha(
+                    verified ? tokens.success : tokens.warning,
+                    0.16,
+                  ),
+                  border: "1px solid",
+                  borderColor: alpha(
+                    verified ? tokens.success : tokens.warning,
+                    0.5,
+                  ),
+                  "& .MuiChip-label": { px: 1 },
+                  "& .MuiChip-icon": {
+                    fontSize: 15,
+                    color: verified ? tokens.success : tokens.gold,
+                  },
+                }}
+              />
+              <Chip
+                size="small"
+                label={roleLabel(currentUser.role)}
+                sx={{
+                  height: 26,
+                  fontWeight: 700,
+                  color: tokens.white,
+                  borderRadius: 1.5,
+                  backgroundImage: `linear-gradient(135deg, ${alpha(roleTone(currentUser.role), 0.34)}, ${alpha(roleTone(currentUser.role), 0.14)})`,
+                  border: "1px solid",
+                  borderColor: alpha(roleTone(currentUser.role), 0.5),
+                  "& .MuiChip-label": { px: 1 },
+                }}
+              />
+            </Stack>
+          ) : null}
+        </Box>
 
-      <Box sx={{ mt: "auto" }}>
-        <Button
-          component={MuiLink}
-          href={storefrontURL}
-          target="_blank"
-          rel="noreferrer"
-          variant="contained"
-          startIcon={<VisibilityRounded />}
-          fullWidth
+        <Box
           sx={{
-            bgcolor: tokens.burgundy,
-            color: tokens.white,
-            "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
+            flex: inDrawer ? "0 0 auto" : 1,
+            minHeight: inDrawer ? "auto" : 0,
           }}
         >
-          View storefront
-        </Button>
-        <Form method="post">
-          <input type="hidden" name="intent" value="logout" />
-          <Button
-            type="submit"
-            color="inherit"
-            startIcon={<LogoutRounded />}
-            fullWidth
+          <Stack spacing={0.85} sx={{ display: "grid" }}>
+            {primaryWorkspaceGroups.map((group) =>
+              renderWorkspaceGroup(group, inDrawer, compact),
+            )}
+          </Stack>
+        </Box>
+
+        {commandWorkspaceGroups.length > 0 ? (
+          <Box
             sx={{
-              mt: 1,
-              color: tokens.white,
-              border: "1px solid",
-              borderColor: alpha(tokens.white, 0.16),
-              bgcolor: alpha(tokens.white, 0.06),
-              "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+              mt: "auto",
+              pt: 1.1,
+              borderTop: "1px solid",
+              borderColor: alpha(tokens.white, 0.1),
             }}
           >
-            Log out
-          </Button>
-        </Form>
-      </Box>
-    </Stack>
-  );
+            <Stack spacing={0.85} sx={{ display: "grid" }}>
+              {commandWorkspaceGroups.map((group) =>
+                renderWorkspaceGroup(group, inDrawer, compact, "bottom"),
+              )}
+            </Stack>
+          </Box>
+        ) : null}
+
+        <Box sx={{ mt: commandWorkspaceGroups.length > 0 ? 0 : "auto" }}>
+          {compact ? (
+            <Tooltip title="View storefront" placement="right">
+              <IconButton
+                component={MuiLink}
+                href={storefrontURL}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="View storefront"
+                sx={{
+                  width: "100%",
+                  height: 48,
+                  color: tokens.white,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.16),
+                  bgcolor: alpha(tokens.burgundy, 0.72),
+                  borderRadius: 1.5,
+                  "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
+                }}
+              >
+                <VisibilityRounded />
+              </IconButton>
+            </Tooltip>
+          ) : (
+            <Button
+              component={MuiLink}
+              href={storefrontURL}
+              target="_blank"
+              rel="noreferrer"
+              variant="contained"
+              startIcon={<VisibilityRounded />}
+              fullWidth
+              sx={{
+                bgcolor: tokens.burgundy,
+                color: tokens.white,
+                "&:hover": { bgcolor: alpha(tokens.burgundy, 0.82) },
+              }}
+            >
+              View storefront
+            </Button>
+          )}
+          <Form method="post">
+            <input type="hidden" name="intent" value="logout" />
+            {compact ? (
+              <Tooltip title="Log out" placement="right">
+                <IconButton
+                  type="submit"
+                  aria-label="Log out"
+                  sx={{
+                    mt: 1,
+                    width: "100%",
+                    height: 48,
+                    color: tokens.white,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.white, 0.16),
+                    bgcolor: alpha(tokens.white, 0.06),
+                    borderRadius: 1.5,
+                    "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                  }}
+                >
+                  <LogoutRounded />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Button
+                type="submit"
+                color="inherit"
+                startIcon={<LogoutRounded />}
+                fullWidth
+                sx={{
+                  mt: 1,
+                  color: tokens.white,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.16),
+                  bgcolor: alpha(tokens.white, 0.06),
+                  "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                }}
+              >
+                Log out
+              </Button>
+            )}
+          </Form>
+        </Box>
+      </Stack>
+    );
+  };
 
   return (
     <>
@@ -4233,13 +4425,14 @@ function WorkspaceRail({
           top: { md: 16, lg: 24 },
           bottom: { md: 16, lg: 24 },
           left: { md: 16, lg: 24 },
-          width: dashboardRailWidth,
+          width: collapsed ? dashboardRailCollapsedWidth : dashboardRailWidth,
           zIndex: 18,
           overflowX: "hidden",
           overflowY: "auto",
           backdropFilter: "blur(14px)",
           borderColor: alpha(tokens.white, 0.12),
           boxShadow: `18px 0 60px ${alpha(tokens.ink, 0.18)}`,
+          transition: "width 220ms ease",
           "@media (prefers-reduced-motion: no-preference)": {
             animation: "dashboardRailSlide 520ms cubic-bezier(.2,.8,.2,1) both",
           },
@@ -4283,6 +4476,298 @@ function WorkspaceRail({
         {renderRailContent({ inDrawer: true })}
       </Drawer>
     </>
+  );
+}
+
+function WorkspaceTopBar({
+  profile,
+  currentUser,
+  meta,
+  verified,
+  collapsed,
+  darkChrome,
+  notificationCount,
+  storefrontURL,
+  onOpenMobileNav,
+  onToggleCollapsed,
+  onToggleDarkChrome,
+}: {
+  profile: Profile;
+  currentUser: CurrentUser;
+  meta: DashboardPageMeta;
+  verified: boolean;
+  collapsed: boolean;
+  darkChrome: boolean;
+  notificationCount: number;
+  storefrontURL: string;
+  onOpenMobileNav: () => void;
+  onToggleCollapsed: () => void;
+  onToggleDarkChrome: () => void;
+}) {
+  const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
+  const profileOpen = Boolean(profileAnchor);
+  const closeProfileMenu = () => setProfileAnchor(null);
+  const avatarLabel = profile.name
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return (
+    <Box
+      sx={{
+        px: { xs: 1, sm: 2, md: 4 },
+        py: { xs: 1, sm: 1.25 },
+        borderBottom: "1px solid",
+        borderColor: darkChrome
+          ? alpha(tokens.white, 0.12)
+          : alpha(tokens.ink, 0.09),
+        bgcolor: darkChrome
+          ? alpha(tokens.charcoal, 0.94)
+          : alpha(tokens.white, 0.86),
+        color: darkChrome ? tokens.white : tokens.ink,
+        backgroundImage: darkChrome
+          ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
+          : `linear-gradient(90deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.74)})`,
+        position: "sticky",
+        top: 0,
+        zIndex: 16,
+        backdropFilter: "blur(14px)",
+        maxWidth: "100%",
+      }}
+    >
+      <Stack
+        direction="row"
+        spacing={{ xs: 0.75, sm: 1.25 }}
+        sx={{
+          alignItems: "center",
+          justifyContent: "space-between",
+          minHeight: { xs: 52, sm: 58 },
+          minWidth: 0,
+        }}
+      >
+        <Stack
+          direction="row"
+          spacing={{ xs: 0.75, sm: 1 }}
+          sx={{ alignItems: "center", minWidth: 0, flex: "1 1 auto" }}
+        >
+          <Tooltip title="Open navigation">
+            <IconButton
+              aria-label="Open navigation"
+              onClick={onOpenMobileNav}
+              sx={{
+                display: { xs: "inline-flex", md: "none" },
+                width: { xs: 40, sm: 44 },
+                height: { xs: 40, sm: 44 },
+                color: "inherit",
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+              }}
+            >
+              <MenuRounded />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
+            <IconButton
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              onClick={onToggleCollapsed}
+              sx={{
+                display: { xs: "none", md: "inline-flex" },
+                color: "inherit",
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+              }}
+            >
+              {collapsed ? <ChevronRightRounded /> : <ChevronLeftRounded />}
+            </IconButton>
+          </Tooltip>
+          <Box sx={{ minWidth: 0, flex: "1 1 auto" }}>
+            <Typography
+              variant="overline"
+              sx={{
+                color: darkChrome ? alpha(tokens.white, 0.68) : "primary.main",
+                fontWeight: 900,
+                display: { xs: "none", sm: "block" },
+              }}
+            >
+              {profile.handle}.xtiitch.com
+            </Typography>
+            <Typography
+              variant="h5"
+              component="h1"
+              sx={{
+                lineHeight: 1.05,
+                fontSize: { xs: "1.3rem", sm: "1.55rem" },
+              }}
+              noWrap
+            >
+              {meta.title}
+            </Typography>
+          </Box>
+        </Stack>
+
+        <Stack
+          direction="row"
+          spacing={{ xs: 0.5, sm: 0.75 }}
+          sx={{ alignItems: "center", flexShrink: 0 }}
+        >
+          <Tooltip title="Messages">
+            <IconButton
+              component={RouterLink}
+              to="/dashboard/messages"
+              aria-label="Open messages"
+              sx={{
+                color: "inherit",
+                width: { xs: 40, sm: 44 },
+                height: { xs: 40, sm: 44 },
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+              }}
+            >
+              <Badge badgeContent={notificationCount} color="error" max={99}>
+                <NotificationsRounded />
+              </Badge>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title={darkChrome ? "Use light theme" : "Use dark theme"}>
+            <IconButton
+              aria-label="Toggle theme"
+              onClick={onToggleDarkChrome}
+              sx={{
+                color: "inherit",
+                width: { xs: 40, sm: 44 },
+                height: { xs: 40, sm: 44 },
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+              }}
+            >
+              {darkChrome ? <LightModeRounded /> : <DarkModeRounded />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Profile and settings">
+            <IconButton
+              aria-label="Open profile menu"
+              onClick={(event) => setProfileAnchor(event.currentTarget)}
+              sx={{
+                color: "inherit",
+                width: { xs: 40, sm: 44 },
+                height: { xs: 40, sm: 44 },
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+                p: 0.45,
+              }}
+            >
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: darkChrome
+                    ? alpha(tokens.white, 0.14)
+                    : alpha(tokens.burgundy, 0.12),
+                  color: darkChrome ? tokens.white : tokens.burgundy,
+                  fontWeight: 900,
+                  fontSize: 14,
+                }}
+              >
+                {avatarLabel || "X"}
+              </Avatar>
+            </IconButton>
+          </Tooltip>
+          <Menu
+            anchorEl={profileAnchor}
+            open={profileOpen}
+            onClose={closeProfileMenu}
+            anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+            transformOrigin={{ vertical: "top", horizontal: "right" }}
+            slotProps={{
+              paper: {
+                sx: {
+                  mt: 1,
+                  minWidth: { xs: "calc(100vw - 32px)", sm: 250 },
+                  maxWidth: "calc(100vw - 32px)",
+                  borderRadius: 2,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.ink, 0.1),
+                  boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.16)}`,
+                },
+              },
+            }}
+          >
+            <Box sx={{ px: 2, py: 1.4 }}>
+              <Typography sx={{ fontWeight: 900 }} noWrap>
+                {profile.name}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary" }}
+                noWrap
+              >
+                {roleLabel(currentUser.role)} ·{" "}
+                {verified ? "Verified store" : "Verification needed"}
+              </Typography>
+            </Box>
+            <Divider />
+            <MenuItem
+              component={RouterLink}
+              to="/dashboard/settings"
+              onClick={closeProfileMenu}
+            >
+              <SettingsRounded sx={{ mr: 1.25 }} fontSize="small" />
+              Store settings
+            </MenuItem>
+            <MenuItem
+              component={RouterLink}
+              to="/dashboard/team"
+              onClick={closeProfileMenu}
+            >
+              <PeopleAltRounded sx={{ mr: 1.25 }} fontSize="small" />
+              Team access
+            </MenuItem>
+            <MenuItem
+              component={RouterLink}
+              to="/dashboard/messages"
+              onClick={closeProfileMenu}
+            >
+              <NotificationsRounded sx={{ mr: 1.25 }} fontSize="small" />
+              Messages
+            </MenuItem>
+            <MenuItem
+              component={MuiLink}
+              href={storefrontURL}
+              target="_blank"
+              rel="noreferrer"
+              onClick={closeProfileMenu}
+            >
+              <VisibilityRounded sx={{ mr: 1.25 }} fontSize="small" />
+              View storefront
+            </MenuItem>
+            <Divider />
+            <Form method="post">
+              <input type="hidden" name="intent" value="logout" />
+              <MenuItem
+                component="button"
+                type="submit"
+                sx={{ width: "100%", color: tokens.danger }}
+              >
+                <LogoutRounded sx={{ mr: 1.25 }} fontSize="small" />
+                Log out
+              </MenuItem>
+            </Form>
+          </Menu>
+        </Stack>
+      </Stack>
+    </Box>
   );
 }
 
@@ -5137,6 +5622,8 @@ function OrderCard({
     showMoneyDetails &&
     balanceDueMinor > 0 &&
     ["confirmed", "fulfilled"].includes(order.status);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [measurementsOpen, setMeasurementsOpen] = useState(false);
 
   return (
     <Panel
@@ -5271,71 +5758,167 @@ function OrderCard({
             }}
           >
             <Stack
-              direction={{ xs: "column", lg: "row" }}
+              direction={{ xs: "column", sm: "row" }}
               spacing={1}
-              sx={{ alignItems: { xs: "stretch", lg: "center" } }}
+              sx={{
+                alignItems: { xs: "stretch", sm: "center" },
+                justifyContent: "space-between",
+              }}
             >
-              <Form method="post" style={{ flex: 1 }}>
-                <input type="hidden" name="intent" value="set_agreed_total" />
-                <input type="hidden" name="order_id" value={order.order_id} />
-                <input type="hidden" name="return_to" value={returnTo} />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <TextField
-                    name="agreed_total_ghs"
-                    label="Agreed total"
-                    size="small"
-                    defaultValue={moneyInputValue(targetMinor)}
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
-                  <Button
-                    type="submit"
-                    variant="outlined"
-                    startIcon={<SaveRounded />}
-                    sx={{ minWidth: 112 }}
-                  >
-                    Save
-                  </Button>
-                </Stack>
-              </Form>
-              <Form method="post">
-                <input type="hidden" name="intent" value="collect_balance" />
-                <input type="hidden" name="order_id" value={order.order_id} />
-                <input type="hidden" name="return_to" value={returnTo} />
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                  <TextField
-                    name="method"
-                    label="Balance method"
-                    select
-                    size="small"
-                    defaultValue="momo"
-                    disabled={!canCollectBalance}
-                    sx={{ minWidth: { sm: 150 } }}
-                  >
-                    <MenuItem value="momo">Mobile money</MenuItem>
-                    <MenuItem value="card">Card</MenuItem>
-                  </TextField>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    disabled={!canCollectBalance}
-                    startIcon={<PaymentsRounded />}
-                    sx={{ minWidth: 150 }}
-                  >
-                    {balanceDueMinor > 0
-                      ? `Collect ${formatGHS(balanceDueMinor)}`
-                      : "Paid"}
-                  </Button>
-                </Stack>
-              </Form>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 900 }}>
+                  Payment controls
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Agreed total{" "}
+                  {targetMinor === null ? "Not set" : formatGHS(targetMinor)} ·
+                  Balance {formatGHS(balanceDueMinor)}
+                </Typography>
+              </Box>
+              <Button
+                type="button"
+                variant="outlined"
+                startIcon={<PaymentsRounded />}
+                onClick={() => setPaymentOpen(true)}
+              >
+                Manage payment
+              </Button>
             </Stack>
+            <Dialog
+              open={paymentOpen}
+              onClose={() => setPaymentOpen(false)}
+              fullWidth
+              maxWidth="sm"
+            >
+              <DialogTitle sx={{ pb: 0.5 }}>
+                <Stack
+                  direction="row"
+                  spacing={1.25}
+                  sx={{ alignItems: "center", justifyContent: "space-between" }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      component="span"
+                      sx={{ display: "block", fontWeight: 950 }}
+                    >
+                      Payment controls
+                    </Typography>
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      sx={{ display: "block", color: "text.secondary" }}
+                    >
+                      {order.design_title} · {order.customer_name || "Customer"}
+                    </Typography>
+                  </Box>
+                  <IconButton
+                    aria-label="Close"
+                    onClick={() => setPaymentOpen(false)}
+                  >
+                    <CloseRounded />
+                  </IconButton>
+                </Stack>
+              </DialogTitle>
+              <DialogContent dividers>
+                <Stack spacing={2.25}>
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="set_agreed_total"
+                    />
+                    <input
+                      type="hidden"
+                      name="order_id"
+                      value={order.order_id}
+                    />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <Stack spacing={1.25}>
+                      <Typography sx={{ fontWeight: 900 }}>
+                        Agreed total
+                      </Typography>
+                      <TextField
+                        name="agreed_total_ghs"
+                        label="Agreed total"
+                        size="small"
+                        defaultValue={moneyInputValue(targetMinor)}
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                GHS
+                              </InputAdornment>
+                            ),
+                          },
+                          htmlInput: { inputMode: "decimal" },
+                        }}
+                      />
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        sx={{ justifyContent: "flex-end" }}
+                      >
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          startIcon={<SaveRounded />}
+                        >
+                          Save total
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Form>
+                  <Divider />
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="collect_balance"
+                    />
+                    <input
+                      type="hidden"
+                      name="order_id"
+                      value={order.order_id}
+                    />
+                    <input type="hidden" name="return_to" value={returnTo} />
+                    <Stack spacing={1.25}>
+                      <Typography sx={{ fontWeight: 900 }}>
+                        Collect balance
+                      </Typography>
+                      <TextField
+                        name="method"
+                        label="Balance method"
+                        select
+                        size="small"
+                        defaultValue="momo"
+                        disabled={!canCollectBalance}
+                        fullWidth
+                      >
+                        <MenuItem value="momo">Mobile money</MenuItem>
+                        <MenuItem value="card">Card</MenuItem>
+                      </TextField>
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                        sx={{ justifyContent: "flex-end" }}
+                      >
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          disabled={!canCollectBalance}
+                          startIcon={<PaymentsRounded />}
+                        >
+                          {balanceDueMinor > 0
+                            ? `Collect ${formatGHS(balanceDueMinor)}`
+                            : "Paid"}
+                        </Button>
+                      </Stack>
+                    </Stack>
+                  </Form>
+                </Stack>
+              </DialogContent>
+            </Dialog>
           </Box>
         ) : null}
 
@@ -5380,76 +5963,143 @@ function OrderCard({
                 {orderRouteLabel(order).toLowerCase()} order.
               </Alert>
             ) : (
-              <Form method="post">
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="record_measurements"
-                />
-                <input type="hidden" name="order_id" value={order.order_id} />
-                <input
-                  type="hidden"
-                  name="source"
-                  value={measurementSource ?? ""}
-                />
-                <input
-                  type="hidden"
-                  name="return_to"
-                  value={`/dashboard/orders?orders=${order.order_type}`}
-                />
-                <Stack spacing={1.5}>
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 800 }}>
-                      {measurementSource === "visit"
-                        ? "Visit measurements"
-                        : "Shop measurements"}
-                    </Typography>
-                    <ToneChip
-                      label={
-                        measurementSource === "visit"
-                          ? "Home visit"
-                          : "Come to shop"
-                      }
-                      tone={tokens.info}
-                    />
-                  </Stack>
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gap: 1.25,
-                      gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                      },
-                    }}
-                  >
-                    {measurementFields.map((field) => (
-                      <TextField
-                        key={field.field_id}
-                        name={`measurement_${field.field_id}`}
-                        label={`${field.label} (${field.unit})`}
-                        size="small"
-                        slotProps={{ htmlInput: { inputMode: "decimal" } }}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{
+                  alignItems: { xs: "stretch", sm: "center" },
+                  justifyContent: "space-between",
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800 }}>
+                    {measurementSource === "visit"
+                      ? "Visit measurements"
+                      : "Shop measurements"}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {measurementFields.length} configured fields
+                  </Typography>
+                </Box>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  startIcon={<StraightenRounded />}
+                  onClick={() => setMeasurementsOpen(true)}
+                >
+                  Record measurements
+                </Button>
+                <Dialog
+                  open={measurementsOpen}
+                  onClose={() => setMeasurementsOpen(false)}
+                  fullWidth
+                  maxWidth="sm"
+                >
+                  <DialogTitle sx={{ pb: 0.5 }}>
+                    <Stack
+                      direction="row"
+                      spacing={1.25}
+                      sx={{
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography
+                          component="span"
+                          sx={{ display: "block", fontWeight: 950 }}
+                        >
+                          {measurementSource === "visit"
+                            ? "Visit measurements"
+                            : "Shop measurements"}
+                        </Typography>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          sx={{ display: "block", color: "text.secondary" }}
+                        >
+                          {order.design_title} ·{" "}
+                          {order.customer_name || "Customer"}
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        aria-label="Close"
+                        onClick={() => setMeasurementsOpen(false)}
+                      >
+                        <CloseRounded />
+                      </IconButton>
+                    </Stack>
+                  </DialogTitle>
+                  <DialogContent dividers>
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="record_measurements"
                       />
-                    ))}
-                  </Box>
-                  <Button
-                    type="submit"
-                    variant="outlined"
-                    startIcon={<SaveRounded />}
-                    sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
-                  >
-                    Save measurements
-                  </Button>
-                </Stack>
-              </Form>
+                      <input
+                        type="hidden"
+                        name="order_id"
+                        value={order.order_id}
+                      />
+                      <input
+                        type="hidden"
+                        name="source"
+                        value={measurementSource ?? ""}
+                      />
+                      <input
+                        type="hidden"
+                        name="return_to"
+                        value={`/dashboard/orders?orders=${order.order_type}`}
+                      />
+                      <Stack spacing={2}>
+                        <Box
+                          sx={{
+                            display: "grid",
+                            gap: 1.25,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              sm: "repeat(2, minmax(0, 1fr))",
+                            },
+                          }}
+                        >
+                          {measurementFields.map((field) => (
+                            <TextField
+                              key={field.field_id}
+                              name={`measurement_${field.field_id}`}
+                              label={`${field.label} (${field.unit})`}
+                              size="small"
+                              slotProps={{
+                                htmlInput: { inputMode: "decimal" },
+                              }}
+                            />
+                          ))}
+                        </Box>
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          sx={{ justifyContent: "flex-end" }}
+                        >
+                          <Button
+                            type="button"
+                            variant="outlined"
+                            onClick={() => setMeasurementsOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            variant="contained"
+                            startIcon={<SaveRounded />}
+                          >
+                            Save measurements
+                          </Button>
+                        </Stack>
+                      </Stack>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+              </Stack>
             )}
           </Box>
         ) : null}
@@ -5663,21 +6313,16 @@ function DesignRow({
       : design.prices.length === 1
         ? formatGHS(lowestPriceMinor)
         : `From ${formatGHS(lowestPriceMinor)}`;
+  const [editOpen, setEditOpen] = useState(defaultOpen);
   return (
     <Box
-      component="details"
-      open={defaultOpen}
       sx={{
         borderTop: "1px solid",
         borderColor: "divider",
         bgcolor: alpha(tokens.white, 0.42),
-        "&[open]": {
-          bgcolor: alpha(tokens.panel, 0.78),
-        },
       }}
     >
       <Box
-        component="summary"
         sx={{
           display: "grid",
           gap: 1.5,
@@ -5688,9 +6333,6 @@ function DesignRow({
           alignItems: "center",
           py: 1.5,
           px: { xs: 2, md: 2.5 },
-          cursor: "pointer",
-          listStyle: "none",
-          "&::-webkit-details-marker": { display: "none" },
           "&:hover": { bgcolor: alpha(tokens.burgundy, 0.035) },
         }}
       >
@@ -5745,194 +6387,249 @@ function DesignRow({
           </Stack>
         </Box>
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1}
           sx={{
-            display: { xs: "none", sm: "flex" },
+            gridColumn: { xs: "1 / -1", sm: "auto" },
             alignItems: "center",
             justifyContent: "flex-end",
           }}
         >
-          <Typography
-            variant="caption"
-            sx={{ color: "text.secondary", fontWeight: 900 }}
+          <Button
+            type="button"
+            variant="outlined"
+            size="small"
+            endIcon={<ArrowForwardRounded fontSize="small" />}
+            onClick={() => setEditOpen(true)}
           >
-            Edit
-          </Typography>
-          <ArrowForwardRounded fontSize="small" />
+            Edit design
+          </Button>
         </Stack>
       </Box>
 
-      <Box
-        sx={{
-          px: { xs: 2, md: 2.5 },
-          pb: { xs: 2, md: 2.5 },
-          borderTop: "1px solid",
-          borderColor: "divider",
-        }}
+      <Dialog
+        open={editOpen}
+        onClose={() => setEditOpen(false)}
+        fullWidth
+        maxWidth="md"
       >
-        <Form method="post">
-          <input type="hidden" name="intent" value="update_design" />
-          <input type="hidden" name="design_id" value={design.design_id} />
-          <Box
-            sx={{
-              pt: 2,
-              display: "grid",
-              gap: 1.25,
-              gridTemplateColumns: {
-                xs: "1fr",
-                md: "minmax(0, 1fr) minmax(180px, 0.4fr)",
-              },
-            }}
+        <DialogTitle sx={{ pb: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
           >
-            <TextField
-              name="title"
-              label="Title"
-              defaultValue={design.title}
-              size="small"
-              required
-            />
-            <TextField
-              name="collection_id"
-              label="Collection"
-              select
-              defaultValue={design.collection_id ?? ""}
-              size="small"
-            >
-              <MenuItem value="">No collection</MenuItem>
-              {collections
-                .filter((collection) => collection.status === "active")
-                .map((collection) => (
-                  <MenuItem
-                    key={collection.collection_id}
-                    value={collection.collection_id}
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontWeight: 950 }}
+              >
+                Edit {design.title}
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                Update catalogue details, media links, ordering, and visibility.
+              </Typography>
+            </Box>
+            <IconButton aria-label="Close" onClick={() => setEditOpen(false)}>
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Form method="post">
+            <input type="hidden" name="intent" value="update_design" />
+            <input type="hidden" name="design_id" value={design.design_id} />
+            <Stack spacing={2}>
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 900 }}>
+                  Design details
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "minmax(0, 1fr) minmax(180px, 0.4fr)",
+                    },
+                  }}
+                >
+                  <TextField
+                    name="title"
+                    label="Title"
+                    defaultValue={design.title}
+                    size="small"
+                    required
+                  />
+                  <TextField
+                    name="collection_id"
+                    label="Collection"
+                    select
+                    defaultValue={design.collection_id ?? ""}
+                    size="small"
                   >
-                    {collection.name}
-                  </MenuItem>
-                ))}
-            </TextField>
-            <TextField
-              name="description"
-              label="Description"
-              defaultValue={design.description}
-              size="small"
-              multiline
-              minRows={2}
-              sx={{ gridColumn: { md: "1 / -1" } }}
-            />
-            <TextField
-              name="image_urls"
-              label="Image URLs"
-              defaultValue={design.images.join("\n")}
-              size="small"
-              multiline
-              minRows={2}
-              placeholder="https://..."
-              helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
-              sx={{ gridColumn: { md: "1 / -1" } }}
-            />
-            <TextField
-              name="sequence"
-              label="Display order"
-              type="number"
-              defaultValue={design.sequence}
-              size="small"
-              required
-              slotProps={{ htmlInput: { min: 0 } }}
-            />
-            <TextField
-              name="deposit_ghs"
-              label="Custom deposit"
-              defaultValue={moneyInputValue(design.deposit_override_minor)}
-              size="small"
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">GHS</InputAdornment>
-                  ),
-                },
-                htmlInput: { inputMode: "decimal" },
-              }}
-            />
-          </Box>
+                    <MenuItem value="">No collection</MenuItem>
+                    {collections
+                      .filter((collection) => collection.status === "active")
+                      .map((collection) => (
+                        <MenuItem
+                          key={collection.collection_id}
+                          value={collection.collection_id}
+                        >
+                          {collection.name}
+                        </MenuItem>
+                      ))}
+                  </TextField>
+                  <TextField
+                    name="description"
+                    label="Description"
+                    defaultValue={design.description}
+                    size="small"
+                    multiline
+                    minRows={2}
+                    sx={{ gridColumn: { md: "1 / -1" } }}
+                  />
+                  <TextField
+                    name="image_urls"
+                    label="Image URLs"
+                    defaultValue={design.images.join("\n")}
+                    size="small"
+                    multiline
+                    minRows={2}
+                    placeholder="https://..."
+                    helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
+                    sx={{ gridColumn: { md: "1 / -1" } }}
+                  />
+                </Box>
+              </Box>
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 900 }}>
+                  Pricing & display
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                    },
+                  }}
+                >
+                  <TextField
+                    name="sequence"
+                    label="Display order"
+                    type="number"
+                    defaultValue={design.sequence}
+                    size="small"
+                    required
+                    slotProps={{ htmlInput: { min: 0 } }}
+                  />
+                  <TextField
+                    name="deposit_ghs"
+                    label="Custom deposit"
+                    defaultValue={moneyInputValue(
+                      design.deposit_override_minor,
+                    )}
+                    size="small"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                </Box>
+              </Box>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    name="customisation"
+                    defaultChecked={design.customisation_allowed}
+                  />
+                }
+                label="Allow customisation"
+              />
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{ justifyContent: "flex-end" }}
+              >
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={() => setEditOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<SaveRounded />}
+                >
+                  Save design
+                </Button>
+              </Stack>
+            </Stack>
+          </Form>
+
+          <Divider sx={{ my: 2 }} />
           <Stack
             direction={{ xs: "column", sm: "row" }}
             spacing={1}
             sx={{
-              mt: 1.5,
               alignItems: { xs: "stretch", sm: "center" },
               justifyContent: "space-between",
             }}
           >
-            <FormControlLabel
-              control={
-                <Checkbox
-                  name="customisation"
-                  defaultChecked={design.customisation_allowed}
-                />
-              }
-              label="Allow customisation"
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<SaveRounded />}
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Retire hides the piece from customers. Remove deletes it from the
+              dashboard list.
+            </Typography>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ justifyContent: "flex-end" }}
             >
-              Save design
-            </Button>
+              <Form method="post">
+                <input type="hidden" name="id" value={design.design_id} />
+                <input
+                  type="hidden"
+                  name="intent"
+                  value={retired ? "restore" : "retire"}
+                />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="outlined"
+                  color={retired ? "primary" : "inherit"}
+                >
+                  {retired ? "Restore" : "Retire"}
+                </Button>
+              </Form>
+              <Form method="post">
+                <input type="hidden" name="id" value={design.design_id} />
+                <input type="hidden" name="intent" value="delete_design" />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  startIcon={<DeleteOutlineRounded />}
+                >
+                  Remove
+                </Button>
+              </Form>
+            </Stack>
           </Stack>
-        </Form>
-
-        <Divider sx={{ my: 1.75 }} />
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1}
-          sx={{
-            alignItems: { xs: "stretch", sm: "center" },
-            justifyContent: "space-between",
-          }}
-        >
-          <Typography variant="body2" sx={{ color: "text.secondary" }}>
-            Retire hides the piece from customers. Remove deletes it from the
-            dashboard list.
-          </Typography>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ justifyContent: "flex-end" }}
-          >
-            <Form method="post">
-              <input type="hidden" name="id" value={design.design_id} />
-              <input
-                type="hidden"
-                name="intent"
-                value={retired ? "restore" : "retire"}
-              />
-              <Button
-                type="submit"
-                size="small"
-                variant="outlined"
-                color={retired ? "primary" : "inherit"}
-              >
-                {retired ? "Restore" : "Retire"}
-              </Button>
-            </Form>
-            <Form method="post">
-              <input type="hidden" name="id" value={design.design_id} />
-              <input type="hidden" name="intent" value="delete_design" />
-              <Button
-                type="submit"
-                size="small"
-                variant="outlined"
-                color="error"
-                startIcon={<DeleteOutlineRounded />}
-              >
-                Remove
-              </Button>
-            </Form>
-          </Stack>
-        </Stack>
-      </Box>
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
@@ -6887,6 +7584,7 @@ function MoneyPanel({
   error?: string;
 }) {
   const linkableOrders = orders.filter((order) => order.status !== "cancelled");
+  const [logOpen, setLogOpen] = useState(false);
 
   return (
     <Panel id="money">
@@ -6910,10 +7608,24 @@ function MoneyPanel({
               </Typography>
             </Box>
           </Stack>
-          <ToneChip
-            label={`${takings.length} manual entries`}
-            tone={tokens.info}
-          />
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1}
+            sx={{ alignItems: { xs: "stretch", sm: "center" } }}
+          >
+            <ToneChip
+              label={`${takings.length} manual entries`}
+              tone={tokens.info}
+            />
+            <Button
+              type="button"
+              variant="contained"
+              startIcon={<AddRounded />}
+              onClick={() => setLogOpen(true)}
+            >
+              Log taking
+            </Button>
+          </Stack>
         </Stack>
 
         <Box
@@ -6954,81 +7666,131 @@ function MoneyPanel({
           />
         </Box>
 
-        <Divider sx={{ my: 2.25 }} />
-
-        <Form method="post">
-          <input type="hidden" name="intent" value="log_taking" />
-          <Stack spacing={1.5}>
-            {error ? <Alert severity="warning">{error}</Alert> : null}
-            <Box
-              sx={{
-                display: "grid",
-                gap: 1.25,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  md: "minmax(120px, 0.22fr) minmax(140px, 0.22fr) minmax(0, 0.28fr) minmax(0, 0.28fr)",
-                },
-              }}
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+        <Dialog
+          open={logOpen}
+          onClose={() => setLogOpen(false)}
+          fullWidth
+          maxWidth="sm"
+        >
+          <DialogTitle sx={{ pb: 0.5 }}>
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", justifyContent: "space-between" }}
             >
-              <TextField
-                name="amount_ghs"
-                label="Amount"
-                size="small"
-                required
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">GHS</InputAdornment>
-                    ),
-                  },
-                  htmlInput: { inputMode: "decimal" },
-                }}
-              />
-              <TextField
-                name="method"
-                label="Method"
-                select
-                defaultValue="cash"
-                size="small"
-              >
-                {manualTakingMethods.map((method) => (
-                  <MenuItem key={method.value} value={method.value}>
-                    {method.label}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                name="order_id"
-                label="Order link"
-                select
-                defaultValue=""
-                size="small"
-              >
-                <MenuItem value="">No order link</MenuItem>
-                {linkableOrders.map((order) => (
-                  <MenuItem key={order.order_id} value={order.order_id}>
-                    {order.design_title} · {order.customer_name || "Customer"}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                name="what_for"
-                label="What for"
-                size="small"
-                placeholder="Balance, walk-in, alteration"
-                required
-              />
-            </Box>
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<AddRounded />}
-              sx={{ alignSelf: { xs: "stretch", sm: "flex-start" } }}
-            >
-              Log taking
-            </Button>
-          </Stack>
-        </Form>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  component="span"
+                  sx={{ display: "block", fontWeight: 950 }}
+                >
+                  Log manual taking
+                </Typography>
+                <Typography
+                  component="span"
+                  variant="body2"
+                  sx={{ display: "block", color: "text.secondary" }}
+                >
+                  Record off-platform cash, momo, transfer, or card income.
+                </Typography>
+              </Box>
+              <IconButton aria-label="Close" onClick={() => setLogOpen(false)}>
+                <CloseRounded />
+              </IconButton>
+            </Stack>
+          </DialogTitle>
+          <DialogContent dividers>
+            <Form method="post">
+              <input type="hidden" name="intent" value="log_taking" />
+              <Stack spacing={2}>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                    },
+                  }}
+                >
+                  <TextField
+                    name="amount_ghs"
+                    label="Amount"
+                    size="small"
+                    required
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                  <TextField
+                    name="method"
+                    label="Method"
+                    select
+                    defaultValue="cash"
+                    size="small"
+                  >
+                    {manualTakingMethods.map((method) => (
+                      <MenuItem key={method.value} value={method.value}>
+                        {method.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    name="order_id"
+                    label="Order link"
+                    select
+                    defaultValue=""
+                    size="small"
+                  >
+                    <MenuItem value="">No order link</MenuItem>
+                    {linkableOrders.map((order) => (
+                      <MenuItem key={order.order_id} value={order.order_id}>
+                        {order.design_title} ·{" "}
+                        {order.customer_name || "Customer"}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    name="what_for"
+                    label="What for"
+                    size="small"
+                    placeholder="Balance, walk-in, alteration"
+                    required
+                  />
+                </Box>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{ justifyContent: "flex-end" }}
+                >
+                  <Button
+                    type="button"
+                    variant="outlined"
+                    onClick={() => setLogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    startIcon={<AddRounded />}
+                  >
+                    Log taking
+                  </Button>
+                </Stack>
+              </Stack>
+            </Form>
+          </DialogContent>
+        </Dialog>
       </Box>
 
       <Box sx={{ borderTop: "1px solid", borderColor: "divider" }}>
@@ -7088,6 +7850,7 @@ function WalkInOrderPanel({
   error?: string;
 }) {
   const activeDesigns = designs.filter((design) => design.status === "active");
+  const [createOpen, setCreateOpen] = useState(false);
   return (
     <Panel
       sx={{
@@ -7114,10 +7877,25 @@ function WalkInOrderPanel({
             </Typography>
           </Box>
         </Stack>
-        <ToneChip
-          label={`${activeDesigns.length} active designs`}
-          tone={activeDesigns.length > 0 ? tokens.success : tokens.warning}
-        />
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ alignItems: { xs: "stretch", sm: "center" } }}
+        >
+          <ToneChip
+            label={`${activeDesigns.length} active designs`}
+            tone={activeDesigns.length > 0 ? tokens.success : tokens.warning}
+          />
+          <Button
+            type="button"
+            variant="contained"
+            startIcon={<AddRounded />}
+            disabled={activeDesigns.length === 0}
+            onClick={() => setCreateOpen(true)}
+          >
+            New walk-in
+          </Button>
+        </Stack>
       </Stack>
 
       {error ? (
@@ -7126,89 +7904,161 @@ function WalkInOrderPanel({
         </Alert>
       ) : null}
 
-      <Form method="post">
-        <input type="hidden" name="intent" value="create_walk_in_order" />
-        <Box
-          sx={{
-            mt: 2,
-            display: "grid",
-            gap: 1.25,
-            gridTemplateColumns: {
-              xs: "1fr",
-              md: "minmax(0, 1.2fr) minmax(0, 0.8fr)",
-              xl: "minmax(0, 1fr) minmax(0, 0.72fr) minmax(0, 0.72fr)",
-            },
-          }}
-        >
-          <TextField
-            name="design_id"
-            label="Design"
-            select
-            size="small"
-            defaultValue={activeDesigns[0]?.design_id ?? ""}
-            disabled={activeDesigns.length === 0}
-            required
+      <Dialog
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle sx={{ pb: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
           >
-            {activeDesigns.length === 0 ? (
-              <MenuItem value="">Add an active design first</MenuItem>
-            ) : null}
-            {activeDesigns.map((design) => (
-              <MenuItem key={design.design_id} value={design.design_id}>
-                {design.title}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            name="size_band_id"
-            label="Size"
-            select
-            size="small"
-            defaultValue=""
-          >
-            <MenuItem value="">No size yet</MenuItem>
-            {sizeBands.map((band) => (
-              <MenuItem key={band.size_band_id} value={band.size_band_id}>
-                {band.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <TextField
-            name="agreed_total_ghs"
-            label="Agreed total"
-            size="small"
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">GHS</InputAdornment>
-                ),
-              },
-              htmlInput: { inputMode: "decimal" },
-            }}
-          />
-          <TextField
-            name="customer_name"
-            label="Customer name"
-            size="small"
-            required
-          />
-          <TextField name="customer_phone" label="Phone" size="small" />
-          <TextField
-            name="customer_email"
-            label="Email"
-            type="email"
-            size="small"
-          />
-        </Box>
-        <Button
-          type="submit"
-          variant="contained"
-          startIcon={<AddRounded />}
-          disabled={activeDesigns.length === 0}
-          sx={{ mt: 1.5 }}
-        >
-          Create walk-in order
-        </Button>
-      </Form>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontWeight: 950 }}
+              >
+                Create walk-in order
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                Capture the design, value, and customer details in one focused
+                flow.
+              </Typography>
+            </Box>
+            <IconButton aria-label="Close" onClick={() => setCreateOpen(false)}>
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Form method="post">
+            <input type="hidden" name="intent" value="create_walk_in_order" />
+            <Stack spacing={2}>
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 900 }}>
+                  Order details
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "repeat(3, minmax(0, 1fr))",
+                    },
+                  }}
+                >
+                  <TextField
+                    name="design_id"
+                    label="Design"
+                    select
+                    size="small"
+                    defaultValue={activeDesigns[0]?.design_id ?? ""}
+                    disabled={activeDesigns.length === 0}
+                    required
+                  >
+                    {activeDesigns.length === 0 ? (
+                      <MenuItem value="">Add an active design first</MenuItem>
+                    ) : null}
+                    {activeDesigns.map((design) => (
+                      <MenuItem key={design.design_id} value={design.design_id}>
+                        {design.title}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    name="size_band_id"
+                    label="Size"
+                    select
+                    size="small"
+                    defaultValue=""
+                  >
+                    <MenuItem value="">No size yet</MenuItem>
+                    {sizeBands.map((band) => (
+                      <MenuItem
+                        key={band.size_band_id}
+                        value={band.size_band_id}
+                      >
+                        {band.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <TextField
+                    name="agreed_total_ghs"
+                    label="Agreed total"
+                    size="small"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">GHS</InputAdornment>
+                        ),
+                      },
+                      htmlInput: { inputMode: "decimal" },
+                    }}
+                  />
+                </Box>
+              </Box>
+              <Box>
+                <Typography sx={{ mb: 1, fontWeight: 900 }}>
+                  Customer details
+                </Typography>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      md: "repeat(3, minmax(0, 1fr))",
+                    },
+                  }}
+                >
+                  <TextField
+                    name="customer_name"
+                    label="Customer name"
+                    size="small"
+                    required
+                  />
+                  <TextField name="customer_phone" label="Phone" size="small" />
+                  <TextField
+                    name="customer_email"
+                    label="Email"
+                    type="email"
+                    size="small"
+                  />
+                </Box>
+              </Box>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{ justifyContent: "flex-end" }}
+              >
+                <Button
+                  type="button"
+                  variant="outlined"
+                  onClick={() => setCreateOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<AddRounded />}
+                  disabled={activeDesigns.length === 0}
+                >
+                  Create order
+                </Button>
+              </Stack>
+            </Stack>
+          </Form>
+        </DialogContent>
+      </Dialog>
     </Panel>
   );
 }
@@ -10449,6 +11299,8 @@ export default function Dashboard({
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [railCollapsed, setRailCollapsed] = useState(false);
+  const { isDark: darkChrome, toggleMode } = useThemeMode();
   const [catalogueView, setCatalogueView] = useState<"all" | "add">("all");
   const [openDesignId, setOpenDesignId] = useState<string | null>(null);
   const openCatalogueDesign =
@@ -10718,9 +11570,15 @@ export default function Dashboard({
     <Box
       sx={{
         minHeight: "100vh",
-        bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
-        backgroundSize: "36px 36px",
+        bgcolor: darkChrome ? alpha(tokens.ink, 0.96) : "background.default",
+        backgroundImage: darkChrome
+          ? `
+            radial-gradient(circle at 100% 0%, ${alpha(tokens.burgundy, 0.2)}, transparent 30%),
+            radial-gradient(circle at 58% 12%, ${alpha(tokens.info, 0.16)}, transparent 28%),
+            linear-gradient(180deg, ${tokens.ink}, ${tokens.charcoal})
+          `
+          : `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
+        backgroundSize: darkChrome ? "auto" : "36px 36px",
         overflowX: "hidden",
         "@keyframes dashboardRailSlide": {
           from: { opacity: 0, transform: "translateX(-16px)" },
@@ -10752,8 +11610,8 @@ export default function Dashboard({
           pl: {
             xs: 1.5,
             sm: 2.5,
-            md: `calc(${dashboardRailWidth}px + 40px)`,
-            lg: `calc(${dashboardRailWidth}px + 56px)`,
+            md: `calc(${railCollapsed ? dashboardRailCollapsedWidth : dashboardRailWidth}px + 40px)`,
+            lg: `calc(${railCollapsed ? dashboardRailCollapsedWidth : dashboardRailWidth}px + 56px)`,
           },
           py: { xs: 1.5, lg: 3 },
           display: "grid",
@@ -10764,62 +11622,6 @@ export default function Dashboard({
           },
         }}
       >
-        <Box
-          sx={{
-            display: { xs: "flex", md: "none" },
-            position: "sticky",
-            top: 8,
-            zIndex: 20,
-            alignItems: "center",
-            gap: 1,
-            p: 1,
-            minWidth: 0,
-            border: "1px solid",
-            borderColor: alpha(tokens.ink, 0.1),
-            borderRadius: 2,
-            bgcolor: alpha(tokens.white, 0.92),
-            backdropFilter: "blur(14px)",
-            boxShadow: `0 18px 42px ${alpha(tokens.ink, 0.08)}`,
-          }}
-        >
-          <IconButton
-            aria-label="Open workspace navigation"
-            onClick={() => setMobileNavOpen(true)}
-            sx={{
-              color: tokens.burgundy,
-              border: "1px solid",
-              borderColor: alpha(tokens.burgundy, 0.18),
-              bgcolor: alpha(tokens.burgundy, 0.08),
-              flexShrink: 0,
-            }}
-          >
-            <MenuRounded />
-          </IconButton>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary" }}
-              noWrap
-            >
-              {profile.name}
-            </Typography>
-            <Typography sx={{ fontWeight: 950, lineHeight: 1.1 }} noWrap>
-              {pageMeta.title}
-            </Typography>
-          </Box>
-          <Chip
-            size="small"
-            icon={verified ? <VerifiedUserRounded /> : <WarningAmberRounded />}
-            label={verified ? "Verified" : "Review"}
-            sx={{
-              display: { xs: "none", sm: "inline-flex" },
-              bgcolor: alpha(verified ? tokens.success : tokens.warning, 0.12),
-              color: verified ? tokens.success : tokens.warning,
-              fontWeight: 900,
-              flexShrink: 0,
-            }}
-          />
-        </Box>
         <WorkspaceRail
           profile={profile}
           currentUser={currentUser}
@@ -10828,6 +11630,7 @@ export default function Dashboard({
           section={section}
           storefrontURL={storefrontURL}
           badges={railBadges}
+          collapsed={railCollapsed}
           mobileOpen={mobileNavOpen}
           onCloseMobile={() => setMobileNavOpen(false)}
         />
@@ -10842,756 +11645,295 @@ export default function Dashboard({
             },
           }}
         >
-          <WorkspaceHeader
-            meta={pageMeta}
-            canManage={canManage}
+          <WorkspaceTopBar
+            profile={profile}
             currentUser={currentUser}
+            meta={pageMeta}
             verified={verified}
-            moneySummary={moneySummary}
-            liveOrders={liveOrders}
-            activeBookings={activeBookings}
-            availabilityWindows={availabilityWindows}
-            pendingPayments={pendingPayments}
-            needsMeasurements={needsMeasurements}
-            openHandovers={openHandovers}
-            pendingMessages={pendingMessages}
+            collapsed={railCollapsed}
+            darkChrome={darkChrome}
+            notificationCount={pendingMessages}
+            storefrontURL={storefrontURL}
+            onOpenMobileNav={() => setMobileNavOpen(true)}
+            onToggleCollapsed={() => setRailCollapsed((value) => !value)}
+            onToggleDarkChrome={toggleMode}
           />
-
-          {action.permissionError ? (
-            <Alert severity="warning" sx={{ mb: 2.5 }}>
-              {action.permissionError}
-            </Alert>
-          ) : null}
-          {dataWarnings.length > 0 ? (
-            <Stack spacing={1} sx={{ mb: 2.5 }}>
-              {dataWarnings.slice(0, 5).map((warning) => (
-                <Alert key={warning} severity="warning">
-                  {warning}
-                </Alert>
-              ))}
-            </Stack>
-          ) : null}
-
-          {section === "overview" || section === "tasks" ? (
-            <Box
-              sx={{
-                display: "grid",
-                gap: 1.5,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  sm: "repeat(2, 1fr)",
-                  xl: "repeat(4, 1fr)",
-                },
-              }}
-            >
-              <MetricCard
-                icon={<ReceiptLongRounded />}
-                label="Live orders"
-              value={String(liveOrders.length)}
-              helper={
-                canManage
-                  ? `${pendingPayments} awaiting payment`
-                  : "Active production and fitting work"
-              }
-            />
-            {canManage ? (
-              <MetricCard
-                icon={<AccountBalanceWalletRounded />}
-                label="Net income"
-                value={formatGHS(moneySummary.net_income_minor)}
-                helper="Platform and manual takings"
-                tone={tokens.success}
-              />
-            ) : (
-              <MetricCard
-                icon={<StraightenRounded />}
-                label="Measurements"
-                value={String(needsMeasurements)}
-                helper="Visit or shop captures waiting"
-                tone={tokens.burgundy}
-              />
-            )}
-            <MetricCard
-              icon={<CalendarMonthRounded />}
-              label="Visit queue"
-              value={String(activeBookings)}
-              helper="Held or booked home visits"
-              tone={tokens.info}
-            />
-            <MetricCard
-              icon={<LocalShippingRounded />}
-              label="Open handovers"
-              value={String(openHandovers)}
-              helper={`${readyForHandover} fulfilled orders ready`}
-              tone={tokens.warning}
-            />
-            </Box>
-          ) : null}
-
-          <Box sx={{ mt: 2.5 }}>
-            {canManage && section === "reports" ? (
-              <ReportsPanel
-                revenueBuckets={revenueBuckets}
-                stageMetrics={stageMetrics}
-                followUps={followUps}
-                totalRevenueMinor={sevenDayRevenueMinor}
-                completionRate={completionRate}
-                collectionRate={collectionRate}
-              />
-            ) : null}
-            {!canManage && section === "tasks" ? (
-              <StaffTaskPanel
-                orders={orders}
-                bookings={bookings}
-                handovers={handovers}
-                followUps={followUps}
-                needsMeasurements={needsMeasurements}
-                activeBookings={activeBookings}
-                openHandovers={openHandovers}
-                readyForHandover={readyForHandover}
-                pendingMessages={pendingMessages}
-              />
-            ) : null}
-          </Box>
 
           <Box
             sx={{
-              mt: 2.5,
-              display: "grid",
-              gap: { xs: 2.5, xl: 3 },
-              gridTemplateColumns: {
-                xs: "1fr",
-                xl:
-                  canManage && section === "overview"
-                    ? "minmax(0, 1.35fr) minmax(320px, 0.65fr)"
-                    : "1fr",
-              },
-              alignItems: "start",
+              pt: { xs: 2, md: 2.5 },
+              minWidth: 0,
+              maxWidth: "100%",
+              overflowX: "hidden",
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Stack spacing={2.5}>
-                {canManage && section === "overview" ? (
-                  <ManagementOverviewPanel rooms={overviewRooms} />
-                ) : null}
+            <WorkspaceHeader
+              meta={pageMeta}
+              canManage={canManage}
+              currentUser={currentUser}
+              verified={verified}
+              moneySummary={moneySummary}
+              liveOrders={liveOrders}
+              activeBookings={activeBookings}
+              availabilityWindows={availabilityWindows}
+              pendingPayments={pendingPayments}
+              needsMeasurements={needsMeasurements}
+              openHandovers={openHandovers}
+              pendingMessages={pendingMessages}
+            />
 
-                {canManage && section === "money" ? (
-                  <MoneyPanel
-                    summary={moneySummary}
-                    takings={manualTakings}
-                    orders={orders}
-                    error={action.moneyError}
-                  />
-                ) : null}
-
-                {canManage && section === "promotions" ? (
-                  <PromotionPanel
-                    promotions={promotions}
-                    collections={collections}
-                    designs={designs}
-                    activeCount={activePromotions}
-                    redeemedMinor={promoRedeemedMinor}
-                    error={action.promotionError}
-                  />
-                ) : null}
-
-                {section === "visits" ? (
-                  <BookingQueuePanel
-                    bookings={bookings}
-                    error={action.bookingError}
-                  />
-                ) : null}
-
-                {section === "orders" ? (
-                  <Box id="orders">
-                    <SectionHeader
-                      eyebrow="Orders"
-                      title="Production board"
-                      helper={`${filteredOrders.length} of ${orders.length} orders in this view. Advance only confirmed orders; drafts wait for payment.`}
-                      action={
-                        <Stack
-                          direction="row"
-                          spacing={0.85}
-                          useFlexGap
-                          sx={{
-                            maxWidth: "100%",
-                            flexWrap: { xs: "nowrap", sm: "wrap" },
-                            overflowX: { xs: "auto", sm: "visible" },
-                            pb: { xs: 0.4, sm: 0 },
-                            scrollbarWidth: "none",
-                            "&::-webkit-scrollbar": { display: "none" },
-                          }}
-                        >
-                          {orderFilters.map((filter) => {
-                            const selected = orderFilter === filter.value;
-                            const count = countOrders(orders, filter.value);
-                            return (
-                              <Button
-                                key={filter.value}
-                                component={RouterLink}
-                                to={`/dashboard/orders?orders=${filter.value}`}
-                                disableElevation
-                                sx={{
-                                  flexShrink: 0,
-                                  px: 1.5,
-                                  py: 0.55,
-                                  minHeight: 36,
-                                  borderRadius: 999,
-                                  textTransform: "none",
-                                  fontWeight: 800,
-                                  fontSize: 13,
-                                  lineHeight: 1,
-                                  color: selected ? tokens.white : tokens.ink,
-                                  bgcolor: selected
-                                    ? tokens.burgundy
-                                    : alpha(tokens.ink, 0.045),
-                                  border: "1px solid",
-                                  borderColor: selected
-                                    ? tokens.burgundy
-                                    : alpha(tokens.ink, 0.1),
-                                  boxShadow: selected
-                                    ? `0 6px 16px ${alpha(tokens.burgundy, 0.26)}`
-                                    : "none",
-                                  transition:
-                                    "background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
-                                  "&:hover": {
-                                    bgcolor: selected
-                                      ? tokens.burgundy
-                                      : alpha(tokens.burgundy, 0.08),
-                                    borderColor: selected
-                                      ? tokens.burgundy
-                                      : alpha(tokens.burgundy, 0.3),
-                                  },
-                                }}
-                              >
-                                <Stack
-                                  direction="row"
-                                  spacing={0.75}
-                                  sx={{ alignItems: "center" }}
-                                >
-                                  <Box component="span">{filter.label}</Box>
-                                  <Box
-                                    component="span"
-                                    sx={{
-                                      minWidth: 20,
-                                      height: 20,
-                                      px: 0.5,
-                                      borderRadius: 999,
-                                      display: "grid",
-                                      placeItems: "center",
-                                      fontSize: 11,
-                                      fontWeight: 900,
-                                      color: selected
-                                        ? tokens.white
-                                        : alpha(tokens.ink, 0.55),
-                                      bgcolor: selected
-                                        ? alpha(tokens.white, 0.24)
-                                        : alpha(tokens.ink, 0.08),
-                                    }}
-                                  >
-                                    {count}
-                                  </Box>
-                                </Stack>
-                              </Button>
-                            );
-                          })}
-                        </Stack>
-                      }
-                    />
-
-                    {canManage ? (
-                      <Box sx={{ mt: 2 }}>
-                        <WalkInOrderPanel
-                          designs={designs}
-                          sizeBands={sizeBands}
-                          error={action.walkInError}
-                        />
-                      </Box>
-                    ) : null}
-
-                    <Box
-                      sx={{
-                        mt: 2,
-                        display: "grid",
-                        gap: 1.25,
-                        gridTemplateColumns: {
-                          xs: "1fr",
-                          sm: "repeat(2, minmax(0, 1fr))",
-                          xl: "repeat(4, minmax(0, 1fr))",
-                        },
-                      }}
-                    >
-                      <MiniStat
-                        icon={<ReceiptLongRounded fontSize="small" />}
-                        label="In this view"
-                        value={String(filteredOrders.length)}
-                        helper={`${orders.length} total orders`}
-                        tone={tokens.burgundy}
-                      />
-                      <MiniStat
-                        icon={<PaymentsRounded fontSize="small" />}
-                        label="Draft pay"
-                        value={String(pendingPayments)}
-                        helper="Waiting for checkout"
-                        tone={tokens.warning}
-                      />
-                      <MiniStat
-                        icon={<StraightenRounded fontSize="small" />}
-                        label="Measurements"
-                        value={String(needsMeasurements)}
-                        helper="Visit or shop captures"
-                        tone={tokens.info}
-                      />
-                      <MiniStat
-                        icon={<LocalShippingRounded fontSize="small" />}
-                        label="Ready handover"
-                        value={String(readyForHandover)}
-                        helper="Fulfilled and waiting"
-                        tone={tokens.success}
-                      />
-                    </Box>
-
-                    <Stack spacing={1.5} sx={{ mt: 2 }}>
-                      {action.orderError ? (
-                        <Alert severity="warning">{action.orderError}</Alert>
-                      ) : null}
-                      {action.measurementError ? (
-                        <Alert severity="warning">
-                          {action.measurementError}
-                        </Alert>
-                      ) : null}
-                      {filteredOrders.length === 0 ? (
-                        <EmptyState
-                          icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
-                          title="No orders in this view"
-                          helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1.75,
-                            alignItems: "stretch",
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              lg: "repeat(auto-fit, minmax(min(430px, 100%), 1fr))",
-                            },
-                          }}
-                        >
-                          {filteredOrders.map((order) => (
-                            <OrderCard
-                              key={order.order_id}
-                              order={order}
-                              returnTo={returnTo}
-                              measurementFields={measurementFields}
-                              showMoneyDetails={canManage}
-                            />
-                          ))}
-                        </Box>
-                      )}
-                    </Stack>
-                  </Box>
-                ) : null}
-
-                {section === "handovers" ? (
-                  <HandoverPanel
-                    handovers={handovers}
-                    orders={orders}
-                    error={action.handoverError}
-                  />
-                ) : null}
-
-                {canManage && section === "catalogue" ? (
-                  <Box id="catalogue">
-                    <SectionHeader
-                      eyebrow="Catalogue"
-                      title="Design studio"
-                      helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
-                    />
-                    <Stack
-                      direction="row"
-                      spacing={1}
-                      sx={{
-                        mt: 2,
-                        flexWrap: "wrap",
-                        gap: 1,
-                        alignItems: "center",
-                      }}
-                    >
-                      <Button
-                        variant={
-                          !openCatalogueDesign && catalogueView === "all"
-                            ? "contained"
-                            : "outlined"
-                        }
-                        onClick={() => {
-                          setOpenDesignId(null);
-                          setCatalogueView("all");
-                        }}
-                        startIcon={<DesignServicesRounded />}
-                      >
-                        All designs ({designs.length})
-                      </Button>
-                      <Button
-                        variant={
-                          !openCatalogueDesign && catalogueView === "add"
-                            ? "contained"
-                            : "outlined"
-                        }
-                        onClick={() => {
-                          setOpenDesignId(null);
-                          setCatalogueView("add");
-                        }}
-                        startIcon={<AddRounded />}
-                      >
-                        Add design
-                      </Button>
-                      {openCatalogueDesign ? (
-                        <ToneChip
-                          label={`Editing: ${openCatalogueDesign.title}`}
-                          tone={tokens.burgundy}
-                        />
-                      ) : null}
-                    </Stack>
-
-                    {openCatalogueDesign ? (
-                      <Box sx={{ mt: 2 }}>
-                        <Button
-                          onClick={() => setOpenDesignId(null)}
-                          startIcon={<ArrowBackRounded />}
-                          sx={{ mb: 1.5 }}
-                        >
-                          All designs
-                        </Button>
-                        <Panel>
-                          <Box sx={{ p: { xs: 2, md: 2.5 }, pb: 1 }}>
-                            <Typography
-                              sx={{
-                                fontFamily: '"DM Serif Display", serif',
-                                fontSize: 22,
-                                lineHeight: 1.15,
-                              }}
-                            >
-                              {openCatalogueDesign.title}
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              Edit details, imagery, pricing, and availability
-                              for this piece.
-                            </Typography>
-                          </Box>
-                          <DesignRow
-                            key={openCatalogueDesign.design_id}
-                            design={openCatalogueDesign}
-                            collections={collections}
-                            defaultOpen
-                          />
-                        </Panel>
-                      </Box>
-                    ) : catalogueView === "add" ? (
-                      <Box
-                        sx={{
-                          mt: 2,
-                          display: "grid",
-                          gap: 2,
-                          alignItems: "start",
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            lg: "minmax(0, 0.55fr) minmax(0, 0.45fr)",
-                          },
-                        }}
-                      >
-                        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-                          <Stack
-                            direction="row"
-                            spacing={1.25}
-                            sx={{ alignItems: "center", mb: 2 }}
-                          >
-                            <Box sx={{ color: "primary.main" }}>
-                              <ContentCutRounded />
-                            </Box>
-                            <Box>
-                              <Typography sx={{ fontWeight: 900 }}>
-                                Add a design
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
-                              >
-                                Publish a new piece to the storefront.
-                              </Typography>
-                            </Box>
-                          </Stack>
-                          <Form method="post" encType="multipart/form-data">
-                            <input type="hidden" name="intent" value="create" />
-                            <Stack spacing={1.75}>
-                              {action.designError ? (
-                                <Alert severity="error">
-                                  {action.designError}
-                                </Alert>
-                              ) : null}
-                              <TextField
-                                name="title"
-                                label="Title"
-                                required
-                                fullWidth
-                              />
-                              <TextField
-                                name="collection_id"
-                                label="Collection"
-                                select
-                                defaultValue=""
-                                fullWidth
-                              >
-                                <MenuItem value="">No collection</MenuItem>
-                                {collections
-                                  .filter(
-                                    (collection) =>
-                                      collection.status === "active",
-                                  )
-                                  .map((collection) => (
-                                    <MenuItem
-                                      key={collection.collection_id}
-                                      value={collection.collection_id}
-                                    >
-                                      {collection.name}
-                                    </MenuItem>
-                                  ))}
-                              </TextField>
-                              <TextField
-                                name="description"
-                                label="Description"
-                                fullWidth
-                                multiline
-                                minRows={3}
-                              />
-                              <Box>
-                                <Typography
-                                  variant="caption"
-                                  sx={{
-                                    color: "text.secondary",
-                                    fontWeight: 700,
-                                    display: "block",
-                                    mb: 0.5,
-                                  }}
-                                >
-                                  Design image
-                                </Typography>
-                                <ImageDropzone
-                                  name="image_file"
-                                  helper="JPG, PNG, or WebP up to 10 MB — uploaded to your gallery as the first catalogue image."
-                                />
-                              </Box>
-                              <Box
-                                sx={{
-                                  display: "grid",
-                                  gap: 1.25,
-                                  gridTemplateColumns: {
-                                    xs: "1fr",
-                                    sm: "repeat(2, 1fr)",
-                                  },
-                                }}
-                              >
-                                <TextField
-                                  name="sequence"
-                                  label="Display order"
-                                  type="number"
-                                  defaultValue={designs.length + 1}
-                                  slotProps={{ htmlInput: { min: 0 } }}
-                                />
-                                <TextField
-                                  name="deposit_ghs"
-                                  label="Custom deposit"
-                                  slotProps={{
-                                    input: {
-                                      startAdornment: (
-                                        <InputAdornment position="start">
-                                          GHS
-                                        </InputAdornment>
-                                      ),
-                                    },
-                                    htmlInput: { inputMode: "decimal" },
-                                  }}
-                                />
-                              </Box>
-                              <FormControlLabel
-                                control={<Checkbox name="customisation" />}
-                                label="Allow customisation"
-                              />
-                              <Button
-                                type="submit"
-                                variant="contained"
-                                startIcon={<AddRounded />}
-                              >
-                                Add design
-                              </Button>
-                            </Stack>
-                          </Form>
-                        </Panel>
-                        <DesignImageUploadPanel
-                          designs={designs}
-                          error={action.mediaError}
-                        />
-                      </Box>
-                    ) : (
-                      <Box sx={{ mt: 2 }}>
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1.25,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              sm: "repeat(2, minmax(0, 1fr))",
-                              xl: "repeat(4, minmax(0, 1fr))",
-                            },
-                          }}
-                        >
-                          <MiniStat
-                            icon={<StorefrontRounded fontSize="small" />}
-                            label="Active pieces"
-                            value={String(
-                              designs.filter(
-                                (design) => design.status === "active",
-                              ).length,
-                            )}
-                            helper={`${designs.length} total designs`}
-                            tone={tokens.success}
-                          />
-                          <MiniStat
-                            icon={<VisibilityRounded fontSize="small" />}
-                            label="Collections"
-                            value={String(publishedCollections)}
-                            helper={`${collections.length} total collections`}
-                            tone={tokens.info}
-                          />
-                          <MiniStat
-                            icon={<ContentCutRounded fontSize="small" />}
-                            label="Customisable"
-                            value={String(
-                              designs.filter(
-                                (design) => design.customisation_allowed,
-                              ).length,
-                            )}
-                            helper="Available for bespoke requests"
-                            tone={tokens.burgundy}
-                          />
-                          <MiniStat
-                            icon={<StraightenRounded fontSize="small" />}
-                            label="Size bands"
-                            value={String(sizeBands.length)}
-                            helper={`${cataloguePriceCount} prices set`}
-                            tone={tokens.warning}
-                          />
-                        </Box>
-                        {designs.length === 0 ? (
-                          <Panel sx={{ mt: 2, p: { xs: 2.5, md: 3 } }}>
-                            <EmptyState
-                              icon={
-                                <DesignServicesRounded sx={{ fontSize: 38 }} />
-                              }
-                              title="No designs yet"
-                              helper="Add your first design with an uploaded image so customers can browse the store."
-                            />
-                            <Box
-                              sx={{
-                                mt: 2,
-                                display: "flex",
-                                justifyContent: "center",
-                              }}
-                            >
-                              <Button
-                                variant="contained"
-                                startIcon={<AddRounded />}
-                                onClick={() => setCatalogueView("add")}
-                              >
-                                Add a design
-                              </Button>
-                            </Box>
-                          </Panel>
-                        ) : (
-                          <Box
-                            sx={{
-                              mt: 2,
-                              display: "grid",
-                              gap: 1.5,
-                              gridTemplateColumns: {
-                                xs: "1fr",
-                                sm: "repeat(2, minmax(0, 1fr))",
-                                md: "repeat(3, minmax(0, 1fr))",
-                                xl: "repeat(4, minmax(0, 1fr))",
-                              },
-                            }}
-                          >
-                            {designs.map((design) => (
-                              <DesignCard
-                                key={design.design_id}
-                                design={design}
-                                collections={collections}
-                                onOpen={() => setOpenDesignId(design.design_id)}
-                              />
-                            ))}
-                          </Box>
-                        )}
-                        <Box sx={{ mt: 2 }}>
-                          <CatalogueSetupPanel
-                            collections={collections}
-                            sizeBands={sizeBands}
-                            collectionError={action.collectionError}
-                            sizeBandError={action.sizeBandError}
-                          />
-                        </Box>
-                        <Box sx={{ mt: 2 }}>
-                          <PriceBoardPanel
-                            designs={designs}
-                            sizeBands={sizeBands}
-                            error={action.priceError}
-                          />
-                        </Box>
-                      </Box>
-                    )}
-                  </Box>
-                ) : null}
+            {action.permissionError ? (
+              <Alert severity="warning" sx={{ mb: 2.5 }}>
+                {action.permissionError}
+              </Alert>
+            ) : null}
+            {dataWarnings.length > 0 ? (
+              <Stack spacing={1} sx={{ mb: 2.5 }}>
+                {dataWarnings.slice(0, 5).map((warning) => (
+                  <Alert key={warning} severity="warning">
+                    {warning}
+                  </Alert>
+                ))}
               </Stack>
+            ) : null}
+
+            {section === "overview" || section === "tasks" ? (
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, 1fr)",
+                    xl: "repeat(4, 1fr)",
+                  },
+                }}
+              >
+                <MetricCard
+                  icon={<ReceiptLongRounded />}
+                  label="Live orders"
+                  value={String(liveOrders.length)}
+                  helper={
+                    canManage
+                      ? `${pendingPayments} awaiting payment`
+                      : "Active production and fitting work"
+                  }
+                />
+                {canManage ? (
+                  <MetricCard
+                    icon={<AccountBalanceWalletRounded />}
+                    label="Net income"
+                    value={formatGHS(moneySummary.net_income_minor)}
+                    helper="Platform and manual takings"
+                    tone={tokens.success}
+                  />
+                ) : (
+                  <MetricCard
+                    icon={<StraightenRounded />}
+                    label="Measurements"
+                    value={String(needsMeasurements)}
+                    helper="Visit or shop captures waiting"
+                    tone={tokens.burgundy}
+                  />
+                )}
+                <MetricCard
+                  icon={<CalendarMonthRounded />}
+                  label="Visit queue"
+                  value={String(activeBookings)}
+                  helper="Held or booked home visits"
+                  tone={tokens.info}
+                />
+                <MetricCard
+                  icon={<LocalShippingRounded />}
+                  label="Open handovers"
+                  value={String(openHandovers)}
+                  helper={`${readyForHandover} fulfilled orders ready`}
+                  tone={tokens.warning}
+                />
+              </Box>
+            ) : null}
+
+            <Box sx={{ mt: 2.5 }}>
+              {canManage && section === "reports" ? (
+                <ReportsPanel
+                  revenueBuckets={revenueBuckets}
+                  stageMetrics={stageMetrics}
+                  followUps={followUps}
+                  totalRevenueMinor={sevenDayRevenueMinor}
+                  completionRate={completionRate}
+                  collectionRate={collectionRate}
+                />
+              ) : null}
+              {!canManage && section === "tasks" ? (
+                <StaffTaskPanel
+                  orders={orders}
+                  bookings={bookings}
+                  handovers={handovers}
+                  followUps={followUps}
+                  needsMeasurements={needsMeasurements}
+                  activeBookings={activeBookings}
+                  openHandovers={openHandovers}
+                  readyForHandover={readyForHandover}
+                  pendingMessages={pendingMessages}
+                />
+              ) : null}
             </Box>
 
-            <Stack spacing={2.5} sx={{ minWidth: 0 }}>
-              {canManage && section === "measurements" ? (
-                <Panel id="measurements">
-                  <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                    <Stack
-                      direction="row"
-                      spacing={1.25}
-                      sx={{ alignItems: "center" }}
-                    >
-                      <Box sx={{ color: "primary.main" }}>
-                        <StraightenRounded />
-                      </Box>
-                      <Box>
-                        <Typography sx={{ fontWeight: 900 }}>
-                          Measurement setup
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          Define the fields used for self, visit, and shop
-                          measurements.
-                        </Typography>
-                      </Box>
-                    </Stack>
-                    {action.fieldError ? (
-                      <Alert severity="warning" sx={{ mt: 2 }}>
-                        {action.fieldError}
-                      </Alert>
-                    ) : null}
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="intent"
-                        value="create_measurement_field"
+            <Box
+              sx={{
+                mt: 2.5,
+                display: "grid",
+                gap: { xs: 2.5, xl: 3 },
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  xl:
+                    canManage && section === "overview"
+                      ? "minmax(0, 1.35fr) minmax(320px, 0.65fr)"
+                      : "1fr",
+                },
+                alignItems: "start",
+              }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Stack spacing={2.5}>
+                  {canManage && section === "overview" ? (
+                    <ManagementOverviewPanel rooms={overviewRooms} />
+                  ) : null}
+
+                  {canManage && section === "money" ? (
+                    <MoneyPanel
+                      summary={moneySummary}
+                      takings={manualTakings}
+                      orders={orders}
+                      error={action.moneyError}
+                    />
+                  ) : null}
+
+                  {canManage && section === "promotions" ? (
+                    <PromotionPanel
+                      promotions={promotions}
+                      collections={collections}
+                      designs={designs}
+                      activeCount={activePromotions}
+                      redeemedMinor={promoRedeemedMinor}
+                      error={action.promotionError}
+                    />
+                  ) : null}
+
+                  {section === "visits" ? (
+                    <BookingQueuePanel
+                      bookings={bookings}
+                      error={action.bookingError}
+                    />
+                  ) : null}
+
+                  {section === "orders" ? (
+                    <Box id="orders">
+                      <SectionHeader
+                        eyebrow="Orders"
+                        title="Production board"
+                        helper={`${filteredOrders.length} of ${orders.length} orders in this view. Advance only confirmed orders; drafts wait for payment.`}
+                        action={
+                          <Stack
+                            direction="row"
+                            spacing={0.85}
+                            useFlexGap
+                            sx={{
+                              maxWidth: "100%",
+                              flexWrap: { xs: "nowrap", sm: "wrap" },
+                              overflowX: { xs: "auto", sm: "visible" },
+                              pb: { xs: 0.4, sm: 0 },
+                              scrollbarWidth: "none",
+                              "&::-webkit-scrollbar": { display: "none" },
+                            }}
+                          >
+                            {orderFilters.map((filter) => {
+                              const selected = orderFilter === filter.value;
+                              const count = countOrders(orders, filter.value);
+                              return (
+                                <Button
+                                  key={filter.value}
+                                  component={RouterLink}
+                                  to={`/dashboard/orders?orders=${filter.value}`}
+                                  disableElevation
+                                  sx={{
+                                    flexShrink: 0,
+                                    px: 1.5,
+                                    py: 0.55,
+                                    minHeight: 36,
+                                    borderRadius: 999,
+                                    textTransform: "none",
+                                    fontWeight: 800,
+                                    fontSize: 13,
+                                    lineHeight: 1,
+                                    color: selected ? tokens.white : tokens.ink,
+                                    bgcolor: selected
+                                      ? tokens.burgundy
+                                      : alpha(tokens.ink, 0.045),
+                                    border: "1px solid",
+                                    borderColor: selected
+                                      ? tokens.burgundy
+                                      : alpha(tokens.ink, 0.1),
+                                    boxShadow: selected
+                                      ? `0 6px 16px ${alpha(tokens.burgundy, 0.26)}`
+                                      : "none",
+                                    transition:
+                                      "background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease",
+                                    "&:hover": {
+                                      bgcolor: selected
+                                        ? tokens.burgundy
+                                        : alpha(tokens.burgundy, 0.08),
+                                      borderColor: selected
+                                        ? tokens.burgundy
+                                        : alpha(tokens.burgundy, 0.3),
+                                    },
+                                  }}
+                                >
+                                  <Stack
+                                    direction="row"
+                                    spacing={0.75}
+                                    sx={{ alignItems: "center" }}
+                                  >
+                                    <Box component="span">{filter.label}</Box>
+                                    <Box
+                                      component="span"
+                                      sx={{
+                                        minWidth: 20,
+                                        height: 20,
+                                        px: 0.5,
+                                        borderRadius: 999,
+                                        display: "grid",
+                                        placeItems: "center",
+                                        fontSize: 11,
+                                        fontWeight: 900,
+                                        color: selected
+                                          ? tokens.white
+                                          : alpha(tokens.ink, 0.55),
+                                        bgcolor: selected
+                                          ? alpha(tokens.white, 0.24)
+                                          : alpha(tokens.ink, 0.08),
+                                      }}
+                                    >
+                                      {count}
+                                    </Box>
+                                  </Stack>
+                                </Button>
+                              );
+                            })}
+                          </Stack>
+                        }
                       />
+
+                      {canManage ? (
+                        <Box sx={{ mt: 2 }}>
+                          <WalkInOrderPanel
+                            designs={designs}
+                            sizeBands={sizeBands}
+                            error={action.walkInError}
+                          />
+                        </Box>
+                      ) : null}
+
                       <Box
                         sx={{
                           mt: 2,
@@ -11599,109 +11941,604 @@ export default function Dashboard({
                           gap: 1.25,
                           gridTemplateColumns: {
                             xs: "1fr",
-                            sm: "minmax(0, 1fr) 96px 96px",
+                            sm: "repeat(2, minmax(0, 1fr))",
+                            xl: "repeat(4, minmax(0, 1fr))",
                           },
                         }}
                       >
-                        <TextField
-                          name="label"
-                          label="Field label"
-                          placeholder="Chest"
-                          size="small"
-                          required
+                        <MiniStat
+                          icon={<ReceiptLongRounded fontSize="small" />}
+                          label="In this view"
+                          value={String(filteredOrders.length)}
+                          helper={`${orders.length} total orders`}
+                          tone={tokens.burgundy}
                         />
-                        <TextField
-                          name="unit"
-                          label="Unit"
-                          select
-                          defaultValue="in"
-                          size="small"
-                        >
-                          {fieldUnits.map((unit) => (
-                            <MenuItem key={unit.value} value={unit.value}>
-                              {unit.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          name="sequence"
-                          label="Order"
-                          type="number"
-                          defaultValue={nextFieldSequence}
-                          size="small"
-                          slotProps={{ htmlInput: { min: 0 } }}
-                          required
+                        <MiniStat
+                          icon={<PaymentsRounded fontSize="small" />}
+                          label="Draft pay"
+                          value={String(pendingPayments)}
+                          helper="Waiting for checkout"
+                          tone={tokens.warning}
+                        />
+                        <MiniStat
+                          icon={<StraightenRounded fontSize="small" />}
+                          label="Measurements"
+                          value={String(needsMeasurements)}
+                          helper="Visit or shop captures"
+                          tone={tokens.info}
+                        />
+                        <MiniStat
+                          icon={<LocalShippingRounded fontSize="small" />}
+                          label="Ready handover"
+                          value={String(readyForHandover)}
+                          helper="Fulfilled and waiting"
+                          tone={tokens.success}
                         />
                       </Box>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        startIcon={<AddRounded />}
-                        sx={{ mt: 1.5 }}
-                      >
-                        Add field
-                      </Button>
-                    </Form>
-                  </Box>
 
-                  {measurementFields.length === 0 ? (
-                    <Box sx={{ px: 2.5, pb: 2.5 }}>
-                      <EmptyState
-                        icon={<StraightenRounded sx={{ fontSize: 38 }} />}
-                        title="No measurement fields yet"
-                        helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
-                      />
+                      <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        {action.orderError ? (
+                          <Alert severity="warning">{action.orderError}</Alert>
+                        ) : null}
+                        {action.measurementError ? (
+                          <Alert severity="warning">
+                            {action.measurementError}
+                          </Alert>
+                        ) : null}
+                        {filteredOrders.length === 0 ? (
+                          <EmptyState
+                            icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
+                            title="No orders in this view"
+                            helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 1.75,
+                              alignItems: "stretch",
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                lg: "repeat(auto-fit, minmax(min(430px, 100%), 1fr))",
+                              },
+                            }}
+                          >
+                            {filteredOrders.map((order) => (
+                              <OrderCard
+                                key={order.order_id}
+                                order={order}
+                                returnTo={returnTo}
+                                measurementFields={measurementFields}
+                                showMoneyDetails={canManage}
+                              />
+                            ))}
+                          </Box>
+                        )}
+                      </Stack>
                     </Box>
-                  ) : (
-                    measurementFields.map((field) => (
-                      <MeasurementFieldRow key={field.field_id} field={field} />
-                    ))
-                  )}
-                </Panel>
-              ) : null}
+                  ) : null}
 
-              {canManage && section === "availability" ? (
-                <AvailabilityPanel
-                  windows={availabilityWindows}
-                  error={action.availabilityError}
-                />
-              ) : null}
+                  {section === "handovers" ? (
+                    <HandoverPanel
+                      handovers={handovers}
+                      orders={orders}
+                      error={action.handoverError}
+                    />
+                  ) : null}
 
-              {canManage && section === "settings" ? (
-                <StoreSettingsPanel
-                  settings={storeSettings}
-                  profile={profile}
-                  error={action.settingsError}
-                />
-              ) : null}
+                  {canManage && section === "catalogue" ? (
+                    <Box id="catalogue">
+                      <SectionHeader
+                        eyebrow="Catalogue"
+                        title="Design studio"
+                        helper="Add storefront designs, retire unavailable pieces, and keep product imagery tidy."
+                      />
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{
+                          mt: 2,
+                          flexWrap: "wrap",
+                          gap: 1,
+                          alignItems: "center",
+                        }}
+                      >
+                        <Button
+                          variant={
+                            !openCatalogueDesign && catalogueView === "all"
+                              ? "contained"
+                              : "outlined"
+                          }
+                          onClick={() => {
+                            setOpenDesignId(null);
+                            setCatalogueView("all");
+                          }}
+                          startIcon={<DesignServicesRounded />}
+                        >
+                          All designs ({designs.length})
+                        </Button>
+                        <Button
+                          variant={
+                            !openCatalogueDesign && catalogueView === "add"
+                              ? "contained"
+                              : "outlined"
+                          }
+                          onClick={() => {
+                            setOpenDesignId(null);
+                            setCatalogueView("add");
+                          }}
+                          startIcon={<AddRounded />}
+                        >
+                          Add design
+                        </Button>
+                        {openCatalogueDesign ? (
+                          <ToneChip
+                            label={`Editing: ${openCatalogueDesign.title}`}
+                            tone={tokens.burgundy}
+                          />
+                        ) : null}
+                      </Stack>
 
-              {canManage && section === "team" ? (
-                <TeamPanel
-                  users={businessUsers}
-                  currentUser={currentUser}
-                  error={action.teamError}
-                />
-              ) : null}
+                      {openCatalogueDesign ? (
+                        <Box sx={{ mt: 2 }}>
+                          <Button
+                            onClick={() => setOpenDesignId(null)}
+                            startIcon={<ArrowBackRounded />}
+                            sx={{ mb: 1.5 }}
+                          >
+                            All designs
+                          </Button>
+                          <Panel>
+                            <Box sx={{ p: { xs: 2, md: 2.5 }, pb: 1 }}>
+                              <Typography
+                                sx={{
+                                  fontFamily: '"DM Serif Display", serif',
+                                  fontSize: 22,
+                                  lineHeight: 1.15,
+                                }}
+                              >
+                                {openCatalogueDesign.title}
+                              </Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                Edit details, imagery, pricing, and availability
+                                for this piece.
+                              </Typography>
+                            </Box>
+                            <DesignRow
+                              key={openCatalogueDesign.design_id}
+                              design={openCatalogueDesign}
+                              collections={collections}
+                              defaultOpen
+                            />
+                          </Panel>
+                        </Box>
+                      ) : catalogueView === "add" ? (
+                        <Box
+                          sx={{
+                            mt: 2,
+                            display: "grid",
+                            gap: 2,
+                            alignItems: "start",
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              lg: "minmax(0, 0.55fr) minmax(0, 0.45fr)",
+                            },
+                          }}
+                        >
+                          <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+                            <Stack
+                              direction="row"
+                              spacing={1.25}
+                              sx={{ alignItems: "center", mb: 2 }}
+                            >
+                              <Box sx={{ color: "primary.main" }}>
+                                <ContentCutRounded />
+                              </Box>
+                              <Box>
+                                <Typography sx={{ fontWeight: 900 }}>
+                                  Add a design
+                                </Typography>
+                                <Typography
+                                  variant="body2"
+                                  sx={{ color: "text.secondary" }}
+                                >
+                                  Publish a new piece to the storefront.
+                                </Typography>
+                              </Box>
+                            </Stack>
+                            <Form method="post" encType="multipart/form-data">
+                              <input
+                                type="hidden"
+                                name="intent"
+                                value="create"
+                              />
+                              <Stack spacing={1.75}>
+                                {action.designError ? (
+                                  <Alert severity="error">
+                                    {action.designError}
+                                  </Alert>
+                                ) : null}
+                                <TextField
+                                  name="title"
+                                  label="Title"
+                                  required
+                                  fullWidth
+                                />
+                                <TextField
+                                  name="collection_id"
+                                  label="Collection"
+                                  select
+                                  defaultValue=""
+                                  fullWidth
+                                >
+                                  <MenuItem value="">No collection</MenuItem>
+                                  {collections
+                                    .filter(
+                                      (collection) =>
+                                        collection.status === "active",
+                                    )
+                                    .map((collection) => (
+                                      <MenuItem
+                                        key={collection.collection_id}
+                                        value={collection.collection_id}
+                                      >
+                                        {collection.name}
+                                      </MenuItem>
+                                    ))}
+                                </TextField>
+                                <TextField
+                                  name="description"
+                                  label="Description"
+                                  fullWidth
+                                  multiline
+                                  minRows={3}
+                                />
+                                <Box>
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: "text.secondary",
+                                      fontWeight: 700,
+                                      display: "block",
+                                      mb: 0.5,
+                                    }}
+                                  >
+                                    Design image
+                                  </Typography>
+                                  <ImageDropzone
+                                    name="image_file"
+                                    helper="JPG, PNG, or WebP up to 10 MB — uploaded to your gallery as the first catalogue image."
+                                  />
+                                </Box>
+                                <Box
+                                  sx={{
+                                    display: "grid",
+                                    gap: 1.25,
+                                    gridTemplateColumns: {
+                                      xs: "1fr",
+                                      sm: "repeat(2, 1fr)",
+                                    },
+                                  }}
+                                >
+                                  <TextField
+                                    name="sequence"
+                                    label="Display order"
+                                    type="number"
+                                    defaultValue={designs.length + 1}
+                                    slotProps={{ htmlInput: { min: 0 } }}
+                                  />
+                                  <TextField
+                                    name="deposit_ghs"
+                                    label="Custom deposit"
+                                    slotProps={{
+                                      input: {
+                                        startAdornment: (
+                                          <InputAdornment position="start">
+                                            GHS
+                                          </InputAdornment>
+                                        ),
+                                      },
+                                      htmlInput: { inputMode: "decimal" },
+                                    }}
+                                  />
+                                </Box>
+                                <FormControlLabel
+                                  control={<Checkbox name="customisation" />}
+                                  label="Allow customisation"
+                                />
+                                <Button
+                                  type="submit"
+                                  variant="contained"
+                                  startIcon={<AddRounded />}
+                                >
+                                  Add design
+                                </Button>
+                              </Stack>
+                            </Form>
+                          </Panel>
+                          <DesignImageUploadPanel
+                            designs={designs}
+                            error={action.mediaError}
+                          />
+                        </Box>
+                      ) : (
+                        <Box sx={{ mt: 2 }}>
+                          <Box
+                            sx={{
+                              display: "grid",
+                              gap: 1.25,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "repeat(2, minmax(0, 1fr))",
+                                xl: "repeat(4, minmax(0, 1fr))",
+                              },
+                            }}
+                          >
+                            <MiniStat
+                              icon={<StorefrontRounded fontSize="small" />}
+                              label="Active pieces"
+                              value={String(
+                                designs.filter(
+                                  (design) => design.status === "active",
+                                ).length,
+                              )}
+                              helper={`${designs.length} total designs`}
+                              tone={tokens.success}
+                            />
+                            <MiniStat
+                              icon={<VisibilityRounded fontSize="small" />}
+                              label="Collections"
+                              value={String(publishedCollections)}
+                              helper={`${collections.length} total collections`}
+                              tone={tokens.info}
+                            />
+                            <MiniStat
+                              icon={<ContentCutRounded fontSize="small" />}
+                              label="Customisable"
+                              value={String(
+                                designs.filter(
+                                  (design) => design.customisation_allowed,
+                                ).length,
+                              )}
+                              helper="Available for bespoke requests"
+                              tone={tokens.burgundy}
+                            />
+                            <MiniStat
+                              icon={<StraightenRounded fontSize="small" />}
+                              label="Size bands"
+                              value={String(sizeBands.length)}
+                              helper={`${cataloguePriceCount} prices set`}
+                              tone={tokens.warning}
+                            />
+                          </Box>
+                          {designs.length === 0 ? (
+                            <Panel sx={{ mt: 2, p: { xs: 2.5, md: 3 } }}>
+                              <EmptyState
+                                icon={
+                                  <DesignServicesRounded
+                                    sx={{ fontSize: 38 }}
+                                  />
+                                }
+                                title="No designs yet"
+                                helper="Add your first design with an uploaded image so customers can browse the store."
+                              />
+                              <Box
+                                sx={{
+                                  mt: 2,
+                                  display: "flex",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <Button
+                                  variant="contained"
+                                  startIcon={<AddRounded />}
+                                  onClick={() => setCatalogueView("add")}
+                                >
+                                  Add a design
+                                </Button>
+                              </Box>
+                            </Panel>
+                          ) : (
+                            <Box
+                              sx={{
+                                mt: 2,
+                                display: "grid",
+                                gap: 1.5,
+                                gridTemplateColumns: {
+                                  xs: "1fr",
+                                  sm: "repeat(2, minmax(0, 1fr))",
+                                  md: "repeat(3, minmax(0, 1fr))",
+                                  xl: "repeat(4, minmax(0, 1fr))",
+                                },
+                              }}
+                            >
+                              {designs.map((design) => (
+                                <DesignCard
+                                  key={design.design_id}
+                                  design={design}
+                                  collections={collections}
+                                  onOpen={() =>
+                                    setOpenDesignId(design.design_id)
+                                  }
+                                />
+                              ))}
+                            </Box>
+                          )}
+                          <Box sx={{ mt: 2 }}>
+                            <CatalogueSetupPanel
+                              collections={collections}
+                              sizeBands={sizeBands}
+                              collectionError={action.collectionError}
+                              sizeBandError={action.sizeBandError}
+                            />
+                          </Box>
+                          <Box sx={{ mt: 2 }}>
+                            <PriceBoardPanel
+                              designs={designs}
+                              sizeBands={sizeBands}
+                              error={action.priceError}
+                            />
+                          </Box>
+                        </Box>
+                      )}
+                    </Box>
+                  ) : null}
+                </Stack>
+              </Box>
 
-              {section === "messages" ? (
-                <NotificationPanel notifications={notifications} />
-              ) : null}
+              <Stack spacing={2.5} sx={{ minWidth: 0 }}>
+                {canManage && section === "measurements" ? (
+                  <Panel id="measurements">
+                    <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                      <Stack
+                        direction="row"
+                        spacing={1.25}
+                        sx={{ alignItems: "center" }}
+                      >
+                        <Box sx={{ color: "primary.main" }}>
+                          <StraightenRounded />
+                        </Box>
+                        <Box>
+                          <Typography sx={{ fontWeight: 900 }}>
+                            Measurement setup
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            Define the fields used for self, visit, and shop
+                            measurements.
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      {action.fieldError ? (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                          {action.fieldError}
+                        </Alert>
+                      ) : null}
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="create_measurement_field"
+                        />
+                        <Box
+                          sx={{
+                            mt: 2,
+                            display: "grid",
+                            gap: 1.25,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              sm: "minmax(0, 1fr) 96px 96px",
+                            },
+                          }}
+                        >
+                          <TextField
+                            name="label"
+                            label="Field label"
+                            placeholder="Chest"
+                            size="small"
+                            required
+                          />
+                          <TextField
+                            name="unit"
+                            label="Unit"
+                            select
+                            defaultValue="in"
+                            size="small"
+                          >
+                            {fieldUnits.map((unit) => (
+                              <MenuItem key={unit.value} value={unit.value}>
+                                {unit.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            name="sequence"
+                            label="Order"
+                            type="number"
+                            defaultValue={nextFieldSequence}
+                            size="small"
+                            slotProps={{ htmlInput: { min: 0 } }}
+                            required
+                          />
+                        </Box>
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          startIcon={<AddRounded />}
+                          sx={{ mt: 1.5 }}
+                        >
+                          Add field
+                        </Button>
+                      </Form>
+                    </Box>
 
-              {canManage && section === "overview" ? (
-                <>
-                  <StoreReadinessPanel
-                    steps={setupSteps}
-                    storefrontURL={storefrontURL}
+                    {measurementFields.length === 0 ? (
+                      <Box sx={{ px: 2.5, pb: 2.5 }}>
+                        <EmptyState
+                          icon={<StraightenRounded sx={{ fontSize: 38 }} />}
+                          title="No measurement fields yet"
+                          helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
+                        />
+                      </Box>
+                    ) : (
+                      measurementFields.map((field) => (
+                        <MeasurementFieldRow
+                          key={field.field_id}
+                          field={field}
+                        />
+                      ))
+                    )}
+                  </Panel>
+                ) : null}
+
+                {canManage && section === "availability" ? (
+                  <AvailabilityPanel
+                    windows={availabilityWindows}
+                    error={action.availabilityError}
                   />
-                  <TodayFocusPanel
-                    pendingPayments={pendingPayments}
-                    needsMeasurements={needsMeasurements}
-                    openHandovers={openHandovers}
-                    pendingMessages={pendingMessages}
+                ) : null}
+
+                {canManage && section === "settings" ? (
+                  <StoreSettingsPanel
+                    settings={storeSettings}
+                    profile={profile}
+                    error={action.settingsError}
                   />
-                </>
-              ) : null}
-            </Stack>
+                ) : null}
+
+                {canManage && section === "team" ? (
+                  <TeamPanel
+                    users={businessUsers}
+                    currentUser={currentUser}
+                    error={action.teamError}
+                  />
+                ) : null}
+
+                {section === "messages" ? (
+                  <NotificationPanel notifications={notifications} />
+                ) : null}
+
+                {canManage && section === "overview" ? (
+                  <>
+                    <StoreReadinessPanel
+                      steps={setupSteps}
+                      storefrontURL={storefrontURL}
+                    />
+                    <TodayFocusPanel
+                      pendingPayments={pendingPayments}
+                      needsMeasurements={needsMeasurements}
+                      openHandovers={openHandovers}
+                      pendingMessages={pendingMessages}
+                    />
+                  </>
+                ) : null}
+              </Stack>
+            </Box>
           </Box>
         </Box>
       </Box>
