@@ -81,6 +81,9 @@ type settingsBody struct {
 	DeliveryEnabled      bool   `json:"delivery_enabled"`
 	DispatchEnabled      bool   `json:"dispatch_enabled"`
 	BrandColor           string `json:"brand_color"`
+	LogoURL              string `json:"logo_url"`
+	BannerURL            string `json:"banner_url"`
+	LayoutVariant        string `json:"layout_variant"`
 }
 
 func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
@@ -93,11 +96,16 @@ func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 		writeRepoError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]string{
+	entitlements := profile.Entitlements
+	if entitlements == nil {
+		entitlements = map[string]bool{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
 		"name":                profile.Name,
 		"handle":              profile.Handle,
 		"verification_status": profile.VerificationStatus,
 		"plan":                profile.PlanCode,
+		"entitlements":        entitlements,
 	})
 }
 
@@ -135,6 +143,9 @@ func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			DeliveryEnabled:      body.DeliveryEnabled,
 			DispatchEnabled:      body.DispatchEnabled,
 			BrandColor:           body.BrandColor,
+			LogoURL:              body.LogoURL,
+			BannerURL:            body.BannerURL,
+			LayoutVariant:        body.LayoutVariant,
 		},
 	}); err != nil {
 		writeServiceError(w, err)
@@ -603,6 +614,9 @@ func toSettingsBody(s ports.StoreSettings) settingsBody {
 		DeliveryEnabled:      s.DeliveryEnabled,
 		DispatchEnabled:      s.DispatchEnabled,
 		BrandColor:           s.BrandColor,
+		LogoURL:              s.LogoURL,
+		BannerURL:            s.BannerURL,
+		LayoutVariant:        s.LayoutVariant,
 	}
 }
 

@@ -2256,9 +2256,10 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 				monthly_fee_minor,
 				commission_bps,
 				design_limit,
+				features,
 				is_active
 			)
-			values ($1, $2, $3, $4, $5, true)
+			values ($1, $2, $3, $4, $5, $6::jsonb, true)
 			returning *
 		)
 		`+adminPlanSelect("inserted")+`
@@ -2267,6 +2268,7 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 		input.MonthlyFeeMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
+		planFeaturesArg(input.Features),
 	))
 	if err != nil {
 		if planCodeTaken(err) {
@@ -2303,7 +2305,8 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 				monthly_fee_minor = $3,
 				commission_bps = $4,
 				design_limit = $5,
-				is_active = $6,
+				features = $6::jsonb,
+				is_active = $7,
 				updated_at = now()
 			where plan_id = $1::uuid
 			returning *
@@ -2314,6 +2317,7 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 		input.MonthlyFeeMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
+		planFeaturesArg(input.Features),
 		input.IsActive,
 	))
 	if err != nil {
@@ -5083,6 +5087,7 @@ func scanAdminSubscriptionInvoiceRecord(row pgx.Row) (ports.AdminSubscriptionInv
 func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 	var record ports.AdminPlanRecord
 	var designLimit pgtype.Int4
+	var features []byte
 	if err := row.Scan(
 		&record.PlanID,
 		&record.Code,
@@ -5090,6 +5095,7 @@ func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 		&record.MonthlyFeeMinor,
 		&record.CommissionBPS,
 		&designLimit,
+		&features,
 		&record.IsActive,
 		&record.BusinessCount,
 		&record.ActiveSubscriptionCount,
@@ -5100,7 +5106,24 @@ func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 		return ports.AdminPlanRecord{}, err
 	}
 	record.DesignLimit = int4Ptr(designLimit)
+	parsed := map[string]bool{}
+	if len(features) > 0 {
+		if err := json.Unmarshal(features, &parsed); err != nil {
+			return ports.AdminPlanRecord{}, err
+		}
+	}
+	record.Features = business.SanitizeFeatures(parsed)
 	return record, nil
+}
+
+// planFeaturesArg sanitizes an admin-supplied benefit map down to known catalogue
+// keys and serialises it for the plans.features jsonb column.
+func planFeaturesArg(features map[string]bool) string {
+	raw, err := json.Marshal(business.SanitizeFeatures(features))
+	if err != nil || len(raw) == 0 {
+		return "{}"
+	}
+	return string(raw)
 }
 
 func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
@@ -5998,6 +6021,7 @@ func adminPlanSelect(source string) string {
 			p.monthly_fee_minor::bigint,
 			p.commission_bps::int,
 			p.design_limit,
+			coalesce(p.features, '{}'::jsonb),
 			p.is_active,
 			coalesce(b.business_count, 0)::int,
 			coalesce(s.active_subscription_count, 0)::int,

@@ -350,6 +350,7 @@ type CreatePlanCommand struct {
 	MonthlyFeeMinor int64
 	CommissionBPS   int
 	DesignLimit     *int
+	Features        map[string]bool
 	UserAgent       string
 	IPAddress       string
 }
@@ -362,6 +363,7 @@ type UpdatePlanCommand struct {
 	MonthlyFeeMinor int64
 	CommissionBPS   int
 	DesignLimit     *int
+	Features        map[string]bool
 	IsActive        bool
 	UserAgent       string
 	IPAddress       string
@@ -4982,6 +4984,7 @@ func normalizeCreatePlanInput(cmd CreatePlanCommand) (ports.CreateAdminPlanInput
 		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
 		CommissionBPS:   cmd.CommissionBPS,
 		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
+		Features:        business.SanitizeFeatures(cmd.Features),
 	}, nil
 }
 
@@ -4999,6 +5002,7 @@ func normalizeUpdatePlanInput(cmd UpdatePlanCommand) (ports.UpdateAdminPlanInput
 		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
 		CommissionBPS:   cmd.CommissionBPS,
 		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
+		Features:        business.SanitizeFeatures(cmd.Features),
 		IsActive:        cmd.IsActive,
 	}, nil
 }

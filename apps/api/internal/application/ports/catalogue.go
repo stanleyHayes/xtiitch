@@ -17,6 +17,12 @@ type StoreSettings struct {
 	DeliveryEnabled      bool
 	DispatchEnabled      bool
 	BrandColor           string
+	// Plan-gated storefront customizations. Only honoured when the business's plan
+	// grants the matching feature (custom_logo / custom_banner / custom_layout);
+	// otherwise the service coerces them back to defaults before persisting.
+	LogoURL       string
+	BannerURL     string
+	LayoutVariant string
 }
 
 type StoreSettingsRepository interface {
@@ -31,6 +37,9 @@ type StoreProfile struct {
 	Handle             string
 	VerificationStatus string
 	PlanCode           string
+	// Entitlements is the business's resolved benefit set from its plan's features,
+	// so the dashboard knows which storefront customizations to unlock.
+	Entitlements map[string]bool
 }
 
 // CatalogueRepository is the dashboard-facing, tenant-scoped catalogue store.

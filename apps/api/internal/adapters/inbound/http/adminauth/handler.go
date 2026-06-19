@@ -295,19 +295,21 @@ type subscriptionAuthorizationVerifyRequest struct {
 }
 
 type planCreateRequest struct {
-	Code            string `json:"code"`
-	Name            string `json:"name"`
-	MonthlyFeeMinor int64  `json:"monthly_fee_minor"`
-	CommissionBPS   int    `json:"commission_bps"`
-	DesignLimit     *int   `json:"design_limit"`
+	Code            string          `json:"code"`
+	Name            string          `json:"name"`
+	MonthlyFeeMinor int64           `json:"monthly_fee_minor"`
+	CommissionBPS   int             `json:"commission_bps"`
+	DesignLimit     *int            `json:"design_limit"`
+	Features        map[string]bool `json:"features"`
 }
 
 type planUpdateRequest struct {
-	Name            string `json:"name"`
-	MonthlyFeeMinor int64  `json:"monthly_fee_minor"`
-	CommissionBPS   int    `json:"commission_bps"`
-	DesignLimit     *int   `json:"design_limit"`
-	IsActive        bool   `json:"is_active"`
+	Name            string          `json:"name"`
+	MonthlyFeeMinor int64           `json:"monthly_fee_minor"`
+	CommissionBPS   int             `json:"commission_bps"`
+	DesignLimit     *int            `json:"design_limit"`
+	Features        map[string]bool `json:"features"`
+	IsActive        bool            `json:"is_active"`
 }
 
 type planArchiveRequest struct {
@@ -784,18 +786,19 @@ type subscriptionAuthorizationLinkResponse struct {
 }
 
 type planResponse struct {
-	PlanID                  string `json:"plan_id"`
-	Code                    string `json:"code"`
-	Name                    string `json:"name"`
-	MonthlyFeeMinor         int64  `json:"monthly_fee_minor"`
-	CommissionBPS           int    `json:"commission_bps"`
-	DesignLimit             *int   `json:"design_limit,omitempty"`
-	IsActive                bool   `json:"is_active"`
-	BusinessCount           int    `json:"business_count"`
-	ActiveSubscriptionCount int    `json:"active_subscription_count"`
-	EstimatedMRRMinor       int64  `json:"estimated_mrr_minor"`
-	CreatedAt               string `json:"created_at"`
-	UpdatedAt               string `json:"updated_at"`
+	PlanID                  string          `json:"plan_id"`
+	Code                    string          `json:"code"`
+	Name                    string          `json:"name"`
+	MonthlyFeeMinor         int64           `json:"monthly_fee_minor"`
+	CommissionBPS           int             `json:"commission_bps"`
+	DesignLimit             *int            `json:"design_limit,omitempty"`
+	Features                map[string]bool `json:"features"`
+	IsActive                bool            `json:"is_active"`
+	BusinessCount           int             `json:"business_count"`
+	ActiveSubscriptionCount int             `json:"active_subscription_count"`
+	EstimatedMRRMinor       int64           `json:"estimated_mrr_minor"`
+	CreatedAt               string          `json:"created_at"`
+	UpdatedAt               string          `json:"updated_at"`
 }
 
 type promotionResponse struct {
@@ -1760,6 +1763,7 @@ func (handler Handler) createPlan(w http.ResponseWriter, r *http.Request) {
 		MonthlyFeeMinor: request.MonthlyFeeMinor,
 		CommissionBPS:   request.CommissionBPS,
 		DesignLimit:     request.DesignLimit,
+		Features:        request.Features,
 		UserAgent:       r.UserAgent(),
 		IPAddress:       requestIP(r),
 	})
@@ -1793,6 +1797,7 @@ func (handler Handler) updatePlan(w http.ResponseWriter, r *http.Request) {
 		MonthlyFeeMinor: request.MonthlyFeeMinor,
 		CommissionBPS:   request.CommissionBPS,
 		DesignLimit:     request.DesignLimit,
+		Features:        request.Features,
 		IsActive:        request.IsActive,
 		UserAgent:       r.UserAgent(),
 		IPAddress:       requestIP(r),
@@ -3940,6 +3945,7 @@ func newPlanResponse(record ports.AdminPlanRecord) planResponse {
 		MonthlyFeeMinor:         record.MonthlyFeeMinor,
 		CommissionBPS:           record.CommissionBPS,
 		DesignLimit:             record.DesignLimit,
+		Features:                sanitizedPlanFeatures(record.Features),
 		IsActive:                record.IsActive,
 		BusinessCount:           record.BusinessCount,
 		ActiveSubscriptionCount: record.ActiveSubscriptionCount,
@@ -3947,6 +3953,12 @@ func newPlanResponse(record ports.AdminPlanRecord) planResponse {
 		CreatedAt:               record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:               record.UpdatedAt.Format(time.RFC3339),
 	}
+}
+
+// sanitizedPlanFeatures returns a non-nil, catalogue-only benefit map so the JSON
+// response always carries an object (never null) of recognised feature keys.
+func sanitizedPlanFeatures(features map[string]bool) map[string]bool {
+	return business.SanitizeFeatures(features)
 }
 
 func newPromotionResponse(record ports.AdminPromotionRecord) promotionResponse {

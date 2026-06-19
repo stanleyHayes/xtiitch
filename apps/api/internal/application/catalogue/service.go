@@ -61,7 +61,39 @@ func (s Service) UpdateSettings(ctx context.Context, cmd UpdateSettingsCommand) 
 	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return err
 	}
-	return s.settings.Update(ctx, cmd.Scope, cmd.Settings)
+	// Server-side entitlement gate: resolve the business's plan benefits and coerce
+	// any customization its plan does not grant back to the Xtiitch default before
+	// persisting. This is the enforceable backstop behind the dashboard's UI gating —
+	// a business on a plan without custom_* simply cannot persist that customization.
+	profile, err := s.settings.GetProfile(ctx, cmd.Scope)
+	if err != nil {
+		return err
+	}
+	settings := coerceStoreCustomization(business.Entitlements(profile.Entitlements), cmd.Settings)
+	return s.settings.Update(ctx, cmd.Scope, settings)
+}
+
+// coerceStoreCustomization forces plan-gated storefront fields back to their
+// defaults whenever the business is not entitled to the matching benefit.
+func coerceStoreCustomization(ent business.Entitlements, settings ports.StoreSettings) ports.StoreSettings {
+	settings.BrandColor = strings.TrimSpace(settings.BrandColor)
+	settings.LogoURL = strings.TrimSpace(settings.LogoURL)
+	settings.BannerURL = strings.TrimSpace(settings.BannerURL)
+	settings.LayoutVariant = strings.TrimSpace(settings.LayoutVariant)
+
+	if !ent.Has(business.FeatureCustomBrandColor) || settings.BrandColor == "" {
+		settings.BrandColor = business.DefaultBrandColor
+	}
+	if !ent.Has(business.FeatureCustomLogo) {
+		settings.LogoURL = ""
+	}
+	if !ent.Has(business.FeatureCustomBanner) {
+		settings.BannerURL = ""
+	}
+	if !ent.Has(business.FeatureCustomLayout) || !business.IsValidLayoutVariant(settings.LayoutVariant) {
+		settings.LayoutVariant = business.DefaultLayoutVariant
+	}
+	return settings
 }
 
 func (s Service) GetStoreProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {

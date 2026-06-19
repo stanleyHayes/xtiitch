@@ -181,7 +181,8 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 	err := tx.QueryRow(ctx, `
 		select b.business_id, b.name, b.handle, b.default_deposit_minor,
 			ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
-			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled
+			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled,
+			coalesce(ss.logo_url, ''), coalesce(ss.banner_url, ''), ss.layout_variant
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
 		where `+where, args...).Scan(
@@ -189,6 +190,7 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.BrandColor, &store.Settings.BespokeEnabled, &store.Settings.MeasurementsEnabled,
 		&store.Settings.CustomisationEnabled, &store.Settings.CollectionsEnabled,
 		&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
+		&store.Settings.LogoURL, &store.Settings.BannerURL, &store.Settings.LayoutVariant,
 	)
 	if err != nil {
 		return store, err

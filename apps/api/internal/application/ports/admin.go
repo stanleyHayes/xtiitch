@@ -455,6 +455,7 @@ type AdminPlanRecord struct {
 	MonthlyFeeMinor         int64
 	CommissionBPS           int
 	DesignLimit             *int
+	Features                map[string]bool
 	IsActive                bool
 	BusinessCount           int
 	ActiveSubscriptionCount int
@@ -469,6 +470,7 @@ type CreateAdminPlanInput struct {
 	MonthlyFeeMinor int64
 	CommissionBPS   int
 	DesignLimit     *int
+	Features        map[string]bool
 }
 
 type UpdateAdminPlanInput struct {
@@ -477,6 +479,7 @@ type UpdateAdminPlanInput struct {
 	MonthlyFeeMinor int64
 	CommissionBPS   int
 	DesignLimit     *int
+	Features        map[string]bool
 	IsActive        bool
 }
 

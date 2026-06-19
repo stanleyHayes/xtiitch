@@ -170,3 +170,50 @@ func (s *sequenceIDs) NewID() common.ID {
 	s.ids = s.ids[1:]
 	return id
 }
+
+func TestCoerceStoreCustomizationResetsUngrantedFeatures(t *testing.T) {
+	// A plan that grants nothing must have every customization coerced back to the
+	// Xtiitch defaults — this is the server-side entitlement gate.
+	none := business.Entitlements{}
+	got := coerceStoreCustomization(none, ports.StoreSettings{
+		BrandColor:    "#112233",
+		LogoURL:       "https://cdn.example.com/logo.png",
+		BannerURL:     "https://cdn.example.com/banner.jpg",
+		LayoutVariant: "spotlight",
+	})
+	if got.BrandColor != business.DefaultBrandColor {
+		t.Fatalf("brand colour not reset: got %q", got.BrandColor)
+	}
+	if got.LogoURL != "" {
+		t.Fatalf("logo not cleared: got %q", got.LogoURL)
+	}
+	if got.BannerURL != "" {
+		t.Fatalf("banner not cleared: got %q", got.BannerURL)
+	}
+	if got.LayoutVariant != business.DefaultLayoutVariant {
+		t.Fatalf("layout not reset: got %q", got.LayoutVariant)
+	}
+}
+
+func TestCoerceStoreCustomizationKeepsGrantedFeatures(t *testing.T) {
+	all := business.Entitlements{
+		business.FeatureCustomBrandColor: true,
+		business.FeatureCustomLogo:       true,
+		business.FeatureCustomBanner:     true,
+		business.FeatureCustomLayout:     true,
+	}
+	got := coerceStoreCustomization(all, ports.StoreSettings{
+		BrandColor:    "#112233",
+		LogoURL:       "https://cdn.example.com/logo.png",
+		BannerURL:     "https://cdn.example.com/banner.jpg",
+		LayoutVariant: "spotlight",
+	})
+	if got.BrandColor != "#112233" || got.LogoURL == "" || got.BannerURL == "" || got.LayoutVariant != "spotlight" {
+		t.Fatalf("granted customization was dropped: %+v", got)
+	}
+	// An unknown layout still falls back even when the feature is granted.
+	got = coerceStoreCustomization(all, ports.StoreSettings{LayoutVariant: "bogus"})
+	if got.LayoutVariant != business.DefaultLayoutVariant {
+		t.Fatalf("invalid layout not defaulted: got %q", got.LayoutVariant)
+	}
+}
