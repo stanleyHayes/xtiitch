@@ -49,6 +49,12 @@ async function request<T>(
   }
 }
 
+export type CollectBalanceResult = {
+  reference: string;
+  authorization_url: string;
+  amount_minor: number;
+};
+
 export const businessApi = {
   me: () => request<BusinessProfile>("/auth/business/me"),
   orders: () => request<{ orders: BusinessOrder[] }>("/orders"),
@@ -58,6 +64,26 @@ export const businessApi = {
     request<Tracking>(`/orders/${encodeURIComponent(orderId)}/advance`, {
       method: "POST",
     }),
+  // Set/adjust the negotiated total for an order (minor units / pesewas).
+  setAgreedTotal: (orderId: string, agreedTotalMinor: number) =>
+    request<{ agreed_total_minor: number }>(
+      `/orders/${encodeURIComponent(orderId)}/agreed-total`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agreed_total_minor: agreedTotalMinor }),
+      },
+    ),
+  // Raise a Paystack payment link for the order's outstanding balance.
+  collectBalance: (orderId: string, method: "momo" | "card") =>
+    request<CollectBalanceResult>(
+      `/orders/${encodeURIComponent(orderId)}/balance`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ method }),
+      },
+    ),
 };
 
 const TERMINAL_STATUSES = new Set([
