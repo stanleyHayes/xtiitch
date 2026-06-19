@@ -1473,6 +1473,25 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "save_store_settings") {
     const brandColor = String(form.get("brand_color") ?? "").trim();
+    // Logo + banner are uploaded from disk to Cloudinary; when no new file is
+    // chosen the previously-saved URL is preserved. The API re-checks plan
+    // entitlements and coerces anything ungranted back to defaults.
+    let logoURL = String(form.get("logo_url_existing") ?? "").trim();
+    const logoFile = form.get("logo_file");
+    if (logoFile instanceof File && logoFile.size > 0) {
+      const uploaded = await uploadDesignImage(request, logoFile);
+      if (uploaded) {
+        logoURL = uploaded;
+      }
+    }
+    let bannerURL = String(form.get("banner_url_existing") ?? "").trim();
+    const bannerFile = form.get("banner_file");
+    if (bannerFile instanceof File && bannerFile.size > 0) {
+      const uploaded = await uploadDesignImage(request, bannerFile);
+      if (uploaded) {
+        bannerURL = uploaded;
+      }
+    }
     const response = await apiFetch(request, "/store-settings", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -1484,10 +1503,8 @@ export async function action({ request }: Route.ActionArgs) {
         delivery_enabled: form.get("delivery_enabled") === "on",
         dispatch_enabled: form.get("dispatch_enabled") === "on",
         brand_color: brandColor || tokens.burgundy,
-        // Plan-gated customizations. The API re-checks entitlements and coerces
-        // anything the plan does not grant back to defaults, so it is safe to send.
-        logo_url: String(form.get("logo_url") ?? "").trim(),
-        banner_url: String(form.get("banner_url") ?? "").trim(),
+        logo_url: logoURL,
+        banner_url: bannerURL,
         layout_variant: String(form.get("layout_variant") ?? "standard").trim(),
       }),
     });
@@ -3237,45 +3254,79 @@ function minutesToTime(value: number): string {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
 
-const StyledTemporalField = styled(Box)(({ theme }) => ({
-  border: `1px solid ${alpha(tokens.ink, 0.1)}`,
-  borderRadius: 20,
-  background: `linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.78))`,
-  padding: theme.spacing(0.75),
-  transition:
-    "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
-  "&:focus-within": {
-    borderColor: alpha(tokens.burgundy, 0.42),
-    boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.1)}`,
-  },
-  "&[data-disabled='true']": {
-    opacity: 0.56,
-  },
-  "& .MuiFormLabel-root": {
-    fontWeight: 800,
-  },
-  "& .MuiOutlinedInput-root": {
-    borderRadius: 14,
-    backgroundColor: tokens.white,
-  },
-  "& .MuiOutlinedInput-notchedOutline": {
-    borderColor: alpha(tokens.ink, 0.12),
-  },
-  "& .MuiInputBase-input": {
-    fontWeight: 800,
-    letterSpacing: 0,
-  },
-  "& .MuiSelect-select": {
-    fontWeight: 800,
-    letterSpacing: 0,
-  },
-  "& .MuiSelect-icon": {
-    color: alpha(tokens.burgundy, 0.68),
-  },
-  "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-    color: alpha(tokens.burgundy, 0.78),
-  },
-}));
+const StyledTemporalField = styled(Box)(({ theme }) => {
+  const dark = theme.palette.mode === "dark";
+  const borderColor = dark ? alpha(tokens.white, 0.16) : alpha(tokens.ink, 0.1);
+  const fieldBg = dark ? alpha(tokens.white, 0.07) : tokens.white;
+  const fieldHoverBg = dark ? alpha(tokens.white, 0.1) : tokens.white;
+  const labelColor = dark
+    ? alpha(tokens.white, 0.72)
+    : theme.palette.text.secondary;
+
+  return {
+    border: `1px solid ${borderColor}`,
+    borderRadius: 20,
+    background: dark
+      ? `linear-gradient(180deg, ${alpha(tokens.white, 0.075)}, ${alpha(tokens.white, 0.035)})`
+      : `linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.78))`,
+    padding: theme.spacing(0.9),
+    boxShadow: dark
+      ? `inset 0 1px 0 ${alpha(tokens.white, 0.08)}`
+      : "none",
+    transition:
+      "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+    "&:focus-within": {
+      borderColor: alpha(theme.palette.primary.main, dark ? 0.76 : 0.42),
+      boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, dark ? 0.2 : 0.1)}`,
+    },
+    "&[data-disabled='true']": {
+      opacity: 0.56,
+    },
+    "& .MuiFormLabel-root": {
+      color: labelColor,
+      fontWeight: 800,
+      "&.Mui-focused": {
+        color: dark ? tokens.white : theme.palette.primary.main,
+      },
+    },
+    "& .MuiOutlinedInput-root": {
+      borderRadius: 14,
+      backgroundColor: fieldBg,
+      color: theme.palette.text.primary,
+      "&:hover": {
+        backgroundColor: fieldHoverBg,
+      },
+      "&.Mui-focused": {
+        backgroundColor: fieldHoverBg,
+      },
+    },
+    "& .MuiOutlinedInput-notchedOutline": {
+      borderColor: dark ? alpha(tokens.white, 0.18) : alpha(tokens.ink, 0.12),
+    },
+    "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+      borderColor: dark ? alpha(tokens.white, 0.28) : alpha(tokens.ink, 0.22),
+    },
+    "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+      borderColor: theme.palette.primary.main,
+    },
+    "& .MuiInputBase-input": {
+      color: theme.palette.text.primary,
+      fontWeight: 800,
+      letterSpacing: 0,
+    },
+    "& .MuiSelect-select": {
+      color: theme.palette.text.primary,
+      fontWeight: 800,
+      letterSpacing: 0,
+    },
+    "& .MuiSelect-icon": {
+      color: dark ? alpha(tokens.white, 0.72) : alpha(tokens.burgundy, 0.68),
+    },
+    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+      color: dark ? theme.palette.primary.main : alpha(tokens.burgundy, 0.78),
+    },
+  };
+});
 
 function StyledDateTimeField({
   name,
@@ -8580,6 +8631,89 @@ function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
   );
 }
 
+// StorefrontImageUploadField lets a business pick a logo/banner from disk. The
+// chosen file is posted with the settings form and uploaded to Cloudinary
+// server-side; the previously-saved URL is preserved in a hidden field when no new
+// file is chosen.
+function StorefrontImageUploadField({
+  name,
+  currentUrl,
+}: {
+  name: string;
+  currentUrl: string;
+}) {
+  const [picked, setPicked] = useState<string | null>(null);
+  return (
+    <Box>
+      <input
+        type="hidden"
+        name={`${name}_url_existing`}
+        value={currentUrl}
+      />
+      <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+        <Box
+          sx={{
+            width: 56,
+            height: 56,
+            borderRadius: 1.5,
+            flexShrink: 0,
+            overflow: "hidden",
+            display: "grid",
+            placeItems: "center",
+            border: "1px dashed",
+            borderColor: "divider",
+            bgcolor: "rgba(var(--surface-rgb), 0.6)",
+            color: "text.secondary",
+          }}
+        >
+          {currentUrl ? (
+            <Box
+              component="img"
+              src={currentUrl}
+              alt=""
+              sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            <CloudUploadRounded fontSize="small" />
+          )}
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Button
+            component="label"
+            variant="outlined"
+            size="small"
+            startIcon={<CloudUploadRounded />}
+          >
+            {currentUrl ? "Replace image" : "Upload image"}
+            <input
+              type="file"
+              name={`${name}_file`}
+              accept="image/*"
+              hidden
+              onChange={(event) =>
+                setPicked(event.target.files?.[0]?.name ?? null)
+              }
+            />
+          </Button>
+          <Typography
+            variant="caption"
+            sx={{
+              display: "block",
+              mt: 0.5,
+              color: "text.secondary",
+              overflowWrap: "anywhere",
+            }}
+          >
+            {picked
+              ? `Selected: ${picked}`
+              : "PNG or JPG — uploaded to Cloudinary when you save."}
+          </Typography>
+        </Box>
+      </Stack>
+    </Box>
+  );
+}
+
 function StoreSettingsPanel({
   settings,
   profile,
@@ -8664,7 +8798,7 @@ function StoreSettingsPanel({
           </Alert>
         ) : null}
 
-        <Form method="post">
+        <Form method="post" encType="multipart/form-data">
           <input type="hidden" name="intent" value="save_store_settings" />
           <Box
             sx={{
@@ -8728,30 +8862,22 @@ function StoreSettingsPanel({
               </PlanGatedControl>
               <PlanGatedControl
                 locked={!(profile.entitlements ?? {}).custom_logo}
-                title="Storefront logo URL"
+                title="Storefront logo"
                 description="Shown on the storefront in place of the Xtiitch mark."
               >
-                <TextField
-                  name="logo_url"
-                  type="url"
-                  placeholder="https://…/logo.png"
-                  defaultValue={settings.logo_url}
-                  fullWidth
-                  size="small"
+                <StorefrontImageUploadField
+                  name="logo"
+                  currentUrl={settings.logo_url}
                 />
               </PlanGatedControl>
               <PlanGatedControl
                 locked={!(profile.entitlements ?? {}).custom_banner}
-                title="Hero banner image URL"
+                title="Hero banner image"
                 description="Replaces the default storefront hero image."
               >
-                <TextField
-                  name="banner_url"
-                  type="url"
-                  placeholder="https://…/banner.jpg"
-                  defaultValue={settings.banner_url}
-                  fullWidth
-                  size="small"
+                <StorefrontImageUploadField
+                  name="banner"
+                  currentUrl={settings.banner_url}
                 />
               </PlanGatedControl>
               <PlanGatedControl
@@ -11456,8 +11582,22 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
         p: { xs: 1.5, sm: 1.75 },
         borderRadius: 2,
         border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: alpha(tokens.panel, 0.5),
+        borderColor: (theme) =>
+          theme.palette.mode === "dark"
+            ? alpha(tokens.white, 0.13)
+            : alpha(tokens.ink, 0.08),
+        bgcolor: (theme) =>
+          theme.palette.mode === "dark"
+            ? alpha(tokens.white, 0.045)
+            : alpha(tokens.panel, 0.5),
+        backgroundImage: (theme) =>
+          theme.palette.mode === "dark"
+            ? `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.12)}, transparent 46%)`
+            : "none",
+        boxShadow: (theme) =>
+          theme.palette.mode === "dark"
+            ? `inset 0 1px 0 ${alpha(tokens.white, 0.06)}`
+            : "none",
       }}
     >
       <Box
