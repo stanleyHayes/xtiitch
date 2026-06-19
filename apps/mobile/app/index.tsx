@@ -17,6 +17,7 @@ import {
   type SponsoredPlacement,
 } from "../src/api";
 import { fonts, palette, radius, shadow, spacing, swatchFor } from "../src/theme";
+import { XtiitchMark } from "../src/ui";
 
 const SUGGESTED_STORE = "demo-atelier";
 
@@ -59,7 +60,10 @@ export default function HomeScreen() {
     >
       <View style={styles.hero}>
         <Text style={styles.kicker}>XCREATIVS · GHANA</Text>
-        <Text style={styles.wordmark}>Xtiitch</Text>
+        <View style={styles.lockup}>
+          <XtiitchMark color={palette.cream} size={38} />
+          <Text style={styles.wordmark}>Xtiitch</Text>
+        </View>
         <View style={styles.goldRule} />
         <Text style={styles.heroLead}>
           Ghana's fashion houses, in your pocket. Browse a studio, order a
@@ -249,12 +253,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 2,
   },
+  lockup: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: spacing(1.25),
+    marginTop: spacing(0.75),
+  },
   wordmark: {
     color: palette.white,
     fontFamily: fonts.display,
     fontSize: 44,
-    fontWeight: "700",
-    marginTop: spacing(0.5),
+    fontWeight: "800",
+    letterSpacing: -0.5,
   },
   goldRule: {
     width: 54,

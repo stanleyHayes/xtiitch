@@ -1,23 +1,26 @@
-// Xtiitch brand system for the native customer surface. Mirrors the burgundy /
-// cream / gold palette used across the web apps (apps/*/app/theme.ts) so the
-// phone app reads as the same product. Fonts fall back to the platform system
-// face — the display weight is carried by size + weight, not a bundled font, to
-// keep the runtime lean.
+// Xtiitch brand system for the native customer surface, aligned to
+// Xtiitch-Brand-Guidelines v1.0 (see apps/*/app/theme.ts). Wine leads; Graphite
+// is secondary text; Line is the border; red/amber/green are reserved for order
+// status. The brand typeface is Inter Tight — on native we use a single clean
+// system sans (matching the single-typeface principle); bundling the actual
+// Inter Tight via expo-font is a noted follow-up.
 import { Platform } from "react-native";
 
 export const palette = {
-  burgundy: "#800020",
-  burgundyDeep: "#5e0018",
+  burgundy: "#800020", // Wine
+  burgundyDeep: "#5c0118", // Deep Wine
+  wineTint: "#f3e1e5",
   ink: "#15111a",
   cream: "#faf6f2",
   panel: "#fffaf7",
   white: "#ffffff",
-  softBorder: "#e9ded6",
-  mutedText: "#6f6672",
+  softBorder: "#e7ded7", // Line
+  mutedText: "#565b63", // Graphite
+  mauve: "#9a7a80",
   gold: "#c58b2c",
-  success: "#237a4b",
-  warning: "#b87914",
-  danger: "#a92727",
+  success: "#1e8e4e", // order status · Ready
+  warning: "#b8860b", // order status · In progress
+  danger: "#c0392b", // order status · Received
   info: "#315f8f",
 } as const;
 
@@ -40,18 +43,17 @@ export const shadow = {
   },
 } as const;
 
-// A serif-leaning display stack for headings; the body stack stays neutral.
+// One clean sans for everything (the brand uses a single typeface, Inter Tight);
+// display weight is carried by size + weight.
+const sansStack = Platform.select({
+  ios: "System",
+  android: "sans-serif",
+  default: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+}) as string;
+
 export const fonts = {
-  display: Platform.select({
-    ios: "Georgia",
-    android: "serif",
-    default: "Georgia, 'Times New Roman', serif",
-  }) as string,
-  body: Platform.select({
-    ios: "System",
-    android: "sans-serif",
-    default: "system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-  }) as string,
+  display: sansStack,
+  body: sansStack,
 } as const;
 
 // Brand-coloured swatches used when a store has no images yet, so cards still
