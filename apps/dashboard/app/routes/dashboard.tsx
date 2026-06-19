@@ -1,4 +1,11 @@
-import { Form, Link as RouterLink, redirect } from "react-router";
+import { Form, Link as RouterLink, redirect, useSubmit } from "react-router";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import {
   useEffect,
   useMemo,
@@ -440,36 +447,60 @@ function PlanGatedControl({
   children: React.ReactNode;
 }) {
   return (
-    <Box sx={{ mt: 2 }}>
+    <Box
+      sx={{
+        height: "100%",
+        minWidth: 0,
+        p: 1.25,
+        borderRadius: 2,
+        border: "1px solid",
+        borderColor: (theme) =>
+          locked
+            ? theme.palette.divider
+            : alpha(theme.palette.primary.main, 0.2),
+        bgcolor: (theme) =>
+          theme.palette.mode === "dark"
+            ? alpha(tokens.white, locked ? 0.032 : 0.05)
+            : "rgba(var(--surface-rgb), 0.66)",
+        backgroundImage: (theme) =>
+          locked
+            ? "none"
+            : `linear-gradient(135deg, ${alpha(
+                theme.palette.primary.main,
+                theme.palette.mode === "dark" ? 0.12 : 0.05,
+              )}, transparent 58%)`,
+      }}
+    >
       <Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: "center", mb: 0.75 }}
+        sx={{ alignItems: "center", justifyContent: "space-between", mb: 0.9 }}
       >
-        <Typography sx={{ fontWeight: 800, fontSize: 13 }}>{title}</Typography>
+        <Typography sx={{ fontWeight: 900, fontSize: 13 }}>{title}</Typography>
         {locked ? (
           <Chip
             size="small"
             icon={<LockRounded sx={{ fontSize: 14 }} />}
             label="Upgrade"
-            sx={{ height: 20, "& .MuiChip-label": { px: 0.75, fontSize: 11 } }}
+            sx={{
+              height: 22,
+              flexShrink: 0,
+              "& .MuiChip-label": { px: 0.75, fontSize: 11 },
+            }}
           />
         ) : null}
       </Stack>
       {locked ? (
-        <Box
+        <Typography
+          variant="caption"
           sx={{
-            p: 1.25,
-            borderRadius: 1.5,
-            border: "1px dashed",
-            borderColor: "divider",
-            bgcolor: "rgba(var(--surface-rgb), 0.5)",
+            color: "text.secondary",
+            display: "block",
+            lineHeight: 1.65,
           }}
         >
-          <Typography variant="caption" sx={{ color: "text.secondary" }}>
-            {description} Available on a higher package — ask an owner to upgrade.
-          </Typography>
-        </Box>
+          {description} Upgrade required.
+        </Typography>
       ) : (
         <>
           {children}
@@ -5820,6 +5851,406 @@ function EmptyState({
   );
 }
 
+// OrdersTable presents orders as a scannable MUI table. Each row carries the key
+// facts; the actions menu and a row click open a right-hand detail drawer that
+// reuses OrderCard for the full record (stage advance, payment, measurements).
+function OrdersTable({
+  orders,
+  returnTo,
+  measurementFields,
+  showMoneyDetails,
+}: {
+  orders: OrderSummary[];
+  returnTo: string;
+  measurementFields: MeasurementField[];
+  showMoneyDetails: boolean;
+}) {
+  const submit = useSubmit();
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [menuOrderId, setMenuOrderId] = useState<string | null>(null);
+
+  const detailOrder =
+    orders.find((order) => order.order_id === detailId) ?? null;
+  const menuOrder =
+    orders.find((order) => order.order_id === menuOrderId) ?? null;
+  const menuOrderColour = menuOrder
+    ? stageColor(menuOrder.colour)
+    : tokens.burgundy;
+  const menuOrderBalance = menuOrder ? orderBalanceDueMinor(menuOrder) : 0;
+
+  const closeMenu = () => {
+    setMenuAnchor(null);
+    setMenuOrderId(null);
+  };
+  const openDetail = (orderId: string) => {
+    setDetailId(orderId);
+    closeMenu();
+  };
+
+  return (
+    <>
+      <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
+        <Table sx={{ minWidth: 760 }}>
+          <TableHead>
+            <TableRow>
+              <TableCell>Order</TableCell>
+              <TableCell>Customer</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>Stage</TableCell>
+              {showMoneyDetails ? (
+                <TableCell align="right">Total</TableCell>
+              ) : null}
+              {showMoneyDetails ? (
+                <TableCell align="right">Balance</TableCell>
+              ) : null}
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {orders.map((order) => {
+              const rowColour = stageColor(order.colour);
+              const target = orderTargetMinor(order);
+              const balance = orderBalanceDueMinor(order);
+              return (
+                <TableRow
+                  key={order.order_id}
+                  hover
+                  sx={{ cursor: "pointer" }}
+                  onClick={() => setDetailId(order.order_id)}
+                >
+                  <TableCell>
+                    <Stack
+                      direction="row"
+                      spacing={1.25}
+                      sx={{ alignItems: "center", minWidth: 0 }}
+                    >
+                      <Box
+                        sx={{
+                          width: 38,
+                          height: 38,
+                          borderRadius: 1.25,
+                          display: "grid",
+                          placeItems: "center",
+                          flexShrink: 0,
+                          bgcolor: alpha(rowColour, 0.12),
+                          color: rowColour,
+                          fontWeight: 800,
+                          fontSize: 13,
+                        }}
+                      >
+                        {orderInitials(order)}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 800 }} noWrap>
+                          {order.design_title}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          Ref {order.order_id.slice(0, 8)}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Typography sx={{ fontWeight: 700 }} noWrap>
+                      {order.customer_name || "Unnamed customer"}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {order.customer_phone || order.customer_email || "—"}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Stack
+                      direction="row"
+                      spacing={0.5}
+                      sx={{ flexWrap: "wrap", gap: 0.5 }}
+                    >
+                      <Chip
+                        size="small"
+                        label={
+                          order.order_type === "custom" ? "Custom" : "Standard"
+                        }
+                      />
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        label={
+                          order.channel === "walk_in" ? "Walk-in" : "Online"
+                        }
+                      />
+                    </Stack>
+                  </TableCell>
+                  <TableCell>
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      sx={{ alignItems: "center", minWidth: 0 }}
+                    >
+                      <Box
+                        sx={{
+                          width: 9,
+                          height: 9,
+                          borderRadius: "50%",
+                          bgcolor: rowColour,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 700 }}
+                        noWrap
+                      >
+                        {order.stage_name || statusLabel(order.status)}
+                      </Typography>
+                    </Stack>
+                  </TableCell>
+                  {showMoneyDetails ? (
+                    <TableCell align="right">
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                        {target != null ? formatGHS(target) : "—"}
+                      </Typography>
+                    </TableCell>
+                  ) : null}
+                  {showMoneyDetails ? (
+                    <TableCell align="right">
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          fontWeight: 700,
+                          color:
+                            balance > 0 ? "warning.main" : "success.main",
+                        }}
+                      >
+                        {balance > 0 ? formatGHS(balance) : "Settled"}
+                      </Typography>
+                    </TableCell>
+                  ) : null}
+                  <TableCell
+                    align="right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <IconButton
+                      size="small"
+                      aria-label="Order actions"
+                      onClick={(event) => {
+                        setMenuAnchor(event.currentTarget);
+                        setMenuOrderId(order.order_id);
+                      }}
+                      sx={{
+                        width: 34,
+                        height: 34,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        bgcolor: (theme) =>
+                          alpha(theme.palette.primary.main, 0.06),
+                        color: "text.secondary",
+                        "&:hover": {
+                          color: "primary.main",
+                          bgcolor: (theme) =>
+                            alpha(theme.palette.primary.main, 0.12),
+                        },
+                      }}
+                    >
+                      <MoreVertRounded fontSize="small" />
+                    </IconButton>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={closeMenu}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        slotProps={{
+          list: { sx: { p: 0 } },
+          paper: {
+            sx: {
+              mt: 1,
+              minWidth: { xs: "calc(100vw - 32px)", sm: 336 },
+              maxWidth: "calc(100vw - 32px)",
+              borderRadius: 3,
+              overflow: "hidden",
+              border: "1px solid",
+              borderColor: "divider",
+              backgroundImage: "none",
+              boxShadow: (theme) =>
+                `0 28px 72px ${alpha(
+                  theme.palette.common.black,
+                  theme.palette.mode === "dark" ? 0.62 : 0.22,
+                )}`,
+            },
+          },
+        }}
+      >
+        {menuOrder ? (
+          <Box
+            sx={{
+              px: 2,
+              py: 1.75,
+              display: "flex",
+              alignItems: "center",
+              gap: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              background: (theme) =>
+                `linear-gradient(135deg, ${alpha(
+                  menuOrderColour,
+                  theme.palette.mode === "dark" ? 0.32 : 0.13,
+                )}, ${alpha(menuOrderColour, 0)} 78%)`,
+            }}
+          >
+            <Box
+              aria-hidden
+              sx={{
+                width: 46,
+                height: 46,
+                borderRadius: 2,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: menuOrderColour,
+                color: tokens.white,
+                fontWeight: 900,
+                boxShadow: `0 10px 24px ${alpha(menuOrderColour, 0.38)}`,
+                flexShrink: 0,
+              }}
+            >
+              {orderInitials(menuOrder)}
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }} noWrap>
+                {menuOrder.design_title}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+                Ref {menuOrder.order_id.slice(0, 8)} ·{" "}
+                {menuOrder.customer_name || "Unnamed customer"}
+              </Typography>
+              <Chip
+                size="small"
+                label={
+                  menuOrderBalance > 0
+                    ? `${formatGHS(menuOrderBalance)} due`
+                    : statusLabel(menuOrder.status)
+                }
+                sx={{
+                  mt: 0.5,
+                  height: 20,
+                  fontWeight: 800,
+                  fontSize: 11,
+                  color: menuOrderBalance > 0 ? "warning.main" : "primary.main",
+                  bgcolor: (theme) =>
+                    alpha(
+                      menuOrderBalance > 0
+                        ? theme.palette.warning.main
+                        : theme.palette.primary.main,
+                      0.12,
+                    ),
+                  "& .MuiChip-label": { px: 1 },
+                }}
+              />
+            </Box>
+          </Box>
+        ) : null}
+        <Box sx={{ py: 0.5 }}>
+          <OrderActionMenuItem
+            icon={<VisibilityRounded fontSize="small" />}
+            label="View detail"
+            helper="Open the full order drawer"
+            onClick={() => menuOrderId && openDetail(menuOrderId)}
+          />
+        {menuOrder && menuOrder.status === "confirmed" ? (
+          <OrderActionMenuItem
+            icon={<TimelineRounded fontSize="small" />}
+            label="Advance stage"
+            helper="Move this order to the next step"
+            onClick={() => {
+              submit(
+                {
+                  intent: "advance",
+                  order_id: menuOrder.order_id,
+                  return_to: returnTo,
+                },
+                { method: "post" },
+              );
+              closeMenu();
+            }}
+          />
+        ) : null}
+        {showMoneyDetails ? (
+          <OrderActionMenuItem
+            icon={<PaymentsRounded fontSize="small" />}
+            label="Manage payment"
+            helper="Review balances and payment notes"
+            onClick={() => menuOrderId && openDetail(menuOrderId)}
+          />
+        ) : null}
+        {menuOrder && measurementSourceFor(menuOrder) ? (
+          <OrderActionMenuItem
+            icon={<StraightenRounded fontSize="small" />}
+            label="Record measurements"
+            helper="Capture fitting values for this order"
+            onClick={() => menuOrderId && openDetail(menuOrderId)}
+          />
+        ) : null}
+        </Box>
+      </Menu>
+
+      <Drawer
+        anchor="right"
+        open={Boolean(detailOrder)}
+        onClose={() => setDetailId(null)}
+        slotProps={{
+          paper: {
+            sx: {
+              width: { xs: "100%", sm: 480 },
+              maxWidth: "100%",
+              p: { xs: 2, md: 2.5 },
+              bgcolor: "background.default",
+            },
+          },
+        }}
+      >
+        <Stack
+          direction="row"
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1.5,
+          }}
+        >
+          <Typography sx={{ fontWeight: 900 }}>Order detail</Typography>
+          <IconButton
+            size="small"
+            aria-label="Close order detail"
+            onClick={() => setDetailId(null)}
+          >
+            <CloseRounded fontSize="small" />
+          </IconButton>
+        </Stack>
+        {detailOrder ? (
+          <OrderCard
+            order={detailOrder}
+            returnTo={returnTo}
+            measurementFields={measurementFields}
+            showMoneyDetails={showMoneyDetails}
+          />
+        ) : null}
+      </Drawer>
+    </>
+  );
+}
+
 function OrderCard({
   order,
   returnTo,
@@ -7076,11 +7507,24 @@ function InlineEmptyState({
       sx={{
         p: 2.5,
         border: "1px dashed",
-        borderColor: alpha(tokens.burgundy, 0.25),
+        borderColor: (theme) =>
+          alpha(
+            theme.palette.primary.main,
+            theme.palette.mode === "dark" ? 0.36 : 0.25,
+          ),
         borderRadius: 2,
         textAlign: "center",
-        bgcolor: "rgba(var(--surface-rgb), 0.7)",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.045)}, transparent 48%)`,
+        bgcolor: (theme) =>
+          theme.palette.mode === "dark"
+            ? alpha(tokens.white, 0.035)
+            : "rgba(var(--surface-rgb), 0.7)",
+        backgroundImage: (theme) => {
+          const tone = alpha(
+            theme.palette.primary.main,
+            theme.palette.mode === "dark" ? 0.12 : 0.045,
+          );
+          return `linear-gradient(135deg, ${tone}, transparent 48%)`;
+        },
       }}
     >
       <Box
@@ -7093,9 +7537,9 @@ function InlineEmptyState({
           borderRadius: 2,
           display: "grid",
           placeItems: "center",
-          bgcolor: alpha(tokens.burgundy, 0.08),
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
           border: "1px solid",
-          borderColor: alpha(tokens.burgundy, 0.16),
+          borderColor: (theme) => alpha(theme.palette.primary.main, 0.22),
         }}
       >
         {icon}
@@ -7134,6 +7578,35 @@ function ReportsPanel({
     (sum, metric) => sum + metric.count,
     0,
   );
+  const reportSurfaceSx: SxProps<Theme> = {
+    border: "1px solid",
+    borderColor: "divider",
+    borderRadius: 2,
+    bgcolor: (theme) =>
+      theme.palette.mode === "dark"
+        ? alpha(tokens.white, 0.035)
+        : alpha(tokens.ink, 0.018),
+    backgroundImage: (theme) =>
+      theme.palette.mode === "dark"
+        ? `linear-gradient(180deg, ${alpha(tokens.white, 0.045)}, ${alpha(
+            tokens.white,
+            0.018,
+          )})`
+        : "none",
+  };
+  const reportHeaderSx: SxProps<Theme> = {
+    px: 1.75,
+    py: 1.5,
+    bgcolor: (theme) =>
+      theme.palette.mode === "dark"
+        ? alpha(tokens.white, 0.055)
+        : tokens.panel,
+    color: "text.primary",
+    backgroundImage: (theme) =>
+      theme.palette.mode === "dark"
+        ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.16)}, transparent 62%)`
+        : "none",
+  };
 
   return (
     <Panel id="reports">
@@ -7182,11 +7655,8 @@ function ReportsPanel({
         >
           <Box
             sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              ...reportSurfaceSx,
               p: { xs: 1.5, md: 2 },
-              bgcolor: alpha(tokens.ink, 0.018),
             }}
           >
             <Stack
@@ -7256,15 +7726,17 @@ function ReportsPanel({
                       sx={{
                         height,
                         borderRadius: 1.25,
-                        bgcolor:
+                        bgcolor: (theme) =>
                           bucket.total_minor > 0
-                            ? tokens.burgundy
-                            : alpha(tokens.ink, 0.08),
+                            ? theme.palette.primary.main
+                            : theme.palette.mode === "dark"
+                              ? alpha(tokens.white, 0.08)
+                              : alpha(tokens.ink, 0.08),
                         border: "1px solid",
-                        borderColor:
+                        borderColor: (theme) =>
                           bucket.total_minor > 0
-                            ? alpha(tokens.burgundy, 0.3)
-                            : "divider",
+                            ? alpha(theme.palette.primary.main, 0.3)
+                            : theme.palette.divider,
                         transition: "height 180ms ease",
                       }}
                     />
@@ -7311,13 +7783,11 @@ function ReportsPanel({
 
             <Box
               sx={{
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: 2,
+                ...reportSurfaceSx,
                 overflow: "hidden",
               }}
             >
-              <Box sx={{ px: 1.75, py: 1.5, bgcolor: tokens.panel }}>
+              <Box sx={reportHeaderSx}>
                 <Typography sx={{ fontWeight: 900 }}>
                   Stage throughput
                 </Typography>
@@ -7393,9 +7863,7 @@ function ReportsPanel({
       >
         <Box
           sx={{
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 2,
+            ...reportSurfaceSx,
             overflow: "hidden",
           }}
         >
@@ -7403,9 +7871,7 @@ function ReportsPanel({
             direction={{ xs: "column", sm: "row" }}
             spacing={1}
             sx={{
-              px: 1.75,
-              py: 1.5,
-              bgcolor: tokens.panel,
+              ...reportHeaderSx,
               justifyContent: "space-between",
               alignItems: { xs: "flex-start", sm: "center" },
             }}
@@ -8804,154 +9270,265 @@ function StoreSettingsPanel({
             sx={{
               mt: 2,
               display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "1fr", lg: "320px minmax(0, 1fr)" },
+              gap: 1.5,
+              alignItems: "start",
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "minmax(340px, 0.9fr) minmax(0, 1.1fr)",
+              },
             }}
           >
             <Box
               sx={{
-                p: 2,
+                p: { xs: 1.5, md: 1.75 },
                 border: "1px solid",
-                borderColor: alpha(tokens.burgundy, 0.18),
+                borderColor: (theme) =>
+                  alpha(
+                    theme.palette.primary.main,
+                    theme.palette.mode === "dark" ? 0.26 : 0.18,
+                  ),
                 borderRadius: 2,
-                bgcolor: "rgba(var(--surface-rgb), 0.76)",
-                backgroundImage: `linear-gradient(135deg, ${alpha(settings.brand_color || tokens.burgundy, 0.11)}, transparent 52%)`,
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? alpha(tokens.white, 0.04)
+                    : "rgba(var(--surface-rgb), 0.76)",
+                backgroundImage: `linear-gradient(135deg, ${alpha(
+                  settings.brand_color || tokens.burgundy,
+                  0.11,
+                )}, transparent 52%)`,
               }}
             >
               <Stack
                 direction="row"
                 spacing={1.25}
-                sx={{ alignItems: "center" }}
+                sx={{
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 1.25,
+                }}
               >
-                <Box
+                <Stack
+                  direction="row"
+                  spacing={1.25}
+                  sx={{ alignItems: "center", minWidth: 0 }}
+                >
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 1.5,
+                      display: "grid",
+                      placeItems: "center",
+                      color: tokens.white,
+                      bgcolor: settings.brand_color || tokens.burgundy,
+                      border: "1px solid",
+                      borderColor: alpha(tokens.ink, 0.12),
+                      flexShrink: 0,
+                    }}
+                  >
+                    <PaletteRounded />
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {profile.name}
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Public identity
+                    </Typography>
+                  </Box>
+                </Stack>
+                <Typography
+                  variant="caption"
                   sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 1.5,
-                    display: "grid",
-                    placeItems: "center",
-                    color: tokens.white,
-                    bgcolor: settings.brand_color || tokens.burgundy,
-                    border: "1px solid",
-                    borderColor: alpha(tokens.ink, 0.12),
+                    color: "text.secondary",
+                    fontWeight: 800,
+                    textAlign: "right",
+                    flexShrink: 0,
                   }}
                 >
-                  <PaletteRounded />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 900 }} noWrap>
-                    {profile.name}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    Public colour and store switches
-                  </Typography>
-                </Box>
+                  {settings.layout_variant || "standard"}
+                </Typography>
               </Stack>
-              <PlanGatedControl
-                locked={!(profile.entitlements ?? {}).custom_brand_color}
-                title="Brand colour"
-                description="Used on the public store header and customer trust moments."
+              <Box
+                sx={{
+                  mt: 1.5,
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    sm: "repeat(2, minmax(0, 1fr))",
+                    xl: "1fr",
+                  },
+                }}
               >
-                <TextField
-                  name="brand_color"
-                  type="color"
-                  defaultValue={settings.brand_color || tokens.burgundy}
-                  fullWidth
-                  size="small"
-                />
-              </PlanGatedControl>
-              <PlanGatedControl
-                locked={!(profile.entitlements ?? {}).custom_logo}
-                title="Storefront logo"
-                description="Shown on the storefront in place of the Xtiitch mark."
-              >
-                <StorefrontImageUploadField
-                  name="logo"
-                  currentUrl={settings.logo_url}
-                />
-              </PlanGatedControl>
-              <PlanGatedControl
-                locked={!(profile.entitlements ?? {}).custom_banner}
-                title="Hero banner image"
-                description="Replaces the default storefront hero image."
-              >
-                <StorefrontImageUploadField
-                  name="banner"
-                  currentUrl={settings.banner_url}
-                />
-              </PlanGatedControl>
-              <PlanGatedControl
-                locked={!(profile.entitlements ?? {}).custom_layout}
-                title="Storefront layout"
-                description="How the storefront hero is composed."
-              >
-                <TextField
-                  select
-                  name="layout_variant"
-                  defaultValue={settings.layout_variant || "standard"}
-                  fullWidth
-                  size="small"
+                <PlanGatedControl
+                  locked={!(profile.entitlements ?? {}).custom_brand_color}
+                  title="Brand colour"
+                  description="Used on the public store header and customer trust moments."
                 >
-                  <MenuItem value="standard">Standard</MenuItem>
-                  <MenuItem value="spotlight">Spotlight</MenuItem>
-                  <MenuItem value="minimal">Minimal</MenuItem>
-                </TextField>
-              </PlanGatedControl>
+                  <TextField
+                    name="brand_color"
+                    type="color"
+                    defaultValue={settings.brand_color || tokens.burgundy}
+                    fullWidth
+                    size="small"
+                  />
+                </PlanGatedControl>
+                <PlanGatedControl
+                  locked={!(profile.entitlements ?? {}).custom_logo}
+                  title="Storefront logo"
+                  description="Shown on the storefront in place of the Xtiitch mark."
+                >
+                  <StorefrontImageUploadField
+                    name="logo"
+                    currentUrl={settings.logo_url}
+                  />
+                </PlanGatedControl>
+                <PlanGatedControl
+                  locked={!(profile.entitlements ?? {}).custom_banner}
+                  title="Hero banner image"
+                  description="Replaces the default storefront hero image."
+                >
+                  <StorefrontImageUploadField
+                    name="banner"
+                    currentUrl={settings.banner_url}
+                  />
+                </PlanGatedControl>
+                <PlanGatedControl
+                  locked={!(profile.entitlements ?? {}).custom_layout}
+                  title="Storefront layout"
+                  description="How the storefront hero is composed."
+                >
+                  <TextField
+                    select
+                    name="layout_variant"
+                    defaultValue={settings.layout_variant || "standard"}
+                    fullWidth
+                    size="small"
+                  >
+                    <MenuItem value="standard">Standard</MenuItem>
+                    <MenuItem value="spotlight">Spotlight</MenuItem>
+                    <MenuItem value="minimal">Minimal</MenuItem>
+                  </TextField>
+                </PlanGatedControl>
+              </Box>
             </Box>
 
             <Box
               sx={{
-                display: "grid",
-                gap: 1.25,
-                gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+                p: { xs: 1.5, md: 1.75 },
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                bgcolor: (theme) =>
+                  theme.palette.mode === "dark"
+                    ? alpha(tokens.white, 0.035)
+                    : "rgba(var(--surface-rgb), 0.72)",
               }}
             >
-              {featureSwitches.map((feature) => (
-                <Box
-                  key={feature.name}
-                  sx={{
-                    p: 1.5,
-                    border: "1px solid",
-                    borderColor: feature.checked
-                      ? alpha(tokens.burgundy, 0.24)
-                      : "divider",
-                    borderRadius: 2,
-                    bgcolor: feature.checked
-                      ? alpha(tokens.burgundy, 0.055)
-                      : "rgba(var(--surface-rgb), 0.72)",
-                  }}
-                >
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        name={feature.name}
-                        defaultChecked={feature.checked}
-                      />
-                    }
-                    label={feature.label}
-                    sx={{
-                      m: 0,
-                      "& .MuiFormControlLabel-label": { fontWeight: 900 },
-                    }}
-                  />
-                  <Typography
-                    variant="body2"
-                    sx={{ mt: 0.45, color: "text.secondary" }}
-                  >
-                    {feature.helper}
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{
+                  alignItems: { xs: "flex-start", sm: "center" },
+                  justifyContent: "space-between",
+                  mb: 1.25,
+                }}
+              >
+                <Box>
+                  <Typography sx={{ fontWeight: 900 }}>
+                    Customer request paths
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Enable only the storefront actions your team is ready to
+                    handle.
                   </Typography>
                 </Box>
-              ))}
+                <ToneChip
+                  label={`${enabledStoreSettings(settings)} active`}
+                  tone={tokens.burgundy}
+                />
+              </Stack>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+                }}
+              >
+                {featureSwitches.map((feature) => (
+                  <Box
+                    key={feature.name}
+                    component="label"
+                    sx={{
+                      p: 1.25,
+                      border: "1px solid",
+                      borderColor: (theme) =>
+                        feature.checked
+                          ? alpha(theme.palette.primary.main, 0.28)
+                          : theme.palette.divider,
+                      borderRadius: 2,
+                      bgcolor: (theme) =>
+                        feature.checked
+                          ? alpha(
+                              theme.palette.primary.main,
+                              theme.palette.mode === "dark" ? 0.14 : 0.07,
+                            )
+                          : theme.palette.mode === "dark"
+                            ? alpha(tokens.white, 0.03)
+                            : "rgba(var(--surface-rgb), 0.66)",
+                      cursor: "pointer",
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: "auto minmax(0, 1fr)",
+                      alignItems: "flex-start",
+                    }}
+                  >
+                    <Checkbox
+                      name={feature.name}
+                      defaultChecked={feature.checked}
+                      sx={{ p: 0.2, mt: 0.2 }}
+                    />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 900 }}>
+                        {feature.label}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          mt: 0.25,
+                          color: "text.secondary",
+                          display: "block",
+                          lineHeight: 1.55,
+                        }}
+                      >
+                        {feature.helper}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           </Box>
-          <Button
-            type="submit"
-            variant="contained"
-            startIcon={<SaveRounded />}
-            sx={{ mt: 2 }}
+          <Box
+            sx={{
+              mt: 2,
+              display: "flex",
+              justifyContent: { xs: "stretch", sm: "flex-end" },
+            }}
           >
-            Save storefront settings
-          </Button>
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<SaveRounded />}
+              sx={{ width: { xs: "100%", sm: "auto" } }}
+            >
+              Save storefront settings
+            </Button>
+          </Box>
         </Form>
       </Box>
     </Panel>
@@ -12454,27 +13031,12 @@ export default function Dashboard({
                             helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
                           />
                         ) : (
-                          <Box
-                            sx={{
-                              display: "grid",
-                              gap: 1.75,
-                              alignItems: "stretch",
-                              gridTemplateColumns: {
-                                xs: "1fr",
-                                lg: "repeat(auto-fit, minmax(min(430px, 100%), 1fr))",
-                              },
-                            }}
-                          >
-                            {filteredOrders.map((order) => (
-                              <OrderCard
-                                key={order.order_id}
-                                order={order}
-                                returnTo={returnTo}
-                                measurementFields={measurementFields}
-                                showMoneyDetails={canManage}
-                              />
-                            ))}
-                          </Box>
+                          <OrdersTable
+                            orders={filteredOrders}
+                            returnTo={returnTo}
+                            measurementFields={measurementFields}
+                            showMoneyDetails={canManage}
+                          />
                         )}
                       </Stack>
                     </Box>
