@@ -1,5 +1,11 @@
-import { Form, redirect } from "react-router";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Form, redirect, useSearchParams } from "react-router";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import Alert from "@mui/material/Alert";
 import Avatar from "@mui/material/Avatar";
 import Badge from "@mui/material/Badge";
@@ -157,6 +163,37 @@ type Section =
   | "support"
   | "settings"
   | "audit";
+
+// Sections are reflected in the URL (?section=…) so operators can deep-link,
+// bookmark and use browser back/forward across the console.
+const KNOWN_SECTIONS: readonly Section[] = [
+  "overview",
+  "notifications",
+  "reports",
+  "exports",
+  "health",
+  "readiness",
+  "subscriptions",
+  "promotions",
+  "ads",
+  "affiliates",
+  "referrals",
+  "users",
+  "roles",
+  "verification",
+  "businesses",
+  "customers",
+  "money",
+  "risk",
+  "support",
+  "settings",
+  "audit",
+];
+function sectionFromParam(value: string | null): Section | null {
+  return value && (KNOWN_SECTIONS as readonly string[]).includes(value)
+    ? (value as Section)
+    : null;
+}
 type Decision = AdminVerificationDecision;
 type StatusFilter = "all" | AdminBusinessStatus;
 type AuditEvent = AdminAuditEvent;
@@ -16009,28 +16046,32 @@ export default function AdminDashboard({
     auditLogError,
   } = loaderData;
   const actionFeedback = actionData as AdminActionFeedback | undefined;
-  const [section, setSection] = useState<Section>(
-    actionFeedback?.section === "users" ||
-      actionFeedback?.section === "roles" ||
-      actionFeedback?.section === "settings" ||
-      actionFeedback?.section === "notifications" ||
-      actionFeedback?.section === "reports" ||
-      actionFeedback?.section === "exports" ||
-      actionFeedback?.section === "health" ||
-      actionFeedback?.section === "readiness" ||
-      actionFeedback?.section === "subscriptions" ||
-      actionFeedback?.section === "promotions" ||
-      actionFeedback?.section === "ads" ||
-      actionFeedback?.section === "affiliates" ||
-      actionFeedback?.section === "referrals" ||
-      actionFeedback?.section === "verification" ||
-      actionFeedback?.section === "businesses" ||
-      actionFeedback?.section === "customers" ||
-      actionFeedback?.section === "money" ||
-      actionFeedback?.section === "risk" ||
-      actionFeedback?.section === "support"
-      ? actionFeedback.section
-      : "overview",
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Section is URL-addressable (?section=…): deep-link priority is the URL, then a
+  // post-action feedback section, then overview.
+  const [section, setSectionState] = useState<Section>(
+    () =>
+      sectionFromParam(searchParams.get("section")) ??
+      sectionFromParam(actionFeedback?.section ?? null) ??
+      "overview",
+  );
+  const setSection = useCallback(
+    (next: Section) => {
+      setSectionState(next);
+      setSearchParams(
+        (prev) => {
+          const params = new URLSearchParams(prev);
+          if (next === "overview") {
+            params.delete("section");
+          } else {
+            params.set("section", next);
+          }
+          return params;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
   );
   const [verificationNotes, setVerificationNotes] = useState<
     Record<string, string>
