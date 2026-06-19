@@ -3768,6 +3768,7 @@ function ToneChip({
 }
 
 function WorkspaceRail({
+  profile,
   workspaceGroups,
   section,
   storefrontURL,
@@ -4182,7 +4183,7 @@ function WorkspaceRail({
                     }}
                     noWrap
                   >
-                    Xtiitch
+                    {profile.name}
                   </Typography>
                   <Typography
                     component="span"
