@@ -934,8 +934,8 @@ export function ProductPreview() {
                   borderRadius: 1,
                   bgcolor:
                     index === 1
-                      ? "rgba(250,246,242,0.96)"
-                      : "rgba(255,255,255,0.9)",
+                      ? "rgba(var(--surface-rgb),0.96)"
+                      : "rgba(var(--surface-rgb),0.9)",
                   border: "1px solid",
                   borderColor:
                     index === 1 ? "rgba(128,0,32,0.18)" : "transparent",

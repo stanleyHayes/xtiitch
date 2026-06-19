@@ -30,6 +30,7 @@ import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
 import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
+import { useTheme } from "@mui/material/styles";
 import { site } from "../content";
 import { ThemeModeToggle } from "../theme-mode";
 
@@ -68,6 +69,11 @@ export function Logo({
   tone?: "dark" | "light";
 }) {
   const isLight = tone === "light";
+  const theme = useTheme();
+  // The ii mark is wine on a light bar, but must go cream on the dark bar/theme
+  // (the wordmark already adapts via text.primary).
+  const markColor =
+    isLight || theme.palette.mode === "dark" ? "#faf6f2" : "#800020";
   return (
     <Box
       component={RouterLink}
@@ -87,7 +93,7 @@ export function Logo({
       }}
     >
       <XtiitchMark
-        color={isLight ? "#faf6f2" : "#800020"}
+        color={markColor}
         size={30}
         sx={{
           flexShrink: 0,
