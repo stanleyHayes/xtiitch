@@ -2897,7 +2897,8 @@ function Panel({ children, sx }: { children: ReactNode; sx?: SxProps<Theme> }) {
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
         bgcolor: "rgba(var(--surface-rgb), 0.96)",
-        backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})`,
+        backgroundImage:
+          "linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.66))",
         boxShadow: `0 22px 60px ${alpha(tokens.ink, 0.065)}`,
         backdropFilter: "blur(10px)",
         minWidth: 0,
@@ -2939,7 +2940,7 @@ function MetricCard({
         backgroundImage: `
           radial-gradient(circle at 88% 18%, ${alpha(tokens.warning, 0.18)} 0, transparent 30%),
           linear-gradient(135deg, ${alpha(tokens.burgundy, 0.1)}, transparent 48%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.74)})
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.74))
         `,
         "&::before": {
           content: '""',
@@ -3070,7 +3071,7 @@ function VerificationCard({
         borderColor: alpha(accent, 0.2),
         backgroundImage: `
           linear-gradient(135deg, ${alpha(accent, 0.08)}, transparent 38%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
         `,
         "&:hover": {
           transform: "translateY(-2px)",
@@ -3636,7 +3637,7 @@ function BusinessRow({
           : alpha(accent, 0.2),
         backgroundImage: `
           linear-gradient(90deg, ${alpha(accent, selected ? 0.11 : 0.065)}, transparent 34%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
         `,
         "&::before": {
           content: '""',
@@ -3786,7 +3787,7 @@ function BusinessInspector({
           borderColor: alpha(tokens.burgundy, 0.16),
           backgroundImage: `
             radial-gradient(circle at 92% 0%, ${alpha(tokens.burgundy, 0.12)}, transparent 34%),
-            linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+            linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
           `,
         }}
       >
@@ -3826,7 +3827,7 @@ function BusinessInspector({
         borderColor: alpha(accent, 0.24),
         backgroundImage: `
           radial-gradient(circle at 95% 5%, ${alpha(accent, 0.14)}, transparent 32%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
         `,
       }}
     >
@@ -4197,7 +4198,7 @@ function NotificationsSection({
                   borderColor: alpha(color, 0.22),
                   backgroundImage: `
                     linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%),
-                    linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                    linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                   `,
                   "&:hover": {
                     transform: "translateY(-2px)",
@@ -4306,7 +4307,7 @@ function NotificationsSection({
             borderColor: alpha(tokens.warning, 0.18),
             backgroundImage: `
               radial-gradient(circle at 96% 0%, ${alpha(tokens.warning, 0.16)}, transparent 36%),
-              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+              linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
             `,
           }}
         >
@@ -4892,7 +4893,7 @@ function ReportsSection({
               borderColor: alpha(tokens.info, 0.16),
               backgroundImage: `
                 radial-gradient(circle at 96% 0%, ${alpha(tokens.info, 0.14)}, transparent 34%),
-                linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
               `,
             }}
           >
@@ -5888,7 +5889,7 @@ function ExportsSection({
                 borderColor: alpha(color, 0.2),
                 backgroundImage: `
                   linear-gradient(90deg, ${alpha(color, 0.07)}, transparent 34%),
-                  linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                  linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                 `,
               }}
             >
@@ -6361,7 +6362,7 @@ function HealthSection({
                 borderColor: alpha(color, 0.2),
                 backgroundImage: `
                   linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 36%),
-                  linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                  linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                 `,
                 "&:hover": {
                   transform: "translateY(-2px)",
@@ -6528,7 +6529,7 @@ function LaunchReadinessSection({
                 ? alpha(tokens.danger, 0.08)
                 : alpha(tokens.success, 0.08)
             }, transparent 38%),
-            linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+            linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
           `,
         }}
       >
@@ -6610,7 +6611,7 @@ function LaunchReadinessSection({
                 borderColor: alpha(color, 0.22),
                 backgroundImage: `
                   linear-gradient(90deg, ${alpha(color, 0.07)}, transparent 34%),
-                  linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                  linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                 `,
               }}
             >
@@ -7813,7 +7814,7 @@ function SubscriptionsSection({
           borderColor: alpha(tokens.success, 0.2),
           backgroundImage: `
             radial-gradient(circle at 96% 6%, ${alpha(tokens.success, 0.12)}, transparent 30%),
-            linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+            linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
           `,
         }}
       >
@@ -8475,7 +8476,7 @@ function SubscriptionsSection({
                     bgcolor: "rgba(var(--surface-rgb), 0.82)",
                     backgroundImage: `
                       linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 34%),
-                      linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.62)})
+                      linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.62))
                     `,
                     boxShadow: `0 16px 40px ${alpha(tokens.ink, 0.045)}`,
                   }}
@@ -8706,7 +8707,7 @@ function SubscriptionsSection({
                             borderRadius: 1.5,
                             border: "1px solid",
                             borderColor: alpha(tokens.ink, 0.1),
-                            bgcolor: alpha(tokens.panel, 0.4),
+                            bgcolor: "rgba(var(--surface-rgb), 0.4)",
                             p: 1.25,
                             "& > summary": {
                               cursor: "pointer",
@@ -9069,7 +9070,7 @@ function SubscriptionsSection({
             borderColor: alpha(tokens.info, 0.18),
             backgroundImage: `
               radial-gradient(circle at 96% 0%, ${alpha(tokens.info, 0.14)}, transparent 35%),
-              linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+              linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
             `,
           }}
         >
@@ -9155,7 +9156,7 @@ function SubscriptionPlanSummaryCard({
         borderColor: alpha(row.visual.tone, row.plan.isActive ? 0.22 : 0.16),
         backgroundImage: `
           radial-gradient(circle at 96% 0%, ${alpha(row.visual.tone, row.plan.isActive ? 0.14 : 0.08)}, transparent 32%),
-          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.66)})
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.66))
         `,
         opacity: row.plan.isActive ? 1 : 0.92,
       }}
@@ -10958,7 +10959,7 @@ function AdsSection({
                                   border: "1px solid",
                                   borderColor: alpha(tokens.ink, 0.08),
                                   borderRadius: 1,
-                                  bgcolor: alpha(tokens.panel, 0.56),
+                                  bgcolor: "rgba(var(--surface-rgb), 0.56)",
                                 }}
                               >
                                 <Box sx={{ minWidth: 0 }}>
@@ -11786,7 +11787,7 @@ function AffiliatesSection({
                               sx={{
                                 p: 1,
                                 borderRadius: 1,
-                                bgcolor: alpha(tokens.panel, 0.76),
+                                bgcolor: "rgba(var(--surface-rgb), 0.76)",
                               }}
                             >
                               <Stack
@@ -11985,7 +11986,7 @@ function AffiliatesSection({
                             sx={{
                               p: 1,
                               borderRadius: 1,
-                              bgcolor: alpha(tokens.panel, 0.76),
+                              bgcolor: "rgba(var(--surface-rgb), 0.76)",
                               justifyContent: "space-between",
                               alignItems: { sm: "center" },
                             }}
@@ -14438,7 +14439,7 @@ function SettingsSection({
               borderColor: alpha(tokens.info, 0.16),
               backgroundImage: `
                 linear-gradient(135deg, ${alpha(tokens.info, 0.08)}, transparent 38%),
-                linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
               `,
             }}
           >
@@ -15471,7 +15472,7 @@ function AdminTopBar({
         color: darkChrome ? tokens.white : tokens.ink,
         backgroundImage: darkChrome
           ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
-          : `linear-gradient(90deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.74)})`,
+          : `linear-gradient(90deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.74))`,
         position: "sticky",
         top: 0,
         zIndex: 3,
@@ -16287,7 +16288,7 @@ export default function AdminDashboard({
                     borderColor: alpha(tokens.info, 0.16),
                     backgroundImage: `
                       radial-gradient(circle at 92% 0%, ${alpha(tokens.info, 0.14)}, transparent 34%),
-                      linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                      linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                     `,
                   }}
                 >
@@ -16878,7 +16879,7 @@ export default function AdminDashboard({
                     borderColor: alpha(tokens.warning, 0.16),
                     backgroundImage: `
                       radial-gradient(circle at 92% 2%, ${alpha(tokens.warning, 0.14)}, transparent 34%),
-                      linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                      linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                     `,
                   }}
                 >
@@ -17117,7 +17118,7 @@ export default function AdminDashboard({
                         borderColor: alpha(riskColor(item.level), 0.22),
                         backgroundImage: `
                           radial-gradient(circle at 100% 0%, ${alpha(riskColor(item.level), closed ? 0.06 : 0.12)}, transparent 34%),
-                          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                         `,
                         opacity: closed ? 0.72 : 1,
                         "&:hover": {
@@ -17281,7 +17282,7 @@ export default function AdminDashboard({
                               : tokens.info,
                             ticket.priority === "urgent" ? 0.09 : 0.06,
                           )}, transparent 38%),
-                          linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})
+                          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                         `,
                         opacity: resolved ? 0.72 : 1,
                         "&:hover": {

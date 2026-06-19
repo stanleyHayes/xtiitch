@@ -3124,7 +3124,7 @@ function minutesToTime(value: number): string {
 const StyledTemporalField = styled(Box)(({ theme }) => ({
   border: `1px solid ${alpha(tokens.ink, 0.1)}`,
   borderRadius: 20,
-  background: `linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.78)})`,
+  background: `linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.78))`,
   padding: theme.spacing(0.75),
   transition:
     "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
@@ -3582,7 +3582,7 @@ function Panel({
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
         bgcolor: "rgba(var(--surface-rgb), 0.96)",
-        backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.78)}, ${alpha(tokens.panel, 0.5)})`,
+        backgroundImage: `linear-gradient(180deg, rgba(var(--surface-rgb), 0.78), rgba(var(--surface-rgb), 0.5))`,
         boxShadow: `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
         minWidth: 0,
         maxWidth: "100%",
@@ -3660,7 +3660,7 @@ function MetricCard({
         minHeight: 142,
         position: "relative",
         overflow: "hidden",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.12)}, transparent 46%), linear-gradient(180deg, ${alpha(tokens.white, 0.9)}, ${alpha(tokens.panel, 0.58)})`,
+        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.12)}, transparent 46%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.9), rgba(var(--surface-rgb), 0.58))`,
         "&::before": {
           content: '""',
           position: "absolute",
@@ -4530,7 +4530,7 @@ function WorkspaceTopBar({
         color: darkChrome ? tokens.white : tokens.ink,
         backgroundImage: darkChrome
           ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
-          : `linear-gradient(90deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.74)})`,
+          : `linear-gradient(90deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.74))`,
         boxShadow: darkChrome
           ? `0 18px 40px ${alpha(tokens.ink, 0.5)}`
           : `0 18px 40px ${alpha(tokens.ink, 0.1)}`,
@@ -5159,7 +5159,7 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.065)}, transparent 44%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.7)})`,
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.065)}, transparent 44%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.7))`,
       }}
     >
       <SectionHeader
@@ -5312,7 +5312,7 @@ function StoreReadinessPanel({
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.075)}, transparent 48%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.74)})`,
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.075)}, transparent 48%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.74))`,
       }}
     >
       <Stack
@@ -7859,7 +7859,7 @@ function WalkInOrderPanel({
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.success, 0.07)}, transparent 50%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.72)})`,
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.success, 0.07)}, transparent 50%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.72))`,
       }}
     >
       <Stack
@@ -8245,7 +8245,7 @@ function DesignImageUploadPanel({
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.07)}, transparent 50%), linear-gradient(180deg, ${alpha(tokens.white, 0.94)}, ${alpha(tokens.panel, 0.74)})`,
+        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.07)}, transparent 50%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.74))`,
       }}
     >
       <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
