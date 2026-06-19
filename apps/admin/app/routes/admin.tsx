@@ -8322,7 +8322,10 @@ function SubscriptionsSection({
                       label="Design limit"
                       value={planDesignLimitLabel(plan)}
                     />
-                    <PlanStatTile label="Code" value={plan.code} />
+                    <PlanStatTile
+                      label="Monthly recurring"
+                      value={formatGHS(plan.estimatedMrrMinor)}
+                    />
                   </Box>
                   <Box sx={{ mt: 1.5 }}>
                     <Typography
@@ -8587,26 +8590,90 @@ function SubscriptionsSection({
       ) : null}
 
       <Stack spacing={1} sx={{ mt: 1 }}>
-        <Typography variant="h6">Plan performance</Typography>
+        <Typography variant="h6">Revenue by package</Typography>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          Active subscribers, recurring revenue and commission for each package
-          — the editable definitions are above.
+          Subscribers, GMV and commission earned per package — the editable
+          definitions and recurring fees are in the cards above.
         </Typography>
       </Stack>
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: {
-            xs: "1fr",
-            lg: "repeat(2, minmax(0, 1fr))",
-          },
-        }}
-      >
+      <Panel sx={{ p: 0, overflow: "hidden" }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "minmax(0, 1.5fr) repeat(3, minmax(0, 1fr))",
+            gap: 1,
+            px: { xs: 1.5, md: 2 },
+            py: 1.25,
+            bgcolor: "rgba(var(--surface-rgb), 0.5)",
+            borderBottom: "1px solid",
+            borderColor: "divider",
+          }}
+        >
+          {["Package", "Businesses", "GMV", "Commission earned"].map(
+            (headLabel, index) => (
+              <Typography
+                key={headLabel}
+                variant="caption"
+                sx={{
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                  color: "text.secondary",
+                  textAlign: index === 0 ? "left" : "right",
+                }}
+              >
+                {headLabel}
+              </Typography>
+            ),
+          )}
+        </Box>
         {planRows.map((row) => (
-          <SubscriptionPlanSummaryCard key={row.plan.code} row={row} />
+          <Box
+            key={row.plan.code}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1.5fr) repeat(3, minmax(0, 1fr))",
+              gap: 1,
+              px: { xs: 1.5, md: 2 },
+              py: 1.5,
+              alignItems: "center",
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              opacity: row.plan.isActive ? 1 : 0.6,
+              "&:last-of-type": { borderBottom: "none" },
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 800 }} noWrap>
+                {row.plan.name}
+              </Typography>
+              <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                {row.plan.monthlyFeeMinor > 0
+                  ? formatGHS(row.plan.monthlyFeeMinor)
+                  : "Free"}{" "}
+                · {row.plan.commissionBps / 100}% commission
+              </Typography>
+            </Box>
+            <Typography sx={{ fontWeight: 800, textAlign: "right" }}>
+              {row.activeTotal}
+              <Typography
+                component="span"
+                variant="caption"
+                sx={{ color: "text.secondary" }}
+              >
+                {" "}
+                / {row.businessTotal}
+              </Typography>
+            </Typography>
+            <Typography sx={{ fontWeight: 800, textAlign: "right" }}>
+              {formatGHS(row.gmvMinor)}
+            </Typography>
+            <Typography sx={{ fontWeight: 800, textAlign: "right" }}>
+              {formatGHS(row.commissionMinor)}
+            </Typography>
+          </Box>
         ))}
-      </Box>
+      </Panel>
 
       <Box
         sx={{
@@ -9325,176 +9392,6 @@ function SubscriptionsSection({
         </Panel>
       </Box>
     </Stack>
-  );
-}
-
-function SubscriptionPlanSummaryCard({
-  row,
-}: {
-  row: {
-    plan: AdminPlan;
-    visual: { promise: string; tone: string };
-    activeTotal: number;
-    businessTotal: number;
-    estimatedMrrMinor: number;
-    gmvMinor: number;
-    commissionMinor: number;
-  };
-}) {
-  const monthlyFee =
-    row.plan.monthlyFeeMinor > 0
-      ? `${formatGHS(row.plan.monthlyFeeMinor)}`
-      : "Free";
-  const commissionRate = `${row.plan.commissionBps / 100}%`;
-
-  return (
-    <Panel
-      sx={{
-        p: { xs: 1.75, md: 2.25 },
-        borderColor: alpha(row.visual.tone, row.plan.isActive ? 0.22 : 0.16),
-        backgroundImage: `
-          radial-gradient(circle at 96% 0%, ${alpha(row.visual.tone, row.plan.isActive ? 0.14 : 0.08)}, transparent 32%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.66))
-        `,
-        opacity: row.plan.isActive ? 1 : 0.92,
-      }}
-    >
-      <Stack spacing={2}>
-        <Stack
-          direction="row"
-          spacing={1.5}
-          sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 900 }}>
-              {row.plan.name}
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.4, color: "text.secondary" }}
-            >
-              {row.visual.promise}
-            </Typography>
-          </Box>
-          <Chip
-            size="small"
-            label={
-              row.plan.isActive ? row.plan.code : `${row.plan.code} archived`
-            }
-            sx={{
-              textTransform: "capitalize",
-              bgcolor: alpha(row.visual.tone, 0.12),
-              color: row.visual.tone,
-              fontWeight: 900,
-              flexShrink: 0,
-            }}
-          />
-        </Stack>
-
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "1fr auto" },
-            gap: { xs: 1.5, sm: 2.5 },
-            alignItems: "center",
-            p: { xs: 1.5, md: 1.75 },
-            borderRadius: 2,
-            bgcolor: alpha(row.visual.tone, 0.06),
-            border: "1px solid",
-            borderColor: alpha(row.visual.tone, 0.14),
-          }}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              variant="caption"
-              sx={{ color: "text.secondary", fontWeight: 800 }}
-            >
-              Package fee
-            </Typography>
-            <Typography variant="h4" sx={{ lineHeight: 1.05, fontWeight: 950 }}>
-              {monthlyFee}
-            </Typography>
-            {row.plan.monthlyFeeMinor > 0 ? (
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                per month
-              </Typography>
-            ) : null}
-          </Box>
-          <Stack
-            direction={{ xs: "row", sm: "column" }}
-            spacing={{ xs: 2, sm: 0.5 }}
-            sx={{
-              alignItems: { xs: "center", sm: "flex-end" },
-              textAlign: { xs: "left", sm: "right" },
-            }}
-          >
-            <Box>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", fontWeight: 800 }}
-              >
-                Commission
-              </Typography>
-              <Typography
-                sx={{
-                  fontWeight: 950,
-                  color: row.visual.tone,
-                  lineHeight: 1.2,
-                }}
-              >
-                {commissionRate}
-              </Typography>
-            </Box>
-            <Box>
-              <Typography
-                variant="caption"
-                sx={{ color: "text.secondary", fontWeight: 800 }}
-              >
-                Base MRR
-              </Typography>
-              <Typography sx={{ fontWeight: 950, lineHeight: 1.2 }}>
-                {formatGHS(row.estimatedMrrMinor)}
-              </Typography>
-            </Box>
-          </Stack>
-        </Box>
-
-        <Box
-          sx={{
-            display: "grid",
-            gap: 1.5,
-            gridTemplateColumns: {
-              xs: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(4, minmax(0, 1fr))",
-            },
-          }}
-        >
-          <PlanStatTile
-            label="Design limit"
-            value={planDesignLimitLabel(row.plan)}
-          />
-          <PlanStatTile
-            label="Businesses"
-            value={`${row.activeTotal} active`}
-            helper={`${row.businessTotal} total`}
-          />
-          <PlanStatTile label="GMV" value={formatGHS(row.gmvMinor)} />
-          <PlanStatTile
-            label="Commission earned"
-            value={formatGHS(row.commissionMinor)}
-          />
-        </Box>
-
-        <Typography
-          variant="body2"
-          sx={{ color: "text.secondary", fontWeight: 800 }}
-        >
-          {row.businessTotal
-            ? `${row.businessTotal} businesses are currently mapped to this package.`
-            : "No businesses are currently mapped to this package."}
-        </Typography>
-      </Stack>
-    </Panel>
   );
 }
 
@@ -16081,9 +15978,9 @@ export default function AdminDashboard({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [businessView, setBusinessView] = useState<"list" | "card">("list");
   const [selectedBusiness, setSelectedBusiness] =
-    useState<AdminBusiness | null>(adminBusinesses[0] ?? null);
+    useState<AdminBusiness | null>(null);
   const [selectedCustomer, setSelectedCustomer] =
-    useState<AdminCustomer | null>(adminCustomers[0] ?? null);
+    useState<AdminCustomer | null>(null);
   const [auditLog, setAuditLog] = useState<AuditEvent[]>(auditEvents);
   const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -16219,7 +16116,7 @@ export default function AdminDashboard({
           return refreshed;
         }
       }
-      return adminBusinesses[0] ?? null;
+      return null;
     });
   }, [adminBusinesses]);
 
@@ -16233,7 +16130,7 @@ export default function AdminDashboard({
           return refreshed;
         }
       }
-      return adminCustomers[0] ?? null;
+      return null;
     });
   }, [adminCustomers]);
 
