@@ -569,12 +569,14 @@ function workspaceNavItems(
   return sections.map((section) => workspaceNavItem(items, section));
 }
 
+// Overview stands alone at the top of the rail (rendered solo — no group
+// header). Command is no longer pinned to the bottom: it simply flows last.
 const managementWorkspaceGroups: WorkspaceNavGroup[] = [
   {
-    id: "command",
-    label: "Command",
+    id: "overview",
+    label: "Overview",
     icon: <TuneRounded />,
-    items: workspaceNavItems(managementWorkspaceNav, ["overview", "reports"]),
+    items: workspaceNavItems(managementWorkspaceNav, ["overview"]),
   },
   {
     id: "operations",
@@ -607,6 +609,12 @@ const managementWorkspaceGroups: WorkspaceNavGroup[] = [
       "settings",
       "team",
     ]),
+  },
+  {
+    id: "command",
+    label: "Command",
+    icon: <TuneRounded />,
+    items: workspaceNavItems(managementWorkspaceNav, ["reports"]),
   },
 ];
 
@@ -3793,12 +3801,6 @@ function WorkspaceRail({
     scrollbarWidth: "none",
     "&::-webkit-scrollbar": { display: "none" },
   };
-  const primaryWorkspaceGroups = workspaceGroups.filter(
-    (group) => group.id !== "command",
-  );
-  const commandWorkspaceGroups = workspaceGroups.filter(
-    (group) => group.id === "command",
-  );
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(
       workspaceGroups.map((group) => [
@@ -3821,6 +3823,7 @@ function WorkspaceRail({
     inDrawer: boolean,
     compact: boolean,
     placement: "main" | "bottom" = "main",
+    solo: boolean = false,
   ) => {
     const activeGroup = group.items.some((item) => item.section === section);
     const open = openGroups[group.id] ?? true;
@@ -3832,7 +3835,8 @@ function WorkspaceRail({
 
     return (
       <Box key={group.id}>
-        {compact ? (
+        {!solo &&
+          (compact ? (
           <Tooltip title={group.label} placement="right">
             <IconButton
               aria-label={`${group.label} navigation group`}
@@ -3945,8 +3949,8 @@ function WorkspaceRail({
               />
             ) : null}
           </Button>
-        )}
-        <Collapse in={open} timeout="auto" unmountOnExit>
+          ))}
+        <Collapse in={solo || open} timeout="auto" unmountOnExit>
           <Stack spacing={0.55} sx={{ mt: 0.6, display: "grid" }}>
             {group.items.map((item) => {
               const active = item.section === section;
@@ -4304,30 +4308,21 @@ function WorkspaceRail({
           }}
         >
           <Stack spacing={0.85} sx={{ display: "grid" }}>
-            {primaryWorkspaceGroups.map((group) =>
-              renderWorkspaceGroup(group, inDrawer, compact),
+            {/* Overview renders solo at the top (no group header); the rest of
+                the groups flow in order with Command last, no longer pinned. */}
+            {workspaceGroups.map((group) =>
+              renderWorkspaceGroup(
+                group,
+                inDrawer,
+                compact,
+                "main",
+                group.id === "overview",
+              ),
             )}
           </Stack>
         </Box>
 
-        {commandWorkspaceGroups.length > 0 ? (
-          <Box
-            sx={{
-              mt: "auto",
-              pt: 1.1,
-              borderTop: "1px solid",
-              borderColor: alpha(tokens.white, 0.1),
-            }}
-          >
-            <Stack spacing={0.85} sx={{ display: "grid" }}>
-              {commandWorkspaceGroups.map((group) =>
-                renderWorkspaceGroup(group, inDrawer, compact, "bottom"),
-              )}
-            </Stack>
-          </Box>
-        ) : null}
-
-        <Box sx={{ mt: commandWorkspaceGroups.length > 0 ? 0 : "auto" }}>
+        <Box sx={{ mt: "auto" }}>
           {compact ? (
             <Tooltip title="View storefront" placement="right">
               <IconButton
