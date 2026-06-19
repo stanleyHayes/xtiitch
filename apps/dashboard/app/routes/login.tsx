@@ -113,7 +113,8 @@ export default function Login({ actionData }: Route.ComponentProps) {
               overflow: "hidden",
               position: "relative",
               minHeight: { xs: "auto", lg: 620 },
-              display: "flex",
+              // Desktop-only; mobile shows just the form (+ its brand header).
+              display: { xs: "none", lg: "flex" },
               flexDirection: "column",
               justifyContent: "space-between",
               "&::after": {
@@ -225,6 +226,38 @@ export default function Login({ actionData }: Route.ComponentProps) {
               bgcolor: alpha(tokens.white, 0.96),
             }}
           >
+            {/* Compact brand, mobile only (the side panel is hidden < lg). */}
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{
+                display: { xs: "flex", lg: "none" },
+                alignItems: "center",
+                mb: 2.5,
+              }}
+            >
+              <Box
+                sx={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 1.5,
+                  display: "grid",
+                  placeItems: "center",
+                  bgcolor: tokens.burgundy,
+                  color: tokens.white,
+                }}
+              >
+                <StorefrontRounded />
+              </Box>
+              <Box>
+                <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
+                  Xtiitch
+                </Typography>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  Business dashboard
+                </Typography>
+              </Box>
+            </Stack>
             <Stack spacing={0.75} sx={{ mb: 3 }}>
               <Chip
                 label="Owner access"

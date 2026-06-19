@@ -161,7 +161,9 @@ export default function Login({ actionData }: Route.ComponentProps) {
             color: tokens.white,
             px: { xs: 3, md: 5, xl: 6 },
             py: { xs: 3, md: 5 },
-            display: "flex",
+            // Mobile shows only the form (+ a compact brand header in it); the
+            // decorative panel is desktop-only.
+            display: { xs: "none", lg: "flex" },
             flexDirection: "column",
             justifyContent: "space-between",
             gap: { xs: 5, md: 7 },
@@ -399,6 +401,32 @@ export default function Login({ actionData }: Route.ComponentProps) {
             }}
           >
             <Stack spacing={2.5}>
+              {/* Compact brand, mobile only (the side panel is hidden < lg). */}
+              <Stack
+                direction="row"
+                spacing={1.25}
+                sx={{
+                  display: { xs: "flex", lg: "none" },
+                  alignItems: "center",
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1.5,
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: tokens.burgundy,
+                    color: tokens.white,
+                  }}
+                >
+                  <AdminPanelSettingsRounded />
+                </Box>
+                <Typography variant="h6" sx={{ lineHeight: 1 }}>
+                  Xtiitch Admin
+                </Typography>
+              </Stack>
               <Stack
                 direction="row"
                 spacing={1.5}
