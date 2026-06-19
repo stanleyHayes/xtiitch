@@ -21,6 +21,7 @@ import ListItemButton from "@mui/material/ListItemButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Pagination from "@mui/material/Pagination";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
@@ -16056,6 +16057,18 @@ export default function AdminDashboard({
     }
     return auditLog.filter((event) => event.severity === auditFilter);
   }, [auditFilter, auditLog]);
+  const [auditPage, setAuditPage] = useState(1);
+  useEffect(() => {
+    setAuditPage(1);
+  }, [auditFilter]);
+  const auditPageCount = Math.max(
+    1,
+    Math.ceil(filteredAuditLog.length / 12),
+  );
+  const pagedAuditLog = filteredAuditLog.slice(
+    (auditPage - 1) * 12,
+    auditPage * 12,
+  );
   const moneyWebhookEvents = moneyRails?.webhookEvents ?? [];
   const moneyPayoutReviews = moneyRails?.payoutReviews ?? [];
 
@@ -17561,7 +17574,7 @@ export default function AdminDashboard({
                 </TextField>
               </Panel>
               <Stack spacing={1.5}>
-                {filteredAuditLog.map((event) => (
+                {pagedAuditLog.map((event) => (
                   <Panel
                     key={event.id}
                     sx={{
@@ -17654,6 +17667,17 @@ export default function AdminDashboard({
                   </Panel>
                 ))}
               </Stack>
+              {auditPageCount > 1 ? (
+                <Stack sx={{ alignItems: "center", pt: 0.5 }}>
+                  <Pagination
+                    count={auditPageCount}
+                    page={auditPage}
+                    onChange={(_event, value) => setAuditPage(value)}
+                    color="primary"
+                    shape="rounded"
+                  />
+                </Stack>
+              ) : null}
             </Stack>
           ) : null}
         </Box>
