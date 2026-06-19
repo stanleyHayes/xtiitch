@@ -2,42 +2,35 @@ import { createTheme, type Theme } from "@mui/material/styles";
 
 // Mirrors packages/design-tokens and docs/design/style-guide.md. The storefront
 // base is calm and trustworthy; each store applies its own brand colour on top.
+// Aligned to Xtiitch-Brand-Guidelines v1.0. Order status (success/warning/
+// danger) maps to the brand Ready/In-progress/Received colours.
 export const tokens = {
-  burgundy: "#800020",
+  burgundy: "#800020", // Wine
   ink: "#15111a",
   cream: "#faf6f2",
   white: "#ffffff",
-  softBorder: "#e9ded6",
-  mutedText: "#6f6672",
-  success: "#237a4b",
-  warning: "#b87914",
-  danger: "#a92727",
+  softBorder: "#e7ded7", // Line
+  mutedText: "#565b63", // Graphite
+  success: "#1e8e4e", // Ready
+  warning: "#b8860b", // In progress
+  danger: "#c0392b", // Received
   info: "#315f8f",
   charcoal: "#201923",
 } as const;
 
+// Inter Tight is the single brand typeface.
 const bodyFontStack = [
-  "Instrument Sans",
-  "Roboto",
+  "Inter Tight",
   "system-ui",
   "-apple-system",
   "Segoe UI",
+  "Roboto",
   "Helvetica",
   "Arial",
   "sans-serif",
 ].join(", ");
 
-const displayFontStack = [
-  "DM Serif Display",
-  "Instrument Sans",
-  "Roboto",
-  "system-ui",
-  "-apple-system",
-  "Segoe UI",
-  "Helvetica",
-  "Arial",
-  "sans-serif",
-].join(", ");
+const displayFontStack = bodyFontStack;
 
 const controlRadius = 16;
 const buttonRadius = 999;
@@ -59,12 +52,12 @@ export const theme: Theme = createTheme({
   shape: { borderRadius: 8 },
   typography: {
     fontFamily: bodyFontStack,
-    h1: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h2: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h3: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h4: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h5: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h6: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h1: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h2: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h3: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h4: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h5: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h6: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
     button: { textTransform: "none", fontWeight: 600 },
   },
   components: {
