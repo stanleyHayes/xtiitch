@@ -4517,9 +4517,15 @@ function WorkspaceTopBar({
   return (
     <Box
       sx={{
-        px: { xs: 1, sm: 2, md: 4 },
+        px: { xs: 1.75, sm: 2.5, md: 4 },
         py: { xs: 1, sm: 1.25 },
-        borderBottom: "1px solid",
+        // A floating pill rather than a flush edge-to-edge bar: rounded all
+        // round, lifted off the window edges, full border (not just a bottom
+        // rule). Padding is kept.
+        mx: { xs: 1, sm: 1.5, md: 2 },
+        mt: { xs: 1, sm: 1.5 },
+        borderRadius: 999,
+        border: "1px solid",
         borderColor: darkChrome
           ? alpha(tokens.white, 0.12)
           : alpha(tokens.ink, 0.09),
@@ -4530,8 +4536,11 @@ function WorkspaceTopBar({
         backgroundImage: darkChrome
           ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
           : `linear-gradient(90deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.74)})`,
+        boxShadow: darkChrome
+          ? `0 18px 40px ${alpha(tokens.ink, 0.5)}`
+          : `0 18px 40px ${alpha(tokens.ink, 0.1)}`,
         position: "sticky",
-        top: 0,
+        top: { xs: 8, sm: 12 },
         zIndex: 16,
         backdropFilter: "blur(14px)",
         maxWidth: "100%",
