@@ -442,7 +442,7 @@ function Gallery({ design }: { design: Design }) {
             icon={<CreditCardRounded />}
             label={priceLabel(design.prices)}
             sx={{
-              bgcolor: alpha(tokens.white, 0.92),
+              bgcolor: "rgba(var(--surface-rgb), 0.92)",
               color: tokens.ink,
               fontWeight: 900,
               backdropFilter: "blur(10px)",
@@ -806,7 +806,7 @@ function SizePriceList({ design }: { design: Design }) {
           borderColor: "divider",
           borderRadius: "8px",
           overflow: "hidden",
-          bgcolor: alpha(tokens.white, 0.72),
+          bgcolor: "rgba(var(--surface-rgb), 0.72)",
         }}
       >
         {design.prices.map((price) => (
@@ -850,7 +850,7 @@ function DetailSignal({
         borderRadius: "8px",
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: alpha(tokens.white, 0.72),
+        bgcolor: "rgba(var(--surface-rgb), 0.72)",
       }}
     >
       <Box
@@ -1383,7 +1383,7 @@ function BespokeOrderPanel({
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: "8px",
-        bgcolor: alpha(tokens.white, 0.92),
+        bgcolor: "rgba(var(--surface-rgb), 0.92)",
       }}
     >
       <Stack direction="row" spacing={1.2} sx={{ alignItems: "flex-start" }}>
@@ -1591,7 +1591,7 @@ export default function DesignPage({
               sx={{
                 p: { xs: 2.25, md: 3 },
                 borderRadius: "8px",
-                bgcolor: alpha(tokens.white, 0.92),
+                bgcolor: "rgba(var(--surface-rgb), 0.92)",
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
                 boxShadow: `0 18px 60px ${alpha(tokens.ink, 0.08)}`,

@@ -342,7 +342,7 @@ export default function Track({ loaderData }: Route.ComponentProps) {
                   label={tracking.store_name}
                   sx={{
                     color: tokens.white,
-                    bgcolor: alpha(tokens.white, 0.12),
+                    bgcolor: "rgba(var(--surface-rgb), 0.12)",
                     border: "1px solid",
                     borderColor: alpha(tokens.white, 0.16),
                     "& .MuiChip-icon": { color: alpha(tokens.white, 0.76) },
@@ -420,7 +420,7 @@ export default function Track({ loaderData }: Route.ComponentProps) {
           </Card>
 
           <Card
-            sx={{ p: { xs: 2, md: 3 }, bgcolor: alpha(tokens.white, 0.96) }}
+            sx={{ p: { xs: 2, md: 3 }, bgcolor: "rgba(var(--surface-rgb), 0.96)" }}
           >
             <Stack spacing={2.25}>
               <Box>

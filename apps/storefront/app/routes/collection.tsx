@@ -99,7 +99,7 @@ export default function CollectionPage({ loaderData }: Route.ComponentProps) {
                 label="Collection"
                 sx={{
                   color: tokens.white,
-                  bgcolor: alpha(tokens.white, 0.12),
+                  bgcolor: "rgba(var(--surface-rgb), 0.12)",
                   border: "1px solid",
                   borderColor: alpha(tokens.white, 0.16),
                   fontWeight: 900,
@@ -144,7 +144,7 @@ export default function CollectionPage({ loaderData }: Route.ComponentProps) {
                     minWidth: 128,
                     p: 1.25,
                     borderRadius: "8px",
-                    bgcolor: alpha(tokens.white, 0.09),
+                    bgcolor: "rgba(var(--surface-rgb), 0.09)",
                     border: "1px solid",
                     borderColor: alpha(tokens.white, 0.14),
                   }}
@@ -177,10 +177,10 @@ export default function CollectionPage({ loaderData }: Route.ComponentProps) {
                 variant="contained"
                 endIcon={<ArrowForwardRounded />}
                 sx={{
-                  bgcolor: tokens.white,
+                  bgcolor: "rgb(var(--surface-rgb))",
                   color: tokens.ink,
                   ml: { sm: 1 },
-                  "&:hover": { bgcolor: alpha(tokens.white, 0.86) },
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.86)" },
                 }}
               >
                 Browse pieces

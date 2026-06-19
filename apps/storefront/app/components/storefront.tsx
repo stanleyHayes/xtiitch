@@ -265,7 +265,7 @@ export function StoreHeader({
                 mt: 3,
                 maxWidth: 560,
                 "& .MuiOutlinedInput-root": {
-                  bgcolor: alpha(tokens.white, 0.96),
+                  bgcolor: "rgba(var(--surface-rgb), 0.96)",
                   color: tokens.ink,
                   boxShadow: `0 16px 42px ${alpha(tokens.ink, 0.16)}`,
                 },
@@ -341,7 +341,7 @@ function StoreServiceBand({ store }: { store: StoreSummary }) {
       sx={{
         borderBlock: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: alpha(tokens.white, 0.86),
+        bgcolor: "rgba(var(--surface-rgb), 0.86)",
       }}
     >
       <Container
@@ -440,7 +440,7 @@ function CollectionStrip({
       sx={{
         borderBottom: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: alpha(tokens.white, 0.9),
+        bgcolor: "rgba(var(--surface-rgb), 0.9)",
       }}
     >
       <Container sx={{ py: { xs: 2.5, md: 3 } }}>
@@ -589,7 +589,7 @@ function StoreOrderGuide({ store }: { store: StoreSummary }) {
   return (
     <Box
       sx={{
-        bgcolor: alpha(tokens.white, 0.68),
+        bgcolor: "rgba(var(--surface-rgb), 0.68)",
         borderBottom: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
       }}
@@ -655,7 +655,7 @@ function StoreOrderGuide({ store }: { store: StoreSummary }) {
                 borderRadius: "8px",
                 border: "1px solid",
                 borderColor: alpha(brand, 0.13),
-                bgcolor: alpha(tokens.white, 0.78),
+                bgcolor: "rgba(var(--surface-rgb), 0.78)",
                 display: "flex",
                 flexDirection: "column",
                 gap: 1.25,
@@ -826,7 +826,7 @@ function MarketplaceStrip({
       sx={{
         borderTop: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: alpha(tokens.cream, 0.5),
+        bgcolor: "rgba(var(--surface-rgb), 0.5)",
       }}
     >
       <Container sx={{ py: { xs: 5, md: 7 } }}>
@@ -899,7 +899,7 @@ function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
         borderRadius: 2,
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
-        bgcolor: tokens.white,
+        bgcolor: "rgb(var(--surface-rgb))",
         transition: "transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease",
         "&:hover": {
           transform: "translateY(-4px)",
@@ -1012,7 +1012,7 @@ export function DesignCard({
         borderRadius: 2,
         border: featured ? "1.5px solid" : "1px solid",
         borderColor: featured ? alpha(tokens.burgundy, 0.55) : alpha(tokens.ink, 0.08),
-        bgcolor: tokens.white,
+        bgcolor: "rgb(var(--surface-rgb))",
         boxShadow: featured
           ? `0 18px 44px ${alpha(tokens.burgundy, 0.16)}`
           : `0 14px 36px ${alpha(tokens.ink, 0.06)}`,
@@ -1052,7 +1052,7 @@ export function DesignCard({
             position: "relative",
             width: "100%",
             overflow: "hidden",
-            bgcolor: alpha(tokens.cream, 0.72),
+            bgcolor: "rgba(var(--surface-rgb), 0.72)",
           }}
         >
           <DesignImage design={design} />
@@ -1104,7 +1104,7 @@ export function DesignCard({
                 px: 1.25,
                 py: 0.4,
                 borderRadius: 999,
-                bgcolor: alpha(tokens.white, 0.92),
+                bgcolor: "rgba(var(--surface-rgb), 0.92)",
                 backdropFilter: "blur(8px)",
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
@@ -1148,7 +1148,7 @@ export function DesignCard({
                 px: 1.75,
                 py: 0.85,
                 borderRadius: 999,
-                bgcolor: alpha(tokens.white, 0.96),
+                bgcolor: "rgba(var(--surface-rgb), 0.96)",
                 color: tokens.burgundy,
                 fontWeight: 800,
                 fontSize: 13,
@@ -1259,7 +1259,7 @@ export function DesignGrid({
           border: "1px dashed",
           borderColor: alpha(tokens.burgundy, 0.28),
           borderRadius: "8px",
-          bgcolor: alpha(tokens.white, 0.58),
+          bgcolor: "rgba(var(--surface-rgb), 0.58)",
         }}
       >
         <Typography variant="h6">No designs matched</Typography>

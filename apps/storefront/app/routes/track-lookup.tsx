@@ -71,7 +71,7 @@ function LookupSignal({
       sx={{
         p: 1.5,
         borderRadius: "8px",
-        bgcolor: alpha(tokens.white, 0.72),
+        bgcolor: "rgba(var(--surface-rgb), 0.72)",
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.08),
       }}
@@ -206,7 +206,7 @@ export default function TrackLookup() {
               borderRadius: "8px",
               border: "1px solid",
               borderColor: alpha(tokens.ink, 0.1),
-              bgcolor: alpha(tokens.white, 0.92),
+              bgcolor: "rgba(var(--surface-rgb), 0.92)",
               boxShadow: `0 24px 70px ${alpha(tokens.ink, 0.12)}`,
             }}
           >
