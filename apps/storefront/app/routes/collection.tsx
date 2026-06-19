@@ -178,7 +178,7 @@ export default function CollectionPage({ loaderData }: Route.ComponentProps) {
                 endIcon={<ArrowForwardRounded />}
                 sx={{
                   bgcolor: "rgb(var(--surface-rgb))",
-                  color: tokens.ink,
+                  color: "text.primary",
                   ml: { sm: 1 },
                   "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.86)" },
                 }}

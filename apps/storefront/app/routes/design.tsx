@@ -443,7 +443,7 @@ function Gallery({ design }: { design: Design }) {
             label={priceLabel(design.prices)}
             sx={{
               bgcolor: "rgba(var(--surface-rgb), 0.92)",
-              color: tokens.ink,
+              color: "text.primary",
               fontWeight: 900,
               backdropFilter: "blur(10px)",
               "& .MuiChip-icon": { color: tokens.burgundy },
