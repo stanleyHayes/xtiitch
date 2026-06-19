@@ -3124,162 +3124,164 @@ function VerificationCard({
               <Typography sx={{ color: "text.secondary" }}>
                 {item.notes}
               </Typography>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 1.5,
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            }}
-          >
-            <Box
-              sx={{
-                p: 1.5,
-                border: "1px solid",
-                borderColor: alpha(tokens.ink, 0.08),
-                borderRadius: 1.5,
-                bgcolor: "rgba(var(--surface-rgb), 0.62)",
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Documents
-              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <Box
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.08),
+                    borderRadius: 1.5,
+                    bgcolor: "rgba(var(--surface-rgb), 0.62)",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Documents
+                  </Typography>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ flexWrap: "wrap", gap: 1 }}
+                  >
+                    {item.documents.map((documentName) => (
+                      <Chip
+                        key={documentName}
+                        size="small"
+                        icon={<ReceiptLongRounded />}
+                        label={documentName}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+                <Box
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.08),
+                    borderRadius: 1.5,
+                    bgcolor: "rgba(var(--surface-rgb), 0.62)",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Checks
+                  </Typography>
+                  <Stack spacing={0.75}>
+                    {item.checks.map((check) => (
+                      <Stack
+                        key={check}
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "center" }}
+                      >
+                        <CheckCircleRounded
+                          sx={{ color: tokens.success, fontSize: 18 }}
+                        />
+                        <Typography variant="body2">{check}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Box>
+              </Box>
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                }}
+              >
+                <Box
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.08),
+                    borderRadius: 1.5,
+                    bgcolor: "rgba(var(--surface-rgb), 0.62)",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Evidence
+                  </Typography>
+                  <Stack spacing={0.75}>
+                    {item.evidence.map((line) => (
+                      <Stack
+                        key={line}
+                        direction="row"
+                        spacing={1}
+                        sx={{ alignItems: "flex-start" }}
+                      >
+                        <NotesRounded
+                          sx={{ color: tokens.info, fontSize: 18, mt: 0.2 }}
+                        />
+                        <Typography variant="body2">{line}</Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                </Box>
+                <TextField
+                  name="note"
+                  label="Operator note"
+                  value={note}
+                  onChange={(event) =>
+                    onNoteChange(item.id, event.target.value)
+                  }
+                  placeholder="Record why this case is approved, rejected, or held."
+                  multiline
+                  minRows={3}
+                  fullWidth
+                />
+              </Box>
+              <Divider />
               <Stack
-                direction="row"
+                direction={{ xs: "column", sm: "row" }}
                 spacing={1}
-                sx={{ flexWrap: "wrap", gap: 1 }}
+                sx={{
+                  alignItems: { xs: "stretch", sm: "center" },
+                  justifyContent: "space-between",
+                }}
               >
-                {item.documents.map((documentName) => (
-                  <Chip
-                    key={documentName}
-                    size="small"
-                    icon={<ReceiptLongRounded />}
-                    label={documentName}
-                  />
-                ))}
-              </Stack>
-            </Box>
-            <Box
-              sx={{
-                p: 1.5,
-                border: "1px solid",
-                borderColor: alpha(tokens.ink, 0.08),
-                borderRadius: 1.5,
-                bgcolor: "rgba(var(--surface-rgb), 0.62)",
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Checks
-              </Typography>
-              <Stack spacing={0.75}>
-                {item.checks.map((check) => (
-                  <Stack
-                    key={check}
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: "center" }}
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Submitted {shortTime(item.submittedAt)}
+                </Typography>
+                <Stack direction="row" spacing={1}>
+                  <Button
+                    type="submit"
+                    name="decision"
+                    value="rejected"
+                    variant="outlined"
+                    color="error"
+                    startIcon={<CancelRounded />}
+                    disabled={item.status === "rejected"}
                   >
-                    <CheckCircleRounded
-                      sx={{ color: tokens.success, fontSize: 18 }}
-                    />
-                    <Typography variant="body2">{check}</Typography>
-                  </Stack>
-                ))}
-              </Stack>
-            </Box>
-          </Box>
-          <Box
-            sx={{
-              display: "grid",
-              gap: 1.5,
-              gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-            }}
-          >
-            <Box
-              sx={{
-                p: 1.5,
-                border: "1px solid",
-                borderColor: alpha(tokens.ink, 0.08),
-                borderRadius: 1.5,
-                bgcolor: "rgba(var(--surface-rgb), 0.62)",
-              }}
-            >
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Evidence
-              </Typography>
-              <Stack spacing={0.75}>
-                {item.evidence.map((line) => (
-                  <Stack
-                    key={line}
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: "flex-start" }}
+                    Reject
+                  </Button>
+                  <Button
+                    type="submit"
+                    name="decision"
+                    value="held"
+                    variant="outlined"
+                    color="warning"
+                    startIcon={<BlockRounded />}
+                    disabled={isHeld}
                   >
-                    <NotesRounded
-                      sx={{ color: tokens.info, fontSize: 18, mt: 0.2 }}
-                    />
-                    <Typography variant="body2">{line}</Typography>
-                  </Stack>
-                ))}
+                    Hold
+                  </Button>
+                  <Button
+                    type="submit"
+                    name="decision"
+                    value="approved"
+                    variant="contained"
+                    startIcon={<CheckCircleRounded />}
+                    disabled={item.status === "verified"}
+                  >
+                    Approve
+                  </Button>
+                </Stack>
               </Stack>
-            </Box>
-            <TextField
-              name="note"
-              label="Operator note"
-              value={note}
-              onChange={(event) => onNoteChange(item.id, event.target.value)}
-              placeholder="Record why this case is approved, rejected, or held."
-              multiline
-              minRows={3}
-              fullWidth
-            />
-          </Box>
-          <Divider />
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1}
-            sx={{
-              alignItems: { xs: "stretch", sm: "center" },
-              justifyContent: "space-between",
-            }}
-          >
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Submitted {shortTime(item.submittedAt)}
-            </Typography>
-            <Stack direction="row" spacing={1}>
-              <Button
-                type="submit"
-                name="decision"
-                value="rejected"
-                variant="outlined"
-                color="error"
-                startIcon={<CancelRounded />}
-                disabled={item.status === "rejected"}
-              >
-                Reject
-              </Button>
-              <Button
-                type="submit"
-                name="decision"
-                value="held"
-                variant="outlined"
-                color="warning"
-                startIcon={<BlockRounded />}
-                disabled={isHeld}
-              >
-                Hold
-              </Button>
-              <Button
-                type="submit"
-                name="decision"
-                value="approved"
-                variant="contained"
-                startIcon={<CheckCircleRounded />}
-                disabled={item.status === "verified"}
-              >
-                Approve
-              </Button>
-            </Stack>
-          </Stack>
             </Stack>
           </Collapse>
         </Stack>
@@ -12443,113 +12445,113 @@ function ReferralsSection({
                     }}
                   >
                     <TextField label="Title" name="title" required />
-                <TextField
-                  label="Code prefix"
-                  name="code_prefix"
-                  required
-                  placeholder="REF"
-                />
-                <TextField
-                  select
-                  label="Audience"
-                  name="audience"
-                  defaultValue="customers"
-                >
-                  {referralAudienceOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Referrer reward"
-                  name="referrer_reward_kind"
-                  defaultValue="voucher"
-                >
-                  {referralRewardKindOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="New customer reward"
-                  name="referee_reward_kind"
-                  defaultValue="voucher"
-                >
-                  {referralRefereeRewardKindOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  select
-                  label="Reward type"
-                  name="reward_type"
-                  defaultValue="fixed"
-                >
-                  {referralRewardTypeOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  label="Reward value"
-                  name="reward_value"
-                  type="number"
-                  required
-                  defaultValue={25}
-                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                />
-                <TextField
-                  label="Percentage cap (GHS)"
-                  name="max_reward_ghs"
-                  type="number"
-                  defaultValue={50}
-                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                />
-                <TextField
-                  label="Minimum order (GHS)"
-                  name="qualifying_order_min_ghs"
-                  type="number"
-                  defaultValue={150}
-                  slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                />
-                <TextField
-                  label="Reward hold days"
-                  name="reward_hold_days"
-                  type="number"
-                  defaultValue={14}
-                  slotProps={{ htmlInput: { min: 0, max: 180, step: 1 } }}
-                />
-                <TextField
-                  select
-                  label="Status"
-                  name="status"
-                  defaultValue="draft"
-                >
-                  {referralStatusOptions.map((option) => (
-                    <MenuItem key={option.value} value={option.value}>
-                      {option.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Box>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                }}
-              >
-                <StyledDateTimeField label="Starts" name="starts_at" />
-                <StyledDateTimeField label="Ends" name="ends_at" />
-              </Box>
-              <TextField label="Notes" name="notes" multiline minRows={2} />
+                    <TextField
+                      label="Code prefix"
+                      name="code_prefix"
+                      required
+                      placeholder="REF"
+                    />
+                    <TextField
+                      select
+                      label="Audience"
+                      name="audience"
+                      defaultValue="customers"
+                    >
+                      {referralAudienceOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="Referrer reward"
+                      name="referrer_reward_kind"
+                      defaultValue="voucher"
+                    >
+                      {referralRewardKindOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="New customer reward"
+                      name="referee_reward_kind"
+                      defaultValue="voucher"
+                    >
+                      {referralRefereeRewardKindOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      select
+                      label="Reward type"
+                      name="reward_type"
+                      defaultValue="fixed"
+                    >
+                      {referralRewardTypeOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      label="Reward value"
+                      name="reward_value"
+                      type="number"
+                      required
+                      defaultValue={25}
+                      slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                    />
+                    <TextField
+                      label="Percentage cap (GHS)"
+                      name="max_reward_ghs"
+                      type="number"
+                      defaultValue={50}
+                      slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                    />
+                    <TextField
+                      label="Minimum order (GHS)"
+                      name="qualifying_order_min_ghs"
+                      type="number"
+                      defaultValue={150}
+                      slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+                    />
+                    <TextField
+                      label="Reward hold days"
+                      name="reward_hold_days"
+                      type="number"
+                      defaultValue={14}
+                      slotProps={{ htmlInput: { min: 0, max: 180, step: 1 } }}
+                    />
+                    <TextField
+                      select
+                      label="Status"
+                      name="status"
+                      defaultValue="draft"
+                    >
+                      {referralStatusOptions.map((option) => (
+                        <MenuItem key={option.value} value={option.value}>
+                          {option.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                    }}
+                  >
+                    <StyledDateTimeField label="Starts" name="starts_at" />
+                    <StyledDateTimeField label="Ends" name="ends_at" />
+                  </Box>
+                  <TextField label="Notes" name="notes" multiline minRows={2} />
                   <Button
                     type="submit"
                     variant="contained"
@@ -14807,9 +14809,6 @@ function SettingsSection({
 }
 
 function AdminRail({
-  adminDisplayName,
-  adminEmail,
-  adminRole,
   section,
   collapsed,
   mobileOpen,
@@ -14820,9 +14819,6 @@ function AdminRail({
   onCloseMobile,
   onSelect,
 }: {
-  adminDisplayName: string;
-  adminEmail: string;
-  adminRole: string;
   section: Section;
   collapsed: boolean;
   mobileOpen: boolean;
@@ -15233,47 +15229,20 @@ function AdminRail({
                   }}
                   noWrap
                 >
-                  {adminDisplayName}
+                  Xtiitch
                 </Typography>
-                <Stack
-                  direction="row"
-                  spacing={0.75}
-                  sx={{ alignItems: "center", mt: 0.25, minWidth: 0 }}
+                <Typography
+                  component="span"
+                  sx={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    letterSpacing: 0,
+                    textTransform: "uppercase",
+                    color: tokens.gold,
+                  }}
                 >
-                  <Typography
-                    component="span"
-                    sx={{
-                      fontSize: 10,
-                      fontWeight: 800,
-                      letterSpacing: 0,
-                      textTransform: "uppercase",
-                      color: tokens.gold,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Console
-                  </Typography>
-                  <Box
-                    sx={{
-                      width: 3,
-                      height: 3,
-                      borderRadius: "50%",
-                      bgcolor: "rgba(var(--surface-rgb), 0.4)",
-                      flexShrink: 0,
-                    }}
-                  />
-                  <Typography
-                    component="span"
-                    sx={{
-                      fontSize: 11.5,
-                      fontWeight: 700,
-                      color: alpha(tokens.white, 0.62),
-                    }}
-                    noWrap
-                  >
-                    {adminEmail}
-                  </Typography>
-                </Stack>
+                  Admin console
+                </Typography>
               </Box>
             ) : null}
           </Stack>
@@ -15292,48 +15261,6 @@ function AdminRail({
             </IconButton>
           ) : null}
         </Stack>
-        {!compact ? (
-          <Stack
-            direction="row"
-            spacing={0.75}
-            sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}
-          >
-            <Chip
-              size="small"
-              icon={<ShieldRounded />}
-              label={adminRole}
-              sx={{
-                height: 26,
-                textTransform: "capitalize",
-                fontWeight: 700,
-                color: tokens.white,
-                borderRadius: 1.5,
-                backgroundImage: `linear-gradient(135deg, ${alpha(roleTone(adminRole as AdminRole), 0.34)}, ${alpha(roleTone(adminRole as AdminRole), 0.14)})`,
-                border: "1px solid",
-                borderColor: alpha(roleTone(adminRole as AdminRole), 0.5),
-                "& .MuiChip-label": { px: 1 },
-                "& .MuiChip-icon": {
-                  fontSize: 15,
-                  color: alpha(tokens.white, 0.85),
-                },
-              }}
-            />
-            <Chip
-              size="small"
-              label={`${pendingCount} KYC`}
-              sx={{
-                height: 26,
-                fontWeight: 700,
-                color: tokens.white,
-                borderRadius: 1.5,
-                bgcolor: alpha(tokens.warning, 0.18),
-                border: "1px solid",
-                borderColor: alpha(tokens.warning, 0.5),
-                "& .MuiChip-label": { px: 1 },
-              }}
-            />
-          </Stack>
-        ) : null}
       </Box>
 
       <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -15802,7 +15729,12 @@ function AdminTopBar({
                     icon: <HistoryRounded fontSize="small" />,
                     section: "audit",
                   },
-                ] as { label: string; helper: string; icon: ReactNode; section: Section }[]
+                ] as {
+                  label: string;
+                  helper: string;
+                  icon: ReactNode;
+                  section: Section;
+                }[]
               ).map((entry) => (
                 <MenuItem
                   key={entry.label}
@@ -15812,7 +15744,8 @@ function AdminTopBar({
                     py: 1.1,
                     gap: 1.25,
                     "&:hover": {
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                      bgcolor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.08),
                     },
                   }}
                 >
@@ -15826,7 +15759,8 @@ function AdminTopBar({
                       display: "grid",
                       placeItems: "center",
                       color: "primary.main",
-                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                      bgcolor: (theme) =>
+                        alpha(theme.palette.primary.main, 0.1),
                     }}
                   >
                     {entry.icon}
@@ -16099,10 +16033,7 @@ export default function AdminDashboard({
   useEffect(() => {
     setAuditPage(1);
   }, [auditFilter]);
-  const auditPageCount = Math.max(
-    1,
-    Math.ceil(filteredAuditLog.length / 12),
-  );
+  const auditPageCount = Math.max(1, Math.ceil(filteredAuditLog.length / 12));
   const pagedAuditLog = filteredAuditLog.slice(
     (auditPage - 1) * 12,
     auditPage * 12,
@@ -16184,9 +16115,6 @@ export default function AdminDashboard({
       }}
     >
       <AdminRail
-        adminDisplayName={admin.adminDisplayName}
-        adminEmail={admin.adminEmail}
-        adminRole={admin.adminRole}
         section={section}
         collapsed={railCollapsed}
         mobileOpen={mobileNavOpen}

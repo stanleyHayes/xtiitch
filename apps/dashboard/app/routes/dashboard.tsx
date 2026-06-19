@@ -3768,9 +3768,6 @@ function ToneChip({
 }
 
 function WorkspaceRail({
-  profile,
-  currentUser,
-  verified,
   workspaceGroups,
   section,
   storefrontURL,
@@ -4172,31 +4169,7 @@ function WorkspaceRail({
                   boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
                 }}
               >
-                <Typography
-                  component="span"
-                  aria-hidden
-                  sx={{
-                    fontFamily: '"Fraunces", serif',
-                    fontSize: 24,
-                    lineHeight: 1,
-                    mt: "2px",
-                  }}
-                >
-                  {(profile.name?.trim()?.[0] ?? "X").toUpperCase()}
-                </Typography>
-                <StorefrontRounded
-                  sx={{
-                    position: "absolute",
-                    right: -6,
-                    bottom: -6,
-                    fontSize: 17,
-                    p: "2px",
-                    borderRadius: "50%",
-                    color: tokens.charcoal,
-                    bgcolor: tokens.gold,
-                    boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
-                  }}
-                />
+                <StorefrontRounded sx={{ fontSize: 26 }} />
               </Box>
               {!compact ? (
                 <Box sx={{ minWidth: 0 }}>
@@ -4209,47 +4182,20 @@ function WorkspaceRail({
                     }}
                     noWrap
                   >
-                    {profile.name}
+                    Xtiitch
                   </Typography>
-                  <Stack
-                    direction="row"
-                    spacing={0.75}
-                    sx={{ alignItems: "center", mt: 0.25, minWidth: 0 }}
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: 10.5,
+                      fontWeight: 800,
+                      letterSpacing: 0,
+                      textTransform: "uppercase",
+                      color: tokens.gold,
+                    }}
                   >
-                    <Typography
-                      component="span"
-                      sx={{
-                        fontSize: 10.5,
-                        fontWeight: 800,
-                        letterSpacing: 0,
-                        textTransform: "uppercase",
-                        color: tokens.gold,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {profile.plan} plan
-                    </Typography>
-                    <Box
-                      sx={{
-                        width: 3,
-                        height: 3,
-                        borderRadius: "50%",
-                        bgcolor: "rgba(var(--surface-rgb), 0.4)",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <Typography
-                      component="span"
-                      sx={{
-                        fontSize: 11.5,
-                        fontWeight: 700,
-                        color: alpha(tokens.white, 0.62),
-                      }}
-                      noWrap
-                    >
-                      {profile.handle}
-                    </Typography>
-                  </Stack>
+                    Business
+                  </Typography>
                 </Box>
               ) : null}
             </Stack>
@@ -4269,55 +4215,6 @@ function WorkspaceRail({
               </IconButton>
             ) : null}
           </Stack>
-          {!compact ? (
-            <Stack
-              direction="row"
-              spacing={0.75}
-              sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.75 }}
-            >
-              <Chip
-                size="small"
-                icon={
-                  verified ? <VerifiedUserRounded /> : <WarningAmberRounded />
-                }
-                label={verified ? "Verified" : "Needs review"}
-                sx={{
-                  height: 26,
-                  fontWeight: 700,
-                  color: tokens.white,
-                  borderRadius: 1.5,
-                  bgcolor: alpha(
-                    verified ? tokens.success : tokens.warning,
-                    0.16,
-                  ),
-                  border: "1px solid",
-                  borderColor: alpha(
-                    verified ? tokens.success : tokens.warning,
-                    0.5,
-                  ),
-                  "& .MuiChip-label": { px: 1 },
-                  "& .MuiChip-icon": {
-                    fontSize: 15,
-                    color: verified ? tokens.success : tokens.gold,
-                  },
-                }}
-              />
-              <Chip
-                size="small"
-                label={roleLabel(currentUser.role)}
-                sx={{
-                  height: 26,
-                  fontWeight: 700,
-                  color: tokens.white,
-                  borderRadius: 1.5,
-                  backgroundImage: `linear-gradient(135deg, ${alpha(roleTone(currentUser.role), 0.34)}, ${alpha(roleTone(currentUser.role), 0.14)})`,
-                  border: "1px solid",
-                  borderColor: alpha(roleTone(currentUser.role), 0.5),
-                  "& .MuiChip-label": { px: 1 },
-                }}
-              />
-            </Stack>
-          ) : null}
         </Box>
 
         <Box
@@ -4957,8 +4854,6 @@ function WorkspaceTopBar({
 function WorkspaceHeader({
   meta,
   canManage,
-  currentUser,
-  verified,
   moneySummary,
   liveOrders,
   activeBookings,
@@ -4970,8 +4865,6 @@ function WorkspaceHeader({
 }: {
   meta: DashboardPageMeta;
   canManage: boolean;
-  currentUser: CurrentUser;
-  verified: boolean;
   moneySummary: MoneySummary;
   liveOrders: OrderSummary[];
   activeBookings: number;
@@ -5018,34 +4911,6 @@ function WorkspaceHeader({
         }}
       >
         <Box sx={{ maxWidth: 800 }}>
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", mb: 2 }}>
-            <Chip
-              size="small"
-              label={`${roleLabel(currentUser.role)} access`}
-              sx={{
-                color: "common.white",
-                bgcolor: "rgba(var(--surface-rgb), 0.12)",
-                border: "1px solid",
-                borderColor: alpha(tokens.white, 0.18),
-              }}
-            />
-            <Chip
-              size="small"
-              label={verified ? "Verified store" : "Verification needed"}
-              sx={{
-                color: "common.white",
-                bgcolor: alpha(
-                  verified ? tokens.success : tokens.warning,
-                  0.28,
-                ),
-                border: "1px solid",
-                borderColor: alpha(
-                  verified ? tokens.success : tokens.warning,
-                  0.48,
-                ),
-              }}
-            />
-          </Stack>
           <Typography
             variant="overline"
             sx={{ color: alpha(tokens.white, 0.68), fontWeight: 900 }}
@@ -11853,8 +11718,6 @@ export default function Dashboard({
             <WorkspaceHeader
               meta={pageMeta}
               canManage={canManage}
-              currentUser={currentUser}
-              verified={verified}
               moneySummary={moneySummary}
               liveOrders={liveOrders}
               activeBookings={activeBookings}
