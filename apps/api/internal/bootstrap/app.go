@@ -137,6 +137,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Storefront: postgres.NewStorefrontRepository(db),
 		Settings:   postgres.NewStoreSettingsRepository(db),
 		Promotions: promotionRepository,
+		Waitlist:   postgres.NewDesignWaitlistRepository(db),
 		IDs:        ids.UUIDGenerator{},
 	})
 

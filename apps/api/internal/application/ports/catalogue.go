@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
@@ -138,6 +139,42 @@ type Storefront struct {
 	DefaultDepositMinor int64
 	MeasurementFields   []MeasurementField
 	Settings            StoreSettings
+	// WaitlistEnabled is true when the business's plan grants the design_waitlist
+	// benefit, so the storefront may offer "join the waiting list" on designs.
+	WaitlistEnabled bool
+}
+
+// DesignWaitlistEntryInput is a customer's public request to join a design's
+// waiting list, already resolved to a concrete business + design.
+type DesignWaitlistEntryInput struct {
+	EntryID         common.ID
+	BusinessID      common.ID
+	DesignID        common.ID
+	CustomerName    string
+	CustomerContact string
+	Note            string
+}
+
+// DesignWaitlistEntry is one waiting-list registration, for the dashboard list.
+type DesignWaitlistEntry struct {
+	EntryID         common.ID
+	DesignID        common.ID
+	DesignTitle     string
+	DesignHandle    string
+	CustomerName    string
+	CustomerContact string
+	Note            string
+	Status          string
+	CreatedAt       time.Time
+}
+
+// DesignWaitlistRepository persists and reads design waiting-list registrations.
+// Join is a public write scoped to the resolved business; List/UpdateStatus are
+// tenant-scoped dashboard operations.
+type DesignWaitlistRepository interface {
+	Join(ctx context.Context, scope common.TenantScope, input DesignWaitlistEntryInput) error
+	List(ctx context.Context, scope common.TenantScope) ([]DesignWaitlistEntry, error)
+	UpdateStatus(ctx context.Context, scope common.TenantScope, entryID common.ID, status string) error
 }
 
 type MeasurementField struct {

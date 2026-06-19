@@ -36,6 +36,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Get("/public/stores/{handle}/search", handler.publicSearch)
 	router.Get("/public/designs/{handle}", handler.publicDesign)
 	router.Get("/public/collections/{handle}", handler.publicCollection)
+	router.Post("/public/stores/{handle}/designs/{design_handle}/waitlist", handler.joinWaitlist)
 
 	// Dashboard — owner-scoped catalogue management.
 	router.Group(func(protected chi.Router) {
@@ -44,6 +45,9 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/businesses/me", handler.getProfile)
 		protected.Get("/store-settings", handler.getSettings)
 		protected.Patch("/store-settings", handler.updateSettings)
+
+		protected.Get("/waitlist-entries", handler.listWaitlist)
+		protected.Patch("/waitlist-entries/{id}", handler.updateWaitlistStatus)
 
 		protected.Post("/collections", handler.createCollection)
 		protected.Get("/collections", handler.listCollections)
@@ -152,6 +156,110 @@ func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, body)
+}
+
+// --- design waitlist ---
+
+type joinWaitlistBody struct {
+	CustomerName    string `json:"customer_name"`
+	CustomerContact string `json:"customer_contact"`
+	Note            string `json:"note"`
+}
+
+func (handler Handler) joinWaitlist(w http.ResponseWriter, r *http.Request) {
+	var body joinWaitlistBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.JoinDesignWaitlist(r.Context(), catalogueapp.JoinDesignWaitlistCommand{
+		StoreHandle:     chi.URLParam(r, "handle"),
+		DesignHandle:    chi.URLParam(r, "design_handle"),
+		CustomerName:    body.CustomerName,
+		CustomerContact: body.CustomerContact,
+		Note:            body.Note,
+	}); err != nil {
+		writeWaitlistError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "joined"})
+}
+
+type waitlistEntryBody struct {
+	EntryID         string `json:"entry_id"`
+	DesignID        string `json:"design_id"`
+	DesignTitle     string `json:"design_title"`
+	DesignHandle    string `json:"design_handle"`
+	CustomerName    string `json:"customer_name"`
+	CustomerContact string `json:"customer_contact"`
+	Note            string `json:"note"`
+	Status          string `json:"status"`
+	CreatedAt       string `json:"created_at"`
+}
+
+func (handler Handler) listWaitlist(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	entries, err := handler.service.ListWaitlistEntries(r.Context(), scope)
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]waitlistEntryBody, 0, len(entries))
+	for _, entry := range entries {
+		out = append(out, waitlistEntryBody{
+			EntryID:         entry.EntryID.String(),
+			DesignID:        entry.DesignID.String(),
+			DesignTitle:     entry.DesignTitle,
+			DesignHandle:    entry.DesignHandle,
+			CustomerName:    entry.CustomerName,
+			CustomerContact: entry.CustomerContact,
+			Note:            entry.Note,
+			Status:          entry.Status,
+			CreatedAt:       entry.CreatedAt.Format(time.RFC3339),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"entries": out})
+}
+
+type updateWaitlistStatusBody struct {
+	Status string `json:"status"`
+}
+
+func (handler Handler) updateWaitlistStatus(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body updateWaitlistStatusBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateWaitlistStatus(r.Context(), catalogueapp.UpdateWaitlistStatusCommand{
+		Scope:     scope,
+		ActorRole: role,
+		EntryID:   common.ID(chi.URLParam(r, "id")),
+		Status:    body.Status,
+	}); err != nil {
+		writeWaitlistError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": body.Status})
+}
+
+func writeWaitlistError(w http.ResponseWriter, err error) {
+	switch {
+	case errors.Is(err, catalogueapp.ErrStoreNotFound),
+		errors.Is(err, catalogueapp.ErrDesignUnavailable):
+		writeError(w, http.StatusNotFound, "not_found")
+	case errors.Is(err, catalogueapp.ErrWaitlistUnavailable):
+		writeError(w, http.StatusConflict, "waitlist_unavailable")
+	default:
+		writeServiceError(w, err)
+	}
 }
 
 // --- collections ---

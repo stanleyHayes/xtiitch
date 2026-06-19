@@ -14,6 +14,7 @@ type storeSummary struct {
 	DefaultDepositMinor int64                     `json:"default_deposit_minor"`
 	MeasurementFields   []measurementFieldSummary `json:"measurement_fields"`
 	Settings            settingsBody              `json:"settings"`
+	WaitlistEnabled     bool                      `json:"waitlist_enabled"`
 }
 
 type measurementFieldSummary struct {
@@ -31,6 +32,7 @@ func toStoreSummary(store ports.Storefront) storeSummary {
 		DefaultDepositMinor: store.DefaultDepositMinor,
 		MeasurementFields:   toMeasurementFieldSummaries(store.MeasurementFields),
 		Settings:            toSettingsBody(store.Settings),
+		WaitlistEnabled:     store.WaitlistEnabled,
 	}
 }
 

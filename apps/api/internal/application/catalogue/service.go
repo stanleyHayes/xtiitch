@@ -15,11 +15,30 @@ import (
 
 var ErrInvalidInput = errors.New("invalid catalogue input")
 
+// ErrWaitlistUnavailable is returned when a customer tries to join a design's
+// waiting list but the store's plan does not grant the design_waitlist benefit.
+var ErrWaitlistUnavailable = errors.New("waiting list not available for this store")
+
+// ErrStoreNotFound is returned when a public store handle does not resolve.
+var ErrStoreNotFound = errors.New("store not found")
+
+// ErrDesignUnavailable is returned when a design handle does not resolve to an
+// active design within the resolved store.
+var ErrDesignUnavailable = errors.New("design unavailable")
+
+// validWaitlistStatuses are the dashboard-settable states for an entry.
+var validWaitlistStatuses = map[string]bool{
+	"waiting":  true,
+	"notified": true,
+	"closed":   true,
+}
+
 type Service struct {
 	catalogue  ports.CatalogueRepository
 	storefront ports.StorefrontRepository
 	settings   ports.StoreSettingsRepository
 	promotions ports.PromotionRepository
+	waitlist   ports.DesignWaitlistRepository
 	ids        ports.IDGenerator
 }
 
@@ -28,6 +47,7 @@ type Dependencies struct {
 	Storefront ports.StorefrontRepository
 	Settings   ports.StoreSettingsRepository
 	Promotions ports.PromotionRepository
+	Waitlist   ports.DesignWaitlistRepository
 	IDs        ports.IDGenerator
 }
 
@@ -37,6 +57,7 @@ func NewService(deps Dependencies) Service {
 		storefront: deps.Storefront,
 		settings:   deps.Settings,
 		promotions: deps.Promotions,
+		waitlist:   deps.Waitlist,
 		ids:        deps.IDs,
 	}
 }
@@ -98,6 +119,80 @@ func coerceStoreCustomization(ent business.Entitlements, settings ports.StoreSet
 
 func (s Service) GetStoreProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {
 	return s.settings.GetProfile(ctx, scope)
+}
+
+// --- Design waitlist ---
+
+type JoinDesignWaitlistCommand struct {
+	StoreHandle     string
+	DesignHandle    string
+	CustomerName    string
+	CustomerContact string
+	Note            string
+}
+
+// JoinDesignWaitlist registers a customer's interest in a design from the public
+// storefront. It resolves the store + design, enforces the design_waitlist plan
+// benefit, and verifies the design belongs to the resolved store (tenant safety).
+func (s Service) JoinDesignWaitlist(ctx context.Context, cmd JoinDesignWaitlistCommand) error {
+	name := strings.TrimSpace(cmd.CustomerName)
+	contact := strings.TrimSpace(cmd.CustomerContact)
+	if name == "" || contact == "" {
+		return ErrInvalidInput
+	}
+
+	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(cmd.StoreHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return ErrStoreNotFound
+		}
+		return err
+	}
+	if !store.WaitlistEnabled {
+		return ErrWaitlistUnavailable
+	}
+
+	design, err := s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(cmd.DesignHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return ErrDesignUnavailable
+		}
+		return err
+	}
+	if design.Design.BusinessID != store.BusinessID {
+		return ErrDesignUnavailable
+	}
+
+	scope := common.TenantScope{BusinessID: store.BusinessID}
+	return s.waitlist.Join(ctx, scope, ports.DesignWaitlistEntryInput{
+		EntryID:         s.ids.NewID(),
+		BusinessID:      store.BusinessID,
+		DesignID:        design.Design.ID,
+		CustomerName:    name,
+		CustomerContact: contact,
+		Note:            strings.TrimSpace(cmd.Note),
+	})
+}
+
+func (s Service) ListWaitlistEntries(ctx context.Context, scope common.TenantScope) ([]ports.DesignWaitlistEntry, error) {
+	return s.waitlist.List(ctx, scope)
+}
+
+type UpdateWaitlistStatusCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	EntryID   common.ID
+	Status    string
+}
+
+func (s Service) UpdateWaitlistStatus(ctx context.Context, cmd UpdateWaitlistStatusCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if !validWaitlistStatuses[cmd.Status] {
+		return ErrInvalidInput
+	}
+	return s.waitlist.UpdateStatus(ctx, cmd.Scope, cmd.EntryID, cmd.Status)
 }
 
 // --- Collections ---
