@@ -42,6 +42,30 @@ const termSections = [
     title: "Acceptable use",
     body: "Businesses must provide real settlement and identity information, must not upload misleading or unlawful content, and must not attempt to access another business’s customers, orders, payments or store records.",
   },
+  {
+    title: "Intellectual property",
+    body: "Each business keeps ownership of its designs, brand, images and content, and grants Xtiitch a limited licence to host and display that content only as needed to run its store. Xtiitch owns the platform software, the Xtiitch brand and the marks shown on this site.",
+  },
+  {
+    title: "Customer rights",
+    body: "When a customer orders from a business on Xtiitch, their rights in that purchase — including under Ghanaian consumer-protection and electronic-transactions law — are against that business as the merchant. Xtiitch provides the ordering, tracking and records workflow; it is not the seller of the garment.",
+  },
+  {
+    title: "Liability",
+    body: "To the extent permitted by law, the platform is provided “as is”, and Xtiitch is not liable for a business’s garments, pricing, fulfilment or communications, nor for a payment provider’s acts. Nothing here excludes any liability that cannot be excluded under the laws of Ghana.",
+  },
+  {
+    title: "Data protection",
+    body: "Personal data is handled as described in the Privacy policy, in line with the Data Protection Act, 2012 (Act 843). Businesses that record customer data on Xtiitch are the controllers of that data and must have a lawful basis for collecting and using it.",
+  },
+  {
+    title: "Changes to these terms",
+    body: "We may update these terms as the product evolves. Material changes will be notified before they take effect, and continued use after that point means you accept the updated terms.",
+  },
+  {
+    title: "Governing law and disputes",
+    body: "These terms are governed by the laws of the Republic of Ghana, including the Electronic Transactions Act, 2008 (Act 772). The parties will try to resolve any dispute in good faith first; unresolved disputes are subject to the courts of Ghana.",
+  },
 ];
 
 export default function Terms() {
