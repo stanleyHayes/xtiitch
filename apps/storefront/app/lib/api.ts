@@ -31,6 +31,8 @@ export type StoreSummary = {
   default_deposit_minor: number;
   measurement_fields: MeasurementField[];
   settings: StoreSettings;
+  // True when the store's plan grants the design_waitlist benefit.
+  waitlist_enabled?: boolean;
 };
 
 export type BandPrice = {
@@ -283,6 +285,15 @@ export const api = {
   placeBooking: (storeHandle: string, input: PlaceBookingInput) =>
     postJSON<PlaceOrderResult>(
       `/public/stores/${enc(storeHandle)}/bookings`,
+      input,
+    ),
+  joinWaitlist: (
+    storeHandle: string,
+    designHandle: string,
+    input: { customer_name: string; customer_contact: string; note: string },
+  ) =>
+    postJSON<{ status: string }>(
+      `/public/stores/${enc(storeHandle)}/designs/${enc(designHandle)}/waitlist`,
       input,
     ),
 };
