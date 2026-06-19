@@ -316,6 +316,42 @@ export type AdminSubscriptionAuthorizationLink = {
   reference: string;
 };
 
+// Predefined package benefits an admin can grant. Mirrors the canonical Go
+// catalogue in apps/api/internal/domain/business/features.go — keep in sync.
+export const PLAN_BENEFITS: ReadonlyArray<{
+  key: string;
+  label: string;
+  description: string;
+}> = [
+  {
+    key: "custom_brand_color",
+    label: "Storefront accent colour",
+    description: "Set the storefront's accent colour instead of the Xtiitch wine default.",
+  },
+  {
+    key: "custom_logo",
+    label: "Custom storefront logo",
+    description: "Show the business logo on the storefront in place of the Xtiitch mark.",
+  },
+  {
+    key: "custom_banner",
+    label: "Custom hero banner image",
+    description: "Replace the default storefront hero with the business's own banner image.",
+  },
+  {
+    key: "custom_layout",
+    label: "Storefront layout variants",
+    description: "Choose a storefront hero layout (standard, spotlight or minimal).",
+  },
+  {
+    key: "design_waitlist",
+    label: "Design waiting lists",
+    description: "Open a waiting list on a design so customers can register interest.",
+  },
+];
+
+export type PlanFeatures = Record<string, boolean>;
+
 export type AdminPlan = {
   planId: string;
   code: string;
@@ -323,6 +359,7 @@ export type AdminPlan = {
   monthlyFeeMinor: number;
   commissionBps: number;
   designLimit?: number;
+  features: PlanFeatures;
   isActive: boolean;
   businessCount: number;
   activeSubscriptionCount: number;
@@ -992,6 +1029,7 @@ type AdminPlanPayload = {
   monthly_fee_minor: number;
   commission_bps: number;
   design_limit?: number;
+  features?: Record<string, boolean> | null;
   is_active: boolean;
   business_count: number;
   active_subscription_count: number;
@@ -1683,6 +1721,7 @@ function mapPlan(payload: AdminPlanPayload): AdminPlan {
     monthlyFeeMinor: payload.monthly_fee_minor,
     commissionBps: payload.commission_bps,
     designLimit: payload.design_limit,
+    features: payload.features ?? {},
     isActive: payload.is_active,
     businessCount: payload.business_count,
     activeSubscriptionCount: payload.active_subscription_count,
@@ -2351,6 +2390,7 @@ export const adminApi = {
       monthlyFeeMinor: number;
       commissionBps: number;
       designLimit?: number;
+      features?: Record<string, boolean>;
     },
   ) =>
     requestJSON<AdminPlanPayload>("/admin/plans", {
@@ -2362,6 +2402,7 @@ export const adminApi = {
         monthly_fee_minor: input.monthlyFeeMinor,
         commission_bps: input.commissionBps,
         design_limit: input.designLimit,
+        features: input.features ?? {},
       }),
     }).then(mapPlan),
   updatePlan: (
@@ -2372,6 +2413,7 @@ export const adminApi = {
       monthlyFeeMinor: number;
       commissionBps: number;
       designLimit?: number;
+      features?: Record<string, boolean>;
       isActive: boolean;
     },
   ) =>
@@ -2385,6 +2427,7 @@ export const adminApi = {
           monthly_fee_minor: input.monthlyFeeMinor,
           commission_bps: input.commissionBps,
           design_limit: input.designLimit,
+          features: input.features ?? {},
           is_active: input.isActive,
         }),
       },

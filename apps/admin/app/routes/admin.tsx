@@ -94,6 +94,7 @@ import {
   type AdminMoneyRails,
   type AdminOperationsHealth,
   type AdminPlan,
+  PLAN_BENEFITS,
   type AdminMoneyWebhookStatus,
   type AdminPlatformMetrics,
   type AdminPlatformSettings,
@@ -1215,6 +1216,16 @@ export async function action({ request }: Route.ActionArgs) {
   ) {
     const { accessToken } = await requireAdminContext(request);
 
+    const selectedFeatures = new Set(
+      form.getAll("features").map((value) => String(value)),
+    );
+    const planFeatures = Object.fromEntries(
+      PLAN_BENEFITS.map((benefit) => [
+        benefit.key,
+        selectedFeatures.has(benefit.key),
+      ]),
+    );
+
     try {
       if (intent === "admin-plan:create") {
         await adminApi.createPlan(accessToken, {
@@ -1223,6 +1234,7 @@ export async function action({ request }: Route.ActionArgs) {
           monthlyFeeMinor: readGhsPesewas(form.get("monthly_fee_ghs")),
           commissionBps: Math.trunc(readNumber(form.get("commission_bps"), 0)),
           designLimit: readOptionalInteger(form.get("design_limit")),
+          features: planFeatures,
         });
         return {
           section: "subscriptions",
@@ -1242,6 +1254,7 @@ export async function action({ request }: Route.ActionArgs) {
               readNumber(form.get("commission_bps"), 0),
             ),
             designLimit: readOptionalInteger(form.get("design_limit")),
+            features: planFeatures,
             isActive: String(form.get("is_active") ?? "") === "true",
           },
         );
@@ -6785,6 +6798,20 @@ function fallbackAdminPlans(): AdminPlan[] {
     monthlyFeeMinor: plan.monthlyFeeMinor,
     commissionBps: plan.commissionBps,
     designLimit: plan.code === "free" ? 10 : undefined,
+    features: Object.fromEntries(
+      (plan.code === "growth"
+        ? [
+            "custom_brand_color",
+            "custom_logo",
+            "custom_banner",
+            "custom_layout",
+            "design_waitlist",
+          ]
+        : plan.code === "standard"
+          ? ["custom_brand_color"]
+          : []
+      ).map((key) => [key, true]),
+    ),
     isActive: true,
     businessCount: 0,
     activeSubscriptionCount: 0,
@@ -6809,6 +6836,60 @@ function planDesignLimitLabel(plan: Pick<AdminPlan, "designLimit">): string {
   return typeof plan.designLimit === "number"
     ? `${plan.designLimit} designs`
     : "Unlimited";
+}
+
+function grantedPlanBenefitKeys(features: Record<string, boolean>): string[] {
+  return PLAN_BENEFITS.map((benefit) => benefit.key).filter(
+    (key) => features[key],
+  );
+}
+
+// PlanBenefitsField renders the predefined benefit catalogue as a checkbox set the
+// admin ticks when building a package. Each checked box submits its key under the
+// multi-value `features` form field.
+function PlanBenefitsField({ selected }: { selected?: string[] }) {
+  const granted = new Set(selected ?? []);
+  return (
+    <Box>
+      <Typography sx={{ fontWeight: 800, fontSize: 13 }}>
+        Package benefits
+      </Typography>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        Storefront customizations this package unlocks. Businesses on a plan
+        without a benefit see it locked with an upgrade prompt.
+      </Typography>
+      <Stack spacing={0.5} sx={{ mt: 1 }}>
+        {PLAN_BENEFITS.map((benefit) => (
+          <FormControlLabel
+            key={benefit.key}
+            sx={{ alignItems: "flex-start", m: 0 }}
+            control={
+              <Checkbox
+                name="features"
+                value={benefit.key}
+                defaultChecked={granted.has(benefit.key)}
+                size="small"
+                sx={{ pt: 0.25 }}
+              />
+            }
+            label={
+              <Box sx={{ py: 0.25 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
+                  {benefit.label}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ color: "text.secondary" }}
+                >
+                  {benefit.description}
+                </Typography>
+              </Box>
+            }
+          />
+        ))}
+      </Stack>
+    </Box>
+  );
 }
 
 function subscriptionDesignUsageLabel(
@@ -8098,6 +8179,7 @@ function SubscriptionsSection({
                       />
                     </Box>
                   </Box>
+                  <PlanBenefitsField />
                   <Stack
                     direction={{ xs: "column", sm: "row" }}
                     spacing={1}
@@ -8360,6 +8442,9 @@ function SubscriptionsSection({
                                 </TextField>
                               </Box>
                             </Box>
+                            <PlanBenefitsField
+                              selected={grantedPlanBenefitKeys(plan.features)}
+                            />
                             <Stack
                               direction={{ xs: "column", sm: "row" }}
                               spacing={1}
