@@ -12311,6 +12311,7 @@ function ReferralsSection({
   businesses: AdminBusiness[];
   actionData?: AdminActionFeedback;
 }) {
+  const [showReferralCreate, setShowReferralCreate] = useState(false);
   const activeProgrammes = programmes.filter(
     (programme) => programme.status === "active",
   );
@@ -12406,18 +12407,24 @@ function ReferralsSection({
                     invitation.
                   </Typography>
                 </Box>
-                <Button type="submit" variant="contained">
-                  Create programme
+                <Button
+                  type="button"
+                  variant={showReferralCreate ? "outlined" : "contained"}
+                  onClick={() => setShowReferralCreate((value) => !value)}
+                >
+                  {showReferralCreate ? "Cancel" : "New programme"}
                 </Button>
               </Stack>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 1.5,
-                  gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-                }}
-              >
-                <TextField label="Title" name="title" required />
+              <Collapse in={showReferralCreate} unmountOnExit>
+                <Stack spacing={2} sx={{ mt: 1 }}>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 1.5,
+                      gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+                    }}
+                  >
+                    <TextField label="Title" name="title" required />
                 <TextField
                   label="Code prefix"
                   name="code_prefix"
@@ -12525,6 +12532,15 @@ function ReferralsSection({
                 <StyledDateTimeField label="Ends" name="ends_at" />
               </Box>
               <TextField label="Notes" name="notes" multiline minRows={2} />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    sx={{ alignSelf: "flex-start" }}
+                  >
+                    Create programme
+                  </Button>
+                </Stack>
+              </Collapse>
             </Stack>
           </Form>
         </Panel>
@@ -15166,7 +15182,7 @@ function AdminRail({
                 component="span"
                 aria-hidden
                 sx={{
-                  fontFamily: '"DM Serif Display", serif',
+                  fontFamily: '"Fraunces", serif',
                   fontSize: 24,
                   lineHeight: 1,
                   mt: "2px",
@@ -15192,7 +15208,7 @@ function AdminRail({
               <Box sx={{ minWidth: 0 }}>
                 <Typography
                   sx={{
-                    fontFamily: '"DM Serif Display", serif',
+                    fontFamily: '"Fraunces", serif',
                     fontSize: 18,
                     lineHeight: 1.15,
                     color: tokens.white,
