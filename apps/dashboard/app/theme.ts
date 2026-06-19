@@ -81,7 +81,10 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
       },
       MuiCssBaseline: {
         styleOverrides: {
-          html: { colorScheme: mode },
+          html: {
+            colorScheme: mode,
+            "--surface-rgb": mode === "dark" ? "36, 27, 41" : "255, 255, 255",
+          },
           body: {
             backgroundColor: colors.background,
             color: colors.text,

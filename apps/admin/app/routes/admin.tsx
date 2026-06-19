@@ -2892,7 +2892,7 @@ function Panel({ children, sx }: { children: ReactNode; sx?: SxProps<Theme> }) {
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: alpha(tokens.white, 0.96),
+        bgcolor: "rgba(var(--surface-rgb), 0.96)",
         backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.98)}, ${alpha(tokens.panel, 0.72)})`,
         boxShadow: `0 22px 60px ${alpha(tokens.ink, 0.065)}`,
         backdropFilter: "blur(10px)",
@@ -3113,7 +3113,7 @@ function VerificationCard({
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
                 borderRadius: 1.5,
-                bgcolor: alpha(tokens.white, 0.62),
+                bgcolor: "rgba(var(--surface-rgb), 0.62)",
               }}
             >
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -3140,7 +3140,7 @@ function VerificationCard({
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
                 borderRadius: 1.5,
-                bgcolor: alpha(tokens.white, 0.62),
+                bgcolor: "rgba(var(--surface-rgb), 0.62)",
               }}
             >
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -3176,7 +3176,7 @@ function VerificationCard({
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
                 borderRadius: 1.5,
-                bgcolor: alpha(tokens.white, 0.62),
+                bgcolor: "rgba(var(--surface-rgb), 0.62)",
               }}
             >
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
@@ -3486,7 +3486,7 @@ function CustomerRow({
                   label={`${customer.customOrderCount} custom`}
                   sx={{
                     bgcolor: alpha(tokens.warning, 0.16),
-                    color: tokens.ink,
+                    color: "text.primary",
                   }}
                 />
               ) : null}
@@ -7411,7 +7411,7 @@ function BillingOperationCard({
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
         borderRadius: 2,
-        bgcolor: alpha(tokens.white, 0.72),
+        bgcolor: "rgba(var(--surface-rgb), 0.72)",
         minWidth: 0,
       }}
     >
@@ -8468,7 +8468,7 @@ function SubscriptionsSection({
                     border: "1px solid",
                     borderColor: alpha(color, 0.18),
                     borderRadius: 2,
-                    bgcolor: alpha(tokens.white, 0.82),
+                    bgcolor: "rgba(var(--surface-rgb), 0.82)",
                     backgroundImage: `
                       linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 34%),
                       linear-gradient(180deg, ${alpha(tokens.white, 0.96)}, ${alpha(tokens.panel, 0.62)})
@@ -9093,7 +9093,7 @@ function SubscriptionsSection({
                   border: "1px solid",
                   borderColor: alpha(tokens.ink, 0.08),
                   borderRadius: 1.5,
-                  bgcolor: alpha(tokens.white, 0.7),
+                  bgcolor: "rgba(var(--surface-rgb), 0.7)",
                 }}
               >
                 <Typography sx={{ fontWeight: 900 }}>
@@ -9987,7 +9987,7 @@ function AdminPromotionDetailForm({
                 border: "1px solid",
                 borderColor: alpha(tokens.ink, 0.08),
                 borderRadius: 1,
-                bgcolor: alpha(tokens.white, 0.7),
+                bgcolor: "rgba(var(--surface-rgb), 0.7)",
                 minWidth: 0,
               }}
             >
@@ -10797,7 +10797,7 @@ function AdsSection({
                         border: "1px solid",
                         borderColor: alpha(tokens.ink, 0.08),
                         borderRadius: 1,
-                        bgcolor: alpha(tokens.white, 0.7),
+                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
                       }}
                     >
                       {campaign.description ? (
@@ -10829,7 +10829,7 @@ function AdsSection({
                         0.18,
                       ),
                       borderRadius: 1.5,
-                      bgcolor: alpha(tokens.white, 0.72),
+                      bgcolor: "rgba(var(--surface-rgb), 0.72)",
                     }}
                   >
                     <Stack spacing={1.5}>
@@ -11761,7 +11761,7 @@ function AffiliatesSection({
                         border: "1px solid",
                         borderColor: alpha(tokens.info, 0.14),
                         borderRadius: 1,
-                        bgcolor: alpha(tokens.white, 0.7),
+                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
                       }}
                     >
                       <Typography
@@ -11963,7 +11963,7 @@ function AffiliatesSection({
                         border: "1px solid",
                         borderColor: alpha(tokens.success, 0.14),
                         borderRadius: 1,
-                        bgcolor: alpha(tokens.white, 0.7),
+                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
                       }}
                     >
                       <Typography
@@ -12032,7 +12032,7 @@ function AffiliatesSection({
                         border: "1px solid",
                         borderColor: alpha(tokens.ink, 0.08),
                         borderRadius: 1,
-                        bgcolor: alpha(tokens.white, 0.7),
+                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
                       }}
                     >
                       {affiliate.payoutReference ? (
@@ -12678,7 +12678,7 @@ function ReferralsSection({
                         border: "1px solid",
                         borderColor: alpha(tokens.ink, 0.08),
                         borderRadius: 1,
-                        bgcolor: alpha(tokens.white, 0.7),
+                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
                       }}
                     >
                       <Typography
@@ -12699,7 +12699,7 @@ function ReferralsSection({
                       border: "1px solid",
                       borderColor: alpha(tokens.ink, 0.08),
                       borderRadius: 1,
-                      bgcolor: alpha(tokens.white, 0.74),
+                      bgcolor: "rgba(var(--surface-rgb), 0.74)",
                     }}
                   >
                     <Stack spacing={1.25}>
@@ -14851,10 +14851,10 @@ function AdminRail({
             bgcolor: selected ? tokens.gold : "transparent",
           },
           "&.Mui-selected": {
-            bgcolor: alpha(tokens.white, 0.11),
+            bgcolor: "rgba(var(--surface-rgb), 0.11)",
           },
           "&.Mui-selected:hover, &:hover": {
-            bgcolor: alpha(tokens.white, 0.09),
+            bgcolor: "rgba(var(--surface-rgb), 0.09)",
             transform: compact ? "translateY(-1px)" : "translateX(2px)",
           },
         }}
@@ -14969,7 +14969,7 @@ function AdminRail({
                   ? alpha(groupTone, 0.12)
                   : alpha(tokens.white, 0.035),
                 borderRadius: 1.25,
-                "&:hover": { bgcolor: alpha(tokens.white, 0.1) },
+                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
               }}
             >
               <Badge
@@ -15026,7 +15026,7 @@ function AdminRail({
                 color: alpha(tokens.white, 0.56),
               },
               "&:hover": {
-                bgcolor: alpha(tokens.white, 0.08),
+                bgcolor: "rgba(var(--surface-rgb), 0.08)",
                 borderColor: alpha(tokens.white, 0.1),
               },
             }}
@@ -15207,7 +15207,7 @@ function AdminRail({
                       width: 3,
                       height: 3,
                       borderRadius: "50%",
-                      bgcolor: alpha(tokens.white, 0.4),
+                      bgcolor: "rgba(var(--surface-rgb), 0.4)",
                       flexShrink: 0,
                     }}
                   />
@@ -15234,7 +15234,7 @@ function AdminRail({
                 color: tokens.white,
                 border: "1px solid",
                 borderColor: alpha(tokens.white, 0.14),
-                bgcolor: alpha(tokens.white, 0.06),
+                bgcolor: "rgba(var(--surface-rgb), 0.06)",
               }}
             >
               <CloseRounded />
@@ -15335,9 +15335,9 @@ function AdminRail({
                   color: tokens.white,
                   border: "1px solid",
                   borderColor: alpha(tokens.white, 0.16),
-                  bgcolor: alpha(tokens.white, 0.06),
+                  bgcolor: "rgba(var(--surface-rgb), 0.06)",
                   borderRadius: 1.5,
-                  "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.12)" },
                 }}
               >
                 <LogoutRounded />
@@ -15353,8 +15353,8 @@ function AdminRail({
                 color: tokens.white,
                 border: "1px solid",
                 borderColor: alpha(tokens.white, 0.16),
-                bgcolor: alpha(tokens.white, 0.06),
-                "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                bgcolor: "rgba(var(--surface-rgb), 0.06)",
+                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.12)" },
               }}
             >
               Sign out
@@ -15427,7 +15427,7 @@ function AdminRail({
               },
               "&::-webkit-scrollbar-thumb": {
                 borderRadius: 999,
-                bgcolor: alpha(tokens.white, 0.28),
+                bgcolor: "rgba(var(--surface-rgb), 0.28)",
               },
             },
           },
@@ -16120,7 +16120,7 @@ export default function AdminDashboard({
                           border: "1px solid",
                           borderColor: alpha(riskColor(item.riskLevel), 0.2),
                           borderRadius: 1.5,
-                          bgcolor: alpha(tokens.white, 0.72),
+                          bgcolor: "rgba(var(--surface-rgb), 0.72)",
                           backgroundImage: `linear-gradient(90deg, ${alpha(
                             riskColor(item.riskLevel),
                             0.08,
@@ -16579,7 +16579,7 @@ export default function AdminDashboard({
                               0.2,
                             ),
                             borderRadius: 1.5,
-                            bgcolor: alpha(tokens.white, 0.7),
+                            bgcolor: "rgba(var(--surface-rgb), 0.7)",
                             backgroundImage: `linear-gradient(90deg, ${alpha(
                               replayed
                                 ? tokens.info
@@ -16724,7 +16724,7 @@ export default function AdminDashboard({
                           border: "1px dashed",
                           borderColor: alpha(tokens.info, 0.28),
                           borderRadius: 1.5,
-                          bgcolor: alpha(tokens.white, 0.68),
+                          bgcolor: "rgba(var(--surface-rgb), 0.68)",
                         }}
                       >
                         <Typography sx={{ fontWeight: 900 }}>
@@ -16933,7 +16933,7 @@ export default function AdminDashboard({
                           border: "1px dashed",
                           borderColor: alpha(tokens.warning, 0.28),
                           borderRadius: 1.5,
-                          bgcolor: alpha(tokens.white, 0.68),
+                          bgcolor: "rgba(var(--surface-rgb), 0.68)",
                         }}
                       >
                         <Typography sx={{ fontWeight: 900 }}>
@@ -17091,7 +17091,7 @@ export default function AdminDashboard({
                       border: "1px dashed",
                       borderColor: alpha(tokens.success, 0.28),
                       borderRadius: 1.5,
-                      bgcolor: alpha(tokens.white, 0.68),
+                      bgcolor: "rgba(var(--surface-rgb), 0.68)",
                     }}
                   >
                     <Typography sx={{ fontWeight: 900 }}>
@@ -17323,7 +17323,7 @@ export default function AdminDashboard({
                       border: "1px dashed",
                       borderColor: alpha(tokens.success, 0.28),
                       borderRadius: 1.5,
-                      bgcolor: alpha(tokens.white, 0.68),
+                      bgcolor: "rgba(var(--surface-rgb), 0.68)",
                     }}
                   >
                     <Typography sx={{ fontWeight: 900 }}>

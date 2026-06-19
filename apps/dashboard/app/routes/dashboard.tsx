@@ -3573,7 +3573,7 @@ function Panel({
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: alpha(tokens.white, 0.96),
+        bgcolor: "rgba(var(--surface-rgb), 0.96)",
         backgroundImage: `linear-gradient(180deg, ${alpha(tokens.white, 0.78)}, ${alpha(tokens.panel, 0.5)})`,
         boxShadow: `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
         minWidth: 0,
@@ -3850,7 +3850,7 @@ function WorkspaceRail({
                   ? alpha(groupTone, 0.12)
                   : alpha(tokens.white, 0.035),
                 borderRadius: 1.25,
-                "&:hover": { bgcolor: alpha(tokens.white, 0.1) },
+                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
               }}
             >
               <Badge
@@ -3911,7 +3911,7 @@ function WorkspaceRail({
                 color: alpha(tokens.white, 0.56),
               },
               "&:hover": {
-                bgcolor: alpha(tokens.white, 0.08),
+                bgcolor: "rgba(var(--surface-rgb), 0.08)",
                 borderColor: alpha(tokens.white, 0.1),
               },
             }}
@@ -3987,7 +3987,7 @@ function WorkspaceRail({
                       color: active ? tokens.gold : alpha(tokens.white, 0.58),
                     },
                     "&:hover": {
-                      bgcolor: alpha(tokens.white, 0.09),
+                      bgcolor: "rgba(var(--surface-rgb), 0.09)",
                       borderColor: alpha(tokens.white, 0.12),
                       color: tokens.white,
                       transform: compact
@@ -4211,7 +4211,7 @@ function WorkspaceRail({
                         width: 3,
                         height: 3,
                         borderRadius: "50%",
-                        bgcolor: alpha(tokens.white, 0.4),
+                        bgcolor: "rgba(var(--surface-rgb), 0.4)",
                         flexShrink: 0,
                       }}
                     />
@@ -4238,7 +4238,7 @@ function WorkspaceRail({
                   color: tokens.white,
                   border: "1px solid",
                   borderColor: alpha(tokens.white, 0.14),
-                  bgcolor: alpha(tokens.white, 0.06),
+                  bgcolor: "rgba(var(--surface-rgb), 0.06)",
                   flexShrink: 0,
                 }}
               >
@@ -4382,9 +4382,9 @@ function WorkspaceRail({
                     color: tokens.white,
                     border: "1px solid",
                     borderColor: alpha(tokens.white, 0.16),
-                    bgcolor: alpha(tokens.white, 0.06),
+                    bgcolor: "rgba(var(--surface-rgb), 0.06)",
                     borderRadius: 1.5,
-                    "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                    "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.12)" },
                   }}
                 >
                   <LogoutRounded />
@@ -4401,8 +4401,8 @@ function WorkspaceRail({
                   color: tokens.white,
                   border: "1px solid",
                   borderColor: alpha(tokens.white, 0.16),
-                  bgcolor: alpha(tokens.white, 0.06),
-                  "&:hover": { bgcolor: alpha(tokens.white, 0.12) },
+                  bgcolor: "rgba(var(--surface-rgb), 0.06)",
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.12)" },
                 }}
               >
                 Log out
@@ -4467,7 +4467,7 @@ function WorkspaceRail({
               },
               "&::-webkit-scrollbar-thumb": {
                 borderRadius: 999,
-                bgcolor: alpha(tokens.white, 0.28),
+                bgcolor: "rgba(var(--surface-rgb), 0.28)",
               },
             },
           },
@@ -4841,7 +4841,7 @@ function WorkspaceHeader({
               label={`${roleLabel(currentUser.role)} access`}
               sx={{
                 color: "common.white",
-                bgcolor: alpha(tokens.white, 0.12),
+                bgcolor: "rgba(var(--surface-rgb), 0.12)",
                 border: "1px solid",
                 borderColor: alpha(tokens.white, 0.18),
               }}
@@ -4955,7 +4955,7 @@ function HeaderSignal({
         borderRadius: 2,
         border: "1px solid",
         borderColor: alpha(tokens.white, 0.15),
-        bgcolor: alpha(tokens.white, 0.085),
+        bgcolor: "rgba(var(--surface-rgb), 0.085)",
         minWidth: 0,
       }}
     >
@@ -5186,7 +5186,7 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
               border: "1px solid",
               borderColor: alpha(room.tone, 0.2),
               borderRadius: 2,
-              bgcolor: alpha(tokens.white, 0.78),
+              bgcolor: "rgba(var(--surface-rgb), 0.78)",
               backgroundImage: `linear-gradient(135deg, ${alpha(room.tone, 0.08)}, transparent 48%)`,
               color: "text.primary",
               minWidth: 0,
@@ -5272,7 +5272,7 @@ function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
                   alignItems: "center",
                   gap: 0.5,
                   border: "1px solid",
-                  bgcolor: alpha(tokens.white, 0.72),
+                  bgcolor: "rgba(var(--surface-rgb), 0.72)",
                   borderColor: alpha(room.tone, 0.2),
                   color: room.tone,
                   fontSize: 13,
@@ -5514,7 +5514,7 @@ function TodayFocusPanel({
             size="small"
             variant="contained"
             startIcon={<ReceiptLongRounded />}
-            sx={{ bgcolor: tokens.white, color: tokens.ink }}
+            sx={{ bgcolor: "rgb(var(--surface-rgb))", color: "text.primary" }}
           >
             Drafts
           </Button>
@@ -5568,7 +5568,7 @@ function EmptyState({
         textAlign: "center",
         borderStyle: "dashed",
         borderColor: alpha(tokens.burgundy, 0.25),
-        bgcolor: alpha(tokens.white, 0.72),
+        bgcolor: "rgba(var(--surface-rgb), 0.72)",
         backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.05)}, transparent 48%)`,
       }}
     >
@@ -5753,7 +5753,7 @@ function OrderCard({
               borderColor: alpha(tokens.burgundy, 0.14),
               borderRadius: 2,
               p: 1.25,
-              bgcolor: alpha(tokens.white, 0.72),
+              bgcolor: "rgba(var(--surface-rgb), 0.72)",
               backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.055)}, transparent 48%)`,
             }}
           >
@@ -6128,7 +6128,7 @@ function InfoStrip({
         borderRadius: 2,
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
-        bgcolor: alpha(tokens.white, 0.72),
+        bgcolor: "rgba(var(--surface-rgb), 0.72)",
         backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 52%)`,
         minWidth: 0,
         boxShadow: `0 10px 26px ${alpha(tokens.ink, 0.04)}`,
@@ -6319,7 +6319,7 @@ function DesignRow({
       sx={{
         borderTop: "1px solid",
         borderColor: "divider",
-        bgcolor: alpha(tokens.white, 0.42),
+        bgcolor: "rgba(var(--surface-rgb), 0.42)",
       }}
     >
       <Box
@@ -6769,7 +6769,7 @@ function MiniStat({
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
         borderRadius: 2,
-        bgcolor: alpha(tokens.white, 0.78),
+        bgcolor: "rgba(var(--surface-rgb), 0.78)",
         backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 48%)`,
         minWidth: 0,
         position: "relative",
@@ -6859,7 +6859,7 @@ function InlineEmptyState({
         borderColor: alpha(tokens.burgundy, 0.25),
         borderRadius: 2,
         textAlign: "center",
-        bgcolor: alpha(tokens.white, 0.7),
+        bgcolor: "rgba(var(--surface-rgb), 0.7)",
         backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.045)}, transparent 48%)`,
       }}
     >
@@ -8403,7 +8403,7 @@ function StoreSettingsPanel({
                 border: "1px solid",
                 borderColor: alpha(tokens.burgundy, 0.18),
                 borderRadius: 2,
-                bgcolor: alpha(tokens.white, 0.76),
+                bgcolor: "rgba(var(--surface-rgb), 0.76)",
                 backgroundImage: `linear-gradient(135deg, ${alpha(settings.brand_color || tokens.burgundy, 0.11)}, transparent 52%)`,
               }}
             >
@@ -8618,7 +8618,7 @@ function CatalogueSetupPanel({
                   border: "1px solid",
                   borderColor: "divider",
                   borderRadius: 2,
-                  bgcolor: alpha(tokens.white, 0.72),
+                  bgcolor: "rgba(var(--surface-rgb), 0.72)",
                 }}
               >
                 <Box sx={{ minWidth: 0 }}>
@@ -9146,7 +9146,7 @@ function PromotionPanel({
             border: "1px solid",
             borderColor: "divider",
             borderRadius: 2,
-            bgcolor: alpha(tokens.white, 0.72),
+            bgcolor: "rgba(var(--surface-rgb), 0.72)",
             overflow: "hidden",
           }}
         >
@@ -10027,7 +10027,7 @@ function TeamPanel({
             border: "1px solid",
             borderColor: "divider",
             borderRadius: 2,
-            bgcolor: alpha(tokens.white, 0.72),
+            bgcolor: "rgba(var(--surface-rgb), 0.72)",
             overflow: "hidden",
           }}
         >
@@ -10322,7 +10322,7 @@ function OwnerTransferPanel({
         border: "1px solid",
         borderColor: alpha(tokens.burgundy, 0.22),
         borderRadius: 2,
-        bgcolor: alpha(tokens.white, 0.74),
+        bgcolor: "rgba(var(--surface-rgb), 0.74)",
         backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.06)}, transparent 52%)`,
       }}
     >
