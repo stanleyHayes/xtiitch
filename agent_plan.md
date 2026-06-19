@@ -22,7 +22,7 @@ This is the intended product split. Keep new work aligned to these audience boun
 | Business dashboard | `apps/dashboard`          | Business owners, admins, and staff             | Receive customer requests/orders, manage catalogue, process production stages, handle money, visits, handovers, team, measurements, and notifications | Built and backed by protected business APIs, with role-aware owner/admin/staff views                                                                                                                                                                                                                                                                                                                                                  |
 | Marketing          | `apps/marketing`          | Prospective businesses and public visitors     | Explain the product, pricing, trust posture, growth programmes, sponsored discovery, and capture waitlist/contact leads                                | Built with public product/pricing/trust pages, the sponsored placement band, and a `/growth` route covering promotion codes, referral rewards, affiliate links, and sponsored placements                                                                                                                                                                                                                                             |
 | Backend/worker     | `apps/api`, `apps/worker` | Shared system layer                            | Tenant-safe API, payments, catalogue, orders, notifications, and background jobs                                                                      | Built in slices; admin auth/users/roles/settings/audit/business verification/business lifecycle/platform metrics/money-rails/subscription lifecycle/plan-package/promotion/risk-review/support controls are started; notification outbox has dry-run and HTTP provider transports; subscription dunning/grace-expiry sweeps run from admin and worker paths; extra local admin bootstrap users can be seeded through env JSON; production notification provider credentials are pending                                                                                                                                                  |
-| Mobile             | `apps/mobile`             | Later customer/business mobile surfaces        | Native access mirroring the web split                                                                                                                 | Stub only                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Mobile             | `apps/mobile`             | Customer and business native/web-preview users | Native access mirroring the web split                                                                                                                 | Started: Expo Router app with customer home, sponsored discovery, store browsing, design checkout, order tracking, business sign-in, order list/detail, stage advancement, balance collection, and walk-in order creation over the existing public/business APIs. Deeper parity, secure native storage, push registration, device QA, and store/team/catalogue/visit/handover management remain future mobile work.                                                                                       |
 
 ## Handoff — 2026-06-16 (read this first if you are picking up)
 
@@ -270,16 +270,16 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 
 **DONE — backend (Go, hexagonal, DB-enforced RLS tenancy):** auth + JWT + refresh + hardened RLS; business team/roles; catalogue (collections, designs, size bands, prices) + public storefront read; store settings; measurement-field management + visit/shop capture; checkout (standard, all three custom routes, walk-in); production stages + red/yellow/green tracking + public "where is my cloth" read; money rails (Paystack subaccount + commission split + idempotent webhook); money tracker + manual takings; custom-order balance collection (race-proof); home-visit bookings (availability → atomic hold → deposit) + management (list/cancel/reschedule); fulfilment handovers (pickup/delivery); transactional notification outbox + producers (`order_confirmed`/`order_fulfilled`, `booking_confirmed`, `balance_paid`, `handover_dispatched`/`completed`); subscriptions + plan-package billing (invoices, sweeps, downgrade); promotions/discount engine (scoped, funding-aware, applied at checkout); referrals (programmes/codes/rewards); affiliates (clicks/conversions/holds/payout batches); sponsored ad campaigns (+ Paystack collection + reconciliation); full admin auth + RBAC (8 permissions) + operator APIs (verification, business suspend/manage, money-rail replay/holds, risk, support, audit log, plan CRUD, growth management, platform settings, ops health, launch readiness, CSV export). Invariant preserved: Xtiitch never holds funds.
 
-**DONE — web apps (React Router v7 + MUI, all API-wired):** `marketing` (static prose, incl. growth/pricing/payment-policy/security/faq/legal); `storefront` (subdomain `<handle>.xtiitch.com` tenancy; browse/design/collection; standard + custom + home-visit checkout; order tracking lookup; promo/referral/affiliate carry-through); `dashboard` (~13 sections behind real session auth — overview, orders/production board + walk-in, money + manual takings, visits, handovers, messages, catalogue studio with Cloudinary upload dropzone, measurements, availability, promotions, store settings, team/roles); `admin` (~13 sections behind **real** admin auth — verification, businesses, money rails, subscriptions, promotions, ads, affiliates, referrals, risk, support, users/roles, settings; mock data removed).
+**DONE — web apps (React Router v7 + MUI, all API-wired):** `marketing` (growth/pricing/payment-policy/security/faq/legal, public directory routes, and live sponsored/featured placement reads with impression/click tracking); `storefront` (subdomain `<handle>.xtiitch.com` tenancy; browse/design/collection; standard + custom + home-visit checkout; order tracking lookup; promo/referral/affiliate carry-through); `dashboard` (~13 sections behind real session auth — overview, orders/production board + walk-in, money + manual takings, visits, handovers, messages, catalogue studio with Cloudinary upload dropzone, measurements, availability, promotions, store settings, team/roles); `admin` (~13 sections behind **real** admin auth — verification, businesses, money rails, subscriptions, promotions, ads, affiliates, referrals, risk, support, users/roles, settings; mock data removed).
 
 **DONE — worker + media:** `apps/worker` (BullMQ + Postgres) drains the notification outbox and sends via a configurable transport (`disabled`/`log`/`http` → WhatsApp/SMS) with retries + dead-lettering, and runs scheduled subscription billing sweeps; Cloudinary signed direct uploads.
 
 **LEFT — remaining work:**
 
-- **Mobile apps (largest remaining build):** `apps/mobile` is only an Expo scaffold + a tested surface contract — no screens. Two native apps (customer + business) still to build (Milestone 9).
+- **Mobile apps (remaining parity build):** `apps/mobile` now has early customer/business screens wired to public and protected APIs. Remaining native work is deeper parity with web surfaces (custom/home-visit checkout, promo/referral/affiliate detail polish, visits, handovers, messages, catalogue/media, team/settings), Expo push registration, secure native token storage, and real-device QA.
 - **External provider validation (pre-launch):** real Paystack sandbox/live smoke (subaccounts, split, recurring authorization, webhooks); production WhatsApp/SMS provider credentials + approved message templates + a provider sandbox smoke; live `CLOUDINARY_URL`; waitlist transport (`MARKETING_WAITLIST_WEBHOOK_URL` or Resend env).
 - **Quality gate + tests:** rerun `pnpm sonar` with real `SONAR_HOST_URL`/`SONAR_ORGANIZATION`/`SONAR_TOKEN`; broaden HTTP integration / end-to-end flow coverage (unit + key money/booking/notification integration exist; full order→pay→stage→handover and admin-decision E2E are thin).
-- **Customer-side growth surfacing:** promotions apply at checkout and admin/business creation is complete; confirm the customer-facing claim/redeem paths and the marketing site's **live** "featured/sponsored" read (marketing is currently static, so sponsored placements are not yet surfaced publicly).
+- **Customer-side growth surfacing:** promotions apply at checkout, admin/business creation is complete, storefront reward/attribution status is visible, and marketing now loads labelled sponsored/featured placements through the public growth API. Remaining work is live provider/data smoke evidence with real campaigns and the owner policy decisions below.
 - **Commercial/owner sign-off (growth):** promo funding defaults, platform-promo opt-in, affiliate payout KYC/threshold, sponsored pricing/rate card, referral-voucher scope, promo/referral/affiliate precedence on one order, subscription-billing policy.
 - **Launch gating + legal:** finish launch-readiness gates; legal review of privacy/terms/refund/cancellation/renewal/chargeback copy.
 
@@ -296,7 +296,7 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 - The remaining marketing pages have also been polished: the waitlist/contact flow now has a richer guided form and launch-step panel, FAQ opens with quick-answer proof cards, the security money-flow section uses an image-led explainer, and Privacy/Terms use a shared legal-review card system instead of flat text rows.
 - The custom (bespoke) order backend is built and security-reviewed (see Completed): all three measurement routes (self-measure, home-visit, come-to-shop), deposit checkout over the existing money rails, self-measure measurement capture, and confirmation at the first bespoke stage via the deposit webhook. The storefront design page now exposes all three customer request routes and validates the no-mutation form edge cases before posting to the API.
 - The dashboard orders board is built and verified (see Completed): the API now returns dashboard-ready order summaries with contact, route, channel, payment, settlement, stage, and created-at context; the web dashboard filters standard/custom/draft/confirmed/fulfilled orders and advances only confirmed orders.
-- Platform architecture decided 2026-06-15 (see the Platform Architecture section). Done so far: the old combined `apps/web` direction is split into `apps/storefront` (customer) and `apps/dashboard` (business), the storefront resolves a store from its `<handle>.xtiitch.com` subdomain, and the first `apps/admin` operator surface is scaffolded and verified (see Completed). Still to do, in order: finish the remaining admin foundation/operator APIs, then the two mobile apps (customer + business).
+- Platform architecture decided 2026-06-15 (see the Platform Architecture section). Done so far: the old combined `apps/web` direction is split into `apps/storefront` (customer) and `apps/dashboard` (business), the storefront resolves a store from its `<handle>.xtiitch.com` subdomain, the admin operator surface is API-backed, and the first Expo mobile customer/business routes are wired to the public/business APIs. Still to do: external launch validation, mobile parity hardening, and real-device QA.
 - Admin dashboard work has started: `apps/admin` now runs as a standalone React Router + MUI app for `admin.xtiitch.com`, with a redesigned operator login/control-room entry, API-backed admin auth/session handling, permission-backed operator user management, editable role/permission grants, persisted profile/settings/notification preferences, a durable audit log, API-backed business verification decisions, API-backed business list/suspend/reactivate controls, API-backed platform metrics, API-backed money-rails monitoring/replay/settlement-review holds, API-backed subscription lifecycle/invoice/billing-sweep/downgrade controls, API-backed plan-package create/update/archive controls, API-backed promotion controls, API-backed sponsored placement controls with Paystack collection links/webhook reconciliation, API-backed risk-review close/reopen controls, API-backed support queue assignment/resolution, API-backed operations health, launch readiness, notifications, and reports, authenticated CSV exports, and a responsive grouped operator rail/drawer.
 - The transactional notification outbox now covers order confirmation/fulfilment plus booking confirmation, balance payment, and handover dispatched/completed milestones. The worker-side drain is built with BullMQ, Postgres claiming, retries, dead-lettering, a dry-run log transport, and HTTP provider transport; the worker also runs scheduled subscription billing sweeps for overdue invoices and expired grace windows. Production provider credentials and message-template approval are still pending.
 - Measurement-field management is built end-to-end for the business dashboard/API: businesses can manage their measurement template over protected APIs, and staff can record/upsert visit/shop measurements only for confirmed custom orders on the matching route.
@@ -424,17 +424,18 @@ Audited by reading `apps/api` (37 migrations through `000037`; `internal/{domain
 - Launch gate checker continuation: added `pnpm launch:check`, a safe secret-presence checker that reports Sonar, Paystack, notification provider, waitlist delivery, legal-review, and growth-policy gate status without printing secret values; `--warn-only` keeps local audits non-blocking. Verified with `pnpm launch:check -- --warn-only`, `node --check scripts/check-launch-gates.mjs`, and `pnpm lint`.
 - Admin launch-readiness confirmation continuation: the admin Launch Readiness API now consumes `XTIITCH_LEGAL_REVIEW_CONFIRMED` and `XTIITCH_GROWTH_POLICY_CONFIRMED`, moves legal review from a permanently blocked card to an operator-confirmable gate, and adds a separate growth-policy decision gate covering promotion/referral/affiliate/sponsored/subscription launch decisions. Verified with `go test ./internal/platform/config ./internal/application/adminauth ./internal/bootstrap`, `pnpm --filter @xtiitch/admin check`, and `pnpm --filter @xtiitch/admin build`.
 - Admin mock-data removal continuation: removed the unused legacy `apps/admin/app/mocks/admin.ts` dataset after confirming no active admin route imports it, so the shipped operator console no longer carries stale mock verification/business/risk/support fixtures. Verified with `pnpm --filter @xtiitch/admin check`, `pnpm --filter @xtiitch/admin build`, and `rg` import search.
+- Agent-plan audit and quality-gate continuation: refreshed stale plan language after confirming marketing already has live sponsored/featured placement reads and `apps/mobile` already has early customer/business screens over public/protected APIs. Fixed the current strict-check annotations by removing an unused mobile import, replacing implicit boolean coercions, scoping the Metro CommonJS lint override, upgrading GitHub Actions to current Node 24-backed majors, and pointing the Go cache at `apps/api/go.sum`. Verified with `pnpm --filter @xtiitch/mobile check`, `pnpm launch:check -- --warn-only` (six expected external gates blocked by missing local env/sign-off), `pnpm check`, `pnpm test`, and `git diff --check`.
 
 ## Opened / Pending
 
-- Code-owned admin, contract, and test placeholder gaps in this ledger are closed as of `63717d1`; continue to commit and push each new slice to `origin/main`.
+- Code-owned admin, storefront, dashboard, marketing, contract, and test placeholder gaps in this ledger are closed as of the latest audit; continue to commit and push each new slice to `origin/main`.
 - Subscription invoice/payment-link/manual billing controls, Paystack recurring authorization capture/verify controls, recurring charge initiation for saved authorization refs, operator-run and worker-scheduled dunning/grace-expiry sweeps, cancellation-to-free downgrade rules, subscription webhook reconciliation, sponsored-placement payment collection, and catalogue design plan-limit enforcement now exist; production Paystack sandbox validation is still pending.
 - Rerun `pnpm sonar` with real `SONAR_HOST_URL`, `SONAR_ORGANIZATION`, and `SONAR_TOKEN` to complete the external quality-gate smoke.
 - Configure either `MARKETING_WAITLIST_WEBHOOK_URL` or `RESEND_API_KEY` / `RESEND_FROM_EMAIL` / `MARKETING_WAITLIST_EMAIL_TO` before public waitlist launch.
 - Final privacy, terms, refund, cancellation, subscription renewal, and chargeback language must receive legal review before public launch.
 - Configure production WhatsApp/SMS provider credentials/templates and run a provider sandbox smoke. The worker now has a generic HTTP live transport, lifecycle text templates, and provider response/id persistence, but no real production provider token is committed.
 - Growth and monetisation owner decisions still need final sign-off before launch: default funding for business promos; whether platform-wide admin promos are opt-in per business; affiliate payout KYC/threshold policy; sponsored pricing model and rate card; whether referral vouchers are store-scoped or platform-wide; precedence when promo, referral, and affiliate collide on one order; and subscription-billing policy details that depend on commercial ownership.
-- Native mobile product work remains future-facing beyond the tested Expo surface contract; the current launch-ready surfaces are the dedicated web/admin/storefront/dashboard apps.
+- Native mobile product work is started, not launch-complete: the current launch-ready surfaces remain the dedicated web/admin/storefront/dashboard apps until mobile parity, secure storage, push registration, and device QA are complete.
 
 ## Product Boundary
 
@@ -1004,6 +1005,87 @@ Suggested commit:
 
 ```text
 feat(billing): add subscription packages and billing lifecycle
+```
+
+### Milestone 8.5: Plan Feature Entitlements And Storefront Customization
+
+Problem: every business currently gets every storefront capability. Branding and
+storefront customization must become *plan-gated* and *admin-editable*, so higher
+packages unlock more. The gate must be enforceable server-side, not just hidden in
+the UI.
+
+Benefit catalogue (canonical keys, defined once in Go + shared TS, never
+free-typed — admin picks from these predefined benefits when building a package):
+
+- `custom_brand_color` — Storefront accent colour. Set the storefront's accent.
+- `custom_logo` — Custom storefront logo. Show the business logo on the storefront
+  (else the Xtiitch `ii`/storefront-mark fallback).
+- `custom_banner` — Custom hero banner image. Set the storefront hero image (else
+  the default hero).
+- `custom_layout` — Storefront layout variants. Choose a hero layout
+  (`standard` / `spotlight` / `minimal`; else `standard`).
+- `design_waitlist` — Design waiting lists. Let a business open a waiting list on a
+  design so customers can register interest when a piece is sold out or
+  made-to-order. (Entitlement gate ships here; the functional waitlist — storefront
+  join + dashboard list — is a follow-up phase, see below.)
+
+Packages (default benefit sets — seeded, but every mapping is admin-editable):
+
+| Package  | Monthly | Commission | Design limit | Benefits |
+| -------- | ------- | ---------- | ------------ | -------- |
+| Free     | GHS 0   | 3.00%      | 10 designs   | Core storefront + orders. No customization. |
+| Standard | GHS 50  | 1.00%      | Unlimited    | + `custom_brand_color` |
+| Growth   | GHS 120 | 0.50%      | Unlimited    | + `custom_logo`, `custom_banner`, `custom_layout`, `design_waitlist` |
+
+`design_limit` and `commission_bps` stay first-class numeric plan columns; the
+benefit catalogue above is the boolean `plans.features` set layered on top.
+
+Storage:
+
+- `plans.features jsonb NOT NULL DEFAULT '{}'` — map of `feature_key -> bool`. The
+  single source of truth for which plan grants which feature. Edited from admin.
+- `store_settings.logo_url text`, `store_settings.banner_url text`,
+  `store_settings.layout_variant text NOT NULL DEFAULT 'standard'` — the business's
+  chosen customizations (only honoured when the plan grants the matching feature).
+- Seed: free → none; standard → `custom_brand_color`; growth → all four. Defaults
+  only; admin can re-map any feature to any plan afterwards.
+
+Enforcement (release-blocking — UI gating is not enough):
+
+- The catalogue store-settings UPDATE service resolves the business's plan features
+  and rejects writes to gated fields the plan does not grant (non-default
+  `brand_color`, any `logo_url`/`banner_url`, non-`standard` `layout_variant`) with a
+  typed `ErrFeatureNotInPlan` so the dashboard can surface an upgrade prompt.
+- The business's resolved entitlements are returned on the authenticated store/profile
+  payload so the dashboard knows what to show unlocked; the public store payload
+  returns `logo_url`/`banner_url`/`layout_variant` for rendering.
+
+Surfaces:
+
+- Admin: plan editor gains one toggle per catalogue feature (saved via existing plan
+  update path); plan cards show the granted feature set.
+- Dashboard: a "Storefront branding" panel with brand colour, logo URL, banner image
+  URL and layout select — each control unlocked only when entitled, otherwise shown
+  locked with an "Upgrade" hint.
+- Storefront: hero renders `banner_url` (fallback default), `logo_url` (fallback
+  `ii`), `brand_color` (already) and switches composition on `layout_variant`.
+
+Phases: (1) migration 000038; (2) Go domain/ports/repo + admin plan CRUD features +
+entitlement resolution + store-update enforcement + payload exposure; (3) admin plan
+editor toggles; (4) dashboard gated branding panel; (5) storefront render.
+
+Done when:
+
+- A plan's feature set is editable from admin and persisted.
+- A business on a plan without `custom_*` cannot persist that customization (server
+  rejects it), and the dashboard shows the control locked with an upgrade hint.
+- A business on an entitled plan can set logo/banner/colour/layout and the storefront
+  renders them, falling back to Xtiitch defaults otherwise.
+
+Suggested commit:
+
+```text
+feat(billing): plan-gated, admin-editable storefront customization entitlements
 ```
 
 ### Milestone 9: Mobile App
