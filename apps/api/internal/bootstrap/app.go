@@ -210,6 +210,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	router := httpadapter.NewRouter(logger, db.Ping,
+		httpadapter.SecurityOptions{
+			Production:     strings.EqualFold(cfg.Environment, "production"),
+			AllowedOrigins: cfg.CORSAllowedOrigins,
+			RateLimitRPS:   cfg.RateLimitRPS,
+		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		paymentshttp.NewHandler(paymentService, authenticator),

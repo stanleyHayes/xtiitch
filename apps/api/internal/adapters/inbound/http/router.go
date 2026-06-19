@@ -20,11 +20,22 @@ type RouteRegistrar interface {
 	Register(router chi.Router)
 }
 
-func NewRouter(logger *slog.Logger, ready func(context.Context) error, registrars ...RouteRegistrar) http.Handler {
+func NewRouter(logger *slog.Logger, ready func(context.Context) error, security SecurityOptions, registrars ...RouteRegistrar) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Recoverer)
+	// Hardening: conservative response headers, a request timeout, a body-size
+	// cap, CORS allow-list, and a generous per-IP rate limit (see SecurityOptions).
+	router.Use(securityHeaders(security.Production))
+	router.Use(middleware.Timeout(20 * time.Second))
+	router.Use(bodyLimit(security.MaxBodyBytes))
+	if len(security.AllowedOrigins) > 0 {
+		router.Use(corsMiddleware(security.AllowedOrigins))
+	}
+	if security.RateLimitRPS > 0 {
+		router.Use(newIPRateLimiter(security.RateLimitRPS).middleware)
+	}
 
 	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, healthResponse{

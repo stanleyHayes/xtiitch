@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -13,8 +14,13 @@ type Config struct {
 	AdminBootstrapRole        string
 	BusinessDashboardBaseURL  string
 	CloudinaryURL             string
-	DatabaseURL               string
-	Environment               string
+	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
+	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
+	// IP (<=0 disables).
+	CORSAllowedOrigins []string
+	RateLimitRPS       int
+	DatabaseURL        string
+	Environment        string
 	ExpoAccessToken           string
 	GrowthPolicyConfirmed     bool
 	HTTPAddr                  string
@@ -48,6 +54,11 @@ func Load() Config {
 		AdminBootstrapRole:        getenv("ADMIN_BOOTSTRAP_ROLE", "owner"),
 		BusinessDashboardBaseURL:  getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
 		CloudinaryURL:             getenv("CLOUDINARY_URL", ""),
+		CORSAllowedOrigins: getenvList(
+			"CORS_ALLOWED_ORIGINS",
+			"http://localhost:3000,http://localhost:3001,http://localhost:3100,http://localhost:3401,http://localhost:3403,http://localhost:3333,http://*.localhost:3100,https://*.xtiitch.com,https://xtiitch.com",
+		),
+		RateLimitRPS: getenvInt("RATE_LIMIT_RPS", 100),
 		// The API connects as the non-superuser application role so row-level
 		// security is enforced. Migrations run separately as the owner.
 		DatabaseURL:              getenv("DATABASE_URL", "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable"),
@@ -86,6 +97,28 @@ func getenv(key string, fallback string) string {
 	}
 
 	return fallback
+}
+
+func getenvInt(key string, fallback int) int {
+	if value := strings.TrimSpace(os.Getenv(key)); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+
+	return fallback
+}
+
+func getenvList(key string, fallback string) []string {
+	parts := strings.Split(getenv(key, fallback), ",")
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+
+	return out
 }
 
 func getenvBool(key string) bool {
