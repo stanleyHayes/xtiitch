@@ -7,39 +7,30 @@ export const tokens = {
   ink: "#15111a",
   cream: "#faf6f2",
   white: "#ffffff",
-  softBorder: "#e9ded6",
-  mutedText: "#6f6672",
-  success: "#237a4b",
-  warning: "#b87914",
-  danger: "#a92727",
+  softBorder: "#e7ded7",
+  mutedText: "#565b63",
+  success: "#1e8e4e",
+  warning: "#b8860b",
+  danger: "#c0392b",
   info: "#315f8f",
   panel: "#fffaf7",
   charcoal: "#201923",
   gold: "#c58b2c",
 } as const;
 
+// Inter Tight is the single brand typeface.
 const bodyFontStack = [
-  "Instrument Sans",
-  "Roboto",
+  "Inter Tight",
   "system-ui",
   "-apple-system",
   "Segoe UI",
+  "Roboto",
   "Helvetica",
   "Arial",
   "sans-serif",
 ].join(", ");
 
-const displayFontStack = [
-  "DM Serif Display",
-  "Instrument Sans",
-  "Roboto",
-  "system-ui",
-  "-apple-system",
-  "Segoe UI",
-  "Helvetica",
-  "Arial",
-  "sans-serif",
-].join(", ");
+const displayFontStack = bodyFontStack;
 
 const controlRadius = 16;
 const buttonRadius = 999;
@@ -61,12 +52,12 @@ export const theme: Theme = createTheme({
   shape: { borderRadius: 8 },
   typography: {
     fontFamily: bodyFontStack,
-    h1: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h2: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h3: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h4: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h5: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
-    h6: { fontFamily: displayFontStack, fontWeight: 400, letterSpacing: 0 },
+    h1: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h2: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h3: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h4: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h5: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
+    h6: { fontFamily: displayFontStack, fontWeight: 800, letterSpacing: 0 },
     button: { textTransform: "none", fontWeight: 760 },
   },
   components: {
