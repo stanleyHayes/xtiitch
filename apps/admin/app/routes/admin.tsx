@@ -15637,64 +15637,207 @@ function AdminTopBar({
             anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
             transformOrigin={{ vertical: "top", horizontal: "right" }}
             slotProps={{
+              list: { sx: { p: 0 } },
               paper: {
                 sx: {
-                  mt: 1,
-                  minWidth: { xs: "calc(100vw - 32px)", sm: 250 },
+                  mt: 1.25,
+                  minWidth: { xs: "calc(100vw - 32px)", sm: 304 },
                   maxWidth: "calc(100vw - 32px)",
-                  borderRadius: 2,
+                  borderRadius: 3,
+                  overflow: "hidden",
                   border: "1px solid",
-                  borderColor: alpha(tokens.ink, 0.1),
-                  boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.16)}`,
+                  borderColor: "divider",
+                  backgroundImage: "none",
+                  boxShadow: (theme) =>
+                    `0 28px 72px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.62 : 0.22)}`,
                 },
               },
             }}
           >
-            <Box sx={{ px: 2, py: 1.4 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {admin.adminDisplayName}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary" }}
-                noWrap
+            {/* Identity band */}
+            <Box
+              sx={{
+                px: 2,
+                py: 1.85,
+                display: "flex",
+                alignItems: "center",
+                gap: 1.5,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+                background: (theme) =>
+                  `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.3 : 0.12)}, ${alpha(theme.palette.primary.main, 0)} 78%)`,
+              }}
+            >
+              <Avatar
+                sx={{
+                  width: 46,
+                  height: 46,
+                  bgcolor: "primary.main",
+                  color: "primary.contrastText",
+                  fontWeight: 900,
+                  fontSize: 16,
+                  boxShadow: (theme) =>
+                    `0 8px 20px ${alpha(theme.palette.primary.main, 0.4)}`,
+                }}
               >
-                {admin.adminEmail}
-              </Typography>
+                {admin.adminDisplayName
+                  .split(" ")
+                  .map((part) => part[0])
+                  .join("")
+                  .slice(0, 2)
+                  .toUpperCase()}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }} noWrap>
+                  {admin.adminDisplayName}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary" }}
+                  noWrap
+                >
+                  {admin.adminEmail}
+                </Typography>
+                <Chip
+                  size="small"
+                  label={`${admin.adminRole} access`}
+                  sx={{
+                    mt: 0.5,
+                    height: 20,
+                    textTransform: "capitalize",
+                    fontWeight: 800,
+                    fontSize: 11,
+                    color: "primary.main",
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                    "& .MuiChip-label": { px: 1 },
+                  }}
+                />
+              </Box>
             </Box>
+
+            {/* Sections */}
+            <Box sx={{ py: 0.5 }}>
+              {(
+                [
+                  {
+                    label: "Profile settings",
+                    helper: "Your account & sign-in",
+                    icon: <AccountCircleRounded fontSize="small" />,
+                    section: "settings",
+                  },
+                  {
+                    label: "Platform settings",
+                    helper: "Policies & controls",
+                    icon: <SettingsRounded fontSize="small" />,
+                    section: "settings",
+                  },
+                  {
+                    label: "Notification routing",
+                    helper: "Where alerts are sent",
+                    icon: <NotificationsActiveRounded fontSize="small" />,
+                    section: "notifications",
+                  },
+                  {
+                    label: "Launch readiness",
+                    helper: "Go-live checklist",
+                    icon: <AssignmentTurnedInRounded fontSize="small" />,
+                    section: "readiness",
+                  },
+                  {
+                    label: "Audit log",
+                    helper: "Console activity trail",
+                    icon: <HistoryRounded fontSize="small" />,
+                    section: "audit",
+                  },
+                ] as { label: string; helper: string; icon: ReactNode; section: Section }[]
+              ).map((entry) => (
+                <MenuItem
+                  key={entry.label}
+                  onClick={() => selectAndClose(entry.section)}
+                  sx={{
+                    px: 2,
+                    py: 1.1,
+                    gap: 1.25,
+                    "&:hover": {
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                    },
+                  }}
+                >
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      flexShrink: 0,
+                      borderRadius: 1.25,
+                      display: "grid",
+                      placeItems: "center",
+                      color: "primary.main",
+                      bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                    }}
+                  >
+                    {entry.icon}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography
+                      sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}
+                      noWrap
+                    >
+                      {entry.label}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                      noWrap
+                    >
+                      {entry.helper}
+                    </Typography>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Box>
+
             <Divider />
-            <MenuItem onClick={() => selectAndClose("settings")}>
-              <AccountCircleRounded sx={{ mr: 1.25 }} fontSize="small" />
-              Profile settings
-            </MenuItem>
-            <MenuItem onClick={() => selectAndClose("settings")}>
-              <SettingsRounded sx={{ mr: 1.25 }} fontSize="small" />
-              Platform settings
-            </MenuItem>
-            <MenuItem onClick={() => selectAndClose("notifications")}>
-              <NotificationsActiveRounded sx={{ mr: 1.25 }} fontSize="small" />
-              Notification routing
-            </MenuItem>
-            <MenuItem onClick={() => selectAndClose("readiness")}>
-              <AssignmentTurnedInRounded sx={{ mr: 1.25 }} fontSize="small" />
-              Launch readiness
-            </MenuItem>
-            <MenuItem onClick={() => selectAndClose("audit")}>
-              <HistoryRounded sx={{ mr: 1.25 }} fontSize="small" />
-              Audit log
-            </MenuItem>
-            <Divider />
-            <Form method="post">
-              <input type="hidden" name="intent" value="logout" />
-              <MenuItem
-                component="button"
-                type="submit"
-                sx={{ width: "100%", color: tokens.danger }}
-              >
-                <LogoutRounded sx={{ mr: 1.25 }} fontSize="small" />
-                Sign out
-              </MenuItem>
-            </Form>
+
+            {/* Sign out */}
+            <Box sx={{ py: 0.5 }}>
+              <Form method="post">
+                <input type="hidden" name="intent" value="logout" />
+                <MenuItem
+                  component="button"
+                  type="submit"
+                  sx={{
+                    width: "100%",
+                    px: 2,
+                    py: 1.1,
+                    gap: 1.25,
+                    color: "error.main",
+                    "&:hover": {
+                      bgcolor: (theme) => alpha(theme.palette.error.main, 0.1),
+                    },
+                  }}
+                >
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 34,
+                      height: 34,
+                      flexShrink: 0,
+                      borderRadius: 1.25,
+                      display: "grid",
+                      placeItems: "center",
+                      color: "error.main",
+                      bgcolor: (theme) => alpha(theme.palette.error.main, 0.12),
+                    }}
+                  >
+                    <LogoutRounded fontSize="small" />
+                  </Box>
+                  <Typography sx={{ fontWeight: 800, fontSize: 14 }}>
+                    Sign out
+                  </Typography>
+                </MenuItem>
+              </Form>
+            </Box>
           </Menu>
         </Stack>
       </Stack>
