@@ -17136,7 +17136,7 @@ function overviewParseMs(iso?: string | null): number {
 // latest timestamp present. Deterministic (no wall-clock) so it is SSR-safe and
 // never triggers a hydration mismatch; invalid/empty timestamps are dropped.
 function buildOverviewSeries(
-  rows: Array<{ ts: number; value: number }>,
+  rows: { ts: number; value: number }[],
   days: number,
 ): OverviewDaySeries[] {
   const valid = rows.filter((row) => Number.isFinite(row.ts));
@@ -17404,12 +17404,12 @@ function OverviewSection({
   const customerGmvMinor = customers.reduce((sum, c) => sum + c.gmvMinor, 0);
   const customerOrders = customers.reduce((sum, c) => sum + c.orderCount, 0);
 
-  const kpiCards: Array<{
+  const kpiCards: {
     label: string;
     value: string;
     helper: string;
     trend: string;
-  }> = [];
+  }[] = [];
   if (platformMetrics) {
     kpiCards.push(
       {

@@ -88,7 +88,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (!response.ok) {
-    let code = "";
+    let code: string;
     try {
       code = ((await response.json()) as { error?: string }).error ?? "";
     } catch {
