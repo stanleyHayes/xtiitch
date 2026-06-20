@@ -253,7 +253,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
-	aiAssistService := buildAIAssistService(cfg, logger, db)
+	aiAssistService := buildAIAssistService(cfg, logger, db, paymentProvider, businessIdentityRepo)
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
@@ -347,13 +347,25 @@ func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Po
 // key the ClaudeAssistant degrades to returning the input text unchanged, so the
 // endpoint stays exercisable locally. The add-on entitlement check is always
 // tenant-scoped via the business_addons repository.
-func buildAIAssistService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) aiassistapp.Service {
+func buildAIAssistService(
+	cfg config.Config,
+	logger *slog.Logger,
+	db *pgxpool.Pool,
+	payments ports.PaymentProvider,
+	profiles aiassistapp.BillingProfiles,
+) aiassistapp.Service {
 	if cfg.AnthropicAPIKey == "" {
 		logger.Warn("anthropic api key not set; AI assistant will return input text unchanged")
 	}
 	return aiassistapp.NewService(aiassistapp.Dependencies{
-		Assistant: aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
-		Addons:    postgres.NewBusinessAddonRepository(db),
+		Assistant:  aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
+		Addons:     postgres.NewBusinessAddonRepository(db),
+		Payments:   payments,
+		Profiles:   profiles,
+		IDs:        ids.UUIDGenerator{},
+		Clock:      clock.SystemClock{},
+		PriceMinor: int64(cfg.AIAssistantAddonPriceMinor),
+		Currency:   "GHS",
 	})
 }
 

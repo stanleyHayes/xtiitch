@@ -15,10 +15,13 @@ type Config struct {
 	// AnthropicAPIKey enables Claude query understanding for AI search; when empty
 	// a heuristic parser is used so search works locally with no key.
 	// AnthropicQueryModel overrides the model used to extract search filters.
-	AnthropicAPIKey          string
-	AnthropicQueryModel      string
-	BusinessDashboardBaseURL string
-	CloudinaryURL            string
+	AnthropicAPIKey     string
+	AnthropicQueryModel string
+	// AIAssistantAddonPriceMinor is the monthly price (in minor units, e.g.
+	// pesewas for GHS) charged for the AI Assistant paid add-on. Default GHS 50.00.
+	AIAssistantAddonPriceMinor int
+	BusinessDashboardBaseURL   string
+	CloudinaryURL              string
 	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
 	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
 	// IP (<=0 disables).
@@ -74,15 +77,16 @@ type Config struct {
 
 func Load() Config {
 	return Config{
-		AdminBootstrapDisplayName: getenv("ADMIN_BOOTSTRAP_DISPLAY_NAME", ""),
-		AdminBootstrapEmail:       getenv("ADMIN_BOOTSTRAP_EMAIL", ""),
-		AdminBootstrapExtraUsers:  getenv("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON", ""),
-		AdminBootstrapPassword:    getenv("ADMIN_BOOTSTRAP_PASSWORD", ""),
-		AdminBootstrapRole:        getenv("ADMIN_BOOTSTRAP_ROLE", "owner"),
-		AnthropicAPIKey:           getenv("ANTHROPIC_API_KEY", ""),
-		AnthropicQueryModel:       getenv("ANTHROPIC_QUERY_MODEL", "claude-haiku-4-5-20251001"),
-		BusinessDashboardBaseURL:  getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
-		CloudinaryURL:             getenv("CLOUDINARY_URL", ""),
+		AdminBootstrapDisplayName:  getenv("ADMIN_BOOTSTRAP_DISPLAY_NAME", ""),
+		AdminBootstrapEmail:        getenv("ADMIN_BOOTSTRAP_EMAIL", ""),
+		AdminBootstrapExtraUsers:   getenv("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON", ""),
+		AdminBootstrapPassword:     getenv("ADMIN_BOOTSTRAP_PASSWORD", ""),
+		AdminBootstrapRole:         getenv("ADMIN_BOOTSTRAP_ROLE", "owner"),
+		AnthropicAPIKey:            getenv("ANTHROPIC_API_KEY", ""),
+		AnthropicQueryModel:        getenv("ANTHROPIC_QUERY_MODEL", "claude-haiku-4-5-20251001"),
+		AIAssistantAddonPriceMinor: getenvInt("AI_ASSISTANT_ADDON_PRICE_MINOR", 5000),
+		BusinessDashboardBaseURL:   getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
+		CloudinaryURL:              getenv("CLOUDINARY_URL", ""),
 		CORSAllowedOrigins: getenvList(
 			"CORS_ALLOWED_ORIGINS",
 			"http://localhost:3000,http://localhost:3001,http://localhost:3100,http://localhost:3401,http://localhost:3403,http://localhost:3333,http://*.localhost:3100,https://*.xtiitch.com,https://xtiitch.com",

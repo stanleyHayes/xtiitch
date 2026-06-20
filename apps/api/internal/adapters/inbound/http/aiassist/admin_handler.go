@@ -12,10 +12,12 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// AdminService flips a tenant's paid add-on on or off by business id. Mirrors the
-// application service so the admin handler depends on a narrow interface.
+// AdminService flips a tenant's paid add-on on or off by business id and runs the
+// add-on renewal sweep. Mirrors the application service so the admin handler
+// depends on a narrow interface.
 type AdminService interface {
 	SetAddon(ctx context.Context, businessID common.ID, addon string, active bool) error
+	RunRenewalSweep(ctx context.Context, limit int) (aiassistapp.RenewalSweepResult, error)
 }
 
 // AdminHandler exposes the manual add-on flip used to enable/disable add-ons for
@@ -36,6 +38,9 @@ func (handler AdminHandler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Post("/admin/businesses/{business_id}/addons", handler.setAddon)
+		// Renewal sweep — charges every paid add-on whose monthly renewal is due.
+		// Called on a schedule (same scheduler as the subscription recurring sweep).
+		protected.Post("/admin/addons/recurring-charges", handler.runRenewalSweep)
 	})
 }
 
@@ -76,6 +81,32 @@ func (handler AdminHandler) setAddon(w http.ResponseWriter, r *http.Request) {
 		"business_id": businessID.String(),
 		"addon":       request.Addon,
 		"active":      request.Active,
+	})
+}
+
+// runRenewalSweep charges every paid add-on whose monthly renewal is due. Gated
+// on review_businesses (the scheduler's admin token holds it), matching the
+// subscription recurring sweep.
+func (handler AdminHandler) runRenewalSweep(w http.ResponseWriter, r *http.Request) {
+	principal, ok := adminauthhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	if !roleCan(principal.Role, admindomain.PermissionReviewBusinesses) {
+		writeError(w, http.StatusForbidden, "forbidden")
+		return
+	}
+
+	result, err := handler.service.RunRenewalSweep(r.Context(), 0)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"attempted": result.Attempted,
+		"charged":   result.Charged,
+		"failed":    result.Failed,
 	})
 }
 

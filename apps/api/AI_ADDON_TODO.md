@@ -1,74 +1,45 @@
-# AI Assistant add-on — deferred Paystack billing (slice 4)
+# AI Assistant add-on — billing status
 
 The **AI Assistant** is a paid add-on billed **separately** from a business's
-plan. Everything except the recurring money flow is shipped:
+plan. Xtiitch never holds funds — Paystack charges the customer directly.
 
-- `business_addons` table — `infra/migrations/000053_business_addons.up.sql`
-  (RLS tenant policy + `active` flag + `activated_at`).
-- Entitlement check + assist endpoint — `POST /v1/ai/assist` (business-authed),
+## Shipped
+
+- `business_addons` table + billing columns — `infra/migrations/000053_business_addons.up.sql`
+  (RLS tenant policy, `active`, `activated_at`) and `000054_business_addon_billing.up.sql`
+  (`authorization_ref`, `customer_ref`, `amount_minor`, `currency`, `billing_status`,
+  `next_charge_at`, `last_charged_at`, `last_reference`).
+- **Entitlement check + assist endpoint** — `POST /v1/ai/assist` (business-authed),
   gated on the `ai_assistant` add-on, returns **402** `{code:"addon_inactive"}`
-  when inactive. See `internal/application/aiassist/service.go` and
+  when inactive. `internal/application/aiassist/service.go`,
   `internal/adapters/inbound/http/aiassist/handler.go`.
-- Manual activation (so the feature is testable without billing) —
-  `POST /v1/admin/businesses/{business_id}/addons` `{addon,active}`. See
-  `internal/adapters/inbound/http/aiassist/admin_handler.go`.
+- **Self-service Paystack billing** (`internal/application/aiassist/service.go`):
+  - `GET /v1/addons/ai_assistant` — status + price to enable/renew.
+  - `POST /v1/addons/ai_assistant/checkout` `{callback_url}` → `{redirect_url, reference}`
+    (Paystack direct-debit authorization, mirrors `InitializeSubscriptionAuthorization`).
+  - `POST /v1/addons/ai_assistant/verify` `{reference}` — verifies the authorization,
+    charges the first month, and activates the add-on on a charge that succeeds
+    (or is pending). Stores the reusable authorization for renewals.
+  - **Renewal sweep** — `POST /v1/admin/addons/recurring-charges` (admin-authed)
+    charges every add-on whose `next_charge_at` is due; a hard failure marks it
+    `past_due` and revokes access. Call it on the same schedule as the subscription
+    recurring sweep (`/v1/admin/subscriptions/recurring-charges`).
+  - Price: `AI_ASSISTANT_ADDON_PRICE_MINOR` (default GHS 50.00).
+- **Manual activation** (admin, no money) — `POST /v1/admin/businesses/{business_id}/addons`
+  `{addon,active}` (stays `billing_status='manual'`, never swept).
 
-**What is intentionally NOT built here (money-critical; handle separately):**
+## Still to do
 
-1. A **Paystack charge/subscription flow** that, on a successful payment, sets
-   `business_addons.active = true` for the paying business (i.e. calls the same
-   upsert the admin endpoint uses: `ports.BusinessAddonRepository.SetBusinessAddon`
-   / `aiassistapp.Service.SetAddon`).
-2. A **webhook** that **deactivates** the add-on (`active = false`) on
-   cancellation or a failed renewal.
-
-> Xtiitch never holds funds — this is a Paystack subscription charge only. Do
-> not add any wallet/escrow.
-
-## Where the existing Paystack plan-subscription code lives (reuse it)
-
-Grep `paystack` to confirm; the key files:
-
-- **Provider client** — `internal/adapters/outbound/paystack/client.go`
-  - `InitializeAuthorization(...)` — starts a recurring-billing authorization and
-    returns the redirect link (line ~95).
-  - `VerifyAuthorization(...)` — confirms the authorization after redirect and
-    yields the reusable Paystack `authorization_code` (line ~121).
-  - `ChargeAuthorization(...)` — charges a stored authorization for renewals
-    (line ~148).
-  - `VerifyWebhookSignature(...)` / `ParseChargeEvent(...)` — webhook verification
-    and event parsing (lines ~38–42).
-  - Dev fallback with real signature verification: `internal/adapters/outbound/paystack/dev.go`.
-- **Plan-subscription billing flow (the template to mirror for the add-on)** —
-  `internal/application/auth/service.go`:
-  - `InitializeSubscriptionAuthorization(...)` (line ~221) — builds the Paystack
-    authorization link for a tenant's paid plan.
-  - `VerifySubscriptionAuthorization(...)` (line ~263) — verifies it and persists
-    the authorization via
-    `internal/adapters/outbound/postgres/business_identity_repository.go`
-    `ActivateRecurringBilling(...)`.
-  - HTTP entry points in `internal/adapters/inbound/http/auth/handler.go`
-    (`/auth/business/subscription/...`).
-  - Admin-side recurring sweep / charge in
-    `internal/application/adminauth/service.go`
-    (`RunSubscriptionRecurringSweep`, `InitializeSubscriptionAuthorization`,
-    `VerifySubscriptionAuthorization`).
-- **Inbound webhook** — `internal/adapters/inbound/http/payments/handler.go`
-  - Route `POST /v1/webhooks/paystack` → `handler.webhook` → the payments
-    service's `HandleProviderEvent(ctx, body, signature)` →
-    `paystack.Client.ParseChargeEvent`. The add-on renewal/cancellation events
-    should be routed through (or alongside) this same verified webhook entry so
-    signature verification is shared.
-
-## Suggested shape
-
-1. Add an add-on price (config or a small `addons` catalogue) — keep it separate
-   from `plans`.
-2. New business-authed endpoint, e.g. `POST /v1/addons/ai_assistant/checkout`,
-   that calls `InitializeAuthorization` and returns the redirect link
-   (mirroring `InitializeSubscriptionAuthorization`).
-3. On verify (or on the `charge.success` webhook keyed to the add-on reference):
-   `aiassistapp.Service.SetAddon(ctx, businessID, "ai_assistant", true)`.
-4. On `subscription.disable` / failed renewal: `SetAddon(..., false)`.
-5. Store the Paystack `authorization_code` so renewals can `ChargeAuthorization`
-   on a schedule (reuse the subscription sweep pattern).
+1. **Schedule the renewal sweep.** Add `POST /v1/admin/addons/recurring-charges` to
+   whatever scheduler already calls `/v1/admin/subscriptions/recurring-charges`
+   (the worker/cron). Until then, renewals only run when the endpoint is hit.
+2. **Apply migration `000054`** to each environment's DB (demo `:5450` has no
+   tracker — apply by hand; production via the normal migration step).
+3. **Paystack webhook reconciliation (optional hardening).** Billing is currently
+   *optimistic*: a `pending` charge grants access for the cycle and a `pending`
+   first charge at checkout is withheld until re-tried. For exact reconciliation,
+   route add-on-referenced `charge.success` / `charge.failed` / `subscription.disable`
+   events (reference prefix `addon-aiast-`) through the existing verified webhook
+   (`internal/adapters/inbound/http/payments/handler.go` → `HandleProviderEvent`)
+   to flip `business_addons` active/past_due precisely. This removes the at-most-
+   one-cycle optimism window documented in `service.go`.
