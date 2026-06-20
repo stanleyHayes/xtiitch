@@ -632,7 +632,16 @@ export default function Register({
                   onClick={goNext}
                   disabled={step === 0 ? !step0Valid : !step1Valid}
                   endIcon={<ArrowForwardRounded />}
-                  sx={{ flex: 1 }}
+                  sx={{
+                    flex: 1,
+                    // Without this the disabled state renders white-on-white and
+                    // the whole button vanishes on the light card. Show a clearly
+                    // muted (but visible) wine ghost until the step is valid.
+                    "&.Mui-disabled": {
+                      bgcolor: alpha(tokens.burgundy, 0.14),
+                      color: alpha(tokens.burgundy, 0.55),
+                    },
+                  }}
                 >
                   Continue
                 </Button>
