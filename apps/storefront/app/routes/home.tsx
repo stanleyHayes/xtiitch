@@ -1,23 +1,24 @@
-import { Link as RouterLink } from "react-router";
-import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
-import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
-import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import type { Route } from "./+types/home";
 import { api } from "../lib/api";
 import { storeHandleFromHost } from "../lib/tenant";
 import { StoreView } from "../components/storefront";
+import { Marketplace } from "../components/marketplace";
 
-// The storefront root. On a business subdomain (<handle>.xtiitch.com) it
-// resolves and renders that store; on the apex/www it shows the generic landing.
+// The storefront root. On a business subdomain (<handle>.xtiitch.com) it resolves
+// and renders that store; on the apex/marketplace host it shows the marketplace —
+// every studio, featured placements, and the AI-search entry.
 export async function loader({ request }: Route.LoaderArgs) {
   const handle = storeHandleFromHost(request.headers.get("host"));
   if (!handle) {
-    return { mode: "landing" as const };
+    const [shopsPage, sponsoredPage] = await Promise.all([
+      api.shops(),
+      api.sponsored(8),
+    ]);
+    return {
+      mode: "marketplace" as const,
+      shops: shopsPage?.shops ?? [],
+      sponsored: sponsoredPage?.placements ?? [],
+    };
   }
 
   const query = (new URL(request.url).searchParams.get("q") ?? "").trim();
@@ -36,10 +37,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   }
 
-  const [page, shopsPage] = await Promise.all([
-    api.store(handle),
-    api.shops(),
-  ]);
+  const [page, shopsPage] = await Promise.all([api.store(handle), api.shops()]);
   if (!page) {
     throw new Response("Store not found", { status: 404 });
   }
@@ -55,21 +53,28 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export function meta({ data }: Route.MetaArgs) {
   if (data?.mode === "store") {
+    const title = `${data.store.name} · Xtiitch`;
+    const description = `Browse and order ${data.store.name}'s designs on Xtiitch — see prices and order online, no account needed.`;
     return [
-      { title: `${data.store.name} · Xtiitch` },
-      {
-        name: "description",
-        content: `Browse and order from ${data.store.name} on Xtiitch.`,
-      },
+      { title },
+      { name: "description", content: description },
+      { property: "og:title", content: title },
+      { property: "og:description", content: description },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ];
   }
+  const title = "Discover Ghana's fashion studios · Xtiitch";
+  const description =
+    "Browse Ghanaian fashion studios and their designs, or describe what you want and let AI find it across every shop. Order online — no account needed to look.";
   return [
-    { title: "Xtiitch Storefronts" },
-    {
-      name: "description",
-      content: "Open a fashion business's Xtiitch store to browse and order.",
-    },
-    { name: "robots", content: "noindex" },
+    { title },
+    { name: "description", content: description },
+    { property: "og:title", content: "Xtiitch — Ghana's fashion marketplace" },
+    { property: "og:description", content: description },
+    { property: "og:type", content: "website" },
+    { property: "og:url", content: "https://store.xtiitch.com/" },
+    { name: "twitter:card", content: "summary_large_image" },
   ];
 }
 
@@ -85,71 +90,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       />
     );
   }
-  return <Landing />;
-}
-
-function Landing() {
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        display: "grid",
-        placeItems: "center",
-        bgcolor: "background.default",
-      }}
-    >
-      <Container sx={{ textAlign: "center", maxWidth: 560, py: 8 }}>
-        <Box
-          aria-hidden
-          sx={{
-            width: 64,
-            height: 64,
-            mx: "auto",
-            mb: 3,
-            borderRadius: 2,
-            bgcolor: "primary.main",
-            color: "primary.contrastText",
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
-          <StorefrontOutlined fontSize="large" />
-        </Box>
-        <Typography variant="h4" component="h1">
-          This is where Xtiitch stores live
-        </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>
-          Open the store link a fashion business shared with you to browse their
-          designs, see prices, and place an order — no account needed to look.
-        </Typography>
-        <Stack
-          direction={{ xs: "column", sm: "row" }}
-          spacing={1.25}
-          sx={{ mt: 4, justifyContent: "center" }}
-        >
-          <Button
-            component={RouterLink}
-            to="/discover"
-            variant="contained"
-            size="large"
-            startIcon={<AutoAwesomeRounded />}
-          >
-            Search with AI
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/track"
-            variant="outlined"
-            size="large"
-            startIcon={<LocalShippingRounded />}
-          >
-            Track an order
-          </Button>
-          <Button href="https://xtiitch.com" variant="text" size="large">
-            Learn about Xtiitch
-          </Button>
-        </Stack>
-      </Container>
-    </Box>
+    <Marketplace shops={loaderData.shops} sponsored={loaderData.sponsored} />
   );
 }

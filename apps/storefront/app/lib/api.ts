@@ -116,6 +116,28 @@ export type PublicShopsPage = {
   shops: PublicShop[];
 };
 
+// A paid placement on the marketplace (a featured studio or design). Surfaced in
+// the "Featured" row; clicking opens the shop/design.
+export type SponsoredPlacement = {
+  campaign_id: string;
+  business_id: string;
+  business_name: string;
+  business_handle: string;
+  placement_type: string;
+  target_label: string;
+  headline: string;
+  description: string;
+  store_handle: string;
+  design_handle: string;
+  image_url: string;
+  starts_at: string;
+  ends_at: string;
+};
+
+export type SponsoredPage = {
+  placements: SponsoredPlacement[];
+};
+
 async function getJSON<T>(path: string): Promise<T | null> {
   const response = await fetch(`${API_BASE}/v1${path}`);
   if (response.status === 404) {
@@ -276,6 +298,8 @@ export const api = {
   availability: (handle: string) =>
     getJSON<AvailabilityPage>(`/public/stores/${enc(handle)}/availability`),
   shops: () => getJSON<PublicShopsPage>(`/public/shops`),
+  sponsored: (limit = 8) =>
+    getJSON<SponsoredPage>(`/public/sponsored?limit=${limit}`),
   recordAffiliateClick: (code: string, input: AffiliateClickInput) =>
     postJSON<AffiliateClick>(`/public/affiliates/${enc(code)}/clicks`, input),
   placeOrder: (storeHandle: string, input: PlaceOrderInput) =>
