@@ -723,13 +723,24 @@ export function Header() {
         <Stack component="nav" aria-label="Mobile navigation" spacing={0.75}>
           <MobileNav onNavigate={close} />
           <Button
+            href={marketplaceUrl}
+            target="_blank"
+            rel="noopener"
+            onClick={close}
+            variant="outlined"
+            size="large"
+            startIcon={<StorefrontRoundedIcon />}
+            sx={{ mt: 1.25, fontWeight: 800 }}
+          >
+            Browse the store
+          </Button>
+          <Button
             component={RouterLink}
             to={site.primaryCta.href}
             onClick={close}
             variant="contained"
             size="large"
             endIcon={<ArrowForwardRoundedIcon />}
-            sx={{ mt: 1.25 }}
           >
             {site.primaryCta.label}
           </Button>

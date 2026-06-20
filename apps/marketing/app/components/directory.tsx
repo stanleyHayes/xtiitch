@@ -241,7 +241,17 @@ export function SponsoredRail({ placements }: { placements: SponsoredPlacement[]
     <Box
       sx={{
         display: "grid",
-        gridTemplateColumns: { xs: "1fr", md: "repeat(auto-fit, minmax(300px, 1fr))" },
+        // With a single featured studio, auto-fit collapses the empty tracks and
+        // stretches the lone card to full width (its 16/9 image then dominates the
+        // page). Cap that case to a normal featured-card width; keep the responsive
+        // grid for two or more.
+        gridTemplateColumns: {
+          xs: "1fr",
+          md:
+            placements.length === 1
+              ? "minmax(0, 460px)"
+              : "repeat(auto-fit, minmax(300px, 1fr))",
+        },
         gap: 2.5,
       }}
     >
