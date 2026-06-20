@@ -4475,7 +4475,17 @@ function WorkspaceRail({
                   boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
                 }}
               >
-                <StorefrontRounded sx={{ fontSize: 26 }} />
+                <Typography
+                  component="span"
+                  sx={{
+                    fontFamily: '"Fraunces", serif',
+                    fontWeight: 900,
+                    fontSize: 23,
+                    lineHeight: 1,
+                  }}
+                >
+                  {(profile.name?.trim()?.charAt(0) ?? "X").toUpperCase()}
+                </Typography>
               </Box>
               {!compact ? (
                 <Box sx={{ minWidth: 0 }}>

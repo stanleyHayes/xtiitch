@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Form,
   Link as RouterLink,
@@ -15,12 +16,16 @@ import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
 import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import type { Route } from "./+types/register";
 import { fetchApi } from "../lib/api-base";
 import TextField from "../components/form-text-field";
@@ -138,6 +143,8 @@ function formatPlanPrice(minor: number): string {
   return `${amount}/mo`;
 }
 
+const STEP_LABELS = ["Your store", "Your account", "Choose a plan"];
+
 export default function Register({
   loaderData,
   actionData,
@@ -153,6 +160,33 @@ export default function Register({
   const defaultPlan = plans.some((plan) => plan.code === "free")
     ? "free"
     : (plans[0]?.code ?? "free");
+
+  // The signup is one POST, but we reveal it as three steps so it never reads as
+  // a wall of fields. Every input stays mounted (just hidden) so values persist
+  // across steps and all submit together on the final action.
+  const [step, setStep] = useState(0);
+  const [businessName, setBusinessName] = useState("");
+  const [handle, setHandle] = useState("");
+  const [ownerName, setOwnerName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleOk = /^[a-z0-9-]{2,}$/.test(handle.trim().toLowerCase());
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const passwordOk = password.length >= 8;
+  const passwordsMatch = password === confirmPassword;
+  const step0Valid = businessName.trim().length > 1 && handleOk;
+  const step1Valid =
+    ownerName.trim().length > 0 &&
+    emailOk &&
+    passwordOk &&
+    confirmPassword.length > 0 &&
+    passwordsMatch;
+
+  const goNext = () => setStep((s) => Math.min(s + 1, 2));
+  const goBack = () => setStep((s) => Math.max(s - 1, 0));
 
   return (
     <Box
@@ -232,18 +266,17 @@ export default function Register({
               />
             ) : (
               <Box
+                component="img"
+                src="/favicon.svg"
+                alt="Xtiitch"
                 sx={{
                   width: 40,
                   height: 40,
                   borderRadius: 1.5,
-                  display: "grid",
-                  placeItems: "center",
-                  bgcolor: tokens.burgundy,
-                  color: tokens.white,
+                  flexShrink: 0,
+                  display: "block",
                 }}
-              >
-                <StorefrontRounded />
-              </Box>
+              />
             )}
             <Box>
               {brandLogoUrl ? null : (
@@ -260,7 +293,7 @@ export default function Register({
             </Box>
           </Stack>
 
-          <Stack spacing={0.75} sx={{ mb: 3 }}>
+          <Stack spacing={0.75} sx={{ mb: 2.5 }}>
             <Chip
               label="Create your store"
               color="primary"
@@ -275,94 +308,224 @@ export default function Register({
             </Typography>
           </Stack>
 
+          {/* Step progress */}
+          <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
+            {STEP_LABELS.map((label, i) => (
+              <Box key={label} sx={{ flex: 1, minWidth: 0 }}>
+                <Box
+                  sx={{
+                    height: 5,
+                    borderRadius: 999,
+                    bgcolor:
+                      i <= step ? tokens.burgundy : alpha(tokens.ink, 0.12),
+                    transition: "background-color 240ms ease",
+                  }}
+                />
+                <Typography
+                  variant="caption"
+                  noWrap
+                  sx={{
+                    mt: 0.75,
+                    display: "block",
+                    fontWeight: i === step ? 800 : 600,
+                    color: i <= step ? tokens.burgundy : alpha(tokens.ink, 0.55),
+                  }}
+                >
+                  {i + 1}. {label}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+
+          {result.error ? (
+            <Alert severity="error" sx={{ mb: 2.5 }}>
+              {result.error}
+            </Alert>
+          ) : null}
+
           <Form method="post">
-            <Stack spacing={2.5}>
-              {result.error ? (
-                <Alert severity="error">{result.error}</Alert>
-              ) : null}
+            {/* Step 1 — store identity */}
+            <Box sx={{ display: step === 0 ? "block" : "none" }}>
+              <Stack spacing={2.5}>
+                <TextField
+                  name="business_name"
+                  label="Business name"
+                  required={step === 0}
+                  autoComplete="organization"
+                  fullWidth
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <StorefrontRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="business_handle"
+                  label="Store handle"
+                  required={step === 0}
+                  fullWidth
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                  error={handle.length > 0 && !handleOk}
+                  helperText={
+                    handle.length > 0 && !handleOk
+                      ? "Lowercase letters, numbers and dashes only."
+                      : "Becomes <handle>.xtiitch.com"
+                  }
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">@</InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Stack>
+            </Box>
 
-              <TextField
-                name="business_name"
-                label="Business name"
-                required
-                autoComplete="organization"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <StorefrontRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                name="business_handle"
-                label="Store handle"
-                required
-                fullWidth
-                helperText="Lowercase letters, numbers and dashes. Becomes <handle>.xtiitch.com"
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">@</InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                name="owner_display_name"
-                label="Your name"
-                required
-                autoComplete="name"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <PersonRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                name="owner_email"
-                label="Email"
-                type="email"
-                required
-                autoComplete="email"
-                fullWidth
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <AlternateEmailRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
-              <TextField
-                name="owner_password"
-                label="Password"
-                type="password"
-                required
-                autoComplete="new-password"
-                fullWidth
-                helperText="At least 8 characters"
-                slotProps={{
-                  input: {
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <LockRounded fontSize="small" />
-                      </InputAdornment>
-                    ),
-                  },
-                }}
-              />
+            {/* Step 2 — owner account */}
+            <Box sx={{ display: step === 1 ? "block" : "none" }}>
+              <Stack spacing={2.5}>
+                <TextField
+                  name="owner_display_name"
+                  label="Your name"
+                  required={step === 1}
+                  autoComplete="name"
+                  fullWidth
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="owner_email"
+                  label="Email"
+                  type="email"
+                  required={step === 1}
+                  autoComplete="email"
+                  fullWidth
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  error={email.length > 0 && !emailOk}
+                  helperText={
+                    email.length > 0 && !emailOk
+                      ? "Enter a valid email address."
+                      : " "
+                  }
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AlternateEmailRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="owner_password"
+                  label="Password"
+                  type={showPassword ? "text" : "password"}
+                  required={step === 1}
+                  autoComplete="new-password"
+                  fullWidth
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  error={password.length > 0 && !passwordOk}
+                  helperText={
+                    password.length > 0 && !passwordOk
+                      ? "At least 8 characters."
+                      : "At least 8 characters"
+                  }
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={
+                              showPassword ? "Hide password" : "Show password"
+                            }
+                            onClick={() => setShowPassword((v) => !v)}
+                            edge="end"
+                            size="small"
+                          >
+                            {showPassword ? (
+                              <VisibilityOffRounded fontSize="small" />
+                            ) : (
+                              <VisibilityRounded fontSize="small" />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="owner_password_confirm"
+                  label="Confirm password"
+                  type={showPassword ? "text" : "password"}
+                  required={step === 1}
+                  autoComplete="new-password"
+                  fullWidth
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  error={confirmPassword.length > 0 && !passwordsMatch}
+                  helperText={
+                    confirmPassword.length > 0 && !passwordsMatch
+                      ? "Passwords don't match."
+                      : "Re-enter your password"
+                  }
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            aria-label={
+                              showPassword ? "Hide password" : "Show password"
+                            }
+                            onClick={() => setShowPassword((v) => !v)}
+                            edge="end"
+                            size="small"
+                          >
+                            {showPassword ? (
+                              <VisibilityOffRounded fontSize="small" />
+                            ) : (
+                              <VisibilityRounded fontSize="small" />
+                            )}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </Stack>
+            </Box>
 
+            {/* Step 3 — plan */}
+            <Box sx={{ display: step === 2 ? "block" : "none" }}>
               {plans.length > 0 ? (
                 <Box>
                   <Typography
@@ -432,36 +595,77 @@ export default function Register({
                   </Typography>
                 </Box>
               ) : (
-                <input type="hidden" name="plan_code" value="free" />
+                <Box>
+                  <input type="hidden" name="plan_code" value="free" />
+                  <Typography sx={{ fontWeight: 800, color: alpha(tokens.ink, 0.8) }}>
+                    You're starting on the Free plan
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ mt: 0.5, color: alpha(tokens.ink, 0.62) }}
+                  >
+                    Go live for free and upgrade anytime from your dashboard.
+                  </Typography>
+                </Box>
               )}
+            </Box>
 
-              <Button
-                type="submit"
-                variant="contained"
-                size="large"
-                disabled={isSubmitting}
-                endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
-                sx={{
-                  "&.Mui-disabled": {
-                    bgcolor: tokens.burgundy,
-                    color: tokens.white,
-                    opacity: 0.72,
-                  },
-                }}
-              >
-                {isSubmitting ? "Creating your store…" : "Create store"}
-              </Button>
-
-              <Typography
-                variant="body2"
-                sx={{ textAlign: "center", color: alpha(tokens.ink, 0.68) }}
-              >
-                Already have a store?{" "}
-                <Link component={RouterLink} to="/login" sx={{ fontWeight: 700 }}>
-                  Sign in
-                </Link>
-              </Typography>
+            {/* Navigation */}
+            <Stack direction="row" spacing={1.5} sx={{ mt: 3 }}>
+              {step > 0 ? (
+                <Button
+                  type="button"
+                  variant="outlined"
+                  size="large"
+                  onClick={goBack}
+                  disabled={isSubmitting}
+                  startIcon={<ArrowBackRounded />}
+                >
+                  Back
+                </Button>
+              ) : null}
+              {step < 2 ? (
+                <Button
+                  type="button"
+                  variant="contained"
+                  size="large"
+                  onClick={goNext}
+                  disabled={step === 0 ? !step0Valid : !step1Valid}
+                  endIcon={<ArrowForwardRounded />}
+                  sx={{ flex: 1 }}
+                >
+                  Continue
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  variant="contained"
+                  size="large"
+                  disabled={isSubmitting}
+                  endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
+                  sx={{
+                    flex: 1,
+                    "&.Mui-disabled": {
+                      bgcolor: tokens.burgundy,
+                      color: tokens.white,
+                      opacity: 0.72,
+                    },
+                  }}
+                >
+                  {isSubmitting ? "Creating your store…" : "Create store"}
+                </Button>
+              )}
             </Stack>
+
+            <Typography
+              variant="body2"
+              sx={{ textAlign: "center", color: alpha(tokens.ink, 0.68), mt: 2.5 }}
+            >
+              Already have a store?{" "}
+              <Link component={RouterLink} to="/login" sx={{ fontWeight: 700 }}>
+                Sign in
+              </Link>
+            </Typography>
           </Form>
         </Paper>
       </Container>

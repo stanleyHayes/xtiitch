@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import {
   Links,
   Meta,
@@ -14,8 +14,58 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+import { alpha } from "@mui/material/styles";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
+
+// First-paint splash: server-rendered so it shows instantly, then fades out once
+// React hydrates (App sets data-hydrated on <html>). Kept in the React tree and
+// hidden via CSS — never removed imperatively — so hydration stays clean.
+const splashStyles = `
+#xtiitch-splash {
+  position: fixed; inset: 0; z-index: 4000;
+  display: grid; place-items: center;
+  background:
+    radial-gradient(circle at 50% 32%, rgba(128,0,32,0.38), transparent 58%),
+    linear-gradient(160deg, #15111a 0%, #241f2b 100%);
+  opacity: 1; visibility: visible;
+}
+html[data-hydrated] #xtiitch-splash {
+  opacity: 0; visibility: hidden;
+  transition: opacity 480ms ease, visibility 0s linear 480ms;
+}
+#xtiitch-splash .xs-wrap {
+  display: flex; flex-direction: column; align-items: center; gap: 18px;
+}
+#xtiitch-splash .xs-mark {
+  width: 64px; height: 64px; border-radius: 18px; display: block;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+}
+#xtiitch-splash .xs-word {
+  font-family: "Fraunces", Georgia, serif; color: #faf6f2;
+  font-size: 24px; font-weight: 600; letter-spacing: 0.4px;
+}
+#xtiitch-splash .xs-bar {
+  position: relative; width: 124px; height: 3px; border-radius: 999px;
+  background: rgba(250,246,242,0.14); overflow: hidden;
+}
+#xtiitch-splash .xs-bar::after {
+  content: ""; position: absolute; top: 0; left: 0; height: 100%; width: 40%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, #800020, transparent);
+}
+#xtiitch-splash .xs-motto {
+  color: rgba(250,246,242,0.5); font-size: 11px; letter-spacing: 2px;
+  text-transform: uppercase;
+}
+@media (prefers-reduced-motion: no-preference) {
+  #xtiitch-splash .xs-mark { animation: xsPulse 1.6s ease-in-out infinite; }
+  #xtiitch-splash .xs-bar::after { animation: xsSlide 1.15s ease-in-out infinite; }
+}
+@keyframes xsPulse { 0%,100% { transform: scale(1); opacity: 0.92; } 50% { transform: scale(1.06); opacity: 1; } }
+@keyframes xsSlide { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
+`;
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -57,6 +107,12 @@ export async function loader() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
+  // Fade the first-paint splash once hydrated. Lives here (not in the default
+  // App component) so it also fires on error/404 routes, where React Router
+  // renders ErrorBoundary instead of App.
+  useEffect(() => {
+    document.documentElement.setAttribute("data-hydrated", "true");
+  }, []);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -66,10 +122,25 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Business dashboard — never index. */}
         <meta name="robots" content="noindex, nofollow" />
         <meta name="emotion-insertion-point" content="" />
+        <style dangerouslySetInnerHTML={{ __html: splashStyles }} />
         <Meta />
         <Links />
       </head>
       <body suppressHydrationWarning>
+        <div id="xtiitch-splash" aria-hidden="true">
+          <div className="xs-wrap">
+            <img
+              className="xs-mark"
+              src="/favicon.svg"
+              alt=""
+              width={64}
+              height={64}
+            />
+            <div className="xs-word">Xtiitch</div>
+            <div className="xs-bar" />
+            <div className="xs-motto">Fashion, in good order.</div>
+          </div>
+        </div>
         <ThemeModeProvider>{children}</ThemeModeProvider>
         <ScrollRestoration />
         <Scripts />
@@ -147,46 +218,128 @@ export function ErrorBoundary({ error }: { error: unknown }) {
   const isAPIUnavailable =
     isRouteErrorResponse(error) && [502, 503].includes(error.status);
   const title = is404
-    ? "Not found"
+    ? "We lost the thread"
     : isAPIUnavailable
       ? "Dashboard API unavailable"
-      : "Something went wrong";
+      : "Something came loose";
   const message = is404
     ? "This store or design is not available. The link may be wrong, or the item may have been removed."
     : isAPIUnavailable
       ? "The dashboard app is running, but the API did not respond with the business session data it needs. Start the API, then refresh."
       : "We hit an unexpected error. Please try again in a moment.";
 
+  const code = is404 ? "404" : isAPIUnavailable ? "503" : "Error";
   return (
     <Box
       sx={{
-        minHeight: "80vh",
+        minHeight: "100vh",
+        position: "relative",
+        overflow: "hidden",
         display: "grid",
         placeItems: "center",
-        bgcolor: "background.default",
+        px: 3,
+        color: tokens.white,
+        background: `radial-gradient(circle at 50% 16%, ${alpha(tokens.burgundy, 0.42)}, transparent 56%), linear-gradient(160deg, ${tokens.ink} 0%, ${tokens.charcoal} 100%)`,
       }}
     >
-      <Container sx={{ textAlign: "center", maxWidth: 520 }}>
+      {/* Faint grid, masked to a soft vignette. */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px)`,
+          backgroundSize: "42px 42px",
+          maskImage:
+            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
+          WebkitMaskImage:
+            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
+        }}
+      />
+      <Container
+        sx={{ position: "relative", textAlign: "center", maxWidth: 560 }}
+      >
+        <Box
+          component="img"
+          src="/favicon.svg"
+          alt="Xtiitch"
+          sx={{
+            width: 54,
+            height: 54,
+            borderRadius: "15px",
+            mb: 3,
+            boxShadow: `0 18px 50px ${alpha(tokens.ink, 0.6)}`,
+          }}
+        />
         <Typography
-          variant="overline"
-          sx={{ color: "primary.main", fontWeight: 700 }}
+          aria-hidden
+          sx={{
+            fontFamily: '"Fraunces", Georgia, serif',
+            fontWeight: 600,
+            fontSize: { xs: 78, md: 110 },
+            lineHeight: 0.95,
+            letterSpacing: "-0.04em",
+            color: tokens.white,
+          }}
         >
-          {is404 ? "404" : isAPIUnavailable ? "503" : "Error"}
+          {code}
         </Typography>
-        <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
+        <Box
+          aria-hidden
+          sx={{
+            width: 132,
+            mx: "auto",
+            my: 2.5,
+            borderBottom: `2px dashed ${alpha(tokens.white, 0.32)}`,
+          }}
+        />
+        <Typography
+          variant="h5"
+          component="h1"
+          sx={{
+            fontFamily: '"Fraunces", Georgia, serif',
+            fontWeight: 600,
+            color: tokens.white,
+          }}
+        >
           {title}
         </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>
+        <Typography
+          sx={{
+            mt: 1.5,
+            color: alpha(tokens.white, 0.7),
+            maxWidth: 440,
+            mx: "auto",
+            lineHeight: 1.6,
+          }}
+        >
           {message}
         </Typography>
-        <Button
-          href="/dashboard"
-          variant="contained"
-          size="large"
-          sx={{ mt: 4 }}
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ justifyContent: "center", mt: 4, flexWrap: "wrap" }}
         >
-          Return to dashboard
-        </Button>
+          <Button
+            href="/dashboard"
+            variant="contained"
+            size="large"
+            sx={{ bgcolor: tokens.burgundy }}
+          >
+            Return to dashboard
+          </Button>
+        </Stack>
+        <Typography
+          sx={{
+            mt: 5,
+            color: alpha(tokens.white, 0.42),
+            fontSize: 11,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+          }}
+        >
+          Fashion, in good order.
+        </Typography>
       </Container>
     </Box>
   );

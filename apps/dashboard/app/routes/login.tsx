@@ -263,19 +263,17 @@ export default function Login({ actionData }: Route.ComponentProps) {
                   />
                 ) : (
                   <Box
+                    component="img"
+                    src="/favicon.svg"
+                    alt="Xtiitch"
                     sx={{
                       width: 44,
                       height: 44,
                       borderRadius: 1.5,
-                      display: "grid",
-                      placeItems: "center",
-                      bgcolor: alpha(tokens.burgundy, 0.34),
-                      border: "1px solid",
-                      borderColor: alpha(tokens.white, 0.16),
+                      flexShrink: 0,
+                      display: "block",
                     }}
-                  >
-                    <StorefrontRounded />
-                  </Box>
+                  />
                 )}
                 <Box>
                   {brandLogoUrl ? null : (
@@ -571,6 +569,14 @@ export default function Login({ actionData }: Route.ComponentProps) {
                       },
                     }}
                   />
+                  <Typography sx={{ textAlign: "right", mt: -1 }}>
+                    <Link
+                      href="/forgot-password"
+                      sx={{ fontWeight: 700, fontSize: 14 }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </Typography>
                   <Button
                     type="submit"
                     variant="contained"
