@@ -32,7 +32,7 @@ const splashStyles = `
   opacity: 1; visibility: visible;
 }
 html[data-hydrated] #xtiitch-splash {
-  opacity: 0; visibility: hidden;
+  opacity: 0; visibility: hidden; pointer-events: none;
   transition: opacity 480ms ease, visibility 0s linear 480ms;
 }
 #xtiitch-splash .xs-wrap {
@@ -166,14 +166,17 @@ export default function App() {
       <Box
         key={location.pathname}
         sx={{
-          // Ends at `opacity: 1` with NO transform: an `animation-fill-mode: both`
-          // that retained `transform: translateY(0)` would leave a non-none
-          // transform on this wrapper, creating a containing block that makes the
-          // dashboard's `position: fixed` rail scroll with the page instead of the
-          // viewport. Animating to the base (none) preserves the drift and keeps
-          // fixed descendants pinned to the viewport.
+          // Opacity-only fade — deliberately NO transform. With fill-mode `both`,
+          // animating `transform` leaves a retained identity matrix
+          // (matrix(1,0,0,1,0,0)) on this wrapper even when the `to` keyframe omits
+          // it, and ANY transform other than `none` turns this wrapper into a
+          // containing block — which made the dashboard's `position: fixed` rail
+          // resolve against this ~2600px box (top/bottom inset off it) and scroll
+          // with the page. Dropping the translate keeps the fade and guarantees
+          // fixed descendants pin to the viewport. (147dcbc tried to end at no
+          // transform but the identity matrix still leaked; this removes it.)
           "@keyframes xtiitchPageFadeIn": {
-            from: { opacity: 0, transform: "translateY(6px)" },
+            from: { opacity: 0 },
             to: { opacity: 1 },
           },
           animation: "xtiitchPageFadeIn 280ms ease-out both",
