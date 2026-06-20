@@ -132,8 +132,14 @@ so customers tap instead of type where possible.
   (red/yellow/green stage). Read-only, no payment. A narrow `ports.BotCatalogue`
   + `botcatalogueadapter` reuse the storefront/order repositories. Engine is a
   pure state machine with 8 unit tests; live-verified against the seeded demo.
-- **Phase 2 — Standard ordering (paid):** ⏭️ NEXT. size pick → payment link →
-  order on `charge.success` → confirmation + tracking.
+- **Phase 2 — Standard ordering (paid):** ✅ **SHIPPED** (commit e94532a). From a
+  design detail: ORDER → pick size → give a name → Paystack payment link. Reuses
+  `checkout.PlaceStandardOrder` verbatim (same draft order + Paystack intent +
+  idempotency + `online_ordering` gate); the WhatsApp number is the order phone
+  so the existing `charge.success` → order-confirmation notification routes back
+  to chat. Live-verified end-to-end (dev provider): draft order + customer +
+  initiated payment created. Gated to online-ordering shops; free shops keep
+  browse + track.
 - **Phase 3 — Bespoke ordering:** self-measure prompts, home-visit slots, deposit
   links.
 - **Phase 4 — Polish:** human hand-off, business bot controls, quiet hours,
