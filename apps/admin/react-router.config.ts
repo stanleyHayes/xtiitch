@@ -6,7 +6,10 @@ const future = {
   v8_passThroughRequests: true,
   v8_splitRouteModules: true,
   v8_trailingSlashAwareDataRequests: true,
-  v8_viteEnvironmentApi: true,
+  // v8_viteEnvironmentApi intentionally OFF: with it on, the production build
+  // ignores `ssr.noExternal`, so MUI stays external and its .mjs does an ESM
+  // directory import of react-transition-group that crashes on Vercel
+  // (ERR_UNSUPPORTED_DIR_IMPORT). Off, the build bundles MUI as configured.
 } satisfies Config["future"];
 
 export default {
