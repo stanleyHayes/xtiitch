@@ -1,0 +1,238 @@
+# Render Blueprint for Xtiitch — https://render.com/docs/blueprint-spec
+#
+# Deploys the whole stack: Go API, BullMQ worker, the four SSR web apps
+# (marketing, storefront, dashboard, admin), Postgres, and Redis.
+#
+# Cost note (chosen): Postgres = Basic (persistent), worker = Starter. Everything
+# else is on the FREE plan. Free web services SLEEP after ~15 min idle and cold-
+# start on the next request (~30s) — for production you'll likely want to bump at
+# least the API to Starter so the apps aren't waiting on a sleeping backend.
+#
+# Secrets are marked `sync: false` — Render will prompt for them on first deploy
+# and never stores them in git. Generated secrets (`generateValue`) are created
+# once and kept by Render.
+#
+# After the first deploy, set the real `*.onrender.com` (or custom-domain) URLs:
+# the cross-service URLs below assume the default service names resolve to
+# https://<name>.onrender.com. Update them if you attach custom domains.
+
+databases:
+  - name: xtiitch-db
+    plan: basic-256mb # persistent Basic tier (free Postgres is deleted after 30 days)
+    region: oregon
+    databaseName: xtiitch
+    user: xtiitch
+
+services:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Redis (Key Value) — free 25 MB. Backs the BullMQ notification queue.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: redis
+    name: xtiitch-redis
+    plan: free
+    region: oregon
+    ipAllowList: [] # internal only (reachable from services in this blueprint)
+    maxmemoryPolicy: noeviction # don't drop queued jobs
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Go API — runs DB migrations on boot (goose), then serves on $PORT.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-api
+    runtime: go
+    plan: free
+    region: oregon
+    rootDir: apps/api
+    healthCheckPath: /healthz
+    buildCommand: go build -o xtiitch-api ./cmd/api && GOBIN="$PWD" go install github.com/pressly/goose/v3/cmd/goose@latest
+    startCommand: ./goose -dir ../../infra/migrations postgres "$DATABASE_URL" up && API_HTTP_ADDR=":$PORT" ./xtiitch-api
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xtiitch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: xtiitch-redis
+          property: connectionString
+      - key: WORKER_QUEUE_NAME
+        value: xtiitch.outbox # must match the worker
+      - key: JWT_SIGNING_KEY
+        generateValue: true
+      - key: JWT_ISSUER
+        value: xtiitch-api
+      - key: JWT_AUDIENCE
+        value: xtiitch-clients
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: MFA_ISSUER
+        value: Xtiitch
+      # CORS: the browser-facing origins of the four web apps.
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://xtiitch-admin.onrender.com,https://xtiitch-dashboard.onrender.com,https://xtiitch-marketing.onrender.com,https://xtiitch-storefront.onrender.com"
+      - key: BUSINESS_DASHBOARD_BASE_URL
+        value: "https://xtiitch-dashboard.onrender.com"
+      - key: STOREFRONT_BASE_URL
+        value: "https://xtiitch-storefront.onrender.com"
+      - key: RESEND_FROM_EMAIL
+        value: "Xtiitch <hello@xtiitch.com>"
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        value: owner@xtiitch.com
+      - key: ADMIN_BOOTSTRAP_DISPLAY_NAME
+        value: Xtiitch Owner
+      - key: ADMIN_BOOTSTRAP_ROLE
+        value: owner
+      # ── Secrets (set in the Render dashboard) ──
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: PAYSTACK_SECRET_KEY
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      # ── Optional features (unset → safe key-free fallbacks) ──
+      - key: OPENAI_API_KEY # AI search embeddings (else deterministic dev embedder)
+        sync: false
+      - key: ANTHROPIC_API_KEY # AI search query understanding (else heuristic)
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN # inbound bot (empty → bot dormant)
+        sync: false
+      - key: WHATSAPP_APP_SECRET # verifies inbound webhook signatures
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID # bot reply sending
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # BullMQ worker — sends queued notifications (order confirmations, etc.).
+  # Render has no free worker tier, so this is Starter. It fails fast in
+  # production unless a real delivery transport is configured: set
+  # NOTIFICATION_TRANSPORT + the WhatsApp creds below, or it will restart-loop.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: worker
+    name: xtiitch-worker
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xtiitch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: xtiitch-redis
+          property: connectionString
+      - key: WORKER_QUEUE_NAME
+        value: xtiitch.outbox
+      - key: NOTIFICATION_TRANSPORT
+        value: whatsapp_cloud # must deliver in prod; use 'http' if you have a relay
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: v21.0
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Marketing site (SSR). Free.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-marketing
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/marketing build
+    startCommand: pnpm --filter @xtiitch/marketing start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: XTIITCH_API_URL
+        value: "https://xtiitch-api.onrender.com"
+      - key: XTIITCH_DASHBOARD_URL
+        value: "https://xtiitch-dashboard.onrender.com"
+      - key: XTIITCH_STOREFRONT_BASE_URL
+        value: "https://xtiitch-storefront.onrender.com"
+      # Optional waitlist email/webhook
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "Xtiitch <hello@xtiitch.com>"
+      - key: MARKETING_WAITLIST_EMAIL_TO
+        sync: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Customer storefront (SSR). Free.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-storefront
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/storefront build
+    startCommand: pnpm --filter @xtiitch/storefront start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: XTIITCH_API_URL
+        value: "https://xtiitch-api.onrender.com"
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Business dashboard (SSR). Free. SESSION_SECRET signs the session cookie.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-dashboard
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/dashboard build
+    startCommand: pnpm --filter @xtiitch/dashboard start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: XTIITCH_API_URL
+        value: "https://xtiitch-api.onrender.com"
+      - key: SESSION_SECRET
+        generateValue: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Admin console (SSR). Free. SESSION_SECRET signs the session cookie.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-admin
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/admin build
+    startCommand: pnpm --filter @xtiitch/admin start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: XTIITCH_API_URL
+        value: "https://xtiitch-api.onrender.com"
+      - key: SESSION_SECRET
+        generateValue: true
