@@ -4427,6 +4427,8 @@ function BusinessInspector({
             variant="outlined"
             startIcon={<StorefrontRounded />}
             href={`https://${business.handle}.xtiitch.com`}
+            target="_blank"
+            rel="noopener noreferrer"
           >
             View public storefront
           </Button>
