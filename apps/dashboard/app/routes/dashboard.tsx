@@ -66,6 +66,7 @@ import LockRounded from "@mui/icons-material/LockRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
+import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import PaletteRounded from "@mui/icons-material/PaletteRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
@@ -91,6 +92,7 @@ import TextField from "../components/form-text-field";
 import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
+import { HelpDrawer } from "../help-center";
 import { useThemeMode } from "../theme-mode";
 
 type Profile = {
@@ -4786,6 +4788,7 @@ function WorkspaceTopBar({
   onOpenMobileNav,
   onToggleCollapsed,
   onToggleDarkChrome,
+  onOpenHelp,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
@@ -4798,6 +4801,7 @@ function WorkspaceTopBar({
   onOpenMobileNav: () => void;
   onToggleCollapsed: () => void;
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
+  onOpenHelp: () => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
   const profileOpen = Boolean(profileAnchor);
@@ -4938,6 +4942,23 @@ function WorkspaceTopBar({
               <Badge badgeContent={notificationCount} color="error" max={99}>
                 <NotificationsRounded />
               </Badge>
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Page guide">
+            <IconButton
+              aria-label="Open page guide"
+              onClick={onOpenHelp}
+              sx={{
+                color: "inherit",
+                width: { xs: 40, sm: 44 },
+                height: { xs: 40, sm: 44 },
+                border: "1px solid",
+                borderColor: darkChrome
+                  ? alpha(tokens.white, 0.16)
+                  : alpha(tokens.ink, 0.1),
+              }}
+            >
+              <HelpOutlineRounded />
             </IconButton>
           </Tooltip>
           <Tooltip title={darkChrome ? "Use light theme" : "Use dark theme"}>
@@ -13111,6 +13132,7 @@ export default function Dashboard({
           : null;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [settingsFeedbackOpen, setSettingsFeedbackOpen] = useState(
     Boolean(settingsFeedback),
   );
@@ -13451,6 +13473,11 @@ export default function Dashboard({
           {settingsFeedback?.message}
         </Alert>
       </Snackbar>
+      <HelpDrawer
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        section={section}
+      />
       <Box
         sx={{
           maxWidth: 1500,
@@ -13508,6 +13535,7 @@ export default function Dashboard({
             onOpenMobileNav={() => setMobileNavOpen(true)}
             onToggleCollapsed={() => setRailCollapsed((value) => !value)}
             onToggleDarkChrome={toggleMode}
+            onOpenHelp={() => setHelpOpen(true)}
           />
 
           <Box

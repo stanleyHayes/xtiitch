@@ -11,5 +11,6 @@ export default [
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
   route("security", "routes/security.tsx"),
   route("dashboard/:section?", "routes/dashboard.tsx"),
+  route("help", "routes/help.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
