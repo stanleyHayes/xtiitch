@@ -243,7 +243,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Repo:     postgres.NewCustomerAuthRepository(db),
 		Tokens:   jwtIssuer,
 		OTP:      authadapter.NewCustomerOTPGenerator(),
-		Delivery: authadapter.NewLoggingOTPDelivery(logger),
+		Delivery: buildCustomerOTPDelivery(cfg, logger),
 		IDs:      ids.UUIDGenerator{},
 		Clock:    clock.SystemClock{},
 	})
@@ -361,6 +361,19 @@ func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool
 		Clock:          clock.SystemClock{},
 		StorefrontBase: cfg.StorefrontBaseURL,
 	})
+}
+
+// buildCustomerOTPDelivery sends customer sign-in codes over WhatsApp when
+// Cloud-API credentials are set; otherwise it logs the code (dev), so phone
+// sign-in is exercisable locally with no creds.
+func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerOTPDelivery {
+	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
+		return authadapter.NewWhatsAppOTPDelivery(
+			whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion),
+		)
+	}
+	logger.Warn("whatsapp credentials not set; customer OTPs will be logged, not sent")
+	return authadapter.NewLoggingOTPDelivery(logger)
 }
 
 func (a App) HTTPServer() *http.Server {
