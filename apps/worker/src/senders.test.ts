@@ -1,9 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { NotificationHttpConfig } from "./config";
+import type { NotificationHttpConfig, WhatsAppCloudConfig } from "./config";
 import type { OutboundMessage } from "./outbox";
-import { HttpNotificationSender, renderNotificationText } from "./senders";
+import {
+  HttpNotificationSender,
+  WhatsAppCloudSender,
+  normalizeGhanaMsisdn,
+  renderNotificationText,
+} from "./senders";
 
 const httpConfig: NotificationHttpConfig = {
   url: "https://provider.test/messages",
@@ -12,6 +17,74 @@ const httpConfig: NotificationHttpConfig = {
   from: "Xtiitch",
   timeoutMs: 1_000,
 };
+
+const whatsappConfig: WhatsAppCloudConfig = {
+  phoneNumberId: "1234567890",
+  accessToken: "wa-token",
+  apiVersion: "v21.0",
+  timeoutMs: 1_000,
+};
+
+test("normalizeGhanaMsisdn coerces local formats to E.164 digits", () => {
+  assert.equal(normalizeGhanaMsisdn("0241234567"), "233241234567");
+  assert.equal(normalizeGhanaMsisdn("+233 24 123 4567"), "233241234567");
+  assert.equal(normalizeGhanaMsisdn("233241234567"), "233241234567");
+  assert.equal(normalizeGhanaMsisdn("241234567"), "233241234567");
+  assert.equal(normalizeGhanaMsisdn(""), "");
+});
+
+test("WhatsAppCloudSender posts a WhatsApp Cloud text message", async () => {
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  const fetcher: typeof fetch = async (url, init) => {
+    capturedUrl = String(url);
+    capturedInit = init;
+    return new Response(
+      JSON.stringify({ messages: [{ id: "wamid.ABC123" }] }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const sender = new WhatsAppCloudSender(whatsappConfig, fetcher);
+  const result = await sender.send(
+    makeMessage({ messageId: "msg-1", recipient: "0241234567" }),
+  );
+
+  assert.equal(
+    capturedUrl,
+    "https://graph.facebook.com/v21.0/1234567890/messages",
+  );
+  const headers = capturedInit?.headers as Record<string, string>;
+  assert.equal(headers.Authorization, "Bearer wa-token");
+  const body = JSON.parse(String(capturedInit?.body)) as Record<string, unknown>;
+  assert.equal(body.messaging_product, "whatsapp");
+  assert.equal(body.to, "233241234567");
+  assert.equal(body.type, "text");
+  assert.deepEqual(body.text, {
+    preview_url: false,
+    body: "Your order is confirmed. We will update you when production moves forward.",
+  });
+  assert.equal(result.providerMessageId, "wamid.ABC123");
+});
+
+test("WhatsAppCloudSender rejects non-whatsapp channels", async () => {
+  const sender = new WhatsAppCloudSender(whatsappConfig, async () =>
+    new Response("{}", { status: 200 }),
+  );
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "sms" })),
+    /cannot send a sms message/,
+  );
+});
+
+test("WhatsAppCloudSender surfaces API errors", async () => {
+  const sender = new WhatsAppCloudSender(whatsappConfig, async () =>
+    new Response('{"error":{"message":"bad"}}', { status: 400 }),
+  );
+  await assert.rejects(
+    sender.send(makeMessage()),
+    /whatsapp cloud api returned 400/,
+  );
+});
 
 test("renderNotificationText renders lifecycle templates", () => {
   assert.equal(

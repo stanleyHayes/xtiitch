@@ -1,12 +1,25 @@
 import type { RedisOptions } from "bullmq";
 
-export type NotificationTransportName = "disabled" | "log" | "http";
+export type NotificationTransportName =
+  | "disabled"
+  | "log"
+  | "http"
+  | "whatsapp_cloud";
 
 export type NotificationHttpConfig = {
   url: string;
   authHeader: string;
   authValue: string;
   from: string;
+  timeoutMs: number;
+};
+
+// WhatsApp Business Cloud API (Meta Graph API). Ghana runs on WhatsApp, so this
+// is the primary delivery channel for customer order updates.
+export type WhatsAppCloudConfig = {
+  phoneNumberId: string;
+  accessToken: string;
+  apiVersion: string;
   timeoutMs: number;
 };
 
@@ -25,6 +38,7 @@ export type WorkerConfig = {
   subscriptionBillingSweepIntervalMs: number;
   notificationTransport: NotificationTransportName;
   notificationHttp?: NotificationHttpConfig;
+  whatsappCloud?: WhatsAppCloudConfig;
 };
 
 const defaultDatabaseUrl =
@@ -56,6 +70,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     ),
     notificationTransport,
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
+    whatsappCloud: parseWhatsAppCloudConfig(notificationTransport, env),
   };
 }
 
@@ -92,10 +107,41 @@ function parseTransport(value: string | undefined): NotificationTransportName {
   if (value === undefined || value.trim() === "") {
     return "log";
   }
-  if (value === "disabled" || value === "log" || value === "http") {
+  if (
+    value === "disabled" ||
+    value === "log" ||
+    value === "http" ||
+    value === "whatsapp_cloud"
+  ) {
     return value;
   }
   throw new Error(`Unsupported NOTIFICATION_TRANSPORT value: ${value}`);
+}
+
+function parseWhatsAppCloudConfig(
+  transport: NotificationTransportName,
+  env: NodeJS.ProcessEnv,
+): WhatsAppCloudConfig | undefined {
+  if (transport !== "whatsapp_cloud") {
+    return undefined;
+  }
+
+  const phoneNumberId = requiredString(
+    env.WHATSAPP_PHONE_NUMBER_ID,
+    "WHATSAPP_PHONE_NUMBER_ID",
+  );
+  const accessToken = requiredString(
+    env.WHATSAPP_ACCESS_TOKEN,
+    "WHATSAPP_ACCESS_TOKEN",
+  );
+  const apiVersion = (env.WHATSAPP_API_VERSION ?? "v21.0").trim() || "v21.0";
+
+  return {
+    phoneNumberId,
+    accessToken,
+    apiVersion,
+    timeoutMs: parsePositiveInteger(env.WHATSAPP_TIMEOUT_MS, 10_000),
+  };
 }
 
 function parseNotificationHttpConfig(

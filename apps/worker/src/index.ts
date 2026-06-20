@@ -18,6 +18,7 @@ const billingStore = new PostgresSubscriptionBillingSweepStore(config.databaseUr
 const sender = createNotificationSender({
   transport: config.notificationTransport,
   http: config.notificationHttp,
+  whatsappCloud: config.whatsappCloud,
 });
 const queue = new Queue(config.queueName, { connection: config.redisConnection });
 
