@@ -61,7 +61,11 @@ export function meta({ data }: Route.MetaArgs) {
       { property: "og:title", content: title },
       { property: "og:description", content: description },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "https://store.xtiitch.com/og.png" },
+      { property: "og:image:width", content: "1200" },
+      { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:image", content: "https://store.xtiitch.com/og.png" },
     ];
   }
   const title = "Discover Ghana's fashion studios · Xtiitch";
@@ -74,7 +78,11 @@ export function meta({ data }: Route.MetaArgs) {
     { property: "og:description", content: description },
     { property: "og:type", content: "website" },
     { property: "og:url", content: "https://store.xtiitch.com/" },
+    { property: "og:image", content: "https://store.xtiitch.com/og.png" },
+    { property: "og:image:width", content: "1200" },
+    { property: "og:image:height", content: "630" },
     { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:image", content: "https://store.xtiitch.com/og.png" },
   ];
 }
 
