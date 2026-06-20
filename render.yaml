@@ -1,20 +1,25 @@
 # Render Blueprint for Xtiitch — https://render.com/docs/blueprint-spec
 #
-# Deploys the whole stack: Go API, BullMQ worker, the four SSR web apps
-# (marketing, storefront, dashboard, admin), Postgres, and Redis.
+# Deploys the BACKEND on Render: Go API, Postgres, and Redis.
+# - The four SSR web apps (marketing, storefront, dashboard, admin) deploy
+#   SEPARATELY on Vercel — intentionally NOT in this blueprint.
+# - The BullMQ worker is currently DISABLED (commented out at the bottom): it
+#   needs WhatsApp Cloud credentials to deliver in production. Re-enable it when
+#   you have WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN. Until then the API
+#   still enqueues notifications to the DB outbox; they just aren't sent yet.
 #
-# Cost note (chosen): Postgres = Basic (persistent), worker = Starter. Everything
-# else is on the FREE plan. Free web services SLEEP after ~15 min idle and cold-
-# start on the next request (~30s) — for production you'll likely want to bump at
-# least the API to Starter so the apps aren't waiting on a sleeping backend.
+# Cost (chosen): Postgres = Basic (persistent). The API + Redis are FREE — free
+# web services SLEEP after ~15 min idle and cold-start (~30s) on the next
+# request; bump xtiitch-api to Starter for production so the Vercel frontends
+# aren't waiting on a sleeping backend.
 #
-# Secrets are marked `sync: false` — Render will prompt for them on first deploy
-# and never stores them in git. Generated secrets (`generateValue`) are created
-# once and kept by Render.
+# Secrets are marked `sync: false` — Render prompts for them on first deploy and
+# never stores them in git. Generated secrets (`generateValue`) are created once.
 #
-# After the first deploy, set the real `*.onrender.com` (or custom-domain) URLs:
-# the cross-service URLs below assume the default service names resolve to
-# https://<name>.onrender.com. Update them if you attach custom domains.
+# Cross-origin: after the Vercel frontends are live, set the API's
+# CORS_ALLOWED_ORIGINS, BUSINESS_DASHBOARD_BASE_URL, and STOREFRONT_BASE_URL to
+# the real Vercel (or custom-domain) URLs in the Render dashboard, and point each
+# Vercel app's XTIITCH_API_URL at this API's URL.
 
 databases:
   - name: xtiitch-db
@@ -59,7 +64,7 @@ services:
           name: xtiitch-redis
           property: connectionString
       - key: WORKER_QUEUE_NAME
-        value: xtiitch.outbox # must match the worker
+        value: xtiitch.outbox # must match the worker when re-enabled
       - key: JWT_SIGNING_KEY
         generateValue: true
       - key: JWT_ISSUER
@@ -70,13 +75,16 @@ services:
         generateValue: true
       - key: MFA_ISSUER
         value: Xtiitch
-      # CORS: the browser-facing origins of the four web apps.
+      # CORS: the browser-facing origins of the Vercel frontends — set these in
+      # the Render dashboard once the Vercel URLs (or custom domains) are known.
+      # Comma-separated, e.g.
+      # https://xtiitch-admin.vercel.app,https://xtiitch-dashboard.vercel.app,...
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://xtiitch-admin.onrender.com,https://xtiitch-dashboard.onrender.com,https://xtiitch-marketing.onrender.com,https://xtiitch-storefront.onrender.com"
-      - key: BUSINESS_DASHBOARD_BASE_URL
-        value: "https://xtiitch-dashboard.onrender.com"
-      - key: STOREFRONT_BASE_URL
-        value: "https://xtiitch-storefront.onrender.com"
+        sync: false
+      - key: BUSINESS_DASHBOARD_BASE_URL # the dashboard's Vercel URL
+        sync: false
+      - key: STOREFRONT_BASE_URL # the storefront's Vercel URL
+        sync: false
       - key: RESEND_FROM_EMAIL
         value: "Xtiitch <hello@xtiitch.com>"
       - key: ADMIN_BOOTSTRAP_EMAIL
@@ -113,128 +121,40 @@ services:
         sync: false
 
   # ──────────────────────────────────────────────────────────────────────────
-  # BullMQ worker — sends queued notifications (order confirmations, etc.).
-  # Render has no free worker tier, so this is Starter. It fails fast in
-  # production unless a real delivery transport is configured: set
-  # NOTIFICATION_TRANSPORT + the WhatsApp creds below, or it will restart-loop.
+  # BullMQ worker — DISABLED for now (no WhatsApp Cloud credentials yet).
+  # It sends queued notifications (order confirmations, etc.) and fails fast in
+  # production without a real delivery transport, so it would restart-loop until
+  # WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN are set. To enable: add those
+  # creds and uncomment this block (Render has no free worker tier — it's Starter).
   # ──────────────────────────────────────────────────────────────────────────
-  - type: worker
-    name: xtiitch-worker
-    runtime: node
-    plan: starter
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile
-    startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: DATABASE_URL
-        fromDatabase:
-          name: xtiitch-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          type: redis
-          name: xtiitch-redis
-          property: connectionString
-      - key: WORKER_QUEUE_NAME
-        value: xtiitch.outbox
-      - key: NOTIFICATION_TRANSPORT
-        value: whatsapp_cloud # must deliver in prod; use 'http' if you have a relay
-      - key: WHATSAPP_PHONE_NUMBER_ID
-        sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
-        sync: false
-      - key: WHATSAPP_API_VERSION
-        value: v21.0
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Marketing site (SSR). Free.
-  # ──────────────────────────────────────────────────────────────────────────
-  - type: web
-    name: xtiitch-marketing
-    runtime: node
-    plan: free
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/marketing build
-    startCommand: pnpm --filter @xtiitch/marketing start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: XTIITCH_API_URL
-        value: "https://xtiitch-api.onrender.com"
-      - key: XTIITCH_DASHBOARD_URL
-        value: "https://xtiitch-dashboard.onrender.com"
-      - key: XTIITCH_STOREFRONT_BASE_URL
-        value: "https://xtiitch-storefront.onrender.com"
-      # Optional waitlist email/webhook
-      - key: RESEND_API_KEY
-        sync: false
-      - key: RESEND_FROM_EMAIL
-        value: "Xtiitch <hello@xtiitch.com>"
-      - key: MARKETING_WAITLIST_EMAIL_TO
-        sync: false
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Customer storefront (SSR). Free.
-  # ──────────────────────────────────────────────────────────────────────────
-  - type: web
-    name: xtiitch-storefront
-    runtime: node
-    plan: free
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/storefront build
-    startCommand: pnpm --filter @xtiitch/storefront start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: XTIITCH_API_URL
-        value: "https://xtiitch-api.onrender.com"
-      - key: SESSION_SECRET # signs the customer (phone-OTP) session cookie
-        generateValue: true
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Business dashboard (SSR). Free. SESSION_SECRET signs the session cookie.
-  # ──────────────────────────────────────────────────────────────────────────
-  - type: web
-    name: xtiitch-dashboard
-    runtime: node
-    plan: free
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/dashboard build
-    startCommand: pnpm --filter @xtiitch/dashboard start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: XTIITCH_API_URL
-        value: "https://xtiitch-api.onrender.com"
-      - key: SESSION_SECRET
-        generateValue: true
-
-  # ──────────────────────────────────────────────────────────────────────────
-  # Admin console (SSR). Free. SESSION_SECRET signs the session cookie.
-  # ──────────────────────────────────────────────────────────────────────────
-  - type: web
-    name: xtiitch-admin
-    runtime: node
-    plan: free
-    region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm --filter @xtiitch/admin build
-    startCommand: pnpm --filter @xtiitch/admin start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_VERSION
-        value: "22"
-      - key: XTIITCH_API_URL
-        value: "https://xtiitch-api.onrender.com"
-      - key: SESSION_SECRET
-        generateValue: true
+  # - type: worker
+  #   name: xtiitch-worker
+  #   runtime: node
+  #   plan: starter
+  #   region: oregon
+  #   buildCommand: corepack enable && pnpm install --frozen-lockfile
+  #   startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: NODE_VERSION
+  #       value: "22"
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: xtiitch-db
+  #         property: connectionString
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: redis
+  #         name: xtiitch-redis
+  #         property: connectionString
+  #     - key: WORKER_QUEUE_NAME
+  #       value: xtiitch.outbox
+  #     - key: NOTIFICATION_TRANSPORT
+  #       value: whatsapp_cloud # must deliver in prod; use 'http' if you have a relay
+  #     - key: WHATSAPP_PHONE_NUMBER_ID
+  #       sync: false
+  #     - key: WHATSAPP_ACCESS_TOKEN
+  #       sync: false
+  #     - key: WHATSAPP_API_VERSION
+  #       value: v21.0
