@@ -88,9 +88,15 @@ export default function App() {
       <Box
         key={location.pathname}
         sx={{
+          // Ends at `opacity: 1` with NO transform: an `animation-fill-mode: both`
+          // that retained `transform: translateY(0)` would leave a non-none
+          // transform on this wrapper, creating a containing block that makes the
+          // dashboard's `position: fixed` rail scroll with the page instead of the
+          // viewport. Animating to the base (none) preserves the drift and keeps
+          // fixed descendants pinned to the viewport.
           "@keyframes xtiitchPageFadeIn": {
             from: { opacity: 0, transform: "translateY(6px)" },
-            to: { opacity: 1, transform: "translateY(0)" },
+            to: { opacity: 1 },
           },
           animation: "xtiitchPageFadeIn 280ms ease-out both",
           "@media (prefers-reduced-motion: reduce)": { animation: "none" },
