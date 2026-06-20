@@ -196,6 +196,8 @@ services:
         value: "22"
       - key: XTIITCH_API_URL
         value: "https://xtiitch-api.onrender.com"
+      - key: SESSION_SECRET # signs the customer (phone-OTP) session cookie
+        generateValue: true
 
   # ──────────────────────────────────────────────────────────────────────────
   # Business dashboard (SSR). Free. SESSION_SECRET signs the session cookie.

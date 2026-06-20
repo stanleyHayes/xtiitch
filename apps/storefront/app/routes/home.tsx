@@ -4,6 +4,7 @@ import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import type { Route } from "./+types/home";
@@ -126,8 +127,14 @@ function Landing() {
           spacing={1.25}
           sx={{ mt: 4, justifyContent: "center" }}
         >
-          <Button href="https://xtiitch.com" variant="contained" size="large">
-            Learn about Xtiitch
+          <Button
+            component={RouterLink}
+            to="/discover"
+            variant="contained"
+            size="large"
+            startIcon={<AutoAwesomeRounded />}
+          >
+            Search with AI
           </Button>
           <Button
             component={RouterLink}
@@ -137,6 +144,9 @@ function Landing() {
             startIcon={<LocalShippingRounded />}
           >
             Track an order
+          </Button>
+          <Button href="https://xtiitch.com" variant="text" size="large">
+            Learn about Xtiitch
           </Button>
         </Stack>
       </Container>

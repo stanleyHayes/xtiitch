@@ -5,6 +5,8 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 // follow-up step, so both are kept working during the transition.
 export default [
   index("routes/home.tsx"),
+  route("discover", "routes/discover.tsx"),
+  route("account", "routes/account.tsx"),
   route("store/:handle", "routes/store.tsx"),
   route("d/:handle", "routes/design.tsx"),
   route("c/:handle", "routes/collection.tsx"),
