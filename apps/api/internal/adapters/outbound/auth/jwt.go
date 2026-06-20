@@ -194,6 +194,59 @@ func (issuer JWTIssuer) VerifyAdminAccessToken(_ context.Context, tokenString st
 	}, nil
 }
 
+// IssueCustomerAccessToken mints a customer session token (a distinct scope from
+// business and admin tokens).
+func (issuer JWTIssuer) IssueCustomerAccessToken(_ context.Context, input ports.CustomerAccessTokenInput) (string, error) {
+	claims := jwt.MapClaims{
+		"aud":   issuer.audience,
+		"exp":   input.ExpiresAt.Unix(),
+		"iat":   input.IssuedAt.Unix(),
+		"iss":   issuer.issuer,
+		"phone": input.Phone,
+		"scope": "customer",
+		"sub":   input.CustomerID.String(),
+		"typ":   "customer_access",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token.Header["kid"] = "default"
+
+	return token.SignedString(issuer.signingKey)
+}
+
+func (issuer JWTIssuer) VerifyCustomerAccessToken(_ context.Context, tokenString string) (ports.VerifiedCustomerToken, error) {
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {
+		return issuer.signingKey, nil
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(issuer.issuer),
+		jwt.WithAudience(issuer.audience),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil || !token.Valid {
+		return ports.VerifiedCustomerToken{}, ErrInvalidToken
+	}
+
+	if tokenType, _ := claims["typ"].(string); tokenType != "customer_access" {
+		return ports.VerifiedCustomerToken{}, ErrInvalidToken
+	}
+	if scope, _ := claims["scope"].(string); scope != "customer" {
+		return ports.VerifiedCustomerToken{}, ErrInvalidToken
+	}
+
+	subject, _ := claims["sub"].(string)
+	phone, _ := claims["phone"].(string)
+	if subject == "" {
+		return ports.VerifiedCustomerToken{}, ErrInvalidToken
+	}
+
+	return ports.VerifiedCustomerToken{
+		CustomerID: common.ID(subject),
+		Phone:      phone,
+	}, nil
+}
+
 func AccessTokenTTL(now time.Time) time.Time {
 	return now.Add(15 * time.Minute)
 }
