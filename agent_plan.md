@@ -56,10 +56,17 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 | 22 | Mobile (customer + business lanes) | 🟡 | core flows; native storage/push/QA remain |
 | 23 | Security hardening (headers/rate-limit/CORS/CSP) | ✅ | live-tested incl. 429 burst |
 | 24 | Ghana legal pages (Act 843 / Act 772) | ✅ | privacy + terms |
-| 25 | **Opt-in TOTP MFA (authenticator app)** | 🟡 | **building this session — API + dashboard** |
-| 26 | **Ghana compliance controls (consent, export/erasure)** | 🟡 | **building this session** |
+| 25 | Opt-in TOTP MFA (authenticator app) | ✅ | API + dashboard + login challenge; replay guard + lockout; live-verified |
+| 26 | Ghana compliance — DSAR subject-access export | ✅ | admin API + console download (Act 843); erasure + consent capture deferred (see note) |
 | 27 | Production notification provider credentials | ⬜ | env/keys pending (ops) |
 | 28 | Researched roadmap (see below) | ⬜ | proposed; prioritised |
+
+> **P5 compliance note:** the right-of-access **data export** is shipped and
+> verified. **Erasure** (right to be forgotten) and **consent capture** are
+> deliberately deferred: erasure is destructive and needs a product decision on
+> shared-identity semantics (a `customers` row is global across businesses) and
+> accounting-record retention; consent capture needs storefront UX + a consent
+> log. Both are specced as the next compliance slice.
 
 ### Closed this session (2026-06-19/20)
 - ✅ Route loading: replaced the flashing full-page skeleton with a thin top
