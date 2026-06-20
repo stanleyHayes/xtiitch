@@ -71,6 +71,63 @@ func (issuer JWTIssuer) IssueAdminAccessToken(_ context.Context, input ports.Adm
 	return token.SignedString(issuer.signingKey)
 }
 
+// IssueMFAChallengeToken mints a short-lived token that stands in for "password
+// verified, second factor still pending". It is not an access token: it carries
+// typ "mfa_challenge" and grants nothing on its own — only the MFA verify
+// endpoint accepts it, in exchange for a full session.
+func (issuer JWTIssuer) IssueMFAChallengeToken(_ context.Context, input ports.MFAChallengeInput) (string, error) {
+	claims := jwt.MapClaims{
+		"aud":         issuer.audience,
+		"business_id": input.BusinessID.String(),
+		"exp":         input.ExpiresAt.Unix(),
+		"iat":         input.IssuedAt.Unix(),
+		"iss":         issuer.issuer,
+		"role":        string(input.Role),
+		"sub":         input.Subject.String(),
+		"typ":         "mfa_challenge",
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token.Header["kid"] = "default"
+
+	return token.SignedString(issuer.signingKey)
+}
+
+// VerifyMFAChallengeToken validates a pending-second-factor token and returns the
+// principal it stands for. It rejects anything that is not a fresh, well-formed
+// mfa_challenge token.
+func (issuer JWTIssuer) VerifyMFAChallengeToken(_ context.Context, tokenString string) (ports.VerifiedAccessToken, error) {
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {
+		return issuer.signingKey, nil
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(issuer.issuer),
+		jwt.WithAudience(issuer.audience),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil || !token.Valid {
+		return ports.VerifiedAccessToken{}, ErrInvalidToken
+	}
+
+	if tokenType, _ := claims["typ"].(string); tokenType != "mfa_challenge" {
+		return ports.VerifiedAccessToken{}, ErrInvalidToken
+	}
+
+	subject, _ := claims["sub"].(string)
+	businessID, _ := claims["business_id"].(string)
+	role, _ := claims["role"].(string)
+	if subject == "" || businessID == "" {
+		return ports.VerifiedAccessToken{}, ErrInvalidToken
+	}
+
+	return ports.VerifiedAccessToken{
+		Subject:    common.ID(subject),
+		BusinessID: common.ID(businessID),
+		Role:       business.UserRole(role),
+	}, nil
+}
+
 func (issuer JWTIssuer) VerifyAccessToken(_ context.Context, tokenString string) (ports.VerifiedAccessToken, error) {
 	claims := jwt.MapClaims{}
 	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {

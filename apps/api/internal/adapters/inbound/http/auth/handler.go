@@ -28,6 +28,11 @@ type Service interface {
 	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	ResetBusinessUserPassword(ctx context.Context, command authapp.ResetBusinessUserPasswordCommand) error
 	TransferBusinessOwner(ctx context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error)
+	GetMFAStatus(ctx context.Context, scope common.TenantScope, userID common.ID) (authapp.MFAStatus, error)
+	StartMFAEnrollment(ctx context.Context, scope common.TenantScope, userID common.ID) (authapp.MFAEnrollmentSetup, error)
+	ActivateMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) ([]string, error)
+	DisableMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) error
+	VerifyMFALogin(ctx context.Context, command authapp.VerifyMFALoginCommand) (authapp.AuthResult, error)
 }
 
 type Handler struct {
@@ -44,6 +49,9 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/auth/business/login", handler.loginBusiness)
 	router.Post("/auth/business/refresh", handler.refreshSession)
 	router.Post("/auth/business/logout", handler.logout)
+	// Completing a login challenge needs only the short-lived challenge token, so
+	// it sits outside the bearer-protected group.
+	router.Post("/auth/business/mfa/verify", handler.verifyMFALogin)
 
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
@@ -53,6 +61,10 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
 		protected.Post("/auth/business/users/{id}/password", handler.resetBusinessUserPassword)
 		protected.Post("/auth/business/owner-transfer", handler.transferBusinessOwner)
+		protected.Get("/auth/business/mfa", handler.mfaStatus)
+		protected.Post("/auth/business/mfa/setup", handler.startMFAEnrollment)
+		protected.Post("/auth/business/mfa/activate", handler.activateMFA)
+		protected.Post("/auth/business/mfa/disable", handler.disableMFA)
 	})
 }
 
@@ -177,6 +189,14 @@ func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		status, code := authError(err)
 		writeError(w, status, code)
+		return
+	}
+
+	if result.MFARequired {
+		writeJSON(w, http.StatusOK, mfaChallengeResponse{
+			MFARequired:    true,
+			MFAChallengeToken: result.MFAChallengeToken,
+		})
 		return
 	}
 
@@ -377,6 +397,144 @@ func (handler Handler) transferBusinessOwner(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+type mfaChallengeResponse struct {
+	MFARequired       bool   `json:"mfa_required"`
+	MFAChallengeToken string `json:"mfa_challenge_token"`
+}
+
+type mfaStatusResponse struct {
+	Enabled         bool `json:"enabled"`
+	Enrolled        bool `json:"enrolled"`
+	BackupCodesLeft int  `json:"backup_codes_left"`
+}
+
+type mfaSetupResponse struct {
+	Secret          string `json:"secret"`
+	ProvisioningURI string `json:"provisioning_uri"`
+}
+
+type mfaCodeRequest struct {
+	Code string `json:"code"`
+}
+
+type mfaActivateResponse struct {
+	Enabled     bool     `json:"enabled"`
+	BackupCodes []string `json:"backup_codes"`
+}
+
+type verifyMFALoginRequest struct {
+	MFAChallengeToken string `json:"mfa_challenge_token"`
+	Code              string `json:"code"`
+}
+
+func (handler Handler) mfaStatus(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	status, err := handler.service.GetMFAStatus(r.Context(), principal.TenantScope(), principal.UserID)
+	if err != nil {
+		s, code := authError(err)
+		writeError(w, s, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mfaStatusResponse{
+		Enabled:         status.Enabled,
+		Enrolled:        status.Enrolled,
+		BackupCodesLeft: status.BackupCodesLeft,
+	})
+}
+
+func (handler Handler) startMFAEnrollment(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	setup, err := handler.service.StartMFAEnrollment(r.Context(), principal.TenantScope(), principal.UserID)
+	if err != nil {
+		s, code := authError(err)
+		writeError(w, s, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mfaSetupResponse{
+		Secret:          setup.Secret,
+		ProvisioningURI: setup.ProvisioningURI,
+	})
+}
+
+func (handler Handler) activateMFA(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request mfaCodeRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	backupCodes, err := handler.service.ActivateMFA(r.Context(), principal.TenantScope(), principal.UserID, request.Code)
+	if err != nil {
+		s, code := authError(err)
+		writeError(w, s, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, mfaActivateResponse{Enabled: true, BackupCodes: backupCodes})
+}
+
+func (handler Handler) disableMFA(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request mfaCodeRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	if err := handler.service.DisableMFA(r.Context(), principal.TenantScope(), principal.UserID, request.Code); err != nil {
+		s, code := authError(err)
+		writeError(w, s, code)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) verifyMFALogin(w http.ResponseWriter, r *http.Request) {
+	var request verifyMFALoginRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	result, err := handler.service.VerifyMFALogin(r.Context(), authapp.VerifyMFALoginCommand{
+		ChallengeToken: request.MFAChallengeToken,
+		Code:           request.Code,
+		UserAgent:      r.UserAgent(),
+		IPAddress:      requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newAuthResponse(result))
+}
+
 func decodeJSON(r *http.Request, value any) error {
 	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<20))
 	decoder.DisallowUnknownFields()
@@ -424,6 +582,14 @@ func authError(err error) (int, string) {
 		return http.StatusUnauthorized, "invalid_credentials"
 	case errors.Is(err, authdomain.ErrForbidden):
 		return http.StatusForbidden, "forbidden"
+	case errors.Is(err, authdomain.ErrInvalidMFACode):
+		return http.StatusUnauthorized, "invalid_mfa_code"
+	case errors.Is(err, authdomain.ErrMFAAlreadyEnabled):
+		return http.StatusConflict, "mfa_already_enabled"
+	case errors.Is(err, authdomain.ErrMFANotEnrolled):
+		return http.StatusConflict, "mfa_not_enrolled"
+	case errors.Is(err, authdomain.ErrMFANotEnabled):
+		return http.StatusConflict, "mfa_not_enabled"
 	case errors.Is(err, business.ErrHandleTaken):
 		return http.StatusConflict, "handle_taken"
 	case errors.Is(err, business.ErrUserEmailTaken):

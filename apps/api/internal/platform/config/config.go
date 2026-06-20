@@ -28,6 +28,11 @@ type Config struct {
 	JWTIssuer                 string
 	JWTSigningKey             string
 	LegalReviewConfirmed      bool
+	// MFAIssuer is the label authenticator apps show for TOTP entries.
+	// MFAEncryptionKey encrypts stored TOTP secrets at rest; when empty it falls
+	// back to the JWT signing key so local dev works without extra config.
+	MFAIssuer                 string
+	MFAEncryptionKey          string
 	MarketingWaitlistEmailTo  string
 	MarketingWaitlistWebhook  string
 	MarketingWaitlistSecret   string
@@ -70,6 +75,8 @@ func Load() Config {
 		JWTIssuer:                getenv("JWT_ISSUER", "xtiitch-api"),
 		JWTSigningKey:            getenv("JWT_SIGNING_KEY", "change-me-for-local-development"),
 		LegalReviewConfirmed:     getenvBool("XTIITCH_LEGAL_REVIEW_CONFIRMED"),
+		MFAIssuer:                getenv("MFA_ISSUER", "Xtiitch"),
+		MFAEncryptionKey:         getenv("MFA_ENCRYPTION_KEY", ""),
 		MarketingWaitlistEmailTo: getenv("MARKETING_WAITLIST_EMAIL_TO", ""),
 		MarketingWaitlistWebhook: getenv("MARKETING_WAITLIST_WEBHOOK_URL", ""),
 		MarketingWaitlistSecret:  getenv("MARKETING_WAITLIST_WEBHOOK_SECRET", ""),

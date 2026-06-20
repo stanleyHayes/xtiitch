@@ -588,3 +588,23 @@ func (service *fakeAuthService) TransferBusinessOwner(_ context.Context, command
 	}
 	return service.transferResult, nil
 }
+
+func (service *fakeAuthService) GetMFAStatus(_ context.Context, _ common.TenantScope, _ common.ID) (authapp.MFAStatus, error) {
+	return authapp.MFAStatus{}, nil
+}
+
+func (service *fakeAuthService) StartMFAEnrollment(_ context.Context, _ common.TenantScope, _ common.ID) (authapp.MFAEnrollmentSetup, error) {
+	return authapp.MFAEnrollmentSetup{}, nil
+}
+
+func (service *fakeAuthService) ActivateMFA(_ context.Context, _ common.TenantScope, _ common.ID, _ string) ([]string, error) {
+	return nil, nil
+}
+
+func (service *fakeAuthService) DisableMFA(_ context.Context, _ common.TenantScope, _ common.ID, _ string) error {
+	return nil
+}
+
+func (service *fakeAuthService) VerifyMFALogin(_ context.Context, _ authapp.VerifyMFALoginCommand) (authapp.AuthResult, error) {
+	return authapp.AuthResult{}, nil
+}

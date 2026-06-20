@@ -162,6 +162,73 @@ type RefreshTokenIssuer interface {
 	HashRefreshToken(token string) string
 }
 
+// MFAChallengeInput parameterises a pending-second-factor token: it stands for a
+// caller who passed the password check but still owes a TOTP/backup code.
+type MFAChallengeInput struct {
+	Subject    common.ID
+	BusinessID common.ID
+	Role       business.UserRole
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+}
+
+type MFAChallengeIssuer interface {
+	IssueMFAChallengeToken(ctx context.Context, input MFAChallengeInput) (string, error)
+}
+
+type MFAChallengeVerifier interface {
+	VerifyMFAChallengeToken(ctx context.Context, token string) (VerifiedAccessToken, error)
+}
+
+// MFASecrets owns the cryptography behind authenticator-app MFA: TOTP secret
+// generation/verification (RFC 6238), at-rest encryption of the secret, and
+// single-use backup codes. The application service depends only on this port.
+type MFASecrets interface {
+	GenerateSecret() (string, error)
+	ProvisioningURI(secret string, accountName string) string
+	VerifyCode(secret string, code string, now time.Time) bool
+	GenerateBackupCodes() ([]string, error)
+	HashBackupCode(code string) string
+	EncryptSecret(secret string) ([]byte, error)
+	DecryptSecret(ciphertext []byte) (string, error)
+}
+
+// MFARepository persists per-user MFA enrolment, tenant-scoped under RLS.
+type MFARepository interface {
+	// Get returns the enrolment for a user, or ErrNotFound if none exists.
+	Get(ctx context.Context, scope common.TenantScope, userID common.ID) (MFAEnrollment, error)
+	// Upsert stores (or replaces) the pending secret, leaving MFA disabled until
+	// the first code is verified.
+	Upsert(ctx context.Context, scope common.TenantScope, input UpsertMFAInput) error
+	// Enable turns the enrolment on and stores the backup-code hashes.
+	Enable(ctx context.Context, scope common.TenantScope, input EnableMFAInput) error
+	// ConsumeBackupCode marks one matching, unused backup-code hash as used and
+	// reports whether a match was found.
+	ConsumeBackupCode(ctx context.Context, scope common.TenantScope, userID common.ID, codeHash string) (bool, error)
+	// Delete removes the enrolment, disabling MFA for the user.
+	Delete(ctx context.Context, scope common.TenantScope, userID common.ID) error
+}
+
+type MFAEnrollment struct {
+	BusinessID       common.ID
+	UserID           common.ID
+	SecretEncrypted  []byte
+	Enabled          bool
+	BackupCodesTotal int
+	BackupCodesLeft  int
+}
+
+type UpsertMFAInput struct {
+	UserID          common.ID
+	BusinessID      common.ID
+	SecretEncrypted []byte
+}
+
+type EnableMFAInput struct {
+	UserID           common.ID
+	BackupCodeHashes []string
+}
+
 type PaymentProvider interface {
 	CreateBusinessSubaccount(ctx context.Context, input CreateBusinessSubaccountInput) (CreateBusinessSubaccountResult, error)
 	InitializeTransaction(ctx context.Context, input InitializeTransactionInput) (InitializeTransactionResult, error)

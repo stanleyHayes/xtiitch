@@ -23,6 +23,9 @@ const (
 	maxPasswordLength = 72
 	accessTokenTTL    = 15 * time.Minute
 	refreshTokenTTL   = 30 * 24 * time.Hour
+	// mfaChallengeTTL bounds how long a password-verified caller has to present
+	// their second factor before the challenge token expires.
+	mfaChallengeTTL = 5 * time.Minute
 )
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
@@ -49,6 +52,10 @@ type Service struct {
 	dashboardURL  string
 	ids           ports.IDGenerator
 	clock         ports.Clock
+	mfa           ports.MFARepository
+	mfaSecrets    ports.MFASecrets
+	mfaChallenges ports.MFAChallengeIssuer
+	mfaVerifier   ports.MFAChallengeVerifier
 }
 
 type Dependencies struct {
@@ -61,6 +68,12 @@ type Dependencies struct {
 	DashboardURL  string
 	IDs           ports.IDGenerator
 	Clock         ports.Clock
+	// MFA dependencies are optional: when any is nil, MFA enrolment/verification
+	// is disabled and login always issues a session directly.
+	MFA           ports.MFARepository
+	MFASecrets    ports.MFASecrets
+	MFAChallenges ports.MFAChallengeIssuer
+	MFAVerifier   ports.MFAChallengeVerifier
 }
 
 func NewService(deps Dependencies) Service {
@@ -74,7 +87,16 @@ func NewService(deps Dependencies) Service {
 		dashboardURL:  strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 		ids:           deps.IDs,
 		clock:         deps.Clock,
+		mfa:           deps.MFA,
+		mfaSecrets:    deps.MFASecrets,
+		mfaChallenges: deps.MFAChallenges,
+		mfaVerifier:   deps.MFAVerifier,
 	}
+}
+
+// mfaEnabled reports whether the optional MFA dependency set is fully wired.
+func (s Service) mfaEnabled() bool {
+	return s.mfa != nil && s.mfaSecrets != nil && s.mfaChallenges != nil && s.mfaVerifier != nil
 }
 
 type RegisterBusinessCommand struct {
@@ -102,6 +124,11 @@ type AuthResult struct {
 	RefreshToken     string
 	AccessExpiresAt  time.Time
 	RefreshExpiresAt time.Time
+	// MFARequired is set when the password was correct but the account has MFA
+	// enabled; the caller must complete VerifyMFALogin with MFAChallengeToken to
+	// obtain a session. When true, the token fields above are empty.
+	MFARequired       bool
+	MFAChallengeToken string
 }
 
 func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessCommand) (AuthResult, error) {
@@ -153,6 +180,35 @@ func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (A
 	}
 	if err := s.passwords.Compare(credentials.PasswordHash, cmd.OwnerPassword); err != nil {
 		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	// If the account has a second factor enabled, do not issue a session yet:
+	// return a short-lived challenge the caller redeems via VerifyMFALogin.
+	if s.mfaEnabled() {
+		scope := common.TenantScope{BusinessID: credentials.BusinessID}
+		enrollment, err := s.mfa.Get(ctx, scope, credentials.UserID)
+		if err == nil && enrollment.Enabled {
+			now := s.clock.Now()
+			challenge, err := s.mfaChallenges.IssueMFAChallengeToken(ctx, ports.MFAChallengeInput{
+				Subject:    credentials.UserID,
+				BusinessID: credentials.BusinessID,
+				Role:       credentials.Role,
+				IssuedAt:   now,
+				ExpiresAt:  now.Add(mfaChallengeTTL),
+			})
+			if err != nil {
+				return AuthResult{}, err
+			}
+			return AuthResult{
+				BusinessID:        credentials.BusinessID,
+				BusinessUserID:    credentials.UserID,
+				MFARequired:       true,
+				MFAChallengeToken: challenge,
+			}, nil
+		}
+		if err != nil && !errors.Is(err, ports.ErrNotFound) {
+			return AuthResult{}, err
+		}
 	}
 
 	return s.issueSession(ctx, issueSessionInput{
@@ -524,4 +580,219 @@ func (s Service) issueSession(ctx context.Context, input issueSessionInput) (Aut
 		AccessExpiresAt:  accessExpiresAt,
 		RefreshExpiresAt: refreshExpiresAt,
 	}, nil
+}
+
+// ---------------------------------------------------------------------------
+// Opt-in TOTP MFA
+// ---------------------------------------------------------------------------
+
+// MFAStatus is the enrolment state for the current user.
+type MFAStatus struct {
+	Enabled         bool
+	Enrolled        bool
+	BackupCodesLeft int
+}
+
+// MFAEnrollmentSetup is returned when a user begins enrolment. The client renders
+// ProvisioningURI as a QR code and offers Secret for manual entry.
+type MFAEnrollmentSetup struct {
+	Secret          string
+	ProvisioningURI string
+}
+
+// GetMFAStatus reports whether the user has MFA enrolled/enabled.
+func (s Service) GetMFAStatus(ctx context.Context, scope common.TenantScope, userID common.ID) (MFAStatus, error) {
+	if !s.mfaEnabled() {
+		return MFAStatus{}, nil
+	}
+	enrollment, err := s.mfa.Get(ctx, scope, userID)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return MFAStatus{}, nil
+		}
+		return MFAStatus{}, err
+	}
+	return MFAStatus{
+		Enabled:         enrollment.Enabled,
+		Enrolled:        true,
+		BackupCodesLeft: enrollment.BackupCodesLeft,
+	}, nil
+}
+
+// StartMFAEnrollment generates a fresh secret for the user and returns the
+// provisioning material. It does not enable MFA — ActivateMFA does, once a code
+// is verified. Re-running it before activation simply rotates the pending secret.
+func (s Service) StartMFAEnrollment(ctx context.Context, scope common.TenantScope, userID common.ID) (MFAEnrollmentSetup, error) {
+	if !s.mfaEnabled() {
+		return MFAEnrollmentSetup{}, authdomain.ErrForbidden
+	}
+	if scope.BusinessID.IsZero() || userID.IsZero() {
+		return MFAEnrollmentSetup{}, authdomain.ErrInvalidInput
+	}
+
+	if existing, err := s.mfa.Get(ctx, scope, userID); err == nil && existing.Enabled {
+		return MFAEnrollmentSetup{}, authdomain.ErrMFAAlreadyEnabled
+	} else if err != nil && !errors.Is(err, ports.ErrNotFound) {
+		return MFAEnrollmentSetup{}, err
+	}
+
+	secret, err := s.mfaSecrets.GenerateSecret()
+	if err != nil {
+		return MFAEnrollmentSetup{}, err
+	}
+	encrypted, err := s.mfaSecrets.EncryptSecret(secret)
+	if err != nil {
+		return MFAEnrollmentSetup{}, err
+	}
+	if err := s.mfa.Upsert(ctx, scope, ports.UpsertMFAInput{
+		UserID:          userID,
+		BusinessID:      scope.BusinessID,
+		SecretEncrypted: encrypted,
+	}); err != nil {
+		return MFAEnrollmentSetup{}, err
+	}
+
+	return MFAEnrollmentSetup{
+		Secret:          secret,
+		ProvisioningURI: s.mfaSecrets.ProvisioningURI(secret, s.mfaAccountName(ctx, scope, userID)),
+	}, nil
+}
+
+// ActivateMFA verifies the first code against the pending secret, enables MFA,
+// and returns one-time backup codes (shown to the user once).
+func (s Service) ActivateMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) ([]string, error) {
+	if !s.mfaEnabled() {
+		return nil, authdomain.ErrForbidden
+	}
+	enrollment, err := s.mfa.Get(ctx, scope, userID)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return nil, authdomain.ErrMFANotEnrolled
+		}
+		return nil, err
+	}
+	if enrollment.Enabled {
+		return nil, authdomain.ErrMFAAlreadyEnabled
+	}
+
+	secret, err := s.mfaSecrets.DecryptSecret(enrollment.SecretEncrypted)
+	if err != nil {
+		return nil, err
+	}
+	if !s.mfaSecrets.VerifyCode(secret, code, s.clock.Now()) {
+		return nil, authdomain.ErrInvalidMFACode
+	}
+
+	backupCodes, err := s.mfaSecrets.GenerateBackupCodes()
+	if err != nil {
+		return nil, err
+	}
+	hashes := make([]string, 0, len(backupCodes))
+	for _, c := range backupCodes {
+		hashes = append(hashes, s.mfaSecrets.HashBackupCode(c))
+	}
+	if err := s.mfa.Enable(ctx, scope, ports.EnableMFAInput{
+		UserID:           userID,
+		BackupCodeHashes: hashes,
+	}); err != nil {
+		return nil, err
+	}
+
+	return backupCodes, nil
+}
+
+// DisableMFA turns MFA off after verifying a current code or a backup code.
+func (s Service) DisableMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) error {
+	if !s.mfaEnabled() {
+		return authdomain.ErrForbidden
+	}
+	enrollment, err := s.mfa.Get(ctx, scope, userID)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return authdomain.ErrMFANotEnabled
+		}
+		return err
+	}
+	if !enrollment.Enabled {
+		return authdomain.ErrMFANotEnabled
+	}
+
+	ok, err := s.verifyMFAFactor(ctx, scope, userID, enrollment.SecretEncrypted, code)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return authdomain.ErrInvalidMFACode
+	}
+
+	return s.mfa.Delete(ctx, scope, userID)
+}
+
+// VerifyMFALoginCommand completes a login challenge with a second factor.
+type VerifyMFALoginCommand struct {
+	ChallengeToken string
+	Code           string
+	UserAgent      string
+	IPAddress      string
+}
+
+// VerifyMFALogin redeems a password-stage challenge token plus a TOTP/backup code
+// for a full session.
+func (s Service) VerifyMFALogin(ctx context.Context, cmd VerifyMFALoginCommand) (AuthResult, error) {
+	if !s.mfaEnabled() {
+		return AuthResult{}, authdomain.ErrForbidden
+	}
+	verified, err := s.mfaVerifier.VerifyMFAChallengeToken(ctx, strings.TrimSpace(cmd.ChallengeToken))
+	if err != nil {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	scope := common.TenantScope{BusinessID: verified.BusinessID}
+	enrollment, err := s.mfa.Get(ctx, scope, verified.Subject)
+	if err != nil || !enrollment.Enabled {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	ok, err := s.verifyMFAFactor(ctx, scope, verified.Subject, enrollment.SecretEncrypted, cmd.Code)
+	if err != nil {
+		return AuthResult{}, err
+	}
+	if !ok {
+		return AuthResult{}, authdomain.ErrInvalidMFACode
+	}
+
+	return s.issueSession(ctx, issueSessionInput{
+		BusinessID:     verified.BusinessID,
+		BusinessUserID: verified.Subject,
+		Role:           verified.Role,
+		UserAgent:      cmd.UserAgent,
+		IPAddress:      cmd.IPAddress,
+	})
+}
+
+// verifyMFAFactor accepts either a valid current TOTP code or an unused backup
+// code (which it consumes).
+func (s Service) verifyMFAFactor(ctx context.Context, scope common.TenantScope, userID common.ID, secretEncrypted []byte, code string) (bool, error) {
+	secret, err := s.mfaSecrets.DecryptSecret(secretEncrypted)
+	if err != nil {
+		return false, err
+	}
+	if s.mfaSecrets.VerifyCode(secret, code, s.clock.Now()) {
+		return true, nil
+	}
+	return s.mfa.ConsumeBackupCode(ctx, scope, userID, s.mfaSecrets.HashBackupCode(code))
+}
+
+// mfaAccountName resolves a human label for the authenticator entry (the user's
+// email when available, otherwise the user id).
+func (s Service) mfaAccountName(ctx context.Context, scope common.TenantScope, userID common.ID) string {
+	users, err := s.businesses.ListBusinessUsers(ctx, scope)
+	if err == nil {
+		for _, u := range users {
+			if u.UserID == userID && strings.TrimSpace(u.Email) != "" {
+				return u.Email
+			}
+		}
+	}
+	return userID.String()
 }

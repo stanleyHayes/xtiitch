@@ -76,6 +76,14 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		return App{}, err
 	}
 
+	// MFA secrets are encrypted at rest. Prefer a dedicated key; fall back to the
+	// JWT signing key so local dev needs no extra config.
+	mfaEncryptionKey := cfg.MFAEncryptionKey
+	if mfaEncryptionKey == "" {
+		mfaEncryptionKey = cfg.JWTSigningKey
+	}
+	totpManager := authadapter.NewTOTPManager(cfg.MFAIssuer, mfaEncryptionKey)
+
 	authService := authapp.NewService(authapp.Dependencies{
 		Businesses:    postgres.NewBusinessIdentityRepository(db),
 		Sessions:      postgres.NewAuthSessionRepository(db),
@@ -86,6 +94,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		DashboardURL:  cfg.BusinessDashboardBaseURL,
 		IDs:           ids.UUIDGenerator{},
 		Clock:         clock.SystemClock{},
+		MFA:           postgres.NewMFARepository(db),
+		MFASecrets:    totpManager,
+		MFAChallenges: jwtIssuer,
+		MFAVerifier:   jwtIssuer,
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
