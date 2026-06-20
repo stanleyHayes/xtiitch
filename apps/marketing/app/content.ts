@@ -171,8 +171,10 @@ export const bespokeStages: TrackStage[] = [
 export type Plan = {
   name: string;
   badge?: string;
-  price: string;
-  priceNote: string;
+  monthlyPrice: string;
+  yearlyPrice: string;
+  // Shown on the yearly toggle when the annual price beats 12× monthly.
+  yearlySaving?: string;
   feeLabel: string;
   feeValue: string;
   available: boolean;
@@ -184,8 +186,8 @@ export type Plan = {
 export const plans: Plan[] = [
   {
     name: "Free — Get Online",
-    price: "GHS 0",
-    priceNote: "per month",
+    monthlyPrice: "GHS 0",
+    yearlyPrice: "GHS 0",
     feeLabel: "Fee on Xtiitch sales",
     feeValue: "3%",
     available: true,
@@ -202,8 +204,9 @@ export const plans: Plan[] = [
   {
     name: "Standard",
     badge: "Most popular",
-    price: "GHS 50",
-    priceNote: "per month · or GHS 600 a year",
+    monthlyPrice: "GHS 50",
+    yearlyPrice: "GHS 500",
+    yearlySaving: "2 months free",
     feeLabel: "Fee on Xtiitch sales",
     feeValue: "1%",
     available: true,
@@ -223,8 +226,9 @@ export const plans: Plan[] = [
   {
     name: "Growth",
     badge: "Best for scale",
-    price: "GHS 120",
-    priceNote: "per month · or GHS 1,440 a year",
+    monthlyPrice: "GHS 120",
+    yearlyPrice: "GHS 1,200",
+    yearlySaving: "2 months free",
     feeLabel: "Fee on Xtiitch sales",
     feeValue: "0.5% or none",
     available: true,
@@ -385,7 +389,7 @@ export const faqs: Faq[] = [
   {
     question: "What does it cost?",
     answer:
-      "Free costs nothing per month with a 3% share on sales through Xtiitch. Standard is GHS 50 a month (or GHS 600 a year) with a 1% share, and Growth is GHS 120 a month (or GHS 1,440 a year) with the lowest or no share. Our share sits on top of Paystack’s 1.95% transaction fee, and only applies to money that passes through Xtiitch. You can switch plan or billing cycle yourself from the dashboard.",
+      "Free costs nothing per month with a 3% share on sales through Xtiitch. Standard is GHS 50 a month — or GHS 500 a year, which is two months free — with a 1% share. Growth is GHS 120 a month, or GHS 1,200 a year (two months free), with the lowest or no share. Paying yearly gives you two months free on either paid plan. Our share sits on top of Paystack’s 1.95% transaction fee, and only applies to money that passes through Xtiitch. You can switch plan or billing cycle yourself from the dashboard.",
   },
   {
     question: "Do customers order and pay online?",

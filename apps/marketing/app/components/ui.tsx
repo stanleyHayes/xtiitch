@@ -1,5 +1,7 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import { Link as RouterLink } from "react-router";
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -1063,16 +1065,58 @@ export function ProductPreview() {
 }
 
 export function PlanCards({ items }: { items: Plan[] }) {
+  const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
+  const yearly = period === "yearly";
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 3,
-        gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-        alignItems: "stretch",
-      }}
-    >
-      {items.map((plan, index) => (
+    <Box>
+      <Box
+        sx={{ display: "flex", justifyContent: "center", mb: { xs: 3.5, md: 5 } }}
+      >
+        <ToggleButtonGroup
+          value={period}
+          exclusive
+          onChange={(_event, next) => {
+            if (next) setPeriod(next as "monthly" | "yearly");
+          }}
+          aria-label="Billing period"
+          sx={{
+            bgcolor: "background.paper",
+            borderRadius: 999,
+            p: 0.5,
+            border: "1px solid",
+            borderColor: "divider",
+            boxShadow: "0 16px 40px -34px rgba(21,17,26,0.6)",
+            "& .MuiToggleButton-root": {
+              border: "none",
+              borderRadius: 999,
+              px: { xs: 2, md: 2.75 },
+              py: 0.75,
+              textTransform: "none",
+              fontWeight: 800,
+              fontSize: 14,
+              color: "text.secondary",
+              transition: "background-color 200ms ease, color 200ms ease",
+              "&.Mui-selected": {
+                bgcolor: "primary.main",
+                color: "common.white",
+                "&:hover": { bgcolor: "primary.main" },
+              },
+            },
+          }}
+        >
+          <ToggleButton value="monthly">Monthly</ToggleButton>
+          <ToggleButton value="yearly">Yearly · 2 months free</ToggleButton>
+        </ToggleButtonGroup>
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 3,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+          alignItems: "stretch",
+        }}
+      >
+        {items.map((plan, index) => (
         <Card
           key={plan.name}
           sx={{
@@ -1150,12 +1194,21 @@ export function PlanCards({ items }: { items: Plan[] }) {
                 component="p"
                 sx={{ color: "primary.main" }}
               >
-                {plan.price}
+                {yearly ? plan.yearlyPrice : plan.monthlyPrice}
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {plan.priceNote}
+                {yearly ? "per year" : "per month"}
               </Typography>
             </Box>
+            {yearly && plan.yearlySaving ? (
+              <Chip
+                size="small"
+                label={plan.yearlySaving}
+                color="success"
+                variant="outlined"
+                sx={{ alignSelf: "flex-start", mt: 1, fontWeight: 800 }}
+              />
+            ) : null}
             <Chip
               size="small"
               variant="outlined"
@@ -1197,7 +1250,8 @@ export function PlanCards({ items }: { items: Plan[] }) {
             </Button>
           </CardContent>
         </Card>
-      ))}
+        ))}
+      </Box>
     </Box>
   );
 }
