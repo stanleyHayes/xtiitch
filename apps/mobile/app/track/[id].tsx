@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.75),
     marginTop: spacing(1.5),
   },
-  statusPillText: { color: palette.white, fontFamily: fonts.body, fontWeight: "800", fontSize: 13 },
+  statusPillText: { color: palette.onAccent, fontFamily: fonts.body, fontWeight: "800", fontSize: 13 },
   orderId: {
     fontFamily: fonts.body,
     fontSize: 12,

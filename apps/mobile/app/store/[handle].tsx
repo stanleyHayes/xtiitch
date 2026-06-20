@@ -223,7 +223,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   searchButtonText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontWeight: "800",
     fontSize: 15,

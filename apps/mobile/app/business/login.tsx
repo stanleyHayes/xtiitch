@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 
 import { loadSession, login } from "../../src/auth";
 import { fonts, palette, radius, spacing } from "../../src/theme";
-import { SkeletonBlock } from "../../src/ui";
+import { LoadingButtonLabel, SkeletonBlock } from "../../src/ui";
 
 export default function BusinessLoginScreen() {
   const router = useRouter();
@@ -119,12 +119,7 @@ export default function BusinessLoginScreen() {
           style={[styles.cta, !canSubmit && styles.ctaDisabled]}
         >
           {submitting ? (
-            <SkeletonBlock
-              width={84}
-              height={18}
-              radiusOverride={radius.pill}
-              style={styles.ctaSkeleton}
-            />
+            <LoadingButtonLabel label="Signing in" />
           ) : (
             <Text style={styles.ctaText}>Sign in</Text>
           )}
@@ -205,7 +200,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   title: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.display,
     fontSize: 30,
     fontWeight: "700",
@@ -251,12 +246,8 @@ const styles = StyleSheet.create({
     marginTop: spacing(1.5),
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaSkeleton: {
-    backgroundColor: "rgba(255,255,255,0.58)",
-    borderColor: "rgba(255,255,255,0.1)",
-  },
   ctaText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: "800",

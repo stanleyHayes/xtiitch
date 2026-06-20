@@ -2,16 +2,27 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
-import { fonts, palette } from "../src/theme";
+import { fonts } from "../src/theme";
+import { ThemeModeProvider, useTheme } from "../src/theme-mode";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" />
+      <ThemeModeProvider>
+        <StatusBar style="light" />
+        <ThemedStack />
+      </ThemeModeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function ThemedStack() {
+  const { palette } = useTheme();
+  return (
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: palette.burgundy },
-          headerTintColor: palette.white,
+          headerTintColor: palette.onAccent,
           headerTitleStyle: {
             fontFamily: fonts.display,
             fontWeight: "700",
@@ -20,6 +31,8 @@ export default function RootLayout() {
           headerShadowVisible: false,
           headerBackTitle: "Back",
           contentStyle: { backgroundColor: palette.cream },
+          // Toggle is wired in once every screen is theme-aware (see follow-up).
+          // headerRight: () => <ThemeToggle />,
         }}
       >
         <Stack.Screen name="index" options={{ title: "Xtiitch" }} />
@@ -32,6 +45,5 @@ export default function RootLayout() {
         <Stack.Screen name="business/order/[id]" options={{ title: "Order" }} />
         <Stack.Screen name="business/new-order" options={{ title: "New order" }} />
       </Stack>
-    </SafeAreaProvider>
   );
 }

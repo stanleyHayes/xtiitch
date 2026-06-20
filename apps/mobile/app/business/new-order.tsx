@@ -15,7 +15,7 @@ import {
   type BusinessDesign,
   type SizeBand,
 } from "../../src/businessApi";
-import { CenterState, ImageTile, SkeletonBlock } from "../../src/ui";
+import { CenterState, ImageTile, LoadingButtonLabel } from "../../src/ui";
 import { fonts, palette, radius, spacing } from "../../src/theme";
 
 export default function NewOrderScreen() {
@@ -222,12 +222,7 @@ export default function NewOrderScreen() {
         style={[styles.cta, !canSubmit && styles.ctaDisabled]}
       >
         {submitting ? (
-          <SkeletonBlock
-            width={104}
-            height={18}
-            radiusOverride={radius.pill}
-            style={styles.ctaSkeleton}
-          />
+          <LoadingButtonLabel label="Creating order" />
         ) : (
           <Text style={styles.ctaText}>Create order</Text>
         )}
@@ -367,12 +362,8 @@ const styles = StyleSheet.create({
     marginTop: spacing(3),
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaSkeleton: {
-    backgroundColor: "rgba(255,255,255,0.58)",
-    borderColor: "rgba(255,255,255,0.1)",
-  },
   ctaText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: "800",

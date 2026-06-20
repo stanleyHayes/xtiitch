@@ -5,7 +5,10 @@
 // platform fallbacks until those fonts are bundled through expo-font.
 import { Platform } from "react-native";
 
-export const palette = {
+// The light/default palette. `onAccent` is text/icons that sit ON a brand or
+// status colour (white on wine) — it stays light in dark mode, unlike `white`,
+// which is a surface/card fill that flips dark.
+export const lightPalette = {
   burgundy: "#800020", // Wine
   burgundyDeep: "#5c0118", // Deep Wine
   wineTint: "#f3e1e5",
@@ -13,6 +16,7 @@ export const palette = {
   cream: "#faf6f2",
   panel: "#fffaf7",
   white: "#ffffff",
+  onAccent: "#ffffff",
   softBorder: "#e7ded7", // Line
   mutedText: "#565b63", // Graphite
   mauve: "#9a7a80",
@@ -22,6 +26,34 @@ export const palette = {
   danger: "#c0392b", // order status · Received
   info: "#315f8f",
 } as const;
+
+export type Palette = { [K in keyof typeof lightPalette]: string };
+
+// Dark palette. Surfaces (cream/panel/white) go dark, text (ink/mutedText) goes
+// light, the wine accent lifts to a rosé so it reads on dark, and onAccent +
+// status colours stay legible. Keys match lightPalette exactly.
+export const darkPalette: Palette = {
+  burgundy: "#c2546f",
+  burgundyDeep: "#a83f5a",
+  wineTint: "#2a1820",
+  ink: "#f4eef0",
+  cream: "#120d14",
+  panel: "#1c151f",
+  white: "#241b28",
+  onAccent: "#ffffff",
+  softBorder: "#33293a",
+  mutedText: "#a99ba2",
+  mauve: "#b08c93",
+  gold: "#d9a648",
+  success: "#3fae6c",
+  warning: "#d2a32a",
+  danger: "#e0685a",
+  info: "#5b8cc0",
+};
+
+// Backwards-compatible default: modules that still import `palette` get the light
+// values. Theme-aware screens read the active palette via useTheme() instead.
+export const palette = lightPalette;
 
 export const radius = {
   sm: 10,

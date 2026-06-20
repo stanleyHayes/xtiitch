@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(0.75),
   },
   wordmark: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.display,
     fontSize: 44,
     fontWeight: "800",
@@ -322,7 +322,7 @@ const styles = StyleSheet.create({
   },
   primaryButtonPressed: { backgroundColor: palette.burgundyDeep },
   primaryButtonText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontWeight: "800",
     fontSize: 15,
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   studioTitle: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.display,
     fontSize: 19,
     fontWeight: "700",

@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   signOut: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontWeight: "700",
     fontSize: 14,
@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(2),
   },
   newOrderCtaText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 15,
     fontWeight: "800",

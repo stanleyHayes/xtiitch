@@ -1,7 +1,9 @@
 // Shared presentational helpers: a centred loading / empty / error state, a
 // brand image-or-swatch tile, and the studio order row — so every screen
 // handles async outcomes and renders orders the same way.
+import { useEffect, useRef } from "react";
 import {
+  Animated,
   Image,
   Pressable,
   StyleSheet,
@@ -103,6 +105,76 @@ export function SkeletonStack({ rows = 3 }: { rows?: number }) {
           height={index === 0 ? 18 : 13}
         />
       ))}
+    </View>
+  );
+}
+
+export function LoadingButtonLabel({
+  label,
+  color = palette.white,
+}: {
+  label: string;
+  color?: string;
+}) {
+  const dots = useRef([
+    new Animated.Value(0),
+    new Animated.Value(0),
+    new Animated.Value(0),
+  ]).current;
+
+  useEffect(() => {
+    const animations = dots.map((dot, index) =>
+      Animated.loop(
+        Animated.sequence([
+          Animated.delay(index * 120),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.delay(220),
+        ]),
+      ),
+    );
+    animations.forEach((animation) => animation.start());
+    return () => {
+      animations.forEach((animation) => animation.stop());
+    };
+  }, [dots]);
+
+  return (
+    <View style={styles.loadingButtonLabel}>
+      <Text style={[styles.loadingButtonText, { color }]}>{label}</Text>
+      <View style={styles.loadingDots} accessibilityElementsHidden>
+        {dots.map((dot, index) => (
+          <Animated.View
+            key={`loading-dot-${index}`}
+            style={[
+              styles.loadingDot,
+              {
+                backgroundColor: color,
+                opacity: dot.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.45, 1],
+                }),
+                transform: [
+                  {
+                    translateY: dot.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -4],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+        ))}
+      </View>
     </View>
   );
 }
@@ -264,6 +336,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(128,0,32,0.05)",
   },
+  loadingButtonLabel: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing(0.75),
+  },
+  loadingButtonText: {
+    fontFamily: fonts.body,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  loadingDots: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing(0.35),
+    paddingTop: 3,
+  },
+  loadingDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
   swatch: { justifyContent: "flex-end", overflow: "hidden" },
   swatchBar: { height: "32%", width: "60%", opacity: 0.7 },
   orderRow: {
@@ -292,7 +386,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.5),
   },
   statusPillText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 11,
     fontWeight: "800",

@@ -362,7 +362,7 @@ const styles = StyleSheet.create({
     marginTop: spacing(1.5),
   },
   statusPillText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontWeight: "800",
     fontSize: 13,
@@ -425,7 +425,7 @@ const styles = StyleSheet.create({
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
   ctaText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 16,
     fontWeight: "800",
@@ -480,7 +480,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   smallPrimaryText: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontSize: 14,
     fontWeight: "800",

@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   headerAction: {
-    color: palette.white,
+    color: palette.onAccent,
     fontFamily: fonts.body,
     fontWeight: "800",
     fontSize: 14,
@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
   },
   tabActive: { borderColor: palette.burgundy, backgroundColor: palette.burgundy },
   tabText: { fontFamily: fonts.body, fontSize: 14, fontWeight: "700", color: palette.ink },
-  tabTextActive: { color: palette.white },
+  tabTextActive: { color: palette.onAccent },
   tabBadge: {
     minWidth: 20,
     alignItems: "center",
@@ -174,7 +174,7 @@ const styles = StyleSheet.create({
   },
   tabBadgeActive: { backgroundColor: "rgba(255,255,255,0.25)" },
   tabBadgeText: { fontFamily: fonts.body, fontSize: 12, fontWeight: "800", color: palette.ink },
-  tabBadgeTextActive: { color: palette.white },
+  tabBadgeTextActive: { color: palette.onAccent },
   list: { gap: spacing(1.5) },
   empty: {
     backgroundColor: palette.panel,
