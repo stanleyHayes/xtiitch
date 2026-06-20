@@ -6013,7 +6013,9 @@ function OrdersTable({
                   {showMoneyDetails ? (
                     <TableCell align="right">
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        {target != null ? formatGHS(target) : "—"}
+                        {target !== null && target !== undefined
+                          ? formatGHS(target)
+                          : "—"}
                       </Typography>
                     </TableCell>
                   ) : null}
@@ -6251,6 +6253,57 @@ function OrdersTable({
   );
 }
 
+function OrderActionMenuItem({
+  icon,
+  label,
+  helper,
+  onClick,
+}: {
+  icon: ReactNode;
+  label: string;
+  helper: string;
+  onClick: () => void;
+}) {
+  return (
+    <MenuItem
+      onClick={onClick}
+      sx={{
+        px: 2,
+        py: 1.1,
+        gap: 1.25,
+        alignItems: "center",
+        "&:hover": {
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+        },
+      }}
+    >
+      <Box
+        aria-hidden
+        sx={{
+          width: 34,
+          height: 34,
+          flexShrink: 0,
+          borderRadius: 1.25,
+          display: "grid",
+          placeItems: "center",
+          color: "primary.main",
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+        }}
+      >
+        {icon}
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }} noWrap>
+          {label}
+        </Typography>
+        <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
+          {helper}
+        </Typography>
+      </Box>
+    </MenuItem>
+  );
+}
+
 function OrderCard({
   order,
   returnTo,
@@ -6279,15 +6332,23 @@ function OrderCard({
   return (
     <Panel
       id={`order-${order.order_id}`}
-      sx={{ height: "100%", p: { xs: 2, md: 2.5 } }}
+      sx={{
+        height: "100%",
+        p: { xs: 2, md: 2.5 },
+        containerType: "inline-size",
+      }}
     >
       <Stack spacing={2.25}>
         <Stack
-          direction={{ xs: "column", md: "row" }}
           spacing={2}
           sx={{
+            flexDirection: "column",
             justifyContent: "space-between",
-            alignItems: { xs: "stretch", md: "flex-start" },
+            alignItems: "stretch",
+            "@container (min-width: 720px)": {
+              flexDirection: "row",
+              alignItems: "flex-start",
+            },
           }}
         >
           <Stack direction="row" spacing={1.5} sx={{ minWidth: 0 }}>
@@ -6341,12 +6402,16 @@ function OrderCard({
 
           <Box
             sx={{
-              minWidth: { xs: "100%", md: 235 },
+              width: "100%",
+              minWidth: 0,
               border: "1px solid",
               borderColor: alpha(colour, 0.28),
               borderRadius: 2,
               p: 1.5,
               bgcolor: alpha(colour, 0.08),
+              "@container (min-width: 720px)": {
+                maxWidth: 280,
+              },
             }}
           >
             <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
@@ -6376,7 +6441,10 @@ function OrderCard({
           sx={{
             display: "grid",
             gap: 1.25,
-            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+            gridTemplateColumns: "1fr",
+            "@container (min-width: 720px)": {
+              gridTemplateColumns: "1fr 1fr",
+            },
           }}
         >
           <InfoStrip
@@ -6409,11 +6477,15 @@ function OrderCard({
             }}
           >
             <Stack
-              direction={{ xs: "column", sm: "row" }}
               spacing={1}
               sx={{
-                alignItems: { xs: "stretch", sm: "center" },
+                flexDirection: "column",
+                alignItems: "stretch",
                 justifyContent: "space-between",
+                "@container (min-width: 720px)": {
+                  flexDirection: "row",
+                  alignItems: "center",
+                },
               }}
             >
               <Box sx={{ minWidth: 0 }}>
@@ -6431,6 +6503,13 @@ function OrderCard({
                 variant="outlined"
                 startIcon={<PaymentsRounded />}
                 onClick={() => setPaymentOpen(true)}
+                fullWidth
+                sx={{
+                  "@container (min-width: 720px)": {
+                    width: "auto",
+                    minWidth: 190,
+                  },
+                }}
               >
                 Manage payment
               </Button>
@@ -6574,17 +6653,21 @@ function OrderCard({
         ) : null}
 
         <Stack
-          direction={{ xs: "column", sm: "row" }}
           spacing={1.25}
           sx={{
+            flexDirection: "column",
             justifyContent: "space-between",
-            alignItems: { xs: "stretch", sm: "center" },
+            alignItems: "stretch",
+            "@container (min-width: 720px)": {
+              flexDirection: "row",
+              alignItems: "center",
+            },
           }}
         >
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             Ref {order.order_id.slice(0, 8)}
           </Typography>
-          <Form method="post">
+          <Form method="post" style={{ width: "100%" }}>
             <input type="hidden" name="intent" value="advance" />
             <input type="hidden" name="order_id" value={order.order_id} />
             <input type="hidden" name="return_to" value={returnTo} />
@@ -6615,11 +6698,15 @@ function OrderCard({
               </Alert>
             ) : (
               <Stack
-                direction={{ xs: "column", sm: "row" }}
                 spacing={1}
                 sx={{
-                  alignItems: { xs: "stretch", sm: "center" },
+                  flexDirection: "column",
+                  alignItems: "stretch",
                   justifyContent: "space-between",
+                  "@container (min-width: 720px)": {
+                    flexDirection: "row",
+                    alignItems: "center",
+                  },
                 }}
               >
                 <Box sx={{ minWidth: 0 }}>
@@ -6637,6 +6724,13 @@ function OrderCard({
                   variant="outlined"
                   startIcon={<StraightenRounded />}
                   onClick={() => setMeasurementsOpen(true)}
+                  fullWidth
+                  sx={{
+                    "@container (min-width: 720px)": {
+                      width: "auto",
+                      minWidth: 210,
+                    },
+                  }}
                 >
                   Record measurements
                 </Button>

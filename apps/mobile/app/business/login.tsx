@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +11,7 @@ import { useRouter } from "expo-router";
 
 import { loadSession, login } from "../../src/auth";
 import { fonts, palette, radius, spacing } from "../../src/theme";
+import { SkeletonBlock } from "../../src/ui";
 
 export default function BusinessLoginScreen() {
   const router = useRouter();
@@ -61,7 +61,14 @@ export default function BusinessLoginScreen() {
   if (checking) {
     return (
       <View style={styles.checking}>
-        <ActivityIndicator size="large" color={palette.burgundy} />
+        <SkeletonBlock width={132} height={28} radiusOverride={radius.pill} />
+        <SkeletonBlock width="64%" height={14} />
+        <View style={styles.checkingPanel}>
+          <SkeletonBlock height={54} radiusOverride={radius.md} />
+          <SkeletonBlock height={54} radiusOverride={radius.md} />
+          <SkeletonBlock height={54} radiusOverride={radius.md} />
+          <SkeletonBlock height={56} radiusOverride={radius.pill} />
+        </View>
       </View>
     );
   }
@@ -111,9 +118,16 @@ export default function BusinessLoginScreen() {
           onPress={submit}
           style={[styles.cta, !canSubmit && styles.ctaDisabled]}
         >
-          <Text style={styles.ctaText}>
-            {submitting ? "Signing in…" : "Sign in"}
-          </Text>
+          {submitting ? (
+            <SkeletonBlock
+              width={84}
+              height={18}
+              radiusOverride={radius.pill}
+              style={styles.ctaSkeleton}
+            />
+          ) : (
+            <Text style={styles.ctaText}>Sign in</Text>
+          )}
         </Pressable>
 
         <Pressable style={styles.demo} onPress={fillDemo}>
@@ -166,6 +180,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: palette.cream,
+    padding: spacing(3),
+    gap: spacing(1.25),
+  },
+  checkingPanel: {
+    width: "100%",
+    marginTop: spacing(2),
+    gap: spacing(1.25),
   },
   content: { paddingBottom: spacing(6) },
   hero: {
@@ -230,6 +251,10 @@ const styles = StyleSheet.create({
     marginTop: spacing(1.5),
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+  ctaSkeleton: {
+    backgroundColor: "rgba(255,255,255,0.58)",
+    borderColor: "rgba(255,255,255,0.1)",
+  },
   ctaText: {
     color: palette.white,
     fontFamily: fonts.body,

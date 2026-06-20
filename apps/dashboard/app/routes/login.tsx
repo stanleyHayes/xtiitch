@@ -3,13 +3,13 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
+import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
@@ -220,10 +220,52 @@ export default function Login({ actionData }: Route.ComponentProps) {
             sx={{
               p: { xs: 3, md: 4 },
               border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 2,
+              borderColor: alpha(tokens.ink, 0.12),
+              borderRadius: 3,
               alignSelf: "center",
-              bgcolor: alpha(tokens.white, 0.96),
+              bgcolor: alpha(tokens.white, 0.98),
+              color: tokens.ink,
+              boxShadow: `0 28px 72px ${alpha(tokens.ink, 0.16)}`,
+              "& .MuiTypography-root": {
+                color: "inherit",
+              },
+              "& .MuiTypography-colorTextSecondary": {
+                color: alpha(tokens.ink, 0.68),
+              },
+              "& .MuiInputLabel-root": {
+                color: alpha(tokens.ink, 0.68),
+                bgcolor: alpha(tokens.white, 0.98),
+                px: 0.75,
+                ml: -0.75,
+                borderRadius: 1,
+                "&.Mui-focused": {
+                  color: tokens.burgundy,
+                },
+              },
+              "& .MuiOutlinedInput-root": {
+                bgcolor: tokens.white,
+                color: tokens.ink,
+                borderRadius: 2,
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: alpha(tokens.ink, 0.22),
+                },
+                "&:hover .MuiOutlinedInput-notchedOutline": {
+                  borderColor: alpha(tokens.burgundy, 0.5),
+                },
+                "&.Mui-focused": {
+                  boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.12)}`,
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: tokens.burgundy,
+                  },
+                },
+              },
+              "& .MuiInputAdornment-root, & .MuiSvgIcon-root": {
+                color: alpha(tokens.ink, 0.62),
+              },
+              "& input::placeholder": {
+                color: alpha(tokens.ink, 0.48),
+                opacity: 1,
+              },
             }}
           >
             {/* Compact brand, mobile only (the side panel is hidden < lg). */}
@@ -253,7 +295,10 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
                   Xtiitch
                 </Typography>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha(tokens.ink, 0.68) }}
+                >
                   Business dashboard
                 </Typography>
               </Box>
@@ -267,7 +312,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
               <Typography variant="h4" component="h2">
                 Sign in
               </Typography>
-              <Typography sx={{ color: "text.secondary" }}>
+              <Typography sx={{ color: alpha(tokens.ink, 0.68) }}>
                 Use your store handle and owner account.
               </Typography>
             </Stack>
@@ -333,12 +378,31 @@ export default function Login({ actionData }: Route.ComponentProps) {
                   disabled={isSubmitting}
                   startIcon={
                     isSubmitting ? (
-                      <CircularProgress size={18} color="inherit" thickness={5} />
+                      <Skeleton
+                        variant="rounded"
+                        width={18}
+                        height={18}
+                        sx={{
+                          bgcolor: "rgba(255,255,255,0.54)",
+                          borderRadius: 1,
+                        }}
+                      />
                     ) : undefined
                   }
                   endIcon={isSubmitting ? undefined : <LoginRounded />}
                 >
-                  {isSubmitting ? "Signing in..." : "Sign in"}
+                  {isSubmitting ? (
+                    <Skeleton
+                      variant="text"
+                      width={72}
+                      sx={{
+                        bgcolor: "rgba(255,255,255,0.54)",
+                        fontSize: "1rem",
+                      }}
+                    />
+                  ) : (
+                    "Sign in"
+                  )}
                 </Button>
               </Stack>
             </Form>

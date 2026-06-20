@@ -348,6 +348,7 @@ type CreatePlanCommand struct {
 	Code            string
 	Name            string
 	MonthlyFeeMinor int64
+	YearlyFeeMinor  int64
 	CommissionBPS   int
 	DesignLimit     *int
 	Features        map[string]bool
@@ -361,6 +362,7 @@ type UpdatePlanCommand struct {
 	PlanID          common.ID
 	Name            string
 	MonthlyFeeMinor int64
+	YearlyFeeMinor  int64
 	CommissionBPS   int
 	DesignLimit     *int
 	Features        map[string]bool
@@ -2217,6 +2219,7 @@ func (s Service) CreatePlan(
 		Metadata: map[string]string{
 			"code":              record.Code,
 			"monthly_fee_minor": strconv.FormatInt(record.MonthlyFeeMinor, 10),
+			"yearly_fee_minor":  strconv.FormatInt(record.YearlyFeeMinor, 10),
 			"commission_bps":    strconv.Itoa(record.CommissionBPS),
 			"is_active":         boolString(record.IsActive),
 		},
@@ -2265,6 +2268,7 @@ func (s Service) UpdatePlan(
 		Metadata: map[string]string{
 			"code":              record.Code,
 			"monthly_fee_minor": strconv.FormatInt(record.MonthlyFeeMinor, 10),
+			"yearly_fee_minor":  strconv.FormatInt(record.YearlyFeeMinor, 10),
 			"commission_bps":    strconv.Itoa(record.CommissionBPS),
 			"is_active":         boolString(record.IsActive),
 		},
@@ -4975,13 +4979,14 @@ func normalizeCreatePlanInput(cmd CreatePlanCommand) (ports.CreateAdminPlanInput
 	if name == "" {
 		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
-	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
 		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
 	return ports.CreateAdminPlanInput{
 		Code:            code,
 		Name:            name,
 		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
+		YearlyFeeMinor:  cmd.YearlyFeeMinor,
 		CommissionBPS:   cmd.CommissionBPS,
 		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
 		Features:        business.SanitizeFeatures(cmd.Features),
@@ -4993,13 +4998,14 @@ func normalizeUpdatePlanInput(cmd UpdatePlanCommand) (ports.UpdateAdminPlanInput
 	if name == "" {
 		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
-	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
 		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
 	return ports.UpdateAdminPlanInput{
 		PlanID:          cmd.PlanID,
 		Name:            name,
 		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
+		YearlyFeeMinor:  cmd.YearlyFeeMinor,
 		CommissionBPS:   cmd.CommissionBPS,
 		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
 		Features:        business.SanitizeFeatures(cmd.Features),
@@ -5040,8 +5046,8 @@ func validPlanCode(value string) bool {
 	return (last >= 'a' && last <= 'z') || (last >= '0' && last <= '9')
 }
 
-func validPlanEconomics(monthlyFeeMinor int64, commissionBPS int, designLimit *int) bool {
-	if monthlyFeeMinor < 0 || commissionBPS < 0 || commissionBPS > 10000 {
+func validPlanEconomics(monthlyFeeMinor int64, yearlyFeeMinor int64, commissionBPS int, designLimit *int) bool {
+	if monthlyFeeMinor < 0 || yearlyFeeMinor < 0 || commissionBPS < 0 || commissionBPS > 10000 {
 		return false
 	}
 	if designLimit != nil && *designLimit < 0 {
@@ -5061,7 +5067,10 @@ func copyOptionalInt(value *int) *int {
 func planAuditSummary(record ports.AdminPlanRecord) string {
 	fee := "free"
 	if record.MonthlyFeeMinor > 0 {
-		fee = "GHS " + strconv.FormatFloat(float64(record.MonthlyFeeMinor)/100, 'f', 2, 64)
+		fee = "GHS " + strconv.FormatFloat(float64(record.MonthlyFeeMinor)/100, 'f', 2, 64) + "/month"
+	}
+	if record.YearlyFeeMinor > 0 {
+		fee += " or GHS " + strconv.FormatFloat(float64(record.YearlyFeeMinor)/100, 'f', 2, 64) + "/year"
 	}
 	return record.Code + " package set to " + fee +
 		" and " + strconv.FormatFloat(float64(record.CommissionBPS)/100, 'f', 2, 64) +

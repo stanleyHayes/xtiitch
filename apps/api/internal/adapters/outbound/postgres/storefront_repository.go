@@ -60,6 +60,7 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 		rows, err := tx.Query(ctx, `
 			select b.business_id, b.name, b.handle,
 				coalesce(nullif(ss.brand_color, ''), '#800020'),
+				coalesce(ss.banner_url, ''),
 				(select count(*) from designs d
 					where d.business_id = b.business_id and d.status = 'active')
 			from businesses b
@@ -75,7 +76,7 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 		for rows.Next() {
 			var shop ports.PublicShop
 			if err := rows.Scan(
-				&shop.BusinessID, &shop.Name, &shop.Handle, &shop.BrandColor, &shop.DesignCount,
+				&shop.BusinessID, &shop.Name, &shop.Handle, &shop.BrandColor, &shop.BannerURL, &shop.DesignCount,
 			); err != nil {
 				return err
 			}

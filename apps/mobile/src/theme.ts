@@ -1,9 +1,8 @@
 // Xtiitch brand system for the native customer surface, aligned to
 // Xtiitch-Brand-Guidelines v1.0 (see apps/*/app/theme.ts). Wine leads; Graphite
 // is secondary text; Line is the border; red/amber/green are reserved for order
-// status. The brand typeface is Inter Tight — on native we use a single clean
-// system sans (matching the single-typeface principle); bundling the actual
-// Inter Tight via expo-font is a noted follow-up.
+// status. Web uses Fraunces for titles and Outfit for body/UI; native keeps
+// platform fallbacks until those fonts are bundled through expo-font.
 import { Platform } from "react-native";
 
 export const palette = {
@@ -43,8 +42,7 @@ export const shadow = {
   },
 } as const;
 
-// One clean sans for everything (the brand uses a single typeface, Inter Tight);
-// display weight is carried by size + weight.
+// Native-safe platform fallbacks. Web carries the actual Fraunces/Outfit pair.
 const sansStack = Platform.select({
   ios: "System",
   android: "sans-serif",

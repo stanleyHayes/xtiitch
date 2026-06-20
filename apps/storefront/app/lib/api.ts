@@ -102,6 +102,9 @@ export type PublicShop = {
   name: string;
   handle: string;
   brand_color: string;
+  // Merchant's storefront banner (empty when unset). The discovery card uses it
+  // so its cover matches the store page hero, which renders the same banner.
+  banner_url: string;
   design_count: number;
   designs: PublicShopDesign[];
 };

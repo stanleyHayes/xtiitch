@@ -15,7 +15,7 @@ import {
   type BusinessDesign,
   type SizeBand,
 } from "../../src/businessApi";
-import { CenterState, ImageTile } from "../../src/ui";
+import { CenterState, ImageTile, SkeletonBlock } from "../../src/ui";
 import { fonts, palette, radius, spacing } from "../../src/theme";
 
 export default function NewOrderScreen() {
@@ -33,7 +33,10 @@ export default function NewOrderScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const toLogin = useCallback(() => router.replace("/business/login"), [router]);
+  const toLogin = useCallback(
+    () => router.replace("/business/login"),
+    [router],
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -66,7 +69,7 @@ export default function NewOrderScreen() {
     }, [toLogin]),
   );
 
-  const canSubmit = !!designId && name.trim().length > 1 && !submitting;
+  const canSubmit = Boolean(designId) && name.trim().length > 1 && !submitting;
 
   const submit = async () => {
     if (!designId) return;
@@ -151,7 +154,12 @@ export default function NewOrderScreen() {
               onPress={() => setBandId(null)}
               style={[styles.band, bandId === null && styles.bandActive]}
             >
-              <Text style={[styles.bandText, bandId === null && styles.bandTextActive]}>
+              <Text
+                style={[
+                  styles.bandText,
+                  bandId === null && styles.bandTextActive,
+                ]}
+              >
                 Measurement
               </Text>
             </Pressable>
@@ -163,7 +171,9 @@ export default function NewOrderScreen() {
                   onPress={() => setBandId(band.size_band_id)}
                   style={[styles.band, active && styles.bandActive]}
                 >
-                  <Text style={[styles.bandText, active && styles.bandTextActive]}>
+                  <Text
+                    style={[styles.bandText, active && styles.bandTextActive]}
+                  >
                     {band.label}
                   </Text>
                 </Pressable>
@@ -175,7 +185,12 @@ export default function NewOrderScreen() {
 
       <Text style={styles.sectionLabel}>Customer</Text>
       <View style={styles.form}>
-        <Field label="Full name" value={name} onChange={setName} placeholder="Esi Mensah" />
+        <Field
+          label="Full name"
+          value={name}
+          onChange={setName}
+          placeholder="Esi Mensah"
+        />
         <Field
           label="Phone"
           value={phone}
@@ -206,9 +221,16 @@ export default function NewOrderScreen() {
         onPress={submit}
         style={[styles.cta, !canSubmit && styles.ctaDisabled]}
       >
-        <Text style={styles.ctaText}>
-          {submitting ? "Creating order…" : "Create order"}
-        </Text>
+        {submitting ? (
+          <SkeletonBlock
+            width={104}
+            height={18}
+            radiusOverride={radius.pill}
+            style={styles.ctaSkeleton}
+          />
+        ) : (
+          <Text style={styles.ctaText}>Create order</Text>
+        )}
       </Pressable>
     </ScrollView>
   );
@@ -305,7 +327,12 @@ const styles = StyleSheet.create({
     borderColor: palette.burgundy,
     backgroundColor: "rgba(128,0,32,0.06)",
   },
-  bandText: { fontFamily: fonts.body, fontSize: 14, fontWeight: "700", color: palette.ink },
+  bandText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
+  },
   bandTextActive: { color: palette.burgundy },
   form: { gap: spacing(1.75) },
   fieldLabel: {
@@ -340,6 +367,10 @@ const styles = StyleSheet.create({
     marginTop: spacing(3),
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
+  ctaSkeleton: {
+    backgroundColor: "rgba(255,255,255,0.58)",
+    borderColor: "rgba(255,255,255,0.1)",
+  },
   ctaText: {
     color: palette.white,
     fontFamily: fonts.body,

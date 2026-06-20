@@ -8,6 +8,7 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import Chip from "@mui/material/Chip";
+import Skeleton from "@mui/material/Skeleton";
 import AlternateEmailRoundedIcon from "@mui/icons-material/AlternateEmailRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
@@ -247,7 +248,19 @@ export function WaitlistForm() {
           size="large"
           disabled={submitting}
         >
-          {submitting ? "Sending…" : "Join the waitlist"}
+          {submitting ? (
+            <Skeleton
+              variant="text"
+              width={128}
+              sx={{
+                bgcolor: "rgba(255,255,255,0.58)",
+                fontSize: "1rem",
+                maxWidth: "100%",
+              }}
+            />
+          ) : (
+            "Join the waitlist"
+          )}
         </Button>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
           We’ll only use your details to set up your store and reach you about

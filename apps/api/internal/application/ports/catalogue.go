@@ -119,10 +119,14 @@ type PublicShopDesign struct {
 // PublicShop is a single verified, active storefront as listed in the public
 // shops directory on the marketing site.
 type PublicShop struct {
-	BusinessID  common.ID
-	Name        string
-	Handle      string
-	BrandColor  string
+	BusinessID common.ID
+	Name       string
+	Handle     string
+	BrandColor string
+	// BannerURL is the merchant's uploaded storefront banner (empty when unset or
+	// not plan-entitled). The discovery card renders it so its cover matches the
+	// store page hero, which uses the same banner.
+	BannerURL   string
 	DesignCount int
 	Designs     []PublicShopDesign
 }

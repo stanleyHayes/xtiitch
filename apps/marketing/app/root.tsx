@@ -7,12 +7,14 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
   type LinksFunction,
+  useNavigation,
 } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
+import Skeleton from "@mui/material/Skeleton";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 import { Header, Footer } from "./components/layout";
@@ -75,7 +77,59 @@ export function Layout({ children }: { children: ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  const navigation = useNavigation();
+  return (
+    <>
+      <Outlet />
+      {navigation.state !== "idle" ? <RoutePendingSkeleton /> : null}
+    </>
+  );
+}
+
+function RoutePendingSkeleton() {
+  return (
+    <Box
+      aria-live="polite"
+      aria-busy="true"
+      sx={{
+        position: "fixed",
+        inset: { xs: 12, sm: 20 },
+        zIndex: 2400,
+        pointerEvents: "none",
+        display: "flex",
+        alignItems: "flex-start",
+        justifyContent: "center",
+      }}
+    >
+      <Box
+        sx={{
+          width: "min(760px, 100%)",
+          p: { xs: 2, sm: 2.5 },
+          borderRadius: 3,
+          bgcolor: "rgba(var(--surface-rgb), 0.94)",
+          border: "1px solid rgba(128,0,32,0.14)",
+          boxShadow: "0 24px 80px rgba(21,17,26,0.18)",
+          backdropFilter: "blur(18px)",
+        }}
+      >
+        <Stack spacing={1.4}>
+          <Skeleton variant="rounded" width="38%" height={18} />
+          <Skeleton variant="rounded" width="100%" height={42} />
+          <Box
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+              gap: 1.2,
+            }}
+          >
+            <Skeleton variant="rounded" height={74} />
+            <Skeleton variant="rounded" height={74} />
+            <Skeleton variant="rounded" height={74} />
+          </Box>
+        </Stack>
+      </Box>
+    </Box>
+  );
 }
 
 export function ErrorBoundary({ error }: { error: unknown }) {

@@ -1276,6 +1276,7 @@ export async function action({ request }: Route.ActionArgs) {
           code: String(form.get("code") ?? ""),
           name: String(form.get("name") ?? ""),
           monthlyFeeMinor: readGhsPesewas(form.get("monthly_fee_ghs")),
+          yearlyFeeMinor: readGhsPesewas(form.get("yearly_fee_ghs")),
           commissionBps: Math.trunc(readNumber(form.get("commission_bps"), 0)),
           designLimit: readOptionalInteger(form.get("design_limit")),
           features: planFeatures,
@@ -1294,6 +1295,7 @@ export async function action({ request }: Route.ActionArgs) {
           {
             name: String(form.get("name") ?? ""),
             monthlyFeeMinor: readGhsPesewas(form.get("monthly_fee_ghs")),
+            yearlyFeeMinor: readGhsPesewas(form.get("yearly_fee_ghs")),
             commissionBps: Math.trunc(
               readNumber(form.get("commission_bps"), 0),
             ),
@@ -2314,7 +2316,7 @@ function adminPlanActionError(error: unknown): string {
       case "forbidden":
         return "Your role cannot manage plan packages.";
       case "invalid_input":
-        return "Check the package code, name, monthly fee, commission, and design limit.";
+        return "Check the package code, name, monthly fee, yearly fee, commission, and design limit.";
       case "not_found":
         return "That plan package could not be found.";
       default:
@@ -5752,6 +5754,7 @@ function ExportsSection({
           "Code",
           "Active",
           "Monthly fee",
+          "Yearly fee",
           "Commission",
           "Design limit",
           "Businesses",
@@ -5765,6 +5768,7 @@ function ExportsSection({
           plan.code,
           plan.isActive ? "Active" : "Archived",
           formatGHS(plan.monthlyFeeMinor),
+          formatGHS(plan.yearlyFeeMinor),
           `${(plan.commissionBps / 100).toFixed(2)}%`,
           typeof plan.designLimit === "number" ? plan.designLimit : "Unlimited",
           plan.businessCount,
@@ -6914,6 +6918,7 @@ type AdminSubscriptionPlanMeta = {
   code: string;
   name: string;
   monthlyFeeMinor: number;
+  yearlyFeeMinor: number;
   commissionBps: number;
   designLimit: string;
   promise: string;
@@ -6924,6 +6929,7 @@ const freeSubscriptionPlanMeta: AdminSubscriptionPlanMeta = {
   code: "free",
   name: "Free - Get Online",
   monthlyFeeMinor: 0,
+  yearlyFeeMinor: 0,
   commissionBps: 300,
   designLimit: "10 designs",
   promise: "Starter storefront, higher commission.",
@@ -6936,6 +6942,7 @@ const subscriptionPlanMeta: AdminSubscriptionPlanMeta[] = [
     code: "standard",
     name: "Standard",
     monthlyFeeMinor: 5000,
+    yearlyFeeMinor: 60000,
     commissionBps: 100,
     designLimit: "Unlimited",
     promise: "Lower commission for active shops.",
@@ -6945,6 +6952,7 @@ const subscriptionPlanMeta: AdminSubscriptionPlanMeta[] = [
     code: "growth",
     name: "Growth",
     monthlyFeeMinor: 12000,
+    yearlyFeeMinor: 144000,
     commissionBps: 50,
     designLimit: "Unlimited",
     promise: "Lowest commission for scaling teams.",
@@ -6970,6 +6978,7 @@ function fallbackAdminPlans(): AdminPlan[] {
     code: plan.code,
     name: plan.name,
     monthlyFeeMinor: plan.monthlyFeeMinor,
+    yearlyFeeMinor: plan.yearlyFeeMinor,
     commissionBps: plan.commissionBps,
     designLimit: plan.code === "free" ? 10 : undefined,
     features: Object.fromEntries(
@@ -7079,6 +7088,10 @@ function planMonthlyFeeDefault(
   plan: Pick<AdminPlan, "monthlyFeeMinor">,
 ): string {
   return (plan.monthlyFeeMinor / 100).toFixed(2);
+}
+
+function planYearlyFeeDefault(plan: Pick<AdminPlan, "yearlyFeeMinor">): string {
+  return (plan.yearlyFeeMinor / 100).toFixed(2);
 }
 
 const subscriptionStatusOptions: {
@@ -8305,7 +8318,8 @@ function SubscriptionsSection({
                         gap: 1.25,
                         gridTemplateColumns: {
                           xs: "1fr",
-                          md: "repeat(3, minmax(0, 1fr))",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(4, minmax(0, 1fr))",
                         },
                       }}
                     >
@@ -8315,6 +8329,24 @@ function SubscriptionsSection({
                         type="number"
                         size="small"
                         defaultValue="0.00"
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                GHS
+                              </InputAdornment>
+                            ),
+                          },
+                          htmlInput: { min: 0, step: "0.01" },
+                        }}
+                      />
+                      <TextField
+                        label="Yearly fee"
+                        name="yearly_fee_ghs"
+                        type="number"
+                        size="small"
+                        defaultValue="0.00"
+                        helperText="Used when a business pays for a year upfront."
                         slotProps={{
                           input: {
                             startAdornment: (
@@ -8443,13 +8475,17 @@ function SubscriptionsSection({
                       gap: 1.25,
                       gridTemplateColumns: {
                         xs: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(4, minmax(0, 1fr))",
+                        lg: "repeat(5, minmax(0, 1fr))",
                       },
                     }}
                   >
                     <PlanStatTile
                       label="Monthly fee"
                       value={formatGHS(plan.monthlyFeeMinor)}
+                    />
+                    <PlanStatTile
+                      label="Yearly fee"
+                      value={formatGHS(plan.yearlyFeeMinor)}
                     />
                     <PlanStatTile
                       label="Commission"
@@ -8598,7 +8634,8 @@ function SubscriptionsSection({
                                   gap: 1.25,
                                   gridTemplateColumns: {
                                     xs: "1fr",
-                                    md: "repeat(4, minmax(0, 1fr))",
+                                    sm: "repeat(2, minmax(0, 1fr))",
+                                    lg: "repeat(5, minmax(0, 1fr))",
                                   },
                                 }}
                               >
@@ -8608,6 +8645,24 @@ function SubscriptionsSection({
                                   type="number"
                                   size="small"
                                   defaultValue={planMonthlyFeeDefault(plan)}
+                                  slotProps={{
+                                    input: {
+                                      startAdornment: (
+                                        <InputAdornment position="start">
+                                          GHS
+                                        </InputAdornment>
+                                      ),
+                                    },
+                                    htmlInput: { min: 0, step: "0.01" },
+                                  }}
+                                />
+                                <TextField
+                                  label="Yearly fee"
+                                  name="yearly_fee_ghs"
+                                  type="number"
+                                  size="small"
+                                  defaultValue={planYearlyFeeDefault(plan)}
+                                  helperText="Upfront annual price"
                                   slotProps={{
                                     input: {
                                       startAdornment: (
@@ -8788,7 +8843,8 @@ function SubscriptionsSection({
                 {row.plan.monthlyFeeMinor > 0
                   ? formatGHS(row.plan.monthlyFeeMinor)
                   : "Free"}{" "}
-                · {row.plan.commissionBps / 100}% commission
+                monthly · {formatGHS(row.plan.yearlyFeeMinor)} yearly ·{" "}
+                {row.plan.commissionBps / 100}% commission
               </Typography>
             </Box>
             <Typography sx={{ fontWeight: 800, textAlign: "right" }}>

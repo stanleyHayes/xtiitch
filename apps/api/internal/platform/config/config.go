@@ -17,10 +17,10 @@ type Config struct {
 	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
 	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
 	// IP (<=0 disables).
-	CORSAllowedOrigins []string
-	RateLimitRPS       int
-	DatabaseURL        string
-	Environment        string
+	CORSAllowedOrigins        []string
+	RateLimitRPS              int
+	DatabaseURL               string
+	Environment               string
 	ExpoAccessToken           string
 	GrowthPolicyConfirmed     bool
 	HTTPAddr                  string

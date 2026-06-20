@@ -26,6 +26,11 @@ type LoadState =
 
 type Method = "momo" | "card";
 
+function cleanRewardCode(value: string): string | undefined {
+  const code = value.trim();
+  return code.length > 0 ? code : undefined;
+}
+
 export default function DesignScreen() {
   const { handle } = useLocalSearchParams<{ handle: string }>();
   const router = useRouter();
@@ -36,6 +41,9 @@ export default function DesignScreen() {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [method, setMethod] = useState<Method>("momo");
+  const [promoCode, setPromoCode] = useState("");
+  const [referralCode, setReferralCode] = useState("");
+  const [affiliateCode, setAffiliateCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
   const [order, setOrder] = useState<PlaceOrderResult | null>(null);
@@ -71,8 +79,8 @@ export default function DesignScreen() {
   const selectedBand = design.prices.find((p) => p.size_band_id === bandId);
 
   const canSubmit =
-    !!store?.handle &&
-    !!bandId &&
+    Boolean(store?.handle) &&
+    Boolean(bandId) &&
     name.trim().length > 1 &&
     phone.trim().length >= 7 &&
     /.+@.+\..+/.test(email.trim()) &&
@@ -89,6 +97,9 @@ export default function DesignScreen() {
       customer_phone: phone.trim(),
       customer_email: email.trim(),
       method,
+      promo_code: cleanRewardCode(promoCode),
+      referral_code: cleanRewardCode(referralCode),
+      affiliate_code: cleanRewardCode(affiliateCode),
     });
     setSubmitting(false);
     if (result.ok) {
@@ -137,7 +148,9 @@ export default function DesignScreen() {
           <Text style={styles.sectionLabel}>Choose a size</Text>
           <View style={styles.bandRow}>
             {design.prices.length === 0 ? (
-              <Text style={styles.muted}>No public pricing — contact the studio.</Text>
+              <Text style={styles.muted}>
+                No public pricing — contact the studio.
+              </Text>
             ) : (
               design.prices.map((band) => {
                 const active = band.size_band_id === bandId;
@@ -147,10 +160,20 @@ export default function DesignScreen() {
                     onPress={() => setBandId(band.size_band_id)}
                     style={[styles.band, active && styles.bandActive]}
                   >
-                    <Text style={[styles.bandLabel, active && styles.bandLabelActive]}>
+                    <Text
+                      style={[
+                        styles.bandLabel,
+                        active && styles.bandLabelActive,
+                      ]}
+                    >
                       {band.label}
                     </Text>
-                    <Text style={[styles.bandPrice, active && styles.bandLabelActive]}>
+                    <Text
+                      style={[
+                        styles.bandPrice,
+                        active && styles.bandLabelActive,
+                      ]}
+                    >
                       {formatGHS(band.price_minor)}
                     </Text>
                   </Pressable>
@@ -161,7 +184,12 @@ export default function DesignScreen() {
 
           <Text style={styles.sectionLabel}>Your details</Text>
           <View style={styles.form}>
-            <Field label="Full name" value={name} onChange={setName} placeholder="Ama Mensah" />
+            <Field
+              label="Full name"
+              value={name}
+              onChange={setName}
+              placeholder="Ama Mensah"
+            />
             <Field
               label="Phone"
               value={phone}
@@ -176,8 +204,39 @@ export default function DesignScreen() {
               placeholder="you@example.com"
               keyboardType="email-address"
             />
+          </View>
 
-            <Text style={styles.fieldLabel}>Payment</Text>
+          <Text style={styles.sectionLabel}>Rewards</Text>
+          <View style={styles.form}>
+            <Field
+              label="Promo code"
+              value={promoCode}
+              onChange={setPromoCode}
+              placeholder="WELCOME10"
+              autoCapitalize="characters"
+            />
+            <Field
+              label="Referral code"
+              value={referralCode}
+              onChange={setReferralCode}
+              placeholder="AMA-REF"
+              autoCapitalize="characters"
+            />
+            <Field
+              label="Affiliate code"
+              value={affiliateCode}
+              onChange={setAffiliateCode}
+              placeholder="PARTNER"
+              autoCapitalize="characters"
+            />
+            <Text style={styles.rewardHint}>
+              Codes are checked at checkout and only apply when the studio or
+              platform has an active rule.
+            </Text>
+          </View>
+
+          <Text style={styles.sectionLabel}>Payment</Text>
+          <View style={styles.form}>
             <View style={styles.methodRow}>
               {(["momo", "card"] as Method[]).map((option) => {
                 const active = method === option;
@@ -187,7 +246,12 @@ export default function DesignScreen() {
                     onPress={() => setMethod(option)}
                     style={[styles.method, active && styles.methodActive]}
                   >
-                    <Text style={[styles.methodText, active && styles.methodTextActive]}>
+                    <Text
+                      style={[
+                        styles.methodText,
+                        active && styles.methodTextActive,
+                      ]}
+                    >
                       {option === "momo" ? "Mobile money" : "Card"}
                     </Text>
                   </Pressable>
@@ -227,12 +291,14 @@ function Field({
   onChange,
   placeholder,
   keyboardType,
+  autoCapitalize,
 }: {
   label: string;
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
   keyboardType?: "phone-pad" | "email-address";
+  autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
   return (
     <View>
@@ -242,7 +308,9 @@ function Field({
         onChangeText={onChange}
         placeholder={placeholder}
         placeholderTextColor={palette.mutedText}
-        autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
+        autoCapitalize={
+          autoCapitalize ?? (keyboardType === "email-address" ? "none" : "words")
+        }
         autoCorrect={false}
         keyboardType={keyboardType}
         style={styles.input}
@@ -264,6 +332,11 @@ function OrderConfirmation({
       <Text style={styles.confirmBody}>
         Reference {order.reference} · {formatGHS(order.amount_minor)} due.
       </Text>
+      {order.discount_minor && order.discount_minor > 0 ? (
+        <Text style={styles.discountApplied}>
+          Reward applied: {formatGHS(order.discount_minor)} off this order.
+        </Text>
+      ) : null}
       <Pressable
         style={styles.cta}
         onPress={() => Linking.openURL(order.authorization_url)}
@@ -323,10 +396,23 @@ const styles = StyleSheet.create({
     backgroundColor: palette.white,
     minWidth: 96,
   },
-  bandActive: { borderColor: palette.burgundy, backgroundColor: "rgba(128,0,32,0.06)" },
-  bandLabel: { fontFamily: fonts.body, fontSize: 14, fontWeight: "700", color: palette.ink },
+  bandActive: {
+    borderColor: palette.burgundy,
+    backgroundColor: "rgba(128,0,32,0.06)",
+  },
+  bandLabel: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
+  },
   bandLabelActive: { color: palette.burgundy },
-  bandPrice: { fontFamily: fonts.body, fontSize: 13, color: palette.mutedText, marginTop: 2 },
+  bandPrice: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    color: palette.mutedText,
+    marginTop: 2,
+  },
   form: { gap: spacing(1.75) },
   fieldLabel: {
     fontFamily: fonts.body,
@@ -346,6 +432,12 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: palette.ink,
   },
+  rewardHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: palette.mutedText,
+    lineHeight: 18,
+  },
   methodRow: { flexDirection: "row", gap: spacing(1.25) },
   method: {
     flex: 1,
@@ -356,8 +448,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: palette.white,
   },
-  methodActive: { borderColor: palette.burgundy, backgroundColor: "rgba(128,0,32,0.06)" },
-  methodText: { fontFamily: fonts.body, fontSize: 14, fontWeight: "700", color: palette.ink },
+  methodActive: {
+    borderColor: palette.burgundy,
+    backgroundColor: "rgba(128,0,32,0.06)",
+  },
+  methodText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
+  },
   methodTextActive: { color: palette.burgundy },
   error: {
     fontFamily: fonts.body,
@@ -373,7 +473,12 @@ const styles = StyleSheet.create({
     marginTop: spacing(2.5),
   },
   ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaText: { color: palette.white, fontFamily: fonts.body, fontSize: 16, fontWeight: "800" },
+  ctaText: {
+    color: palette.white,
+    fontFamily: fonts.body,
+    fontSize: 16,
+    fontWeight: "800",
+  },
   disclaimer: {
     fontFamily: fonts.body,
     fontSize: 12,
@@ -402,6 +507,13 @@ const styles = StyleSheet.create({
     marginTop: spacing(1),
     lineHeight: 22,
   },
+  discountApplied: {
+    fontFamily: fonts.body,
+    fontSize: 13,
+    fontWeight: "800",
+    color: palette.success,
+    marginTop: spacing(1),
+  },
   secondaryCta: {
     borderWidth: 1.5,
     borderColor: palette.burgundy,
@@ -410,5 +522,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: spacing(1.25),
   },
-  secondaryCtaText: { color: palette.burgundy, fontFamily: fonts.body, fontSize: 15, fontWeight: "800" },
+  secondaryCtaText: {
+    color: palette.burgundy,
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: "800",
+  },
 });

@@ -94,6 +94,11 @@ export type PlaceOrderInput = {
   customer_phone: string;
   customer_email: string;
   method: "momo" | "card";
+  promo_code?: string;
+  affiliate_code?: string;
+  affiliate_click_id?: string;
+  affiliate_visitor_id?: string;
+  referral_code?: string;
 };
 
 export type PlaceOrderResult = {
@@ -101,6 +106,7 @@ export type PlaceOrderResult = {
   reference: string;
   authorization_url: string;
   amount_minor: number;
+  discount_minor?: number;
 };
 
 export type SponsoredPlacement = {

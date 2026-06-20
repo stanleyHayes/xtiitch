@@ -5,7 +5,7 @@ This guide is mandatory for agents designing or implementing Xtiitch UI. It turn
 ## Brand source of truth (Brand Guidelines v1.0)
 
 - **Colour:** Wine `#800020` (primary, "leads"), Deep Wine `#5C0118`, Wine Tint `#F3E1E5`, Ink `#15111A`, Cream `#FAF6F2`; neutrals Graphite `#565B63` (secondary text), Mauve `#9A7A80`, Line `#E7DED7`, Paper `#FFFFFF`. **Red `#C0392B` / Amber `#B8860B` / Green `#1E8E4E` are reserved for in-product order status — never decoration.** Tokens live in `packages/design-tokens`.
-- **Type:** `DM Serif Display` is the title and heading face; `Instrument Sans` is the primary body/UI face, with `DM Sans` as the secondary sans fallback. Tokens live in `packages/design-tokens`.
+- **Type:** `Fraunces` is the title and heading face; `Outfit` is the body/UI face. Tokens live in `packages/design-tokens`.
 - **Logo:** the **ii-stitch mark** (two dots + two columns + a seam) — not an "X". Horizontal lockup by default; vector masters in `assets/brand/svg`. Motto: **"Fashion, in good order."**
 - **Pattern:** a quiet field of running stitches (`pattern-*.svg`), low-contrast texture only.
 
@@ -51,8 +51,8 @@ Dark theme uses the same semantic token names as light theme. Keep dark surfaces
 
 Use typography to separate public storytelling from operational work:
 
-- Marketing web: use `DM Serif Display` for large page and section headings, and `Instrument Sans` for body copy, navigation, cards, forms, buttons, and metadata.
-- Product web: use `DM Serif Display` for headings and `Instrument Sans` for dense dashboard body/UI text. Keep operational headings compact and do not use decorative alternates beyond the shared title face.
+- Marketing web: use `Fraunces` for large page and section headings, and `Outfit` for body copy, navigation, cards, forms, buttons, and metadata.
+- Product web: use `Fraunces` for headings and `Outfit` for dense dashboard body/UI text. Keep operational headings compact and do not use decorative alternates beyond the shared title face.
 - Mobile: use the platform system font through React Native until a native-safe brand type plan is chosen.
 - Avoid narrow, fragile, or overly decorative fashion fonts in operational UI.
 - Headings should be confident but compact.
@@ -95,7 +95,7 @@ Storefront surfaces should prioritize browsing:
 Marketing pages should feel specific to fashion operators:
 
 - Keep the page content from the approved marketing plan, but present it with editorial rhythm, generous whitespace, and clear conversion paths.
-- Page heroes should use the cream grid, large `DM Serif Display` title, and a dark brand panel with a page-specific icon watermark.
+- Page heroes should use the cream grid, large `Fraunces` title, and a dark brand panel with a page-specific icon watermark.
 - Do not squeeze fake dashboard screens into hero panels. Use real product screenshots only when the dashboard exists and can be shown accurately.
 - Use page-specific icon watermarks as quiet background identity, not as generic decoration.
 - Contact, pricing, security, customer, legal, and feature pages should all feel like parts of one system, not unrelated templates.

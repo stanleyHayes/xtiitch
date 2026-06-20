@@ -5,6 +5,7 @@ CREATE TABLE plans (
   code text NOT NULL UNIQUE,
   name text NOT NULL,
   monthly_fee_minor integer NOT NULL CHECK (monthly_fee_minor >= 0),
+  yearly_fee_minor integer NOT NULL DEFAULT 0 CHECK (yearly_fee_minor >= 0),
   commission_bps integer NOT NULL CHECK (commission_bps >= 0),
   design_limit integer CHECK (design_limit IS NULL OR design_limit >= 0),
   is_active boolean NOT NULL DEFAULT true,
@@ -12,11 +13,11 @@ CREATE TABLE plans (
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-INSERT INTO plans (code, name, monthly_fee_minor, commission_bps, design_limit)
+INSERT INTO plans (code, name, monthly_fee_minor, yearly_fee_minor, commission_bps, design_limit)
 VALUES
-  ('free', 'Free - Get Online', 0, 300, 10),
-  ('standard', 'Standard', 5000, 100, NULL),
-  ('growth', 'Growth', 12000, 50, NULL)
+  ('free', 'Free - Get Online', 0, 0, 300, 10),
+  ('standard', 'Standard', 5000, 60000, 100, NULL),
+  ('growth', 'Growth', 12000, 144000, 50, NULL)
 ON CONFLICT (code) DO NOTHING;
 
 CREATE TABLE businesses (
@@ -108,4 +109,3 @@ CREATE POLICY business_users_tenant_isolation ON business_users
 CREATE POLICY customer_businesses_tenant_isolation ON customer_businesses
   USING (business_id = NULLIF(current_setting('xtiitch.current_business_id', true), '')::uuid)
   WITH CHECK (business_id = NULLIF(current_setting('xtiitch.current_business_id', true), '')::uuid);
-

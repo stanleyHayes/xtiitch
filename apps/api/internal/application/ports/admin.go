@@ -453,6 +453,7 @@ type AdminPlanRecord struct {
 	Code                    string
 	Name                    string
 	MonthlyFeeMinor         int64
+	YearlyFeeMinor          int64
 	CommissionBPS           int
 	DesignLimit             *int
 	Features                map[string]bool
@@ -468,6 +469,7 @@ type CreateAdminPlanInput struct {
 	Code            string
 	Name            string
 	MonthlyFeeMinor int64
+	YearlyFeeMinor  int64
 	CommissionBPS   int
 	DesignLimit     *int
 	Features        map[string]bool
@@ -477,6 +479,7 @@ type UpdateAdminPlanInput struct {
 	PlanID          common.ID
 	Name            string
 	MonthlyFeeMinor int64
+	YearlyFeeMinor  int64
 	CommissionBPS   int
 	DesignLimit     *int
 	Features        map[string]bool

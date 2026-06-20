@@ -6,9 +6,9 @@ import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
-import CircularProgress from "@mui/material/CircularProgress";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
+import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -514,13 +514,32 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     disabled={isSubmitting}
                     startIcon={
                       isSubmitting ? (
-                        <CircularProgress size={18} color="inherit" thickness={5} />
+                        <Skeleton
+                          variant="rounded"
+                          width={18}
+                          height={18}
+                          sx={{
+                            bgcolor: "rgba(255,255,255,0.54)",
+                            borderRadius: 1,
+                          }}
+                        />
                       ) : undefined
                     }
                     endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
                     sx={{ minHeight: 48 }}
                   >
-                    {isSubmitting ? "Checking access..." : "Open console"}
+                    {isSubmitting ? (
+                      <Skeleton
+                        variant="text"
+                        width={112}
+                        sx={{
+                          bgcolor: "rgba(255,255,255,0.54)",
+                          fontSize: "1rem",
+                        }}
+                      />
+                    ) : (
+                      "Open console"
+                    )}
                   </Button>
                 </Stack>
               </Form>

@@ -23,6 +23,7 @@ const muiComponents = [
   "IconButton",
   "Link",
   "Paper",
+  "Skeleton",
   "Stack",
   "TextField",
   "Toolbar",

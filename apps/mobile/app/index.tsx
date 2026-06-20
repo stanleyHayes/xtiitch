@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   ScrollView,
@@ -17,7 +16,7 @@ import {
   type SponsoredPlacement,
 } from "../src/api";
 import { fonts, palette, radius, shadow, spacing, swatchFor } from "../src/theme";
-import { XtiitchMark } from "../src/ui";
+import { SkeletonBlock, XtiitchMark } from "../src/ui";
 
 const SUGGESTED_STORE = "demo-atelier";
 
@@ -96,8 +95,17 @@ export default function HomeScreen() {
 
       <Section label="Featured studios">
         {loadingFeatured ? (
-          <View style={styles.loadingRow}>
-            <ActivityIndicator color={palette.burgundy} />
+          <View style={styles.featuredRow} accessibilityLabel="Loading featured studios">
+            {[0, 1].map((item) => (
+              <View key={item} style={styles.featuredSkeletonCard}>
+                <SkeletonBlock height={130} radiusOverride={radius.md} />
+                <View style={styles.featuredSkeletonBody}>
+                  <SkeletonBlock width="62%" height={12} />
+                  <SkeletonBlock width="86%" height={18} />
+                  <SkeletonBlock width="48%" height={12} />
+                </View>
+              </View>
+            ))}
           </View>
         ) : featured.length === 0 ? (
           <Pressable
@@ -333,7 +341,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 13,
   },
-  loadingRow: { paddingVertical: spacing(3), alignItems: "center" },
+  featuredSkeletonCard: {
+    width: 220,
+    backgroundColor: palette.white,
+    borderRadius: radius.md,
+    overflow: "hidden",
+    ...shadow.card,
+  },
+  featuredSkeletonBody: { padding: spacing(1.75), gap: spacing(1) },
   emptyFeatured: {
     backgroundColor: palette.panel,
     borderRadius: radius.md,

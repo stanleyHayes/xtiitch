@@ -361,6 +361,7 @@ export type AdminPlan = {
   code: string;
   name: string;
   monthlyFeeMinor: number;
+  yearlyFeeMinor: number;
   commissionBps: number;
   designLimit?: number;
   features: PlanFeatures;
@@ -1031,6 +1032,7 @@ type AdminPlanPayload = {
   code: string;
   name: string;
   monthly_fee_minor: number;
+  yearly_fee_minor: number;
   commission_bps: number;
   design_limit?: number;
   features?: Record<string, boolean> | null;
@@ -1723,6 +1725,7 @@ function mapPlan(payload: AdminPlanPayload): AdminPlan {
     code: payload.code,
     name: payload.name,
     monthlyFeeMinor: payload.monthly_fee_minor,
+    yearlyFeeMinor: payload.yearly_fee_minor ?? 0,
     commissionBps: payload.commission_bps,
     designLimit: payload.design_limit,
     features: payload.features ?? {},
@@ -2392,6 +2395,7 @@ export const adminApi = {
       code: string;
       name: string;
       monthlyFeeMinor: number;
+      yearlyFeeMinor: number;
       commissionBps: number;
       designLimit?: number;
       features?: Record<string, boolean>;
@@ -2404,6 +2408,7 @@ export const adminApi = {
         code: input.code,
         name: input.name,
         monthly_fee_minor: input.monthlyFeeMinor,
+        yearly_fee_minor: input.yearlyFeeMinor,
         commission_bps: input.commissionBps,
         design_limit: input.designLimit,
         features: input.features ?? {},
@@ -2415,6 +2420,7 @@ export const adminApi = {
     input: {
       name: string;
       monthlyFeeMinor: number;
+      yearlyFeeMinor: number;
       commissionBps: number;
       designLimit?: number;
       features?: Record<string, boolean>;
@@ -2429,6 +2435,7 @@ export const adminApi = {
         body: JSON.stringify({
           name: input.name,
           monthly_fee_minor: input.monthlyFeeMinor,
+          yearly_fee_minor: input.yearlyFeeMinor,
           commission_bps: input.commissionBps,
           design_limit: input.designLimit,
           features: input.features ?? {},

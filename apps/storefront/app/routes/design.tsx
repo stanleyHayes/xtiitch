@@ -15,6 +15,7 @@ import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Alert from "@mui/material/Alert";
 import MenuItem from "@mui/material/MenuItem";
+import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
@@ -574,6 +575,28 @@ function PaymentMethodField() {
   );
 }
 
+function ButtonLabelSkeleton({
+  width,
+  inverse = false,
+}: {
+  width: number;
+  inverse?: boolean;
+}) {
+  return (
+    <Skeleton
+      variant="text"
+      width={width}
+      sx={{
+        bgcolor: inverse
+          ? "rgba(255,255,255,0.58)"
+          : alpha(tokens.burgundy, 0.2),
+        fontSize: "1rem",
+        maxWidth: "100%",
+      }}
+    />
+  );
+}
+
 function rewardValueLabel(referral: ReferralCode): string {
   if (referral.reward_type === "percentage") {
     return `${(referral.reward_value / 100).toFixed(0)}%`;
@@ -1104,7 +1127,11 @@ function StandardOrderPanel({
               disabled={isSubmitting}
               sx={{ alignSelf: "stretch" }}
             >
-              {isSubmitting ? "Opening checkout..." : "Pay and place order"}
+              {isSubmitting ? (
+                <ButtonLabelSkeleton width={156} inverse />
+              ) : (
+                "Pay and place order"
+              )}
             </Button>
           </Stack>
         </Form>
@@ -1377,7 +1404,11 @@ function CustomRouteForm({
               disabled={isSubmitting}
               sx={{ alignSelf: "stretch" }}
             >
-              {isSubmitting ? "Submitting request..." : route.buttonLabel}
+              {isSubmitting ? (
+                <ButtonLabelSkeleton width={148} inverse={route.takesPayment} />
+              ) : (
+                route.buttonLabel
+              )}
             </Button>
           </Stack>
         </Form>
@@ -1634,10 +1665,25 @@ function WaitlistPanel({
               type="submit"
               variant="contained"
               disabled={isSubmitting}
-              startIcon={<GroupsRounded />}
+              startIcon={
+                isSubmitting ? (
+                  <Skeleton
+                    variant="circular"
+                    width={20}
+                    height={20}
+                    sx={{ bgcolor: "rgba(255,255,255,0.58)" }}
+                  />
+                ) : (
+                  <GroupsRounded />
+                )
+              }
               sx={{ bgcolor: brand, "&:hover": { bgcolor: brand } }}
             >
-              {isSubmitting ? "Joining…" : "Notify me"}
+              {isSubmitting ? (
+                <ButtonLabelSkeleton width={82} inverse />
+              ) : (
+                "Notify me"
+              )}
             </Button>
           </Stack>
         </Form>

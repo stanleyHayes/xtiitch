@@ -35,10 +35,15 @@ export const xtiitchColors = {
 
 export type XtiitchThemeMode = "light" | "dark";
 
-// Inter Tight is the single brand typeface (Brand Guidelines v1.0). Display
-// weight is carried by size + weight (ExtraBold 800), not a separate face.
-const interTightStack = [
-  "Inter Tight",
+const displayFontStack = [
+  "Fraunces",
+  "Georgia",
+  "Times New Roman",
+  "serif",
+].join(", ");
+
+const bodyFontStack = [
+  "Outfit",
   "system-ui",
   "-apple-system",
   "Segoe UI",
@@ -49,10 +54,10 @@ const interTightStack = [
 ].join(", ");
 
 export const xtiitchFonts = {
-  display: interTightStack,
-  body: interTightStack,
+  display: displayFontStack,
+  body: bodyFontStack,
   googleFontsHref:
-    "https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap",
+    "https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..900&family=Outfit:wght@400;500;600;700;800&display=swap",
 } as const;
 
 export const xtiitchThemeColors = {

@@ -298,6 +298,7 @@ type planCreateRequest struct {
 	Code            string          `json:"code"`
 	Name            string          `json:"name"`
 	MonthlyFeeMinor int64           `json:"monthly_fee_minor"`
+	YearlyFeeMinor  int64           `json:"yearly_fee_minor"`
 	CommissionBPS   int             `json:"commission_bps"`
 	DesignLimit     *int            `json:"design_limit"`
 	Features        map[string]bool `json:"features"`
@@ -306,6 +307,7 @@ type planCreateRequest struct {
 type planUpdateRequest struct {
 	Name            string          `json:"name"`
 	MonthlyFeeMinor int64           `json:"monthly_fee_minor"`
+	YearlyFeeMinor  int64           `json:"yearly_fee_minor"`
 	CommissionBPS   int             `json:"commission_bps"`
 	DesignLimit     *int            `json:"design_limit"`
 	Features        map[string]bool `json:"features"`
@@ -790,6 +792,7 @@ type planResponse struct {
 	Code                    string          `json:"code"`
 	Name                    string          `json:"name"`
 	MonthlyFeeMinor         int64           `json:"monthly_fee_minor"`
+	YearlyFeeMinor          int64           `json:"yearly_fee_minor"`
 	CommissionBPS           int             `json:"commission_bps"`
 	DesignLimit             *int            `json:"design_limit,omitempty"`
 	Features                map[string]bool `json:"features"`
@@ -1761,6 +1764,7 @@ func (handler Handler) createPlan(w http.ResponseWriter, r *http.Request) {
 		Code:            request.Code,
 		Name:            request.Name,
 		MonthlyFeeMinor: request.MonthlyFeeMinor,
+		YearlyFeeMinor:  request.YearlyFeeMinor,
 		CommissionBPS:   request.CommissionBPS,
 		DesignLimit:     request.DesignLimit,
 		Features:        request.Features,
@@ -1795,6 +1799,7 @@ func (handler Handler) updatePlan(w http.ResponseWriter, r *http.Request) {
 		PlanID:          common.ID(chi.URLParam(r, "id")),
 		Name:            request.Name,
 		MonthlyFeeMinor: request.MonthlyFeeMinor,
+		YearlyFeeMinor:  request.YearlyFeeMinor,
 		CommissionBPS:   request.CommissionBPS,
 		DesignLimit:     request.DesignLimit,
 		Features:        request.Features,
@@ -3163,7 +3168,7 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Name", "Code", "Active", "Monthly fee", "Commission", "Design limit", "Businesses", "Active subscriptions", "Estimated MRR", "Created", "Updated"}}
+		rows := [][]string{{"Name", "Code", "Active", "Monthly fee", "Yearly fee", "Commission", "Design limit", "Businesses", "Active subscriptions", "Estimated MRR", "Created", "Updated"}}
 		for _, record := range records {
 			designLimit := "Unlimited"
 			if record.DesignLimit != nil {
@@ -3174,6 +3179,7 @@ func (handler Handler) exportDatasetRows(
 				record.Code,
 				boolCSV(record.IsActive, "Active", "Archived"),
 				moneyCSV(record.MonthlyFeeMinor),
+				moneyCSV(record.YearlyFeeMinor),
 				fmt.Sprintf("%.2f%%", float64(record.CommissionBPS)/100),
 				designLimit,
 				fmt.Sprint(record.BusinessCount),
@@ -3943,6 +3949,7 @@ func newPlanResponse(record ports.AdminPlanRecord) planResponse {
 		Code:                    record.Code,
 		Name:                    record.Name,
 		MonthlyFeeMinor:         record.MonthlyFeeMinor,
+		YearlyFeeMinor:          record.YearlyFeeMinor,
 		CommissionBPS:           record.CommissionBPS,
 		DesignLimit:             record.DesignLimit,
 		Features:                sanitizedPlanFeatures(record.Features),

@@ -2208,7 +2208,7 @@ func (repo AdminAuthRepository) ListAdminPlans(ctx context.Context) ([]ports.Adm
 	}
 
 	rows, err := tx.Query(ctx, adminPlansQuery()+`
-		order by p.is_active desc, p.monthly_fee_minor, p.created_at
+		order by p.is_active desc, p.monthly_fee_minor, p.yearly_fee_minor, p.created_at
 	`)
 	if err != nil {
 		return nil, err
@@ -2254,18 +2254,20 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 				code,
 				name,
 				monthly_fee_minor,
+				yearly_fee_minor,
 				commission_bps,
 				design_limit,
 				features,
 				is_active
 			)
-			values ($1, $2, $3, $4, $5, $6::jsonb, true)
+			values ($1, $2, $3, $4, $5, $6, $7::jsonb, true)
 			returning *
 		)
 		`+adminPlanSelect("inserted")+`
 	`, input.Code,
 		input.Name,
 		input.MonthlyFeeMinor,
+		input.YearlyFeeMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
 		planFeaturesArg(input.Features),
@@ -2303,10 +2305,11 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 			update plans
 			set name = $2,
 				monthly_fee_minor = $3,
-				commission_bps = $4,
-				design_limit = $5,
-				features = $6::jsonb,
-				is_active = $7,
+				yearly_fee_minor = $4,
+				commission_bps = $5,
+				design_limit = $6,
+				features = $7::jsonb,
+				is_active = $8,
 				updated_at = now()
 			where plan_id = $1::uuid
 			returning *
@@ -2315,6 +2318,7 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 	`, input.PlanID.String(),
 		input.Name,
 		input.MonthlyFeeMinor,
+		input.YearlyFeeMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
 		planFeaturesArg(input.Features),
@@ -5093,6 +5097,7 @@ func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 		&record.Code,
 		&record.Name,
 		&record.MonthlyFeeMinor,
+		&record.YearlyFeeMinor,
 		&record.CommissionBPS,
 		&designLimit,
 		&features,
@@ -6019,6 +6024,7 @@ func adminPlanSelect(source string) string {
 			p.code,
 			p.name,
 			p.monthly_fee_minor::bigint,
+			p.yearly_fee_minor::bigint,
 			p.commission_bps::int,
 			p.design_limit,
 			coalesce(p.features, '{}'::jsonb),

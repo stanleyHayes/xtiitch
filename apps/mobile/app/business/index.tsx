@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -84,7 +84,10 @@ export default function BusinessDashboardScreen() {
 
   const list = orders ?? [];
   const openCount = list.filter(isOrderOpen).length;
-  const settledMinor = list.reduce((sum, order) => sum + order.settled_minor, 0);
+  const settledMinor = list.reduce(
+    (sum, order) => sum + order.settled_minor,
+    0,
+  );
   const recent = list.slice(0, 4);
 
   return (
@@ -92,7 +95,11 @@ export default function BusinessDashboardScreen() {
       style={styles.screen}
       contentContainerStyle={styles.content}
       refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.burgundy} />
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={palette.burgundy}
+        />
       }
     >
       <Stack.Screen
@@ -116,11 +123,19 @@ export default function BusinessDashboardScreen() {
       <View style={styles.kpiRow}>
         <Kpi label="Total orders" value={String(list.length)} />
         <Kpi label="Open" value={String(openCount)} tone={palette.warning} />
-        <Kpi label="Settled" value={formatGHS(settledMinor)} tone={palette.success} wide />
+        <Kpi
+          label="Settled"
+          value={formatGHS(settledMinor)}
+          tone={palette.success}
+          wide
+        />
       </View>
 
       <Pressable
-        style={({ pressed }) => [styles.newOrderCta, pressed && { opacity: 0.9 }]}
+        style={({ pressed }) => [
+          styles.newOrderCta,
+          pressed && { opacity: 0.9 },
+        ]}
         onPress={() => router.push("/business/new-order")}
       >
         <Text style={styles.newOrderCtaText}>+ New walk-in order</Text>
@@ -168,7 +183,9 @@ function Kpi({
 }) {
   return (
     <View style={[styles.kpi, wide && styles.kpiWide]}>
-      <Text style={[styles.kpiValue, tone ? { color: tone } : null]}>{value}</Text>
+      <Text style={[styles.kpiValue, tone ? { color: tone } : null]}>
+        {value}
+      </Text>
       <Text style={styles.kpiLabel}>{label}</Text>
     </View>
   );

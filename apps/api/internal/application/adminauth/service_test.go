@@ -1332,6 +1332,7 @@ func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 		Code:            " Pro-Plus ",
 		Name:            "  Pro   Plus  ",
 		MonthlyFeeMinor: 15000,
+		YearlyFeeMinor:  150000,
 		CommissionBPS:   75,
 		DesignLimit:     &designLimit,
 		UserAgent:       "test-agent",
@@ -1342,6 +1343,7 @@ func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 	}
 	if businesses.createdPlan.Code != "pro-plus" ||
 		businesses.createdPlan.Name != "Pro Plus" ||
+		businesses.createdPlan.YearlyFeeMinor != 150000 ||
 		*businesses.createdPlan.DesignLimit != 25 {
 		t.Fatalf("expected normalized create input, got %+v", businesses.createdPlan)
 	}
@@ -1355,6 +1357,7 @@ func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 		PlanID:          "plan-growth",
 		Name:            "Growth Plus",
 		MonthlyFeeMinor: 18000,
+		YearlyFeeMinor:  180000,
 		CommissionBPS:   50,
 		IsActive:        true,
 		UserAgent:       "test-agent",
@@ -1363,7 +1366,9 @@ func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("update plan: %v", err)
 	}
-	if businesses.updatedPlan.Name != "Growth Plus" || businesses.updatedPlan.IsActive != true {
+	if businesses.updatedPlan.Name != "Growth Plus" ||
+		businesses.updatedPlan.YearlyFeeMinor != 180000 ||
+		businesses.updatedPlan.IsActive != true {
 		t.Fatalf("expected normalized update input, got %+v", businesses.updatedPlan)
 	}
 	if updated.Name != "Growth Plus" {
@@ -1399,6 +1404,7 @@ func TestPlanPackagesRequirePermissionAndAudit(t *testing.T) {
 		Code:            "support-plan",
 		Name:            "Support Plan",
 		MonthlyFeeMinor: 1000,
+		YearlyFeeMinor:  10000,
 		CommissionBPS:   100,
 	})
 	if !errors.Is(err, authdomain.ErrForbidden) {
@@ -1423,6 +1429,7 @@ func TestPlanPackageValidation(t *testing.T) {
 		Code:            "bad code",
 		Name:            "Bad",
 		MonthlyFeeMinor: 1000,
+		YearlyFeeMinor:  10000,
 		CommissionBPS:   100,
 	})
 	if !errors.Is(err, authdomain.ErrInvalidInput) {
@@ -1436,6 +1443,7 @@ func TestPlanPackageValidation(t *testing.T) {
 		PlanID:          "plan-growth",
 		Name:            "Growth",
 		MonthlyFeeMinor: 1000,
+		YearlyFeeMinor:  -1000,
 		CommissionBPS:   10001,
 		DesignLimit:     &negativeLimit,
 		IsActive:        true,
@@ -3496,6 +3504,7 @@ func (repo *fakeAdminBusinesses) ListAdminPlans(context.Context) ([]ports.AdminP
 		"growth",
 		"Growth",
 		12000,
+		144000,
 		50,
 		nil,
 		true,
@@ -3512,6 +3521,7 @@ func (repo *fakeAdminBusinesses) CreateAdminPlan(
 		input.Code,
 		input.Name,
 		input.MonthlyFeeMinor,
+		input.YearlyFeeMinor,
 		input.CommissionBPS,
 		input.DesignLimit,
 		true,
@@ -3528,6 +3538,7 @@ func (repo *fakeAdminBusinesses) UpdateAdminPlan(
 		"growth",
 		input.Name,
 		input.MonthlyFeeMinor,
+		input.YearlyFeeMinor,
 		input.CommissionBPS,
 		input.DesignLimit,
 		input.IsActive,
@@ -3544,6 +3555,7 @@ func (repo *fakeAdminBusinesses) ArchiveAdminPlan(
 		"growth",
 		"Growth",
 		12000,
+		144000,
 		50,
 		nil,
 		false,
@@ -3555,6 +3567,7 @@ func fakeAdminPlanRecord(
 	code string,
 	name string,
 	monthlyFeeMinor int64,
+	yearlyFeeMinor int64,
 	commissionBPS int,
 	designLimit *int,
 	isActive bool,
@@ -3564,6 +3577,7 @@ func fakeAdminPlanRecord(
 		Code:                    code,
 		Name:                    name,
 		MonthlyFeeMinor:         monthlyFeeMinor,
+		YearlyFeeMinor:          yearlyFeeMinor,
 		CommissionBPS:           commissionBPS,
 		DesignLimit:             designLimit,
 		IsActive:                isActive,

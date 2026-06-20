@@ -29,10 +29,11 @@ test("web theme modes expose semantic light and dark surfaces", () => {
   assert.equal(getXtiitchThemeColors("dark").text, "#fff7f2");
 });
 
-test("web typography uses the single Inter Tight brand typeface", () => {
-  assert.match(xtiitchFonts.display, /Inter Tight/);
-  assert.match(xtiitchFonts.body, /Inter Tight/);
-  assert.match(xtiitchFonts.googleFontsHref, /Inter\+Tight/);
+test("web typography uses the current Xtiitch font pairing", () => {
+  assert.match(xtiitchFonts.display, /Fraunces/);
+  assert.match(xtiitchFonts.body, /Outfit/);
+  assert.match(xtiitchFonts.googleFontsHref, /Fraunces/);
+  assert.match(xtiitchFonts.googleFontsHref, /Outfit/);
 });
 
 test("layout tokens keep the web and mobile apps on the same scale", () => {

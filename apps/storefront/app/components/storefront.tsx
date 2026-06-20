@@ -909,7 +909,9 @@ function MarketplaceStrip({
 
 function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
   const shopBrand = shop.brand_color || tokens.burgundy;
-  const cover = shop.designs.find((design) => design.image)?.image;
+  // Mirror the store page hero (StoreHeader) so the card cover matches the page
+  // you land on: the merchant's banner, else the shared Xtiitch atelier hero.
+  const cover = shop.banner_url?.trim() || "/images/storefront-atelier-hero.webp";
   return (
     <Card
       component={RouterLink}
@@ -935,9 +937,7 @@ function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
         sx={{
           height: 116,
           position: "relative",
-          background: cover
-            ? `center/cover no-repeat url(${cover})`
-            : `linear-gradient(135deg, ${shopBrand}, ${alpha(shopBrand, 0.65)})`,
+          background: `center/cover no-repeat url(${cover})`,
         }}
       >
         <Box

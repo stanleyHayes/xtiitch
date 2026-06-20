@@ -33,6 +33,12 @@ export default [
     },
   },
   {
+    files: ["**/metro.config.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  {
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       globals: {
@@ -47,18 +53,17 @@ export default [
       "@typescript-eslint/no-unused-vars": [
         "error",
         {
-          "argsIgnorePattern": "^_",
-          "caughtErrorsIgnorePattern": "^_",
-          "varsIgnorePattern": "^_"
-        }
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
       ],
-      "eqeqeq": ["error", "always"],
+      eqeqeq: ["error", "always"],
       "no-console": "off",
       "no-implicit-coercion": "error",
       "no-var": "error",
       "object-shorthand": "error",
-      "prefer-const": "error"
+      "prefer-const": "error",
     },
   },
 ];
-

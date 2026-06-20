@@ -2,12 +2,13 @@
 // brand image-or-swatch tile, and the studio order row — so every screen
 // handles async outcomes and renders orders the same way.
 import {
-  ActivityIndicator,
   Image,
   Pressable,
   StyleSheet,
   Text,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 
 import { formatGHS, type TrackingStage } from "./api";
@@ -53,13 +54,55 @@ export function CenterState({
   return (
     <View style={styles.center}>
       {loading ? (
-        <ActivityIndicator size="large" color={palette.burgundy} />
+        <View style={styles.skeletonState} accessibilityLabel="Loading content">
+          <SkeletonBlock width={96} height={96} radiusOverride={radius.lg} />
+          <SkeletonBlock width="72%" height={22} />
+          <SkeletonBlock width="88%" height={14} />
+          <SkeletonBlock width="56%" height={14} />
+        </View>
       ) : (
         <>
           <Text style={styles.title}>{title}</Text>
           {hint ? <Text style={styles.hint}>{hint}</Text> : null}
         </>
       )}
+    </View>
+  );
+}
+
+export function SkeletonBlock({
+  width = "100%",
+  height = 16,
+  radiusOverride = radius.sm,
+  style,
+}: {
+  width?: ViewStyle["width"];
+  height?: ViewStyle["height"];
+  radiusOverride?: number;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <View
+      style={[
+        styles.skeletonBlock,
+        { width, height, borderRadius: radiusOverride },
+        style,
+      ]}
+    />
+  );
+}
+
+export function SkeletonStack({ rows = 3 }: { rows?: number }) {
+  const widths: ViewStyle["width"][] = ["82%", "100%", "64%", "90%"];
+  return (
+    <View style={styles.skeletonStack} accessibilityLabel="Loading section">
+      {Array.from({ length: rows }).map((_, index) => (
+        <SkeletonBlock
+          key={`skeleton-${index}`}
+          width={widths[index % widths.length]}
+          height={index === 0 ? 18 : 13}
+        />
+      ))}
     </View>
   );
 }
@@ -206,6 +249,20 @@ const styles = StyleSheet.create({
     color: palette.mutedText,
     textAlign: "center",
     lineHeight: 20,
+  },
+  skeletonState: {
+    width: "100%",
+    alignItems: "center",
+    gap: spacing(1.25),
+  },
+  skeletonStack: {
+    width: "100%",
+    gap: spacing(1),
+  },
+  skeletonBlock: {
+    backgroundColor: "rgba(128,0,32,0.11)",
+    borderWidth: 1,
+    borderColor: "rgba(128,0,32,0.05)",
   },
   swatch: { justifyContent: "flex-end", overflow: "hidden" },
   swatchBar: { height: "32%", width: "60%", opacity: 0.7 },

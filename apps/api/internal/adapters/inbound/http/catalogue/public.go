@@ -126,6 +126,7 @@ type publicShopResponse struct {
 	Name        string                     `json:"name"`
 	Handle      string                     `json:"handle"`
 	BrandColor  string                     `json:"brand_color"`
+	BannerURL   string                     `json:"banner_url"`
 	DesignCount int                        `json:"design_count"`
 	Designs     []publicShopDesignResponse `json:"designs"`
 }
@@ -142,6 +143,7 @@ func toPublicShopResponse(shop ports.PublicShop) publicShopResponse {
 		Name:        shop.Name,
 		Handle:      shop.Handle,
 		BrandColor:  shop.BrandColor,
+		BannerURL:   shop.BannerURL,
 		DesignCount: shop.DesignCount,
 		Designs:     designs,
 	}
