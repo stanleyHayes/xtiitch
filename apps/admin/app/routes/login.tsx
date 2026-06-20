@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Form, redirect, useNavigation } from "react-router";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
@@ -8,6 +9,7 @@ import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
+import IconButton from "@mui/material/IconButton";
 import { alpha } from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -16,6 +18,8 @@ import LockRounded from "@mui/icons-material/LockRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { Route } from "./+types/login";
 import {
@@ -133,6 +137,8 @@ function LoadingButtonLabel({ label }: { label: string }) {
 export default function Login({ actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const [showPassword, setShowPassword] = useState(false);
+  const [showResetHelp, setShowResetHelp] = useState(false);
 
   const commandSignals = [
     {
@@ -525,7 +531,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                   <TextField
                     name="password"
                     label="Password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     required
                     autoComplete="current-password"
                     fullWidth
@@ -536,9 +542,51 @@ export default function Login({ actionData }: Route.ComponentProps) {
                             <LockRounded />
                           </InputAdornment>
                         ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label={
+                                showPassword ? "Hide password" : "Show password"
+                              }
+                              onClick={() => setShowPassword((v) => !v)}
+                              edge="end"
+                              tabIndex={-1}
+                              sx={{ color: "text.secondary" }}
+                            >
+                              {showPassword ? (
+                                <VisibilityOffRounded />
+                              ) : (
+                                <VisibilityRounded />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
                       },
                     }}
                   />
+                  <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                    <Button
+                      type="button"
+                      variant="text"
+                      size="small"
+                      onClick={() => setShowResetHelp((v) => !v)}
+                      sx={{
+                        color: "primary.main",
+                        fontWeight: 700,
+                        textTransform: "none",
+                        px: 0.5,
+                        minWidth: 0,
+                      }}
+                    >
+                      Forgot password?
+                    </Button>
+                  </Box>
+                  {showResetHelp ? (
+                    <Alert severity="info">
+                      Operator accounts are managed. Ask the platform owner to
+                      reset your password (or re-issue it via ADMIN_BOOTSTRAP).
+                    </Alert>
+                  ) : null}
                   <Button
                     type="submit"
                     variant="contained"
