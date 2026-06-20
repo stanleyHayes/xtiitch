@@ -29,10 +29,13 @@ type Config struct {
 	ExpoAccessToken       string
 	GrowthPolicyConfirmed bool
 	HTTPAddr              string
-	JWTAudience           string
-	JWTIssuer             string
-	JWTSigningKey         string
-	LegalReviewConfirmed  bool
+	// StorefrontBaseURL is the public storefront origin the WhatsApp bot links to
+	// when pointing a shopper at a shop/design page.
+	StorefrontBaseURL    string
+	JWTAudience          string
+	JWTIssuer            string
+	JWTSigningKey        string
+	LegalReviewConfirmed bool
 	// MFAIssuer is the label authenticator apps show for TOTP entries.
 	// MFAEncryptionKey encrypts stored TOTP secrets at rest; when empty it falls
 	// back to the JWT signing key so local dev works without extra config.
@@ -92,6 +95,7 @@ func Load() Config {
 		ExpoAccessToken:          getenv("EXPO_ACCESS_TOKEN", ""),
 		GrowthPolicyConfirmed:    getenvBool("XTIITCH_GROWTH_POLICY_CONFIRMED"),
 		HTTPAddr:                 getenv("API_HTTP_ADDR", ":8080"),
+		StorefrontBaseURL:        getenv("STOREFRONT_BASE_URL", "http://localhost:3100"),
 		JWTAudience:              getenv("JWT_AUDIENCE", "xtiitch-clients"),
 		JWTIssuer:                getenv("JWT_ISSUER", "xtiitch-api"),
 		JWTSigningKey:            getenv("JWT_SIGNING_KEY", "change-me-for-local-development"),

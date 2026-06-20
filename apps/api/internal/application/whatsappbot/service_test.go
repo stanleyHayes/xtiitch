@@ -48,25 +48,67 @@ func (f *fakeSender) SendText(_ context.Context, _, body string) error {
 	return nil
 }
 
-func newService() (Service, *fakeSessions, *fakeDedupe, *fakeSender) {
+func (f *fakeSender) last() string {
+	if len(f.sent) == 0 {
+		return ""
+	}
+	return f.sent[len(f.sent)-1]
+}
+
+// fakeCatalogue serves one shop ("demo-atelier") with two designs and one order.
+type fakeCatalogue struct{}
+
+func (fakeCatalogue) ResolveShop(_ context.Context, handle string) (ports.BotShop, error) {
+	if handle != "demo-atelier" {
+		return ports.BotShop{}, ports.ErrNotFound
+	}
+	return ports.BotShop{BusinessID: "biz-1", Name: "Demo Atelier", Handle: "demo-atelier", OnlineOrdering: true}, nil
+}
+
+func (fakeCatalogue) ListDesigns(_ context.Context, businessID string) ([]ports.BotDesign, error) {
+	if businessID != "biz-1" {
+		return nil, nil
+	}
+	return []ports.BotDesign{
+		{Title: "Kente Wrap Dress", Handle: "kente-wrap-dress", FromPriceMinor: 45000, Sizes: []string{"S", "M", "L"}},
+		{Title: "Ankara Blazer", Handle: "ankara-blazer", FromPriceMinor: 60000, Sizes: []string{"M", "L"}},
+	}, nil
+}
+
+func (fakeCatalogue) TrackOrder(_ context.Context, code string) (ports.BotOrder, error) {
+	if code != "ORDER123" {
+		return ports.BotOrder{}, ports.ErrNotFound
+	}
+	return ports.BotOrder{DesignTitle: "Kente Wrap Dress", StoreName: "Demo Atelier", Status: "awaiting_deposit", Stage: "Deposit", Colour: "yellow"}, nil
+}
+
+func newService() (Service, *fakeSessions, *fakeSender) {
 	sessions := newFakeSessions()
-	dedupe := newFakeDedupe()
 	sender := &fakeSender{}
-	svc := NewService(Dependencies{Sessions: sessions, Dedupe: dedupe, Sender: sender})
-	return svc, sessions, dedupe, sender
+	svc := NewService(Dependencies{
+		Sessions:       sessions,
+		Dedupe:         newFakeDedupe(),
+		Sender:         sender,
+		Catalogue:      fakeCatalogue{},
+		StorefrontBase: "https://shop.xtiitch.com",
+	})
+	return svc, sessions, sender
+}
+
+// send is a tiny helper to drive a turn with a unique message id.
+func send(t *testing.T, svc Service, wa, id, text string) {
+	t.Helper()
+	if err := svc.HandleInbound(context.Background(), InboundMessage{WaID: wa, MessageID: id, Type: "text", Text: text, ContactName: "Ama"}); err != nil {
+		t.Fatalf("HandleInbound(%q): %v", text, err)
+	}
 }
 
 func TestFirstMessageGreetsAndPersistsSession(t *testing.T) {
-	svc, sessions, _, sender := newService()
+	svc, sessions, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")
 
-	err := svc.HandleInbound(context.Background(), InboundMessage{
-		WaID: "233244000111", MessageID: "wamid.1", Type: "text", Text: "hi", ContactName: "Ama",
-	})
-	if err != nil {
-		t.Fatalf("HandleInbound: %v", err)
-	}
-	if len(sender.sent) != 1 || !strings.Contains(sender.sent[0], "Ama") {
-		t.Fatalf("expected a personalised greeting, got %v", sender.sent)
+	if !strings.Contains(sender.last(), "Ama") {
+		t.Fatalf("expected a personalised greeting, got %q", sender.last())
 	}
 	if _, ok := sessions.store["233244000111"]; !ok {
 		t.Fatal("expected a session to be persisted")
@@ -74,43 +116,71 @@ func TestFirstMessageGreetsAndPersistsSession(t *testing.T) {
 }
 
 func TestDuplicateMessageIsIgnored(t *testing.T) {
-	svc, _, _, sender := newService()
-	msg := InboundMessage{WaID: "233244000111", MessageID: "wamid.dup", Type: "text", Text: "hi"}
-
-	if err := svc.HandleInbound(context.Background(), msg); err != nil {
-		t.Fatalf("first: %v", err)
-	}
-	if err := svc.HandleInbound(context.Background(), msg); err != nil {
-		t.Fatalf("second: %v", err)
-	}
+	svc, _, sender := newService()
+	send(t, svc, "233244000111", "dup", "hi")
+	send(t, svc, "233244000111", "dup", "hi")
 	if len(sender.sent) != 1 {
 		t.Fatalf("duplicate message should not produce a second reply, got %d", len(sender.sent))
 	}
 }
 
-func TestSecondTurnEchoesWithCount(t *testing.T) {
-	svc, _, _, sender := newService()
-	_ = svc.HandleInbound(context.Background(), InboundMessage{WaID: "233244000111", MessageID: "m1", Type: "text", Text: "hi"})
-	_ = svc.HandleInbound(context.Background(), InboundMessage{WaID: "233244000111", MessageID: "m2", Type: "text", Text: "red kente"})
-
-	if len(sender.sent) != 2 {
-		t.Fatalf("expected 2 replies, got %d", len(sender.sent))
+func TestBrowseFlowResolvesShopAndListsDesigns(t *testing.T) {
+	svc, _, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")           // greeting → awaiting_shop
+	send(t, svc, "233244000111", "m2", "Demo Atelier") // resolves shop → menu
+	if !strings.Contains(sender.last(), "Demo Atelier") {
+		t.Fatalf("expected shop menu, got %q", sender.last())
 	}
-	if !strings.Contains(sender.sent[1], "red kente") {
-		t.Fatalf("expected the echo to include the message, got %q", sender.sent[1])
+	send(t, svc, "233244000111", "m3", "browse") // lists designs
+	listing := sender.last()
+	if !strings.Contains(listing, "Kente Wrap Dress") || !strings.Contains(listing, "GHS 450") {
+		t.Fatalf("expected the design list with prices, got %q", listing)
+	}
+	send(t, svc, "233244000111", "m4", "1") // detail of design #1
+	detail := sender.last()
+	if !strings.Contains(detail, "Kente Wrap Dress") || !strings.Contains(detail, "Sizes: S, M, L") {
+		t.Fatalf("expected design detail with sizes, got %q", detail)
+	}
+}
+
+func TestUnknownShopAsksAgain(t *testing.T) {
+	svc, _, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "no-such-shop")
+	if !strings.Contains(strings.ToLower(sender.last()), "couldn't find") {
+		t.Fatalf("expected a not-found prompt, got %q", sender.last())
+	}
+}
+
+func TestTrackOrderByCode(t *testing.T) {
+	svc, _, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "demo-atelier")
+	send(t, svc, "233244000111", "m3", "track ORDER123")
+	reply := sender.last()
+	if !strings.Contains(reply, "Kente Wrap Dress") || !strings.Contains(strings.ToLower(reply), "awaiting deposit") {
+		t.Fatalf("expected the order status, got %q", reply)
+	}
+}
+
+func TestTrackUnknownOrder(t *testing.T) {
+	svc, _, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "demo-atelier")
+	send(t, svc, "233244000111", "m3", "track NOPE")
+	if !strings.Contains(strings.ToLower(sender.last()), "couldn't find an order") {
+		t.Fatalf("expected order not-found, got %q", sender.last())
 	}
 }
 
 func TestStopOptsOutAndClearsSession(t *testing.T) {
-	svc, sessions, _, sender := newService()
-	_ = svc.HandleInbound(context.Background(), InboundMessage{WaID: "233244000111", MessageID: "m1", Type: "text", Text: "hi"})
-	if err := svc.HandleInbound(context.Background(), InboundMessage{WaID: "233244000111", MessageID: "m2", Type: "text", Text: "STOP"}); err != nil {
-		t.Fatalf("stop: %v", err)
-	}
+	svc, sessions, sender := newService()
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "STOP")
 	if _, ok := sessions.store["233244000111"]; ok {
 		t.Fatal("STOP should delete the session")
 	}
-	if !strings.Contains(strings.ToLower(sender.sent[len(sender.sent)-1]), "opted out") {
-		t.Fatalf("expected an opt-out confirmation, got %q", sender.sent[len(sender.sent)-1])
+	if !strings.Contains(strings.ToLower(sender.last()), "opted out") {
+		t.Fatalf("expected an opt-out confirmation, got %q", sender.last())
 	}
 }

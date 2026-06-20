@@ -28,6 +28,7 @@ import (
 	whatsapphttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/whatsapp"
 	aiadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/ai"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
+	botcatalogueadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/botcatalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
@@ -345,11 +346,17 @@ func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool
 	}
 
 	repo := postgres.NewWhatsAppRepository(db)
+	catalogue := botcatalogueadapter.New(
+		postgres.NewStorefrontRepository(db),
+		postgres.NewOrderRepository(db),
+	)
 	return whatsappbotapp.NewService(whatsappbotapp.Dependencies{
-		Sessions: repo,
-		Dedupe:   repo,
-		Sender:   sender,
-		Clock:    clock.SystemClock{},
+		Sessions:       repo,
+		Dedupe:         repo,
+		Sender:         sender,
+		Catalogue:      catalogue,
+		Clock:          clock.SystemClock{},
+		StorefrontBase: cfg.StorefrontBaseURL,
 	})
 }
 

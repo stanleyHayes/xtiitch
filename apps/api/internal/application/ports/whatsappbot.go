@@ -39,3 +39,35 @@ type WhatsAppDedupeStore interface {
 type WhatsAppSender interface {
 	SendText(ctx context.Context, toWaID, body string) error
 }
+
+// BotCatalogue is the narrow read surface the bot's conversation engine needs.
+// It adapts the existing storefront/order repositories to small, chat-shaped
+// structs so the engine stays decoupled from the full catalogue domain. Lookups
+// return ErrNotFound when the shop/order does not exist.
+type BotCatalogue interface {
+	ResolveShop(ctx context.Context, handle string) (BotShop, error)
+	ListDesigns(ctx context.Context, businessID string) ([]BotDesign, error)
+	TrackOrder(ctx context.Context, code string) (BotOrder, error)
+}
+
+type BotShop struct {
+	BusinessID     string
+	Name           string
+	Handle         string
+	OnlineOrdering bool
+}
+
+type BotDesign struct {
+	Title          string
+	Handle         string
+	FromPriceMinor int64
+	Sizes          []string
+}
+
+type BotOrder struct {
+	DesignTitle string
+	StoreName   string
+	Status      string
+	Stage       string
+	Colour      string
+}
