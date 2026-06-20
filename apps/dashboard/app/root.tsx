@@ -13,8 +13,6 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 
@@ -57,55 +55,41 @@ export default function App() {
   const navigation = useNavigation();
   return (
     <>
+      {navigation.state === "loading" ? <RouteProgressBar /> : null}
       <Outlet />
-      {navigation.state !== "idle" ? <RoutePendingSkeleton /> : null}
     </>
   );
 }
 
-function RoutePendingSkeleton() {
+// A thin top progress bar shown only while a page route is loading — replaces the
+// old full-page skeleton card that flashed over the UI on every form submit.
+function RouteProgressBar() {
   return (
     <Box
-      aria-live="polite"
-      aria-busy="true"
+      aria-hidden
       sx={{
         position: "fixed",
-        inset: { xs: 12, sm: 20 },
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
         zIndex: 2400,
+        overflow: "hidden",
         pointerEvents: "none",
-        display: "flex",
-        alignItems: "flex-start",
-        justifyContent: "center",
+        bgcolor: "rgba(128, 0, 32, 0.12)",
+        "@keyframes routeProgressSlide": {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
+        "&::after": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          background: `linear-gradient(90deg, transparent, ${tokens.burgundy}, transparent)`,
+          animation: "routeProgressSlide 1.1s ease-in-out infinite",
+        },
       }}
-    >
-      <Box
-        sx={{
-          width: "min(760px, 100%)",
-          p: { xs: 2, sm: 2.5 },
-          borderRadius: 3,
-          bgcolor: "rgba(var(--surface-rgb), 0.94)",
-          border: "1px solid rgba(128,0,32,0.14)",
-          boxShadow: "0 24px 80px rgba(21,17,26,0.18)",
-          backdropFilter: "blur(18px)",
-        }}
-      >
-        <Stack spacing={1.4}>
-          <Skeleton variant="rounded" width="38%" height={18} />
-          <Skeleton variant="rounded" width="100%" height={42} />
-          <Box
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
-              gap: 1.2,
-            }}
-          >
-            <Skeleton variant="rounded" height={74} />
-            <Skeleton variant="rounded" height={74} />
-            <Skeleton variant="rounded" height={74} />
-          </Box>
-        </Stack>
-      </Box>
-    </Box>
+    />
   );
 }
 
