@@ -57,7 +57,16 @@ type Config struct {
 	SonarHostURL         string
 	SonarOrganization    string
 	SonarToken           string
-	WorkerQueueName      string
+	// WhatsApp inbound bot. WhatsAppVerifyToken answers Meta's GET subscription
+	// challenge; WhatsAppAppSecret verifies the X-Hub-Signature-256 on inbound
+	// POSTs. The phone-number id + access token send replies via the Cloud API;
+	// when unset, the bot logs replies (dev fallback) instead of sending.
+	WhatsAppVerifyToken   string
+	WhatsAppAppSecret     string
+	WhatsAppPhoneNumberID string
+	WhatsAppAccessToken   string
+	WhatsAppGraphVersion  string
+	WorkerQueueName       string
 }
 
 func Load() Config {
@@ -108,6 +117,11 @@ func Load() Config {
 		SonarHostURL:          getenv("SONAR_HOST_URL", ""),
 		SonarOrganization:     getenv("SONAR_ORGANIZATION", ""),
 		SonarToken:            getenv("SONAR_TOKEN", ""),
+		WhatsAppVerifyToken:   getenv("WHATSAPP_VERIFY_TOKEN", ""),
+		WhatsAppAppSecret:     getenv("WHATSAPP_APP_SECRET", ""),
+		WhatsAppPhoneNumberID: getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
+		WhatsAppAccessToken:   getenv("WHATSAPP_ACCESS_TOKEN", ""),
+		WhatsAppGraphVersion:  getenv("WHATSAPP_GRAPH_VERSION", "v21.0"),
 		WorkerQueueName:       getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
 	}
 }

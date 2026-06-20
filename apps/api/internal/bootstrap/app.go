@@ -25,12 +25,14 @@ import (
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
+	whatsapphttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/whatsapp"
 	aiadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/ai"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
+	whatsappadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/whatsapp"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
 	aisearchapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aisearch"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
@@ -47,6 +49,7 @@ import (
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	whatsappbotapp "github.com/xcreativs/xtiitch/apps/api/internal/application/whatsappbot"
 	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/config"
@@ -243,6 +246,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
+	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
@@ -254,6 +258,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),
+		whatsapphttp.NewHandler(whatsAppBotService, cfg.WhatsAppVerifyToken, cfg.WhatsAppAppSecret, logger),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
@@ -326,6 +331,28 @@ func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Po
 	return service
 }
 
+// buildWhatsAppBotService wires the inbound WhatsApp bot's conversation engine.
+// Replies go through the Cloud API when WHATSAPP_PHONE_NUMBER_ID and
+// WHATSAPP_ACCESS_TOKEN are set, else a logging sender (dev fallback) so the
+// engine is fully exercisable locally.
+func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) whatsappbotapp.Service {
+	var sender ports.WhatsAppSender
+	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
+		sender = whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion)
+	} else {
+		logger.Warn("whatsapp cloud credentials not set; bot replies will be logged only")
+		sender = whatsappadapter.NewLoggingSender(logger)
+	}
+
+	repo := postgres.NewWhatsAppRepository(db)
+	return whatsappbotapp.NewService(whatsappbotapp.Dependencies{
+		Sessions: repo,
+		Dedupe:   repo,
+		Sender:   sender,
+		Clock:    clock.SystemClock{},
+	})
+}
+
 func (a App) HTTPServer() *http.Server {
 	return a.httpServer
 }
@@ -364,6 +391,11 @@ func validateProductionConfig(cfg config.Config) error {
 	}
 	if strings.Contains(cfg.DatabaseURL, "sslmode=disable") {
 		problems = append(problems, "DATABASE_URL must not disable TLS (sslmode=disable) in production")
+	}
+	// If the WhatsApp bot is enabled (verify token set), inbound webhooks must be
+	// signature-verified — otherwise anyone could POST forged messages.
+	if cfg.WhatsAppVerifyToken != "" && cfg.WhatsAppAppSecret == "" {
+		problems = append(problems, "WHATSAPP_APP_SECRET must be set when the WhatsApp bot is enabled (inbound webhooks must be signature-verified)")
 	}
 
 	if len(problems) == 0 {
