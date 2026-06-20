@@ -1,12 +1,12 @@
 import { Link as RouterLink, type MetaDescriptor } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { pageMeta } from "../components/seo";
 import {
   CtaBand,
+  Eyebrow,
   FeatureGrid,
   MeasurementRouteGrid,
   PageHero,
@@ -39,31 +39,26 @@ export default function Features() {
           sx={{
             mt: { xs: 5, md: 7 },
             display: "grid",
-            gap: { xs: 3, md: 4 },
-            gridTemplateColumns: { xs: "1fr", lg: "0.8fr 1.2fr" },
-            alignItems: "start",
-            p: { xs: 2.5, md: 3.5 },
+            gap: { xs: 3, md: 5 },
+            gridTemplateColumns: { xs: "1fr", lg: "0.9fr 1.1fr" },
+            alignItems: "stretch",
+            p: { xs: 2.5, md: 4 },
             border: "1px solid",
             borderColor: "rgba(128,0,32,0.16)",
-            borderRadius: 1,
+            borderRadius: 2,
             bgcolor: "rgba(var(--surface-rgb), 0.82)",
             boxShadow: "0 26px 70px -56px rgba(21,17,26,0.56)",
           }}
         >
-          <Box>
-            <Typography
-              component="p"
-              sx={{
-                color: "primary.main",
-                fontSize: 11,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: 0,
-              }}
-            >
-              Growth layer
-            </Typography>
-            <Typography variant="h3" component="h2" sx={{ mt: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+            }}
+          >
+            <Eyebrow>Growth layer</Eyebrow>
+            <Typography variant="h3" component="h2" sx={{ mt: 0.5 }}>
               Campaigns, partners and sponsored discovery sit on top.
             </Typography>
             <Typography sx={{ mt: 1.5, color: "text.secondary" }}>
@@ -75,32 +70,72 @@ export default function Features() {
               component={RouterLink}
               to="/growth"
               variant="contained"
-              sx={{ mt: 2.5 }}
+              endIcon={<ArrowForwardRoundedIcon />}
+              sx={{ mt: 3, alignSelf: "flex-start" }}
             >
               See growth programmes
             </Button>
           </Box>
-          <Stack
-            direction="row"
-            spacing={1}
-            useFlexGap
-            sx={{ flexWrap: "wrap", alignItems: "center" }}
-          >
+          <Box sx={{ display: "grid", gap: 1.25 }}>
             {growthProgrammes.map((programme) => (
-              <Chip
+              <Box
                 key={programme.title}
-                label={`${programme.label}: ${programme.title}`}
-                variant="outlined"
                 sx={{
-                  minHeight: 40,
-                  px: 0.5,
-                  bgcolor: "background.paper",
+                  display: "flex",
+                  gap: 1.75,
+                  p: { xs: 1.5, md: 2 },
+                  borderRadius: 1.5,
+                  border: "1px solid",
                   borderColor: "divider",
-                  "& .MuiChip-label": { py: 0.5 },
+                  bgcolor: "background.paper",
+                  transition: "border-color 180ms ease, transform 180ms ease",
+                  "&:hover": {
+                    borderColor: "rgba(128,0,32,0.28)",
+                    transform: "translateX(3px)",
+                  },
                 }}
-              />
+              >
+                <Box
+                  aria-hidden
+                  sx={{
+                    flexShrink: 0,
+                    mt: 0.3,
+                    px: 1,
+                    height: 24,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    borderRadius: 1,
+                    bgcolor: "rgba(128,0,32,0.08)",
+                    color: "primary.main",
+                    fontSize: 10.5,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.04em",
+                  }}
+                >
+                  {programme.label}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: 15 }}>
+                    {programme.title}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      mt: 0.25,
+                      color: "text.secondary",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {programme.body}
+                  </Typography>
+                </Box>
+              </Box>
             ))}
-          </Stack>
+          </Box>
         </Box>
       </Section>
 

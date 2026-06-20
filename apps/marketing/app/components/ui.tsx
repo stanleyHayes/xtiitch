@@ -1204,7 +1204,16 @@ export function PlanCards({ items }: { items: Plan[] }) {
 
 export function FaqList({ items }: { items: Faq[] }) {
   return (
-    <Box sx={{ maxWidth: 920, mx: "auto" }}>
+    <Box
+      sx={{
+        display: "grid",
+        gap: 1.5,
+        gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+        alignItems: "start",
+        maxWidth: 1080,
+        mx: "auto",
+      }}
+    >
       {items.map((faq, index) => (
         <Accordion
           key={faq.question}
@@ -1213,28 +1222,28 @@ export function FaqList({ items }: { items: Faq[] }) {
           sx={{
             border: "1px solid",
             borderColor: "divider",
-            borderRadius: 1,
-            mb: 1.5,
+            borderRadius: 1.5,
             "&:before": { display: "none" },
-            bgcolor: "rgba(var(--surface-rgb), 0.88)",
+            bgcolor: "rgba(var(--surface-rgb), 0.9)",
             overflow: "hidden",
-            transition:
-              "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
-            ...riseInSx(60 + index * 45),
-            "&:hover": {
-              transform: "translateY(-2px)",
-              borderColor: "rgba(128,0,32,0.18)",
-              boxShadow: "0 24px 60px -52px rgba(21,17,26,0.56)",
+            transition: "border-color 200ms ease, box-shadow 200ms ease",
+            ...riseInSx(50 + index * 40),
+            "&:hover": { borderColor: "rgba(128,0,32,0.22)" },
+            "&.Mui-expanded": {
+              borderColor: "rgba(128,0,32,0.32)",
+              boxShadow: "0 26px 60px -50px rgba(21,17,26,0.6)",
             },
           }}
         >
           <AccordionSummary
-            expandIcon={<ExpandMoreIcon />}
+            expandIcon={<ExpandMoreIcon sx={{ color: "primary.main" }} />}
             sx={{
-              minHeight: 68,
+              px: 2,
+              minHeight: 56,
               "& .MuiAccordionSummary-content": {
                 alignItems: "center",
-                gap: 2,
+                gap: 1.5,
+                my: 1.25,
               },
             }}
           >
@@ -1243,22 +1252,24 @@ export function FaqList({ items }: { items: Faq[] }) {
               aria-hidden
               sx={{
                 flexShrink: 0,
-                width: 30,
-                height: 30,
-                borderRadius: 1,
-                bgcolor: "rgba(128,0,32,0.08)",
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                border: "1px solid rgba(128,0,32,0.28)",
                 color: "primary.main",
                 display: "grid",
                 placeItems: "center",
                 fontWeight: 800,
-                fontSize: 13,
+                fontSize: 12.5,
               }}
             >
               {String(index + 1).padStart(2, "0")}
             </Box>
-            <Typography sx={{ fontWeight: 800 }}>{faq.question}</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: 15, lineHeight: 1.3 }}>
+              {faq.question}
+            </Typography>
           </AccordionSummary>
-          <AccordionDetails sx={{ pt: 0, pl: { xs: 2, sm: 8 } }}>
+          <AccordionDetails sx={{ pt: 0, pb: 2, pl: { xs: 2, sm: 7 }, pr: 2 }}>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               {faq.answer}
             </Typography>

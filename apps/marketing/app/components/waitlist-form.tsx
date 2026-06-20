@@ -8,7 +8,6 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import Chip from "@mui/material/Chip";
-import Skeleton from "@mui/material/Skeleton";
 import AlternateEmailRoundedIcon from "@mui/icons-material/AlternateEmailRounded";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import EditNoteRoundedIcon from "@mui/icons-material/EditNoteRounded";
@@ -18,6 +17,45 @@ import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import TextField from "./form-text-field";
 import type { WaitlistResult } from "../lib/waitlist";
+
+function LoadingButtonLabel({ label }: { label: string }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 0.85,
+        "@keyframes xtiitchButtonDot": {
+          "0%, 80%, 100%": { opacity: 0.42, transform: "translateY(0)" },
+          "40%": { opacity: 1, transform: "translateY(-4px)" },
+        },
+      }}
+    >
+      <Box component="span">{label}</Box>
+      <Box
+        component="span"
+        aria-hidden
+        sx={{ display: "inline-flex", gap: 0.45, pt: "2px" }}
+      >
+        {["0ms", "120ms", "240ms"].map((delay) => (
+          <Box
+            key={delay}
+            component="span"
+            sx={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              bgcolor: "currentColor",
+              animation: `xtiitchButtonDot 900ms ease-in-out ${delay} infinite`,
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}
 
 export function WaitlistForm() {
   const fetcher = useFetcher<WaitlistResult>();
@@ -247,17 +285,16 @@ export function WaitlistForm() {
           variant="contained"
           size="large"
           disabled={submitting}
+          sx={{
+            "&.Mui-disabled": {
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              opacity: 0.72,
+            },
+          }}
         >
           {submitting ? (
-            <Skeleton
-              variant="text"
-              width={128}
-              sx={{
-                bgcolor: "rgba(255,255,255,0.58)",
-                fontSize: "1rem",
-                maxWidth: "100%",
-              }}
-            />
+            <LoadingButtonLabel label="Joining waitlist" />
           ) : (
             "Join the waitlist"
           )}

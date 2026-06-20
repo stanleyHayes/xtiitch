@@ -191,46 +191,51 @@ export const plans: Plan[] = [
     available: true,
     highlight: false,
     summary:
-      "Remove the wall. Get a real store at no monthly cost; pay a small share only when you actually sell.",
+      "Remove the wall. Get a real, branded catalogue store at no monthly cost; customers browse and reach you directly to arrange an order.",
     includes: [
-      "A real, branded storefront",
+      "A real, branded catalogue storefront",
       "Up to about 10 designs",
-      "Walk-in order logging",
-      "Basic order tracking with the customer progress link",
+      "Walk-in order logging in the dashboard",
+      "Order tracking with the customer progress link",
     ],
   },
   {
     name: "Standard",
     badge: "Most popular",
     price: "GHS 50",
-    priceNote: "per month",
+    priceNote: "per month · or GHS 600 a year",
     feeLabel: "Fee on Xtiitch sales",
     feeValue: "1%",
     available: true,
     highlight: true,
     summary:
-      "For a shop selling steadily. A lower share on sales, plus the full toolkit to run the business.",
+      "For a shop selling steadily. Turn the store into a real checkout, with the full toolkit to run the business.",
     includes: [
+      "Online ordering & checkout — card and mobile money",
+      "Your storefront accent colour",
       "Unlimited designs and collections",
       "Full project tracking with the customer view",
       "The money tracker",
       "Delivery zones and fees",
-      "Basic analytics",
+      "Two-step sign-in security",
     ],
   },
   {
     name: "Growth",
-    badge: "Later",
-    price: "~ GHS 120",
-    priceNote: "per month",
+    badge: "Best for scale",
+    price: "GHS 120",
+    priceNote: "per month · or GHS 1,440 a year",
     feeLabel: "Fee on Xtiitch sales",
     feeValue: "0.5% or none",
-    available: false,
+    available: true,
     highlight: false,
     summary:
-      "Planned for the future, not in version one. Noted here so you can see where pricing is heading.",
+      "For shops scaling up — full storefront branding, waiting lists and team access at the lowest per-sale fee.",
     includes: [
-      "Staff logins",
+      "Everything in Standard",
+      "Custom logo, hero banner and layout variants",
+      "Design waiting lists",
+      "Staff logins and roles",
       "Deeper analytics",
       "The lowest or no per-sale fee",
     ],
@@ -380,7 +385,12 @@ export const faqs: Faq[] = [
   {
     question: "What does it cost?",
     answer:
-      "Free costs nothing per month with a 3% share on sales through Xtiitch. Standard is GHS 50 a month with a 1% share. Our share sits on top of Paystack’s 1.95% transaction fee, and only applies to money that passes through Xtiitch.",
+      "Free costs nothing per month with a 3% share on sales through Xtiitch. Standard is GHS 50 a month (or GHS 600 a year) with a 1% share, and Growth is GHS 120 a month (or GHS 1,440 a year) with the lowest or no share. Our share sits on top of Paystack’s 1.95% transaction fee, and only applies to money that passes through Xtiitch. You can switch plan or billing cycle yourself from the dashboard.",
+  },
+  {
+    question: "Do customers order and pay online?",
+    answer:
+      "On a paid plan, yes — customers place and pay for orders directly from your storefront by mobile money or card. The Free plan is a catalogue store: customers browse your designs and reach you directly to arrange an order, which you log in the dashboard. Online ordering and checkout unlock on Standard and Growth.",
   },
   {
     question: "How do deposits work on custom orders?",
@@ -413,9 +423,24 @@ export const faqs: Faq[] = [
       "Because payments settle directly to the business and Xtiitch holds no funds, refund and cancellation requests start with the business. Xtiitch records the request, payment status and any provider-confirmed reversal so the customer, business and operator can see the same trail.",
   },
   {
+    question: "Can I make my storefront look like my brand?",
+    answer:
+      "Yes, and how far you can go depends on your plan. Standard unlocks your own accent colour. Growth unlocks a custom logo, a custom hero banner and storefront layout variants, plus design waiting lists so customers can register interest in sold-out or made-to-order pieces.",
+  },
+  {
+    question: "Can I protect my account with two-step verification?",
+    answer:
+      "Yes. Owners and staff can turn on optional two-step sign-in using an authenticator app such as Google Authenticator or Authy, with one-time backup codes in case you lose your phone. Team members get owner, admin or staff roles so everyone has the right level of access.",
+  },
+  {
+    question: "How do my customers and I get updates?",
+    answer:
+      "Xtiitch sends automatic updates when an order is placed, moves a stage, is paid, or a visit is booked — by message and email — so customers feel their garment move forward and you never miss an order. WhatsApp is the primary channel for customer updates.",
+  },
+  {
     question: "Is my information safe?",
     answer:
-      "Each business’s data is sealed off from every other business. Card details are handled by Paystack and never touch Xtiitch. Personal and settlement details are protected in transit and at rest.",
+      "Each business’s data is sealed off from every other business. Card details are handled by Paystack and never touch Xtiitch. Personal and settlement details are protected in transit and at rest. As a customer you can ask a business or Xtiitch to export or erase your personal data under Ghana’s Data Protection Act.",
   },
 ];
 
