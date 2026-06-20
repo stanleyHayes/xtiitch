@@ -146,6 +146,10 @@ type Storefront struct {
 	// WaitlistEnabled is true when the business's plan grants the design_waitlist
 	// benefit, so the storefront may offer "join the waiting list" on designs.
 	WaitlistEnabled bool
+	// OnlineOrderingEnabled is true when the business's plan grants the
+	// online_ordering benefit. When false the storefront is a catalogue only and
+	// checkout is refused server-side.
+	OnlineOrderingEnabled bool
 }
 
 // DesignWaitlistEntryInput is a customer's public request to join a design's

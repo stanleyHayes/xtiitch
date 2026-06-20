@@ -8,13 +8,14 @@ import (
 )
 
 type storeSummary struct {
-	Name                string                    `json:"name"`
-	Handle              string                    `json:"handle"`
-	BrandColor          string                    `json:"brand_color"`
-	DefaultDepositMinor int64                     `json:"default_deposit_minor"`
-	MeasurementFields   []measurementFieldSummary `json:"measurement_fields"`
-	Settings            settingsBody              `json:"settings"`
-	WaitlistEnabled     bool                      `json:"waitlist_enabled"`
+	Name                  string                    `json:"name"`
+	Handle                string                    `json:"handle"`
+	BrandColor            string                    `json:"brand_color"`
+	DefaultDepositMinor   int64                     `json:"default_deposit_minor"`
+	MeasurementFields     []measurementFieldSummary `json:"measurement_fields"`
+	Settings              settingsBody              `json:"settings"`
+	WaitlistEnabled       bool                      `json:"waitlist_enabled"`
+	OnlineOrderingEnabled bool                      `json:"online_ordering_enabled"`
 }
 
 type measurementFieldSummary struct {
@@ -26,13 +27,14 @@ type measurementFieldSummary struct {
 
 func toStoreSummary(store ports.Storefront) storeSummary {
 	return storeSummary{
-		Name:                store.Name,
-		Handle:              store.Handle,
-		BrandColor:          store.BrandColor,
-		DefaultDepositMinor: store.DefaultDepositMinor,
-		MeasurementFields:   toMeasurementFieldSummaries(store.MeasurementFields),
-		Settings:            toSettingsBody(store.Settings),
-		WaitlistEnabled:     store.WaitlistEnabled,
+		Name:                  store.Name,
+		Handle:                store.Handle,
+		BrandColor:            store.BrandColor,
+		DefaultDepositMinor:   store.DefaultDepositMinor,
+		MeasurementFields:     toMeasurementFieldSummaries(store.MeasurementFields),
+		Settings:              toSettingsBody(store.Settings),
+		WaitlistEnabled:       store.WaitlistEnabled,
+		OnlineOrderingEnabled: store.OnlineOrderingEnabled,
 	}
 }
 

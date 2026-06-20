@@ -184,7 +184,8 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 			ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
 			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled,
 			coalesce(ss.logo_url, ''), coalesce(ss.banner_url, ''), ss.layout_variant,
-			coalesce((p.features->>'design_waitlist')::boolean, false)
+			coalesce((p.features->>'design_waitlist')::boolean, false),
+			coalesce((p.features->>'online_ordering')::boolean, false)
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
 		join plans p on p.plan_id = b.plan_id
@@ -195,6 +196,7 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.Settings.DeliveryEnabled, &store.Settings.DispatchEnabled,
 		&store.Settings.LogoURL, &store.Settings.BannerURL, &store.Settings.LayoutVariant,
 		&store.WaitlistEnabled,
+		&store.OnlineOrderingEnabled,
 	)
 	if err != nil {
 		return store, err

@@ -15,7 +15,6 @@ import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Alert from "@mui/material/Alert";
 import MenuItem from "@mui/material/MenuItem";
-import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
@@ -575,25 +574,46 @@ function PaymentMethodField() {
   );
 }
 
-function ButtonLabelSkeleton({
-  width,
-  inverse = false,
+function LoadingButtonLabel({
+  label,
 }: {
-  width: number;
-  inverse?: boolean;
+  label: string;
 }) {
   return (
-    <Skeleton
-      variant="text"
-      width={width}
+    <Box
+      component="span"
       sx={{
-        bgcolor: inverse
-          ? "rgba(255,255,255,0.58)"
-          : alpha(tokens.burgundy, 0.2),
-        fontSize: "1rem",
-        maxWidth: "100%",
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 0.85,
+        "@keyframes xtiitchButtonDot": {
+          "0%, 80%, 100%": { opacity: 0.42, transform: "translateY(0)" },
+          "40%": { opacity: 1, transform: "translateY(-4px)" },
+        },
       }}
-    />
+    >
+      <Box component="span">{label}</Box>
+      <Box
+        component="span"
+        aria-hidden
+        sx={{ display: "inline-flex", gap: 0.45, pt: "2px" }}
+      >
+        {["0ms", "120ms", "240ms"].map((delay) => (
+          <Box
+            key={delay}
+            component="span"
+            sx={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              bgcolor: "currentColor",
+              animation: `xtiitchButtonDot 900ms ease-in-out ${delay} infinite`,
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
   );
 }
 
@@ -1044,7 +1064,9 @@ function StandardOrderPanel({
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
 }) {
-  const canOrder = design.prices.length > 0 && Boolean(store?.handle);
+  const onlineOrderingEnabled = store?.online_ordering_enabled !== false;
+  const canOrder =
+    design.prices.length > 0 && Boolean(store?.handle) && onlineOrderingEnabled;
 
   return (
     <Box
@@ -1088,8 +1110,9 @@ function StandardOrderPanel({
       ) : null}
       {!canOrder ? (
         <Alert severity="info" sx={{ mt: 2 }}>
-          This design needs a listed size and store connection before it can be
-          ordered online.
+          {!onlineOrderingEnabled
+            ? `${store?.name ?? "This shop"} isn't taking online orders here yet — reach out to the shop directly to place an order.`
+            : "This design needs a listed size and store connection before it can be ordered online."}
         </Alert>
       ) : (
         <Form method="post">
@@ -1125,10 +1148,17 @@ function StandardOrderPanel({
               variant="contained"
               size="large"
               disabled={isSubmitting}
-              sx={{ alignSelf: "stretch" }}
+              sx={{
+                alignSelf: "stretch",
+                "&.Mui-disabled": {
+                  bgcolor: tokens.burgundy,
+                  color: tokens.white,
+                  opacity: 0.72,
+                },
+              }}
             >
               {isSubmitting ? (
-                <ButtonLabelSkeleton width={156} inverse />
+                <LoadingButtonLabel label="Opening checkout" />
               ) : (
                 "Pay and place order"
               )}
@@ -1159,7 +1189,7 @@ function customRoutes(
 ): CustomRoute[] {
   const measurementFields = store.measurement_fields;
 
-  return [
+  const routes: CustomRoute[] = [
     {
       mode: "self_measure",
       title: "Self-measure",
@@ -1198,6 +1228,18 @@ function customRoutes(
       buttonLabel: "Reserve shop measurement",
     },
   ];
+
+  // Online ordering is a paid plan benefit; without it every custom route is
+  // closed and customers are pointed to the shop directly.
+  if (store.online_ordering_enabled === false) {
+    return routes.map((route) => ({
+      ...route,
+      enabled: false,
+      disabledReason: `${store.name} isn't taking online orders here yet — reach out to the shop directly.`,
+    }));
+  }
+
+  return routes;
 }
 
 function MeasurementInputs({ store }: { store: StoreSummary }) {
@@ -1402,10 +1444,23 @@ function CustomRouteForm({
               variant={route.takesPayment ? "contained" : "outlined"}
               size="large"
               disabled={isSubmitting}
-              sx={{ alignSelf: "stretch" }}
+              sx={{
+                alignSelf: "stretch",
+                "&.Mui-disabled": route.takesPayment
+                  ? {
+                      bgcolor: tokens.burgundy,
+                      color: tokens.white,
+                      opacity: 0.72,
+                    }
+                  : {
+                      borderColor: alpha(tokens.burgundy, 0.42),
+                      color: tokens.burgundy,
+                      opacity: 0.72,
+                    },
+              }}
             >
               {isSubmitting ? (
-                <ButtonLabelSkeleton width={148} inverse={route.takesPayment} />
+                <LoadingButtonLabel label="Submitting request" />
               ) : (
                 route.buttonLabel
               )}
@@ -1665,22 +1720,19 @@ function WaitlistPanel({
               type="submit"
               variant="contained"
               disabled={isSubmitting}
-              startIcon={
-                isSubmitting ? (
-                  <Skeleton
-                    variant="circular"
-                    width={20}
-                    height={20}
-                    sx={{ bgcolor: "rgba(255,255,255,0.58)" }}
-                  />
-                ) : (
-                  <GroupsRounded />
-                )
-              }
-              sx={{ bgcolor: brand, "&:hover": { bgcolor: brand } }}
+              startIcon={isSubmitting ? undefined : <GroupsRounded />}
+              sx={{
+                bgcolor: brand,
+                "&:hover": { bgcolor: brand },
+                "&.Mui-disabled": {
+                  bgcolor: brand,
+                  color: tokens.white,
+                  opacity: 0.72,
+                },
+              }}
             >
               {isSubmitting ? (
-                <ButtonLabelSkeleton width={82} inverse />
+                <LoadingButtonLabel label="Joining list" />
               ) : (
                 "Notify me"
               )}

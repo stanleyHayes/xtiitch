@@ -20,7 +20,7 @@ const testBusinessID = common.ID("biz-1")
 func newTestService(orders ports.OrderRepository, payments Payments) Service {
 	return NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -107,7 +107,7 @@ func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
 	affiliates := &fakeAffiliates{}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -155,7 +155,7 @@ func TestPlaceStandardOrderIgnoresUnavailableAffiliateAttribution(t *testing.T) 
 	affiliates := &fakeAffiliates{err: ports.ErrNotFound}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -192,7 +192,7 @@ func TestPlaceStandardOrderReservesReferralAttribution(t *testing.T) {
 	referrals := &fakeReferrals{}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -245,7 +245,7 @@ func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission(t *t
 	}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -302,7 +302,7 @@ func TestPlaceStandardOrderVoidsPromotionWhenChargeFails(t *testing.T) {
 	}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -344,7 +344,7 @@ func TestPlaceStandardOrderRejectsPlatformFundedDiscountAboveCommission(t *testi
 	}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 			design: ports.StorefrontDesign{
 				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
 				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
@@ -413,7 +413,7 @@ func TestPlaceStandardOrderRejectsUnverifiedStore(t *testing.T) {
 	payments := &fakePayments{}
 	svc := NewService(Dependencies{
 		Storefront: fakeStorefront{
-			store: ports.Storefront{BusinessID: testBusinessID},
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
 		},
 		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{BusinessID: testBusinessID, Verified: false}},
 		Orders:     orders,
@@ -431,9 +431,10 @@ func TestPlaceStandardOrderRejectsUnverifiedStore(t *testing.T) {
 
 func customStore() ports.Storefront {
 	return ports.Storefront{
-		BusinessID:          testBusinessID,
-		DefaultDepositMinor: 15000,
-		Settings:            ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: true},
+		BusinessID:            testBusinessID,
+		DefaultDepositMinor:   15000,
+		OnlineOrderingEnabled: true,
+		Settings:              ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: true},
 	}
 }
 
@@ -645,8 +646,9 @@ func TestPlaceCustomOrderRejectsInvalidRoutesAndGates(t *testing.T) {
 	}{
 		{"band is not a custom route", "band", customStore(), nil, ErrInvalidSizeMode},
 		{"unknown mode", "nonsense", customStore(), nil, ErrInvalidSizeMode},
-		{"bespoke disabled", "home_visit", ports.Storefront{BusinessID: testBusinessID, Settings: ports.StoreSettings{BespokeEnabled: false}}, nil, ErrBespokeDisabled},
-		{"measurements disabled", "self_measure", ports.Storefront{BusinessID: testBusinessID, Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: false}}, map[string]string{"f": "1"}, ErrMeasurementsDisabled},
+		{"online ordering off", "home_visit", ports.Storefront{BusinessID: testBusinessID, Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: true}}, nil, ErrOnlineOrderingOff},
+		{"bespoke disabled", "home_visit", ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true, Settings: ports.StoreSettings{BespokeEnabled: false}}, nil, ErrBespokeDisabled},
+		{"measurements disabled", "self_measure", ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true, Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: false}}, map[string]string{"f": "1"}, ErrMeasurementsDisabled},
 		{"self_measure without measurements", "self_measure", customStore(), nil, ErrInvalidMeasurements},
 		{"self_measure with a blank value", "self_measure", customStore(), map[string]string{"field-1": "   "}, ErrInvalidMeasurements},
 	}

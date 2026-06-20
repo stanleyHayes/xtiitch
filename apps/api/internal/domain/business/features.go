@@ -10,6 +10,10 @@ const (
 	FeatureCustomBanner     = "custom_banner"
 	FeatureCustomLayout     = "custom_layout"
 	FeatureDesignWaitlist   = "design_waitlist"
+	// FeatureOnlineOrdering gates in-app online ordering + checkout on the
+	// storefront. Without it a store is a catalogue/showcase only and customers
+	// arrange orders off-platform.
+	FeatureOnlineOrdering = "online_ordering"
 )
 
 // Defaults applied when a business is not entitled to (or has not set) a
@@ -68,6 +72,11 @@ func FeatureCatalogue() []Feature {
 			Key:         FeatureDesignWaitlist,
 			Label:       "Design waiting lists",
 			Description: "Open a waiting list on a design so customers can register interest when a piece is sold out or made-to-order.",
+		},
+		{
+			Key:         FeatureOnlineOrdering,
+			Label:       "Online ordering & checkout",
+			Description: "Let customers place and pay for orders directly from the storefront. Without it the store is a catalogue and customers arrange orders off-platform.",
 		},
 	}
 }

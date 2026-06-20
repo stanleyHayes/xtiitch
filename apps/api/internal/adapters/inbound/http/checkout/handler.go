@@ -197,6 +197,8 @@ func checkoutError(err error) (int, string) {
 		return http.StatusConflict, "store_not_verified"
 	case errors.Is(err, checkoutapp.ErrBespokeDisabled), errors.Is(err, checkoutapp.ErrMeasurementsDisabled):
 		return http.StatusConflict, "store_cannot_take_order"
+	case errors.Is(err, checkoutapp.ErrOnlineOrderingOff):
+		return http.StatusConflict, "online_ordering_unavailable"
 	case errors.Is(err, checkoutapp.ErrPromotionUnavailable):
 		return http.StatusConflict, "promotion_unavailable"
 	case errors.Is(err, ports.ErrSlotTaken), errors.Is(err, ports.ErrNoAvailability):

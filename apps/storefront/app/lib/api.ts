@@ -33,6 +33,9 @@ export type StoreSummary = {
   settings: StoreSettings;
   // True when the store's plan grants the design_waitlist benefit.
   waitlist_enabled?: boolean;
+  // True when the store's plan grants the online_ordering benefit. When false the
+  // storefront is a catalogue only and checkout is refused server-side.
+  online_ordering_enabled?: boolean;
 };
 
 export type BandPrice = {

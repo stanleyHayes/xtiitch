@@ -22,6 +22,7 @@ var (
 	ErrDesignUnavailable    = errors.New("design unavailable")
 	ErrBandUnavailable      = errors.New("size band not available for this design")
 	ErrNotVerified          = errors.New("store cannot take payments yet")
+	ErrOnlineOrderingOff    = errors.New("store does not offer online ordering")
 	ErrInvalidSizeMode      = errors.New("invalid size mode for a custom order")
 	ErrBespokeDisabled      = errors.New("bespoke orders are not enabled for this store")
 	ErrMeasurementsDisabled = errors.New("self-measurement is not enabled for this store")
@@ -131,6 +132,9 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 			return PlaceStandardOrderResult{}, ErrStoreNotFound
 		}
 		return PlaceStandardOrderResult{}, err
+	}
+	if !store.OnlineOrderingEnabled {
+		return PlaceStandardOrderResult{}, ErrOnlineOrderingOff
 	}
 	scope := common.TenantScope{BusinessID: store.BusinessID}
 
@@ -325,6 +329,9 @@ func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBo
 		}
 		return PlaceHomeVisitBookingResult{}, err
 	}
+	if !store.OnlineOrderingEnabled {
+		return PlaceHomeVisitBookingResult{}, ErrOnlineOrderingOff
+	}
 	scope := common.TenantScope{BusinessID: store.BusinessID}
 
 	design, err := s.resolveCustomDesign(ctx, store, cmd.DesignHandle, order.SizeModeHomeVisit)
@@ -490,6 +497,9 @@ func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderComma
 			return PlaceCustomOrderResult{}, ErrStoreNotFound
 		}
 		return PlaceCustomOrderResult{}, err
+	}
+	if !store.OnlineOrderingEnabled {
+		return PlaceCustomOrderResult{}, ErrOnlineOrderingOff
 	}
 	scope := common.TenantScope{BusinessID: store.BusinessID}
 

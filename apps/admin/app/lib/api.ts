@@ -352,6 +352,12 @@ export const PLAN_BENEFITS: readonly {
     label: "Design waiting lists",
     description: "Open a waiting list on a design so customers can register interest.",
   },
+  {
+    key: "online_ordering",
+    label: "Online ordering & checkout",
+    description:
+      "Let customers place and pay for orders from the storefront. Without it the store is a catalogue and customers order off-platform.",
+  },
 ];
 
 export type PlanFeatures = Record<string, boolean>;
