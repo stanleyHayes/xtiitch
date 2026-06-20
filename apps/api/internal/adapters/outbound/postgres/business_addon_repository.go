@@ -89,6 +89,37 @@ func (repo BusinessAddonRepository) GetAddonStatus(ctx context.Context, scope co
 	return status, nil
 }
 
+// GetBusinessOwnerEmail returns the authenticated business's owner email,
+// tenant-scoped under RLS (so it can only ever read the caller's own users).
+// Used as the Paystack customer email for add-on checkout. Returns "" when the
+// business has no active owner.
+func (repo BusinessAddonRepository) GetBusinessOwnerEmail(ctx context.Context, scope common.TenantScope) (string, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return "", err
+	}
+
+	var email string
+	if err := tx.QueryRow(ctx, `
+		select coalesce((
+			select email from business_users
+			where business_id = $1 and role = 'owner' and is_active = true
+			order by created_at asc
+			limit 1
+		), '')
+	`, scope.BusinessID.String()).Scan(&email); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return email, nil
+}
+
 // SetBusinessAddon upserts a single tenant's add-on entitlement by business id.
 // This is an admin operation (the tenant is not the caller), so it runs under the
 // RLS bypass. activated_at is stamped the first time the add-on goes active and

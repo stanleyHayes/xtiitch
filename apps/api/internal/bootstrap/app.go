@@ -253,7 +253,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
-	aiAssistService := buildAIAssistService(cfg, logger, db, paymentProvider, businessIdentityRepo)
+	aiAssistService := buildAIAssistService(cfg, logger, db, paymentProvider)
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
@@ -352,7 +352,6 @@ func buildAIAssistService(
 	logger *slog.Logger,
 	db *pgxpool.Pool,
 	payments ports.PaymentProvider,
-	profiles aiassistapp.BillingProfiles,
 ) aiassistapp.Service {
 	if cfg.AnthropicAPIKey == "" {
 		logger.Warn("anthropic api key not set; AI assistant will return input text unchanged")
@@ -361,7 +360,6 @@ func buildAIAssistService(
 		Assistant:  aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
 		Addons:     postgres.NewBusinessAddonRepository(db),
 		Payments:   payments,
-		Profiles:   profiles,
 		IDs:        ids.UUIDGenerator{},
 		Clock:      clock.SystemClock{},
 		PriceMinor: int64(cfg.AIAssistantAddonPriceMinor),

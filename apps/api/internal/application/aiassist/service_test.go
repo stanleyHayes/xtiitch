@@ -17,12 +17,13 @@ import (
 // memory, keyed by "business:addon", so the service can be exercised without a
 // database.
 type stubAddons struct {
-	active   map[string]bool
-	status   map[string]ports.AddonStatus
-	sets     []ports.SetBusinessAddonInput
-	billing  []ports.UpsertAddonBillingInput
-	renewals []ports.RecordAddonRenewalInput
-	due      []ports.AddonChargeDue
+	active     map[string]bool
+	status     map[string]ports.AddonStatus
+	sets       []ports.SetBusinessAddonInput
+	billing    []ports.UpsertAddonBillingInput
+	renewals   []ports.RecordAddonRenewalInput
+	due        []ports.AddonChargeDue
+	ownerEmail string
 }
 
 func newStubAddons() *stubAddons {
@@ -96,10 +97,11 @@ func (p *stubPayments) ChargeAuthorization(_ context.Context, input ports.Charge
 	return p.chargeResult, p.chargeErr
 }
 
-type stubProfiles struct{ email string }
-
-func (s stubProfiles) GetBusinessSubscription(_ context.Context, _ common.ID) (ports.BusinessSubscriptionRecord, error) {
-	return ports.BusinessSubscriptionRecord{OwnerEmail: s.email}, nil
+func (s *stubAddons) GetBusinessOwnerEmail(_ context.Context, _ common.TenantScope) (string, error) {
+	if s.ownerEmail == "" {
+		return "owner@test", nil
+	}
+	return s.ownerEmail, nil
 }
 
 type stubIDs struct{ n int }
@@ -117,12 +119,11 @@ func newService(addons ports.BusinessAddonRepository, assistant ports.AiAssistan
 	return NewService(Dependencies{Assistant: assistant, Addons: addons})
 }
 
-func newBillingService(addons ports.BusinessAddonRepository, payments PaymentAuthorizer, profiles BillingProfiles) Service {
+func newBillingService(addons ports.BusinessAddonRepository, payments PaymentAuthorizer) Service {
 	return NewService(Dependencies{
 		Assistant:  &upperAssistant{},
 		Addons:     addons,
 		Payments:   payments,
-		Profiles:   profiles,
 		IDs:        &stubIDs{},
 		Clock:      fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
 		PriceMinor: 5000,
@@ -193,7 +194,7 @@ func TestSetAddonUpsertsKnownKey(t *testing.T) {
 
 func TestInitializeCheckoutReturnsRedirect(t *testing.T) {
 	payments := &stubPayments{initResult: ports.InitializeAuthorizationResult{RedirectURL: "https://pay.test/abc", Reference: "ref-1"}}
-	svc := newBillingService(newStubAddons(), payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(newStubAddons(), payments)
 
 	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
 	link, err := svc.InitializeCheckout(context.Background(), scope, "https://business.test/callback")
@@ -211,7 +212,7 @@ func TestVerifyCheckoutActivatesOnSuccess(t *testing.T) {
 		verifyResult: ports.VerifyAuthorizationResult{Active: true, AuthorizationCode: "AUTH", CustomerCode: "CUS"},
 		chargeResult: ports.ChargeAuthorizationResult{Status: "success"},
 	}
-	svc := newBillingService(addons, payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(addons, payments)
 
 	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
 	result, err := svc.VerifyCheckout(context.Background(), scope, "ref-1")
@@ -238,7 +239,7 @@ func TestVerifyCheckoutFailsWhenChargeFails(t *testing.T) {
 		verifyResult: ports.VerifyAuthorizationResult{Active: true, AuthorizationCode: "AUTH", CustomerCode: "CUS"},
 		chargeResult: ports.ChargeAuthorizationResult{Status: "failed"},
 	}
-	svc := newBillingService(addons, payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(addons, payments)
 
 	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
 	if _, err := svc.VerifyCheckout(context.Background(), scope, "ref-1"); !errors.Is(err, ErrCheckoutNotConfirmed) {
@@ -252,7 +253,7 @@ func TestVerifyCheckoutFailsWhenChargeFails(t *testing.T) {
 func TestVerifyCheckoutRejectsUnverifiedAuthorization(t *testing.T) {
 	addons := newStubAddons()
 	payments := &stubPayments{verifyResult: ports.VerifyAuthorizationResult{Active: false}}
-	svc := newBillingService(addons, payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(addons, payments)
 
 	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
 	if _, err := svc.VerifyCheckout(context.Background(), scope, "ref-1"); !errors.Is(err, ErrCheckoutNotConfirmed) {
@@ -274,7 +275,7 @@ func TestRunRenewalSweepChargesDue(t *testing.T) {
 		Currency:         "GHS",
 	}}
 	payments := &stubPayments{chargeResult: ports.ChargeAuthorizationResult{Status: "success"}}
-	svc := newBillingService(addons, payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(addons, payments)
 
 	result, err := svc.RunRenewalSweep(context.Background(), 0)
 	if err != nil {
@@ -300,7 +301,7 @@ func TestRunRenewalSweepDeactivatesOnFailure(t *testing.T) {
 		Currency:         "GHS",
 	}}
 	payments := &stubPayments{chargeErr: errors.New("paystack down")}
-	svc := newBillingService(addons, payments, stubProfiles{email: "owner@test"})
+	svc := newBillingService(addons, payments)
 
 	result, err := svc.RunRenewalSweep(context.Background(), 0)
 	if err != nil {

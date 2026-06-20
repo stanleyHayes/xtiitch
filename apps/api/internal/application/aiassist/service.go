@@ -41,12 +41,6 @@ type PaymentAuthorizer interface {
 	ChargeAuthorization(ctx context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error)
 }
 
-// BillingProfiles resolves the owner email a charge is billed to. The business
-// identity repository satisfies this.
-type BillingProfiles interface {
-	GetBusinessSubscription(ctx context.Context, businessID common.ID) (ports.BusinessSubscriptionRecord, error)
-}
-
 // Service runs the ✨ AI writing assistant. The assistant itself is a paid
 // add-on billed separately from a business's plan: while the ai_assistant add-on
 // is active the business gets unlimited use; while inactive Assist returns
@@ -67,7 +61,6 @@ type Service struct {
 	assistant  ports.AiAssistant
 	addons     ports.BusinessAddonRepository
 	payments   PaymentAuthorizer
-	profiles   BillingProfiles
 	ids        ports.IDGenerator
 	clock      ports.Clock
 	priceMinor int64
@@ -78,7 +71,6 @@ type Dependencies struct {
 	Assistant  ports.AiAssistant
 	Addons     ports.BusinessAddonRepository
 	Payments   PaymentAuthorizer
-	Profiles   BillingProfiles
 	IDs        ports.IDGenerator
 	Clock      ports.Clock
 	PriceMinor int64
@@ -94,7 +86,6 @@ func NewService(deps Dependencies) Service {
 		assistant:  deps.Assistant,
 		addons:     deps.Addons,
 		payments:   deps.Payments,
-		profiles:   deps.Profiles,
 		ids:        deps.IDs,
 		clock:      deps.Clock,
 		priceMinor: deps.PriceMinor,
@@ -180,14 +171,14 @@ type CheckoutLink struct {
 // Assistant add-on and returns the redirect link. The business is charged on
 // VerifyCheckout (and monthly thereafter), never here.
 func (s Service) InitializeCheckout(ctx context.Context, scope common.TenantScope, callbackURL string) (CheckoutLink, error) {
-	if scope.BusinessID.IsZero() || s.payments == nil || s.profiles == nil || s.priceMinor <= 0 {
+	if scope.BusinessID.IsZero() || s.payments == nil || s.priceMinor <= 0 {
 		return CheckoutLink{}, ErrBillingUnavailable
 	}
-	subscription, err := s.profiles.GetBusinessSubscription(ctx, scope.BusinessID)
+	email, err := s.addons.GetBusinessOwnerEmail(ctx, scope)
 	if err != nil {
 		return CheckoutLink{}, err
 	}
-	email := strings.TrimSpace(subscription.OwnerEmail)
+	email = strings.TrimSpace(email)
 	if email == "" {
 		return CheckoutLink{}, ErrBillingUnavailable
 	}
@@ -216,7 +207,7 @@ type CheckoutResult struct {
 // turns the add-on on and stores the reusable authorization for the monthly
 // renewal sweep. A hard charge failure leaves the add-on off.
 func (s Service) VerifyCheckout(ctx context.Context, scope common.TenantScope, reference string) (CheckoutResult, error) {
-	if scope.BusinessID.IsZero() || s.payments == nil || s.profiles == nil || s.priceMinor <= 0 {
+	if scope.BusinessID.IsZero() || s.payments == nil || s.priceMinor <= 0 {
 		return CheckoutResult{}, ErrBillingUnavailable
 	}
 	reference = strings.TrimSpace(reference)
@@ -236,11 +227,11 @@ func (s Service) VerifyCheckout(ctx context.Context, scope common.TenantScope, r
 
 	email := strings.TrimSpace(verify.CustomerEmail)
 	if email == "" {
-		subscription, subErr := s.profiles.GetBusinessSubscription(ctx, scope.BusinessID)
-		if subErr != nil {
-			return CheckoutResult{}, subErr
+		ownerEmail, emailErr := s.addons.GetBusinessOwnerEmail(ctx, scope)
+		if emailErr != nil {
+			return CheckoutResult{}, emailErr
 		}
-		email = strings.TrimSpace(subscription.OwnerEmail)
+		email = strings.TrimSpace(ownerEmail)
 	}
 
 	now := s.clock.Now().UTC()

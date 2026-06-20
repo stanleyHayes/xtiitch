@@ -79,6 +79,10 @@ type AddonStatus struct {
 type BusinessAddonRepository interface {
 	HasActiveAddon(ctx context.Context, scope common.TenantScope, addon string) (bool, error)
 	GetAddonStatus(ctx context.Context, scope common.TenantScope, addon string) (AddonStatus, error)
+	// GetBusinessOwnerEmail returns the authenticated business's owner email
+	// (tenant-scoped, RLS), used as the Paystack customer email for add-on
+	// checkout. Empty string when the business has no active owner.
+	GetBusinessOwnerEmail(ctx context.Context, scope common.TenantScope) (string, error)
 	SetBusinessAddon(ctx context.Context, input SetBusinessAddonInput) error
 	UpsertAddonBilling(ctx context.Context, input UpsertAddonBillingInput) error
 	RecordAddonRenewal(ctx context.Context, input RecordAddonRenewalInput) error
