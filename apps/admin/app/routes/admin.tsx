@@ -3683,6 +3683,22 @@ function CustomerInspector({
         />
         <DetailLine label="Created" value={shortTime(customer.createdAt)} />
         <DetailLine label="Updated" value={shortTime(customer.updatedAt)} />
+        <Divider />
+        <Button
+          component="a"
+          href={`/admin/customers/${customer.id}/export`}
+          download
+          variant="outlined"
+          size="small"
+          startIcon={<FileDownloadRounded />}
+        >
+          Export data (Act 843)
+        </Button>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Downloads everything the platform holds about this customer — profile,
+          linked businesses, orders and measurements — as a JSON file, for a Data
+          Protection Act subject-access request.
+        </Typography>
       </Stack>
     </Panel>
   );
