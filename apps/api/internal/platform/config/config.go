@@ -39,15 +39,20 @@ type Config struct {
 	NotificationHTTPAuthValue string
 	NotificationHTTPURL       string
 	NotificationTransport     string
-	PaystackSecretKey         string
-	PaystackWebhookKey        string
-	RedisURL                  string
-	ResendAPIKey              string
-	ResendFromEmail           string
-	SonarHostURL              string
-	SonarOrganization         string
-	SonarToken                string
-	WorkerQueueName           string
+	// OpenAIAPIKey enables the hosted embedding model for AI search; when empty a
+	// deterministic dev embedder is used so search works locally with no key.
+	// OpenAIEmbeddingModel overrides the embedding model name.
+	OpenAIAPIKey         string
+	OpenAIEmbeddingModel string
+	PaystackSecretKey    string
+	PaystackWebhookKey   string
+	RedisURL             string
+	ResendAPIKey         string
+	ResendFromEmail      string
+	SonarHostURL         string
+	SonarOrganization    string
+	SonarToken           string
+	WorkerQueueName      string
 }
 
 func Load() Config {
@@ -86,6 +91,8 @@ func Load() Config {
 		),
 		NotificationHTTPURL:   getenv("NOTIFICATION_HTTP_URL", ""),
 		NotificationTransport: getenv("NOTIFICATION_TRANSPORT", "log"),
+		OpenAIAPIKey:          getenv("OPENAI_API_KEY", ""),
+		OpenAIEmbeddingModel:  getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
 		PaystackSecretKey:     getenv("PAYSTACK_SECRET_KEY", ""),
 		PaystackWebhookKey:    getenv("PAYSTACK_WEBHOOK_SECRET", ""),
 		RedisURL:              getenv("REDIS_URL", "redis://localhost:6379/0"),

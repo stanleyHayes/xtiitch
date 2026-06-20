@@ -11,6 +11,7 @@ import (
 
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
+	aisearchhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aisearch"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
 	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
@@ -24,12 +25,14 @@ import (
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
+	aiadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/ai"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
+	aisearchapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aisearch"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
@@ -239,6 +242,36 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Clock:    clock.SystemClock{},
 	})
 
+	// AI marketplace search. With OPENAI_API_KEY set we embed with a hosted model;
+	// otherwise a deterministic dev embedder keeps semantic search working locally
+	// with no key (mirrors the Paystack/Cloudinary dev-fallback pattern).
+	var embedder ports.Embedder
+	if cfg.OpenAIAPIKey != "" {
+		embedder = aiadapter.NewOpenAIEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIEmbeddingModel)
+	} else {
+		logger.Warn("openai api key not set; using dev embedder for AI search")
+		embedder = aiadapter.NewDevEmbedder()
+	}
+	aiSearchService := aisearchapp.NewService(aisearchapp.Dependencies{
+		Embedder: embedder,
+		Repo:     postgres.NewEmbeddingRepository(db),
+	})
+	// Backfill embeddings in the background so the catalogue is searchable shortly
+	// after boot without blocking startup. Safe to run repeatedly; it only embeds
+	// designs whose content changed.
+	go func() {
+		backfillCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		embedded, err := aiSearchService.Backfill(backfillCtx, 500)
+		if err != nil {
+			logger.Warn("ai search backfill failed", "error", err)
+			return
+		}
+		if embedded > 0 {
+			logger.Info("ai search backfill complete", "embedded", embedded, "model", embedder.Model())
+		}
+	}()
+
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
 			Production:     strings.EqualFold(cfg.Environment, "production"),
@@ -248,6 +281,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
+		aisearchhttp.NewHandler(aiSearchService),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
