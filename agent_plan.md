@@ -43,7 +43,7 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 | 9 | Bookings + availability windows | ✅ | reschedule/cancel |
 | 10 | Delivery / handover (pickup/delivery) | ✅ | advance + cancel |
 | 11 | Payments (Paystack subaccounts, authorization_url) | ✅ | never holds funds; webhook HMAC + idempotent |
-| 12 | Money summary + manual takings | ✅ | through-platform vs offline |
+| 12 | Money summary + manual takings | ✅ | through-platform split vs offline receivable |
 | 13 | Plans + feature entitlements (free/standard/growth) | ✅ | admin-editable `features` JSON |
 | 14 | Storefront customisation (brand/logo/banner/layout) | ✅ | plan-gated |
 | 15 | Design waitlist | ✅ | storefront join + dashboard view (growth) |
@@ -77,6 +77,9 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   (`f4378d5`).
 - ✅ Project docs: [FEATURES.md](FEATURES.md) and [architecture.md](architecture.md).
 - ✅ cloudflared tunnel to the demo API for Paystack test webhooks.
+- ✅ Offline payment flow: manual cash/direct-MoMo takings now snapshot plan
+  commission as an offline receivable, expose offline commission due in the
+  money API/dashboard, and keep Paystack split logic limited to online payments.
 
 ---
 

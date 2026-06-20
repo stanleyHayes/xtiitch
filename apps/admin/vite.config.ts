@@ -22,6 +22,7 @@ const muiComponents = [
   "Paper",
   "Select",
   "Skeleton",
+  "Snackbar",
   "Stack",
   "Tab",
   "Tabs",

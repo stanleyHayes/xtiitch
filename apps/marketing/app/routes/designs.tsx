@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { pageMeta } from "../components/seo";
 import { PageHero, Section, SectionHeading } from "../components/ui";
 import { DesignCard, SponsoredRail } from "../components/directory";
+import { PaginatedGrid } from "../components/pagination";
 import {
   flattenDesigns,
   loadPublicShops,
@@ -70,8 +71,11 @@ export default function Designs() {
           subtitle="A sample of what studios are making now. Open one to see full pricing and order options."
         />
         {designs.length > 0 ? (
-          <Box
-            sx={{
+          <PaginatedGrid
+            items={designs}
+            label="designs"
+            pageSize={12}
+            gridSx={{
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr 1fr",
@@ -80,11 +84,13 @@ export default function Designs() {
               },
               gap: { xs: 1.5, md: 2.5 },
             }}
-          >
-            {designs.map((design) => (
-              <DesignCard key={`${design.shopHandle}-${design.handle}`} design={design} />
-            ))}
-          </Box>
+            renderItem={(design) => (
+              <DesignCard
+                key={`${design.shopHandle}-${design.handle}`}
+                design={design}
+              />
+            )}
+          />
         ) : (
           <Box
             sx={{

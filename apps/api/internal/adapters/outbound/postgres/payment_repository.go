@@ -967,13 +967,25 @@ func (repo PaymentRepository) RecordManualTaking(ctx context.Context, scope comm
 		return err
 	}
 
-	// Off-platform money: no commission, no through_platform — Xtiitch never
-	// touches it, it is only recorded so the business sees its full income.
+	commissionStatus := input.CommissionStatus
+	if commissionStatus == "" {
+		commissionStatus = "not_applicable"
+		if input.CommissionMinor > 0 {
+			commissionStatus = "due"
+		}
+	}
+
+	// Off-platform money never goes through Paystack. Commission here is an
+	// accrued receivable for later invoice/reconciliation, not a moved split.
 	if _, err := tx.Exec(ctx, `
-		insert into manual_takings (taking_id, business_id, order_id, amount_minor, method, what_for)
-		values ($1, $2, $3, $4, $5, $6)
+		insert into manual_takings (
+			taking_id, business_id, order_id, amount_minor, method, what_for,
+			commission_bps, commission_minor, commission_status, commission_note
+		)
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`, input.TakingID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID),
-		input.AmountMinor, input.Method, input.WhatFor); err != nil {
+		input.AmountMinor, input.Method, input.WhatFor, input.CommissionBps,
+		input.CommissionMinor, commissionStatus, input.CommissionNote); err != nil {
 		return err
 	}
 
@@ -992,7 +1004,8 @@ func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope commo
 	}
 
 	rows, err := tx.Query(ctx, `
-		select taking_id, amount_minor, method, what_for, taken_at
+		select taking_id, amount_minor, method, what_for,
+			commission_bps, commission_minor, commission_status, commission_note, taken_at
 		from manual_takings where business_id = $1
 		order by taken_at desc
 	`, scope.BusinessID.String())
@@ -1003,7 +1016,17 @@ func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope commo
 	var records []ports.ManualTakingRecord
 	for rows.Next() {
 		var record ports.ManualTakingRecord
-		if err := rows.Scan(&record.TakingID, &record.AmountMinor, &record.Method, &record.WhatFor, &record.TakenAt); err != nil {
+		if err := rows.Scan(
+			&record.TakingID,
+			&record.AmountMinor,
+			&record.Method,
+			&record.WhatFor,
+			&record.CommissionBps,
+			&record.CommissionMinor,
+			&record.CommissionStatus,
+			&record.CommissionNote,
+			&record.TakenAt,
+		); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -1044,7 +1067,17 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 	`, scope.BusinessID.String()).Scan(&summary.ManualTakingsMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
-	summary.NetIncomeMinor = summary.ThroughPlatformMinor - summary.CommissionMinor + summary.ManualTakingsMinor
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(commission_minor), 0)
+		from manual_takings
+		where business_id = $1 and commission_status in ('due', 'invoiced')
+	`, scope.BusinessID.String()).Scan(&summary.OfflineCommissionDueMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	summary.NetIncomeMinor = summary.ThroughPlatformMinor -
+		summary.CommissionMinor +
+		summary.ManualTakingsMinor -
+		summary.OfflineCommissionDueMinor
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.MoneySummary{}, err

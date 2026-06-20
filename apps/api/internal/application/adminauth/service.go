@@ -29,6 +29,7 @@ type Service struct {
 	sessions      ports.AdminSessionRepository
 	audits        ports.AdminAuditRepository
 	businesses    ports.AdminBusinessRepository
+	media         ports.MediaStore
 	payments      ports.PaymentProvider
 	passwords     ports.PasswordHasher
 	accessTokens  ports.AdminTokenIssuer
@@ -43,6 +44,7 @@ type Dependencies struct {
 	Sessions      ports.AdminSessionRepository
 	Audits        ports.AdminAuditRepository
 	Businesses    ports.AdminBusinessRepository
+	Media         ports.MediaStore
 	Payments      ports.PaymentProvider
 	Passwords     ports.PasswordHasher
 	AccessTokens  ports.AdminTokenIssuer
@@ -58,6 +60,7 @@ func NewService(deps Dependencies) Service {
 		sessions:      deps.Sessions,
 		audits:        deps.Audits,
 		businesses:    deps.Businesses,
+		media:         deps.Media,
 		payments:      deps.Payments,
 		passwords:     deps.Passwords,
 		accessTokens:  deps.AccessTokens,
@@ -777,8 +780,16 @@ type UpdatePlatformSettingsCommand struct {
 	VerificationSLAHours         int
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
+	BrandLogoURL                 string
 	UserAgent                    string
 	IPAddress                    string
+}
+
+// SignBrandingUploadCommand authorises an owner to obtain a signed Cloudinary
+// payload for a direct browser upload of the platform brand logo.
+type SignBrandingUploadCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
 }
 
 type UpdateRolePermissionsCommand struct {
@@ -3937,6 +3948,27 @@ func (s Service) UpdatePlatformSettings(
 	return settings, nil
 }
 
+const brandingUploadFolder = "xtiitch/branding"
+
+// SignBrandingUpload returns a signed Cloudinary payload for a direct browser
+// upload of the platform brand logo. Gated by manage_settings so only owners
+// can rebrand the platform.
+func (s Service) SignBrandingUpload(
+	ctx context.Context,
+	cmd SignBrandingUploadCommand,
+) (ports.SignedUpload, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.SignedUpload{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSettings); err != nil {
+		return ports.SignedUpload{}, err
+	}
+	if s.media == nil {
+		return ports.SignedUpload{}, authdomain.ErrInvalidInput
+	}
+	return s.media.SignUpload(ctx, common.TenantScope{}, brandingUploadFolder)
+}
+
 func (s Service) ListRolePermissions(ctx context.Context) ([]ports.AdminRolePermissionsRecord, error) {
 	records, err := s.users.ListAdminRolePermissions(ctx)
 	if err != nil {
@@ -4318,13 +4350,33 @@ func normalizePlatformSettings(
 		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
 	}
 
+	brandLogoURL, err := normalizeBrandLogoURL(cmd.BrandLogoURL)
+	if err != nil {
+		return ports.UpdateAdminPlatformSettingsInput{}, err
+	}
+
 	return ports.UpdateAdminPlatformSettingsInput{
 		PlatformName:                 platformName,
 		SupportEmail:                 supportEmail,
 		VerificationSLAHours:         cmd.VerificationSLAHours,
 		PayoutReviewThresholdPesewas: cmd.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              cmd.MaintenanceMode,
+		BrandLogoURL:                 brandLogoURL,
 	}, nil
+}
+
+// normalizeBrandLogoURL allows clearing the logo (empty) or an https URL only.
+// Uploads return a Cloudinary https secure_url, so we reject other schemes to
+// avoid mixed-content and javascript: style values reaching every storefront.
+func normalizeBrandLogoURL(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	if len(trimmed) > 512 || !strings.HasPrefix(trimmed, "https://") {
+		return "", authdomain.ErrInvalidInput
+	}
+	return trimmed, nil
 }
 
 func statusForBusinessVerificationDecision(decision BusinessVerificationDecision) (business.VerificationStatus, error) {

@@ -98,8 +98,19 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 	totpManager := authadapter.NewTOTPManager(cfg.MFAIssuer, mfaEncryptionKey)
 
+	var paymentProvider ports.PaymentProvider
+	if cfg.PaystackSecretKey != "" {
+		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, cfg.PaystackWebhookKey)
+	} else {
+		// No live key: deterministic dev provider with real webhook-signature
+		// verification, so the money path runs locally and in tests.
+		logger.Warn("paystack secret key not set; using dev payment provider")
+		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
+	}
+
 	authService := authapp.NewService(authapp.Dependencies{
 		Businesses:    postgres.NewBusinessIdentityRepository(db),
+		Payments:      paymentProvider,
 		Sessions:      postgres.NewAuthSessionRepository(db),
 		Passwords:     authadapter.NewBcryptPasswordHasher(0),
 		AccessTokens:  jwtIssuer,
@@ -116,15 +127,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
 	adminAuthRepository := postgres.NewAdminAuthRepository(db)
-	var paymentProvider ports.PaymentProvider
-	if cfg.PaystackSecretKey != "" {
-		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, cfg.PaystackWebhookKey)
-	} else {
-		// No live key: deterministic dev provider with real webhook-signature
-		// verification, so the money path runs locally and in tests.
-		logger.Warn("paystack secret key not set; using dev payment provider")
-		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
-	}
 
 	var mediaStore ports.MediaStore
 	if cfg.CloudinaryURL != "" {

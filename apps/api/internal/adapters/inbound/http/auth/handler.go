@@ -20,6 +20,9 @@ import (
 
 type Service interface {
 	RegisterBusiness(ctx context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error)
+	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
+	InitializeSubscriptionAuthorization(ctx context.Context, command authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error)
+	VerifySubscriptionAuthorization(ctx context.Context, command authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error)
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
 	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
 	Logout(ctx context.Context, command authapp.LogoutCommand) error
@@ -52,10 +55,14 @@ func (handler Handler) Register(router chi.Router) {
 	// Completing a login challenge needs only the short-lived challenge token, so
 	// it sits outside the bearer-protected group.
 	router.Post("/auth/business/mfa/verify", handler.verifyMFALogin)
+	// Public plan catalogue powering the signup plan picker.
+	router.Get("/plans", handler.listPlans)
 
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Get("/auth/business/me", handler.me)
+		protected.Post("/auth/business/subscription/authorization-link", handler.initializeSubscriptionAuthorization)
+		protected.Post("/auth/business/subscription/authorization-verifications", handler.verifySubscriptionAuthorization)
 		protected.Get("/auth/business/users", handler.listBusinessUsers)
 		protected.Post("/auth/business/users", handler.createBusinessUser)
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
@@ -74,6 +81,7 @@ type registerBusinessRequest struct {
 	OwnerDisplayName string `json:"owner_display_name"`
 	OwnerEmail       string `json:"owner_email"`
 	OwnerPassword    string `json:"owner_password"`
+	PlanCode         string `json:"plan_code"`
 }
 
 type loginBusinessRequest struct {
@@ -160,6 +168,7 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 		OwnerDisplayName: request.OwnerDisplayName,
 		OwnerEmail:       request.OwnerEmail,
 		OwnerPassword:    request.OwnerPassword,
+		PlanCode:         request.PlanCode,
 		UserAgent:        r.UserAgent(),
 		IPAddress:        requestIP(r),
 	})
@@ -170,6 +179,121 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusCreated, newAuthResponse(result))
+}
+
+type publicPlanResponse struct {
+	Code            string `json:"code"`
+	Name            string `json:"name"`
+	MonthlyFeeMinor int    `json:"monthly_fee_minor"`
+	YearlyFeeMinor  int    `json:"yearly_fee_minor"`
+	CommissionBps   int    `json:"commission_bps"`
+	DesignLimit     *int   `json:"design_limit,omitempty"`
+}
+
+func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
+	plans, err := handler.service.ListPublicPlans(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	response := make([]publicPlanResponse, 0, len(plans))
+	for _, plan := range plans {
+		response = append(response, publicPlanResponse{
+			Code:            plan.Code,
+			Name:            plan.Name,
+			MonthlyFeeMinor: plan.MonthlyFeeMinor,
+			YearlyFeeMinor:  plan.YearlyFeeMinor,
+			CommissionBps:   plan.CommissionBps,
+			DesignLimit:     plan.DesignLimit,
+		})
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+type subscriptionAuthorizationLinkRequest struct {
+	CallbackURL string `json:"callback_url"`
+}
+
+type subscriptionAuthorizationLinkResponse struct {
+	BusinessID   string `json:"business_id"`
+	BusinessName string `json:"business_name"`
+	OwnerEmail   string `json:"owner_email"`
+	RedirectURL  string `json:"redirect_url"`
+	AccessCode   string `json:"access_code"`
+	Reference    string `json:"reference"`
+}
+
+func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request subscriptionAuthorizationLinkRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.InitializeSubscriptionAuthorization(r.Context(), authapp.InitializeSubscriptionAuthorizationCommand{
+		Scope:       principal.TenantScope(),
+		CallbackURL: request.CallbackURL,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionAuthorizationLinkResponse{
+		BusinessID:   result.BusinessID.String(),
+		BusinessName: result.BusinessName,
+		OwnerEmail:   result.OwnerEmail,
+		RedirectURL:  result.RedirectURL,
+		AccessCode:   result.AccessCode,
+		Reference:    result.Reference,
+	})
+}
+
+type subscriptionAuthorizationVerifyRequest struct {
+	Reference string `json:"reference"`
+}
+
+type subscriptionAuthorizationVerifyResponse struct {
+	SubscriptionID          string `json:"subscription_id"`
+	BusinessID              string `json:"business_id"`
+	Status                  string `json:"status"`
+	BillingMode             string `json:"billing_mode"`
+	ProviderCustomerRef     string `json:"provider_customer_ref"`
+	ProviderSubscriptionRef string `json:"provider_subscription_ref"`
+}
+
+func (handler Handler) verifySubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request subscriptionAuthorizationVerifyRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.VerifySubscriptionAuthorization(r.Context(), authapp.VerifySubscriptionAuthorizationCommand{
+		Scope:     principal.TenantScope(),
+		Reference: request.Reference,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionAuthorizationVerifyResponse{
+		SubscriptionID:          result.SubscriptionID.String(),
+		BusinessID:              result.BusinessID.String(),
+		Status:                  result.Status,
+		BillingMode:             result.BillingMode,
+		ProviderCustomerRef:     result.ProviderCustomerRef,
+		ProviderSubscriptionRef: result.ProviderSubscriptionRef,
+	})
 }
 
 func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {

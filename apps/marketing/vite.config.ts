@@ -22,6 +22,7 @@ const muiComponents = [
   "Drawer",
   "IconButton",
   "Link",
+  "Pagination",
   "Paper",
   "Skeleton",
   "Stack",

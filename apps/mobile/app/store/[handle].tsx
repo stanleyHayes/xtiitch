@@ -60,7 +60,11 @@ export default function StoreScreen() {
 
   useEffect(() => {
     if (state.phase === "ready") {
-      navigation.setOptions({ title: state.page.store.name });
+      // Override the global brand-logo headerTitle with this store's name.
+      navigation.setOptions({
+        title: state.page.store.name,
+        headerTitle: state.page.store.name,
+      });
     }
   }, [navigation, state]);
 

@@ -177,12 +177,12 @@ func (s *fakeService) ListPayments(_ context.Context, _ common.TenantScope) ([]p
 	return nil, nil
 }
 
-func (s *fakeService) LogManualTaking(_ context.Context, command paymentsapp.LogManualTakingCommand) (common.ID, error) {
+func (s *fakeService) LogManualTaking(_ context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error) {
 	s.takingCommand = command
 	if s.takingErr != nil {
-		return "", s.takingErr
+		return paymentsapp.LogManualTakingResult{}, s.takingErr
 	}
-	return "taking-1", nil
+	return paymentsapp.LogManualTakingResult{TakingID: "taking-1", CommissionStatus: "due"}, nil
 }
 
 func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope) ([]ports.ManualTakingRecord, error) {

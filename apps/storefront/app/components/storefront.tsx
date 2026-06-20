@@ -1,5 +1,5 @@
-import { type ReactNode } from "react";
-import { Form, Link as RouterLink } from "react-router";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Form, Link as RouterLink, useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
@@ -11,6 +11,7 @@ import CardMedia from "@mui/material/CardMedia";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import InputAdornment from "@mui/material/InputAdornment";
+import Pagination from "@mui/material/Pagination";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
@@ -45,6 +46,164 @@ function contrastText(hex: string): string {
   const b = parseInt(value.slice(4, 6), 16);
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.6 ? "#15111a" : "#ffffff";
+}
+
+// The ii-stitch brand mark (two stitches joined by a seam), per the brand
+// guidelines — the built-in fallback for the Xtiitch platform logo.
+function XtiitchMark({
+  color = tokens.burgundy,
+  size = 28,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  return (
+    <Box
+      aria-hidden
+      component="svg"
+      viewBox="1.4 3.8 97.2 97.2"
+      sx={{ width: size, height: size, display: "block", flexShrink: 0 }}
+    >
+      <line
+        x1="37"
+        y1="40"
+        x2="37"
+        y2="74"
+        stroke={color}
+        strokeWidth="15"
+        strokeLinecap="round"
+      />
+      <line
+        x1="63"
+        y1="40"
+        x2="63"
+        y2="74"
+        stroke={color}
+        strokeWidth="15"
+        strokeLinecap="round"
+      />
+      <circle cx="37" cy="22" r="8.2" fill={color} />
+      <circle cx="63" cy="22" r="8.2" fill={color} />
+      <path
+        d="M37 72.5 Q50 91 63 72.5"
+        stroke={color}
+        strokeWidth="4.5"
+        fill="none"
+        strokeLinecap="round"
+      />
+    </Box>
+  );
+}
+
+// The owner-managed Xtiitch platform logo (custom upload from the admin console,
+// served by the public /v1/branding endpoint via the root loader). Falls back to
+// the built-in ii-stitch mark when unset. This is the PLATFORM mark only — it is
+// never the merchant's own store logo.
+function XtiitchPlatformLogo({
+  color = tokens.burgundy,
+  size = 28,
+}: {
+  color?: string;
+  size?: number;
+}) {
+  const branding = useRouteLoaderData("root") as
+    | { brandLogoUrl?: string }
+    | undefined;
+  const brandLogoUrl = branding?.brandLogoUrl ?? "";
+  if (brandLogoUrl) {
+    return (
+      <Box
+        component="img"
+        src={brandLogoUrl}
+        alt="Xtiitch"
+        sx={{
+          height: size,
+          width: "auto",
+          maxWidth: 132,
+          objectFit: "contain",
+          flexShrink: 0,
+        }}
+      />
+    );
+  }
+  return <XtiitchMark color={color} size={size} />;
+}
+
+const STOREFRONT_PAGE_SIZE = 12;
+
+function usePagedItems<T>(
+  items: T[],
+  pageSize = STOREFRONT_PAGE_SIZE,
+  resetKey: string | number = "",
+) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page, pageSize]);
+
+  return { page, pageCount, pagedItems, setPage };
+}
+
+function PaginationFooter({
+  count,
+  label,
+  page,
+  pageSize = STOREFRONT_PAGE_SIZE,
+  total,
+  onChange,
+}: {
+  count: number;
+  label: string;
+  page: number;
+  pageSize?: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  if (total <= pageSize) {
+    return null;
+  }
+
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
+
+  return (
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={1.25}
+      sx={{
+        mt: 2.5,
+        alignItems: { xs: "stretch", sm: "center" },
+        justifyContent: "space-between",
+      }}
+    >
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        Showing {start}-{end} of {total} {label}
+      </Typography>
+      <Pagination
+        count={count}
+        page={page}
+        onChange={(_event, nextPage) => onChange(nextPage)}
+        color="primary"
+        size="small"
+        sx={{
+          "& .MuiPagination-ul": {
+            justifyContent: { xs: "center", sm: "flex-end" },
+          },
+        }}
+      />
+    </Stack>
+  );
 }
 
 export function StoreHeader({
@@ -842,6 +1001,13 @@ function MarketplaceStrip({
   shops: PublicShop[];
   brand: string;
 }) {
+  const {
+    page: shopPage,
+    pageCount: shopPageCount,
+    pagedItems: pagedShops,
+    setPage: setShopPage,
+  } = usePagedItems(shops, 8, shops.length);
+
   return (
     <Box
       component="section"
@@ -861,18 +1027,39 @@ function MarketplaceStrip({
             justifyContent: "space-between",
           }}
         >
-          <Box>
-            <Typography
-              variant="caption"
-              sx={{
-                color: "text.secondary",
-                fontWeight: 900,
-                textTransform: "uppercase",
-                letterSpacing: "0.08em",
-              }}
+          <Box
+            component={RouterLink}
+            to="/"
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{
+              color: "inherit",
+              textDecoration: "none",
+              borderRadius: 1,
+              "&:focus-visible": {
+                outline: `3px solid ${alpha(brand, 0.32)}`,
+                outlineOffset: 4,
+              },
+            }}
+          >
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center", mb: 0.25 }}
             >
-              More on Xtiitch
-            </Typography>
+              <XtiitchPlatformLogo size={22} />
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                }}
+              >
+                More on Xtiitch
+              </Typography>
+            </Stack>
             <Typography variant="h5" component="h2">
               Discover other studios
             </Typography>
@@ -880,6 +1067,8 @@ function MarketplaceStrip({
           <Button
             component={RouterLink}
             to="/"
+            target="_blank"
+            rel="noopener noreferrer"
             endIcon={<ArrowForwardRounded />}
             sx={{ color: brand, fontWeight: 800, whiteSpace: "nowrap" }}
           >
@@ -898,10 +1087,18 @@ function MarketplaceStrip({
             },
           }}
         >
-          {shops.slice(0, 8).map((shop) => (
+          {pagedShops.map((shop) => (
             <MarketplaceShopCard key={shop.business_id} shop={shop} />
           ))}
         </Box>
+        <PaginationFooter
+          count={shopPageCount}
+          label="studios"
+          page={shopPage}
+          pageSize={8}
+          total={shops.length}
+          onChange={setShopPage}
+        />
       </Container>
     </Box>
   );
@@ -1302,6 +1499,13 @@ export function DesignGrid({
   designs: Design[];
   featuredFirst?: boolean;
 }) {
+  const {
+    page: designPage,
+    pageCount: designPageCount,
+    pagedItems: pagedDesigns,
+    setPage: setDesignPage,
+  } = usePagedItems(designs, 12, `${featuredFirst}:${designs.length}`);
+
   if (designs.length === 0) {
     return (
       <Box
@@ -1324,26 +1528,39 @@ export function DesignGrid({
     );
   }
   return (
-    <Box
-      sx={{
-        display: "grid",
-        gap: 3,
-        gridTemplateColumns: {
-          xs: "minmax(0, min(100%, 430px))",
-          sm: "repeat(2, minmax(0, 1fr))",
-          lg: "repeat(auto-fill, minmax(280px, 360px))",
-        },
-        justifyContent: { xs: "center", sm: "start" },
-      }}
-    >
-      {designs.map((design, index) => (
-        <DesignCard
-          key={design.design_id}
-          design={design}
-          index={index}
-          featured={featuredFirst && index === 0}
-        />
-      ))}
-    </Box>
+    <>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 3,
+          gridTemplateColumns: {
+            xs: "minmax(0, min(100%, 430px))",
+            sm: "repeat(2, minmax(0, 1fr))",
+            lg: "repeat(auto-fill, minmax(280px, 360px))",
+          },
+          justifyContent: { xs: "center", sm: "start" },
+        }}
+      >
+        {pagedDesigns.map((design, index) => {
+          const absoluteIndex = (designPage - 1) * 12 + index;
+          return (
+            <DesignCard
+              key={design.design_id}
+              design={design}
+              index={absoluteIndex}
+              featured={featuredFirst && absoluteIndex === 0}
+            />
+          );
+        })}
+      </Box>
+      <PaginationFooter
+        count={designPageCount}
+        label="designs"
+        page={designPage}
+        pageSize={12}
+        total={designs.length}
+        onChange={setDesignPage}
+      />
+    </>
   );
 }

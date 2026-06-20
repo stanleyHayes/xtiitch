@@ -7,6 +7,7 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
   type LinksFunction,
+  useLocation,
   useNavigation,
 } from "react-router";
 import Box from "@mui/material/Box";
@@ -15,6 +16,31 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
+
+const readBrandingEnv = (key: string): string | undefined =>
+  typeof process !== "undefined" ? process.env[key] : undefined;
+const BRANDING_API_BASE =
+  readBrandingEnv("XTIITCH_API_URL") ?? "http://localhost:8080";
+
+// Platform branding (logo) is owner-managed in the admin console and served
+// publicly, so the storefront renders the current Xtiitch platform mark wherever
+// it points back at Xtiitch. Failures fall back to the built-in mark and never
+// block the page. Only the PLATFORM logo is swapped here — never a merchant's
+// own store logo.
+export async function loader() {
+  try {
+    const response = await fetch(`${BRANDING_API_BASE}/v1/branding`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return { brandLogoUrl: "" };
+    }
+    const data = (await response.json()) as { logo_url?: string };
+    return { brandLogoUrl: data.logo_url ?? "" };
+  } catch {
+    return { brandLogoUrl: "" };
+  }
+}
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -53,10 +79,26 @@ export function Layout({ children }: { children: ReactNode }) {
 
 export default function App() {
   const navigation = useNavigation();
+  const location = useLocation();
   return (
     <>
-      {navigation.state === "loading" ? <RouteProgressBar /> : null}
-      <Outlet />
+      {navigation.state !== "idle" ? <RouteProgressBar /> : null}
+      {/* Keyed by pathname only (not search), so the page content replays its
+          fade-in on real navigations but in-page ?section tab switches don't
+          remount. Disabled under prefers-reduced-motion. */}
+      <Box
+        key={location.pathname}
+        sx={{
+          "@keyframes xtiitchPageFadeIn": {
+            from: { opacity: 0, transform: "translateY(6px)" },
+            to: { opacity: 1, transform: "translateY(0)" },
+          },
+          animation: "xtiitchPageFadeIn 280ms ease-out both",
+          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        }}
+      >
+        <Outlet />
+      </Box>
     </>
   );
 }

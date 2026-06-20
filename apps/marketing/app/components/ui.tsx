@@ -1,5 +1,5 @@
 import { type ReactNode, useState } from "react";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useRouteLoaderData } from "react-router";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Box from "@mui/material/Box";
@@ -1067,6 +1067,11 @@ export function ProductPreview() {
 export function PlanCards({ items }: { items: Plan[] }) {
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const yearly = period === "yearly";
+  // Picking a plan should start signup (self-serve register), not the waitlist.
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   return (
     <Box>
       <Box
@@ -1239,8 +1244,8 @@ export function PlanCards({ items }: { items: Plan[] }) {
               ))}
             </Stack>
             <Button
-              component={RouterLink}
-              to={site.primaryCta.href}
+              component="a"
+              href={signupUrl}
               variant={plan.highlight ? "contained" : "outlined"}
               size="large"
               disabled={!plan.available}

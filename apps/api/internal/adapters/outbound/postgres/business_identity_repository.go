@@ -39,12 +39,19 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
+	// Place the business on the plan the owner chose at signup; an empty or
+	// unknown/inactive code falls back to the free plan (the union-all keeps the
+	// chosen row first, so limit 1 picks it when present).
 	_, err = tx.Exec(ctx, `
 		insert into businesses (business_id, plan_id, name, handle, verification_status)
 		select $1, plan_id, $2, $3, 'unverified'
-		from plans
-		where code = 'free' and is_active = true
-	`, input.BusinessID.String(), input.BusinessName, input.BusinessHandle)
+		from (
+			select plan_id from plans where code = $4 and is_active = true
+			union all
+			select plan_id from plans where code = 'free' and is_active = true
+		) chosen
+		limit 1
+	`, input.BusinessID.String(), input.BusinessName, input.BusinessHandle, input.PlanCode)
 	if err != nil {
 		// The store handle is globally unique; surface a clash as a domain
 		// conflict so callers can return 409 rather than an opaque 500.
@@ -52,6 +59,19 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
 			return ports.BusinessOwnerIdentity{}, business.ErrHandleTaken
 		}
+		return ports.BusinessOwnerIdentity{}, err
+	}
+
+	// Every business needs a subscription row on its chosen plan (the admin
+	// console and the recurring-billing sweep read it). The migration only
+	// backfilled pre-existing tenants, so create one here for new signups.
+	if _, err := tx.Exec(ctx, `
+		insert into business_subscriptions (business_id, plan_id, status)
+		select business_id, plan_id, 'active'
+		from businesses
+		where business_id = $1
+		on conflict (business_id) do nothing
+	`, input.BusinessID.String()); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
@@ -116,6 +136,101 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 		BusinessUserID: input.OwnerUserID,
 		Role:           business.UserRoleOwner,
 	}, nil
+}
+
+// ListActivePlans returns the public-safe plan catalogue for the signup picker.
+func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]ports.PublicPlanRecord, error) {
+	rows, err := repo.pool.Query(ctx, `
+		select code, name, monthly_fee_minor, yearly_fee_minor, commission_bps, design_limit
+		from plans
+		where is_active = true
+		order by monthly_fee_minor asc, name asc
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	plans := make([]ports.PublicPlanRecord, 0)
+	for rows.Next() {
+		var plan ports.PublicPlanRecord
+		if err := rows.Scan(
+			&plan.Code,
+			&plan.Name,
+			&plan.MonthlyFeeMinor,
+			&plan.YearlyFeeMinor,
+			&plan.CommissionBps,
+			&plan.DesignLimit,
+		); err != nil {
+			return nil, err
+		}
+		plans = append(plans, plan)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return plans, nil
+}
+
+// GetBusinessSubscription returns the tenant's subscription joined with its plan
+// and owner email, powering the self-serve billing flow.
+func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Context, businessID common.ID) (ports.BusinessSubscriptionRecord, error) {
+	var record ports.BusinessSubscriptionRecord
+	err := repo.pool.QueryRow(ctx, `
+		select
+			s.subscription_id::text,
+			s.business_id::text,
+			b.name,
+			coalesce((
+				select email from business_users
+				where business_id = b.business_id and role = 'owner' and is_active = true
+				order by created_at asc
+				limit 1
+			), ''),
+			p.code,
+			p.monthly_fee_minor,
+			s.status,
+			s.billing_mode,
+			s.provider_customer_ref,
+			s.provider_subscription_ref
+		from business_subscriptions s
+		join businesses b on b.business_id = s.business_id
+		join plans p on p.plan_id = s.plan_id
+		where s.business_id = $1
+	`, businessID.String()).Scan(
+		&record.SubscriptionID,
+		&record.BusinessID,
+		&record.BusinessName,
+		&record.OwnerEmail,
+		&record.PlanCode,
+		&record.MonthlyFeeMinor,
+		&record.Status,
+		&record.BillingMode,
+		&record.ProviderCustomerRef,
+		&record.ProviderSubscriptionRef,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.BusinessSubscriptionRecord{}, ErrNotFound
+		}
+		return ports.BusinessSubscriptionRecord{}, err
+	}
+	return record, nil
+}
+
+// ActivateRecurringBilling stores the verified Paystack customer + authorization
+// codes and flips the subscription to recurring Paystack billing.
+func (repo BusinessIdentityRepository) ActivateRecurringBilling(ctx context.Context, input ports.ActivateRecurringBillingInput) error {
+	_, err := repo.pool.Exec(ctx, `
+		update business_subscriptions
+		set billing_mode = 'recurring',
+			provider = 'paystack',
+			provider_customer_ref = $2,
+			provider_subscription_ref = $3,
+			updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String(), input.ProviderCustomerRef, input.ProviderSubscriptionRef)
+	return err
 }
 
 func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {

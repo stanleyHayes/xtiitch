@@ -16,6 +16,7 @@ import MoreVertRounded from "@mui/icons-material/MoreVertRounded";
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useState,
   type ReactNode,
@@ -17109,6 +17110,897 @@ function AdminTopBar({
   );
 }
 
+// ============================================================================
+// Overview ("Platform pulse") — a real-data snapshot across the admin, business,
+// and customer platforms: KPI strip, derived daily time-series, categorical
+// breakdowns, operations health, and a merged live-activity feed. No chart
+// library is used; charts are hand-built SVG/CSS so they stay on-brand.
+// ============================================================================
+
+const OVERVIEW_DAY_MS = 86_400_000;
+
+type OverviewDaySeries = { key: number; label: string; value: number };
+type OverviewBar = { label: string; value: number; color: string };
+
+const overviewDayLabelFmt = new Intl.DateTimeFormat("en-GH", {
+  day: "numeric",
+  month: "short",
+  timeZone: "UTC",
+});
+
+function overviewParseMs(iso?: string | null): number {
+  return iso ? Date.parse(iso) : Number.NaN;
+}
+
+// Bucket {timestamp,value} rows into `days` UTC calendar days ending at the
+// latest timestamp present. Deterministic (no wall-clock) so it is SSR-safe and
+// never triggers a hydration mismatch; invalid/empty timestamps are dropped.
+function buildOverviewSeries(
+  rows: Array<{ ts: number; value: number }>,
+  days: number,
+): OverviewDaySeries[] {
+  const valid = rows.filter((row) => Number.isFinite(row.ts));
+  if (valid.length === 0) {
+    return [];
+  }
+  const maxDay = valid.reduce(
+    (max, row) => Math.max(max, Math.floor(row.ts / OVERVIEW_DAY_MS)),
+    Number.NEGATIVE_INFINITY,
+  );
+  const startDay = maxDay - (days - 1);
+  const series: OverviewDaySeries[] = [];
+  for (let day = startDay; day <= maxDay; day += 1) {
+    series.push({
+      key: day,
+      label: overviewDayLabelFmt.format(new Date(day * OVERVIEW_DAY_MS)),
+      value: 0,
+    });
+  }
+  for (const row of valid) {
+    const day = Math.floor(row.ts / OVERVIEW_DAY_MS);
+    const bucket = series[day - startDay];
+    if (bucket) {
+      bucket.value += row.value;
+    }
+  }
+  return series;
+}
+
+function OverviewTrendCard({
+  title,
+  subtitle,
+  total,
+  series,
+  color,
+  emptyLabel = "No activity in this window yet.",
+}: {
+  title: string;
+  subtitle: string;
+  total: string;
+  series: OverviewDaySeries[];
+  color: string;
+  emptyLabel?: string;
+}) {
+  const rawId = useId();
+  const gradientId = `ovtrend-${rawId.replace(/[:]/g, "")}`;
+  const height = 96;
+  const max = Math.max(1, ...series.map((point) => point.value));
+  const lastIndex = series.length - 1;
+  const coords = series.map((point, index) => {
+    const x = lastIndex > 0 ? (index / lastIndex) * 100 : 0;
+    const y = height - 4 - (point.value / max) * (height - 12);
+    return { x, y };
+  });
+  const linePoints = coords
+    .map((point) => `${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join(" ");
+  const areaPoints = `0,${height} ${linePoints} 100,${height}`;
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack
+        direction="row"
+        spacing={1.5}
+        sx={{
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          mb: 1.5,
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {subtitle}
+          </Typography>
+        </Box>
+        <Typography variant="h6" sx={{ color, whiteSpace: "nowrap" }}>
+          {total}
+        </Typography>
+      </Stack>
+      {series.length === 0 ? (
+        <Box
+          sx={{
+            height,
+            display: "grid",
+            placeItems: "center",
+            borderRadius: 1.5,
+            border: "1px dashed",
+            borderColor: "divider",
+          }}
+        >
+          <Typography variant="caption" sx={{ color: "text.secondary" }}>
+            {emptyLabel}
+          </Typography>
+        </Box>
+      ) : (
+        <>
+          <Box
+            component="svg"
+            viewBox={`0 0 100 ${height}`}
+            preserveAspectRatio="none"
+            sx={{ width: "100%", height, display: "block" }}
+          >
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={color} stopOpacity={0.28} />
+                <stop offset="100%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <polygon points={areaPoints} fill={`url(#${gradientId})`} />
+            <polyline
+              points={linePoints}
+              fill="none"
+              stroke={color}
+              strokeWidth={2}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          </Box>
+          <Stack
+            direction="row"
+            sx={{ justifyContent: "space-between", mt: 0.75 }}
+          >
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {series[0]?.label}
+            </Typography>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              {series[lastIndex]?.label}
+            </Typography>
+          </Stack>
+        </>
+      )}
+    </Panel>
+  );
+}
+
+function OverviewBreakdownCard({
+  title,
+  subtitle,
+  items,
+  onView,
+}: {
+  title: string;
+  subtitle: string;
+  items: OverviewBar[];
+  onView: () => void;
+}) {
+  const max = Math.max(1, ...items.map((item) => item.value));
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack spacing={1.5}>
+        <Box>
+          <Typography sx={{ fontWeight: 900 }}>{title}</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {subtitle}
+          </Typography>
+        </Box>
+        <Stack spacing={1.1}>
+          {items.map((item) => (
+            <Box key={item.label}>
+              <Stack
+                direction="row"
+                sx={{ justifyContent: "space-between", mb: 0.4 }}
+              >
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {item.label}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                  {item.value}
+                </Typography>
+              </Stack>
+              <Box
+                sx={{
+                  height: 8,
+                  borderRadius: 999,
+                  overflow: "hidden",
+                  bgcolor: (theme) =>
+                    theme.palette.mode === "dark"
+                      ? alpha(tokens.white, 0.08)
+                      : alpha(tokens.ink, 0.06),
+                }}
+              >
+                <Box
+                  sx={{
+                    height: "100%",
+                    width: `${Math.round((item.value / max) * 100)}%`,
+                    minWidth: item.value > 0 ? 6 : 0,
+                    borderRadius: 999,
+                    bgcolor: item.color,
+                    transition: "width 240ms ease",
+                  }}
+                />
+              </Box>
+            </Box>
+          ))}
+        </Stack>
+        <CardDetailAction onClick={onView} label="Open" />
+      </Stack>
+    </Panel>
+  );
+}
+
+function OverviewSection({
+  platformMetrics,
+  platformMetricsError,
+  operationsHealth,
+  businesses,
+  customers,
+  subscriptions,
+  verificationCases,
+  supportTickets,
+  riskReviews,
+  auditEvents,
+  moneyRails,
+  promotions,
+  adCampaigns,
+  affiliates,
+  referralProgrammes,
+  pendingCount,
+  onSelect,
+}: {
+  platformMetrics: AdminPlatformMetrics | null;
+  platformMetricsError: string | null;
+  operationsHealth: AdminOperationsHealth | null;
+  businesses: AdminBusiness[];
+  customers: AdminCustomer[];
+  subscriptions: AdminSubscription[];
+  verificationCases: AdminVerificationCase[];
+  supportTickets: AdminSupportTicket[];
+  riskReviews: AdminRiskReview[];
+  auditEvents: AuditEvent[];
+  moneyRails: AdminMoneyRails | null;
+  promotions: AdminPromotion[];
+  adCampaigns: AdminAdCampaign[];
+  affiliates: AdminAffiliate[];
+  referralProgrammes: AdminReferralProgramme[];
+  pendingCount: number;
+  onSelect: (section: Section) => void;
+}) {
+  const countBy = <T,>(items: T[], predicate: (item: T) => boolean): number =>
+    items.filter(predicate).length;
+
+  const webhookEvents = moneyRails?.webhookEvents ?? [];
+  const activeSubscriptions = subscriptions.filter(
+    (sub) => sub.status === "active" || sub.status === "trialing",
+  );
+  const mrrMinor = subscriptions
+    .filter((sub) => sub.status === "active")
+    .reduce((sum, sub) => sum + sub.monthlyFeeMinor, 0);
+  const openRisk = riskReviews.filter((review) => review.status === "open");
+  const openSupport = supportTickets.filter(
+    (ticket) => ticket.status === "open",
+  );
+  const urgentSupport = openSupport.filter(
+    (ticket) => ticket.priority === "urgent",
+  );
+  const suspendedCount = countBy(
+    businesses,
+    (business) => business.operationalStatus === "suspended",
+  );
+  const verifiedCount = countBy(
+    businesses,
+    (business) => business.verificationStatus === "verified",
+  );
+  const customerGmvMinor = customers.reduce((sum, c) => sum + c.gmvMinor, 0);
+  const customerOrders = customers.reduce((sum, c) => sum + c.orderCount, 0);
+
+  const kpiCards: Array<{
+    label: string;
+    value: string;
+    helper: string;
+    trend: string;
+  }> = [];
+  if (platformMetrics) {
+    kpiCards.push(
+      {
+        label: "GMV this month",
+        value: formatGHS(platformMetrics.gmvMonthMinor),
+        helper: "Succeeded platform payments",
+        trend: `${platformMetrics.totalPayments30d} payments · 30d`,
+      },
+      {
+        label: "Platform revenue",
+        value: formatGHS(platformMetrics.platformRevenueMonthMinor),
+        helper: "Commission collected",
+        trend: "Month to date",
+      },
+      {
+        label: "Payment health",
+        value: formatPercentBps(platformMetrics.paymentHealthBps),
+        helper: `${platformMetrics.failedPayments30d} failed · 30d`,
+        trend: "Live",
+      },
+    );
+  }
+  kpiCards.push(
+    {
+      label: "Businesses",
+      value: String(businesses.length),
+      helper: `${verifiedCount} verified · ${suspendedCount} suspended`,
+      trend: `${pendingCount} pending KYC`,
+    },
+    {
+      label: "Customers",
+      value: String(customers.length),
+      helper: `${formatGHS(customerGmvMinor)} lifetime GMV`,
+      trend: `${customerOrders} orders`,
+    },
+    {
+      label: "Active subscriptions",
+      value: String(activeSubscriptions.length),
+      helper: `${formatGHS(mrrMinor)} MRR`,
+      trend: `${subscriptions.length} total`,
+    },
+    {
+      label: "Open issues",
+      value: String(openRisk.length + openSupport.length),
+      helper: `${openRisk.length} risk · ${openSupport.length} support`,
+      trend: `${urgentSupport.length} urgent`,
+    },
+    {
+      label: "Operations health",
+      value: operationsHealth ? `${operationsHealth.healthScore}%` : "—",
+      helper: operationsHealth
+        ? `${operationsHealth.blockedCount} blocked · ${operationsHealth.watchCount} watch`
+        : "Awaiting signals",
+      trend: operationsHealth
+        ? `${operationsHealth.failedWebhooks} webhook fails`
+        : "—",
+    },
+  );
+
+  const moneySeries = buildOverviewSeries(
+    webhookEvents
+      .filter(
+        (event) => event.status === "verified" || event.status === "replayed",
+      )
+      .map((event) => ({
+        ts: overviewParseMs(event.receivedAt),
+        value: event.amountMinor,
+      })),
+    14,
+  );
+  const moneyTotal = moneySeries.reduce((sum, point) => sum + point.value, 0);
+  const customerSeries = buildOverviewSeries(
+    customers.map((customer) => ({
+      ts: overviewParseMs(customer.createdAt),
+      value: 1,
+    })),
+    30,
+  );
+  const customerNew = customerSeries.reduce((sum, point) => sum + point.value, 0);
+  const auditSeries = buildOverviewSeries(
+    auditEvents.map((event) => ({
+      ts: overviewParseMs(event.createdAt),
+      value: 1,
+    })),
+    14,
+  );
+  const auditTotal = auditSeries.reduce((sum, point) => sum + point.value, 0);
+  const supportSeries = buildOverviewSeries(
+    supportTickets.map((ticket) => ({
+      ts: overviewParseMs(ticket.createdAt),
+      value: 1,
+    })),
+    14,
+  );
+  const supportNew = supportSeries.reduce((sum, point) => sum + point.value, 0);
+
+  const businessBars: OverviewBar[] = [
+    {
+      label: "Verified",
+      value: countBy(businesses, (b) => b.status === "verified"),
+      color: tokens.success,
+    },
+    {
+      label: "Pending",
+      value: countBy(businesses, (b) => b.status === "pending"),
+      color: tokens.warning,
+    },
+    {
+      label: "Unverified",
+      value: countBy(businesses, (b) => b.status === "unverified"),
+      color: tokens.info,
+    },
+    {
+      label: "Suspended",
+      value: countBy(businesses, (b) => b.status === "suspended"),
+      color: tokens.danger,
+    },
+    {
+      label: "Rejected",
+      value: countBy(businesses, (b) => b.status === "rejected"),
+      color: tokens.mauve,
+    },
+  ];
+  const subscriptionBars: OverviewBar[] = [
+    {
+      label: "Active",
+      value: countBy(subscriptions, (s) => s.status === "active"),
+      color: tokens.success,
+    },
+    {
+      label: "Trialing",
+      value: countBy(subscriptions, (s) => s.status === "trialing"),
+      color: tokens.info,
+    },
+    {
+      label: "Past due",
+      value: countBy(subscriptions, (s) => s.status === "past_due"),
+      color: tokens.warning,
+    },
+    {
+      label: "Grace period",
+      value: countBy(subscriptions, (s) => s.status === "grace_period"),
+      color: tokens.gold,
+    },
+    {
+      label: "Ending",
+      value: countBy(subscriptions, (s) => s.status === "cancel_at_period_end"),
+      color: tokens.mauve,
+    },
+    {
+      label: "Canceled",
+      value: countBy(subscriptions, (s) => s.status === "canceled"),
+      color: tokens.danger,
+    },
+  ];
+  const trustBars: OverviewBar[] = [
+    {
+      label: "High risk (open)",
+      value: countBy(openRisk, (r) => r.level === "high"),
+      color: tokens.danger,
+    },
+    {
+      label: "Medium risk (open)",
+      value: countBy(openRisk, (r) => r.level === "medium"),
+      color: tokens.warning,
+    },
+    {
+      label: "Low risk (open)",
+      value: countBy(openRisk, (r) => r.level === "low"),
+      color: tokens.info,
+    },
+    {
+      label: "Urgent support",
+      value: urgentSupport.length,
+      color: tokens.danger,
+    },
+    { label: "Open support", value: openSupport.length, color: tokens.burgundy },
+  ];
+  const growthBars: OverviewBar[] = [
+    {
+      label: "Promotions live",
+      value: countBy(promotions, (p) => p.status === "active"),
+      color: tokens.burgundy,
+    },
+    {
+      label: "Ad placements live",
+      value: countBy(adCampaigns, (a) => a.status === "active"),
+      color: tokens.info,
+    },
+    {
+      label: "Affiliates active",
+      value: countBy(affiliates, (a) => a.status === "active"),
+      color: tokens.success,
+    },
+    {
+      label: "Referral programmes",
+      value: countBy(referralProgrammes, (r) => r.status === "active"),
+      color: tokens.gold,
+    },
+  ];
+
+  type FeedItem = {
+    id: string;
+    at: string;
+    ts: number;
+    tone: string;
+    icon: ReactNode;
+    title: string;
+    meta: string;
+    section: Section;
+  };
+  const feed: FeedItem[] = [];
+  for (const event of auditEvents) {
+    feed.push({
+      id: `audit-${event.id}`,
+      at: event.createdAt,
+      ts: overviewParseMs(event.createdAt),
+      tone: auditColor(event.severity),
+      icon: <HistoryRounded fontSize="small" />,
+      title: event.action,
+      meta: `${event.actor} · ${event.target}`,
+      section: "audit",
+    });
+  }
+  for (const event of webhookEvents) {
+    feed.push({
+      id: `wh-${event.id}`,
+      at: event.receivedAt,
+      ts: overviewParseMs(event.receivedAt),
+      tone: webhookColor(event.status),
+      icon: <PaymentsRounded fontSize="small" />,
+      title: `${formatGHS(event.amountMinor)} · ${event.status}`,
+      meta: `${event.business} · ${event.purpose}`,
+      section: "money",
+    });
+  }
+  for (const ticket of supportTickets) {
+    feed.push({
+      id: `st-${ticket.id}`,
+      at: ticket.createdAt,
+      ts: overviewParseMs(ticket.createdAt),
+      tone: ticket.priority === "urgent" ? tokens.danger : tokens.info,
+      icon: <SupportAgentRounded fontSize="small" />,
+      title: ticket.subject,
+      meta: `${ticket.business} · ${ticket.priority}`,
+      section: "support",
+    });
+  }
+  for (const kase of verificationCases) {
+    feed.push({
+      id: `vc-${kase.id}`,
+      at: kase.submittedAt,
+      ts: overviewParseMs(kase.submittedAt),
+      tone: riskColor(kase.riskLevel),
+      icon: <VerifiedUserRounded fontSize="small" />,
+      title: `${kase.businessName} submitted verification`,
+      meta: `${kase.handle} · ${kase.riskLevel} risk`,
+      section: "verification",
+    });
+  }
+  for (const sub of subscriptions) {
+    for (const event of (sub.events ?? []).slice(0, 2)) {
+      feed.push({
+        id: `se-${event.id}`,
+        at: event.createdAt,
+        ts: overviewParseMs(event.createdAt),
+        tone: tokens.burgundy,
+        icon: <WorkspacePremiumRounded fontSize="small" />,
+        title: event.summary,
+        meta: `${sub.businessName} · ${sub.planName}`,
+        section: "subscriptions",
+      });
+    }
+  }
+  const feedItems = feed
+    .filter((item) => Number.isFinite(item.ts))
+    .sort((a, b) => b.ts - a.ts)
+    .slice(0, 14);
+
+  const healthTone = operationsHealth
+    ? operationsHealth.blockedCount > 0
+      ? tokens.danger
+      : operationsHealth.watchCount > 0
+        ? tokens.warning
+        : tokens.success
+    : tokens.graphite;
+
+  return (
+    <Stack spacing={3}>
+      <SectionHeader
+        eyebrow="Platform pulse"
+        title="Everything at a glance"
+        helper="A live snapshot across the admin, business, and customer platforms — money flow, growth, trust & safety, and the latest activity."
+      />
+
+      {platformMetricsError ? (
+        <Alert severity="warning">{platformMetricsError}</Alert>
+      ) : null}
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+        }}
+      >
+        {kpiCards.map((card) => (
+          <MetricCard key={card.label} {...card} />
+        ))}
+      </Box>
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+        }}
+      >
+        <OverviewTrendCard
+          title="Settled payment volume"
+          subtitle="Verified Paystack webhooks · 14 days"
+          total={formatGHS(moneyTotal)}
+          series={moneySeries}
+          color={tokens.burgundy}
+          emptyLabel="No settled webhooks recorded yet."
+        />
+        <OverviewTrendCard
+          title="New customers"
+          subtitle="First seen · 30 days"
+          total={`+${customerNew}`}
+          series={customerSeries}
+          color={tokens.success}
+          emptyLabel="No new customers in this window."
+        />
+        <OverviewTrendCard
+          title="Admin activity"
+          subtitle="Operator audit events · 14 days"
+          total={String(auditTotal)}
+          series={auditSeries}
+          color={tokens.info}
+          emptyLabel="No operator activity recorded yet."
+        />
+        <OverviewTrendCard
+          title="Support load"
+          subtitle="Tickets opened · 14 days"
+          total={String(supportNew)}
+          series={supportSeries}
+          color={tokens.warning}
+          emptyLabel="No support tickets opened."
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            md: "repeat(2, minmax(0, 1fr))",
+            xl: "repeat(4, minmax(0, 1fr))",
+          },
+          alignItems: "start",
+        }}
+      >
+        <OverviewBreakdownCard
+          title="Businesses"
+          subtitle={`${businesses.length} tenants`}
+          items={businessBars}
+          onView={() => onSelect("businesses")}
+        />
+        <OverviewBreakdownCard
+          title="Subscriptions"
+          subtitle={`${formatGHS(mrrMinor)} MRR`}
+          items={subscriptionBars}
+          onView={() => onSelect("subscriptions")}
+        />
+        <OverviewBreakdownCard
+          title="Trust & safety"
+          subtitle={`${openRisk.length + openSupport.length} open`}
+          items={trustBars}
+          onView={() => onSelect("risk")}
+        />
+        <OverviewBreakdownCard
+          title="Growth"
+          subtitle="Live programmes"
+          items={growthBars}
+          onView={() => onSelect("promotions")}
+        />
+      </Box>
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", xl: "0.85fr 1.15fr" },
+          alignItems: "start",
+        }}
+      >
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Stack spacing={1.75}>
+            <Stack
+              direction="row"
+              spacing={1.5}
+              sx={{ justifyContent: "space-between", alignItems: "center" }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 900 }}>
+                  Operations health
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {operationsHealth
+                    ? `${operationsHealth.failedWebhooks} webhook fails · ${operationsHealth.payoutHolds} payout holds`
+                    : "Awaiting signals"}
+                </Typography>
+              </Box>
+              <Typography
+                variant="h4"
+                sx={{ color: healthTone, lineHeight: 1, whiteSpace: "nowrap" }}
+              >
+                {operationsHealth ? `${operationsHealth.healthScore}%` : "—"}
+              </Typography>
+            </Stack>
+            {operationsHealth && operationsHealth.signals.length > 0 ? (
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+                }}
+              >
+                {operationsHealth.signals.slice(0, 6).map((signal) => {
+                  const tone =
+                    signal.status === "blocked"
+                      ? tokens.danger
+                      : signal.status === "watch"
+                        ? tokens.warning
+                        : tokens.success;
+                  return (
+                    <Box
+                      key={signal.id}
+                      sx={{
+                        p: 1.25,
+                        borderRadius: 1.5,
+                        border: "1px solid",
+                        borderColor: alpha(tone, 0.22),
+                        bgcolor: alpha(tone, 0.06),
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        sx={{
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary", fontWeight: 800 }}
+                        >
+                          {signal.label}
+                        </Typography>
+                        <Box
+                          sx={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: "50%",
+                            bgcolor: tone,
+                          }}
+                        />
+                      </Stack>
+                      <Typography sx={{ fontWeight: 900, color: tone }}>
+                        {signal.value}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          display: "block",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {signal.helper}
+                      </Typography>
+                    </Box>
+                  );
+                })}
+              </Box>
+            ) : (
+              <Alert severity="info">
+                Operations health signals are not available right now.
+              </Alert>
+            )}
+            <CardDetailAction
+              onClick={() => onSelect("health")}
+              label="Open operations"
+            />
+          </Stack>
+        </Panel>
+
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Stack spacing={1.5}>
+            <Stack
+              direction="row"
+              sx={{ justifyContent: "space-between", alignItems: "center" }}
+            >
+              <Box>
+                <Typography sx={{ fontWeight: 900 }}>Live activity</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Latest events across every platform.
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={`${feedItems.length} recent`}
+                variant="outlined"
+              />
+            </Stack>
+            {feedItems.length === 0 ? (
+              <Alert severity="info">No recent activity to show yet.</Alert>
+            ) : (
+              <Stack spacing={1}>
+                {feedItems.map((item) => (
+                  <Stack
+                    key={item.id}
+                    direction="row"
+                    spacing={1.25}
+                    onClick={() => onSelect(item.section)}
+                    sx={{
+                      alignItems: "flex-start",
+                      p: 1,
+                      borderRadius: 1.25,
+                      bgcolor: "rgba(var(--surface-rgb), 0.6)",
+                      borderLeft: "3px solid",
+                      borderColor: item.tone,
+                      cursor: "pointer",
+                      transition: "transform 160ms ease, background-color 160ms",
+                      "&:hover": { transform: "translateX(3px)" },
+                    }}
+                  >
+                    <Box
+                      sx={{
+                        color: item.tone,
+                        mt: 0.25,
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      {item.icon}
+                    </Box>
+                    <Box sx={{ minWidth: 0, flex: 1 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 800, overflowWrap: "anywhere" }}
+                      >
+                        {item.title}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{
+                          color: "text.secondary",
+                          overflowWrap: "anywhere",
+                        }}
+                      >
+                        {item.meta}
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary", whiteSpace: "nowrap" }}
+                    >
+                      {shortTime(item.at)}
+                    </Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            )}
+            <CardDetailAction
+              onClick={() => onSelect("audit")}
+              label="Open audit trail"
+            />
+          </Stack>
+        </Panel>
+      </Box>
+    </Stack>
+  );
+}
+
 export default function AdminDashboard({
   loaderData,
   actionData,
@@ -17224,37 +18116,6 @@ export default function AdminDashboard({
   const pendingCount = verificationCases.filter(
     (item) => item.status === "pending" || item.status === "unverified",
   ).length;
-  const suspendedBusinessCount = adminBusinesses.filter(
-    (business) => business.operationalStatus === "suspended",
-  ).length;
-  const metricCards = platformMetrics
-    ? [
-        {
-          label: "GMV this month",
-          value: formatGHS(platformMetrics.gmvMonthMinor),
-          helper: "Succeeded platform payments",
-          trend: `${platformMetrics.totalPayments30d} payments`,
-        },
-        {
-          label: "Platform revenue",
-          value: formatGHS(platformMetrics.platformRevenueMonthMinor),
-          helper: "Commission collected",
-          trend: "Month to date",
-        },
-        {
-          label: "Active businesses",
-          value: String(platformMetrics.activeBusinesses),
-          helper: `${platformMetrics.totalBusinesses} total tenants`,
-          trend: `${platformMetrics.pendingVerifications} KYC`,
-        },
-        {
-          label: "Payment health",
-          value: formatPercentBps(platformMetrics.paymentHealthBps),
-          helper: `${platformMetrics.failedPayments30d} failed in 30 days`,
-          trend: "Live",
-        },
-      ]
-    : [];
   const urgentTickets = supportTickets.filter(
     (ticket) => ticket.priority === "urgent" && ticket.status === "open",
   ).length;
@@ -17568,170 +18429,26 @@ export default function AdminDashboard({
               }}
             >
               {section === "overview" ? (
-            <Stack spacing={3}>
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 2,
-                  gridTemplateColumns: {
-                    xs: "1fr",
-                    sm: "repeat(2, 1fr)",
-                    xl: "repeat(4, 1fr)",
-                  },
-                }}
-              >
-                {metricCards.map((metric) => (
-                  <MetricCard key={metric.label} {...metric} />
-                ))}
-              </Box>
-              {platformMetricsError ? (
-                <Alert severity="warning">{platformMetricsError}</Alert>
+                <OverviewSection
+                  platformMetrics={platformMetrics}
+                  platformMetricsError={platformMetricsError}
+                  operationsHealth={operationsHealth}
+                  businesses={adminBusinesses}
+                  customers={adminCustomers}
+                  subscriptions={subscriptions}
+                  verificationCases={verificationCases}
+                  supportTickets={supportTickets}
+                  riskReviews={riskReviews}
+                  auditEvents={auditLog}
+                  moneyRails={moneyRails}
+                  promotions={promotions}
+                  adCampaigns={adCampaigns}
+                  affiliates={affiliates}
+                  referralProgrammes={referralProgrammes}
+                  pendingCount={pendingCount}
+                  onSelect={setSection}
+                />
               ) : null}
-
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 3,
-                  gridTemplateColumns: { xs: "1fr", xl: "1.25fr 0.75fr" },
-                }}
-              >
-                <Panel sx={{ p: { xs: 2, md: 3 } }}>
-                  <Stack
-                    direction={{ xs: "column", md: "row" }}
-                    spacing={2}
-                    sx={{ justifyContent: "space-between", mb: 2 }}
-                  >
-                    <Box>
-                      <Typography variant="h6">Verification queue</Typography>
-                      <Typography sx={{ color: "text.secondary" }}>
-                        {pendingCount} businesses need an operator decision
-                        before money rails are enabled.
-                      </Typography>
-                    </Box>
-                    <Button
-                      variant="contained"
-                      endIcon={<ArrowForwardRounded />}
-                      onClick={() => setSection("verification")}
-                    >
-                      Review queue
-                    </Button>
-                  </Stack>
-                  <Stack spacing={1.5}>
-                    {verificationCases.length === 0 ? (
-                      <Alert severity="info">
-                        No business verification cases are waiting right now.
-                      </Alert>
-                    ) : null}
-                    {verificationCases.slice(0, 2).map((item) => (
-                      <Stack
-                        key={item.id}
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
-                        sx={{
-                          alignItems: { sm: "center" },
-                          justifyContent: "space-between",
-                          p: 1.5,
-                          border: "1px solid",
-                          borderColor: alpha(riskColor(item.riskLevel), 0.2),
-                          borderRadius: 1.5,
-                          bgcolor: "rgba(var(--surface-rgb), 0.72)",
-                          backgroundImage: `linear-gradient(90deg, ${alpha(
-                            riskColor(item.riskLevel),
-                            0.08,
-                          )}, transparent 34%)`,
-                          transition:
-                            "transform 180ms ease, border-color 180ms ease",
-                          "&:hover": {
-                            transform: "translateX(3px)",
-                            borderColor: alpha(riskColor(item.riskLevel), 0.34),
-                          },
-                        }}
-                      >
-                        <Box>
-                          <Typography sx={{ fontWeight: 900 }}>
-                            {item.businessName}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {item.handle}.xtiitch.com · {item.documents.length}{" "}
-                            docs
-                          </Typography>
-                        </Box>
-                        <RiskChip level={item.riskLevel} />
-                      </Stack>
-                    ))}
-                  </Stack>
-                </Panel>
-
-                <Panel
-                  sx={{
-                    p: { xs: 2, md: 3 },
-                    borderColor: alpha(tokens.info, 0.16),
-                    backgroundImage: `
-                      radial-gradient(circle at 92% 0%, ${alpha(tokens.info, 0.14)}, transparent 34%),
-                      linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-                    `,
-                  }}
-                >
-                  <Stack spacing={2}>
-                    <Stack
-                      direction="row"
-                      spacing={1.5}
-                      sx={{ alignItems: "center" }}
-                    >
-                      <PaymentsRounded sx={{ color: tokens.burgundy }} />
-                      <Box>
-                        <Typography variant="h6">Money rail watch</Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          Paystack subaccounts, webhooks, and commission
-                          settlement.
-                        </Typography>
-                      </Box>
-                    </Stack>
-                    <Divider />
-                    <Stack spacing={1.5}>
-                      <Stack
-                        direction="row"
-                        sx={{ justifyContent: "space-between" }}
-                      >
-                        <Typography>Failed payments (30d)</Typography>
-                        <Typography
-                          sx={{ fontWeight: 900, color: tokens.warning }}
-                        >
-                          {platformMetrics?.failedPayments30d ?? 0}
-                        </Typography>
-                      </Stack>
-                      <Stack
-                        direction="row"
-                        sx={{ justifyContent: "space-between" }}
-                      >
-                        <Typography>Suspended stores</Typography>
-                        <Typography
-                          sx={{ fontWeight: 900, color: tokens.danger }}
-                        >
-                          {suspendedBusinessCount}
-                        </Typography>
-                      </Stack>
-                      <Stack
-                        direction="row"
-                        sx={{ justifyContent: "space-between" }}
-                      >
-                        <Typography>Urgent support</Typography>
-                        <Typography sx={{ fontWeight: 900 }}>
-                          {urgentTickets}
-                        </Typography>
-                      </Stack>
-                    </Stack>
-                  </Stack>
-                </Panel>
-              </Box>
-            </Stack>
-          ) : null}
 
           {section === "notifications" ? (
             <NotificationsSection

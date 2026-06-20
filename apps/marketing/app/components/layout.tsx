@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link as RouterLink, useLocation } from "react-router";
+import {
+  Link as RouterLink,
+  useLocation,
+  useRouteLoaderData,
+} from "react-router";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Container from "@mui/material/Container";
@@ -74,6 +78,12 @@ export function Logo({
   // (the wordmark already adapts via text.primary).
   const markColor =
     isLight || theme.palette.mode === "dark" ? "#faf6f2" : "#800020";
+  // Owner-managed platform logo from the public branding endpoint (loaded by the
+  // root loader). Falls back to the built-in ii-stitch mark when unset.
+  const branding = useRouteLoaderData("root") as
+    | { brandLogoUrl?: string }
+    | undefined;
+  const brandLogoUrl = branding?.brandLogoUrl ?? "";
   return (
     <Box
       component={RouterLink}
@@ -92,21 +102,38 @@ export function Logo({
         },
       }}
     >
-      <XtiitchMark
-        color={markColor}
-        size={30}
-        sx={{
-          flexShrink: 0,
-          transition: "transform 220ms ease",
-          ".MuiBox-root:hover > &": { transform: "translateY(-2px)" },
-        }}
-      />
-      <Typography
-        component="span"
-        sx={{ fontWeight: 800, fontSize: 23, letterSpacing: "-0.01em" }}
-      >
-        Xtiitch
-      </Typography>
+      {brandLogoUrl ? (
+        <Box
+          component="img"
+          src={brandLogoUrl}
+          alt={site.name}
+          sx={{
+            height: 32,
+            width: "auto",
+            maxWidth: 150,
+            objectFit: "contain",
+            flexShrink: 0,
+          }}
+        />
+      ) : (
+        <>
+          <XtiitchMark
+            color={markColor}
+            size={30}
+            sx={{
+              flexShrink: 0,
+              transition: "transform 220ms ease",
+              ".MuiBox-root:hover > &": { transform: "translateY(-2px)" },
+            }}
+          />
+          <Typography
+            component="span"
+            sx={{ fontWeight: 800, fontSize: 23, letterSpacing: "-0.01em" }}
+          >
+            Xtiitch
+          </Typography>
+        </>
+      )}
     </Box>
   );
 }
@@ -198,12 +225,7 @@ const navGroups: NavGroup[] = [
   },
 ];
 
-const NAV_ACCENTS = [
-  "rgba(128,0,32,0.16)",
-  "rgba(197,139,44,0.20)",
-  "rgba(49,95,143,0.16)",
-  "rgba(35,122,75,0.16)",
-];
+const NAV_WATERMARK_COLORS = ["#800020", "#c58b2c", "#315f8f", "#237a4b"];
 
 function MegaItem({
   item,
@@ -236,32 +258,48 @@ function MegaItem({
         bgcolor: active ? "rgba(128,0,32,0.06)" : "transparent",
         transition:
           "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          top: -30,
-          right: -26,
-          width: 100,
-          height: 100,
-          borderRadius: "50%",
-          background: `radial-gradient(circle, ${NAV_ACCENTS[index % NAV_ACCENTS.length]}, transparent 68%)`,
-          pointerEvents: "none",
-          transition: "transform 260ms ease",
-        },
         "&:hover": {
           transform: "translateY(-2px)",
           bgcolor: "rgba(128,0,32,0.04)",
           borderColor: "rgba(128,0,32,0.12)",
           "& .mega-ico": { transform: "rotate(-4deg) scale(1.06)" },
           "& .mega-go": { opacity: 1, transform: "translateX(0)" },
-          "&::after": { transform: "scale(1.18)" },
+          "& .mega-watermark": {
+            opacity: 0.24,
+            transform: "translate(4px, 4px) rotate(-8deg) scale(1.1)",
+          },
         },
       }}
     >
       <Box
+        className="mega-watermark"
+        aria-hidden
+        sx={{
+          position: "absolute",
+          right: -22,
+          bottom: -28,
+          color: active
+            ? "primary.main"
+            : NAV_WATERMARK_COLORS[index % NAV_WATERMARK_COLORS.length],
+          opacity: active ? 0.22 : 0.18,
+          pointerEvents: "none",
+          transform: "rotate(-10deg)",
+          transformOrigin: "center",
+          transition: "opacity 220ms ease, transform 260ms ease",
+          "& svg": {
+            fontSize: { xs: 96, md: 112 },
+            display: "block",
+          },
+        }}
+      >
+        {item.icon}
+      </Box>
+      <Box
         className="mega-ico"
         aria-hidden
         sx={{
+          position: "relative",
+          zIndex: 1,
           flexShrink: 0,
           width: 44,
           height: 44,
@@ -278,7 +316,7 @@ function MegaItem({
       >
         {item.icon}
       </Box>
-      <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Box sx={{ position: "relative", zIndex: 1, minWidth: 0, flex: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Typography sx={{ fontWeight: 800, fontSize: 15, lineHeight: 1.3 }}>
             {item.label}

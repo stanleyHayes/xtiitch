@@ -122,6 +122,12 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
             "0%": { opacity: 0 },
             "100%": { opacity: 1 },
           },
+          // Coordinated route-change fade-in for page content, paired with the
+          // top route-progress bar. Kept subtle and short.
+          "@keyframes xtiitch-page-fade-in": {
+            "0%": { opacity: 0, transform: "translate3d(0, 6px, 0)" },
+            "100%": { opacity: 1, transform: "translate3d(0, 0, 0)" },
+          },
           "@keyframes xtiitch-thread-drift": {
             "0%": { backgroundPosition: "0 0, 0 0, 0 0" },
             "100%": { backgroundPosition: "42px 0, 0 42px, 14px 14px" },

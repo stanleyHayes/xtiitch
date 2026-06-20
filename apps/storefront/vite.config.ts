@@ -22,6 +22,7 @@ const muiComponents = [
   "FormControlLabel",
   "InputAdornment",
   "Link",
+  "Pagination",
   "Paper",
   "Skeleton",
   "Stack",

@@ -167,6 +167,7 @@ type AdminPlatformSettingsRecord struct {
 	VerificationSLAHours         int
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
+	BrandLogoURL                 string
 	UpdatedAt                    time.Time
 }
 
@@ -176,6 +177,7 @@ type UpdateAdminPlatformSettingsInput struct {
 	VerificationSLAHours         int
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
+	BrandLogoURL                 string
 }
 
 type AdminUserCredentials struct {

@@ -15,6 +15,7 @@ import {
   apiBaseUrl,
   type SponsoredPlacement,
 } from "../src/api";
+import { useBranding } from "../src/branding";
 import { fonts, radius, shadow, spacing, swatchFor, type Palette } from "../src/theme";
 import { useTheme } from "../src/theme-mode";
 import { SkeletonBlock, XtiitchMark } from "../src/ui";
@@ -25,6 +26,7 @@ export default function HomeScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
+  const { logoUrl } = useBranding();
   const [storeHandle, setStoreHandle] = useState("");
   const [orderId, setOrderId] = useState("");
   const [featured, setFeatured] = useState<SponsoredPlacement[]>([]);
@@ -63,8 +65,19 @@ export default function HomeScreen() {
       <View style={styles.hero}>
         <Text style={styles.kicker}>XCREATIVS · GHANA</Text>
         <View style={styles.lockup}>
-          <XtiitchMark color={palette.cream} size={38} />
-          <Text style={styles.wordmark}>Xtiitch</Text>
+          {logoUrl ? (
+            <Image
+              source={{ uri: logoUrl }}
+              resizeMode="contain"
+              accessibilityLabel="Platform logo"
+              style={styles.brandLogo}
+            />
+          ) : (
+            <>
+              <XtiitchMark color={palette.cream} size={38} />
+              <Text style={styles.wordmark}>Xtiitch</Text>
+            </>
+          )}
         </View>
         <View style={styles.goldRule} />
         <Text style={styles.heroLead}>
@@ -282,6 +295,11 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     fontSize: 44,
     fontWeight: "800",
     letterSpacing: -0.5,
+  },
+  brandLogo: {
+    height: 56,
+    width: 220,
+    maxWidth: "100%",
   },
   goldRule: {
     width: 54,

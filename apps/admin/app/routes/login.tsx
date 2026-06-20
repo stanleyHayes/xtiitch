@@ -8,7 +8,6 @@ import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import InputAdornment from "@mui/material/InputAdornment";
-import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import AdminPanelSettingsRounded from "@mui/icons-material/AdminPanelSettingsRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -91,6 +90,45 @@ export async function action({ request }: Route.ActionArgs) {
   return redirect("/admin", {
     headers: { "Set-Cookie": await commitSession(session) },
   });
+}
+
+function LoadingButtonLabel({ label }: { label: string }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 0.85,
+        "@keyframes xtiitchButtonDot": {
+          "0%, 80%, 100%": { opacity: 0.42, transform: "translateY(0)" },
+          "40%": { opacity: 1, transform: "translateY(-4px)" },
+        },
+      }}
+    >
+      <Box component="span">{label}</Box>
+      <Box
+        component="span"
+        aria-hidden
+        sx={{ display: "inline-flex", gap: 0.45, pt: "2px" }}
+      >
+        {["0ms", "120ms", "240ms"].map((delay) => (
+          <Box
+            key={delay}
+            component="span"
+            sx={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              bgcolor: "currentColor",
+              animation: `xtiitchButtonDot 900ms ease-in-out ${delay} infinite`,
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
 }
 
 export default function Login({ actionData }: Route.ComponentProps) {
@@ -512,31 +550,18 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     variant="contained"
                     size="large"
                     disabled={isSubmitting}
-                    startIcon={
-                      isSubmitting ? (
-                        <Skeleton
-                          variant="rounded"
-                          width={18}
-                          height={18}
-                          sx={{
-                            bgcolor: "rgba(255,255,255,0.54)",
-                            borderRadius: 1,
-                          }}
-                        />
-                      ) : undefined
-                    }
                     endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
-                    sx={{ minHeight: 48 }}
+                    sx={{
+                      minHeight: 48,
+                      "&.Mui-disabled": {
+                        bgcolor: tokens.burgundy,
+                        color: tokens.white,
+                        opacity: 0.72,
+                      },
+                    }}
                   >
                     {isSubmitting ? (
-                      <Skeleton
-                        variant="text"
-                        width={112}
-                        sx={{
-                          bgcolor: "rgba(255,255,255,0.54)",
-                          fontSize: "1rem",
-                        }}
-                      />
+                      <LoadingButtonLabel label="Opening console" />
                     ) : (
                       "Open console"
                     )}

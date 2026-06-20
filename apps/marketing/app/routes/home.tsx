@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import type { MetaDescriptor } from "react-router";
-import { Link as RouterLink, useLoaderData } from "react-router";
+import {
+  Link as RouterLink,
+  useLoaderData,
+  useRouteLoaderData,
+} from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -117,6 +121,12 @@ export async function action({
 }
 
 function Hero() {
+  // Self-serve signup URL (the business dashboard's /register, a separate
+  // origin) comes from the root loader; fall back to the waitlist if absent.
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   return (
     <Box
       sx={{
@@ -264,8 +274,8 @@ function Hero() {
               }}
             >
               <Button
-                component={RouterLink}
-                to={site.primaryCta.href}
+                component="a"
+                href={signupUrl}
                 size="large"
                 endIcon={<ArrowForwardRoundedIcon />}
                 sx={{
@@ -274,11 +284,11 @@ function Hero() {
                   "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
                 }}
               >
-                {site.primaryCta.label}
+                Create your store
               </Button>
               <Button
                 component={RouterLink}
-                to={site.secondaryCta.href}
+                to={site.primaryCta.href}
                 size="large"
                 variant="outlined"
                 sx={{
@@ -290,7 +300,7 @@ function Hero() {
                   },
                 }}
               >
-                {site.secondaryCta.label}
+                {site.primaryCta.label}
               </Button>
             </Stack>
             <Typography

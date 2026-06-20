@@ -1,4 +1,10 @@
-import { Form, data, redirect, useNavigation } from "react-router";
+import {
+  Form,
+  data,
+  redirect,
+  useNavigation,
+  useRouteLoaderData,
+} from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -8,8 +14,8 @@ import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Link from "@mui/material/Link";
 import InputAdornment from "@mui/material/InputAdornment";
-import Skeleton from "@mui/material/Skeleton";
 import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
@@ -131,6 +137,45 @@ export async function action({ request }: Route.ActionArgs) {
   });
 }
 
+function LoadingButtonLabel({ label }: { label: string }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 0.85,
+        "@keyframes xtiitchButtonDot": {
+          "0%, 80%, 100%": { opacity: 0.42, transform: "translateY(0)" },
+          "40%": { opacity: 1, transform: "translateY(-4px)" },
+        },
+      }}
+    >
+      <Box component="span">{label}</Box>
+      <Box
+        component="span"
+        aria-hidden
+        sx={{ display: "inline-flex", gap: 0.45, pt: "2px" }}
+      >
+        {["0ms", "120ms", "240ms"].map((delay) => (
+          <Box
+            key={delay}
+            component="span"
+            sx={{
+              width: 5,
+              height: 5,
+              borderRadius: "50%",
+              bgcolor: "currentColor",
+              animation: `xtiitchButtonDot 900ms ease-in-out ${delay} infinite`,
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
 export default function Login({ actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
@@ -139,6 +184,12 @@ export default function Login({ actionData }: Route.ComponentProps) {
     mfaRequired?: boolean;
   };
   const mfaRequired = Boolean(result.mfaRequired);
+  // Owner-managed platform logo from the public branding endpoint (loaded by the
+  // root loader). Falls back to the built-in Xtiitch mark + wordmark when unset.
+  const branding = useRouteLoaderData("root") as
+    | { brandLogoUrl?: string }
+    | undefined;
+  const brandLogoUrl = branding?.brandLogoUrl ?? "";
   return (
     <Box
       sx={{
@@ -197,24 +248,41 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 spacing={1.25}
                 sx={{ alignItems: "center" }}
               >
-                <Box
-                  sx={{
-                    width: 44,
-                    height: 44,
-                    borderRadius: 1.5,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: alpha(tokens.burgundy, 0.34),
-                    border: "1px solid",
-                    borderColor: alpha(tokens.white, 0.16),
-                  }}
-                >
-                  <StorefrontRounded />
-                </Box>
+                {brandLogoUrl ? (
+                  <Box
+                    component="img"
+                    src={brandLogoUrl}
+                    alt="Xtiitch"
+                    sx={{
+                      height: 36,
+                      width: "auto",
+                      maxWidth: 160,
+                      objectFit: "contain",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 1.5,
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: alpha(tokens.burgundy, 0.34),
+                      border: "1px solid",
+                      borderColor: alpha(tokens.white, 0.16),
+                    }}
+                  >
+                    <StorefrontRounded />
+                  </Box>
+                )}
                 <Box>
-                  <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
-                    Xtiitch
-                  </Typography>
+                  {brandLogoUrl ? null : (
+                    <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
+                      Xtiitch
+                    </Typography>
+                  )}
                   <Typography
                     variant="caption"
                     sx={{ color: alpha(tokens.white, 0.66) }}
@@ -341,23 +409,40 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 mb: 2.5,
               }}
             >
-              <Box
-                sx={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 1.5,
-                  display: "grid",
-                  placeItems: "center",
-                  bgcolor: tokens.burgundy,
-                  color: tokens.white,
-                }}
-              >
-                <StorefrontRounded />
-              </Box>
+              {brandLogoUrl ? (
+                <Box
+                  component="img"
+                  src={brandLogoUrl}
+                  alt="Xtiitch"
+                  sx={{
+                    height: 32,
+                    width: "auto",
+                    maxWidth: 150,
+                    objectFit: "contain",
+                    flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 1.5,
+                    display: "grid",
+                    placeItems: "center",
+                    bgcolor: tokens.burgundy,
+                    color: tokens.white,
+                  }}
+                >
+                  <StorefrontRounded />
+                </Box>
+              )}
               <Box>
-                <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
-                  Xtiitch
-                </Typography>
+                {brandLogoUrl ? null : (
+                  <Typography sx={{ fontWeight: 800, lineHeight: 1 }}>
+                    Xtiitch
+                  </Typography>
+                )}
                 <Typography
                   variant="caption"
                   sx={{ color: alpha(tokens.ink, 0.68) }}
@@ -413,8 +498,19 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     size="large"
                     disabled={isSubmitting}
                     endIcon={isSubmitting ? undefined : <LoginRounded />}
+                    sx={{
+                      "&.Mui-disabled": {
+                        bgcolor: tokens.burgundy,
+                        color: tokens.white,
+                        opacity: 0.72,
+                      },
+                    }}
                   >
-                    {isSubmitting ? "Verifying…" : "Verify and continue"}
+                    {isSubmitting ? (
+                      <LoadingButtonLabel label="Verifying" />
+                    ) : (
+                      "Verify and continue"
+                    )}
                   </Button>
                 </Stack>
               </Form>
@@ -480,34 +576,30 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     variant="contained"
                     size="large"
                     disabled={isSubmitting}
-                    startIcon={
-                      isSubmitting ? (
-                        <Skeleton
-                          variant="rounded"
-                          width={18}
-                          height={18}
-                          sx={{
-                            bgcolor: "rgba(255,255,255,0.54)",
-                            borderRadius: 1,
-                          }}
-                        />
-                      ) : undefined
-                    }
                     endIcon={isSubmitting ? undefined : <LoginRounded />}
+                    sx={{
+                      "&.Mui-disabled": {
+                        bgcolor: tokens.burgundy,
+                        color: tokens.white,
+                        opacity: 0.72,
+                      },
+                    }}
                   >
                     {isSubmitting ? (
-                      <Skeleton
-                        variant="text"
-                        width={72}
-                        sx={{
-                          bgcolor: "rgba(255,255,255,0.54)",
-                          fontSize: "1rem",
-                        }}
-                      />
+                      <LoadingButtonLabel label="Signing in" />
                     ) : (
                       "Sign in"
                     )}
                   </Button>
+                  <Typography
+                    variant="body2"
+                    sx={{ textAlign: "center", color: alpha(tokens.ink, 0.68) }}
+                  >
+                    New to Xtiitch?{" "}
+                    <Link href="/register" sx={{ fontWeight: 700 }}>
+                      Create your store
+                    </Link>
+                  </Typography>
                 </Stack>
               </Form>
             )}

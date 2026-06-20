@@ -57,7 +57,16 @@ export type AdminPlatformSettings = {
   verificationSlaHours: number;
   payoutReviewThresholdPesewas: number;
   maintenanceMode: boolean;
+  brandLogoUrl: string;
   updatedAt?: string;
+};
+
+export type AdminBrandingUploadSignature = {
+  signature: string;
+  timestamp: number;
+  cloud_name: string;
+  api_key: string;
+  folder: string;
 };
 
 export type AdminPlatformMetrics = {
@@ -791,6 +800,7 @@ type AdminPlatformSettingsPayload = {
   verification_sla_hours: number;
   payout_review_threshold_pesewas: number;
   maintenance_mode: boolean;
+  brand_logo_url?: string;
   updated_at?: string;
 };
 
@@ -1490,6 +1500,7 @@ function mapPlatformSettings(
     verificationSlaHours: payload.verification_sla_hours,
     payoutReviewThresholdPesewas: payload.payout_review_threshold_pesewas,
     maintenanceMode: payload.maintenance_mode,
+    brandLogoUrl: payload.brand_logo_url ?? "",
     updatedAt: payload.updated_at,
   };
 }
@@ -2203,6 +2214,7 @@ export const adminApi = {
       verificationSlaHours: number;
       payoutReviewThresholdPesewas: number;
       maintenanceMode: boolean;
+      brandLogoUrl: string;
     },
   ) =>
     requestJSON<AdminPlatformSettingsPayload>("/admin/settings/platform", {
@@ -2214,8 +2226,17 @@ export const adminApi = {
         verification_sla_hours: input.verificationSlaHours,
         payout_review_threshold_pesewas: input.payoutReviewThresholdPesewas,
         maintenance_mode: input.maintenanceMode,
+        brand_logo_url: input.brandLogoUrl,
       }),
     }).then(mapPlatformSettings),
+  signBrandingUpload: (accessToken: string) =>
+    requestJSON<AdminBrandingUploadSignature>(
+      "/admin/settings/branding/upload-signature",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    ),
   platformMetrics: (accessToken: string) =>
     requestJSON<AdminPlatformMetricsPayload>("/admin/platform-metrics", {
       method: "GET",

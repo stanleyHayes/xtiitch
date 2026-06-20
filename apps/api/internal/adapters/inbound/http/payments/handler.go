@@ -24,7 +24,7 @@ type Service interface {
 	InitiateCharge(ctx context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error)
 	HandleProviderEvent(ctx context.Context, payload []byte, signature string) error
 	ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error)
-	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (common.ID, error)
+	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error)
 	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error)
 	MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error)
 }
@@ -178,6 +178,12 @@ type logTakingRequest struct {
 	WhatFor     string `json:"what_for"`
 }
 
+type logTakingResponse struct {
+	TakingID         string `json:"taking_id"`
+	CommissionMinor  int64  `json:"commission_minor"`
+	CommissionStatus string `json:"commission_status"`
+}
+
 func (handler Handler) logTaking(w http.ResponseWriter, r *http.Request) {
 	principal, ok := authhttp.PrincipalFromContext(r.Context())
 	if !ok {
@@ -202,13 +208,17 @@ func (handler Handler) logTaking(w http.ResponseWriter, r *http.Request) {
 		cmd.OrderID = &id
 	}
 
-	takingID, err := handler.service.LogManualTaking(r.Context(), cmd)
+	result, err := handler.service.LogManualTaking(r.Context(), cmd)
 	if err != nil {
 		status, code := paymentError(err)
 		writeError(w, status, code)
 		return
 	}
-	writeJSON(w, http.StatusCreated, map[string]string{"taking_id": takingID.String()})
+	writeJSON(w, http.StatusCreated, logTakingResponse{
+		TakingID:         result.TakingID.String(),
+		CommissionMinor:  result.CommissionMinor,
+		CommissionStatus: result.CommissionStatus,
+	})
 }
 
 func (handler Handler) listTakings(w http.ResponseWriter, r *http.Request) {
@@ -225,11 +235,15 @@ func (handler Handler) listTakings(w http.ResponseWriter, r *http.Request) {
 	response := make([]map[string]any, 0, len(records))
 	for _, record := range records {
 		response = append(response, map[string]any{
-			"taking_id":    record.TakingID.String(),
-			"amount_minor": record.AmountMinor,
-			"method":       record.Method,
-			"what_for":     record.WhatFor,
-			"taken_at":     record.TakenAt.Format(time.RFC3339),
+			"taking_id":         record.TakingID.String(),
+			"amount_minor":      record.AmountMinor,
+			"method":            record.Method,
+			"what_for":          record.WhatFor,
+			"commission_bps":    record.CommissionBps,
+			"commission_minor":  record.CommissionMinor,
+			"commission_status": record.CommissionStatus,
+			"commission_note":   record.CommissionNote,
+			"taken_at":          record.TakenAt.Format(time.RFC3339),
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"takings": response})
@@ -247,10 +261,11 @@ func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"through_platform_minor": summary.ThroughPlatformMinor,
-		"commission_minor":       summary.CommissionMinor,
-		"manual_takings_minor":   summary.ManualTakingsMinor,
-		"net_income_minor":       summary.NetIncomeMinor,
+		"through_platform_minor":       summary.ThroughPlatformMinor,
+		"commission_minor":             summary.CommissionMinor,
+		"manual_takings_minor":         summary.ManualTakingsMinor,
+		"offline_commission_due_minor": summary.OfflineCommissionDueMinor,
+		"net_income_minor":             summary.NetIncomeMinor,
 	})
 }
 

@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { pageMeta } from "../components/seo";
 import { PageHero, Section, SectionHeading } from "../components/ui";
 import { ShopCard, SponsoredRail } from "../components/directory";
+import { PaginatedGrid } from "../components/pagination";
 import { loadPublicShops, type DirectoryShop } from "../lib/directory";
 import {
   loadSponsoredOrFeatured,
@@ -68,8 +69,11 @@ export default function Shops() {
           subtitle="Listed automatically once a business is verified and active. Tap through to browse and order."
         />
         {shops.length > 0 ? (
-          <Box
-            sx={{
+          <PaginatedGrid
+            items={shops}
+            label="studios"
+            pageSize={9}
+            gridSx={{
               display: "grid",
               gridTemplateColumns: {
                 xs: "1fr",
@@ -78,11 +82,10 @@ export default function Shops() {
               },
               gap: 2.5,
             }}
-          >
-            {shops.map((shop) => (
+            renderItem={(shop) => (
               <ShopCard key={shop.businessId} shop={shop} />
-            ))}
-          </Box>
+            )}
+          />
         ) : (
           <Box
             sx={{

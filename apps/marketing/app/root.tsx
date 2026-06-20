@@ -7,6 +7,7 @@ import {
   ScrollRestoration,
   isRouteErrorResponse,
   type LinksFunction,
+  useLocation,
   useNavigation,
 } from "react-router";
 import Box from "@mui/material/Box";
@@ -38,6 +39,34 @@ export const links: LinksFunction = () => [
     href: fontStylesheetHref,
   },
 ];
+
+const readBrandingEnv = (key: string): string | undefined =>
+  typeof process !== "undefined" ? process.env[key] : undefined;
+const BRANDING_API_BASE =
+  readBrandingEnv("XTIITCH_API_URL") ?? "http://localhost:8080";
+// Self-serve signup lives in the business dashboard app (a separate origin), so
+// marketing CTAs link out to {dashboard}/register.
+const SIGNUP_URL = `${(
+  readBrandingEnv("XTIITCH_DASHBOARD_URL") ?? "http://localhost:3401"
+).replace(/\/+$/, "")}/register`;
+
+// Platform branding (logo) is owner-managed in the admin console and served
+// publicly, so the marketing site renders the current Xtiitch logo. Failures
+// fall back to the built-in mark and never block the page.
+export async function loader() {
+  try {
+    const response = await fetch(`${BRANDING_API_BASE}/v1/branding`, {
+      headers: { Accept: "application/json" },
+    });
+    if (!response.ok) {
+      return { brandLogoUrl: "", signupUrl: SIGNUP_URL };
+    }
+    const data = (await response.json()) as { logo_url?: string };
+    return { brandLogoUrl: data.logo_url ?? "", signupUrl: SIGNUP_URL };
+  } catch {
+    return { brandLogoUrl: "", signupUrl: SIGNUP_URL };
+  }
+}
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -77,10 +106,22 @@ export function Layout({ children }: { children: ReactNode }) {
 
 export default function App() {
   const navigation = useNavigation();
+  const location = useLocation();
   return (
     <>
       {navigation.state === "loading" ? <RouteProgressBar /> : null}
-      <Outlet />
+      {/* Keyed by pathname only (not search), so the page content replays its
+          fade-in on real navigations but in-page ?section tab switches don't
+          remount. Disabled under prefers-reduced-motion. */}
+      <Box
+        key={location.pathname}
+        sx={{
+          animation: "xtiitch-page-fade-in 280ms ease-out both",
+          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        }}
+      >
+        <Outlet />
+      </Box>
     </>
   );
 }

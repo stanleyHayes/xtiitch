@@ -477,6 +477,7 @@ func (repo AdminAuthRepository) GetAdminPlatformSettings(ctx context.Context) (p
 			verification_sla_hours,
 			payout_review_threshold_pesewas,
 			maintenance_mode,
+			brand_logo_url,
 			updated_at
 		from admin_platform_settings
 		where settings_id = true
@@ -503,15 +504,17 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			support_email,
 			verification_sla_hours,
 			payout_review_threshold_pesewas,
-			maintenance_mode
+			maintenance_mode,
+			brand_logo_url
 		)
-		values (true, $1, $2, $3, $4, $5)
+		values (true, $1, $2, $3, $4, $5, $6)
 		on conflict (settings_id) do update
 		set platform_name = excluded.platform_name,
 			support_email = excluded.support_email,
 			verification_sla_hours = excluded.verification_sla_hours,
 			payout_review_threshold_pesewas = excluded.payout_review_threshold_pesewas,
 			maintenance_mode = excluded.maintenance_mode,
+			brand_logo_url = excluded.brand_logo_url,
 			updated_at = now()
 		returning
 			platform_name,
@@ -519,12 +522,14 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			verification_sla_hours,
 			payout_review_threshold_pesewas,
 			maintenance_mode,
+			brand_logo_url,
 			updated_at
 	`, input.PlatformName,
 		input.SupportEmail,
 		input.VerificationSLAHours,
 		input.PayoutReviewThresholdPesewas,
 		input.MaintenanceMode,
+		input.BrandLogoURL,
 	))
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
@@ -5079,6 +5084,7 @@ func scanAdminPlatformSettingsRecord(row pgx.Row) (ports.AdminPlatformSettingsRe
 		&settings.VerificationSLAHours,
 		&settings.PayoutReviewThresholdPesewas,
 		&settings.MaintenanceMode,
+		&settings.BrandLogoURL,
 		&settings.UpdatedAt,
 	); err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err

@@ -206,34 +206,65 @@ type LogManualTakingCommand struct {
 	WhatFor     string
 }
 
+type LogManualTakingResult struct {
+	TakingID         common.ID
+	CommissionMinor  int64
+	CommissionStatus string
+}
+
 // LogManualTaking records an off-platform sale (cash/momo/other) for the money
-// tracker. It carries no commission and moves no money — Xtiitch only records it
-// so the business sees its full income.
-func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (common.ID, error) {
+// tracker. Paystack never splits this money because it did not process the
+// payment; instead, the current plan commission is snapshotted as an offline
+// receivable for later invoice/reconciliation.
+func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (LogManualTakingResult, error) {
 	if err := authorizeMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
-		return "", err
+		return LogManualTakingResult{}, err
 	}
 	if cmd.AmountMinor <= 0 {
-		return "", ErrInvalidTaking
+		return LogManualTakingResult{}, ErrInvalidTaking
 	}
 	switch cmd.Method {
 	case "cash", "momo", "other":
 	default:
-		return "", ErrInvalidTaking
+		return LogManualTakingResult{}, ErrInvalidTaking
+	}
+
+	info, err := s.businesses.GetChargeContext(ctx, cmd.Scope)
+	if err != nil {
+		return LogManualTakingResult{}, err
+	}
+	businessID := info.BusinessID
+	if businessID.IsZero() {
+		businessID = cmd.Scope.BusinessID
+	}
+	commission := money.Commission(cmd.AmountMinor, info.CommissionBps)
+	commissionStatus := "not_applicable"
+	commissionNote := ""
+	if commission > 0 {
+		commissionStatus = "due"
+		commissionNote = "Offline payment logged; collect through package invoice or admin reconciliation."
 	}
 
 	id := s.ids.NewID()
 	if err := s.payments.RecordManualTaking(ctx, cmd.Scope, ports.ManualTakingInput{
-		TakingID:    id,
-		BusinessID:  cmd.Scope.BusinessID,
-		OrderID:     cmd.OrderID,
-		AmountMinor: cmd.AmountMinor,
-		Method:      cmd.Method,
-		WhatFor:     strings.TrimSpace(cmd.WhatFor),
+		TakingID:         id,
+		BusinessID:       businessID,
+		OrderID:          cmd.OrderID,
+		AmountMinor:      cmd.AmountMinor,
+		Method:           cmd.Method,
+		WhatFor:          strings.TrimSpace(cmd.WhatFor),
+		CommissionBps:    info.CommissionBps,
+		CommissionMinor:  commission,
+		CommissionStatus: commissionStatus,
+		CommissionNote:   commissionNote,
 	}); err != nil {
-		return "", err
+		return LogManualTakingResult{}, err
 	}
-	return id, nil
+	return LogManualTakingResult{
+		TakingID:         id,
+		CommissionMinor:  commission,
+		CommissionStatus: commissionStatus,
+	}, nil
 }
 
 func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {

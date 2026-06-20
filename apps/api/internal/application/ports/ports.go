@@ -14,6 +14,9 @@ type BusinessRepository interface {
 
 type BusinessIdentityRepository interface {
 	CreateBusinessWithOwner(ctx context.Context, input CreateBusinessWithOwnerInput) (BusinessOwnerIdentity, error)
+	ListActivePlans(ctx context.Context) ([]PublicPlanRecord, error)
+	GetBusinessSubscription(ctx context.Context, businessID common.ID) (BusinessSubscriptionRecord, error)
+	ActivateRecurringBilling(ctx context.Context, input ActivateRecurringBillingInput) error
 	FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (BusinessUserCredentials, error)
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
@@ -30,6 +33,43 @@ type CreateBusinessWithOwnerInput struct {
 	OwnerDisplayName string
 	OwnerEmail       string
 	OwnerPassword    string
+	// PlanCode is the plan the owner chose at signup. Empty or unknown codes
+	// fall back to the free plan in the repository.
+	PlanCode string
+}
+
+// PublicPlanRecord is the subset of plan data safe to expose unauthenticated for
+// the signup plan picker.
+type PublicPlanRecord struct {
+	Code            string
+	Name            string
+	MonthlyFeeMinor int
+	YearlyFeeMinor  int
+	CommissionBps   int
+	DesignLimit     *int
+}
+
+// BusinessSubscriptionRecord is the tenant's own subscription view for the
+// self-serve billing flow (joined with plan + owner email).
+type BusinessSubscriptionRecord struct {
+	SubscriptionID          common.ID
+	BusinessID              common.ID
+	BusinessName            string
+	OwnerEmail              string
+	PlanCode                string
+	MonthlyFeeMinor         int
+	Status                  string
+	BillingMode             string
+	ProviderCustomerRef     string
+	ProviderSubscriptionRef string
+}
+
+// ActivateRecurringBillingInput stores the verified Paystack references on a
+// tenant's subscription.
+type ActivateRecurringBillingInput struct {
+	BusinessID              common.ID
+	ProviderCustomerRef     string
+	ProviderSubscriptionRef string
 }
 
 type BusinessOwnerIdentity struct {
@@ -339,8 +379,9 @@ type PaymentRepository interface {
 	// payment in a single transaction, so a re-delivered event is a no-op.
 	ConfirmFromProvider(ctx context.Context, input ConfirmPaymentInput) (ConfirmPaymentResult, error)
 	ListByBusiness(ctx context.Context, scope common.TenantScope) ([]PaymentRecord, error)
-	// RecordManualTaking logs an off-platform sale (cash/momo/other). It never
-	// carries commission — Xtiitch does not touch this money.
+	// RecordManualTaking logs an off-platform sale (cash/momo/other). Paystack
+	// does not move this money, so any platform commission is only an accrued
+	// offline receivable for later invoice/reconciliation.
 	RecordManualTaking(ctx context.Context, scope common.TenantScope, input ManualTakingInput) error
 	// ListManualTakings lists a business's off-platform takings, most recent first.
 	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ManualTakingRecord, error)
@@ -350,30 +391,40 @@ type PaymentRepository interface {
 }
 
 type ManualTakingInput struct {
-	TakingID    common.ID
-	BusinessID  common.ID
-	OrderID     *common.ID
-	AmountMinor int64
-	Method      string
-	WhatFor     string
+	TakingID         common.ID
+	BusinessID       common.ID
+	OrderID          *common.ID
+	AmountMinor      int64
+	Method           string
+	WhatFor          string
+	CommissionBps    int
+	CommissionMinor  int64
+	CommissionStatus string
+	CommissionNote   string
 }
 
 type ManualTakingRecord struct {
-	TakingID    common.ID
-	AmountMinor int64
-	Method      string
-	WhatFor     string
-	TakenAt     time.Time
+	TakingID         common.ID
+	AmountMinor      int64
+	Method           string
+	WhatFor          string
+	CommissionBps    int
+	CommissionMinor  int64
+	CommissionStatus string
+	CommissionNote   string
+	TakenAt          time.Time
 }
 
 // MoneySummary is the business's income overview, all in GHS pesewas. Net income
 // is what the business keeps: through-platform settlements (gross minus the
-// platform commission) plus the off-platform takings it logged.
+// platform commission) plus off-platform takings, less accrued offline platform
+// commission that still needs later invoice/reconciliation.
 type MoneySummary struct {
-	ThroughPlatformMinor int64
-	CommissionMinor      int64
-	ManualTakingsMinor   int64
-	NetIncomeMinor       int64
+	ThroughPlatformMinor      int64
+	CommissionMinor           int64
+	ManualTakingsMinor        int64
+	OfflineCommissionDueMinor int64
+	NetIncomeMinor            int64
 }
 
 type CreatePaymentInput struct {

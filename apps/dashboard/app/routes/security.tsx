@@ -8,7 +8,9 @@ import Alert from "@mui/material/Alert";
 import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import Snackbar from "@mui/material/Snackbar";
 import { alpha } from "@mui/material/styles";
+import { useEffect, useState } from "react";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import KeyRounded from "@mui/icons-material/KeyRounded";
@@ -141,9 +143,50 @@ export default function Security({
   };
   const status = loaderData.status;
   const enabled = status.enabled && !result.disabled;
+  const securityFeedback = result.error
+    ? { message: result.error, severity: "error" as const }
+    : result.backupCodes
+      ? {
+          message: "Two-step verification is on.",
+          severity: "success" as const,
+        }
+      : result.disabled
+        ? {
+            message: "Two-step verification is off.",
+            severity: "success" as const,
+          }
+        : null;
+  const [securityFeedbackOpen, setSecurityFeedbackOpen] = useState(
+    Boolean(securityFeedback),
+  );
+
+  useEffect(() => {
+    if (securityFeedback) {
+      setSecurityFeedbackOpen(true);
+    }
+  }, [actionData, securityFeedback?.message, securityFeedback?.severity]);
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: { xs: 4, md: 7 } }}>
+      <Snackbar
+        open={securityFeedbackOpen}
+        autoHideDuration={5200}
+        onClose={(_event, reason) => {
+          if (reason !== "clickaway") {
+            setSecurityFeedbackOpen(false);
+          }
+        }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={securityFeedback?.severity ?? "success"}
+          variant="filled"
+          onClose={() => setSecurityFeedbackOpen(false)}
+          sx={{ borderRadius: 2, boxShadow: 4, fontWeight: 800 }}
+        >
+          {securityFeedback?.message}
+        </Alert>
+      </Snackbar>
       <Container maxWidth="sm">
         <Button
           component={Link}

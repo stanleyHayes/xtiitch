@@ -2,16 +2,20 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
+import { BrandingProvider } from "../src/branding";
 import { fonts } from "../src/theme";
 import { ThemeModeProvider, ThemeToggle, useTheme } from "../src/theme-mode";
+import { HeaderLogo } from "../src/ui";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <ThemeModeProvider>
-        <StatusBar style="light" />
-        <ThemedStack />
-      </ThemeModeProvider>
+      <BrandingProvider>
+        <ThemeModeProvider>
+          <StatusBar style="light" />
+          <ThemedStack />
+        </ThemeModeProvider>
+      </BrandingProvider>
     </SafeAreaProvider>
   );
 }
@@ -31,7 +35,13 @@ function ThemedStack() {
           headerShadowVisible: false,
           headerBackTitle: "Back",
           contentStyle: { backgroundColor: palette.cream },
+          headerTitle: () => <HeaderLogo color={palette.onAccent} />,
+          headerTitleAlign: "center",
           headerRight: () => <ThemeToggle />,
+          // Consistent native stack transition across all platforms so the
+          // brand reveal feels intentional rather than platform-default flicker.
+          animation: "slide_from_right",
+          animationDuration: 260,
         }}
       >
         <Stack.Screen name="index" options={{ title: "Xtiitch" }} />

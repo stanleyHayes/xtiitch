@@ -731,6 +731,18 @@ func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Co
 	}, nil
 }
 
+func (repo *fakeBusinessIdentityRepository) ListActivePlans(_ context.Context) ([]ports.PublicPlanRecord, error) {
+	return nil, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(_ context.Context, _ common.ID) (ports.BusinessSubscriptionRecord, error) {
+	return ports.BusinessSubscriptionRecord{}, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling(_ context.Context, _ ports.ActivateRecurringBillingInput) error {
+	return nil
+}
+
 func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {
 	repo.lookupHandle = handle
 	repo.lookupEmail = email

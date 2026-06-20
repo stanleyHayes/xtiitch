@@ -220,6 +220,7 @@ type MoneySummary = {
   through_platform_minor: number;
   commission_minor: number;
   manual_takings_minor: number;
+  offline_commission_due_minor: number;
   net_income_minor: number;
 };
 
@@ -228,6 +229,10 @@ type ManualTaking = {
   amount_minor: number;
   method: string;
   what_for: string;
+  commission_bps: number;
+  commission_minor: number;
+  commission_status: string;
+  commission_note: string;
   taken_at: string;
 };
 
@@ -524,6 +529,7 @@ const defaultMoneySummary: MoneySummary = {
   through_platform_minor: 0,
   commission_minor: 0,
   manual_takings_minor: 0,
+  offline_commission_due_minor: 0,
   net_income_minor: 0,
 };
 
@@ -1081,6 +1087,8 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       through_platform_minor: moneySummaryData.through_platform_minor ?? 0,
       commission_minor: moneySummaryData.commission_minor ?? 0,
       manual_takings_minor: moneySummaryData.manual_takings_minor ?? 0,
+      offline_commission_due_minor:
+        moneySummaryData.offline_commission_due_minor ?? 0,
       net_income_minor: moneySummaryData.net_income_minor ?? 0,
     };
     manualTakings = takingsData.takings ?? [];
@@ -3702,6 +3710,23 @@ function formatMethod(value: string): string {
       return "Delivery";
     default:
       return value;
+  }
+}
+
+function formatCommissionStatus(value: string): string {
+  switch (value) {
+    case "due":
+      return "due";
+    case "invoiced":
+      return "invoiced";
+    case "settled":
+      return "settled";
+    case "waived":
+      return "waived";
+    case "not_applicable":
+      return "no offline fee";
+    default:
+      return value || "not tracked";
   }
 }
 
@@ -7811,6 +7836,31 @@ function ReportsPanel({
     1,
     ...revenueBuckets.map((bucket) => bucket.total_minor),
   );
+  const bestDay = revenueBuckets.reduce<RevenueBucket | null>(
+    (best, bucket) =>
+      !best || bucket.total_minor > best.total_minor ? bucket : best,
+    null,
+  );
+  const activeDays = revenueBuckets.filter(
+    (bucket) => bucket.total_minor > 0,
+  ).length;
+  const dailyAverageMinor = Math.round(
+    totalRevenueMinor / Math.max(revenueBuckets.length, 1),
+  );
+  const platformTotalMinor = revenueBuckets.reduce(
+    (sum, bucket) => sum + bucket.platform_minor,
+    0,
+  );
+  const manualTotalMinor = revenueBuckets.reduce(
+    (sum, bucket) => sum + bucket.manual_minor,
+    0,
+  );
+  const weekEntries = revenueBuckets.reduce(
+    (sum, bucket) => sum + bucket.entries,
+    0,
+  );
+  const platformShare =
+    totalRevenueMinor > 0 ? platformTotalMinor / totalRevenueMinor : 0;
   const totalStageCount = stageMetrics.reduce(
     (sum, metric) => sum + metric.count,
     0,
@@ -7894,6 +7944,8 @@ function ReportsPanel({
             sx={{
               ...reportSurfaceSx,
               p: { xs: 1.5, md: 2 },
+              display: "flex",
+              flexDirection: "column",
             }}
           >
             <Stack
@@ -7991,6 +8043,192 @@ function ReportsPanel({
                   </Stack>
                 );
               })}
+            </Box>
+
+            <Box sx={{ mt: "auto" }}>
+              <Box
+                sx={{
+                  mt: 2.5,
+                  pt: 2,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Stack
+                  direction="row"
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    mb: 1,
+                  }}
+                >
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                      fontWeight: 900,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    Income mix
+                  </Typography>
+                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    {weekEntries} {weekEntries === 1 ? "entry" : "entries"} this
+                    week
+                  </Typography>
+                </Stack>
+                <Box
+                  sx={{
+                    display: "flex",
+                    height: 10,
+                    borderRadius: 999,
+                    overflow: "hidden",
+                    bgcolor: (theme) =>
+                      theme.palette.mode === "dark"
+                        ? alpha(tokens.white, 0.08)
+                        : alpha(tokens.ink, 0.08),
+                  }}
+                >
+                  {totalRevenueMinor > 0 ? (
+                    <>
+                      <Box
+                        sx={{
+                          width: `${Math.round(platformShare * 100)}%`,
+                          bgcolor: "primary.main",
+                        }}
+                      />
+                      <Box
+                        sx={{
+                          flex: 1,
+                          bgcolor: (theme) =>
+                            alpha(theme.palette.info.main, 0.7),
+                        }}
+                      />
+                    </>
+                  ) : null}
+                </Box>
+                <Stack
+                  direction="row"
+                  spacing={2}
+                  sx={{ mt: 1, flexWrap: "wrap" }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ alignItems: "center" }}
+                  >
+                    <Box
+                      sx={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        bgcolor: "primary.main",
+                      }}
+                    />
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Checkout {formatGHS(platformTotalMinor)}
+                    </Typography>
+                  </Stack>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ alignItems: "center" }}
+                  >
+                    <Box
+                      sx={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        bgcolor: (theme) => alpha(theme.palette.info.main, 0.7),
+                      }}
+                    />
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Manual {formatGHS(manualTotalMinor)}
+                    </Typography>
+                  </Stack>
+                </Stack>
+              </Box>
+
+              <Box
+                sx={{
+                  mt: 2,
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                }}
+              >
+                {[
+                  {
+                    label: "Best day",
+                    primary:
+                      bestDay && bestDay.total_minor > 0
+                        ? formatGHS(bestDay.total_minor)
+                        : "—",
+                    secondary:
+                      bestDay && bestDay.total_minor > 0
+                        ? bestDay.label
+                        : "No income yet",
+                  },
+                  {
+                    label: "Active days",
+                    primary: `${activeDays}/${revenueBuckets.length}`,
+                    secondary: "Days with income",
+                  },
+                  {
+                    label: "Daily average",
+                    primary: formatGHS(dailyAverageMinor),
+                    secondary: "Across the week",
+                  },
+                ].map((tile) => (
+                  <Box
+                    key={tile.label}
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 1.5,
+                      border: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: (theme) =>
+                        theme.palette.mode === "dark"
+                          ? alpha(tokens.white, 0.03)
+                          : alpha(tokens.ink, 0.015),
+                      minWidth: 0,
+                    }}
+                  >
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                        fontWeight: 800,
+                        display: "block",
+                      }}
+                    >
+                      {tile.label}
+                    </Typography>
+                    <Typography
+                      sx={{
+                        fontWeight: 900,
+                        lineHeight: 1.2,
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      {tile.primary}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {tile.secondary}
+                    </Typography>
+                  </Box>
+                ))}
+              </Box>
             </Box>
           </Box>
 
@@ -8533,7 +8771,8 @@ function MoneyPanel({
             <Box>
               <Typography sx={{ fontWeight: 900 }}>Money desk</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Track Paystack money and off-platform cash or momo takings.
+                Track Paystack splits, cash/direct momo takings, and offline
+                commission due.
               </Typography>
             </Box>
           </Stack>
@@ -8581,16 +8820,23 @@ function MoneyPanel({
           />
           <MiniStat
             icon={<ReceiptLongRounded fontSize="small" />}
-            label="Commission"
+            label="Paystack fee"
             value={formatGHS(summary.commission_minor)}
-            helper="Xtiitch platform fee"
+            helper="Already split online"
+            tone={tokens.warning}
+          />
+          <MiniStat
+            icon={<WarningAmberRounded fontSize="small" />}
+            label="Offline due"
+            value={formatGHS(summary.offline_commission_due_minor)}
+            helper="Invoice or reconcile later"
             tone={tokens.warning}
           />
           <MiniStat
             icon={<CheckCircleRounded fontSize="small" />}
             label="Net income"
             value={formatGHS(summary.net_income_minor)}
-            helper="Platform plus manual less fee"
+            helper="Gross less online and offline fees"
             tone={tokens.burgundy}
           />
         </Box>
@@ -8624,7 +8870,8 @@ function MoneyPanel({
                   variant="body2"
                   sx={{ display: "block", color: "text.secondary" }}
                 >
-                  Record off-platform cash, momo, transfer, or card income.
+                  Record cash, direct momo, bank transfer, or other income that
+                  did not pass through Xtiitch checkout.
                 </Typography>
               </Box>
               <IconButton aria-label="Close" onClick={() => setLogOpen(false)}>
@@ -8758,10 +9005,27 @@ function MoneyPanel({
                     {formatMethod(taking.method)} ·{" "}
                     {shortDateTime(taking.taken_at)}
                   </Typography>
+                  {taking.commission_minor > 0 ? (
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      Offline commission {formatGHS(taking.commission_minor)} ·{" "}
+                      {formatCommissionStatus(taking.commission_status)}
+                    </Typography>
+                  ) : null}
                 </Box>
-                <Typography sx={{ fontWeight: 900 }}>
-                  {formatGHS(taking.amount_minor)}
-                </Typography>
+                <Stack
+                  spacing={0.35}
+                  sx={{ alignItems: { xs: "flex-start", md: "flex-end" } }}
+                >
+                  <Typography sx={{ fontWeight: 900 }}>
+                    {formatGHS(taking.amount_minor)}
+                  </Typography>
+                  {taking.commission_bps > 0 ? (
+                    <ToneChip
+                      label={`${(taking.commission_bps / 100).toFixed(2)}% due`}
+                      tone={tokens.warning}
+                    />
+                  ) : null}
+                </Stack>
               </Box>
             ))}
             <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>

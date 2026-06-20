@@ -519,6 +519,18 @@ func (service *fakeAuthService) RegisterBusiness(_ context.Context, command auth
 	return service.result, nil
 }
 
+func (service *fakeAuthService) ListPublicPlans(_ context.Context) ([]ports.PublicPlanRecord, error) {
+	return nil, nil
+}
+
+func (service *fakeAuthService) InitializeSubscriptionAuthorization(_ context.Context, _ authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error) {
+	return authapp.SubscriptionAuthorizationLink{}, nil
+}
+
+func (service *fakeAuthService) VerifySubscriptionAuthorization(_ context.Context, _ authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error) {
+	return authapp.SubscriptionAuthorizationResult{}, nil
+}
+
 func (service *fakeAuthService) LoginBusiness(_ context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error) {
 	service.loginCalled = true
 	service.loginCommand = command

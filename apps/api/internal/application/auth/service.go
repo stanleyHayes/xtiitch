@@ -48,6 +48,7 @@ var reservedHandles = map[string]bool{
 
 type Service struct {
 	businesses    ports.BusinessIdentityRepository
+	payments      ports.PaymentProvider
 	sessions      ports.AuthSessionRepository
 	passwords     ports.PasswordHasher
 	accessTokens  ports.TokenIssuer
@@ -64,6 +65,7 @@ type Service struct {
 
 type Dependencies struct {
 	Businesses    ports.BusinessIdentityRepository
+	Payments      ports.PaymentProvider
 	Sessions      ports.AuthSessionRepository
 	Passwords     ports.PasswordHasher
 	AccessTokens  ports.TokenIssuer
@@ -83,6 +85,7 @@ type Dependencies struct {
 func NewService(deps Dependencies) Service {
 	return Service{
 		businesses:    deps.Businesses,
+		payments:      deps.Payments,
 		sessions:      deps.Sessions,
 		passwords:     deps.Passwords,
 		accessTokens:  deps.AccessTokens,
@@ -109,6 +112,7 @@ type RegisterBusinessCommand struct {
 	OwnerDisplayName string
 	OwnerEmail       string
 	OwnerPassword    string
+	PlanCode         string
 	UserAgent        string
 	IPAddress        string
 }
@@ -154,6 +158,7 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		OwnerDisplayName: normalized.OwnerDisplayName,
 		OwnerEmail:       normalized.OwnerEmail,
 		OwnerPassword:    passwordHash,
+		PlanCode:         normalized.PlanCode,
 	})
 	if err != nil {
 		return AuthResult{}, err
@@ -166,6 +171,129 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		UserAgent:      cmd.UserAgent,
 		IPAddress:      cmd.IPAddress,
 	})
+}
+
+// ListPublicPlans returns the active plan catalogue for the unauthenticated
+// signup plan picker.
+func (s Service) ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error) {
+	return s.businesses.ListActivePlans(ctx)
+}
+
+type InitializeSubscriptionAuthorizationCommand struct {
+	Scope       common.TenantScope
+	CallbackURL string
+}
+
+type SubscriptionAuthorizationLink struct {
+	BusinessID   common.ID
+	BusinessName string
+	OwnerEmail   string
+	RedirectURL  string
+	AccessCode   string
+	Reference    string
+}
+
+type VerifySubscriptionAuthorizationCommand struct {
+	Scope     common.TenantScope
+	Reference string
+}
+
+type SubscriptionAuthorizationResult struct {
+	SubscriptionID          common.ID
+	BusinessID              common.ID
+	Status                  string
+	BillingMode             string
+	ProviderCustomerRef     string
+	ProviderSubscriptionRef string
+}
+
+// InitializeSubscriptionAuthorization starts a Paystack recurring-billing
+// authorization for the signed-in tenant's paid plan and returns the redirect
+// link. Free plans (no monthly fee) need no authorization.
+func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd InitializeSubscriptionAuthorizationCommand) (SubscriptionAuthorizationLink, error) {
+	if cmd.Scope.BusinessID.IsZero() {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	if s.payments == nil {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrForbidden
+	}
+	subscription, err := s.businesses.GetBusinessSubscription(ctx, cmd.Scope.BusinessID)
+	if err != nil {
+		return SubscriptionAuthorizationLink{}, err
+	}
+	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	ownerEmail, err := normalizeEmail(subscription.OwnerEmail)
+	if err != nil {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
+		BusinessID:    subscription.BusinessID,
+		CustomerEmail: ownerEmail,
+		CallbackURL:   strings.TrimSpace(cmd.CallbackURL),
+	})
+	if err != nil {
+		return SubscriptionAuthorizationLink{}, err
+	}
+	if strings.TrimSpace(result.RedirectURL) == "" || strings.TrimSpace(result.Reference) == "" {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	return SubscriptionAuthorizationLink{
+		BusinessID:   subscription.BusinessID,
+		BusinessName: subscription.BusinessName,
+		OwnerEmail:   ownerEmail,
+		RedirectURL:  result.RedirectURL,
+		AccessCode:   result.AccessCode,
+		Reference:    result.Reference,
+	}, nil
+}
+
+// VerifySubscriptionAuthorization confirms the Paystack authorization the tenant
+// completed and flips their subscription to recurring billing; the existing
+// recurring-charge sweep then bills them each period.
+func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd VerifySubscriptionAuthorizationCommand) (SubscriptionAuthorizationResult, error) {
+	if cmd.Scope.BusinessID.IsZero() {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	if s.payments == nil {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrForbidden
+	}
+	reference := strings.TrimSpace(cmd.Reference)
+	if reference == "" || len([]rune(reference)) > 160 || strings.ContainsAny(reference, " \t\r\n") {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	subscription, err := s.businesses.GetBusinessSubscription(ctx, cmd.Scope.BusinessID)
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	result, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	if !result.Active ||
+		strings.TrimSpace(result.AuthorizationCode) == "" ||
+		strings.TrimSpace(result.CustomerCode) == "" {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	if err := s.businesses.ActivateRecurringBilling(ctx, ports.ActivateRecurringBillingInput{
+		BusinessID:              subscription.BusinessID,
+		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
+		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
+	}); err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	return SubscriptionAuthorizationResult{
+		SubscriptionID:          subscription.SubscriptionID,
+		BusinessID:              subscription.BusinessID,
+		Status:                  subscription.Status,
+		BillingMode:             "recurring",
+		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
+		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
+	}, nil
 }
 
 func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (AuthResult, error) {
@@ -422,6 +550,7 @@ type normalizedRegistration struct {
 	OwnerDisplayName string
 	OwnerEmail       string
 	OwnerPassword    string
+	PlanCode         string
 }
 
 func normalizeRegistration(cmd RegisterBusinessCommand) (normalizedRegistration, error) {
@@ -448,6 +577,7 @@ func normalizeRegistration(cmd RegisterBusinessCommand) (normalizedRegistration,
 		OwnerDisplayName: ownerName,
 		OwnerEmail:       email,
 		OwnerPassword:    cmd.OwnerPassword,
+		PlanCode:         strings.ToLower(strings.TrimSpace(cmd.PlanCode)),
 	}, nil
 }
 

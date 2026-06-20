@@ -33,6 +33,7 @@ type Service interface {
 	UpdatePreferences(ctx context.Context, command adminauthapp.UpdatePreferencesCommand) (ports.AdminPreferencesRecord, error)
 	GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error)
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
+	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
 	ListBusinessVerifications(ctx context.Context, command adminauthapp.ListBusinessVerificationsCommand) ([]ports.AdminVerificationCaseRecord, error)
 	DecideBusinessVerification(ctx context.Context, command adminauthapp.DecideBusinessVerificationCommand) (ports.AdminVerificationCaseRecord, error)
 	ListBusinesses(ctx context.Context, command adminauthapp.ListBusinessesCommand) ([]ports.AdminBusinessRecord, error)
@@ -109,6 +110,8 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/admin/auth/login", handler.login)
 	router.Post("/admin/auth/refresh", handler.refresh)
 	router.Post("/admin/auth/logout", handler.logout)
+	// Public branding so every surface can render the current platform logo.
+	router.Get("/branding", handler.branding)
 
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
@@ -118,6 +121,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/settings/preferences", handler.updatePreferences)
 		protected.Get("/admin/settings/platform", handler.platformSettings)
 		protected.Patch("/admin/settings/platform", handler.updatePlatformSettings)
+		protected.Post("/admin/settings/branding/upload-signature", handler.signBrandingUpload)
 		protected.Get("/admin/business-verifications", handler.businessVerifications)
 		protected.Post("/admin/business-verifications/{id}/decision", handler.decideBusinessVerification)
 		protected.Get("/admin/platform-metrics", handler.platformMetrics)
@@ -238,6 +242,7 @@ type updatePlatformSettingsRequest struct {
 	VerificationSLAHours         int    `json:"verification_sla_hours"`
 	PayoutReviewThresholdPesewas int    `json:"payout_review_threshold_pesewas"`
 	MaintenanceMode              bool   `json:"maintenance_mode"`
+	BrandLogoURL                 string `json:"brand_logo_url"`
 }
 
 type businessVerificationDecisionRequest struct {
@@ -490,7 +495,21 @@ type platformSettingsResponse struct {
 	VerificationSLAHours         int    `json:"verification_sla_hours"`
 	PayoutReviewThresholdPesewas int    `json:"payout_review_threshold_pesewas"`
 	MaintenanceMode              bool   `json:"maintenance_mode"`
+	BrandLogoURL                 string `json:"brand_logo_url"`
 	UpdatedAt                    string `json:"updated_at,omitempty"`
+}
+
+type brandingUploadSignatureResponse struct {
+	Signature string `json:"signature"`
+	Timestamp int64  `json:"timestamp"`
+	CloudName string `json:"cloud_name"`
+	APIKey    string `json:"api_key"`
+	Folder    string `json:"folder"`
+}
+
+type publicBrandingResponse struct {
+	PlatformName string `json:"platform_name"`
+	LogoURL      string `json:"logo_url"`
 }
 
 type auditEventResponse struct {
@@ -1270,6 +1289,7 @@ func (handler Handler) updatePlatformSettings(w http.ResponseWriter, r *http.Req
 		VerificationSLAHours:         request.VerificationSLAHours,
 		PayoutReviewThresholdPesewas: request.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              request.MaintenanceMode,
+		BrandLogoURL:                 request.BrandLogoURL,
 		UserAgent:                    r.UserAgent(),
 		IPAddress:                    requestIP(r),
 	})
@@ -1280,6 +1300,48 @@ func (handler Handler) updatePlatformSettings(w http.ResponseWriter, r *http.Req
 	}
 
 	writeJSON(w, http.StatusOK, newPlatformSettingsResponse(settings))
+}
+
+func (handler Handler) signBrandingUpload(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	signed, err := handler.service.SignBrandingUpload(r.Context(), adminauthapp.SignBrandingUploadCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, brandingUploadSignatureResponse{
+		Signature: signed.Signature,
+		Timestamp: signed.Timestamp,
+		CloudName: signed.CloudName,
+		APIKey:    signed.APIKey,
+		Folder:    signed.Folder,
+	})
+}
+
+// branding is a public, unauthenticated endpoint so the marketing site,
+// business dashboard, and storefronts can render the current platform logo.
+func (handler Handler) branding(w http.ResponseWriter, r *http.Request) {
+	settings, err := handler.service.GetPlatformSettings(r.Context())
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, publicBrandingResponse{
+		PlatformName: settings.PlatformName,
+		LogoURL:      settings.BrandLogoURL,
+	})
 }
 
 func (handler Handler) businessVerifications(w http.ResponseWriter, r *http.Request) {
@@ -3713,6 +3775,7 @@ func newPlatformSettingsResponse(settings ports.AdminPlatformSettingsRecord) pla
 		VerificationSLAHours:         settings.VerificationSLAHours,
 		PayoutReviewThresholdPesewas: settings.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              settings.MaintenanceMode,
+		BrandLogoURL:                 settings.BrandLogoURL,
 		UpdatedAt:                    settings.UpdatedAt.Format(time.RFC3339),
 	}
 }

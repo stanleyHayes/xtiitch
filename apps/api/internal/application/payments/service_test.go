@@ -139,19 +139,26 @@ func TestLogManualTakingRecordsOffPlatformSale(t *testing.T) {
 	t.Parallel()
 
 	payments := &fakePaymentRepo{}
-	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{}, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "b1", CommissionBps: 300}}
+	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
 
-	id, err := service.LogManualTaking(context.Background(), LogManualTakingCommand{
+	result, err := service.LogManualTaking(context.Background(), LogManualTakingCommand{
 		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleAdmin, AmountMinor: 5000, Method: "cash", WhatFor: "  alteration  ",
 	})
 	if err != nil {
 		t.Fatalf("log manual taking: %v", err)
 	}
-	if id != "taking-1" || payments.taking.TakingID != "taking-1" || payments.taking.BusinessID != "b1" {
+	if result.TakingID != "taking-1" || payments.taking.TakingID != "taking-1" || payments.taking.BusinessID != "b1" {
 		t.Fatalf("unexpected taking ids: %+v", payments.taking)
 	}
 	if payments.taking.AmountMinor != 5000 || payments.taking.Method != "cash" || payments.taking.WhatFor != "alteration" {
 		t.Fatalf("unexpected taking content: %+v", payments.taking)
+	}
+	if payments.taking.CommissionBps != 300 || payments.taking.CommissionMinor != 150 || payments.taking.CommissionStatus != "due" {
+		t.Fatalf("expected offline commission accrual, got %+v", payments.taking)
+	}
+	if result.CommissionMinor != 150 || result.CommissionStatus != "due" {
+		t.Fatalf("expected accrued commission result, got %+v", result)
 	}
 }
 
