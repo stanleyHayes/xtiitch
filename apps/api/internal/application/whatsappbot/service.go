@@ -311,7 +311,7 @@ func (s Service) designDetail(ctx context.Context, businessID string, state conv
 		if state.OnlineOrdering && len(d.Sizes) > 0 {
 			b.WriteString("\n🛒 Reply *ORDER* to buy this one, or *MENU* to keep browsing.")
 		} else {
-			fmt.Fprintf(&b, "\nTo order, open %s/%s. Reply *MENU* to keep browsing.", s.storefrontBase, state.Shop)
+			fmt.Fprintf(&b, "\nTo order, open %s/store/%s. Reply *MENU* to keep browsing.", s.storefrontBase, state.Shop)
 		}
 		return outcome{reply: b.String(), state: next, businessID: businessID}, nil
 	}
@@ -324,7 +324,7 @@ func (s Service) designDetail(ctx context.Context, businessID string, state conv
 // online ordering.
 func (s Service) startOrder(ctx context.Context, businessID string, state conversationState) (outcome, error) {
 	if !state.OnlineOrdering {
-		return outcome{reply: fmt.Sprintf("This shop isn't taking online orders in chat yet. You can still order at %s/%s. Reply *MENU* for more.", s.storefrontBase, state.Shop), state: withStep(state, stepMenu), businessID: businessID}, nil
+		return outcome{reply: fmt.Sprintf("This shop isn't taking online orders in chat yet. You can still order at %s/store/%s. Reply *MENU* for more.", s.storefrontBase, state.Shop), state: withStep(state, stepMenu), businessID: businessID}, nil
 	}
 	if state.OrderDesign == "" {
 		return outcome{reply: "Pick a design first: reply *BROWSE*, choose a number, then *ORDER*.", state: withStep(state, stepMenu), businessID: businessID}, nil

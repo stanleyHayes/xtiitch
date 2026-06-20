@@ -75,16 +75,16 @@ services:
         generateValue: true
       - key: MFA_ISSUER
         value: Xtiitch
-      # CORS: the browser-facing origins of the Vercel frontends — set these in
-      # the Render dashboard once the Vercel URLs (or custom domains) are known.
-      # Comma-separated, e.g.
-      # https://xtiitch-admin.vercel.app,https://xtiitch-dashboard.vercel.app,...
+      # CORS: the browser-facing origins. xtiitch.com = marketing (apex);
+      # *.xtiitch.com (go-chi wildcard, one label) covers admin.xtiitch.com,
+      # business.xtiitch.com, store.xtiitch.com, and every shop's
+      # <handle>.xtiitch.com storefront.
       - key: CORS_ALLOWED_ORIGINS
-        sync: false
-      - key: BUSINESS_DASHBOARD_BASE_URL # the dashboard's Vercel URL
-        sync: false
-      - key: STOREFRONT_BASE_URL # the storefront's Vercel URL
-        sync: false
+        value: "https://xtiitch.com,https://*.xtiitch.com"
+      - key: BUSINESS_DASHBOARD_BASE_URL # business dashboard
+        value: "https://business.xtiitch.com"
+      - key: STOREFRONT_BASE_URL # storefront marketplace (shops at <handle>.xtiitch.com)
+        value: "https://store.xtiitch.com"
       - key: RESEND_FROM_EMAIL
         value: "Xtiitch <hello@xtiitch.com>"
       - key: ADMIN_BOOTSTRAP_EMAIL
