@@ -10727,13 +10727,22 @@ function AdsSection({
               </Typography>
             </Box>
             <Button
-              variant="contained"
+              variant={adDialogOpen ? "outlined" : "contained"}
               startIcon={<CampaignRounded />}
+              endIcon={
+                <KeyboardArrowDownRounded
+                  sx={{
+                    transition: "transform 0.2s ease",
+                    transform: adDialogOpen ? "rotate(180deg)" : "none",
+                  }}
+                />
+              }
               disabled={eligibleBusinesses.length === 0}
-              onClick={() => setAdDialogOpen(true)}
+              onClick={() => setAdDialogOpen((open) => !open)}
+              aria-expanded={adDialogOpen}
               sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
             >
-              New placement
+              {adDialogOpen ? "Close form" : "New placement"}
             </Button>
           </Stack>
           {eligibleBusinesses.length === 0 ? (
@@ -10742,42 +10751,23 @@ function AdsSection({
               yet.
             </Alert>
           ) : null}
-          <Dialog
-            open={adDialogOpen}
-            onClose={() => setAdDialogOpen(false)}
-            fullWidth
-            maxWidth="md"
-          >
-            <DialogTitle sx={{ pb: 0.5 }}>
-              <Stack
-                direction="row"
-                spacing={1.25}
-                sx={{ alignItems: "center", justifyContent: "space-between" }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography
-                    component="span"
-                    sx={{ display: "block", fontWeight: 950 }}
-                  >
-                    Create ad placement
-                  </Typography>
-                  <Typography
-                    component="span"
-                    variant="body2"
-                    sx={{ display: "block", color: "text.secondary" }}
-                  >
-                    Set the business, placement, budget, and review note.
-                  </Typography>
-                </Box>
-                <IconButton
-                  aria-label="Close"
-                  onClick={() => setAdDialogOpen(false)}
-                >
-                  <CloseRounded />
-                </IconButton>
-              </Stack>
-            </DialogTitle>
-            <DialogContent dividers>
+          <Collapse in={adDialogOpen} unmountOnExit>
+            <Box
+              sx={{
+                mt: 2,
+                pt: 2,
+                borderTop: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Box sx={{ mb: 2 }}>
+                <Typography sx={{ fontWeight: 950 }}>
+                  Create ad placement
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Set the business, placement, budget, and review note.
+                </Typography>
+              </Box>
               <Form method="post">
                 <input
                   type="hidden"
@@ -10956,8 +10946,8 @@ function AdsSection({
                   </Stack>
                 </Stack>
               </Form>
-            </DialogContent>
-          </Dialog>
+            </Box>
+          </Collapse>
         </Panel>
       ) : null}
 
