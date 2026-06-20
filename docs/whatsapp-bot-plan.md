@@ -4,7 +4,7 @@
 > it **entirely inside WhatsApp** — no app, no storefront visit. Ghana runs on
 > WhatsApp, so this is the lowest-friction way to order.
 
-Status: **planning**. Last updated: 2026-06-20.
+Status: **Phases 0–1 shipped (browse + track live); Phase 2 ordering next**. Last updated: 2026-06-20.
 
 This builds directly on what already exists:
 - **Outbound WhatsApp** is shipped — the worker's `whatsapp_cloud` transport
@@ -121,16 +121,27 @@ so customers tap instead of type where possible.
 
 ## 6. Phases
 
-- **Phase 0 — Foundations:** inbound webhook + verify + dedupe; session store;
-  echo/health flow. (No ordering yet.)
-- **Phase 1 — Track + Browse (MVP, works on Free):** resolve shop, list designs,
-  show price/sizes, track an order. Read-only, no payment.
-- **Phase 2 — Standard ordering (paid):** size pick → payment link → order on
-  `charge.success` → confirmation + tracking.
+- **Phase 0 — Foundations:** ✅ **SHIPPED** (commit 44faf6c). Inbound webhook
+  `GET/POST /v1/webhooks/whatsapp` (Meta verify challenge + X-Hub-Signature-256
+  HMAC verify + message-id dedupe), Postgres session store (`whatsapp_sessions`,
+  `whatsapp_inbound_messages`, migration 000051), Go Cloud-API sender with a
+  logging dev fallback, and a stateful echo/health engine. Live-verified.
+- **Phase 1 — Track + Browse (MVP, works on Free):** ✅ **SHIPPED** (commit
+  f24ca35). Resolve shop by name/handle, browse a numbered list of active
+  designs with from-prices, drill into sizes/price, and track an order by code
+  (red/yellow/green stage). Read-only, no payment. A narrow `ports.BotCatalogue`
+  + `botcatalogueadapter` reuse the storefront/order repositories. Engine is a
+  pure state machine with 8 unit tests; live-verified against the seeded demo.
+- **Phase 2 — Standard ordering (paid):** ⏭️ NEXT. size pick → payment link →
+  order on `charge.success` → confirmation + tracking.
 - **Phase 3 — Bespoke ordering:** self-measure prompts, home-visit slots, deposit
   links.
 - **Phase 4 — Polish:** human hand-off, business bot controls, quiet hours,
   analytics, multi-language (English + Twi/Pidgin canned strings).
+
+> **Decisions locked** (§7): one shared Xtiitch number routing by shop name;
+> Postgres session store; browse+track free, place+pay gated by `online_ordering`;
+> `wa_id` reuses the `customers` identity; WhatsApp Cloud API direct.
 
 ---
 

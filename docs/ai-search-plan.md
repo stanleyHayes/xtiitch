@@ -4,7 +4,7 @@
 > cedis"* or *"smart casual agbada for a tall guy"* — and Xtiitch pulls up the
 > stores and designs that fit. A **paid customer feature**.
 
-Status: **planning**. Last updated: 2026-06-20.
+Status: **Phases 0–1 shipped; Phase 2 backend shipped (UI pending)**. Last updated: 2026-06-20.
 
 ---
 
@@ -131,13 +131,23 @@ This is the hard part, and it's a **product decision**, not just engineering:
 
 ## 6. Phases
 
-- **Phase 0 — Retrieval spike:** pgvector + embeddings adapter + ingest/backfill;
-  a dev-only `/ai-search` returning vector matches (no Claude, no paywall). Prove
-  result quality.
-- **Phase 1 — Understanding:** add Claude filter-extraction → hybrid search;
-  storefront search box; still free/internal.
-- **Phase 2 — Customer accounts + paywall:** lightweight accounts, entitlement,
-  freemium metering, Paystack charge for the paid tier.
+- **Phase 0 — Retrieval spike:** ✅ **SHIPPED** (commit 447852b). Embeddings
+  adapter (`Embedder` port; OpenAI when keyed, deterministic dev hashing embedder
+  otherwise), `design_embeddings` table (migration 000049; `real[]` so it runs on
+  the stock Postgres image — pgvector is the documented scale-up), ingest/backfill
+  on boot, and `POST /v1/public/ai-search` with cosine ranking in Go. Live-
+  verified: "red kente dress for a wedding" ranks correctly.
+- **Phase 1 — Understanding:** ✅ **SHIPPED** (commit aec3fc6). `QueryParser`
+  port — Claude (Anthropic Messages API) when keyed, heuristic parser otherwise —
+  extracts colours/categories/occasions + price bounds; the ranker blends cosine
+  with hard price filters and soft facet boosts and returns the interpreted
+  intent. Live-verified: "kente under 500" drops over-budget designs.
+- **Phase 2 — Customer accounts + paywall:** 🟧 **BACKEND SHIPPED** (accounts
+  87bc4c9/604be70; paywall aec3fc6). Customer phone-OTP accounts + a freemium
+  meter (`ai_search_usage`, migration 000050; anon 5/mo, free customer 25/mo, pro
+  unlimited; over quota → HTTP 402). **Remaining:** storefront search-box UI +
+  sign-in UI, and the Paystack charge to upgrade a customer to pro
+  (`customers.ai_search_pro`). UI deferred — storefront app is under parallel edits.
 - **Phase 3 — Polish:** Claude rerank + natural-language result summary, "did you
   mean", multi-language (English/Twi/Pidgin), and feeding the same engine into
   the WhatsApp bot ("describe what you want" over chat).
