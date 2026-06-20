@@ -475,14 +475,36 @@ export default function Account({ loaderData }: Route.ComponentProps) {
   return (
     <Box
       sx={{
+        position: "relative",
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
-        backgroundSize: "36px 36px",
+        overflow: "hidden",
       }}
     >
+      {/* Ambient brand glow — theme-safe (reads on both cream and ink). */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `radial-gradient(circle at 12% 8%, ${alpha(tokens.burgundy, 0.18)}, transparent 46%), radial-gradient(circle at 92% 0%, ${alpha(tokens.gold, 0.12)}, transparent 42%)`,
+        }}
+      />
+      {/* Grid texture, faded out toward the edges. */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.05)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.05)} 1px, transparent 1px)`,
+          backgroundSize: "38px 38px",
+          maskImage: "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
+          WebkitMaskImage: "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
+        }}
+      />
       <Container
         sx={{
+          position: "relative",
           minHeight: "100vh",
           py: { xs: 4, md: 7 },
           display: "grid",
@@ -559,12 +581,23 @@ export default function Account({ loaderData }: Route.ComponentProps) {
 
           <Box
             sx={{
-              p: { xs: 2, sm: 2.5, md: 3 },
-              borderRadius: "8px",
+              position: "relative",
+              p: { xs: 2.5, sm: 3, md: 3.5 },
+              borderRadius: "18px",
               border: "1px solid",
-              borderColor: alpha(tokens.ink, 0.1),
-              bgcolor: "rgba(var(--surface-rgb), 0.92)",
-              boxShadow: `0 24px 70px ${alpha(tokens.ink, 0.12)}`,
+              borderColor: alpha(tokens.burgundy, 0.18),
+              bgcolor: "rgba(var(--surface-rgb), 0.96)",
+              boxShadow: `0 30px 80px ${alpha(tokens.ink, 0.18)}`,
+              overflow: "hidden",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 4,
+                background: `linear-gradient(90deg, ${tokens.burgundy}, ${tokens.gold})`,
+              },
             }}
           >
             {step === "verify" ? (
