@@ -21,6 +21,119 @@ func NewCustomerAuthRepository(pool *pgxpool.Pool) CustomerAuthRepository {
 	return CustomerAuthRepository{pool: pool}
 }
 
+// ListCustomerOrders returns a customer's orders across every shop they've
+// bought from (cross-tenant, RLS bypass), newest first.
+func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		select
+			o.order_id,
+			b.name,
+			b.handle,
+			coalesce(d.title, ''),
+			o.status,
+			coalesce(o.agreed_total_minor, 0),
+			o.created_at
+		from orders o
+		join businesses b on b.business_id = o.business_id
+		left join designs d on d.design_id = o.design_id
+		where o.customer_id = $1
+		order by o.created_at desc
+		limit 100
+	`, customerID.String())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	orders := make([]ports.CustomerOrderSummary, 0)
+	for rows.Next() {
+		var o ports.CustomerOrderSummary
+		if err := rows.Scan(
+			&o.OrderID,
+			&o.BusinessName,
+			&o.BusinessHandle,
+			&o.DesignTitle,
+			&o.Status,
+			&o.AgreedTotalMinor,
+			&o.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		orders = append(orders, o)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return orders, nil
+}
+
+func (repo CustomerAuthRepository) GetCustomerProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.CustomerProfile{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.CustomerProfile{}, err
+	}
+
+	var p ports.CustomerProfile
+	if err := tx.QueryRow(ctx, `
+		select customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, '')
+		from customers
+		where customer_id = $1 and erased_at is null
+	`, customerID.String()).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.CustomerProfile{}, ErrNotFound
+		}
+		return ports.CustomerProfile{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.CustomerProfile{}, err
+	}
+	return p, nil
+}
+
+func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.CustomerProfile{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.CustomerProfile{}, err
+	}
+
+	var p ports.CustomerProfile
+	if err := tx.QueryRow(ctx, `
+		update customers
+		set display_name = $2, email = $3
+		where customer_id = $1 and erased_at is null
+		returning customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, '')
+	`, customerID.String(), displayName, email).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.CustomerProfile{}, ErrNotFound
+		}
+		return ports.CustomerProfile{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.CustomerProfile{}, err
+	}
+	return p, nil
+}
+
 func (repo CustomerAuthRepository) CreateOTPChallenge(ctx context.Context, input ports.CreateOTPChallengeInput) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

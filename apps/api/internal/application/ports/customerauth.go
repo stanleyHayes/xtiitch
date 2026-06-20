@@ -20,6 +20,30 @@ type CustomerAuthRepository interface {
 	// UpsertVerifiedCustomerByPhone resolves (or creates) the customer for a
 	// verified phone and stamps phone_verified_at, returning the customer id.
 	UpsertVerifiedCustomerByPhone(ctx context.Context, newID common.ID, phone string) (common.ID, error)
+	// ListCustomerOrders returns a signed-in customer's orders across every shop
+	// (cross-tenant, RLS bypass), newest first.
+	ListCustomerOrders(ctx context.Context, customerID common.ID) ([]CustomerOrderSummary, error)
+	// GetCustomerProfile / UpdateCustomerProfile read and edit the global customer
+	// identity (name, email). Phone is immutable (it's the verified login).
+	GetCustomerProfile(ctx context.Context, customerID common.ID) (CustomerProfile, error)
+	UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName string, email string) (CustomerProfile, error)
+}
+
+type CustomerOrderSummary struct {
+	OrderID          common.ID
+	BusinessName     string
+	BusinessHandle   string
+	DesignTitle      string
+	Status           string
+	AgreedTotalMinor int64
+	CreatedAt        time.Time
+}
+
+type CustomerProfile struct {
+	CustomerID  common.ID
+	DisplayName string
+	Phone       string
+	Email       string
 }
 
 type CreateOTPChallengeInput struct {

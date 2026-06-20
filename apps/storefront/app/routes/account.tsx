@@ -5,6 +5,7 @@ import Container from "@mui/material/Container";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import Alert from "@mui/material/Alert";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
@@ -13,14 +14,33 @@ import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
 import PinRounded from "@mui/icons-material/PinRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
+import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
+import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import type { Route } from "./+types/account";
 import TextField from "../components/form-text-field";
-import { requestCustomerOtp, verifyCustomerOtp } from "../lib/discovery";
+import {
+  requestCustomerOtp,
+  verifyCustomerOtp,
+  fetchCustomerOrders,
+  fetchCustomerProfile,
+  updateCustomerProfile,
+  type CustomerOrder,
+  type CustomerProfile,
+} from "../lib/discovery";
 import { commitSession, destroySession, getSession } from "../lib/session";
+import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
 
 type Step = "phone" | "verify";
-type ActionResult = { step: Step; phone?: string; error?: string };
+type ActionResult = {
+  step: Step;
+  phone?: string;
+  error?: string;
+  profileSaved?: boolean;
+  profileError?: string;
+};
 
 // safeRedirect blocks open redirects: only same-site absolute paths are allowed.
 function safeRedirect(raw: string | null): string {
@@ -32,11 +52,11 @@ function safeRedirect(raw: string | null): string {
 
 export function meta() {
   return [
-    { title: "Sign in · Xtiitch" },
+    { title: "Your account · Xtiitch" },
     {
       name: "description",
       content:
-        "Sign in with your phone number to unlock more AI searches across Xtiitch shops.",
+        "Sign in with your phone number to track your orders and unlock more AI searches across Xtiitch shops.",
     },
     { name: "robots", content: "noindex" },
   ];
@@ -45,9 +65,23 @@ export function meta() {
 export async function loader({ request }: Route.LoaderArgs) {
   const session = await getSession(request.headers.get("Cookie"));
   const url = new URL(request.url);
+  const token = (session.get("customerToken") as string | undefined) ?? null;
+  const signedInPhone = (session.get("customerPhone") as string | null) ?? null;
+
+  let orders: CustomerOrder[] = [];
+  let profile: CustomerProfile | null = null;
+  if (token) {
+    [orders, profile] = await Promise.all([
+      fetchCustomerOrders(token),
+      fetchCustomerProfile(token),
+    ]);
+  }
+
   return {
-    signedInPhone: session.get("customerPhone") ?? null,
+    signedInPhone,
     redirectTo: safeRedirect(url.searchParams.get("redirectTo")),
+    orders,
+    profile,
   };
 }
 
@@ -60,6 +94,25 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/account", {
       headers: { "Set-Cookie": await destroySession(session) },
     });
+  }
+
+  if (intent === "update_profile") {
+    const session = await getSession(request.headers.get("Cookie"));
+    const token = session.get("customerToken") as string | undefined;
+    if (!token) {
+      return redirect("/account");
+    }
+    const updated = await updateCustomerProfile(token, {
+      display_name: String(form.get("display_name") ?? "").trim(),
+      email: String(form.get("email") ?? "").trim(),
+    });
+    return {
+      step: "phone",
+      profileSaved: Boolean(updated),
+      profileError: updated
+        ? undefined
+        : "We couldn't save your profile. Please try again.",
+    } as ActionResult;
   }
 
   if (intent === "request") {
@@ -95,10 +148,329 @@ export async function action({ request }: Route.ActionArgs) {
   return { step: "phone" } as ActionResult;
 }
 
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+// Deterministic UTC date format — avoids locale-driven SSR/client hydration drift.
+function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+function orderStatus(status: string): { label: string; color: string } {
+  const s = status.toLowerCase();
+  if (["completed", "delivered", "fulfilled", "handed_over"].includes(s)) {
+    return { label: "Completed", color: tokens.success };
+  }
+  if (["cancelled", "canceled", "discarded", "refunded"].includes(s)) {
+    return { label: "Cancelled", color: alpha(tokens.ink, 0.55) };
+  }
+  if (s === "draft") {
+    return { label: "Awaiting payment", color: tokens.gold };
+  }
+  return {
+    label: s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+    color: tokens.burgundy,
+  };
+}
+
+function AccountHub({
+  phone,
+  profile,
+  orders,
+  saved,
+  error,
+}: {
+  phone: string;
+  profile: CustomerProfile | null;
+  orders: CustomerOrder[];
+  saved?: boolean;
+  error?: string;
+}) {
+  const cardSx = {
+    p: { xs: 2.25, md: 3 },
+    borderRadius: "14px",
+    border: "1px solid",
+    borderColor: alpha(tokens.ink, 0.1),
+    bgcolor: "rgba(var(--surface-rgb), 0.94)",
+    boxShadow: `0 18px 50px ${alpha(tokens.ink, 0.1)}`,
+  } as const;
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
+        backgroundSize: "36px 36px",
+      }}
+    >
+      <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: "lg" }}>
+        <Stack
+          direction="row"
+          sx={{ justifyContent: "space-between", alignItems: "center", mb: 3 }}
+        >
+          <Button
+            component={RouterLink}
+            to="/"
+            variant="text"
+            startIcon={<StorefrontRounded />}
+            sx={{ px: 0, color: "text.secondary", fontWeight: 800 }}
+          >
+            Back to storefronts
+          </Button>
+          <Form method="post">
+            <input type="hidden" name="intent" value="signout" />
+            <Button
+              type="submit"
+              variant="text"
+              startIcon={<LogoutRounded />}
+              sx={{ color: "text.secondary" }}
+            >
+              Sign out
+            </Button>
+          </Form>
+        </Stack>
+
+        <Typography variant="h3" component="h1" sx={{ fontSize: { xs: "2.2rem", md: "3rem" } }}>
+          Your account
+        </Typography>
+        <Typography sx={{ mt: 1, color: "text.secondary" }}>
+          Signed in as <strong>{phone}</strong>
+        </Typography>
+
+        <Box
+          sx={{
+            mt: 4,
+            display: "grid",
+            gap: 3,
+            gridTemplateColumns: { xs: "1fr", md: "0.85fr 1.15fr" },
+            alignItems: "start",
+          }}
+        >
+          {/* Profile */}
+          <Box sx={cardSx}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 2 }}>
+              <PersonRounded sx={{ color: tokens.burgundy }} />
+              <Typography variant="h6" component="h2">
+                Profile
+              </Typography>
+            </Stack>
+            {saved ? (
+              <Alert
+                icon={<CheckCircleRounded fontSize="inherit" />}
+                severity="success"
+                sx={{ mb: 2 }}
+              >
+                Profile saved.
+              </Alert>
+            ) : null}
+            {error ? (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            ) : null}
+            <Form method="post">
+              <input type="hidden" name="intent" value="update_profile" />
+              <Stack spacing={2}>
+                <TextField
+                  name="display_name"
+                  label="Your name"
+                  defaultValue={profile?.display_name ?? ""}
+                  fullWidth
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="email"
+                  label="Email"
+                  type="email"
+                  defaultValue={profile?.email ?? ""}
+                  fullWidth
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AlternateEmailRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  label="Phone"
+                  value={phone}
+                  disabled
+                  fullWidth
+                  helperText="Your phone is your login and can't be changed here."
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PhoneIphoneRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <Button type="submit" variant="contained" size="large">
+                  Save changes
+                </Button>
+              </Stack>
+            </Form>
+
+            <Button
+              component={RouterLink}
+              to="/discover"
+              variant="outlined"
+              size="large"
+              startIcon={<AutoAwesomeRounded />}
+              sx={{ mt: 2, width: "100%" }}
+            >
+              Search with AI
+            </Button>
+          </Box>
+
+          {/* Orders */}
+          <Box sx={cardSx}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 2 }}>
+              <ReceiptLongRounded sx={{ color: tokens.burgundy }} />
+              <Typography variant="h6" component="h2">
+                Your orders
+              </Typography>
+            </Stack>
+
+            {orders.length === 0 ? (
+              <Box sx={{ textAlign: "center", py: 6 }}>
+                <StorefrontRounded
+                  sx={{ fontSize: 40, color: alpha(tokens.ink, 0.25) }}
+                />
+                <Typography sx={{ mt: 1, fontWeight: 800 }}>
+                  No orders yet
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+                  When you order from a studio, it shows up here.
+                </Typography>
+                <Button
+                  component={RouterLink}
+                  to="/"
+                  variant="contained"
+                  sx={{ mt: 2.5 }}
+                  endIcon={<ArrowForwardRounded />}
+                >
+                  Browse studios
+                </Button>
+              </Box>
+            ) : (
+              <Stack spacing={1.5}>
+                {orders.map((o) => {
+                  const status = orderStatus(o.status);
+                  return (
+                    <Box
+                      key={o.order_id}
+                      sx={{
+                        p: 1.75,
+                        borderRadius: "10px",
+                        border: "1px solid",
+                        borderColor: alpha(tokens.ink, 0.1),
+                        bgcolor: "rgba(var(--surface-rgb), 0.6)",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        sx={{ justifyContent: "space-between", gap: 1.5, alignItems: "flex-start" }}
+                      >
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography sx={{ fontWeight: 800 }} noWrap>
+                            {o.design_title || "Custom order"}
+                          </Typography>
+                          <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+                            {o.business_name} · {formatDate(o.created_at)}
+                          </Typography>
+                        </Box>
+                        <Box
+                          sx={{
+                            flexShrink: 0,
+                            px: 1,
+                            py: 0.35,
+                            borderRadius: 999,
+                            bgcolor: alpha(status.color, 0.12),
+                            color: status.color,
+                            border: `1px solid ${alpha(status.color, 0.4)}`,
+                            fontSize: 12,
+                            fontWeight: 800,
+                          }}
+                        >
+                          {status.label}
+                        </Box>
+                      </Stack>
+                      <Stack
+                        direction="row"
+                        sx={{ mt: 1.25, justifyContent: "space-between", alignItems: "center" }}
+                      >
+                        <Typography sx={{ fontWeight: 900, color: tokens.burgundy }}>
+                          {o.agreed_total_minor > 0
+                            ? formatGHS(o.agreed_total_minor)
+                            : "Price on confirmation"}
+                        </Typography>
+                        <Button
+                          component={RouterLink}
+                          to={`/track/${o.order_id}`}
+                          size="small"
+                          variant="text"
+                          startIcon={<LocalShippingRounded />}
+                        >
+                          Track
+                        </Button>
+                      </Stack>
+                    </Box>
+                  );
+                })}
+              </Stack>
+            )}
+          </Box>
+        </Box>
+      </Container>
+    </Box>
+  );
+}
+
 export default function Account({ loaderData }: Route.ComponentProps) {
   const action = useActionData<ActionResult>();
+  const { signedInPhone, redirectTo, orders, profile } = loaderData;
   const step: Step = action?.step ?? "phone";
-  const { signedInPhone, redirectTo } = loaderData;
+
+  if (signedInPhone) {
+    return (
+      <AccountHub
+        phone={signedInPhone}
+        profile={profile}
+        orders={orders}
+        saved={action?.profileSaved}
+        error={action?.profileError}
+      />
+    );
+  }
 
   return (
     <Box
@@ -170,12 +542,12 @@ export default function Account({ loaderData }: Route.ComponentProps) {
               component="h1"
               sx={{ mt: 1, maxWidth: 620, fontSize: { xs: "2.6rem", md: "4rem" } }}
             >
-              {signedInPhone ? "You're signed in" : "Sign in to search smarter"}
+              Sign in to track orders
             </Typography>
             <Typography sx={{ mt: 2, color: "text.secondary", maxWidth: 560, fontSize: { xs: 16, md: 18 } }}>
-              One phone number, no password. Signing in unlocks more
-              natural-language AI searches across every Xtiitch shop and keeps
-              your order history in one place.
+              One phone number, no password. Signing in keeps your order history
+              in one place and unlocks more natural-language AI searches across
+              every Xtiitch shop.
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 2.5, alignItems: "center", color: tokens.burgundy }}>
               <AutoAwesomeRounded fontSize="small" />
@@ -195,36 +567,7 @@ export default function Account({ loaderData }: Route.ComponentProps) {
               boxShadow: `0 24px 70px ${alpha(tokens.ink, 0.12)}`,
             }}
           >
-            {signedInPhone ? (
-              <Stack spacing={2}>
-                <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-                  <CheckCircleRounded sx={{ color: tokens.success }} />
-                  <Typography variant="h5" component="h2">
-                    Signed in
-                  </Typography>
-                </Stack>
-                <Typography sx={{ color: "text.secondary" }}>
-                  You're signed in as <strong>{signedInPhone}</strong>.
-                </Typography>
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
-                  <Button
-                    component={RouterLink}
-                    to="/discover"
-                    variant="contained"
-                    size="large"
-                    endIcon={<ArrowForwardRounded />}
-                  >
-                    Start searching
-                  </Button>
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="signout" />
-                    <Button type="submit" variant="text" size="large" startIcon={<LogoutRounded />} sx={{ color: "text.secondary" }}>
-                      Sign out
-                    </Button>
-                  </Form>
-                </Stack>
-              </Stack>
-            ) : step === "verify" ? (
+            {step === "verify" ? (
               <Stack spacing={1.5}>
                 <Typography variant="h5" component="h2">
                   Enter your code

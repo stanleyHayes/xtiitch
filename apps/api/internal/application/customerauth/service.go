@@ -134,6 +134,22 @@ func (s Service) VerifyOTP(ctx context.Context, rawPhone string, code string) (C
 	}, nil
 }
 
+// ListOrders returns the signed-in customer's order history across all shops.
+func (s Service) ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error) {
+	return s.repo.ListCustomerOrders(ctx, customerID)
+}
+
+// GetProfile returns the customer's editable identity (name, email, phone).
+func (s Service) GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error) {
+	return s.repo.GetCustomerProfile(ctx, customerID)
+}
+
+// UpdateProfile edits the customer's display name and email. Phone is immutable
+// (it's the verified login).
+func (s Service) UpdateProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error) {
+	return s.repo.UpdateCustomerProfile(ctx, customerID, strings.TrimSpace(displayName), strings.TrimSpace(email))
+}
+
 var nonDigit = regexp.MustCompile(`\D`)
 
 // normalizeGhanaPhone coerces local formats to canonical E.164 digits (233…),

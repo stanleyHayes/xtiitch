@@ -11,11 +11,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	customerauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/customerauth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 type Service interface {
 	RequestOTP(ctx context.Context, phone string) error
 	VerifyOTP(ctx context.Context, phone string, code string) (customerauthapp.CustomerAuthResult, error)
+	ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error)
+	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
+	UpdateProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error)
 }
 
 type Handler struct {
@@ -31,6 +35,8 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/customer/auth/request-otp", handler.requestOTP)
 	router.Post("/customer/auth/verify-otp", handler.verifyOTP)
 	router.Get("/customer/me", handler.me)
+	router.Patch("/customer/me", handler.updateProfile)
+	router.Get("/customer/orders", handler.orders)
 }
 
 type requestOTPRequest struct {
@@ -50,8 +56,10 @@ type customerAuthResponse struct {
 }
 
 type meResponse struct {
-	CustomerID string `json:"customer_id"`
-	Phone      string `json:"phone"`
+	CustomerID  string `json:"customer_id"`
+	Phone       string `json:"phone"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
 }
 
 func (handler Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
@@ -89,21 +97,104 @@ func (handler Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
+// authCustomer verifies the bearer token and returns the customer identity, or
+// writes a 401 and reports ok=false.
+func (handler Handler) authCustomer(w http.ResponseWriter, r *http.Request) (ports.VerifiedCustomerToken, bool) {
 	token, ok := bearerToken(r)
 	if !ok {
 		writeError(w, http.StatusUnauthorized, "missing_token")
-		return
+		return ports.VerifiedCustomerToken{}, false
 	}
 	verified, err := handler.verifier.VerifyCustomerAccessToken(r.Context(), token)
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return ports.VerifiedCustomerToken{}, false
+	}
+	return verified, true
+}
+
+func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	response := meResponse{
+		CustomerID: verified.CustomerID.String(),
+		Phone:      verified.Phone,
+	}
+	// Enrich with the editable profile; fall back to the token identity if the
+	// profile read fails (a valid token always maps to a customer).
+	if profile, err := handler.service.GetProfile(r.Context(), verified.CustomerID); err == nil {
+		response.DisplayName = profile.DisplayName
+		response.Email = profile.Email
+		if profile.Phone != "" {
+			response.Phone = profile.Phone
+		}
+	}
+	writeJSON(w, http.StatusOK, response)
+}
+
+type updateProfileRequest struct {
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+}
+
+func (handler Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	var request updateProfileRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	profile, err := handler.service.UpdateProfile(r.Context(), verified.CustomerID, request.DisplayName, request.Email)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
 	writeJSON(w, http.StatusOK, meResponse{
-		CustomerID: verified.CustomerID.String(),
-		Phone:      verified.Phone,
+		CustomerID:  profile.CustomerID.String(),
+		Phone:       profile.Phone,
+		DisplayName: profile.DisplayName,
+		Email:       profile.Email,
 	})
+}
+
+type customerOrderResponse struct {
+	OrderID          string `json:"order_id"`
+	BusinessName     string `json:"business_name"`
+	BusinessHandle   string `json:"business_handle"`
+	DesignTitle      string `json:"design_title"`
+	Status           string `json:"status"`
+	AgreedTotalMinor int64  `json:"agreed_total_minor"`
+	CreatedAt        string `json:"created_at"`
+}
+
+func (handler Handler) orders(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	orders, err := handler.service.ListOrders(r.Context(), verified.CustomerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	response := make([]customerOrderResponse, 0, len(orders))
+	for _, o := range orders {
+		response = append(response, customerOrderResponse{
+			OrderID:          o.OrderID.String(),
+			BusinessName:     o.BusinessName,
+			BusinessHandle:   o.BusinessHandle,
+			DesignTitle:      o.DesignTitle,
+			Status:           o.Status,
+			AgreedTotalMinor: o.AgreedTotalMinor,
+			CreatedAt:        o.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"orders": response})
 }
 
 func customerAuthError(err error) (int, string) {

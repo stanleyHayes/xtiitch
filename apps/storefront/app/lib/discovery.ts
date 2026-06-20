@@ -50,6 +50,74 @@ export async function verifyCustomerOtp(
   return { ok: true, token: body.access_token, phone: body.phone };
 }
 
+// ── Customer account (orders + profile) ────────────────────────────────────
+
+export type CustomerOrder = {
+  order_id: string;
+  business_name: string;
+  business_handle: string;
+  design_title: string;
+  status: string;
+  agreed_total_minor: number;
+  created_at: string;
+};
+
+export type CustomerProfile = {
+  customer_id: string;
+  phone: string;
+  display_name: string;
+  email: string;
+};
+
+export async function fetchCustomerProfile(
+  token: string,
+): Promise<CustomerProfile | null> {
+  try {
+    const response = await fetch(`${API_BASE}/v1/customer/me`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as CustomerProfile;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchCustomerOrders(
+  token: string,
+): Promise<CustomerOrder[]> {
+  try {
+    const response = await fetch(`${API_BASE}/v1/customer/orders`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) return [];
+    const body = (await response.json()) as { orders?: CustomerOrder[] };
+    return body.orders ?? [];
+  } catch {
+    return [];
+  }
+}
+
+export async function updateCustomerProfile(
+  token: string,
+  input: { display_name: string; email: string },
+): Promise<CustomerProfile | null> {
+  try {
+    const response = await fetch(`${API_BASE}/v1/customer/me`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) return null;
+    return (await response.json()) as CustomerProfile;
+  } catch {
+    return null;
+  }
+}
+
 // ── AI marketplace search ──────────────────────────────────────────────────
 
 export type AiSearchHit = {
