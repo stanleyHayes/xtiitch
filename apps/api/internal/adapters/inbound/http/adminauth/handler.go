@@ -38,6 +38,7 @@ type Service interface {
 	ListBusinesses(ctx context.Context, command adminauthapp.ListBusinessesCommand) ([]ports.AdminBusinessRecord, error)
 	ListCustomers(ctx context.Context, command adminauthapp.ListCustomersCommand) ([]ports.AdminCustomerRecord, error)
 	ExportCustomerData(ctx context.Context, command adminauthapp.ExportCustomerDataCommand) (ports.AdminCustomerExportRecord, error)
+	EraseCustomerData(ctx context.Context, command adminauthapp.EraseCustomerDataCommand) (ports.AdminCustomerErasureRecord, error)
 	UpdateBusinessStatus(ctx context.Context, command adminauthapp.UpdateBusinessStatusCommand) (ports.AdminBusinessRecord, error)
 	GetPlatformMetrics(ctx context.Context, command adminauthapp.GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error)
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
@@ -170,6 +171,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/businesses", handler.businesses)
 		protected.Get("/admin/customers", handler.customers)
 		protected.Get("/admin/customers/{id}/export", handler.exportCustomer)
+		protected.Post("/admin/customers/{id}/erase", handler.eraseCustomer)
 		protected.Patch("/admin/businesses/{id}/status", handler.updateBusinessStatus)
 		protected.Get("/admin/audit-events", handler.auditEvents)
 		protected.Get("/admin/exports/{dataset}.csv", handler.exportDatasetCSV)
@@ -2911,6 +2913,54 @@ func (handler Handler) exportCustomer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newCustomerExportResponse(record))
+}
+
+type eraseCustomerRequest struct {
+	Confirmation string `json:"confirmation"`
+}
+
+type customerErasureResponse struct {
+	CustomerID          string `json:"customer_id"`
+	Erased              bool   `json:"erased"`
+	OrdersRetained      int    `json:"orders_retained"`
+	MeasurementsCleared int    `json:"measurements_cleared"`
+	BookingAddresses    int    `json:"booking_addresses_cleared"`
+	Notice              string `json:"notice"`
+}
+
+func (handler Handler) eraseCustomer(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request eraseCustomerRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	record, err := handler.service.EraseCustomerData(r.Context(), adminauthapp.EraseCustomerDataCommand{
+		ActorUserID:  principal.AdminUserID,
+		ActorRole:    principal.Role,
+		CustomerID:   common.ID(chi.URLParam(r, "id")),
+		Confirmation: request.Confirmation,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, customerErasureResponse{
+		CustomerID:          record.CustomerID.String(),
+		Erased:              true,
+		OrdersRetained:      record.OrdersRetained,
+		MeasurementsCleared: record.MeasurementsCleared,
+		BookingAddresses:    record.BookingAddresses,
+		Notice:              "Personal data anonymised platform-wide under the Data Protection Act, 2012 (Act 843). Order records are retained for accounting and reference the customer by opaque id only.",
+	})
 }
 
 func newCustomerExportResponse(record ports.AdminCustomerExportRecord) customerExportResponse {

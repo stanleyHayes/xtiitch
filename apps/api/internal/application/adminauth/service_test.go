@@ -3320,6 +3320,10 @@ func (repo *fakeAdminBusinesses) ExportAdminCustomer(_ context.Context, customer
 	return ports.AdminCustomerExportRecord{CustomerID: customerID}, nil
 }
 
+func (repo *fakeAdminBusinesses) EraseAdminCustomer(_ context.Context, customerID common.ID) (ports.AdminCustomerErasureRecord, error) {
+	return ports.AdminCustomerErasureRecord{CustomerID: customerID}, nil
+}
+
 func (repo *fakeAdminBusinesses) UpdateAdminBusinessStatus(
 	_ context.Context,
 	input ports.UpdateAdminBusinessStatusInput,

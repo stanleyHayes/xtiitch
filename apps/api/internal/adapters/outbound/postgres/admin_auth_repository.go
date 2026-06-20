@@ -1111,6 +1111,75 @@ func (repo AdminAuthRepository) ExportAdminCustomer(ctx context.Context, custome
 	return export, nil
 }
 
+func (repo AdminAuthRepository) EraseAdminCustomer(ctx context.Context, customerID common.ID) (ports.AdminCustomerErasureRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// Erasure is platform-wide (the customer identity is global), so it runs with
+	// the cross-tenant bypass.
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+
+	// Anonymise the identity itself. Keep the row so retained orders still
+	// reference a (now contentless) customer.
+	tag, err := tx.Exec(ctx, `
+		update customers
+		set email = null,
+			phone = null,
+			display_name = 'Erased customer',
+			identity_ref = null,
+			erased_at = now(),
+			updated_at = now()
+		where customer_id = $1
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.AdminCustomerErasureRecord{}, ports.ErrNotFound
+	}
+
+	record := ports.AdminCustomerErasureRecord{CustomerID: customerID}
+
+	if err := tx.QueryRow(ctx, `
+		select count(*) from orders where customer_id = $1
+	`, customerID.String()).Scan(&record.OrdersRetained); err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+
+	// Body measurements are personal data — clear the values, keep the row.
+	measureTag, err := tx.Exec(ctx, `
+		update order_measurements
+		set values = '{}'::jsonb, updated_at = now()
+		where customer_id = $1
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+	record.MeasurementsCleared = int(measureTag.RowsAffected())
+
+	// Home-visit addresses are personal data — clear them.
+	bookingTag, err := tx.Exec(ctx, `
+		update bookings
+		set address = '', updated_at = now()
+		where customer_id = $1 and address <> ''
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+	record.BookingAddresses = int(bookingTag.RowsAffected())
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+
+	return record, nil
+}
+
 func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 	ctx context.Context,
 	input ports.UpdateAdminBusinessStatusInput,

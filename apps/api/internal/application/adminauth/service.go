@@ -3,6 +3,7 @@ package adminauth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/mail"
 	"net/url"
 	"strconv"
@@ -1099,6 +1100,58 @@ func (s Service) ExportCustomerData(ctx context.Context, cmd ExportCustomerDataC
 	}
 
 	return s.businesses.ExportAdminCustomer(ctx, cmd.CustomerID)
+}
+
+// customerErasureConfirmation must be typed verbatim to authorise an erasure,
+// guarding against accidental destructive clicks.
+const customerErasureConfirmation = "ERASE CUSTOMER DATA"
+
+type EraseCustomerDataCommand struct {
+	ActorUserID  common.ID
+	ActorRole    admindomain.Role
+	CustomerID   common.ID
+	Confirmation string
+}
+
+// EraseCustomerData anonymises a customer's personal data platform-wide for a
+// Data Protection Act (Act 843) erasure request. It is destructive, so it needs
+// the risk-management permission and an explicit typed confirmation, and it is
+// recorded in the audit log at critical severity.
+func (s Service) EraseCustomerData(ctx context.Context, cmd EraseCustomerDataCommand) (ports.AdminCustomerErasureRecord, error) {
+	if cmd.ActorUserID.IsZero() || cmd.CustomerID.IsZero() {
+		return ports.AdminCustomerErasureRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageRisk); err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminCustomerErasureRecord{}, authdomain.ErrForbidden
+	}
+	if strings.TrimSpace(cmd.Confirmation) != customerErasureConfirmation {
+		return ports.AdminCustomerErasureRecord{}, authdomain.ErrInvalidInput
+	}
+
+	record, err := s.businesses.EraseAdminCustomer(ctx, cmd.CustomerID)
+	if err != nil {
+		return ports.AdminCustomerErasureRecord{}, err
+	}
+
+	_ = s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Erased customer data",
+		TargetType:  "customer",
+		TargetID:    cmd.CustomerID.String(),
+		TargetLabel: "Customer (Act 843 erasure)",
+		Summary: fmt.Sprintf(
+			"Anonymised customer personal data platform-wide. %d order(s) retained for accounting; %d measurement set(s) and %d booking address(es) cleared.",
+			record.OrdersRetained, record.MeasurementsCleared, record.BookingAddresses,
+		),
+		Severity: admindomain.AuditSeverityCritical,
+		Metadata: map[string]string{"customer_id": cmd.CustomerID.String()},
+	})
+
+	return record, nil
 }
 
 func (s Service) GetPlatformMetrics(ctx context.Context, cmd GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error) {

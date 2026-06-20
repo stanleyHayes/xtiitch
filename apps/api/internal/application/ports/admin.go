@@ -39,6 +39,10 @@ type AdminBusinessRepository interface {
 	// ExportAdminCustomer gathers every record held about one customer for a Data
 	// Protection Act (Act 843) subject-access request. Read-only.
 	ExportAdminCustomer(ctx context.Context, customerID common.ID) (AdminCustomerExportRecord, error)
+	// EraseAdminCustomer anonymises a customer's personal data platform-wide
+	// (right to erasure). Order/payment records are retained but reference only
+	// the opaque customer id.
+	EraseAdminCustomer(ctx context.Context, customerID common.ID) (AdminCustomerErasureRecord, error)
 	UpdateAdminBusinessStatus(ctx context.Context, input UpdateAdminBusinessStatusInput) (AdminBusinessRecord, error)
 	GetAdminPlatformMetrics(ctx context.Context) (AdminPlatformMetricsRecord, error)
 	GetAdminMoneyRails(ctx context.Context) (AdminMoneyRailsRecord, error)
@@ -314,6 +318,14 @@ type AdminCustomerExportMeasurement struct {
 	Source    string
 	Values    string // raw JSON object of measurement field → value
 	CreatedAt time.Time
+}
+
+// AdminCustomerErasureRecord summarises what an erasure touched.
+type AdminCustomerErasureRecord struct {
+	CustomerID          common.ID
+	OrdersRetained      int
+	MeasurementsCleared int
+	BookingAddresses    int
 }
 
 type UpdateAdminBusinessStatusInput struct {

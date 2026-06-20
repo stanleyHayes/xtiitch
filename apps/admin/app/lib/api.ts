@@ -3135,6 +3135,18 @@ export const adminApi = {
     );
     return payload.customers.map(mapCustomer);
   },
+  eraseCustomer: (accessToken: string, customerId: string, confirmation: string) =>
+    requestJSON<{
+      customer_id: string;
+      erased: boolean;
+      orders_retained: number;
+      measurements_cleared: number;
+      booking_addresses_cleared: number;
+    }>(`/admin/customers/${encodeURIComponent(customerId)}/erase`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ confirmation }),
+    }),
   updateBusinessStatus: (
     accessToken: string,
     businessId: string,

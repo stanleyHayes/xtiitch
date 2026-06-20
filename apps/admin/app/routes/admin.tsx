@@ -1018,6 +1018,29 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-customer:erase") {
+    const { accessToken } = await requireAdminContext(request);
+    try {
+      const result = await adminApi.eraseCustomer(
+        accessToken,
+        String(form.get("customer_id") ?? ""),
+        String(form.get("confirmation") ?? ""),
+      );
+      return {
+        section: "customers",
+        severity: "success",
+        message: `Customer data erased. ${result.orders_retained} order(s) retained; ${result.measurements_cleared} measurement set(s) and ${result.booking_addresses_cleared} address(es) cleared.`,
+      };
+    } catch {
+      return {
+        section: "customers",
+        severity: "error",
+        message:
+          "Could not erase this customer. Confirm you typed ERASE CUSTOMER DATA and have permission.",
+      };
+    }
+  }
+
   if (
     intent === "money:webhook-replay" ||
     intent === "money:payment-reversal" ||
@@ -3613,6 +3636,8 @@ function CustomerInspector({
   customer: AdminCustomer | null;
   onClose: () => void;
 }) {
+  const [eraseOpen, setEraseOpen] = useState(false);
+  const [eraseConfirm, setEraseConfirm] = useState("");
   if (!customer) {
     return (
       <Panel sx={{ p: 3, position: { xl: "sticky" }, top: 88 }}>
@@ -3699,7 +3724,71 @@ function CustomerInspector({
           linked businesses, orders and measurements — as a JSON file, for a Data
           Protection Act subject-access request.
         </Typography>
+        <Button
+          variant="outlined"
+          color="error"
+          size="small"
+          onClick={() => {
+            setEraseConfirm("");
+            setEraseOpen(true);
+          }}
+        >
+          Erase data (right to be forgotten)
+        </Button>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          Anonymises this customer&apos;s personal data across every business.
+          Orders are kept for accounting but no longer carry personal data. This
+          cannot be undone.
+        </Typography>
       </Stack>
+      <Dialog
+        open={eraseOpen}
+        onClose={() => setEraseOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle sx={{ color: "error.main", fontWeight: 800 }}>
+          Erase customer data?
+        </DialogTitle>
+        <Form method="post" onSubmit={() => setEraseOpen(false)}>
+          <DialogContent>
+            <input type="hidden" name="intent" value="admin-customer:erase" />
+            <input type="hidden" name="customer_id" value={customer.id} />
+            <Typography variant="body2" sx={{ mb: 2, color: "text.secondary" }}>
+              This permanently anonymises{" "}
+              <strong>{customer.displayName || contact}</strong> across all
+              businesses for a Data Protection Act (Act 843) erasure request.
+              Type <strong>ERASE CUSTOMER DATA</strong> to confirm.
+            </Typography>
+            <TextField
+              name="confirmation"
+              value={eraseConfirm}
+              onChange={(event) => setEraseConfirm(event.target.value)}
+              fullWidth
+              size="small"
+              autoFocus
+              placeholder="ERASE CUSTOMER DATA"
+            />
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ mt: 2.5, justifyContent: "flex-end" }}
+            >
+              <Button type="button" onClick={() => setEraseOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                color="error"
+                variant="contained"
+                disabled={eraseConfirm.trim() !== "ERASE CUSTOMER DATA"}
+              >
+                Erase data
+              </Button>
+            </Stack>
+          </DialogContent>
+        </Form>
+      </Dialog>
     </Panel>
   );
 }
