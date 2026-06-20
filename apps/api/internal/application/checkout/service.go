@@ -152,7 +152,11 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}
 
 	orderID := s.ids.NewID()
-	customerID := s.ids.NewID()
+	customerID, customerCreated := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	cleanupCustomerID := common.ID("")
+	if customerCreated {
+		cleanupCustomerID = customerID
+	}
 	sizeBandID := cmd.SizeBandID
 	if err := s.orders.CreateOnlineOrder(ctx, scope, ports.CreateOnlineOrderInput{
 		OrderID:          orderID,
@@ -179,7 +183,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		commissionBps: charge.CommissionBps,
 	})
 	if err != nil {
-		s.discardDraft(ctx, scope, orderID, customerID)
+		s.discardDraft(ctx, scope, orderID, cleanupCustomerID)
 		return PlaceStandardOrderResult{}, err
 	}
 	chargeAmount := price
@@ -187,7 +191,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		chargeAmount = promotion.payableMinor
 		if err := s.orders.SetDraftOrderAgreedTotal(ctx, scope, orderID, chargeAmount); err != nil {
 			s.voidPromotionReservation(ctx, scope, orderID)
-			s.discardDraft(ctx, scope, orderID, customerID)
+			s.discardDraft(ctx, scope, orderID, cleanupCustomerID)
 			return PlaceStandardOrderResult{}, err
 		}
 	}
@@ -225,7 +229,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		// never be confirmed. Roll it back so checkout stays all-or-nothing and
 		// no un-payable draft (or its customer) is left to accumulate.
 		s.voidPromotionReservation(ctx, scope, orderID)
-		s.discardDraft(ctx, scope, orderID, customerID)
+		s.discardDraft(ctx, scope, orderID, cleanupCustomerID)
 		return PlaceStandardOrderResult{}, err
 	}
 
@@ -236,6 +240,20 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		AmountMinor:      chargeAmount,
 		DiscountMinor:    promotion.discountMinor,
 	}, nil
+}
+
+// resolveCustomerByPhone links a returning guest (by phone) to their existing
+// customer record so repeat orders aggregate under one identity. It returns the
+// resolved-or-new customer id and whether it was freshly created — only a
+// freshly-created customer is cleaned up if the checkout rolls back (an existing
+// customer is shared across orders).
+func (s Service) resolveCustomerByPhone(ctx context.Context, phone string) (common.ID, bool) {
+	if trimmed := strings.TrimSpace(phone); trimmed != "" {
+		if existing, found, err := s.orders.FindCustomerIDByPhone(ctx, trimmed); err == nil && found {
+			return existing, false
+		}
+	}
+	return s.ids.NewID(), true
 }
 
 // discardDraft compensates a checkout whose payment could not be raised by
@@ -359,7 +377,11 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
 
 	orderID := s.ids.NewID()
-	customerID := s.ids.NewID()
+	customerID, customerCreated := s.resolveCustomerByPhone(ctx, customer.phone)
+	cleanupCustomerID := common.ID("")
+	if customerCreated {
+		cleanupCustomerID = customerID
+	}
 	bookingID := s.ids.NewID()
 
 	if err := s.orders.CreateCustomOrder(ctx, scope, ports.CreateCustomOrderInput{
@@ -384,7 +406,7 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		SlotEnd:    slot.End,
 		Address:    strings.TrimSpace(cmd.Address),
 	}); err != nil {
-		s.discardBooking(ctx, scope, bookingID, orderID, customerID)
+		s.discardBooking(ctx, scope, bookingID, orderID, cleanupCustomerID)
 		return PlaceHomeVisitBookingResult{}, err
 	}
 	s.reserveAffiliateAttribution(ctx, scope, affiliateCheckoutInput{
@@ -417,7 +439,7 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		CustomerEmail: customer.email,
 	})
 	if err != nil {
-		s.discardBooking(ctx, scope, bookingID, orderID, customerID)
+		s.discardBooking(ctx, scope, bookingID, orderID, cleanupCustomerID)
 		return PlaceHomeVisitBookingResult{}, err
 	}
 
@@ -542,10 +564,11 @@ func (s Service) resolveCustomDesign(ctx context.Context, store ports.Storefront
 
 func (s Service) placeComeToShop(ctx context.Context, scope common.TenantScope, businessID, designID common.ID, customer customerDetails) (PlaceCustomOrderResult, error) {
 	orderID := s.ids.NewID()
+	customerID, _ := s.resolveCustomerByPhone(ctx, customer.phone)
 	if err := s.orders.CreateCustomOrderConfirmed(ctx, scope, ports.CreateCustomOrderConfirmedInput{
 		OrderID:       orderID,
 		BusinessID:    businessID,
-		CustomerID:    s.ids.NewID(),
+		CustomerID:    customerID,
 		DesignID:      designID,
 		SizeMode:      string(order.SizeModeComeToShop),
 		CustomerName:  customer.name,
@@ -578,7 +601,11 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
 
 	orderID := s.ids.NewID()
-	customerID := s.ids.NewID()
+	customerID, customerCreated := s.resolveCustomerByPhone(ctx, customer.phone)
+	cleanupCustomerID := common.ID("")
+	if customerCreated {
+		cleanupCustomerID = customerID
+	}
 	input := ports.CreateCustomOrderInput{
 		OrderID:       orderID,
 		BusinessID:    store.BusinessID,
@@ -611,7 +638,7 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		commissionBps: charge.CommissionBps,
 	})
 	if err != nil {
-		s.discardCustomDraft(ctx, scope, orderID, customerID)
+		s.discardCustomDraft(ctx, scope, orderID, cleanupCustomerID)
 		return PlaceCustomOrderResult{}, err
 	}
 	chargeAmount := deposit
@@ -651,7 +678,7 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		// No deposit could be raised, so the draft custom order could never be
 		// confirmed: compensate it (and its measurement + customer) away.
 		s.voidPromotionReservation(ctx, scope, orderID)
-		s.discardCustomDraft(ctx, scope, orderID, customerID)
+		s.discardCustomDraft(ctx, scope, orderID, cleanupCustomerID)
 		return PlaceCustomOrderResult{}, err
 	}
 

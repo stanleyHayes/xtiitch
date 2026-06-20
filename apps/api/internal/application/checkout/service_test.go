@@ -903,6 +903,10 @@ func (f *fakeOrders) CreateOnlineOrder(_ context.Context, _ common.TenantScope, 
 	return nil
 }
 
+func (f *fakeOrders) FindCustomerIDByPhone(_ context.Context, _ string) (common.ID, bool, error) {
+	return "", false, nil
+}
+
 func (f *fakeOrders) DiscardDraftOrder(_ context.Context, _ common.TenantScope, orderID, customerID common.ID) error {
 	f.discardCalled = true
 	f.discardOrder = orderID

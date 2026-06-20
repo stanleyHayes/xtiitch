@@ -16,6 +16,9 @@ type OrderRepository interface {
 	// CreateOnlineOrder records an online standard order as draft: it is confirmed
 	// at its first stage only when its payment succeeds (see the payment webhook).
 	CreateOnlineOrder(ctx context.Context, scope common.TenantScope, input CreateOnlineOrderInput) error
+	// FindCustomerIDByPhone resolves an existing (non-erased) customer by phone so
+	// repeat guest orders link to one identity; the bool reports a match.
+	FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error)
 	// DiscardDraftOrder removes a still-draft order and the customer row that was
 	// created with it, scoped to the tenant. It compensates a checkout whose
 	// payment could not be raised, so no un-payable draft is left behind.

@@ -97,10 +97,14 @@ func (repo BookingRepository) DiscardHeldBooking(ctx context.Context, scope comm
 	`, orderID.String(), scope.BusinessID.String()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		delete from customers where customer_id = $1
-	`, customerID.String()); err != nil {
-		return err
+	// A customer resolved from an earlier order is shared, so only remove a
+	// freshly-created one (the caller passes a zero id otherwise).
+	if customerID != "" {
+		if _, err := tx.Exec(ctx, `
+			delete from customers where customer_id = $1
+		`, customerID.String()); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)

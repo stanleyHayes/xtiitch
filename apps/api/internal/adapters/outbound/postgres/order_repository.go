@@ -23,6 +23,31 @@ func NewOrderRepository(pool *pgxpool.Pool) OrderRepository {
 	return OrderRepository{pool: pool}
 }
 
+// FindCustomerIDByPhone resolves an existing, non-erased customer by phone so
+// repeat guest orders link to one identity. Customers are platform-wide, so this
+// matches across tenants; the oldest match wins.
+func (repo OrderRepository) FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error) {
+	trimmed := strings.TrimSpace(phone)
+	if trimmed == "" {
+		return "", false, nil
+	}
+	var id string
+	err := repo.pool.QueryRow(ctx, `
+		select customer_id::text
+		from customers
+		where phone = $1 and erased_at is null
+		order by created_at asc
+		limit 1
+	`, trimmed).Scan(&id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return common.ID(id), true, nil
+}
+
 func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.TenantScope, input ports.CreateWalkInOrderInput) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -37,6 +62,10 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, display_name, phone, email)
 		values ($1, $2, $3, $4)
+		on conflict (customer_id) do update
+		set display_name = excluded.display_name,
+			email = case when excluded.email <> '' then excluded.email else customers.email end,
+			updated_at = now()
 	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
 		return err
 	}
@@ -89,6 +118,10 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, display_name, phone, email)
 		values ($1, $2, $3, $4)
+		on conflict (customer_id) do update
+		set display_name = excluded.display_name,
+			email = case when excluded.email <> '' then excluded.email else customers.email end,
+			updated_at = now()
 	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
 		return err
 	}
@@ -128,10 +161,15 @@ func (repo OrderRepository) DiscardDraftOrder(ctx context.Context, scope common.
 	`, orderID.String(), scope.BusinessID.String()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		delete from customers where customer_id = $1
-	`, customerID.String()); err != nil {
-		return err
+	// Only a freshly-created customer (created for this very order) is removed on
+	// rollback; a customer resolved from an earlier order is shared and is left
+	// alone (the caller passes a zero id for that case).
+	if customerID != "" {
+		if _, err := tx.Exec(ctx, `
+			delete from customers where customer_id = $1
+		`, customerID.String()); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
@@ -190,6 +228,10 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, display_name, phone, email)
 		values ($1, $2, $3, $4)
+		on conflict (customer_id) do update
+		set display_name = excluded.display_name,
+			email = case when excluded.email <> '' then excluded.email else customers.email end,
+			updated_at = now()
 	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
 		return err
 	}
@@ -300,6 +342,10 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scop
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, display_name, phone, email)
 		values ($1, $2, $3, $4)
+		on conflict (customer_id) do update
+		set display_name = excluded.display_name,
+			email = case when excluded.email <> '' then excluded.email else customers.email end,
+			updated_at = now()
 	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
 		return err
 	}
@@ -352,10 +398,15 @@ func (repo OrderRepository) DiscardCustomDraftOrder(ctx context.Context, scope c
 	`, orderID.String(), scope.BusinessID.String()); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `
-		delete from customers where customer_id = $1
-	`, customerID.String()); err != nil {
-		return err
+	// Only a freshly-created customer (created for this very order) is removed on
+	// rollback; a customer resolved from an earlier order is shared and is left
+	// alone (the caller passes a zero id for that case).
+	if customerID != "" {
+		if _, err := tx.Exec(ctx, `
+			delete from customers where customer_id = $1
+		`, customerID.String()); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
