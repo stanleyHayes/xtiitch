@@ -23,15 +23,18 @@ jobs:
           go-version-file: apps/api/go.mod
           cache-dependency-path: apps/api/go.sum
 
+      # pnpm must be installed BEFORE setup-node so Node's pnpm cache can resolve
+      # the `pnpm` executable (otherwise: "Unable to locate executable file: pnpm").
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.27.0
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
           node-version: 22
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 10.27.0
+          cache: pnpm
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
