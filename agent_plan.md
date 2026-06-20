@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-18 GMT
+Last updated: 2026-06-20 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -23,6 +23,82 @@ This is the intended product split. Keep new work aligned to these audience boun
 | Marketing          | `apps/marketing`          | Prospective businesses and public visitors     | Explain the product, pricing, trust posture, growth programmes, sponsored discovery, and capture waitlist/contact leads                                | Built with public product/pricing/trust pages, the sponsored placement band, and a `/growth` route covering promotion codes, referral rewards, affiliate links, and sponsored placements                                                                                                                                                                                                                                             |
 | Backend/worker     | `apps/api`, `apps/worker` | Shared system layer                            | Tenant-safe API, payments, catalogue, orders, notifications, and background jobs                                                                      | Built in slices; admin auth/users/roles/settings/audit/business verification/business lifecycle/platform metrics/money-rails/subscription lifecycle/plan-package/promotion/risk-review/support controls are started; notification outbox has dry-run and HTTP provider transports; subscription dunning/grace-expiry sweeps run from admin and worker paths; extra local admin bootstrap users can be seeded through env JSON; production notification provider credentials are pending                                                                                                                                                  |
 | Mobile             | `apps/mobile`             | Customer and business native/web-preview users | Native access mirroring the web split                                                                                                                 | Started: Expo Router app with customer home, sponsored discovery, store browsing, design checkout with promo/referral/affiliate codes, order tracking, business sign-in, order list/detail, stage advancement, balance collection, and walk-in order creation over the existing public/business APIs. Deeper parity, secure native storage, push registration, device QA, and store/team/catalogue/visit/handover management remain future mobile work.                                                           |
+
+## Status Checklist — 2026-06-20 (done / in progress / left)
+
+A quick, scannable ledger of where each feature area stands. ✅ done & verified ·
+🟡 partial/in progress · ⬜ not started. See [FEATURES.md](FEATURES.md) for what
+each feature does and [architecture.md](architecture.md) for where it lives.
+
+| # | Feature area | State | Notes |
+|---|---|:---:|---|
+| 1 | Multi-tenant API + RLS isolation | ✅ | Hexagonal Go API, forced RLS, fails closed |
+| 2 | Business auth (register/login/refresh/logout/me) | ✅ | bcrypt + rotating JWT/refresh |
+| 3 | Team management + roles (owner/admin/staff) | ✅ | incl. owner transfer |
+| 4 | Catalogue (designs, collections, size bands, pricing) | ✅ | Cloudinary direct upload |
+| 5 | Storefront (per-shop, subdomain) | ✅ | customer-first; track, search, related |
+| 6 | Orders + kanban stages + colours | ✅ | dashboard orders MUI table + drawer |
+| 7 | Checkout: standard + bespoke (self/visit/shop) | ✅ | deposits + balance |
+| 8 | Measurements (fields + capture) | ✅ | self-measure + visit/shop entry |
+| 9 | Bookings + availability windows | ✅ | reschedule/cancel |
+| 10 | Delivery / handover (pickup/delivery) | ✅ | advance + cancel |
+| 11 | Payments (Paystack subaccounts, authorization_url) | ✅ | never holds funds; webhook HMAC + idempotent |
+| 12 | Money summary + manual takings | ✅ | through-platform vs offline |
+| 13 | Plans + feature entitlements (free/standard/growth) | ✅ | admin-editable `features` JSON |
+| 14 | Storefront customisation (brand/logo/banner/layout) | ✅ | plan-gated |
+| 15 | Design waitlist | ✅ | storefront join + dashboard view (growth) |
+| 16 | Self-service billing (monthly/yearly) | ✅ | plan change + cycle |
+| 17 | Admin: verification, status, plans, subscriptions | ✅ | MRR + revenue tables |
+| 18 | Admin: promotions, ads, affiliates, referrals | ✅ | ads create now inline |
+| 19 | Admin: risk, support, audit log | ✅ | full audit trail |
+| 20 | Notifications: outbox + worker (email/push) | ✅ | Resend + Expo; WhatsApp/SMS HTTP transport |
+| 21 | Marketing site (product/pricing/trust/growth) | ✅ | + features section refresh (this session) |
+| 22 | Mobile (customer + business lanes) | 🟡 | core flows; native storage/push/QA remain |
+| 23 | Security hardening (headers/rate-limit/CORS/CSP) | ✅ | live-tested incl. 429 burst |
+| 24 | Ghana legal pages (Act 843 / Act 772) | ✅ | privacy + terms |
+| 25 | **Opt-in TOTP MFA (authenticator app)** | 🟡 | **building this session — API + dashboard** |
+| 26 | **Ghana compliance controls (consent, export/erasure)** | 🟡 | **building this session** |
+| 27 | Production notification provider credentials | ⬜ | env/keys pending (ops) |
+| 28 | Researched roadmap (see below) | ⬜ | proposed; prioritised |
+
+### Closed this session (2026-06-19/20)
+- ✅ Route loading: replaced the flashing full-page skeleton with a thin top
+  progress bar across all four web apps (`79e217e`).
+- ✅ Admin ad-placement create form → inline in-section view, not a modal (`bc4db34`).
+- ✅ Heavy demo seed across every plan + billing cycle, with real logins,
+  subscriptions, orders, payments and waitlists; regenerated `credentials.txt`
+  (`f4378d5`).
+- ✅ Project docs: [FEATURES.md](FEATURES.md) and [architecture.md](architecture.md).
+- ✅ cloudflared tunnel to the demo API for Paystack test webhooks.
+
+---
+
+## Researched Feature Roadmap — 2026-06-20
+
+Proposed, prioritised features that would most help an Xtiitch-scale fashion OS
+in Ghana. Grounded in the market (WhatsApp-first, mobile-money-first, intermittent
+connectivity) and in what the codebase already supports. **P0 = building now.**
+None of these may hold customer funds — vouchers/credits must be discount
+entitlements, never stored money.
+
+| Priority | Feature | Why it helps | Build leverage |
+|---|---|---|---|
+| **P0** | **Opt-in TOTP MFA** | Protects owner/operator accounts that control money rails | Reuses existing JWT/auth; add `mfa` table + challenge step |
+| **P0** | **Ghana compliance controls** | Act 843 needs consent capture + data subject access/erasure | Add consent log + export/erasure endpoints |
+| **P1** | **WhatsApp-first order updates** | Ghana runs on WhatsApp; lifts open rates vs email | Outbox already renders WhatsApp templates — needs a prod provider |
+| **P1** | **Mobile money as a first-class channel** | Most Ghanaian payments are MoMo, not card | Paystack supports MoMo; surface it explicitly at checkout |
+| **P1** | **Business analytics dashboard** | Best-sellers, repeat customers, revenue trends drive decisions | Data already in Postgres; add read-model queries |
+| **P2** | **Customer accounts + cross-shop order history** | Repeat customers, faster re-orders, retention | Currently account-free; add optional lightweight customer auth |
+| **P2** | **Reviews & ratings** | Social proof powers discovery + trust | New table + storefront/admin surfaces |
+| **P2** | **Ready-made stock / inventory** | Prevents overselling; auto-routes to waitlist when out | Extend designs with stock + decrement on order |
+| **P2** | **Abandoned-checkout recovery** | Recovers lost bespoke deposits via a WhatsApp nudge | Outbox + a scheduled worker job |
+| **P3** | **VAT-compliant receipts** | Ghana VAT/levy receipts for businesses & customers | Receipt builder off existing payment data |
+| **P3** | **Directory search & filters** | Find shops by city/category/price → more conversions | Index existing business/design data |
+| **P3** | **Returns / alterations workflow** | Tailoring needs fittings/alterations as a first-class flow | New order sub-state + stage |
+| **P3** | **Storefront SEO / social sharing** | Open Graph + sitemaps → organic discovery | Per-shop meta + sitemap route |
+| **P3** | **PWA / offline dashboard** | Shops work through patchy connectivity | Service worker + cached reads |
+
+---
 
 ## Handoff — 2026-06-16 (read this first if you are picking up)
 
