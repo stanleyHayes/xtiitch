@@ -1,4 +1,5 @@
 import type { Config } from "@react-router/dev/config";
+import { vercelPreset } from "@vercel/react-router/vite";
 
 const future = {
   v8_middleware: true,
@@ -13,4 +14,7 @@ export default {
   // weak connections.
   future,
   ssr: true,
+  // Vercel deployment: enables per-route function config, route-aware bundling,
+  // and an accurate deployment summary. https://vercel.com/docs/frameworks/react-router
+  presets: [vercelPreset()],
 } satisfies Config;
