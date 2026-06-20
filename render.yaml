@@ -40,7 +40,10 @@ services:
     maxmemoryPolicy: noeviction # don't drop queued jobs
 
   # ──────────────────────────────────────────────────────────────────────────
-  # Go API — runs DB migrations on boot (goose), then serves on $PORT.
+  # Go API — runs DB migrations on boot (golang-migrate), then serves on $PORT.
+  # The migrations are golang-migrate format (split .up.sql/.down.sql), so the
+  # migrate CLI (not goose) is the right runner. `up` exits 0 on both apply and
+  # no-change, so a real failure stops the boot but restarts proceed.
   # ──────────────────────────────────────────────────────────────────────────
   - type: web
     name: xtiitch-api
@@ -49,8 +52,8 @@ services:
     region: oregon
     rootDir: apps/api
     healthCheckPath: /healthz
-    buildCommand: go build -o xtiitch-api ./cmd/api && GOBIN="$PWD" go install github.com/pressly/goose/v3/cmd/goose@latest
-    startCommand: ./goose -dir ../../infra/migrations postgres "$DATABASE_URL" up && API_HTTP_ADDR=":$PORT" ./xtiitch-api
+    buildCommand: go build -o xtiitch-api ./cmd/api && GOBIN="$PWD" go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+    startCommand: ./migrate -path ../../infra/migrations -database "$DATABASE_URL" up && API_HTTP_ADDR=":$PORT" ./xtiitch-api
     envVars:
       - key: APP_ENV
         value: production

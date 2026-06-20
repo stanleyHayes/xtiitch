@@ -56,8 +56,10 @@ Point these at the API's public URL (default `https://xtiitch-api.onrender.com`)
 
 ## 5. Database migrations
 
-The API runs `goose up` against `infra/migrations` on every boot (built into its
-start command), so the schema is applied automatically.
+The API runs `migrate ... up` (golang-migrate) against `infra/migrations` on
+every boot (built into its start command), so the schema is applied
+automatically. The migrations are golang-migrate format (split
+`.up.sql`/`.down.sql`), which is why golang-migrate — not goose — is the runner.
 
 **One caveat:** migration `000004_rls_app_role` runs `CREATE ROLE xtiitch_app`,
 which requires the database user to have the `CREATEROLE` attribute. Render's
