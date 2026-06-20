@@ -164,17 +164,52 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
         defaultProps: { disableElevation: true },
         styleOverrides: {
           root: {
+            position: "relative",
+            overflow: "hidden",
             borderRadius: buttonRadius,
             paddingInline: 20,
             minHeight: 44,
             boxShadow: "none",
             transition:
-              "transform 180ms ease, box-shadow 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease",
+              "transform 200ms ease, box-shadow 220ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease",
             "&:not(.Mui-disabled):hover": {
-              transform: "translateY(-1px)",
+              transform: "translateY(-2px)",
             },
+            "&:not(.Mui-disabled):active": {
+              transform: "translateY(0)",
+            },
+            // outline (not box-shadow) so the focus ring isn't clipped by the
+            // overflow:hidden that contains the shine sweep.
             "&.Mui-focusVisible": {
-              boxShadow: `0 0 0 3px ${colors.focusRing}`,
+              outline: `3px solid ${colors.focusRing}`,
+              outlineOffset: 2,
+            },
+            "@media (prefers-reduced-motion: reduce)": {
+              transition: "background-color 180ms ease, color 180ms ease",
+              "&:not(.Mui-disabled):hover": { transform: "none" },
+            },
+          },
+          // A diagonal light sweep that glides across filled buttons on hover.
+          contained: {
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              top: 0,
+              left: "-140%",
+              width: "55%",
+              height: "100%",
+              background:
+                "linear-gradient(120deg, transparent, rgba(255,255,255,0.42), transparent)",
+              transform: "skewX(-18deg)",
+              transition: "left 620ms cubic-bezier(0.4, 0, 0.2, 1)",
+              pointerEvents: "none",
+            },
+            "&:not(.Mui-disabled):hover": {
+              boxShadow: `0 16px 34px -18px ${colors.shadow}`,
+              "&::after": { left: "150%" },
+            },
+            "@media (prefers-reduced-motion: reduce)": {
+              "&::after": { display: "none" },
             },
           },
           sizeLarge: {
@@ -197,7 +232,18 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme {
             backgroundColor: colors.surface,
             boxShadow: `0 22px 60px -42px ${colors.shadow}`,
             transition:
-              "transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease",
+              "transform 240ms cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 240ms ease, border-color 240ms ease",
+            // Baseline lift + wine-tinted glow on hover; components with their own
+            // hover treatment override this.
+            "&:hover": {
+              transform: "translateY(-4px)",
+              boxShadow: `0 32px 72px -44px ${colors.shadow}`,
+              borderColor: "rgba(128,0,32,0.22)",
+            },
+            "@media (prefers-reduced-motion: reduce)": {
+              transition: "border-color 200ms ease",
+              "&:hover": { transform: "none" },
+            },
           },
         },
       },
