@@ -56,6 +56,11 @@ type App struct {
 }
 
 func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, error) {
+	// Refuse to start in production with insecure dev defaults or stub providers.
+	if err := validateProductionConfig(cfg); err != nil {
+		return App{}, err
+	}
+
 	adminBootstrapUsers, err := adminBootstrapCommands(cfg)
 	if err != nil {
 		return App{}, err
@@ -112,11 +117,25 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
 	}
 
+	var mediaStore ports.MediaStore
+	if cfg.CloudinaryURL != "" {
+		client, mediaErr := cloudinary.NewClientFromURL(cfg.CloudinaryURL)
+		if mediaErr != nil {
+			db.Close()
+			return App{}, mediaErr
+		}
+		mediaStore = client
+	} else {
+		logger.Warn("cloudinary url not set; using dev media store")
+		mediaStore = cloudinary.NewDevMediaStore()
+	}
+
 	adminAuthService := adminauthapp.NewService(adminauthapp.Dependencies{
 		Users:         adminAuthRepository,
 		Sessions:      adminAuthRepository,
 		Audits:        adminAuthRepository,
 		Businesses:    adminAuthRepository,
+		Media:         mediaStore,
 		Payments:      paymentProvider,
 		Passwords:     authadapter.NewBcryptPasswordHasher(0),
 		AccessTokens:  jwtIssuer,
@@ -153,18 +172,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:        ids.UUIDGenerator{},
 	})
 
-	var mediaStore ports.MediaStore
-	if cfg.CloudinaryURL != "" {
-		client, mediaErr := cloudinary.NewClientFromURL(cfg.CloudinaryURL)
-		if mediaErr != nil {
-			db.Close()
-			return App{}, mediaErr
-		}
-		mediaStore = client
-	} else {
-		logger.Warn("cloudinary url not set; using dev media store")
-		mediaStore = cloudinary.NewDevMediaStore()
-	}
 	mediaService := mediaapp.NewService(mediaStore)
 
 	orderService := orderapp.NewService(orderapp.Dependencies{
@@ -260,6 +267,42 @@ func (a App) Close() {
 	if a.db != nil {
 		a.db.Close()
 	}
+}
+
+// validateProductionConfig fails fast when APP_ENV=production but the process is
+// still configured with insecure dev defaults or stub providers. These fallbacks
+// are deliberate conveniences for local/dev (a fake Paystack, an unsigned media
+// store, a default signing key); shipping them to production would mean fake
+// payment confirmations, tamperable uploads, and forgeable sessions.
+func validateProductionConfig(cfg config.Config) error {
+	if !strings.EqualFold(strings.TrimSpace(cfg.Environment), "production") {
+		return nil
+	}
+
+	var problems []string
+	if cfg.JWTSigningKey == "" || cfg.JWTSigningKey == "change-me-for-local-development" {
+		problems = append(problems, "JWT_SIGNING_KEY must be a strong, non-default secret")
+	}
+	if cfg.MFAEncryptionKey == "" {
+		problems = append(problems, "MFA_ENCRYPTION_KEY must be set (do not silently reuse the JWT signing key for MFA secrets)")
+	}
+	if cfg.PaystackSecretKey == "" {
+		problems = append(problems, "PAYSTACK_SECRET_KEY must be set (the dev payment provider returns fake confirmations)")
+	}
+	if cfg.CloudinaryURL == "" {
+		problems = append(problems, "CLOUDINARY_URL must be set (the dev media store issues unsigned upload signatures)")
+	}
+	if cfg.DatabaseURL == "" || strings.Contains(cfg.DatabaseURL, "xtiitch_app:xtiitch_app@localhost") {
+		problems = append(problems, "DATABASE_URL must point at the production database, not the local default")
+	}
+	if strings.Contains(cfg.DatabaseURL, "sslmode=disable") {
+		problems = append(problems, "DATABASE_URL must not disable TLS (sslmode=disable) in production")
+	}
+
+	if len(problems) == 0 {
+		return nil
+	}
+	return fmt.Errorf("refusing to start: insecure production configuration:\n  - %s", strings.Join(problems, "\n  - "))
 }
 
 type adminBootstrapUserConfig struct {

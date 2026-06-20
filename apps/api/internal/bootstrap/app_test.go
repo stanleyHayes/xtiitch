@@ -62,3 +62,39 @@ func TestAdminBootstrapCommandsRejectsIncompleteExtraUser(t *testing.T) {
 		t.Fatalf("expected missing field error, got %v", err)
 	}
 }
+
+func TestValidateProductionConfig(t *testing.T) {
+	secure := config.Config{
+		Environment:       "production",
+		JWTSigningKey:     "a-strong-production-secret",
+		MFAEncryptionKey:  "a-separate-mfa-secret",
+		PaystackSecretKey: "sk_live_example",
+		CloudinaryURL:     "cloudinary://key:secret@cloud",
+		DatabaseURL:       "postgres://app:strong@db.internal:5432/xtiitch?sslmode=require",
+	}
+
+	if err := validateProductionConfig(secure); err != nil {
+		t.Fatalf("secure production config should pass, got: %v", err)
+	}
+
+	// Non-production never blocks, even with empty defaults.
+	if err := validateProductionConfig(config.Config{Environment: "development"}); err != nil {
+		t.Fatalf("development config should never block startup, got: %v", err)
+	}
+
+	// Production with dev defaults must fail and name each problem.
+	insecure := config.Config{
+		Environment:   "production",
+		JWTSigningKey: "change-me-for-local-development",
+		DatabaseURL:   "postgres://xtiitch_app:xtiitch_app@localhost:5432/xtiitch?sslmode=disable",
+	}
+	err := validateProductionConfig(insecure)
+	if err == nil {
+		t.Fatal("insecure production config should be refused")
+	}
+	for _, want := range []string{"JWT_SIGNING_KEY", "MFA_ENCRYPTION_KEY", "PAYSTACK_SECRET_KEY", "CLOUDINARY_URL", "DATABASE_URL", "sslmode=disable"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("expected error to mention %q, got: %v", want, err)
+		}
+	}
+}
