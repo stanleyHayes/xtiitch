@@ -194,7 +194,7 @@ func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {
 
 	if result.MFARequired {
 		writeJSON(w, http.StatusOK, mfaChallengeResponse{
-			MFARequired:    true,
+			MFARequired:       true,
 			MFAChallengeToken: result.MFAChallengeToken,
 		})
 		return

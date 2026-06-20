@@ -1,6 +1,7 @@
 package authadapter
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,20 +23,26 @@ func TestTOTPGenerateAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode secret: %v", err)
 	}
-	code := m.hotp(key, uint64(now.Unix())/m.period)
+	step := int64(uint64(now.Unix()) / m.period)
+	code := m.hotp(key, uint64(step))
 
-	if !m.VerifyCode(secret, code, now) {
+	matchedStep, ok := m.VerifyCode(secret, code, now, 0)
+	if !ok {
 		t.Fatalf("expected current code to verify")
 	}
-	// Drift tolerance: a code from the previous step still verifies.
-	if !m.VerifyCode(secret, code, now.Add(29*time.Second)) {
-		t.Fatalf("expected adjacent-window code to verify")
+	if matchedStep != step {
+		t.Fatalf("expected matched step %d, got %d", step, matchedStep)
+	}
+	// Replay guard: once the step is consumed (afterStep = step), the same code
+	// must be rejected.
+	if _, ok := m.VerifyCode(secret, code, now, step); ok {
+		t.Fatalf("expected replayed code to be rejected by the step guard")
 	}
 	// A far-off time must not verify the same code.
-	if m.VerifyCode(secret, code, now.Add(10*time.Minute)) {
+	if _, ok := m.VerifyCode(secret, code, now.Add(10*time.Minute), 0); ok {
 		t.Fatalf("expected stale code to fail")
 	}
-	if m.VerifyCode(secret, "000000", now) && code != "000000" {
+	if _, ok := m.VerifyCode(secret, "000000", now, 0); ok && code != "000000" {
 		t.Fatalf("expected wrong code to fail")
 	}
 }
@@ -88,8 +95,10 @@ func TestTOTPBackupCodes(t *testing.T) {
 		}
 		seen[c] = true
 	}
-	// Hashing is stable and case/format-insensitive.
-	if m.HashBackupCode(codes[0]) != m.HashBackupCode(codes[0]) {
-		t.Fatalf("hash not stable")
+	// Hashing normalises case and dashes, so a lower-cased, dash-stripped code
+	// hashes to the same value the user was shown.
+	normalized := strings.ToLower(strings.ReplaceAll(codes[0], "-", ""))
+	if m.HashBackupCode(codes[0]) != m.HashBackupCode(normalized) {
+		t.Fatalf("backup-code hash should be normalisation-insensitive")
 	}
 }

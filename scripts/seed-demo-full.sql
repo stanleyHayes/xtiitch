@@ -65,15 +65,18 @@ on conflict (business_id) do update
       operational_status = 'active',
       updated_at = now();
 
--- 2) Storefront customization (only honoured where the plan grants it) ------
-update store_settings ss
-set brand_color    = d.brand_color,
-    logo_url       = d.logo_url,
-    banner_url     = d.banner_url,
-    layout_variant = d.layout_variant,
-    updated_at     = now()
+-- 2) Storefront customization (only honoured where the plan grants it). Upsert
+--    so it applies even when a store_settings row was never created (e.g. shops
+--    seeded by raw SQL rather than the registration flow).
+insert into store_settings (business_id, brand_color, logo_url, banner_url, layout_variant)
+select d.business_id, d.brand_color, d.logo_url, d.banner_url, d.layout_variant
 from tmp_demo d
-where ss.business_id = d.business_id;
+on conflict (business_id) do update
+set brand_color    = excluded.brand_color,
+    logo_url       = excluded.logo_url,
+    banner_url     = excluded.banner_url,
+    layout_variant = excluded.layout_variant,
+    updated_at     = now();
 
 -- 3) Logins. Owner for every shop; admin + staff for the two growth flagships.
 --    Deterministic ids → re-runs just refresh the password hash.

@@ -71,11 +71,20 @@ export async function action({ request }: Route.ActionArgs) {
   const intent = String(form.get("intent") ?? "");
   const auth = { Authorization: `Bearer ${access}` };
 
+  // An expired/revoked access token surfaces as 401 on these POSTs; send the
+  // user back to sign in rather than showing a misleading "wrong code" error.
+  const redirectIfUnauthorized = (response: Response) => {
+    if (response.status === 401) {
+      throw redirect("/login");
+    }
+  };
+
   if (intent === "setup") {
     const response = await fetchApi("/auth/business/mfa/setup", {
       method: "POST",
       headers: auth,
     });
+    redirectIfUnauthorized(response);
     if (!response.ok) {
       return { error: "Could not start setup. Try again." };
     }
@@ -93,6 +102,7 @@ export async function action({ request }: Route.ActionArgs) {
       headers: { ...auth, "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
     });
+    redirectIfUnauthorized(response);
     if (!response.ok) {
       return { error: "That code didn't match. Check the time on your phone and try again." };
     }
@@ -107,6 +117,7 @@ export async function action({ request }: Route.ActionArgs) {
       headers: { ...auth, "Content-Type": "application/json" },
       body: JSON.stringify({ code }),
     });
+    redirectIfUnauthorized(response);
     if (!response.ok) {
       return { error: "That code didn't match, so two-step is still on." };
     }

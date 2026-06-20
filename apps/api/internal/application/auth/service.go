@@ -26,6 +26,10 @@ const (
 	// mfaChallengeTTL bounds how long a password-verified caller has to present
 	// their second factor before the challenge token expires.
 	mfaChallengeTTL = 5 * time.Minute
+	// MFA verification lockout: after this many consecutive bad codes the account
+	// is locked from MFA verification for the duration, to bound brute force.
+	mfaMaxFailedAttempts = 5
+	mfaLockoutDuration   = 15 * time.Minute
 )
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
@@ -679,7 +683,8 @@ func (s Service) ActivateMFA(ctx context.Context, scope common.TenantScope, user
 	if err != nil {
 		return nil, err
 	}
-	if !s.mfaSecrets.VerifyCode(secret, code, s.clock.Now()) {
+	step, ok := s.mfaSecrets.VerifyCode(secret, code, s.clock.Now(), enrollment.LastUsedStep)
+	if !ok {
 		return nil, authdomain.ErrInvalidMFACode
 	}
 
@@ -694,6 +699,7 @@ func (s Service) ActivateMFA(ctx context.Context, scope common.TenantScope, user
 	if err := s.mfa.Enable(ctx, scope, ports.EnableMFAInput{
 		UserID:           userID,
 		BackupCodeHashes: hashes,
+		LastUsedStep:     step,
 	}); err != nil {
 		return nil, err
 	}
@@ -717,7 +723,7 @@ func (s Service) DisableMFA(ctx context.Context, scope common.TenantScope, userI
 		return authdomain.ErrMFANotEnabled
 	}
 
-	ok, err := s.verifyMFAFactor(ctx, scope, userID, enrollment.SecretEncrypted, code)
+	ok, err := s.verifyMFAFactor(ctx, scope, enrollment, code)
 	if err != nil {
 		return err
 	}
@@ -753,7 +759,13 @@ func (s Service) VerifyMFALogin(ctx context.Context, cmd VerifyMFALoginCommand) 
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
 
-	ok, err := s.verifyMFAFactor(ctx, scope, verified.Subject, enrollment.SecretEncrypted, cmd.Code)
+	// Re-confirm the user is still active: they may have been deactivated during
+	// the (up to 5-minute) challenge window.
+	if !s.businessUserActive(ctx, scope, verified.Subject) {
+		return AuthResult{}, authdomain.ErrInvalidCredentials
+	}
+
+	ok, err := s.verifyMFAFactor(ctx, scope, enrollment, cmd.Code)
 	if err != nil {
 		return AuthResult{}, err
 	}
@@ -770,17 +782,60 @@ func (s Service) VerifyMFALogin(ctx context.Context, cmd VerifyMFALoginCommand) 
 	})
 }
 
-// verifyMFAFactor accepts either a valid current TOTP code or an unused backup
-// code (which it consumes).
-func (s Service) verifyMFAFactor(ctx context.Context, scope common.TenantScope, userID common.ID, secretEncrypted []byte, code string) (bool, error) {
-	secret, err := s.mfaSecrets.DecryptSecret(secretEncrypted)
+// verifyMFAFactor accepts either a valid current TOTP code (not previously used,
+// per the last-used-step replay guard) or an unused backup code (which it
+// consumes). It enforces a per-account lockout after repeated failures, and on
+// success advances the replay guard / clears the lockout counter.
+func (s Service) verifyMFAFactor(ctx context.Context, scope common.TenantScope, enrollment ports.MFAEnrollment, code string) (bool, error) {
+	now := s.clock.Now()
+	if !enrollment.LockedUntil.IsZero() && now.Before(enrollment.LockedUntil) {
+		// Locked out: refuse without consuming the code, surfaced as invalid.
+		return false, nil
+	}
+
+	secret, err := s.mfaSecrets.DecryptSecret(enrollment.SecretEncrypted)
 	if err != nil {
 		return false, err
 	}
-	if s.mfaSecrets.VerifyCode(secret, code, s.clock.Now()) {
+
+	if step, ok := s.mfaSecrets.VerifyCode(secret, code, now, enrollment.LastUsedStep); ok {
+		if err := s.mfa.MarkVerified(ctx, scope, enrollment.UserID, step); err != nil {
+			return false, err
+		}
 		return true, nil
 	}
-	return s.mfa.ConsumeBackupCode(ctx, scope, userID, s.mfaSecrets.HashBackupCode(code))
+
+	consumed, err := s.mfa.ConsumeBackupCode(ctx, scope, enrollment.UserID, s.mfaSecrets.HashBackupCode(code))
+	if err != nil {
+		return false, err
+	}
+	if consumed {
+		// Reset the lockout counter (step is unchanged for backup codes).
+		if err := s.mfa.MarkVerified(ctx, scope, enrollment.UserID, enrollment.LastUsedStep); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+
+	if _, err := s.mfa.RegisterFailedAttempt(ctx, scope, enrollment.UserID, mfaMaxFailedAttempts, mfaLockoutDuration); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+// businessUserActive reports whether the user still exists and is active in the
+// tenant. Used to re-confirm at MFA-login time.
+func (s Service) businessUserActive(ctx context.Context, scope common.TenantScope, userID common.ID) bool {
+	users, err := s.businesses.ListBusinessUsers(ctx, scope)
+	if err != nil {
+		return false
+	}
+	for _, u := range users {
+		if u.UserID == userID {
+			return u.IsActive
+		}
+	}
+	return false
 }
 
 // mfaAccountName resolves a human label for the authenticator entry (the user's

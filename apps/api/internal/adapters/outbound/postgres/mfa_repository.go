@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -37,6 +38,7 @@ func (repo MFARepository) Get(ctx context.Context, scope common.TenantScope, use
 	}
 
 	var enrollment ports.MFAEnrollment
+	var lockedUntil *time.Time
 	if err := tx.QueryRow(ctx, `
 		select
 			business_id::text,
@@ -46,7 +48,9 @@ func (repo MFARepository) Get(ctx context.Context, scope common.TenantScope, use
 			coalesce((
 				select count(*) from jsonb_array_elements(backup_codes) el
 				where el->>'used_at' is null
-			), 0) as remaining
+			), 0) as remaining,
+			last_used_step,
+			locked_until
 		from business_user_mfa
 		where business_user_id = $1
 	`, userID.String()).Scan(
@@ -55,6 +59,8 @@ func (repo MFARepository) Get(ctx context.Context, scope common.TenantScope, use
 		&enrollment.Enabled,
 		&enrollment.BackupCodesTotal,
 		&enrollment.BackupCodesLeft,
+		&enrollment.LastUsedStep,
+		&lockedUntil,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.MFAEnrollment{}, ports.ErrNotFound
@@ -62,6 +68,9 @@ func (repo MFARepository) Get(ctx context.Context, scope common.TenantScope, use
 		return ports.MFAEnrollment{}, err
 	}
 	enrollment.UserID = userID
+	if lockedUntil != nil {
+		enrollment.LockedUntil = *lockedUntil
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.MFAEnrollment{}, err
@@ -124,9 +133,12 @@ func (repo MFARepository) Enable(ctx context.Context, scope common.TenantScope, 
 		set enabled = true,
 			confirmed_at = now(),
 			backup_codes = $2::jsonb,
+			last_used_step = greatest(last_used_step, $3),
+			failed_attempts = 0,
+			locked_until = null,
 			updated_at = now()
 		where business_user_id = $1
-	`, input.UserID.String(), string(encoded))
+	`, input.UserID.String(), string(encoded), input.LastUsedStep)
 	if err != nil {
 		return err
 	}
@@ -135,6 +147,72 @@ func (repo MFARepository) Enable(ctx context.Context, scope common.TenantScope, 
 	}
 
 	return tx.Commit(ctx)
+}
+
+// MarkVerified advances the replay guard to usedStep and clears the lockout
+// counter after a successful second factor.
+func (repo MFARepository) MarkVerified(ctx context.Context, scope common.TenantScope, userID common.ID, usedStep int64) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update business_user_mfa
+		set last_used_step = greatest(last_used_step, $2),
+			failed_attempts = 0,
+			locked_until = null,
+			updated_at = now()
+		where business_user_id = $1
+	`, userID.String(), usedStep); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// RegisterFailedAttempt increments the failed-attempt counter; on reaching
+// threshold it sets a lockout of lockFor and resets the counter. It returns the
+// lockout deadline (zero when not locked).
+func (repo MFARepository) RegisterFailedAttempt(ctx context.Context, scope common.TenantScope, userID common.ID, threshold int, lockFor time.Duration) (time.Time, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return time.Time{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return time.Time{}, err
+	}
+
+	var lockedUntil *time.Time
+	if err := tx.QueryRow(ctx, `
+		update business_user_mfa
+		set failed_attempts = case when failed_attempts + 1 >= $2 then 0 else failed_attempts + 1 end,
+			locked_until = case when failed_attempts + 1 >= $2 then now() + make_interval(secs => $3) else locked_until end,
+			updated_at = now()
+		where business_user_id = $1
+		returning locked_until
+	`, userID.String(), threshold, int64(lockFor.Seconds())).Scan(&lockedUntil); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, nil
+		}
+		return time.Time{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return time.Time{}, err
+	}
+
+	if lockedUntil != nil {
+		return *lockedUntil, nil
+	}
+	return time.Time{}, nil
 }
 
 func (repo MFARepository) ConsumeBackupCode(ctx context.Context, scope common.TenantScope, userID common.ID, codeHash string) (bool, error) {
@@ -167,7 +245,7 @@ func (repo MFARepository) ConsumeBackupCode(ctx context.Context, scope common.Te
 	for i := range codes {
 		if codes[i].Hash == codeHash && codes[i].UsedAt == nil {
 			matched = true
-			used := timeNowMarker
+			used := time.Now().UTC().Format(time.RFC3339)
 			codes[i].UsedAt = &used
 			break
 		}
@@ -195,11 +273,6 @@ func (repo MFARepository) ConsumeBackupCode(ctx context.Context, scope common.Te
 
 	return true, nil
 }
-
-// timeNowMarker records that a backup code was consumed. The exact timestamp is
-// not security-relevant (the code is one-time regardless), so a stable marker
-// keeps the read-modify-write simple and deterministic.
-const timeNowMarker = "used"
 
 func (repo MFARepository) Delete(ctx context.Context, scope common.TenantScope, userID common.ID) error {
 	tx, err := repo.pool.Begin(ctx)

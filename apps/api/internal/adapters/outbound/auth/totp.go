@@ -71,8 +71,10 @@ func (m TOTPManager) GenerateSecret() (string, error) {
 
 // ProvisioningURI builds the otpauth:// URI an authenticator app scans. The
 // client renders it as a QR code; nothing here ever leaves the server otherwise.
+// The "Issuer:account" label keeps the colon literal (per the otpauth spec) and
+// escapes the two parts independently.
 func (m TOTPManager) ProvisioningURI(secret string, accountName string) string {
-	label := url.PathEscape(m.issuer + ":" + accountName)
+	label := url.PathEscape(m.issuer) + ":" + url.PathEscape(accountName)
 	q := url.Values{}
 	q.Set("secret", secret)
 	q.Set("issuer", m.issuer)
@@ -83,28 +85,30 @@ func (m TOTPManager) ProvisioningURI(secret string, accountName string) string {
 }
 
 // VerifyCode checks a user-entered code against the secret, accepting the step
-// for `now` and ±skew adjacent steps to tolerate clock drift. Comparison is
-// constant-time.
-func (m TOTPManager) VerifyCode(secret string, code string, now time.Time) bool {
+// for `now` and ±skew adjacent steps to tolerate clock drift. To prevent replay
+// (RFC 6238 §5.2) it only accepts steps strictly greater than afterStep (the
+// last step the account already consumed) and returns the matched step so the
+// caller can persist it. Comparison is constant-time.
+func (m TOTPManager) VerifyCode(secret string, code string, now time.Time, afterStep int64) (int64, bool) {
 	code = strings.TrimSpace(code)
 	if len(code) != m.digits {
-		return false
+		return 0, false
 	}
 	key, err := base32NoPad.DecodeString(strings.ToUpper(strings.TrimSpace(secret)))
 	if err != nil {
-		return false
+		return 0, false
 	}
-	counter := uint64(now.Unix()) / m.period
+	counter := int64(uint64(now.Unix()) / m.period)
 	for offset := -m.skew; offset <= m.skew; offset++ {
-		step := int64(counter) + offset
-		if step < 0 {
+		step := counter + offset
+		if step < 0 || step <= afterStep {
 			continue
 		}
 		if subtle.ConstantTimeCompare([]byte(m.hotp(key, uint64(step))), []byte(code)) == 1 {
-			return true
+			return step, true
 		}
 	}
-	return false
+	return 0, false
 }
 
 // hotp computes the RFC 4226 HMAC-SHA1 one-time password for a counter.
@@ -133,20 +137,35 @@ const backupCodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 func (m TOTPManager) GenerateBackupCodes() ([]string, error) {
 	codes := make([]string, 0, m.codeNum)
 	for i := 0; i < m.codeNum; i++ {
-		buf := make([]byte, m.codeLen)
-		if _, err := rand.Read(buf); err != nil {
-			return nil, err
-		}
 		var b strings.Builder
-		for j, c := range buf {
+		for j := 0; j < m.codeLen; j++ {
 			if j == m.codeLen/2 {
 				b.WriteByte('-')
 			}
-			b.WriteByte(backupCodeAlphabet[int(c)%len(backupCodeAlphabet)])
+			idx, err := randIndex(len(backupCodeAlphabet))
+			if err != nil {
+				return nil, err
+			}
+			b.WriteByte(backupCodeAlphabet[idx])
 		}
 		codes = append(codes, b.String())
 	}
 	return codes, nil
+}
+
+// randIndex returns a uniform random index in [0, n) using rejection sampling,
+// avoiding the modulo bias of `randomByte % n` in a security primitive.
+func randIndex(n int) (int, error) {
+	limit := 256 - (256 % n)
+	buf := make([]byte, 1)
+	for {
+		if _, err := rand.Read(buf); err != nil {
+			return 0, err
+		}
+		if int(buf[0]) < limit {
+			return int(buf[0]) % n, nil
+		}
+	}
 }
 
 // HashBackupCode hashes a backup code for storage/comparison. Backup codes are

@@ -42,7 +42,12 @@ export async function action({ request }: Route.ActionArgs) {
     const code = String(form.get("code") ?? "").trim();
     const challenge = session.get("mfaChallenge");
     if (!challenge) {
-      return { error: "Your verification step expired. Please sign in again." };
+      // Drop any stale challenge reference and fall back to the password form.
+      session.unset("mfaChallenge");
+      return data(
+        { error: "Your verification step expired. Please sign in again." },
+        { headers: { "Set-Cookie": await commitSession(session) } },
+      );
     }
     let response: Response;
     try {
