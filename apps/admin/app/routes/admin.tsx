@@ -1,4 +1,11 @@
-import { Form, redirect, useSearchParams, useSubmit } from "react-router";
+import {
+  Form,
+  redirect,
+  useNavigation,
+  useSearchParams,
+  useSubmit,
+  type ShouldRevalidateFunctionArgs,
+} from "react-router";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -35,7 +42,10 @@ import ListItemIcon from "@mui/material/ListItemIcon";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Pagination from "@mui/material/Pagination";
+import LinearProgress from "@mui/material/LinearProgress";
+import Skeleton from "@mui/material/Skeleton";
 import Paper from "@mui/material/Paper";
+import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
@@ -538,6 +548,21 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
+// Switching dashboard sections only changes the `?section=` query param. Refetching
+// every admin resource for that is what makes the UI lurch, so skip revalidation on
+// same-path GET navigations; action submissions still revalidate normally.
+export function shouldRevalidate({
+  currentUrl,
+  nextUrl,
+  formMethod,
+  defaultShouldRevalidate,
+}: ShouldRevalidateFunctionArgs) {
+  if (!formMethod && currentUrl.pathname === nextUrl.pathname) {
+    return false;
+  }
+  return defaultShouldRevalidate;
+}
+
 type AdminLoadResult<T> = {
   data: T;
   error: string | null;
@@ -617,6 +642,7 @@ function fallbackPlatformSettings(): AdminPlatformSettings {
     verificationSlaHours: 24,
     payoutReviewThresholdPesewas: 500000,
     maintenanceMode: false,
+    brandLogoUrl: "",
   };
 }
 
@@ -826,6 +852,41 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+// Mirrors the storefront design-upload flow: ask the API for a signed Cloudinary
+// payload (owner-gated), push the file straight to Cloudinary, and hand back the
+// hosted secure URL to persist as the platform brand logo.
+async function uploadBrandLogo(
+  accessToken: string,
+  file: File,
+): Promise<string | null> {
+  const signature = await adminApi.signBrandingUpload(accessToken);
+  if (signature.cloud_name === "demo" && signature.api_key === "demo") {
+    return null;
+  }
+  const uploadForm = new FormData();
+  uploadForm.set("file", file);
+  uploadForm.set("api_key", signature.api_key);
+  uploadForm.set("timestamp", String(signature.timestamp));
+  uploadForm.set("signature", signature.signature);
+  if (signature.folder) {
+    uploadForm.set("folder", signature.folder);
+  }
+  const response = await fetch(
+    `https://api.cloudinary.com/v1_1/${encodeURIComponent(
+      signature.cloud_name,
+    )}/image/upload`,
+    { method: "POST", body: uploadForm },
+  );
+  if (!response.ok) {
+    return null;
+  }
+  const result = (await response.json()) as {
+    secure_url?: string;
+    url?: string;
+  };
+  return result.secure_url ?? result.url ?? null;
+}
+
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
@@ -929,6 +990,18 @@ export async function action({ request }: Route.ActionArgs) {
         };
       }
 
+      let brandLogoUrl = String(form.get("brand_logo_url") ?? "");
+      if (readBoolean(form, "remove_brand_logo")) {
+        brandLogoUrl = "";
+      } else {
+        const logoFile = form.get("brand_logo_file");
+        if (logoFile instanceof File && logoFile.size > 0) {
+          const uploaded = await uploadBrandLogo(accessToken, logoFile);
+          if (uploaded) {
+            brandLogoUrl = uploaded;
+          }
+        }
+      }
       await adminApi.updatePlatformSettings(accessToken, {
         platformName: String(form.get("platform_name") ?? ""),
         supportEmail: String(form.get("support_email") ?? ""),
@@ -939,6 +1012,7 @@ export async function action({ request }: Route.ActionArgs) {
           form.get("payout_review_threshold_ghs"),
         ),
         maintenanceMode: readBoolean(form, "maintenance_mode"),
+        brandLogoUrl,
       });
       return {
         section: "settings",
@@ -3002,6 +3076,79 @@ function Panel({ children, sx }: { children: ReactNode; sx?: SxProps<Theme> }) {
   );
 }
 
+const ADMIN_PAGE_SIZE = 8;
+
+function usePagedItems<T>(
+  items: T[],
+  pageSize = ADMIN_PAGE_SIZE,
+  resetKey: string | number = "",
+) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page, pageSize]);
+
+  return { page, pageCount, pagedItems, setPage };
+}
+
+function PaginationFooter({
+  count,
+  label,
+  page,
+  pageSize = ADMIN_PAGE_SIZE,
+  total,
+  onChange,
+}: {
+  count: number;
+  label: string;
+  page: number;
+  pageSize?: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  if (total <= pageSize) {
+    return null;
+  }
+
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
+
+  return (
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={1.25}
+      sx={{
+        alignItems: { xs: "stretch", sm: "center" },
+        justifyContent: "space-between",
+        pt: 1,
+      }}
+    >
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        Showing {start}-{end} of {total} {label}
+      </Typography>
+      <Pagination
+        count={count}
+        page={page}
+        onChange={(_event, value) => onChange(value)}
+        color="primary"
+        shape="rounded"
+        size="small"
+      />
+    </Stack>
+  );
+}
+
 function MetricCard({
   label,
   value,
@@ -3401,6 +3548,12 @@ function CustomerDirectoryPanel({
     (sum, customer) => sum + customer.gmvMinor,
     0,
   );
+  const {
+    page: customerPage,
+    pageCount: customerPageCount,
+    pagedItems: pagedCustomers,
+    setPage: setCustomerPage,
+  } = usePagedItems(visibleCustomers, 10, query);
 
   return (
     <Stack spacing={2.5}>
@@ -3469,11 +3622,21 @@ function CustomerDirectoryPanel({
           </Typography>
         </Panel>
       ) : (
-        <CustomerTable
-          customers={visibleCustomers}
-          selectedId={selectedCustomer?.id ?? null}
-          onInspect={onInspect}
-        />
+        <Stack spacing={1.5}>
+          <CustomerTable
+            customers={pagedCustomers}
+            selectedId={selectedCustomer?.id ?? null}
+            onInspect={onInspect}
+          />
+          <PaginationFooter
+            count={customerPageCount}
+            label="customers"
+            page={customerPage}
+            pageSize={10}
+            total={visibleCustomers.length}
+            onChange={setCustomerPage}
+          />
+        </Stack>
       )}
       <Drawer
         anchor="right"
@@ -4289,6 +4452,102 @@ function DetailLine({ label, value }: { label: string; value: string }) {
   );
 }
 
+function CardDetailAction({
+  onClick,
+  label = "View details",
+  hint,
+}: {
+  onClick: () => void;
+  label?: string;
+  hint?: string;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.5}
+      sx={{
+        mt: 0.5,
+        pt: 1.5,
+        borderTop: "1px solid",
+        borderColor: alpha(tokens.ink, 0.08),
+        alignItems: "center",
+        justifyContent: hint ? "space-between" : "flex-end",
+        flexWrap: "wrap",
+        rowGap: 1,
+      }}
+    >
+      {hint ? (
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {hint}
+        </Typography>
+      ) : null}
+      <Button
+        variant="outlined"
+        endIcon={<ArrowForwardRounded />}
+        onClick={onClick}
+        sx={{
+          borderRadius: 999,
+          px: 2.5,
+          fontWeight: 800,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+      </Button>
+    </Stack>
+  );
+}
+
+// Shown while the loader is fetching a fresh dataset so the content area holds its
+// shape instead of flashing empty or jumping when the new data lands.
+function SectionSkeleton() {
+  return (
+    <Stack spacing={2.5} aria-busy="true" aria-label="Loading section">
+      <Stack spacing={0.75} sx={{ pl: 2 }}>
+        <Skeleton variant="text" width={120} height={18} />
+        <Skeleton variant="text" width={240} height={34} />
+        <Skeleton variant="text" width={360} height={18} />
+      </Stack>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            xl: "repeat(4, 1fr)",
+          },
+        }}
+      >
+        {[0, 1, 2, 3].map((key) => (
+          <Skeleton
+            key={key}
+            variant="rounded"
+            height={118}
+            sx={{ borderRadius: 2 }}
+          />
+        ))}
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+        }}
+      >
+        {[0, 1].map((key) => (
+          <Skeleton
+            key={key}
+            variant="rounded"
+            height={260}
+            sx={{ borderRadius: 2 }}
+          />
+        ))}
+      </Box>
+    </Stack>
+  );
+}
+
 function NotificationsSection({
   notifications,
   notificationsError,
@@ -4335,6 +4594,12 @@ function NotificationsSection({
   const visibleNotifications = notifications.filter(
     (notification) => filter === "all" || notification.category === filter,
   );
+  const {
+    page: notificationPage,
+    pageCount: notificationPageCount,
+    pagedItems: pagedNotifications,
+    setPage: setNotificationPage,
+  } = usePagedItems(visibleNotifications, 6, filter);
   const categoryRows = notificationFilters
     .filter(
       (
@@ -4509,7 +4774,7 @@ function NotificationsSection({
         }}
       >
         <Stack spacing={1.5}>
-          {visibleNotifications.map((notification) => {
+          {pagedNotifications.map((notification) => {
             const color = notificationToneColor(notification.tone);
             const watched = notificationCategoryWatched(
               notification.category,
@@ -4614,6 +4879,14 @@ function NotificationsSection({
               </Panel>
             );
           })}
+          <PaginationFooter
+            count={notificationPageCount}
+            label="alerts"
+            page={notificationPage}
+            pageSize={6}
+            total={visibleNotifications.length}
+            onChange={setNotificationPage}
+          />
           {visibleNotifications.length === 0 ? (
             <Panel sx={{ p: 3, textAlign: "center" }}>
               <Typography sx={{ fontWeight: 900 }}>
@@ -5050,6 +5323,12 @@ function ReportsSection({
   ];
   const reportItems =
     backendReportItems.length > 0 ? backendReportItems : derivedReportItems;
+  const {
+    page: reportPage,
+    pageCount: reportPageCount,
+    pagedItems: pagedReportItems,
+    setPage: setReportPage,
+  } = usePagedItems(reportItems, 7, backendReportItems.length);
   const blockedCount = reportItems.filter(
     (item) => item.status === "blocked",
   ).length;
@@ -5134,7 +5413,7 @@ function ReportsSection({
             </Stack>
             <Divider />
             <Stack spacing={1.25}>
-              {reportItems.map((item) => {
+              {pagedReportItems.map((item) => {
                 const color = reportStatusColor(item.status);
                 return (
                   <Box
@@ -5208,6 +5487,14 @@ function ReportsSection({
                 );
               })}
             </Stack>
+            <PaginationFooter
+              count={reportPageCount}
+              label="report rows"
+              page={reportPage}
+              pageSize={7}
+              total={reportItems.length}
+              onChange={setReportPage}
+            />
           </Stack>
         </Panel>
 
@@ -8052,22 +8339,42 @@ function SubscriptionsSection({
       typeof subscription.designLimit === "number" &&
       subscription.designCount > subscription.designLimit,
   );
-  const attentionRows = subscriptions
-    .filter(
-      (subscription) =>
-        subscription.status === "past_due" ||
-        subscription.status === "grace_period" ||
-        subscription.status === "cancel_at_period_end" ||
-        (typeof subscription.designLimit === "number" &&
-          subscription.designCount > subscription.designLimit) ||
-        (subscription.monthlyFeeMinor > 0 &&
-          subscription.billingMode !== "recurring") ||
-        (subscription.planCode === "free" && subscription.gmvMinor >= 50000),
-    )
-    .slice(0, 10);
+  const attentionRows = subscriptions.filter(
+    (subscription) =>
+      subscription.status === "past_due" ||
+      subscription.status === "grace_period" ||
+      subscription.status === "cancel_at_period_end" ||
+      (typeof subscription.designLimit === "number" &&
+        subscription.designCount > subscription.designLimit) ||
+      (subscription.monthlyFeeMinor > 0 &&
+        subscription.billingMode !== "recurring") ||
+      (subscription.planCode === "free" && subscription.gmvMinor >= 50000),
+  );
   const lifecycleRows = attentionRows.length
     ? attentionRows
-    : subscriptions.slice(0, 10);
+    : subscriptions;
+  const {
+    page: planPage,
+    pageCount: planPageCount,
+    pagedItems: pagedPlans,
+    setPage: setPlanPage,
+  } = usePagedItems(plans, 4, plans.length);
+  const {
+    page: planRowPage,
+    pageCount: planRowPageCount,
+    pagedItems: pagedPlanRows,
+    setPage: setPlanRowPage,
+  } = usePagedItems(planRows, 8, visiblePlans.length);
+  const {
+    page: lifecyclePage,
+    pageCount: lifecyclePageCount,
+    pagedItems: pagedLifecycleRows,
+    setPage: setLifecyclePage,
+  } = usePagedItems(
+    lifecycleRows,
+    4,
+    `${attentionRows.length}:${subscriptions.length}`,
+  );
   const recentEvents = subscriptions
     .flatMap((subscription) =>
       subscription.events.map((event) => ({
@@ -8531,7 +8838,7 @@ function SubscriptionsSection({
             gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
           }}
         >
-          {plans.map((plan) => {
+          {pagedPlans.map((plan) => {
             const visual = planVisualFor(plan.code);
             return (
               <Panel
@@ -8885,6 +9192,16 @@ function SubscriptionsSection({
           })}
         </Box>
       ) : null}
+      {!plansError && plans.length > 0 ? (
+        <PaginationFooter
+          count={planPageCount}
+          label="packages"
+          page={planPage}
+          pageSize={4}
+          total={plans.length}
+          onChange={setPlanPage}
+        />
+      ) : null}
 
       <Stack spacing={1} sx={{ mt: 1 }}>
         <Typography variant="h6">Revenue by package</Typography>
@@ -8924,7 +9241,7 @@ function SubscriptionsSection({
             ),
           )}
         </Box>
-        {planRows.map((row) => (
+        {pagedPlanRows.map((row) => (
           <Box
             key={row.plan.code}
             sx={{
@@ -8972,6 +9289,14 @@ function SubscriptionsSection({
           </Box>
         ))}
       </Panel>
+      <PaginationFooter
+        count={planRowPageCount}
+        label="package revenue rows"
+        page={planRowPage}
+        pageSize={8}
+        total={planRows.length}
+        onChange={setPlanRowPage}
+      />
 
       <Box
         sx={{
@@ -9015,7 +9340,7 @@ function SubscriptionsSection({
                 No subscriptions are ready to manage yet.
               </Alert>
             ) : null}
-            {lifecycleRows.map((subscription) => {
+            {pagedLifecycleRows.map((subscription) => {
               const color = subscriptionStatusColor(subscription.status);
               const openInvoice = subscription.invoices.find(
                 (invoice) => invoice.status === "issued",
@@ -9624,6 +9949,14 @@ function SubscriptionsSection({
                 </Box>
               );
             })}
+            <PaginationFooter
+              count={lifecyclePageCount}
+              label="subscription rows"
+              page={lifecyclePage}
+              pageSize={4}
+              total={lifecycleRows.length}
+              onChange={setLifecyclePage}
+            />
           </Stack>
         </Panel>
 
@@ -9781,6 +10114,16 @@ function PromotionsSection({
       );
     });
   }, [promotions, query, scopeFilter, statusFilter]);
+  const {
+    page: promotionPage,
+    pageCount: promotionPageCount,
+    pagedItems: pagedPromotions,
+    setPage: setPromotionPage,
+  } = usePagedItems(
+    filteredPromotions,
+    6,
+    `${query}:${statusFilter}:${scopeFilter}`,
+  );
   const selectedPromotion =
     promotions.find((promotion) => promotion.promotionId === detailID) ?? null;
 
@@ -9924,143 +10267,165 @@ function PromotionsSection({
       ) : null}
 
       {!promotionsError && filteredPromotions.length > 0 ? (
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2,
-            gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
-            alignItems: "start",
-          }}
-        >
-          {filteredPromotions.map((promotion) => {
-            const archived = promotion.status === "archived";
-            const color = promotionStatusColor(promotion.status);
+        <Stack spacing={1.5}>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 2,
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "repeat(2, minmax(0, 1fr))",
+              },
+              alignItems: "start",
+            }}
+          >
+            {pagedPromotions.map((promotion) => {
+              const archived = promotion.status === "archived";
+              const color = promotionStatusColor(promotion.status);
 
-            return (
-              <Panel
-                key={promotion.promotionId}
-                sx={{
-                  p: { xs: 2, md: 2.5 },
-                  borderColor: alpha(color, archived ? 0.12 : 0.2),
-                  backgroundImage: `linear-gradient(180deg, ${alpha(
-                    color,
-                    archived ? 0.035 : 0.075,
-                  )}, transparent 42%)`,
-                }}
-              >
-                <Stack spacing={1.5}>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={1.25}
-                    sx={{
-                      justifyContent: "space-between",
-                      alignItems: { sm: "flex-start" },
-                    }}
-                  >
-                    <Box sx={{ minWidth: 0 }}>
-                      <Stack
-                        direction="row"
-                        spacing={1}
-                        sx={{ alignItems: "center", flexWrap: "wrap" }}
-                      >
-                        <Typography variant="h6">{promotion.title}</Typography>
-                        {promotion.code ? (
-                          <Chip size="small" label={promotion.code} />
-                        ) : (
-                          <Chip size="small" label="Auto code" />
-                        )}
-                      </Stack>
-                      <Typography
-                        variant="body2"
-                        sx={{ mt: 0.5, color: "text.secondary" }}
-                      >
-                        {promotionTargetLabel(promotion)}
-                      </Typography>
-                    </Box>
-                    <Chip
-                      size="small"
-                      label={promotion.status}
+              return (
+                <Panel
+                  key={promotion.promotionId}
+                  sx={{
+                    p: { xs: 2, md: 2.5 },
+                    borderColor: alpha(color, archived ? 0.12 : 0.2),
+                    backgroundImage: `linear-gradient(180deg, ${alpha(
+                      color,
+                      archived ? 0.035 : 0.075,
+                    )}, transparent 42%)`,
+                  }}
+                >
+                  <Stack spacing={1.5}>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1.25}
                       sx={{
-                        bgcolor: alpha(color, 0.12),
-                        color,
-                        fontWeight: 900,
-                        textTransform: "capitalize",
+                        justifyContent: "space-between",
+                        alignItems: { sm: "flex-start" },
                       }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Stack
+                          direction="row"
+                          spacing={1}
+                          sx={{ alignItems: "center", flexWrap: "wrap" }}
+                        >
+                          <Typography variant="h6">
+                            {promotion.title}
+                          </Typography>
+                          {promotion.code ? (
+                            <Chip size="small" label={promotion.code} />
+                          ) : (
+                            <Chip size="small" label="Auto code" />
+                          )}
+                        </Stack>
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 0.5, color: "text.secondary" }}
+                        >
+                          {promotionTargetLabel(promotion)}
+                        </Typography>
+                      </Box>
+                      <Chip
+                        size="small"
+                        label={promotion.status}
+                        sx={{
+                          bgcolor: alpha(color, 0.12),
+                          color,
+                          fontWeight: 900,
+                          textTransform: "capitalize",
+                        }}
+                      />
+                    </Stack>
+
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 1,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, 1fr)",
+                        },
+                      }}
+                    >
+                      <DetailLine
+                        label="Discount"
+                        value={promotionDiscountLabel(promotion)}
+                      />
+                      <DetailLine
+                        label="Cap"
+                        value={
+                          typeof promotion.maxDiscountMinor === "number"
+                            ? formatGHS(promotion.maxDiscountMinor)
+                            : "No cap"
+                        }
+                      />
+                      <DetailLine
+                        label="Minimum spend"
+                        value={formatGHS(promotion.minSpendMinor)}
+                      />
+                      <DetailLine
+                        label="Redemptions"
+                        value={`${promotion.redemptionCount} uses · ${formatGHS(
+                          promotion.discountRedeemedMinor,
+                        )}`}
+                      />
+                      <DetailLine
+                        label="Limits"
+                        value={`Global ${
+                          promotion.usageLimitGlobal ?? "unlimited"
+                        } · Customer ${
+                          promotion.usageLimitPerCustomer ?? "unlimited"
+                        }`}
+                      />
+                      <DetailLine
+                        label="Funding"
+                        value={`${promotion.fundingSource} · ${promotionScopeTargetLabel(
+                          promotion,
+                        )}`}
+                      />
+                      <DetailLine
+                        label="Starts"
+                        value={
+                          promotion.startsAt
+                            ? shortTime(promotion.startsAt)
+                            : "Now"
+                        }
+                      />
+                      <DetailLine
+                        label="Ends"
+                        value={
+                          promotion.endsAt
+                            ? shortTime(promotion.endsAt)
+                            : "Open"
+                        }
+                      />
+                    </Box>
+
+                    <CardDetailAction
+                      onClick={() => setDetailID(promotion.promotionId)}
+                      hint={
+                        promotion.redemptionCount > 0
+                          ? `${promotion.redemptionCount} redemption${
+                              promotion.redemptionCount === 1 ? "" : "s"
+                            } · ${formatGHS(promotion.discountRedeemedMinor)}`
+                          : undefined
+                      }
                     />
                   </Stack>
-
-                  <Box
-                    sx={{
-                      display: "grid",
-                      gap: 1,
-                      gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
-                    }}
-                  >
-                    <DetailLine
-                      label="Discount"
-                      value={promotionDiscountLabel(promotion)}
-                    />
-                    <DetailLine
-                      label="Cap"
-                      value={
-                        typeof promotion.maxDiscountMinor === "number"
-                          ? formatGHS(promotion.maxDiscountMinor)
-                          : "No cap"
-                      }
-                    />
-                    <DetailLine
-                      label="Minimum spend"
-                      value={formatGHS(promotion.minSpendMinor)}
-                    />
-                    <DetailLine
-                      label="Redemptions"
-                      value={`${promotion.redemptionCount} uses · ${formatGHS(
-                        promotion.discountRedeemedMinor,
-                      )}`}
-                    />
-                    <DetailLine
-                      label="Limits"
-                      value={`Global ${
-                        promotion.usageLimitGlobal ?? "unlimited"
-                      } · Customer ${
-                        promotion.usageLimitPerCustomer ?? "unlimited"
-                      }`}
-                    />
-                    <DetailLine
-                      label="Funding"
-                      value={`${promotion.fundingSource} · ${promotionScopeTargetLabel(
-                        promotion,
-                      )}`}
-                    />
-                    <DetailLine
-                      label="Starts"
-                      value={
-                        promotion.startsAt
-                          ? shortTime(promotion.startsAt)
-                          : "Now"
-                      }
-                    />
-                    <DetailLine
-                      label="Ends"
-                      value={
-                        promotion.endsAt ? shortTime(promotion.endsAt) : "Open"
-                      }
-                    />
-                  </Box>
-
-                  <Button
-                    variant="outlined"
-                    endIcon={<ArrowForwardRounded />}
-                    onClick={() => setDetailID(promotion.promotionId)}
-                    sx={{ alignSelf: "flex-start" }}
-                  >
-                    View details
-                  </Button>
-                </Stack>
-              </Panel>
-            );
-          })}
-        </Box>
+                </Panel>
+              );
+            })}
+          </Box>
+          <PaginationFooter
+            count={promotionPageCount}
+            label="promotions"
+            page={promotionPage}
+            pageSize={6}
+            total={filteredPromotions.length}
+            onChange={setPromotionPage}
+          />
+        </Stack>
       ) : null}
 
       <Dialog
@@ -10714,6 +11079,7 @@ function AdsSection({
   actionData?: AdminActionFeedback;
 }) {
   const [adDialogOpen, setAdDialogOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const eligibleBusinesses = businesses.filter(
     (business) =>
       business.verificationStatus === "verified" &&
@@ -10761,6 +11127,14 @@ function AdsSection({
     (total, campaign) => total + campaign.clickCount,
     0,
   );
+  const {
+    page: adPage,
+    pageCount: adPageCount,
+    pagedItems: pagedCampaigns,
+    setPage: setAdPage,
+  } = usePagedItems(campaigns, 4, campaigns.length);
+  const selectedCampaign =
+    campaigns.find((campaign) => campaign.campaignId === detailID) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -11071,7 +11445,7 @@ function AdsSection({
             alignItems: "start",
           }}
         >
-          {campaigns.map((campaign) => {
+          {pagedCampaigns.map((campaign) => {
             const archived = campaign.status === "archived";
             const color = adCampaignStatusColor(campaign.status);
             const paidMinor = campaign.payments.reduce(
@@ -11083,7 +11457,6 @@ function AdsSection({
             const openPayment = campaign.payments.find(
               (payment) => payment.status === "initiated",
             );
-            const latestPayments = campaign.payments.slice(0, 3);
             return (
               <Panel
                 key={campaign.campaignId}
@@ -11178,6 +11551,132 @@ function AdsSection({
                     />
                   </Box>
 
+                  <CardDetailAction
+                    onClick={() => setDetailID(campaign.campaignId)}
+                    hint={
+                      openPayment
+                        ? "Payment link open"
+                        : dueMinor > 0
+                          ? `${formatGHS(dueMinor)} due · awaiting collection`
+                          : "Budget collected"
+                    }
+                  />
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+      {!adCampaignsError && campaigns.length > 0 ? (
+        <PaginationFooter
+          count={adPageCount}
+          label="placements"
+          page={adPage}
+          pageSize={4}
+          total={campaigns.length}
+          onChange={setAdPage}
+        />
+      ) : null}
+
+      <Dialog
+        open={Boolean(selectedCampaign)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6">
+                {selectedCampaign?.headline ?? "Placement details"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Collect payment, edit the placement, or archive it.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedCampaign ? (
+            <AdminAdCampaignDetailForm
+              campaign={selectedCampaign}
+              eligibleBusinesses={eligibleBusinesses}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+}
+
+function AdminAdCampaignDetailForm({
+  campaign,
+  eligibleBusinesses,
+}: {
+  campaign: AdminAdCampaign;
+  eligibleBusinesses: AdminBusiness[];
+}) {
+  const archived = campaign.status === "archived";
+  const paidMinor = campaign.payments.reduce(
+    (total, payment) =>
+      total + (payment.status === "paid" ? payment.amountMinor : 0),
+    0,
+  );
+  const dueMinor = Math.max(campaign.budgetMinor - paidMinor, 0);
+  const openPayment = campaign.payments.find(
+    (payment) => payment.status === "initiated",
+  );
+  const latestPayments = campaign.payments.slice(0, 3);
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+        }}
+      >
+        <DetailLine label="Target" value={campaign.targetLabel} />
+        <DetailLine
+          label="Budget"
+          value={`${formatGHS(paidMinor)} collected / ${formatGHS(
+            campaign.budgetMinor,
+          )} booked`}
+        />
+        <DetailLine
+          label="Daily cap"
+          value={
+            typeof campaign.dailyCapMinor === "number"
+              ? formatGHS(campaign.dailyCapMinor)
+              : "No cap"
+          }
+        />
+        <DetailLine
+          label="Window"
+          value={`${shortTime(campaign.startsAt)} - ${shortTime(
+            campaign.endsAt,
+          )}`}
+        />
+        <DetailLine
+          label="Impressions"
+          value={`${campaign.impressionCount} views`}
+        />
+        <DetailLine
+          label="Clicks"
+          value={`${campaign.clickCount} · ${formatPercentBps(
+            campaign.clickRateBps,
+          )}`}
+        />
+      </Box>
+
+      <Stack spacing={1.5}>
                   {campaign.description || campaign.reviewNote ? (
                     <Box
                       sx={{
@@ -11640,12 +12139,7 @@ function AdsSection({
                       </Button>
                     </Stack>
                   </Form>
-                </Stack>
-              </Panel>
-            );
-          })}
-        </Box>
-      ) : null}
+      </Stack>
     </Stack>
   );
 }
@@ -11664,6 +12158,7 @@ function AffiliatesSection({
   actionData?: AdminActionFeedback;
 }) {
   const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const pendingAffiliates = affiliates.filter(
     (affiliate) => affiliate.status === "pending_review",
   );
@@ -11719,6 +12214,14 @@ function AffiliatesSection({
       ),
     0,
   );
+  const {
+    page: affiliatePage,
+    pageCount: affiliatePageCount,
+    pagedItems: pagedAffiliates,
+    setPage: setAffiliatePage,
+  } = usePagedItems(affiliates, 4, affiliates.length);
+  const selectedAffiliate =
+    affiliates.find((affiliate) => affiliate.affiliateId === detailID) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -12012,7 +12515,7 @@ function AffiliatesSection({
             gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
           }}
         >
-          {affiliates.map((affiliate) => {
+          {pagedAffiliates.map((affiliate) => {
             const color = affiliateStatusColor(affiliate.status);
             const archived = affiliate.status === "archived";
             const performance = attributionByAffiliate.get(
@@ -12142,6 +12645,149 @@ function AffiliatesSection({
                     />
                   </Box>
 
+                  <CardDetailAction
+                    onClick={() => setDetailID(affiliate.affiliateId)}
+                    hint={
+                      approvedConversionCount > 0 && !archived
+                        ? `${formatGHS(
+                            recentApprovedCommissionMinor,
+                          )} ready to reconcile`
+                        : undefined
+                    }
+                  />
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+      {!affiliatesError && affiliates.length > 0 ? (
+        <PaginationFooter
+          count={affiliatePageCount}
+          label="affiliate partners"
+          page={affiliatePage}
+          pageSize={4}
+          total={affiliates.length}
+          onChange={setAffiliatePage}
+        />
+      ) : null}
+
+      <Dialog
+        open={Boolean(selectedAffiliate)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6">
+                {selectedAffiliate?.displayName ?? "Affiliate details"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Review conversions and payouts, edit terms, or archive.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedAffiliate ? (
+            <AdminAffiliateDetailForm
+              affiliate={selectedAffiliate}
+              performance={attributionByAffiliate.get(
+                selectedAffiliate.affiliateId,
+              )}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+}
+
+function AdminAffiliateDetailForm({
+  affiliate,
+  performance,
+}: {
+  affiliate: AdminAffiliate;
+  performance?: AdminAffiliateAttribution;
+}) {
+  const archived = affiliate.status === "archived";
+  const approvedConversionCount = performance?.approvedConversionCount ?? 0;
+  const recentApprovedCommissionMinor =
+    performance?.recentConversions
+      .filter((conversion) => conversion.status === "approved")
+      .reduce((total, conversion) => total + conversion.commissionMinor, 0) ?? 0;
+  const lastPayout = performance?.recentPayouts[0];
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+        }}
+      >
+        <DetailLine
+          label="Commission"
+          value={affiliateCommissionLabel(affiliate)}
+        />
+        <DetailLine
+          label="Cookie window"
+          value={`${affiliate.cookieWindowDays} days`}
+        />
+        <DetailLine
+          label="Payout mode"
+          value={affiliatePayoutLabel(affiliate.payoutMode)}
+        />
+        <DetailLine
+          label="Contact"
+          value={affiliate.email || affiliate.phone || "No contact"}
+        />
+        <DetailLine
+          label="Tracked clicks"
+          value={String(performance?.clickCount ?? 0)}
+        />
+        <DetailLine
+          label="Conversions"
+          value={`${performance?.conversionCount ?? 0} total · ${
+            performance?.pendingConversionCount ?? 0
+          } pending`}
+        />
+        <DetailLine
+          label="Gross attributed"
+          value={formatGHS(performance?.grossMinor ?? 0)}
+        />
+        <DetailLine
+          label="Commission"
+          value={formatGHS(performance?.commissionMinor ?? 0)}
+        />
+        <DetailLine
+          label="Approved"
+          value={`${approvedConversionCount} · ${formatGHS(
+            recentApprovedCommissionMinor,
+          )}`}
+        />
+        <DetailLine
+          label="Last payout"
+          value={
+            lastPayout
+              ? `${formatGHS(lastPayout.commissionMinor)} · ${shortTime(
+                  lastPayout.createdAt,
+                )}`
+              : "None"
+          }
+        />
+      </Box>
+
+      <Stack spacing={1.5}>
                   {performance?.recentConversions.length ? (
                     <Box
                       sx={{
@@ -12655,12 +13301,7 @@ function AffiliatesSection({
                       </Button>
                     </Stack>
                   </Form>
-                </Stack>
-              </Panel>
-            );
-          })}
-        </Box>
-      ) : null}
+      </Stack>
     </Stack>
   );
 }
@@ -12677,6 +13318,7 @@ function ReferralsSection({
   actionData?: AdminActionFeedback;
 }) {
   const [showReferralCreate, setShowReferralCreate] = useState(false);
+  const [detailID, setDetailID] = useState<string | null>(null);
   const activeProgrammes = programmes.filter(
     (programme) => programme.status === "active",
   );
@@ -12698,6 +13340,14 @@ function ReferralsSection({
       business.verificationStatus === "verified" &&
       business.operationalStatus === "active",
   );
+  const {
+    page: referralPage,
+    pageCount: referralPageCount,
+    pagedItems: pagedProgrammes,
+    setPage: setReferralPage,
+  } = usePagedItems(programmes, 4, programmes.length);
+  const selectedProgramme =
+    programmes.find((programme) => programme.programmeId === detailID) ?? null;
 
   return (
     <Stack spacing={2.5}>
@@ -12978,7 +13628,7 @@ function ReferralsSection({
             gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
           }}
         >
-          {programmes.map((programme) => {
+          {pagedProgrammes.map((programme) => {
             const color = referralStatusColor(programme.status);
             const archived = programme.status === "archived";
             const windowText =
@@ -13075,6 +13725,111 @@ function ReferralsSection({
                     />
                   </Box>
 
+                  <CardDetailAction
+                    onClick={() => setDetailID(programme.programmeId)}
+                    hint={
+                      programme.codes.length
+                        ? `${programme.codes.length} issued code${
+                            programme.codes.length === 1 ? "" : "s"
+                          }`
+                        : "No codes issued"
+                    }
+                  />
+                </Stack>
+              </Panel>
+            );
+          })}
+        </Box>
+      ) : null}
+      {!referralProgrammesError && programmes.length > 0 ? (
+        <PaginationFooter
+          count={referralPageCount}
+          label="referral programmes"
+          page={referralPage}
+          pageSize={4}
+          total={programmes.length}
+          onChange={setReferralPage}
+        />
+      ) : null}
+
+      <Dialog
+        open={Boolean(selectedProgramme)}
+        onClose={() => setDetailID(null)}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6">
+                {selectedProgramme?.title ?? "Referral programme"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Issue codes, edit reward economics, or archive.
+              </Typography>
+            </Box>
+            <IconButton onClick={() => setDetailID(null)} aria-label="Close">
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedProgramme ? (
+            <AdminReferralProgrammeDetailForm
+              programme={selectedProgramme}
+              eligibleBusinesses={eligibleBusinesses}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </Stack>
+  );
+}
+
+function AdminReferralProgrammeDetailForm({
+  programme,
+  eligibleBusinesses,
+}: {
+  programme: AdminReferralProgramme;
+  eligibleBusinesses: AdminBusiness[];
+}) {
+  const archived = programme.status === "archived";
+  const windowText =
+    programme.startsAt || programme.endsAt
+      ? `${programme.startsAt ? shortTime(programme.startsAt) : "Now"} to ${
+          programme.endsAt ? shortTime(programme.endsAt) : "open"
+        }`
+      : "Always available";
+  return (
+    <Stack spacing={2}>
+      <Box
+        sx={{
+          display: "grid",
+          gap: 1,
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
+        }}
+      >
+        <DetailLine label="Reward" value={referralRewardLabel(programme)} />
+        <DetailLine
+          label="Reward route"
+          value={`${referralRewardKindLabel(
+            programme.referrerRewardKind,
+          )} / ${referralRefereeRewardKindLabel(programme.refereeRewardKind)}`}
+        />
+        <DetailLine
+          label="Minimum order"
+          value={formatGHS(programme.qualifyingOrderMinMinor)}
+        />
+        <DetailLine label="Hold" value={`${programme.rewardHoldDays} days`} />
+        <DetailLine label="Window" value={windowText} />
+        <DetailLine label="Updated" value={shortTime(programme.updatedAt)} />
+      </Box>
+
+      <Stack spacing={1.5}>
                   {programme.notes ? (
                     <Box
                       sx={{
@@ -13523,12 +14278,7 @@ function ReferralsSection({
                       </Button>
                     </Stack>
                   </Form>
-                </Stack>
-              </Panel>
-            );
-          })}
-        </Box>
-      ) : null}
+      </Stack>
     </Stack>
   );
 }
@@ -13682,6 +14432,12 @@ function RolePermissionsSection({
     roles.find((role) => role.role === "owner")?.permissions.length ?? 0;
   const detailRole = roles.find((role) => role.role === detailRoleId) ?? null;
   const editRole = roles.find((role) => role.role === editRoleId) ?? null;
+  const {
+    page: rolePage,
+    pageCount: rolePageCount,
+    pagedItems: pagedRoles,
+    setPage: setRolePage,
+  } = usePagedItems(roles, 8, roles.length);
 
   return (
     <Stack spacing={2.5}>
@@ -13755,7 +14511,7 @@ function RolePermissionsSection({
           </Box>
           <Divider />
           <Stack spacing={0}>
-            {roles.map((role) => (
+            {pagedRoles.map((role) => (
               <Box
                 key={role.role}
                 sx={{
@@ -13854,6 +14610,16 @@ function RolePermissionsSection({
               </Box>
             ))}
           </Stack>
+          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 2 }}>
+            <PaginationFooter
+              count={rolePageCount}
+              label="roles"
+              page={rolePage}
+              pageSize={8}
+              total={roles.length}
+              onChange={setRolePage}
+            />
+          </Box>
         </Panel>
       )}
 
@@ -14160,6 +14926,16 @@ function AdminUsersSection({
   }, [query, roleFilter, roles, statusFilter, users]);
   const selectedUser =
     users.find((user) => user.adminUserId === detailID) ?? null;
+  const {
+    page: userPage,
+    pageCount: userPageCount,
+    pagedItems: pagedUsers,
+    setPage: setUserPage,
+  } = usePagedItems(
+    filteredUsers,
+    8,
+    `${query}:${roleFilter}:${statusFilter}`,
+  );
 
   return (
     <Stack spacing={2.5}>
@@ -14311,14 +15087,26 @@ function AdminUsersSection({
               </Alert>
             </Box>
           ) : (
-            filteredUsers.map((user) => (
-              <AdminOperatorRow
-                key={user.adminUserId}
-                user={user}
-                currentUserId={currentUserId}
-                onView={() => setDetailID(user.adminUserId)}
-              />
-            ))
+            <>
+              {pagedUsers.map((user) => (
+                <AdminOperatorRow
+                  key={user.adminUserId}
+                  user={user}
+                  currentUserId={currentUserId}
+                  onView={() => setDetailID(user.adminUserId)}
+                />
+              ))}
+              <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 2 }}>
+                <PaginationFooter
+                  count={userPageCount}
+                  label="operators"
+                  page={userPage}
+                  pageSize={8}
+                  total={filteredUsers.length}
+                  onChange={setUserPage}
+                />
+              </Box>
+            </>
           )}
         </Panel>
 
@@ -14671,7 +15459,6 @@ function SettingsSection({
   platformSettings,
   platformSettingsError,
   roles,
-  actionData,
 }: {
   admin: AdminSession;
   profileSettings: AdminProfileSettings;
@@ -14679,12 +15466,12 @@ function SettingsSection({
   platformSettings: AdminPlatformSettings;
   platformSettingsError: string | null;
   roles: AdminRoleDefinition[];
-  actionData?: AdminActionFeedback;
 }) {
   const roleDefinition = roles.find((role) => role.role === admin.adminRole);
   const canManagePlatformSettings =
     roleDefinition?.permissions.includes("manage_settings") ??
     admin.adminRole === "owner";
+  const [logoFileName, setLogoFileName] = useState("");
   const preferences = profileSettings.preferences;
 
   return (
@@ -14695,11 +15482,6 @@ function SettingsSection({
         helper="Keep operator identity, alert routing, and platform policy controls in one place."
       />
 
-      {actionData?.section === "settings" && actionData.message ? (
-        <Alert severity={actionData.severity ?? "success"}>
-          {actionData.message}
-        </Alert>
-      ) : null}
       {profileSettingsError ? (
         <Alert severity="warning">{profileSettingsError}</Alert>
       ) : null}
@@ -15032,7 +15814,7 @@ function SettingsSection({
               borderColor: alpha(tokens.burgundy, 0.16),
             }}
           >
-            <Form method="post">
+            <Form method="post" encType="multipart/form-data">
               <input
                 type="hidden"
                 name="intent"
@@ -15127,6 +15909,132 @@ function SettingsSection({
                   />
                 </Box>
 
+                <input
+                  type="hidden"
+                  name="brand_logo_url"
+                  value={platformSettings.brandLogoUrl}
+                />
+                <Box
+                  sx={{
+                    p: 1.75,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.1),
+                    borderRadius: 1.5,
+                    bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                  }}
+                >
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={2}
+                    sx={{
+                      alignItems: { sm: "center" },
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Stack
+                      direction="row"
+                      spacing={1.75}
+                      sx={{ alignItems: "center", minWidth: 0 }}
+                    >
+                      <Box
+                        sx={{
+                          width: 64,
+                          height: 64,
+                          borderRadius: 1.5,
+                          border: "1px solid",
+                          borderColor: alpha(tokens.ink, 0.12),
+                          bgcolor: alpha(tokens.ink, 0.04),
+                          display: "grid",
+                          placeItems: "center",
+                          overflow: "hidden",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {platformSettings.brandLogoUrl ? (
+                          <Box
+                            component="img"
+                            src={platformSettings.brandLogoUrl}
+                            alt="Current platform logo"
+                            sx={{
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "contain",
+                            }}
+                          />
+                        ) : (
+                          <Typography
+                            sx={{
+                              fontFamily: '"Fraunces", serif',
+                              fontWeight: 900,
+                              fontSize: 26,
+                              color: tokens.burgundy,
+                            }}
+                          >
+                            X
+                          </Typography>
+                        )}
+                      </Box>
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          Platform logo
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {platformSettings.brandLogoUrl
+                            ? "Shown across the admin console, marketing site, dashboard, and storefronts."
+                            : "Using the built-in Xtiitch mark. Upload a PNG, SVG, or WebP to rebrand every surface."}
+                        </Typography>
+                        {logoFileName ? (
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "primary.main", fontWeight: 800 }}
+                          >
+                            Selected {logoFileName} — save to apply.
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    </Stack>
+                    <Stack
+                      spacing={1}
+                      sx={{ width: { xs: "100%", sm: "auto" } }}
+                    >
+                      <Button
+                        component="label"
+                        variant="outlined"
+                        disabled={!canManagePlatformSettings}
+                        sx={{ whiteSpace: "nowrap" }}
+                      >
+                        Upload logo
+                        <input
+                          type="file"
+                          name="brand_logo_file"
+                          accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                          hidden
+                          onChange={(event) =>
+                            setLogoFileName(
+                              event.currentTarget.files?.[0]?.name ?? "",
+                            )
+                          }
+                        />
+                      </Button>
+                      {platformSettings.brandLogoUrl ? (
+                        <FormControlLabel
+                          control={
+                            <Checkbox
+                              name="remove_brand_logo"
+                              disabled={!canManagePlatformSettings}
+                            />
+                          }
+                          label="Remove logo"
+                          sx={{ m: 0 }}
+                        />
+                      ) : null}
+                    </Stack>
+                  </Stack>
+                </Box>
+
                 <BooleanPreference
                   name="maintenance_mode"
                   label="Maintenance mode"
@@ -15161,6 +16069,7 @@ function AdminRail({
   pendingCount,
   riskCount,
   urgentTickets,
+  brandLogoUrl,
   onCloseMobile,
   onSelect,
 }: {
@@ -15171,6 +16080,7 @@ function AdminRail({
   pendingCount: number;
   riskCount: number;
   urgentTickets: number;
+  brandLogoUrl: string;
   onCloseMobile: () => void;
   onSelect: (section: Section) => void;
 }) {
@@ -15532,36 +16442,56 @@ function AdminRail({
                 placeItems: "center",
                 flexShrink: 0,
                 color: tokens.white,
-                backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
+                overflow: "hidden",
+                backgroundImage: brandLogoUrl
+                  ? `linear-gradient(155deg, ${alpha(tokens.white, 0.06)}, ${alpha(tokens.charcoal, 0.18)})`
+                  : `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
                 border: `1px solid ${alpha(tokens.gold, 0.5)}`,
                 boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
               }}
             >
-              <Typography
-                component="span"
-                aria-hidden
-                sx={{
-                  fontFamily: '"Fraunces", serif',
-                  fontSize: 24,
-                  lineHeight: 1,
-                  mt: "2px",
-                }}
-              >
-                X
-              </Typography>
-              <ShieldRounded
-                sx={{
-                  position: "absolute",
-                  right: -6,
-                  bottom: -6,
-                  fontSize: 16,
-                  p: "2px",
-                  borderRadius: "50%",
-                  color: tokens.charcoal,
-                  bgcolor: tokens.gold,
-                  boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
-                }}
-              />
+              {brandLogoUrl ? (
+                <Box
+                  component="img"
+                  src={brandLogoUrl}
+                  alt=""
+                  aria-hidden
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "contain",
+                    p: 0.75,
+                  }}
+                />
+              ) : (
+                <>
+                  <Typography
+                    component="span"
+                    aria-hidden
+                    sx={{
+                      fontFamily: '"Fraunces", serif',
+                      fontSize: 24,
+                      lineHeight: 1,
+                      mt: "2px",
+                    }}
+                  >
+                    X
+                  </Typography>
+                  <ShieldRounded
+                    sx={{
+                      position: "absolute",
+                      right: -6,
+                      bottom: -6,
+                      fontSize: 16,
+                      p: "2px",
+                      borderRadius: "50%",
+                      color: tokens.charcoal,
+                      bgcolor: tokens.gold,
+                      boxShadow: `0 4px 10px ${alpha(tokens.ink, 0.5)}`,
+                    }}
+                  />
+                </>
+              )}
             </Box>
             {!compact ? (
               <Box sx={{ minWidth: 0 }}>
@@ -15769,7 +16699,7 @@ function AdminTopBar({
   notificationCount: number;
   onOpenMobileNav: () => void;
   onToggleCollapsed: () => void;
-  onToggleDarkChrome: () => void;
+  onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
   onSelect: (section: Section) => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
@@ -15905,7 +16835,9 @@ function AdminTopBar({
           <Tooltip title={darkChrome ? "Use light theme" : "Use dark theme"}>
             <IconButton
               aria-label="Toggle theme"
-              onClick={onToggleDarkChrome}
+              onClick={(event) =>
+                onToggleDarkChrome({ x: event.clientX, y: event.clientY })
+              }
               sx={{
                 color: "inherit",
                 width: { xs: 40, sm: 44 },
@@ -16273,7 +17205,21 @@ export default function AdminDashboard({
   const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const settingsFeedback =
+    actionFeedback?.section === "settings" && actionFeedback.message
+      ? actionFeedback
+      : null;
+  const [settingsFeedbackOpen, setSettingsFeedbackOpen] = useState(
+    Boolean(settingsFeedback),
+  );
   const { isDark: darkChrome, toggleMode } = useThemeMode();
+  const navigation = useNavigation();
+  const isBusy = navigation.state !== "idle";
+  // A plain GET navigation that is loading means the loader is fetching a fresh
+  // dataset (e.g. a deep-link or hard refresh) — show a skeleton. Action revalidations
+  // (formMethod set) keep the current content in place under the top progress bar.
+  const isNavLoading =
+    navigation.state === "loading" && !navigation.formMethod;
 
   const pendingCount = verificationCases.filter(
     (item) => item.status === "pending" || item.status === "unverified",
@@ -16389,6 +17335,47 @@ export default function AdminDashboard({
   );
   const moneyWebhookEvents = moneyRails?.webhookEvents ?? [];
   const moneyPayoutReviews = moneyRails?.payoutReviews ?? [];
+  const {
+    page: verificationPage,
+    pageCount: verificationPageCount,
+    pagedItems: pagedVerificationCases,
+    setPage: setVerificationPage,
+  } = usePagedItems(verificationCases, 6, verificationCases.length);
+  const businessPageSize = businessView === "card" ? 6 : 10;
+  const {
+    page: businessPage,
+    pageCount: businessPageCount,
+    pagedItems: pagedBusinesses,
+    setPage: setBusinessPage,
+  } = usePagedItems(
+    filteredBusinesses,
+    businessPageSize,
+    `${businessQuery}:${statusFilter}:${businessView}`,
+  );
+  const {
+    page: webhookPage,
+    pageCount: webhookPageCount,
+    pagedItems: pagedMoneyWebhookEvents,
+    setPage: setWebhookPage,
+  } = usePagedItems(moneyWebhookEvents, 6, moneyWebhookEvents.length);
+  const {
+    page: payoutPage,
+    pageCount: payoutPageCount,
+    pagedItems: pagedMoneyPayoutReviews,
+    setPage: setPayoutPage,
+  } = usePagedItems(moneyPayoutReviews, 6, moneyPayoutReviews.length);
+  const {
+    page: riskPage,
+    pageCount: riskPageCount,
+    pagedItems: pagedRiskReviews,
+    setPage: setRiskPage,
+  } = usePagedItems(riskReviews, 6, riskReviews.length);
+  const {
+    page: supportPage,
+    pageCount: supportPageCount,
+    pagedItems: pagedSupportTickets,
+    setPage: setSupportPage,
+  } = usePagedItems(supportTickets, 6, supportTickets.length);
 
   useEffect(() => {
     setAuditLog(auditEvents);
@@ -16421,6 +17408,12 @@ export default function AdminDashboard({
       return null;
     });
   }, [adminCustomers]);
+
+  useEffect(() => {
+    if (settingsFeedback) {
+      setSettingsFeedbackOpen(true);
+    }
+  }, [settingsFeedback]);
 
   const updateVerificationNote = (id: string, value: string) => {
     setVerificationNotes((current) => ({ ...current, [id]: value }));
@@ -16455,6 +17448,10 @@ export default function AdminDashboard({
           from: { opacity: 0, transform: "translateY(10px)" },
           to: { opacity: 1, transform: "translateY(0)" },
         },
+        "@keyframes adminSectionIn": {
+          from: { opacity: 0, transform: "translateY(6px)" },
+          to: { opacity: 1, transform: "translateY(0)" },
+        },
         "@media (prefers-reduced-motion: reduce)": {
           "*, *::before, *::after": {
             animationDuration: "1ms !important",
@@ -16463,6 +17460,38 @@ export default function AdminDashboard({
         },
       }}
     >
+      {isBusy ? (
+        <LinearProgress
+          aria-label="Loading"
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            zIndex: (theme) => theme.zIndex.appBar + 2,
+          }}
+        />
+      ) : null}
+      <Snackbar
+        open={settingsFeedbackOpen}
+        autoHideDuration={5200}
+        onClose={(_event, reason) => {
+          if (reason !== "clickaway") {
+            setSettingsFeedbackOpen(false);
+          }
+        }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={settingsFeedback?.severity ?? "success"}
+          variant="filled"
+          onClose={() => setSettingsFeedbackOpen(false)}
+          sx={{ borderRadius: 2, boxShadow: 4, fontWeight: 800 }}
+        >
+          {settingsFeedback?.message}
+        </Alert>
+      </Snackbar>
       <AdminRail
         section={section}
         collapsed={railCollapsed}
@@ -16471,6 +17500,7 @@ export default function AdminDashboard({
         pendingCount={pendingCount}
         riskCount={openRiskCount}
         urgentTickets={urgentTickets}
+        brandLogoUrl={platformSettings.brandLogoUrl}
         onCloseMobile={() => setMobileNavOpen(false)}
         onSelect={setSection}
       />
@@ -16526,7 +17556,18 @@ export default function AdminDashboard({
             </Stack>
           ) : null}
 
-          {section === "overview" ? (
+          {isNavLoading ? (
+            <SectionSkeleton />
+          ) : (
+            <Box
+              key={section}
+              sx={{
+                "@media (prefers-reduced-motion: no-preference)": {
+                  animation: "adminSectionIn 280ms ease both",
+                },
+              }}
+            >
+              {section === "overview" ? (
             <Stack spacing={3}>
               <Box
                 sx={{
@@ -16852,7 +17893,6 @@ export default function AdminDashboard({
               platformSettings={platformSettings}
               platformSettingsError={platformSettingsError}
               roles={roleCatalog}
-              actionData={actionFeedback}
             />
           ) : null}
 
@@ -16883,7 +17923,7 @@ export default function AdminDashboard({
                   </Stack>
                 </Panel>
               ) : null}
-              {verificationCases.map((item) => (
+              {pagedVerificationCases.map((item) => (
                 <VerificationCard
                   key={item.id}
                   item={item}
@@ -16891,6 +17931,14 @@ export default function AdminDashboard({
                   onNoteChange={updateVerificationNote}
                 />
               ))}
+              <PaginationFooter
+                count={verificationPageCount}
+                label="verification cases"
+                page={verificationPage}
+                pageSize={6}
+                total={verificationCases.length}
+                onChange={setVerificationPage}
+              />
             </Stack>
           ) : null}
 
@@ -16995,7 +18043,7 @@ export default function AdminDashboard({
                     },
                   }}
                 >
-                  {filteredBusinesses.map((business) => (
+                  {pagedBusinesses.map((business) => (
                     <BusinessRow
                       key={business.id}
                       business={business}
@@ -17007,11 +18055,19 @@ export default function AdminDashboard({
                 </Box>
               ) : (
                 <BusinessTable
-                  businesses={filteredBusinesses}
+                  businesses={pagedBusinesses}
                   selectedId={selectedBusiness?.id ?? null}
                   onInspect={setSelectedBusiness}
                 />
               )}
+              <PaginationFooter
+                count={businessPageCount}
+                label="businesses"
+                page={businessPage}
+                pageSize={businessPageSize}
+                total={filteredBusinesses.length}
+                onChange={setBusinessPage}
+              />
               <Drawer
                 anchor="right"
                 open={Boolean(selectedBusiness)}
@@ -17096,7 +18152,7 @@ export default function AdminDashboard({
                     </Box>
                   </Stack>
                   <Stack spacing={1.5}>
-                    {moneyWebhookEvents.map((event) => {
+                    {pagedMoneyWebhookEvents.map((event) => {
                       const replayed = event.status === "replayed";
                       return (
                         <Box
@@ -17271,6 +18327,14 @@ export default function AdminDashboard({
                         </Typography>
                       </Box>
                     ) : null}
+                    <PaginationFooter
+                      count={webhookPageCount}
+                      label="webhook events"
+                      page={webhookPage}
+                      pageSize={6}
+                      total={moneyWebhookEvents.length}
+                      onChange={setWebhookPage}
+                    />
                   </Stack>
                 </Panel>
 
@@ -17301,7 +18365,7 @@ export default function AdminDashboard({
                     </Box>
                   </Stack>
                   <Stack spacing={1.5}>
-                    {moneyPayoutReviews.map((review) => {
+                    {pagedMoneyPayoutReviews.map((review) => {
                       const held = review.holdActive;
                       const blockedByBusinessState =
                         review.status === "blocked" && !review.holdActive;
@@ -17480,6 +18544,14 @@ export default function AdminDashboard({
                         </Typography>
                       </Box>
                     ) : null}
+                    <PaginationFooter
+                      count={payoutPageCount}
+                      label="payout reviews"
+                      page={payoutPage}
+                      pageSize={6}
+                      total={moneyPayoutReviews.length}
+                      onChange={setPayoutPage}
+                    />
                   </Stack>
                 </Panel>
               </Box>
@@ -17508,7 +18580,7 @@ export default function AdminDashboard({
                   gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" },
                 }}
               >
-                {riskReviews.map((item) => {
+                {pagedRiskReviews.map((item) => {
                   const closed = item.status === "closed";
                   return (
                     <Panel
@@ -17639,6 +18711,14 @@ export default function AdminDashboard({
                   </Box>
                 ) : null}
               </Box>
+              <PaginationFooter
+                count={riskPageCount}
+                label="risk reviews"
+                page={riskPage}
+                pageSize={6}
+                total={riskReviews.length}
+                onChange={setRiskPage}
+              />
             </Stack>
           ) : null}
 
@@ -17659,7 +18739,7 @@ export default function AdminDashboard({
                 <Alert severity="warning">{supportQueueError}</Alert>
               ) : null}
               <Stack spacing={1.5}>
-                {supportTickets.map((ticket) => {
+                {pagedSupportTickets.map((ticket) => {
                   const resolved = ticket.status === "resolved";
                   const assignedToMe =
                     ticket.assignedAdminEmail === admin.adminEmail;
@@ -17870,6 +18950,14 @@ export default function AdminDashboard({
                     </Typography>
                   </Box>
                 ) : null}
+                <PaginationFooter
+                  count={supportPageCount}
+                  label="support tickets"
+                  page={supportPage}
+                  pageSize={6}
+                  total={supportTickets.length}
+                  onChange={setSupportPage}
+                />
               </Stack>
             </Stack>
           ) : null}
@@ -18008,6 +19096,8 @@ export default function AdminDashboard({
               ) : null}
             </Stack>
           ) : null}
+            </Box>
+          )}
         </Box>
       </Box>
     </Box>

@@ -34,7 +34,9 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MuiLink from "@mui/material/Link";
+import Pagination from "@mui/material/Pagination";
 import Paper from "@mui/material/Paper";
+import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
@@ -349,8 +351,10 @@ type DashboardActionData = {
   bookingError?: string;
   handoverError?: string;
   availabilityError?: string;
+  availabilitySuccess?: string;
   teamError?: string;
   settingsError?: string;
+  settingsSuccess?: string;
   collectionError?: string;
   sizeBandError?: string;
   priceError?: string;
@@ -1428,7 +1432,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not save those hours. Avoid overlapping windows and use valid times.",
       };
     }
-    return redirect("/dashboard/availability");
+    return { availabilitySuccess: "Visit hours saved." };
   }
 
   if (intent === "create_measurement_field") {
@@ -1545,7 +1549,7 @@ export async function action({ request }: Route.ActionArgs) {
           "Could not save storefront settings. Check the brand colour and feature switches.",
       };
     }
-    return redirect("/dashboard/settings");
+    return { settingsSuccess: "Storefront settings saved." };
   }
 
   if (intent === "update_waitlist_status") {
@@ -1563,7 +1567,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (!response.ok) {
       return { settingsError: "Could not update that waiting-list entry." };
     }
-    return redirect("/dashboard/settings");
+    return { settingsSuccess: "Waiting-list entry updated." };
   }
 
   if (intent === "create_business_user") {
@@ -3799,6 +3803,84 @@ function Panel({
   );
 }
 
+const DASHBOARD_PAGE_SIZE = 8;
+
+function usePagedItems<T>(
+  items: T[],
+  pageSize = DASHBOARD_PAGE_SIZE,
+  resetKey: string | number = "",
+) {
+  const [page, setPage] = useState(1);
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+
+  useEffect(() => {
+    setPage(1);
+  }, [resetKey, pageSize]);
+
+  useEffect(() => {
+    setPage((current) => Math.min(current, pageCount));
+  }, [pageCount]);
+
+  const pagedItems = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, page, pageSize]);
+
+  return { page, pageCount, pagedItems, setPage };
+}
+
+function PaginationFooter({
+  count,
+  label,
+  page,
+  pageSize = DASHBOARD_PAGE_SIZE,
+  total,
+  onChange,
+}: {
+  count: number;
+  label: string;
+  page: number;
+  pageSize?: number;
+  total: number;
+  onChange: (page: number) => void;
+}) {
+  if (total <= pageSize) {
+    return null;
+  }
+
+  const start = (page - 1) * pageSize + 1;
+  const end = Math.min(total, page * pageSize);
+
+  return (
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={1.25}
+      sx={{
+        alignItems: { xs: "stretch", sm: "center" },
+        justifyContent: "space-between",
+        px: { xs: 1, sm: 0 },
+        pt: 1,
+      }}
+    >
+      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+        Showing {start}-{end} of {total} {label}
+      </Typography>
+      <Pagination
+        count={count}
+        page={page}
+        onChange={(_event, nextPage) => onChange(nextPage)}
+        color="primary"
+        size="small"
+        sx={{
+          "& .MuiPagination-ul": {
+            justifyContent: { xs: "center", sm: "flex-end" },
+          },
+        }}
+      />
+    </Stack>
+  );
+}
+
 function SectionHeader({
   eyebrow,
   title,
@@ -4612,7 +4694,7 @@ function WorkspaceTopBar({
   storefrontURL: string;
   onOpenMobileNav: () => void;
   onToggleCollapsed: () => void;
-  onToggleDarkChrome: () => void;
+  onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
   const profileOpen = Boolean(profileAnchor);
@@ -4758,7 +4840,9 @@ function WorkspaceTopBar({
           <Tooltip title={darkChrome ? "Use light theme" : "Use dark theme"}>
             <IconButton
               aria-label="Toggle theme"
-              onClick={onToggleDarkChrome}
+              onClick={(event) =>
+                onToggleDarkChrome({ x: event.clientX, y: event.clientY })
+              }
               sx={{
                 color: "inherit",
                 width: { xs: 40, sm: 44 },
@@ -5914,6 +5998,12 @@ function OrdersTable({
   const [detailId, setDetailId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuOrderId, setMenuOrderId] = useState<string | null>(null);
+  const {
+    page: orderPage,
+    pageCount: orderPageCount,
+    pagedItems: pagedOrders,
+    setPage: setOrderPage,
+  } = usePagedItems(orders, 10, orders.length);
 
   const detailOrder =
     orders.find((order) => order.order_id === detailId) ?? null;
@@ -5953,7 +6043,7 @@ function OrdersTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {orders.map((order) => {
+            {pagedOrders.map((order) => {
               const rowColour = stageColor(order.colour);
               const target = orderTargetMinor(order);
               const balance = orderBalanceDueMinor(order);
@@ -6113,6 +6203,14 @@ function OrdersTable({
           </TableBody>
         </Table>
       </TableContainer>
+      <PaginationFooter
+        count={orderPageCount}
+        label="orders"
+        page={orderPage}
+        pageSize={10}
+        total={orders.length}
+        onChange={setOrderPage}
+      />
 
       <Menu
         anchorEl={menuAnchor}
@@ -8410,6 +8508,12 @@ function MoneyPanel({
 }) {
   const linkableOrders = orders.filter((order) => order.status !== "cancelled");
   const [logOpen, setLogOpen] = useState(false);
+  const {
+    page: takingPage,
+    pageCount: takingPageCount,
+    pagedItems: pagedTakings,
+    setPage: setTakingPage,
+  } = usePagedItems(takings, 6, takings.length);
 
   return (
     <Panel id="money">
@@ -8628,37 +8732,49 @@ function MoneyPanel({
             />
           </Box>
         ) : (
-          takings.slice(0, 6).map((taking) => (
-            <Box
-              key={taking.taking_id}
-              sx={{
-                px: { xs: 2, md: 2.5 },
-                py: 1.4,
-                borderTop: "1px solid",
-                borderColor: "divider",
-                display: "grid",
-                gap: 1,
-                gridTemplateColumns: {
-                  xs: "1fr",
-                  md: "minmax(0, 1fr) auto",
-                },
-                alignItems: "center",
-              }}
-            >
-              <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 900 }} noWrap>
-                  {taking.what_for}
-                </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                  {formatMethod(taking.method)} ·{" "}
-                  {shortDateTime(taking.taken_at)}
+          <>
+            {pagedTakings.map((taking) => (
+              <Box
+                key={taking.taking_id}
+                sx={{
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.4,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "minmax(0, 1fr) auto",
+                  },
+                  alignItems: "center",
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {taking.what_for}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {formatMethod(taking.method)} ·{" "}
+                    {shortDateTime(taking.taken_at)}
+                  </Typography>
+                </Box>
+                <Typography sx={{ fontWeight: 900 }}>
+                  {formatGHS(taking.amount_minor)}
                 </Typography>
               </Box>
-              <Typography sx={{ fontWeight: 900 }}>
-                {formatGHS(taking.amount_minor)}
-              </Typography>
+            ))}
+            <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+              <PaginationFooter
+                count={takingPageCount}
+                label="manual entries"
+                page={takingPage}
+                pageSize={6}
+                total={takings.length}
+                onChange={setTakingPage}
+              />
             </Box>
-          ))
+          </>
         )}
       </Box>
     </Panel>
@@ -9129,6 +9245,12 @@ function DesignImageUploadPanel({
 }
 
 function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
+  const {
+    page: waitlistPage,
+    pageCount: waitlistPageCount,
+    pagedItems: pagedEntries,
+    setPage: setWaitlistPage,
+  } = usePagedItems(entries, 8, entries.length);
   const statuses = [
     { value: "waiting", label: "Waiting" },
     { value: "notified", label: "Notified" },
@@ -9157,7 +9279,7 @@ function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
         />
       ) : (
         <Stack spacing={1.25} sx={{ mt: 1.5 }}>
-          {entries.map((entry) => (
+          {pagedEntries.map((entry) => (
             <Box
               key={entry.entry_id}
               sx={{
@@ -9230,6 +9352,13 @@ function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
               </Stack>
             </Box>
           ))}
+          <PaginationFooter
+            count={waitlistPageCount}
+            label="waitlist entries"
+            page={waitlistPage}
+            total={entries.length}
+            onChange={setWaitlistPage}
+          />
         </Stack>
       )}
     </Panel>
@@ -9693,6 +9822,18 @@ function CatalogueSetupPanel({
     sizeBands.length === 0
       ? 1
       : Math.max(...sizeBands.map((band) => band.sequence)) + 1;
+  const {
+    page: collectionPage,
+    pageCount: collectionPageCount,
+    pagedItems: pagedCollections,
+    setPage: setCollectionPage,
+  } = usePagedItems(collections, 6, collections.length);
+  const {
+    page: sizeBandPage,
+    pageCount: sizeBandPageCount,
+    pagedItems: pagedSizeBands,
+    setPage: setSizeBandPage,
+  } = usePagedItems(sizeBands, 12, sizeBands.length);
 
   return (
     <Box
@@ -9771,7 +9912,7 @@ function CatalogueSetupPanel({
               helper="Collections help customers browse by occasion or drop."
             />
           ) : (
-            collections.map((collection) => (
+            pagedCollections.map((collection) => (
               <Stack
                 key={collection.collection_id}
                 direction={{ xs: "column", sm: "row" }}
@@ -9842,6 +9983,14 @@ function CatalogueSetupPanel({
               </Stack>
             ))
           )}
+          <PaginationFooter
+            count={collectionPageCount}
+            label="collections"
+            page={collectionPage}
+            pageSize={6}
+            total={collections.length}
+            onChange={setCollectionPage}
+          />
         </Stack>
       </Panel>
 
@@ -9907,13 +10056,23 @@ function CatalogueSetupPanel({
           />
         ) : (
           <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            {sizeBands.map((band) => (
+            {pagedSizeBands.map((band) => (
               <ToneChip
                 key={band.size_band_id}
                 label={`${band.label} · #${band.sequence}`}
                 tone={tokens.info}
               />
             ))}
+            <Box sx={{ flexBasis: "100%", width: "100%" }}>
+              <PaginationFooter
+                count={sizeBandPageCount}
+                label="size bands"
+                page={sizeBandPage}
+                pageSize={12}
+                total={sizeBands.length}
+                onChange={setSizeBandPage}
+              />
+            </Box>
           </Stack>
         )}
       </Panel>
@@ -9930,6 +10089,13 @@ function PriceBoardPanel({
   sizeBands: SizeBand[];
   error?: string;
 }) {
+  const {
+    page: pricePage,
+    pageCount: pricePageCount,
+    pagedItems: pagedDesigns,
+    setPage: setPricePage,
+  } = usePagedItems(designs, 6, designs.length);
+
   return (
     <Panel>
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
@@ -9977,7 +10143,7 @@ function PriceBoardPanel({
           spacing={0}
           sx={{ borderTop: "1px solid", borderColor: "divider" }}
         >
-          {designs.map((design) => (
+          {pagedDesigns.map((design) => (
             <Box
               key={design.design_id}
               sx={{
@@ -10096,6 +10262,16 @@ function PriceBoardPanel({
               </Stack>
             </Box>
           ))}
+          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+            <PaginationFooter
+              count={pricePageCount}
+              label="designs"
+              page={pricePage}
+              pageSize={6}
+              total={designs.length}
+              onChange={setPricePage}
+            />
+          </Box>
         </Stack>
       )}
     </Panel>
@@ -10226,6 +10402,16 @@ function PromotionPanel({
       );
     });
   }, [collections, designs, promotions, query, scopeFilter, statusFilter]);
+  const {
+    page: promotionPage,
+    pageCount: promotionPageCount,
+    pagedItems: pagedPromotions,
+    setPage: setPromotionPage,
+  } = usePagedItems(
+    filteredPromotions,
+    8,
+    `${query}:${statusFilter}:${scopeFilter}`,
+  );
   const selectedPromotion =
     promotions.find((promotion) => promotion.promotion_id === detailID) ?? null;
 
@@ -10414,15 +10600,26 @@ function PromotionPanel({
               />
             </Box>
           ) : (
-            filteredPromotions.map((promotion) => (
-              <PromotionRow
-                key={promotion.promotion_id}
-                promotion={promotion}
-                collections={collections}
-                designs={designs}
-                onView={() => setDetailID(promotion.promotion_id)}
-              />
-            ))
+            <>
+              {pagedPromotions.map((promotion) => (
+                <PromotionRow
+                  key={promotion.promotion_id}
+                  promotion={promotion}
+                  collections={collections}
+                  designs={designs}
+                  onView={() => setDetailID(promotion.promotion_id)}
+                />
+              ))}
+              <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+                <PaginationFooter
+                  count={promotionPageCount}
+                  label="promotions"
+                  page={promotionPage}
+                  total={filteredPromotions.length}
+                  onChange={setPromotionPage}
+                />
+              </Box>
+            </>
           )}
         </Box>
       </Box>
@@ -11113,6 +11310,16 @@ function TeamPanel({
       );
     });
   }, [query, roleFilter, statusFilter, users]);
+  const {
+    page: userPage,
+    pageCount: userPageCount,
+    pagedItems: pagedUsers,
+    setPage: setUserPage,
+  } = usePagedItems(
+    filteredUsers,
+    8,
+    `${query}:${roleFilter}:${statusFilter}`,
+  );
   const selectedUser =
     users.find((user) => user.business_user_id === detailID) ?? null;
 
@@ -11302,14 +11509,25 @@ function TeamPanel({
               />
             </Box>
           ) : (
-            filteredUsers.map((user) => (
-              <BusinessUserRow
-                key={user.business_user_id}
-                user={user}
-                currentUser={currentUser}
-                onView={() => setDetailID(user.business_user_id)}
-              />
-            ))
+            <>
+              {pagedUsers.map((user) => (
+                <BusinessUserRow
+                  key={user.business_user_id}
+                  user={user}
+                  currentUser={currentUser}
+                  onView={() => setDetailID(user.business_user_id)}
+                />
+              ))}
+              <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+                <PaginationFooter
+                  count={userPageCount}
+                  label="team members"
+                  page={userPage}
+                  total={filteredUsers.length}
+                  onChange={setUserPage}
+                />
+              </Box>
+            </>
           )}
         </Box>
       </Box>
@@ -11853,6 +12071,13 @@ function BookingQueuePanel({
   bookings: BookingSummary[];
   error?: string;
 }) {
+  const {
+    page: bookingPage,
+    pageCount: bookingPageCount,
+    pagedItems: pagedBookings,
+    setPage: setBookingPage,
+  } = usePagedItems(bookings, 6, bookings.length);
+
   return (
     <Panel id="visits">
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
@@ -11883,108 +12108,127 @@ function BookingQueuePanel({
           />
         </Box>
       ) : (
-        bookings.map((booking) => {
-          const manage = canManageBooking(booking.status);
-          const canReschedule = booking.status === "booked";
-          return (
-            <Box
-              key={booking.booking_id}
-              sx={{
-                px: { xs: 2, md: 2.5 },
-                py: 1.75,
-                borderTop: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Stack spacing={1.5}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  sx={{
-                    alignItems: { xs: "flex-start", sm: "center" },
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 900 }} noWrap>
-                      {booking.customer_name || "Customer"} ·{" "}
-                      {booking.design_title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      {shortDateTime(booking.slot_start)} to{" "}
-                      {shortDateTime(booking.slot_end)}
-                    </Typography>
-                  </Box>
-                  <ToneChip
-                    label={booking.status}
-                    tone={bookingTone(booking.status)}
+        <>
+          {pagedBookings.map((booking) => {
+            const manage = canManageBooking(booking.status);
+            const canReschedule = booking.status === "booked";
+            return (
+              <Box
+                key={booking.booking_id}
+                sx={{
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.75,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{
+                      alignItems: { xs: "flex-start", sm: "center" },
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 900 }} noWrap>
+                        {booking.customer_name || "Customer"} ·{" "}
+                        {booking.design_title}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {shortDateTime(booking.slot_start)} to{" "}
+                        {shortDateTime(booking.slot_end)}
+                      </Typography>
+                    </Box>
+                    <ToneChip
+                      label={booking.status}
+                      tone={bookingTone(booking.status)}
+                    />
+                  </Stack>
+                  <InfoStrip
+                    icon={<PhoneRounded />}
+                    tone={tokens.info}
+                    title={booking.customer_phone || "No phone captured"}
+                    helper={booking.address || "No address captured"}
                   />
-                </Stack>
-                <InfoStrip
-                  icon={<PhoneRounded />}
-                  tone={tokens.info}
-                  title={booking.customer_phone || "No phone captured"}
-                  helper={booking.address || "No address captured"}
-                />
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={1}
-                  sx={{ alignItems: { xs: "stretch", md: "center" } }}
-                >
-                  <Form method="post" style={{ flex: 1 }}>
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="reschedule_booking"
-                    />
-                    <input
-                      type="hidden"
-                      name="booking_id"
-                      value={booking.booking_id}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <StyledDateTimeField
-                        name="slot_start"
-                        label="New slot"
-                        size="small"
-                        defaultValue={datetimeLocalValue(booking.slot_start)}
-                        disabled={!canReschedule}
-                        fullWidth
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1}
+                    sx={{ alignItems: { xs: "stretch", md: "center" } }}
+                  >
+                    <Form method="post" style={{ flex: 1 }}>
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="reschedule_booking"
+                      />
+                      <input
+                        type="hidden"
+                        name="booking_id"
+                        value={booking.booking_id}
+                      />
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                      >
+                        <StyledDateTimeField
+                          name="slot_start"
+                          label="New slot"
+                          size="small"
+                          defaultValue={datetimeLocalValue(booking.slot_start)}
+                          disabled={!canReschedule}
+                          fullWidth
+                        />
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          disabled={!canReschedule}
+                        >
+                          Reschedule
+                        </Button>
+                      </Stack>
+                    </Form>
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="cancel_booking"
+                      />
+                      <input
+                        type="hidden"
+                        name="booking_id"
+                        value={booking.booking_id}
                       />
                       <Button
                         type="submit"
+                        color="error"
                         variant="outlined"
-                        disabled={!canReschedule}
+                        disabled={!manage}
+                        fullWidth
                       >
-                        Reschedule
+                        Cancel
                       </Button>
-                    </Stack>
-                  </Form>
-                  <Form method="post">
-                    <input type="hidden" name="intent" value="cancel_booking" />
-                    <input
-                      type="hidden"
-                      name="booking_id"
-                      value={booking.booking_id}
-                    />
-                    <Button
-                      type="submit"
-                      color="error"
-                      variant="outlined"
-                      disabled={!manage}
-                      fullWidth
-                    >
-                      Cancel
-                    </Button>
-                  </Form>
+                    </Form>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Box>
-          );
-        })
+              </Box>
+            );
+          })}
+          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+            <PaginationFooter
+              count={bookingPageCount}
+              label="bookings"
+              page={bookingPage}
+              pageSize={6}
+              total={bookings.length}
+              onChange={setBookingPage}
+            />
+          </Box>
+        </>
       )}
     </Panel>
   );
@@ -12000,6 +12244,12 @@ function HandoverPanel({
   error?: string;
 }) {
   const handoverOrders = fulfilledOrdersWithoutOpenHandover(orders, handovers);
+  const {
+    page: handoverPage,
+    pageCount: handoverPageCount,
+    pagedItems: pagedHandovers,
+    setPage: setHandoverPage,
+  } = usePagedItems(handovers, 6, handovers.length);
 
   return (
     <Panel id="handovers">
@@ -12106,7 +12356,8 @@ function HandoverPanel({
           />
         </Box>
       ) : (
-        handovers.map((handover) => {
+        <>
+          {pagedHandovers.map((handover) => {
           const active = canAdvanceHandover(handover.status);
           return (
             <Box
@@ -12228,7 +12479,18 @@ function HandoverPanel({
               </Stack>
             </Box>
           );
-        })
+          })}
+          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+            <PaginationFooter
+              count={handoverPageCount}
+              label="handovers"
+              page={handoverPage}
+              pageSize={6}
+              total={handovers.length}
+              onChange={setHandoverPage}
+            />
+          </Box>
+        </>
       )}
     </Panel>
   );
@@ -12376,6 +12638,13 @@ function NotificationPanel({
 }: {
   notifications: NotificationSummary[];
 }) {
+  const {
+    page: notificationPage,
+    pageCount: notificationPageCount,
+    pagedItems: pagedNotifications,
+    setPage: setNotificationPage,
+  } = usePagedItems(notifications, 8, notifications.length);
+
   return (
     <Panel id="messages">
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
@@ -12414,38 +12683,49 @@ function NotificationPanel({
           />
         </Box>
       ) : (
-        notifications.slice(0, 8).map((message) => (
-          <Box
-            key={message.message_id}
-            sx={{
-              px: { xs: 2, md: 2.5 },
-              py: 1.4,
-              borderTop: "1px solid",
-              borderColor: "divider",
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
-              alignItems: "center",
-            }}
-          >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontWeight: 900 }} noWrap>
-                {messageKindLabel(message.kind)}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
-              >
-                {message.channel.toUpperCase()} to {message.recipient} ·{" "}
-                {shortDateTime(message.created_at)}
-              </Typography>
+        <>
+          {pagedNotifications.map((message) => (
+            <Box
+              key={message.message_id}
+              sx={{
+                px: { xs: 2, md: 2.5 },
+                py: 1.4,
+                borderTop: "1px solid",
+                borderColor: "divider",
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) auto" },
+                alignItems: "center",
+              }}
+            >
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 900 }} noWrap>
+                  {messageKindLabel(message.kind)}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
+                >
+                  {message.channel.toUpperCase()} to {message.recipient} ·{" "}
+                  {shortDateTime(message.created_at)}
+                </Typography>
+              </Box>
+              <ToneChip
+                label={`${message.status} · ${message.attempts}`}
+                tone={notificationTone(message.status)}
+              />
             </Box>
-            <ToneChip
-              label={`${message.status} · ${message.attempts}`}
-              tone={notificationTone(message.status)}
+          ))}
+          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+            <PaginationFooter
+              count={notificationPageCount}
+              label="messages"
+              page={notificationPage}
+              total={notifications.length}
+              onChange={setNotificationPage}
             />
           </Box>
-        ))
+        </>
       )}
     </Panel>
   );
@@ -12478,8 +12758,20 @@ export default function Dashboard({
     dataWarnings,
   } = loaderData;
   const action = (actionData ?? {}) as DashboardActionData;
+  const settingsFeedback = action.settingsSuccess
+    ? { message: action.settingsSuccess, severity: "success" as const }
+    : action.settingsError
+      ? { message: action.settingsError, severity: "error" as const }
+      : action.availabilitySuccess
+        ? { message: action.availabilitySuccess, severity: "success" as const }
+        : action.availabilityError
+          ? { message: action.availabilityError, severity: "error" as const }
+          : null;
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [settingsFeedbackOpen, setSettingsFeedbackOpen] = useState(
+    Boolean(settingsFeedback),
+  );
   const { isDark: darkChrome, toggleMode } = useThemeMode();
   const [catalogueView, setCatalogueView] = useState<"all" | "add">("all");
   const [openDesignId, setOpenDesignId] = useState<string | null>(null);
@@ -12487,6 +12779,18 @@ export default function Dashboard({
     openDesignId === null
       ? null
       : (designs.find((design) => design.design_id === openDesignId) ?? null);
+  const {
+    page: cataloguePage,
+    pageCount: cataloguePageCount,
+    pagedItems: pagedCatalogueDesigns,
+    setPage: setCataloguePage,
+  } = usePagedItems(designs, 8, `${catalogueView}:${designs.length}`);
+  const {
+    page: measurementFieldPage,
+    pageCount: measurementFieldPageCount,
+    pagedItems: pagedMeasurementFields,
+    setPage: setMeasurementFieldPage,
+  } = usePagedItems(measurementFields, 8, measurementFields.length);
   const verified = profile.verification_status === "verified";
   const canManage = canManageDashboard(currentUser.role);
   const workspaceGroups = canManage
@@ -12746,6 +13050,12 @@ export default function Dashboard({
           messages: railBadge(pendingMessages),
         };
 
+  useEffect(() => {
+    if (settingsFeedback) {
+      setSettingsFeedbackOpen(true);
+    }
+  }, [actionData, settingsFeedback?.message, settingsFeedback?.severity]);
+
   return (
     <Box
       sx={{
@@ -12780,6 +13090,25 @@ export default function Dashboard({
         },
       }}
     >
+      <Snackbar
+        open={settingsFeedbackOpen}
+        autoHideDuration={5200}
+        onClose={(_event, reason) => {
+          if (reason !== "clickaway") {
+            setSettingsFeedbackOpen(false);
+          }
+        }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+      >
+        <Alert
+          severity={settingsFeedback?.severity ?? "success"}
+          variant="filled"
+          onClose={() => setSettingsFeedbackOpen(false)}
+          sx={{ borderRadius: 2, boxShadow: 4, fontWeight: 800 }}
+        >
+          {settingsFeedback?.message}
+        </Alert>
+      </Snackbar>
       <Box
         sx={{
           maxWidth: 1500,
@@ -13505,30 +13834,39 @@ export default function Dashboard({
                               </Box>
                             </Panel>
                           ) : (
-                            <Box
-                              sx={{
-                                mt: 2,
-                                display: "grid",
-                                gap: 1.5,
-                                gridTemplateColumns: {
-                                  xs: "1fr",
-                                  sm: "repeat(2, minmax(0, 1fr))",
-                                  md: "repeat(3, minmax(0, 1fr))",
-                                  xl: "repeat(4, minmax(0, 1fr))",
-                                },
-                              }}
-                            >
-                              {designs.map((design) => (
-                                <DesignCard
-                                  key={design.design_id}
-                                  design={design}
-                                  collections={collections}
-                                  onOpen={() =>
-                                    setOpenDesignId(design.design_id)
-                                  }
-                                />
-                              ))}
-                            </Box>
+                            <>
+                              <Box
+                                sx={{
+                                  mt: 2,
+                                  display: "grid",
+                                  gap: 1.5,
+                                  gridTemplateColumns: {
+                                    xs: "1fr",
+                                    sm: "repeat(2, minmax(0, 1fr))",
+                                    md: "repeat(3, minmax(0, 1fr))",
+                                    xl: "repeat(4, minmax(0, 1fr))",
+                                  },
+                                }}
+                              >
+                                {pagedCatalogueDesigns.map((design) => (
+                                  <DesignCard
+                                    key={design.design_id}
+                                    design={design}
+                                    collections={collections}
+                                    onOpen={() =>
+                                      setOpenDesignId(design.design_id)
+                                    }
+                                  />
+                                ))}
+                              </Box>
+                              <PaginationFooter
+                                count={cataloguePageCount}
+                                label="designs"
+                                page={cataloguePage}
+                                total={designs.length}
+                                onChange={setCataloguePage}
+                              />
+                            </>
                           )}
                           <Box sx={{ mt: 2 }}>
                             <CatalogueSetupPanel
@@ -13649,12 +13987,23 @@ export default function Dashboard({
                         />
                       </Box>
                     ) : (
-                      measurementFields.map((field) => (
-                        <MeasurementFieldRow
-                          key={field.field_id}
-                          field={field}
-                        />
-                      ))
+                      <>
+                        {pagedMeasurementFields.map((field) => (
+                          <MeasurementFieldRow
+                            key={field.field_id}
+                            field={field}
+                          />
+                        ))}
+                        <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+                          <PaginationFooter
+                            count={measurementFieldPageCount}
+                            label="measurement fields"
+                            page={measurementFieldPage}
+                            total={measurementFields.length}
+                            onChange={setMeasurementFieldPage}
+                          />
+                        </Box>
+                      </>
                     )}
                   </Panel>
                 ) : null}
