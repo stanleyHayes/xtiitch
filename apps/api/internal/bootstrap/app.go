@@ -16,6 +16,7 @@ import (
 	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
+	customerauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/customerauth"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
 	growthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/growth"
 	measurementhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/measurement"
@@ -34,6 +35,7 @@ import (
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
+	customerauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/customerauth"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
 	measurementapp "github.com/xcreativs/xtiitch/apps/api/internal/application/measurement"
@@ -228,6 +230,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Logger:       logger,
 	})
 
+	customerAuthService := customerauthapp.NewService(customerauthapp.Dependencies{
+		Repo:     postgres.NewCustomerAuthRepository(db),
+		Tokens:   jwtIssuer,
+		OTP:      authadapter.NewCustomerOTPGenerator(),
+		Delivery: authadapter.NewLoggingOTPDelivery(logger),
+		IDs:      ids.UUIDGenerator{},
+		Clock:    clock.SystemClock{},
+	})
+
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
 			Production:     strings.EqualFold(cfg.Environment, "production"),
@@ -236,6 +247,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
+		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
