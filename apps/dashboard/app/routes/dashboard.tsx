@@ -10411,7 +10411,13 @@ function CatalogueSetupPanel({
         </Stack>
       </Panel>
 
-      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Panel
+        sx={{
+          p: { xs: 2, md: 2.5 },
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
         <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
           <Box sx={{ color: "primary.main" }}>
             <StraightenRounded />
@@ -10464,7 +10470,9 @@ function CatalogueSetupPanel({
             Add size band
           </Button>
         </Form>
-        <Divider sx={{ my: 1.75 }} />
+        <Divider
+          sx={{ mt: sizeBands.length === 0 ? "auto" : 1.75, mb: 1.75 }}
+        />
         {sizeBands.length === 0 ? (
           <InlineEmptyState
             icon={<StraightenRounded sx={{ fontSize: 34 }} />}
