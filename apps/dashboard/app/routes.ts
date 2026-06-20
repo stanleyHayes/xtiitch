@@ -11,6 +11,9 @@ export default [
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
   route("security", "routes/security.tsx"),
   route("dashboard/:section?", "routes/dashboard.tsx"),
+  // Resource route for the ✨ AI writing assistant (no UI; proxies to the API
+  // with the session token). See routes/ai-assist.ts.
+  route("ai/assist", "routes/ai-assist.ts"),
   route("help", "routes/help.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

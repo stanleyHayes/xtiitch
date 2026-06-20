@@ -89,6 +89,7 @@ import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { Route } from "./+types/dashboard";
 import { apiFetch, logOut } from "../lib/auth";
 import TextField from "../components/form-text-field";
+import AiAssistField from "../components/ai-assist";
 import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
@@ -7547,13 +7548,15 @@ function DesignRow({
                         </MenuItem>
                       ))}
                   </TextField>
-                  <TextField
+                  <AiAssistField
                     name="description"
                     label="Description"
+                    assistField="design description"
                     defaultValue={design.description}
                     size="small"
                     multiline
                     minRows={2}
+                    fullWidth
                     sx={{ gridColumn: { md: "1 / -1" } }}
                   />
                   <TextField
@@ -11519,11 +11522,15 @@ function PromotionDetailForm({
                 <MenuItem value="active">Active</MenuItem>
                 <MenuItem value="paused">Paused</MenuItem>
               </TextField>
-              <TextField
+              <AiAssistField
                 name="description"
                 label="Note"
+                assistField="promotion note"
                 size="small"
                 defaultValue={promotion.description}
+                multiline
+                minRows={2}
+                fullWidth
                 sx={{ gridColumn: { lg: "span 2" } }}
               />
               <TextField
@@ -14134,9 +14141,10 @@ export default function Dashboard({
                                       </MenuItem>
                                     ))}
                                 </TextField>
-                                <TextField
+                                <AiAssistField
                                   name="description"
                                   label="Description"
+                                  assistField="design description"
                                   fullWidth
                                   multiline
                                   minRows={3}
