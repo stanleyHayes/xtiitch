@@ -93,6 +93,7 @@ import type { BandPrice, Design } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
 import { HelpDrawer } from "../help-center";
+import { ProductTour } from "../product-tour";
 import { useThemeMode } from "../theme-mode";
 
 type Profile = {
@@ -4714,6 +4715,7 @@ function WorkspaceRail({
   return (
     <>
       <Panel
+        id="dashboard-rail"
         sx={{
           ...railSurfaceSx,
           display: { xs: "none", md: "block" },
@@ -4789,6 +4791,7 @@ function WorkspaceTopBar({
   onToggleCollapsed,
   onToggleDarkChrome,
   onOpenHelp,
+  onStartTour,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
@@ -4802,6 +4805,7 @@ function WorkspaceTopBar({
   onToggleCollapsed: () => void;
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
   onOpenHelp: () => void;
+  onStartTour: () => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
   const profileOpen = Boolean(profileAnchor);
@@ -4947,6 +4951,7 @@ function WorkspaceTopBar({
           <Tooltip title="Page guide">
             <IconButton
               aria-label="Open page guide"
+              data-tour="help"
               onClick={onOpenHelp}
               sx={{
                 color: "inherit",
@@ -4983,6 +4988,7 @@ function WorkspaceTopBar({
           <Tooltip title="Profile and settings">
             <IconButton
               aria-label="Open profile menu"
+              data-tour="account"
               onClick={(event) => setProfileAnchor(event.currentTarget)}
               sx={{
                 color: "inherit",
@@ -5250,6 +5256,51 @@ function WorkspaceTopBar({
                     noWrap
                   >
                     Two-step verification
+                  </Typography>
+                </Box>
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  closeProfileMenu();
+                  onStartTour();
+                }}
+                sx={{
+                  px: 2,
+                  py: 1.1,
+                  gap: 1.25,
+                  "&:hover": {
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  },
+                }}
+              >
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    flexShrink: 0,
+                    borderRadius: 1.25,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "primary.main",
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                  }}
+                >
+                  <HelpOutlineRounded fontSize="small" />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}
+                    noWrap
+                  >
+                    Show me around
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                    noWrap
+                  >
+                    Replay the product tour
                   </Typography>
                 </Box>
               </MenuItem>
@@ -13133,6 +13184,7 @@ export default function Dashboard({
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [settingsFeedbackOpen, setSettingsFeedbackOpen] = useState(
     Boolean(settingsFeedback),
   );
@@ -13415,6 +13467,19 @@ export default function Dashboard({
         };
 
   useEffect(() => {
+    try {
+      if (
+        window.localStorage.getItem(`xtiitch:tour-seen:${profile.handle}`) !==
+        "1"
+      ) {
+        setTourOpen(true);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [profile.handle]);
+
+  useEffect(() => {
     if (settingsFeedback) {
       setSettingsFeedbackOpen(true);
     }
@@ -13478,6 +13543,20 @@ export default function Dashboard({
         onClose={() => setHelpOpen(false)}
         section={section}
       />
+      <ProductTour
+        open={tourOpen}
+        onClose={() => {
+          setTourOpen(false);
+          try {
+            window.localStorage.setItem(
+              `xtiitch:tour-seen:${profile.handle}`,
+              "1",
+            );
+          } catch {
+            /* ignore */
+          }
+        }}
+      />
       <Box
         sx={{
           maxWidth: 1500,
@@ -13536,6 +13615,7 @@ export default function Dashboard({
             onToggleCollapsed={() => setRailCollapsed((value) => !value)}
             onToggleDarkChrome={toggleMode}
             onOpenHelp={() => setHelpOpen(true)}
+            onStartTour={() => setTourOpen(true)}
           />
 
           <Box
