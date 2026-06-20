@@ -108,14 +108,16 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		paymentProvider = paystack.NewDevProvider(cfg.PaystackWebhookKey)
 	}
 
+	businessIdentityRepo := postgres.NewBusinessIdentityRepository(db)
 	authService := authapp.NewService(authapp.Dependencies{
-		Businesses:    postgres.NewBusinessIdentityRepository(db),
+		Businesses:    businessIdentityRepo,
 		Payments:      paymentProvider,
 		Sessions:      postgres.NewAuthSessionRepository(db),
 		Passwords:     authadapter.NewBcryptPasswordHasher(0),
 		AccessTokens:  jwtIssuer,
 		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
 		Emails:        emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		Resets:        businessIdentityRepo,
 		DashboardURL:  cfg.BusinessDashboardBaseURL,
 		IDs:           ids.UUIDGenerator{},
 		Clock:         clock.SystemClock{},

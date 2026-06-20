@@ -2,8 +2,12 @@ package authapp
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -30,6 +34,10 @@ const (
 	// is locked from MFA verification for the duration, to bound brute force.
 	mfaMaxFailedAttempts = 5
 	mfaLockoutDuration   = 15 * time.Minute
+	// Self-service password reset: a one-time emailed code, short-lived and
+	// attempt-capped to bound brute force.
+	passwordResetTTL      = 15 * time.Minute
+	maxPasswordResetTries = 5
 )
 
 var handlePattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*[a-z0-9]$`)
@@ -54,6 +62,7 @@ type Service struct {
 	accessTokens  ports.TokenIssuer
 	refreshTokens ports.RefreshTokenIssuer
 	emails        ports.EmailSender
+	resets        ports.PasswordResetRepository
 	dashboardURL  string
 	ids           ports.IDGenerator
 	clock         ports.Clock
@@ -71,6 +80,7 @@ type Dependencies struct {
 	AccessTokens  ports.TokenIssuer
 	RefreshTokens ports.RefreshTokenIssuer
 	Emails        ports.EmailSender
+	Resets        ports.PasswordResetRepository
 	DashboardURL  string
 	IDs           ports.IDGenerator
 	Clock         ports.Clock
@@ -91,6 +101,7 @@ func NewService(deps Dependencies) Service {
 		accessTokens:  deps.AccessTokens,
 		refreshTokens: deps.RefreshTokens,
 		emails:        deps.Emails,
+		resets:        deps.Resets,
 		dashboardURL:  strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 		ids:           deps.IDs,
 		clock:         deps.Clock,
@@ -514,6 +525,103 @@ func (s Service) ResetBusinessUserPassword(ctx context.Context, cmd ResetBusines
 		UserID:       cmd.UserID,
 		PasswordHash: passwordHash,
 	})
+}
+
+// RequestPasswordReset emails a one-time code to a business login so a
+// locked-out owner or staff member can set a new password. It always returns
+// nil — whether or not the email maps to an account — so the endpoint never
+// reveals which addresses are registered.
+func (s Service) RequestPasswordReset(ctx context.Context, rawEmail string) error {
+	if s.resets == nil {
+		return nil
+	}
+	email, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return nil
+	}
+	target, err := s.resets.FindBusinessUserByEmail(ctx, email)
+	if err != nil {
+		return nil
+	}
+
+	code, err := generateResetCode()
+	if err != nil {
+		return err
+	}
+	now := s.clock.Now()
+	if err := s.resets.CreatePasswordResetChallenge(ctx, ports.CreatePasswordResetChallengeInput{
+		ChallengeID: s.ids.NewID(),
+		UserID:      target.UserID,
+		Email:       email,
+		CodeHash:    hashResetCode(code),
+		ExpiresAt:   now.Add(passwordResetTTL),
+	}); err != nil {
+		return err
+	}
+
+	displayName := strings.TrimSpace(target.DisplayName)
+	if displayName == "" {
+		displayName = target.Email
+	}
+	body := fmt.Sprintf(
+		"Hi %s,\n\nUse this code to reset your Xtiitch dashboard password:\n\n    %s\n\nIt expires in 15 minutes. If you didn't request this, ignore this email — your password stays unchanged.\n\nThanks,\nXtiitch",
+		displayName,
+		code,
+	)
+	return s.emails.Send(ctx, ports.EmailMessage{
+		To:      target.Email,
+		Subject: "Reset your Xtiitch password",
+		Body:    body,
+	})
+}
+
+// ConfirmPasswordReset validates the emailed code and sets the new password.
+func (s Service) ConfirmPasswordReset(ctx context.Context, rawEmail string, code string, newPassword string) error {
+	if s.resets == nil {
+		return authdomain.ErrResetCodeInvalid
+	}
+	email, err := normalizeEmail(rawEmail)
+	if err != nil {
+		return authdomain.ErrResetCodeInvalid
+	}
+	if len(newPassword) < minPasswordLength || len(newPassword) > maxPasswordLength {
+		return authdomain.ErrInvalidInput
+	}
+
+	now := s.clock.Now()
+	challenge, err := s.resets.LatestActivePasswordResetChallenge(ctx, email, now)
+	if err != nil {
+		return authdomain.ErrResetCodeInvalid
+	}
+	if challenge.Attempts >= maxPasswordResetTries {
+		return authdomain.ErrResetCodeInvalid
+	}
+	if hashResetCode(code) != challenge.CodeHash {
+		_ = s.resets.IncrementPasswordResetAttempts(ctx, challenge.ChallengeID)
+		return authdomain.ErrResetCodeInvalid
+	}
+
+	passwordHash, err := s.passwords.Hash(newPassword)
+	if err != nil {
+		return err
+	}
+	if err := s.resets.SetBusinessUserPasswordByID(ctx, challenge.UserID, passwordHash); err != nil {
+		return err
+	}
+	return s.resets.ConsumePasswordResetChallenge(ctx, challenge.ChallengeID)
+}
+
+func generateResetCode() (string, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(1_000_000))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+func hashResetCode(code string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(code)))
+	return hex.EncodeToString(sum[:])
 }
 
 type TransferBusinessOwnerCommand struct {

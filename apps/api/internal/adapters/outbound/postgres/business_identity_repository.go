@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -26,6 +27,151 @@ type BusinessIdentityRepository struct {
 
 func NewBusinessIdentityRepository(pool *pgxpool.Pool) BusinessIdentityRepository {
 	return BusinessIdentityRepository{pool: pool}
+}
+
+// --- Self-service password reset (cross-tenant; runs under the RLS bypass) ---
+
+// FindBusinessUserByEmail resolves an active login from its email alone, so a
+// locked-out user can request a reset without remembering their store handle.
+func (repo BusinessIdentityRepository) FindBusinessUserByEmail(ctx context.Context, email string) (ports.PasswordResetTarget, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.PasswordResetTarget{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.PasswordResetTarget{}, err
+	}
+
+	var target ports.PasswordResetTarget
+	if err := tx.QueryRow(ctx, `
+		select business_user_id, email, display_name
+		from business_users
+		where lower(email) = lower($1) and is_active = true
+		order by created_at asc
+		limit 1
+	`, email).Scan(&target.UserID, &target.Email, &target.DisplayName); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.PasswordResetTarget{}, ErrNotFound
+		}
+		return ports.PasswordResetTarget{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.PasswordResetTarget{}, err
+	}
+	return target, nil
+}
+
+func (repo BusinessIdentityRepository) CreatePasswordResetChallenge(ctx context.Context, input ports.CreatePasswordResetChallengeInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into business_password_reset_challenges
+			(challenge_id, business_user_id, email, code_hash, expires_at)
+		values ($1, $2, $3, $4, $5)
+	`, input.ChallengeID.String(), input.UserID.String(), input.Email, input.CodeHash, input.ExpiresAt); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (repo BusinessIdentityRepository) LatestActivePasswordResetChallenge(ctx context.Context, email string, now time.Time) (ports.PasswordResetChallenge, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.PasswordResetChallenge{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.PasswordResetChallenge{}, err
+	}
+
+	var challenge ports.PasswordResetChallenge
+	if err := tx.QueryRow(ctx, `
+		select challenge_id, business_user_id, email, code_hash, attempts, expires_at
+		from business_password_reset_challenges
+		where lower(email) = lower($1) and consumed_at is null and expires_at > $2
+		order by created_at desc
+		limit 1
+	`, email, now).Scan(
+		&challenge.ChallengeID,
+		&challenge.UserID,
+		&challenge.Email,
+		&challenge.CodeHash,
+		&challenge.Attempts,
+		&challenge.ExpiresAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.PasswordResetChallenge{}, ErrNotFound
+		}
+		return ports.PasswordResetChallenge{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.PasswordResetChallenge{}, err
+	}
+	return challenge, nil
+}
+
+func (repo BusinessIdentityRepository) IncrementPasswordResetAttempts(ctx context.Context, challengeID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update business_password_reset_challenges
+		set attempts = attempts + 1
+		where challenge_id = $1
+	`, challengeID.String()); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (repo BusinessIdentityRepository) ConsumePasswordResetChallenge(ctx context.Context, challengeID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update business_password_reset_challenges
+		set consumed_at = now()
+		where challenge_id = $1
+	`, challengeID.String()); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (repo BusinessIdentityRepository) SetBusinessUserPasswordByID(ctx context.Context, userID common.ID, passwordHash string) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update business_users
+		set password_hash = $2, updated_at = now()
+		where business_user_id = $1
+	`, userID.String(), passwordHash); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {

@@ -30,6 +30,8 @@ type Service interface {
 	CreateBusinessUser(ctx context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	ResetBusinessUserPassword(ctx context.Context, command authapp.ResetBusinessUserPasswordCommand) error
+	RequestPasswordReset(ctx context.Context, email string) error
+	ConfirmPasswordReset(ctx context.Context, email string, code string, newPassword string) error
 	TransferBusinessOwner(ctx context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error)
 	GetMFAStatus(ctx context.Context, scope common.TenantScope, userID common.ID) (authapp.MFAStatus, error)
 	StartMFAEnrollment(ctx context.Context, scope common.TenantScope, userID common.ID) (authapp.MFAEnrollmentSetup, error)
@@ -50,6 +52,10 @@ func NewHandler(service Service, authenticator Authenticator) Handler {
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/auth/business/register", handler.registerBusiness)
 	router.Post("/auth/business/login", handler.loginBusiness)
+	// Self-service password reset for locked-out logins: request a code, then
+	// redeem it. Both are public (the caller has no session).
+	router.Post("/auth/business/password-reset/request", handler.requestPasswordReset)
+	router.Post("/auth/business/password-reset/confirm", handler.confirmPasswordReset)
 	router.Post("/auth/business/refresh", handler.refreshSession)
 	router.Post("/auth/business/logout", handler.logout)
 	// Completing a login challenge needs only the short-lived challenge token, so
@@ -179,6 +185,45 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 	}
 
 	writeJSON(w, http.StatusCreated, newAuthResponse(result))
+}
+
+type requestPasswordResetRequest struct {
+	Email string `json:"email"`
+}
+
+func (handler Handler) requestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var request requestPasswordResetRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	// Always 204, whether or not the email maps to an account, so the response
+	// never reveals which addresses are registered.
+	if err := handler.service.RequestPasswordReset(r.Context(), request.Email); err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+type confirmPasswordResetRequest struct {
+	Email       string `json:"email"`
+	Code        string `json:"code"`
+	NewPassword string `json:"new_password"`
+}
+
+func (handler Handler) confirmPasswordReset(w http.ResponseWriter, r *http.Request) {
+	var request confirmPasswordResetRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.ConfirmPasswordReset(r.Context(), request.Email, request.Code, request.NewPassword); err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 type publicPlanResponse struct {
@@ -702,6 +747,8 @@ func authError(err error) (int, string) {
 	switch {
 	case errors.Is(err, authdomain.ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, authdomain.ErrResetCodeInvalid):
+		return http.StatusBadRequest, "invalid_reset_code"
 	case errors.Is(err, authdomain.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid_credentials"
 	case errors.Is(err, authdomain.ErrForbidden):

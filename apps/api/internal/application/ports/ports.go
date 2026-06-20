@@ -25,6 +25,41 @@ type BusinessIdentityRepository interface {
 	TransferBusinessOwner(ctx context.Context, scope common.TenantScope, input TransferBusinessOwnerInput) (TransferBusinessOwnerResult, error)
 }
 
+// PasswordResetRepository backs self-service business password resets. A
+// locked-out user has no session and therefore no tenant, so every method is
+// cross-tenant and the implementation runs under the RLS bypass.
+type PasswordResetRepository interface {
+	FindBusinessUserByEmail(ctx context.Context, email string) (PasswordResetTarget, error)
+	CreatePasswordResetChallenge(ctx context.Context, input CreatePasswordResetChallengeInput) error
+	LatestActivePasswordResetChallenge(ctx context.Context, email string, now time.Time) (PasswordResetChallenge, error)
+	IncrementPasswordResetAttempts(ctx context.Context, challengeID common.ID) error
+	ConsumePasswordResetChallenge(ctx context.Context, challengeID common.ID) error
+	SetBusinessUserPasswordByID(ctx context.Context, userID common.ID, passwordHash string) error
+}
+
+type PasswordResetTarget struct {
+	UserID      common.ID
+	Email       string
+	DisplayName string
+}
+
+type CreatePasswordResetChallengeInput struct {
+	ChallengeID common.ID
+	UserID      common.ID
+	Email       string
+	CodeHash    string
+	ExpiresAt   time.Time
+}
+
+type PasswordResetChallenge struct {
+	ChallengeID common.ID
+	UserID      common.ID
+	Email       string
+	CodeHash    string
+	Attempts    int
+	ExpiresAt   time.Time
+}
+
 type CreateBusinessWithOwnerInput struct {
 	BusinessID       common.ID
 	BusinessName     string
