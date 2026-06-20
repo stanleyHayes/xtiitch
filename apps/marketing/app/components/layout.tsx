@@ -548,6 +548,11 @@ function MobileNav({ onNavigate }: { onNavigate: () => void }) {
 export function Header() {
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
+  const rootData = useRouteLoaderData("root") as
+    | { marketplaceUrl?: string }
+    | undefined;
+  const marketplaceUrl =
+    rootData?.marketplaceUrl ?? "https://store.xtiitch.com";
   const close = () => {
     setOpen(false);
   };
@@ -609,6 +614,14 @@ export function Header() {
             sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
           >
             <ThemeModeToggle />
+            <Button
+              href={marketplaceUrl}
+              variant="outlined"
+              startIcon={<StorefrontRoundedIcon />}
+              sx={{ fontWeight: 800 }}
+            >
+              Browse the store
+            </Button>
             <Button
               component={RouterLink}
               to={site.primaryCta.href}

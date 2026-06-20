@@ -50,6 +50,21 @@ const SIGNUP_URL = `${(
   readBrandingEnv("XTIITCH_DASHBOARD_URL") ?? "http://localhost:3401"
 ).replace(/\/+$/, "")}/register`;
 
+// The customer marketplace (store.xtiitch.com). Derived from the same env the
+// per-shop links use, so the navbar's "Browse the store" button points at the
+// right host in every environment.
+const MARKETPLACE_URL = (() => {
+  const configured = readBrandingEnv("XTIITCH_STOREFRONT_BASE_URL")?.replace(
+    /\/+$/,
+    "",
+  );
+  if (configured?.includes("{handle}")) {
+    return configured.replace("{handle}", "store");
+  }
+  if (configured) return configured;
+  return "https://store.xtiitch.com";
+})();
+
 // Platform branding (logo) is owner-managed in the admin console and served
 // publicly, so the marketing site renders the current Xtiitch logo. Failures
 // fall back to the built-in mark and never block the page.
@@ -59,10 +74,18 @@ export async function loader() {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {
-      return { brandLogoUrl: "", signupUrl: SIGNUP_URL };
+      return {
+        brandLogoUrl: "",
+        signupUrl: SIGNUP_URL,
+        marketplaceUrl: MARKETPLACE_URL,
+      };
     }
     const data = (await response.json()) as { logo_url?: string };
-    return { brandLogoUrl: data.logo_url ?? "", signupUrl: SIGNUP_URL };
+    return {
+      brandLogoUrl: data.logo_url ?? "",
+      signupUrl: SIGNUP_URL,
+      marketplaceUrl: MARKETPLACE_URL,
+    };
   } catch {
     return { brandLogoUrl: "", signupUrl: SIGNUP_URL };
   }

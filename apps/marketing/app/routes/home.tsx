@@ -979,25 +979,9 @@ export default function Home() {
             sx={{
               position: "relative",
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-              mb: 0,
-              bgcolor: "background.paper",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              overflow: "hidden",
-              boxShadow: "0 30px 80px -54px rgba(21,17,26,0.72)",
+              gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+              gap: { xs: 2, md: 3 },
               ...homeRiseSx(240),
-              "&:before": {
-                content: '""',
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 4,
-                background:
-                  "linear-gradient(90deg, #800020 0%, #b87914 50%, #237a4b 100%)",
-              },
             }}
           >
             {stats.map((stat, index) => (
@@ -1005,76 +989,36 @@ export default function Home() {
                 key={stat.label}
                 sx={{
                   position: "relative",
-                  minHeight: { xs: 156, md: 190 },
-                  p: { xs: 2.5, md: 3.25 },
+                  overflow: "hidden",
+                  minHeight: { xs: "auto", md: 224 },
+                  p: { xs: 3, md: 3.5 },
                   display: "flex",
                   flexDirection: "column",
-                  justifyContent: "space-between",
                   gap: 2.5,
-                  borderRight: {
-                    xs: "none",
-                    sm: index === stats.length - 1 ? "none" : "1px solid",
-                  },
-                  borderBottom: {
-                    xs: index === stats.length - 1 ? "none" : "1px solid",
-                    sm: "none",
-                  },
+                  borderRadius: 3,
+                  bgcolor: "background.paper",
+                  border: "1px solid",
                   borderColor: "divider",
-                  overflow: "hidden",
-                  bgcolor: (theme) =>
-                    theme.palette.mode === "dark"
-                      ? index === 1
-                        ? "rgba(224,182,90,0.1)"
-                        : "background.paper"
-                      : index === 1
-                        ? "rgba(250,246,242,0.68)"
-                        : "background.paper",
+                  boxShadow: "0 24px 60px -50px rgba(21,17,26,0.6)",
                   transition:
-                    "transform 200ms ease, background-color 200ms ease, box-shadow 200ms ease",
-                  ...homeRiseSx(300 + index * 80),
+                    "transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease",
+                  ...homeRiseSx(300 + index * 90),
+                  "&:before": {
+                    content: '""',
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    height: 3,
+                    background: `linear-gradient(90deg, ${stat.accent}, ${stat.accent}33)`,
+                  },
                   "&:hover": {
-                    transform: "translateY(-3px)",
-                    bgcolor: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? index === 1
-                          ? "rgba(224,182,90,0.16)"
-                          : "rgba(255,247,242,0.065)"
-                        : index === 1
-                          ? "rgba(250,246,242,0.84)"
-                          : "rgba(255,255,255,0.92)",
-                    boxShadow: (theme) =>
-                      theme.palette.mode === "dark"
-                        ? "0 24px 60px -48px rgba(0,0,0,0.72)"
-                        : "0 24px 60px -52px rgba(21,17,26,0.56)",
+                    transform: "translateY(-4px)",
+                    borderColor: `${stat.accent}66`,
+                    boxShadow: `0 30px 72px -46px ${stat.accent}88`,
                   },
                 }}
               >
-                <Box
-                  aria-hidden
-                  sx={{
-                    position: "absolute",
-                    right: { xs: 14, md: 20 },
-                    bottom: { xs: 14, md: 18 },
-                    width: { xs: 112, md: 142 },
-                    height: { xs: 72, md: 86 },
-                    borderRadius: 1,
-                    opacity: 0.74,
-                    background: [
-                      `linear-gradient(90deg, ${stat.accent}18 1px, transparent 1px)`,
-                      `linear-gradient(180deg, ${stat.accent}14 1px, transparent 1px)`,
-                      `radial-gradient(circle, ${stat.accent}24 1px, transparent 1.5px)`,
-                    ].join(", "),
-                    backgroundSize: "18px 18px, 18px 18px, 9px 9px",
-                    animation: "xtiitch-thread-drift 22s linear infinite",
-                    maskImage:
-                      "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
-                    WebkitMaskImage:
-                      "linear-gradient(90deg, transparent 0%, #000 34%, #000 100%)",
-                    "@media (prefers-reduced-motion: reduce)": {
-                      animation: "none",
-                    },
-                  }}
-                />
                 <Stack
                   direction="row"
                   spacing={1.5}
@@ -1108,7 +1052,7 @@ export default function Home() {
                   </Typography>
                 </Stack>
 
-                <Box sx={{ position: "relative" }}>
+                <Box sx={{ position: "relative", mt: "auto" }}>
                   {stat.statuses ? (
                     <Stack
                       direction="row"
@@ -1121,30 +1065,48 @@ export default function Home() {
                       }}
                     >
                       {stat.statuses.map((status) => (
-                        <Chip
+                        <Box
                           key={status.label}
-                          label={status.label}
-                          size="small"
                           sx={{
-                            minHeight: 34,
-                            borderRadius: 1,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 0.75,
+                            px: 1.25,
+                            py: 0.6,
+                            borderRadius: 999,
                             bgcolor: `${status.color}14`,
-                            color: status.color,
-                            border: "1px solid",
-                            borderColor: `${status.color}55`,
-                            fontWeight: 800,
+                            border: `1px solid ${status.color}55`,
                           }}
-                        />
+                        >
+                          <Box
+                            sx={{
+                              width: 9,
+                              height: 9,
+                              borderRadius: "50%",
+                              bgcolor: status.color,
+                            }}
+                          />
+                          <Typography
+                            sx={{
+                              color: status.color,
+                              fontWeight: 800,
+                              fontSize: 13,
+                            }}
+                          >
+                            {status.label}
+                          </Typography>
+                        </Box>
                       ))}
                     </Stack>
                   ) : (
                     <Typography
-                      variant="h3"
                       component="p"
                       sx={{
                         color: stat.accent,
                         fontWeight: 800,
-                        lineHeight: 1,
+                        lineHeight: 0.95,
+                        letterSpacing: "-0.02em",
+                        fontSize: { xs: 46, md: 58 },
                         mb: 1,
                       }}
                     >
