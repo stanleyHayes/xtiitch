@@ -46,7 +46,7 @@ const defaultDatabaseUrl =
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
   const notificationTransport = parseTransport(env.NOTIFICATION_TRANSPORT);
-  return {
+  const config: WorkerConfig = {
     databaseUrl: env.DATABASE_URL ?? defaultDatabaseUrl,
     redisConnection: {
       url: env.REDIS_URL ?? "redis://localhost:6379/0",
@@ -72,6 +72,38 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
     whatsappCloud: parseWhatsAppCloudConfig(notificationTransport, env),
   };
+
+  validateProductionWorkerConfig(config, env);
+  return config;
+}
+
+// In production the worker must actually deliver notifications and talk to the
+// real database — refuse to start on the dev defaults (log/disabled transport,
+// the local database) so customer order updates are never silently dropped.
+function validateProductionWorkerConfig(
+  config: WorkerConfig,
+  env: NodeJS.ProcessEnv,
+): void {
+  if (env.NODE_ENV !== "production") {
+    return;
+  }
+  const problems: string[] = [];
+  if (
+    config.notificationTransport === "log" ||
+    config.notificationTransport === "disabled"
+  ) {
+    problems.push(
+      `NOTIFICATION_TRANSPORT must deliver messages in production (got "${config.notificationTransport}"; use whatsapp_cloud or http)`,
+    );
+  }
+  if (config.databaseUrl === defaultDatabaseUrl) {
+    problems.push("DATABASE_URL must point at the production database");
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `refusing to start worker: insecure production configuration:\n  - ${problems.join("\n  - ")}`,
+    );
+  }
 }
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {

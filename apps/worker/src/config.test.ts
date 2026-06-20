@@ -56,3 +56,33 @@ test("loadConfig parses subscription billing sweep settings", () => {
   assert.equal(config.subscriptionBillingSweepEnabled, false);
   assert.equal(config.subscriptionBillingSweepIntervalMs, 60_000);
 });
+
+test("loadConfig refuses no-op notifications + local DB in production", () => {
+  assert.throws(
+    () =>
+      loadConfig({
+        NODE_ENV: "production",
+        NOTIFICATION_TRANSPORT: "log",
+      }),
+    /NOTIFICATION_TRANSPORT must deliver messages in production/,
+  );
+  assert.throws(
+    () =>
+      loadConfig({
+        NODE_ENV: "production",
+        NOTIFICATION_TRANSPORT: "whatsapp_cloud",
+        WHATSAPP_PHONE_NUMBER_ID: "123",
+        WHATSAPP_ACCESS_TOKEN: "tok",
+      }),
+    /DATABASE_URL must point at the production database/,
+  );
+  // A fully-configured production worker loads fine.
+  const ok = loadConfig({
+    NODE_ENV: "production",
+    DATABASE_URL: "postgres://app:strong@db.internal:5432/xtiitch?sslmode=require",
+    NOTIFICATION_TRANSPORT: "whatsapp_cloud",
+    WHATSAPP_PHONE_NUMBER_ID: "123",
+    WHATSAPP_ACCESS_TOKEN: "tok",
+  });
+  assert.equal(ok.notificationTransport, "whatsapp_cloud");
+});
