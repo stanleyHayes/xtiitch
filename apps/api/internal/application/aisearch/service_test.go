@@ -3,6 +3,7 @@ package aisearch
 import (
 	"context"
 	"testing"
+	"time"
 
 	aiadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/ai"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -30,6 +31,26 @@ func (r *stubRepo) SearchCandidates(_ context.Context) ([]ports.EmbeddingCandida
 	return r.candidates, nil
 }
 
+// stubUsage meters in memory. proCustomers names customers treated as unlimited.
+type stubUsage struct {
+	counts       map[string]int
+	proCustomers map[string]bool
+}
+
+func newStubUsage() *stubUsage {
+	return &stubUsage{counts: map[string]int{}, proCustomers: map[string]bool{}}
+}
+
+func (u *stubUsage) IncrementUsage(_ context.Context, kind, id string, _ time.Time) (int, error) {
+	key := kind + ":" + id
+	u.counts[key]++
+	return u.counts[key], nil
+}
+
+func (u *stubUsage) CustomerIsPro(_ context.Context, customerID common.ID) (bool, error) {
+	return u.proCustomers[customerID.String()], nil
+}
+
 func embed(t *testing.T, embedder ports.Embedder, text string) []float32 {
 	t.Helper()
 	vectors, err := embedder.Embed(context.Background(), []string{text})
@@ -55,12 +76,17 @@ func TestSearchRanksLexicallyRelevantDesignsFirst(t *testing.T) {
 			Embedding:   embed(t, embedder, "leather biker jacket black"),
 		},
 	}
-	service := NewService(Dependencies{Embedder: embedder, Repo: &stubRepo{candidates: candidates}})
+	service := NewService(Dependencies{
+		Embedder: embedder,
+		Repo:     &stubRepo{candidates: candidates},
+		Parser:   aiadapter.NewHeuristicQueryParser(),
+	})
 
-	results, err := service.Search(context.Background(), "red kente dress for a wedding", 10)
+	response, err := service.Search(context.Background(), "red kente dress for a wedding", 10, Requester{})
 	if err != nil {
 		t.Fatalf("Search: %v", err)
 	}
+	results := response.Results
 	if len(results) == 0 {
 		t.Fatal("expected at least one result")
 	}
@@ -74,10 +100,97 @@ func TestSearchRanksLexicallyRelevantDesignsFirst(t *testing.T) {
 	}
 }
 
+func TestSearchAppliesParsedPriceCap(t *testing.T) {
+	embedder := aiadapter.NewDevEmbedder()
+	candidates := []ports.EmbeddingCandidate{
+		{DesignID: common.ID("1"), DesignTitle: "Budget Kente Dress", PriceMinor: 40000, Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
+		{DesignID: common.ID("2"), DesignTitle: "Luxury Kente Dress", PriceMinor: 150000, Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
+	}
+	service := NewService(Dependencies{
+		Embedder: embedder,
+		Repo:     &stubRepo{candidates: candidates},
+		Parser:   aiadapter.NewHeuristicQueryParser(),
+	})
+
+	response, err := service.Search(context.Background(), "kente dress under 800", 10, Requester{})
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if response.PriceMaxMinor != 80000 {
+		t.Fatalf("expected parsed cap 80000, got %d", response.PriceMaxMinor)
+	}
+	for _, r := range response.Results {
+		if r.DesignTitle == "Luxury Kente Dress" {
+			t.Fatalf("design over the GHS 800 cap should be filtered out")
+		}
+	}
+}
+
 func TestSearchRejectsEmptyQuery(t *testing.T) {
 	service := NewService(Dependencies{Embedder: aiadapter.NewDevEmbedder(), Repo: &stubRepo{}})
-	if _, err := service.Search(context.Background(), "   ", 10); err != ErrEmptyQuery {
+	if _, err := service.Search(context.Background(), "   ", 10, Requester{}); err != ErrEmptyQuery {
 		t.Fatalf("expected ErrEmptyQuery, got %v", err)
+	}
+}
+
+func TestSearchEnforcesAnonymousQuota(t *testing.T) {
+	embedder := aiadapter.NewDevEmbedder()
+	repo := &stubRepo{candidates: []ports.EmbeddingCandidate{
+		{DesignID: common.ID("1"), DesignTitle: "Kente Dress", Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
+	}}
+	service := NewService(Dependencies{
+		Embedder: embedder,
+		Repo:     repo,
+		Parser:   aiadapter.NewHeuristicQueryParser(),
+		Usage:    newStubUsage(),
+	})
+	req := Requester{Fingerprint: "anon-abc"}
+
+	// The first anonFreeSearchesPerMonth searches succeed; the next is blocked.
+	for i := 0; i < anonFreeSearchesPerMonth; i++ {
+		resp, err := service.Search(context.Background(), "kente dress", 10, req)
+		if err != nil {
+			t.Fatalf("search %d unexpectedly blocked: %v", i+1, err)
+		}
+		if resp.Quota.Tier != tierAnonymous {
+			t.Fatalf("expected anonymous tier, got %q", resp.Quota.Tier)
+		}
+	}
+	resp, err := service.Search(context.Background(), "kente dress", 10, req)
+	if err != ErrQuotaExhausted {
+		t.Fatalf("expected ErrQuotaExhausted, got %v", err)
+	}
+	if resp.Quota.Remaining != 0 {
+		t.Fatalf("expected 0 remaining, got %d", resp.Quota.Remaining)
+	}
+	if len(resp.Results) != 0 {
+		t.Fatalf("expected no results when over quota, got %d", len(resp.Results))
+	}
+}
+
+func TestSearchProCustomerIsUnlimited(t *testing.T) {
+	embedder := aiadapter.NewDevEmbedder()
+	repo := &stubRepo{candidates: []ports.EmbeddingCandidate{
+		{DesignID: common.ID("1"), DesignTitle: "Kente Dress", Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
+	}}
+	usage := newStubUsage()
+	usage.proCustomers["cust-1"] = true
+	service := NewService(Dependencies{
+		Embedder: embedder,
+		Repo:     repo,
+		Parser:   aiadapter.NewHeuristicQueryParser(),
+		Usage:    usage,
+	})
+	req := Requester{CustomerID: "cust-1"}
+
+	for i := 0; i < customerFreeSearchesPerMonth+5; i++ {
+		resp, err := service.Search(context.Background(), "kente dress", 10, req)
+		if err != nil {
+			t.Fatalf("pro search %d blocked: %v", i+1, err)
+		}
+		if resp.Quota.Tier != tierPro || resp.Quota.Limit != 0 {
+			t.Fatalf("expected unlimited pro quota, got %+v", resp.Quota)
+		}
 	}
 }
 

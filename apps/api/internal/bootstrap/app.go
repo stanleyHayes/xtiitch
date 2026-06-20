@@ -242,35 +242,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Clock:    clock.SystemClock{},
 	})
 
-	// AI marketplace search. With OPENAI_API_KEY set we embed with a hosted model;
-	// otherwise a deterministic dev embedder keeps semantic search working locally
-	// with no key (mirrors the Paystack/Cloudinary dev-fallback pattern).
-	var embedder ports.Embedder
-	if cfg.OpenAIAPIKey != "" {
-		embedder = aiadapter.NewOpenAIEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIEmbeddingModel)
-	} else {
-		logger.Warn("openai api key not set; using dev embedder for AI search")
-		embedder = aiadapter.NewDevEmbedder()
-	}
-	aiSearchService := aisearchapp.NewService(aisearchapp.Dependencies{
-		Embedder: embedder,
-		Repo:     postgres.NewEmbeddingRepository(db),
-	})
-	// Backfill embeddings in the background so the catalogue is searchable shortly
-	// after boot without blocking startup. Safe to run repeatedly; it only embeds
-	// designs whose content changed.
-	go func() {
-		backfillCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		embedded, err := aiSearchService.Backfill(backfillCtx, 500)
-		if err != nil {
-			logger.Warn("ai search backfill failed", "error", err)
-			return
-		}
-		if embedded > 0 {
-			logger.Info("ai search backfill complete", "embedded", embedded, "model", embedder.Model())
-		}
-	}()
+	aiSearchService := buildAISearchService(cfg, logger, db)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
@@ -281,7 +253,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
-		aisearchhttp.NewHandler(aiSearchService),
+		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
@@ -303,6 +275,55 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		},
 		db: db,
 	}, nil
+}
+
+// buildAISearchService wires the marketplace semantic-search service and kicks
+// off a non-blocking embedding backfill. Both AI hops degrade to deterministic,
+// key-free dev implementations (mirrors the Paystack/Cloudinary dev fallbacks):
+//   - embeddings: hosted model when OPENAI_API_KEY is set, else a hashing embedder
+//   - query understanding: Claude when ANTHROPIC_API_KEY is set, else a heuristic
+func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) aisearchapp.Service {
+	var embedder ports.Embedder
+	if cfg.OpenAIAPIKey != "" {
+		embedder = aiadapter.NewOpenAIEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIEmbeddingModel)
+	} else {
+		logger.Warn("openai api key not set; using dev embedder for AI search")
+		embedder = aiadapter.NewDevEmbedder()
+	}
+
+	var queryParser ports.QueryParser
+	if cfg.AnthropicAPIKey != "" {
+		queryParser = aiadapter.NewClaudeQueryParser(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel)
+	} else {
+		logger.Warn("anthropic api key not set; using heuristic query parser for AI search")
+		queryParser = aiadapter.NewHeuristicQueryParser()
+	}
+
+	service := aisearchapp.NewService(aisearchapp.Dependencies{
+		Embedder: embedder,
+		Repo:     postgres.NewEmbeddingRepository(db),
+		Parser:   queryParser,
+		Usage:    postgres.NewSearchUsageRepository(db),
+		Clock:    clock.SystemClock{},
+	})
+
+	// Backfill embeddings in the background so the catalogue is searchable shortly
+	// after boot without blocking startup. Safe to run repeatedly; it only embeds
+	// designs whose content changed.
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		embedded, err := service.Backfill(ctx, 500)
+		if err != nil {
+			logger.Warn("ai search backfill failed", "error", err)
+			return
+		}
+		if embedded > 0 {
+			logger.Info("ai search backfill complete", "embedded", embedded, "model", embedder.Model())
+		}
+	}()
+
+	return service
 }
 
 func (a App) HTTPServer() *http.Server {
