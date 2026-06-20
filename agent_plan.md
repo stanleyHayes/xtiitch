@@ -98,6 +98,7 @@ entitlements, never stored money.
 | **P1** | **WhatsApp-first order updates** | Ghana runs on WhatsApp; lifts open rates vs email | Outbox already renders WhatsApp templates — needs a prod provider |
 | **P1** | **Mobile money as a first-class channel** | Most Ghanaian payments are MoMo, not card | Paystack supports MoMo; surface it explicitly at checkout |
 | **P1** | **Business analytics dashboard** | Best-sellers, repeat customers, revenue trends drive decisions | Data already in Postgres; add read-model queries |
+| **P1** | **AI Writing Assistant Bar** (Growth benefit) | Helps shops write design copy, announcements, customer messages faster; in-product AI value | Reuses Claude (live) + plan gate + monthly usage meter; spec in [docs/ai-writing-assistant-plan.md](docs/ai-writing-assistant-plan.md) |
 | **P2** | **Customer accounts + cross-shop order history** | Repeat customers, faster re-orders, retention | Currently account-free; add optional lightweight customer auth |
 | **P2** | **Reviews & ratings** | Social proof powers discovery + trust | New table + storefront/admin surfaces |
 | **P2** | **Ready-made stock / inventory** | Prevents overselling; auto-routes to waitlist when out | Extend designs with stock + decrement on order |
