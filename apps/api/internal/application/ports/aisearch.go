@@ -37,8 +37,10 @@ type ParsedQuery struct {
 // a marketplace semantic search.
 type EmbeddingRepository interface {
 	// DesignsNeedingEmbedding returns active designs whose embedding is missing or
-	// stale (content_hash changed), for the ingest/backfill pipeline.
-	DesignsNeedingEmbedding(ctx context.Context, limit int) ([]DesignEmbeddingSource, error)
+	// stale — the content changed, or it was produced by a different model than
+	// `model` (so switching embedders re-embeds rather than mixing incompatible
+	// vectors). For the ingest/backfill pipeline.
+	DesignsNeedingEmbedding(ctx context.Context, limit int, model string) ([]DesignEmbeddingSource, error)
 	UpsertEmbedding(ctx context.Context, input UpsertEmbeddingInput) error
 	// SearchCandidates returns embedding rows for active designs in eligible
 	// (verified, online-ordering) shops, enriched for display. Cross-tenant

@@ -18,7 +18,7 @@ func NewEmbeddingRepository(pool *pgxpool.Pool) EmbeddingRepository {
 	return EmbeddingRepository{pool: pool}
 }
 
-func (repo EmbeddingRepository) DesignsNeedingEmbedding(ctx context.Context, limit int) ([]ports.DesignEmbeddingSource, error) {
+func (repo EmbeddingRepository) DesignsNeedingEmbedding(ctx context.Context, limit int, model string) ([]ports.DesignEmbeddingSource, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -45,9 +45,11 @@ func (repo EmbeddingRepository) DesignsNeedingEmbedding(ctx context.Context, lim
 		select s.design_id::text, s.business_id::text, s.content, md5(s.content)
 		from sources s
 		left join design_embeddings de on de.design_id = s.design_id
-		where de.content_hash is null or de.content_hash <> md5(s.content)
+		where de.content_hash is null
+			or de.content_hash <> md5(s.content)
+			or de.model <> $2
 		limit $1
-	`, limit)
+	`, limit, model)
 	if err != nil {
 		return nil, err
 	}

@@ -18,7 +18,7 @@ type stubRepo struct {
 	upserts    []ports.UpsertEmbeddingInput
 }
 
-func (r *stubRepo) DesignsNeedingEmbedding(_ context.Context, _ int) ([]ports.DesignEmbeddingSource, error) {
+func (r *stubRepo) DesignsNeedingEmbedding(_ context.Context, _ int, _ string) ([]ports.DesignEmbeddingSource, error) {
 	return r.sources, nil
 }
 

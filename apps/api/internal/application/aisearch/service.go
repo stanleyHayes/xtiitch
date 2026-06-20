@@ -82,7 +82,8 @@ func NewService(deps Dependencies) Service {
 // Backfill embeds up to `batch` designs whose embedding is missing or stale, and
 // reports how many were (re)embedded. Safe to run repeatedly.
 func (s Service) Backfill(ctx context.Context, batch int) (int, error) {
-	sources, err := s.repo.DesignsNeedingEmbedding(ctx, batch)
+	model := s.embedder.Model()
+	sources, err := s.repo.DesignsNeedingEmbedding(ctx, batch, model)
 	if err != nil {
 		return 0, err
 	}
@@ -102,7 +103,6 @@ func (s Service) Backfill(ctx context.Context, batch int) (int, error) {
 		return 0, errors.New("embedder returned a mismatched vector count")
 	}
 
-	model := s.embedder.Model()
 	for i, src := range sources {
 		if err := s.repo.UpsertEmbedding(ctx, ports.UpsertEmbeddingInput{
 			DesignID:    src.DesignID,
