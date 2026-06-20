@@ -122,11 +122,16 @@ export function Layout({ children }: { children: ReactNode }) {
         {/* Business dashboard — never index. */}
         <meta name="robots" content="noindex, nofollow" />
         <meta name="emotion-insertion-point" content="" />
-        <style dangerouslySetInnerHTML={{ __html: splashStyles }} />
         <Meta />
         <Links />
       </head>
       <body suppressHydrationWarning>
+        {/* Splash CSS lives in the body, not the head: React 19 reorders head
+            <style> tags and the client emotion cache inserts its styles at the
+            emotion-insertion-point meta — both collide with a head <style> and
+            break hydration. A body <style> (no `precedence`) stays in place,
+            the same pattern theme-mode.tsx already uses safely. */}
+        <style dangerouslySetInnerHTML={{ __html: splashStyles }} />
         <div id="xtiitch-splash" aria-hidden="true">
           <div className="xs-wrap">
             <img
