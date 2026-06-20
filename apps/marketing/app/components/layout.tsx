@@ -616,6 +616,8 @@ export function Header() {
             <ThemeModeToggle />
             <Button
               href={marketplaceUrl}
+              target="_blank"
+              rel="noopener"
               variant="outlined"
               startIcon={<StorefrontRoundedIcon />}
               sx={{ fontWeight: 800 }}

@@ -203,7 +203,7 @@ export function ThemeModeToggle({ sx }: { sx?: SxProps<Theme> }) {
           color: "text.primary",
           border: "1px solid",
           borderColor: "divider",
-          borderRadius: 1.5,
+          borderRadius: "50%",
           overflow: "hidden",
           "&:hover": { color: "primary.main", borderColor: "primary.main" },
           "& .MuiSvgIcon-root": {
