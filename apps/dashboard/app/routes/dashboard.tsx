@@ -13824,14 +13824,16 @@ export default function Dashboard({
                                     fontWeight: 800,
                                     fontSize: 13,
                                     lineHeight: 1,
-                                    color: selected ? tokens.white : tokens.ink,
+                                    color: selected
+                                      ? tokens.white
+                                      : "text.primary",
                                     bgcolor: selected
                                       ? tokens.burgundy
-                                      : alpha(tokens.ink, 0.045),
+                                      : "action.hover",
                                     border: "1px solid",
                                     borderColor: selected
                                       ? tokens.burgundy
-                                      : alpha(tokens.ink, 0.1),
+                                      : "divider",
                                     boxShadow: selected
                                       ? `0 6px 16px ${alpha(tokens.burgundy, 0.26)}`
                                       : "none",
@@ -13866,10 +13868,10 @@ export default function Dashboard({
                                         fontWeight: 900,
                                         color: selected
                                           ? tokens.white
-                                          : alpha(tokens.ink, 0.55),
+                                          : "text.secondary",
                                         bgcolor: selected
                                           ? alpha(tokens.white, 0.24)
-                                          : alpha(tokens.ink, 0.08),
+                                          : "action.selected",
                                       }}
                                     >
                                       {count}
