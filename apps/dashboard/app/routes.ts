@@ -9,6 +9,8 @@ export default [
   route("forgot-password", "routes/forgot-password.tsx"),
   route("onboarding/billing", "routes/billing-onboarding.tsx"),
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
+  route("addons/ai-assistant", "routes/addons.ai-assistant.tsx"),
+  route("addons/ai-assistant/callback", "routes/addons.ai-assistant.callback.tsx"),
   route("security", "routes/security.tsx"),
   route("dashboard/:section?", "routes/dashboard.tsx"),
   // Resource route for the ✨ AI writing assistant (no UI; proxies to the API

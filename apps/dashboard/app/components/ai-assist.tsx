@@ -1,7 +1,9 @@
 import { useRef, useState } from "react";
+import { Link as RouterLink } from "react-router";
 import type { TextFieldProps } from "@mui/material/TextField";
 import Box from "@mui/material/Box";
 import Fade from "@mui/material/Fade";
+import Link from "@mui/material/Link";
 import IconButton from "@mui/material/IconButton";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -227,7 +229,15 @@ export default function AiAssistField({
               sx={{ color: "primary.main" }}
             />
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
-              AI Assistant is a paid add-on — enable it to use ✨
+              AI Assistant is a paid add-on —{" "}
+              <Link
+                component={RouterLink}
+                to="/addons/ai-assistant"
+                sx={{ fontWeight: 700 }}
+              >
+                enable the add-on
+              </Link>{" "}
+              to use ✨
             </Typography>
           </Box>
         </Fade>
