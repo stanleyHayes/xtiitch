@@ -5,6 +5,9 @@ import { createCookieSessionStorage } from "react-router";
 type SessionData = {
   access: string;
   refresh: string;
+  // Short-lived: set after a password check when the account has MFA enabled,
+  // cleared once the second factor is verified.
+  mfaChallenge: string;
 };
 
 const storage = createCookieSessionStorage<SessionData>({

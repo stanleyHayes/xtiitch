@@ -5000,6 +5000,51 @@ function WorkspaceTopBar({
                   </Typography>
                 </Box>
               </MenuItem>
+              <MenuItem
+                component={RouterLink}
+                to="/security"
+                onClick={closeProfileMenu}
+                sx={{
+                  px: 2,
+                  py: 1.1,
+                  gap: 1.25,
+                  textDecoration: "none",
+                  "&:hover": {
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.08),
+                  },
+                }}
+              >
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 34,
+                    height: 34,
+                    flexShrink: 0,
+                    borderRadius: 1.25,
+                    display: "grid",
+                    placeItems: "center",
+                    color: "primary.main",
+                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+                  }}
+                >
+                  <LockRounded fontSize="small" />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography
+                    sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}
+                    noWrap
+                  >
+                    Security
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                    noWrap
+                  >
+                    Two-step verification
+                  </Typography>
+                </Box>
+              </MenuItem>
             </Box>
 
             <Divider />

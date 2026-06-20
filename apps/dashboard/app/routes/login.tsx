@@ -1,4 +1,4 @@
-import { Form, redirect, useNavigation } from "react-router";
+import { Form, data, redirect, useNavigation } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -33,6 +33,48 @@ export function meta(): Route.MetaDescriptors {
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
+  const intent = String(form.get("intent") ?? "login");
+  const session = await getSession(request.headers.get("Cookie"));
+
+  // Second factor: the password stage already issued a challenge; redeem it
+  // together with the authenticator/backup code for a full session.
+  if (intent === "mfa") {
+    const code = String(form.get("code") ?? "").trim();
+    const challenge = session.get("mfaChallenge");
+    if (!challenge) {
+      return { error: "Your verification step expired. Please sign in again." };
+    }
+    let response: Response;
+    try {
+      response = await fetchApi("/auth/business/mfa/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mfa_challenge_token: challenge, code }),
+      });
+    } catch {
+      return {
+        error: "Dashboard API is unavailable. Try again after a moment.",
+        mfaRequired: true,
+      };
+    }
+    if (!response.ok) {
+      return {
+        error: "That code didn't match. Try again, or use a backup code.",
+        mfaRequired: true,
+      };
+    }
+    const verified = (await response.json()) as {
+      access_token: string;
+      refresh_token: string;
+    };
+    session.set("access", verified.access_token);
+    session.set("refresh", verified.refresh_token);
+    session.unset("mfaChallenge");
+    return redirect("/dashboard", {
+      headers: { "Set-Cookie": await commitSession(session) },
+    });
+  }
+
   const handle = String(form.get("handle") ?? "").trim();
   const email = String(form.get("email") ?? "").trim();
   const password = String(form.get("password") ?? "");
@@ -60,13 +102,24 @@ export async function action({ request }: Route.ActionArgs) {
     };
   }
 
-  const data = (await response.json()) as {
-    access_token: string;
-    refresh_token: string;
+  const body = (await response.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    mfa_required?: boolean;
+    mfa_challenge_token?: string;
   };
-  const session = await getSession(request.headers.get("Cookie"));
-  session.set("access", data.access_token);
-  session.set("refresh", data.refresh_token);
+
+  // MFA-enabled account: stash the challenge and prompt for the second factor.
+  if (body.mfa_required && body.mfa_challenge_token) {
+    session.set("mfaChallenge", body.mfa_challenge_token);
+    return data(
+      { mfaRequired: true },
+      { headers: { "Set-Cookie": await commitSession(session) } },
+    );
+  }
+
+  session.set("access", body.access_token ?? "");
+  session.set("refresh", body.refresh_token ?? "");
 
   return redirect("/dashboard", {
     headers: { "Set-Cookie": await commitSession(session) },
@@ -76,6 +129,11 @@ export async function action({ request }: Route.ActionArgs) {
 export default function Login({ actionData }: Route.ComponentProps) {
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const result = (actionData ?? {}) as {
+    error?: string;
+    mfaRequired?: boolean;
+  };
+  const mfaRequired = Boolean(result.mfaRequired);
   return (
     <Box
       sx={{
@@ -305,107 +363,149 @@ export default function Login({ actionData }: Route.ComponentProps) {
             </Stack>
             <Stack spacing={0.75} sx={{ mb: 3 }}>
               <Chip
-                label="Owner access"
+                label={mfaRequired ? "Two-step verification" : "Owner access"}
                 color="primary"
                 sx={{ alignSelf: "flex-start" }}
               />
               <Typography variant="h4" component="h2">
-                Sign in
+                {mfaRequired ? "Enter your code" : "Sign in"}
               </Typography>
               <Typography sx={{ color: alpha(tokens.ink, 0.68) }}>
-                Use your store handle and owner account.
+                {mfaRequired
+                  ? "Open your authenticator app and enter the 6-digit code, or use a backup code."
+                  : "Use your store handle and owner account."}
               </Typography>
             </Stack>
-            <Form method="post">
-              <Stack spacing={2.5}>
-                {actionData?.error ? (
-                  <Alert severity="error">{actionData.error}</Alert>
-                ) : null}
-                <TextField
-                  name="handle"
-                  label="Store handle"
-                  required
-                  autoComplete="username"
-                  fullWidth
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <StorefrontRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-                <TextField
-                  name="email"
-                  label="Email"
-                  type="email"
-                  required
-                  autoComplete="email"
-                  fullWidth
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <AlternateEmailRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-                <TextField
-                  name="password"
-                  label="Password"
-                  type="password"
-                  required
-                  autoComplete="current-password"
-                  fullWidth
-                  slotProps={{
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <LockRounded fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
-                <Button
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                  disabled={isSubmitting}
-                  startIcon={
-                    isSubmitting ? (
+            {mfaRequired ? (
+              <Form method="post" key="mfa">
+                <input type="hidden" name="intent" value="mfa" />
+                <Stack spacing={2.5}>
+                  {result.error ? (
+                    <Alert severity="error">{result.error}</Alert>
+                  ) : null}
+                  <TextField
+                    name="code"
+                    label="Authentication code"
+                    required
+                    autoFocus
+                    autoComplete="one-time-code"
+                    inputMode="text"
+                    fullWidth
+                    placeholder="123456 or a backup code"
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <ShieldRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={isSubmitting}
+                    endIcon={isSubmitting ? undefined : <LoginRounded />}
+                  >
+                    {isSubmitting ? "Verifying…" : "Verify and continue"}
+                  </Button>
+                </Stack>
+              </Form>
+            ) : (
+              <Form method="post" key="login">
+                <input type="hidden" name="intent" value="login" />
+                <Stack spacing={2.5}>
+                  {result.error ? (
+                    <Alert severity="error">{result.error}</Alert>
+                  ) : null}
+                  <TextField
+                    name="handle"
+                    label="Store handle"
+                    required
+                    autoComplete="username"
+                    fullWidth
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <StorefrontRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <TextField
+                    name="email"
+                    label="Email"
+                    type="email"
+                    required
+                    autoComplete="email"
+                    fullWidth
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <AlternateEmailRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <TextField
+                    name="password"
+                    label="Password"
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    fullWidth
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockRounded fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    size="large"
+                    disabled={isSubmitting}
+                    startIcon={
+                      isSubmitting ? (
+                        <Skeleton
+                          variant="rounded"
+                          width={18}
+                          height={18}
+                          sx={{
+                            bgcolor: "rgba(255,255,255,0.54)",
+                            borderRadius: 1,
+                          }}
+                        />
+                      ) : undefined
+                    }
+                    endIcon={isSubmitting ? undefined : <LoginRounded />}
+                  >
+                    {isSubmitting ? (
                       <Skeleton
-                        variant="rounded"
-                        width={18}
-                        height={18}
+                        variant="text"
+                        width={72}
                         sx={{
                           bgcolor: "rgba(255,255,255,0.54)",
-                          borderRadius: 1,
+                          fontSize: "1rem",
                         }}
                       />
-                    ) : undefined
-                  }
-                  endIcon={isSubmitting ? undefined : <LoginRounded />}
-                >
-                  {isSubmitting ? (
-                    <Skeleton
-                      variant="text"
-                      width={72}
-                      sx={{
-                        bgcolor: "rgba(255,255,255,0.54)",
-                        fontSize: "1rem",
-                      }}
-                    />
-                  ) : (
-                    "Sign in"
-                  )}
-                </Button>
-              </Stack>
-            </Form>
+                    ) : (
+                      "Sign in"
+                    )}
+                  </Button>
+                </Stack>
+              </Form>
+            )}
           </Paper>
         </Box>
       </Container>
