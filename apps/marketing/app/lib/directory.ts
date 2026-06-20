@@ -100,6 +100,18 @@ function mapShop(payload: ShopPayload): DirectoryShop {
   };
 }
 
+// The marketplace home (store.xtiitch.com) — where customers browse every studio,
+// run the AI search, and see featured placements. Derived from the same env the
+// per-shop links use, so non-prod environments point at the right host.
+export function marketplaceHref(): string {
+  const configured = readEnv("XTIITCH_STOREFRONT_BASE_URL")?.replace(/\/+$/, "");
+  if (configured?.includes("{handle}")) {
+    return configured.replace("{handle}", "store");
+  }
+  if (configured) return configured;
+  return "https://store.xtiitch.com";
+}
+
 function storefrontHref(storeHandle: string, designHandle = ""): string {
   const configured = readEnv("XTIITCH_STOREFRONT_BASE_URL")?.replace(
     /\/+$/,

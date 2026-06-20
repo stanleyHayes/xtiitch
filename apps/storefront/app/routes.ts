@@ -12,5 +12,7 @@ export default [
   route("c/:handle", "routes/collection.tsx"),
   route("track", "routes/track-lookup.tsx"),
   route("track/:orderId", "routes/track.tsx"),
+  route("robots.txt", "routes/robots.tsx"),
+  route("sitemap.xml", "routes/sitemap.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

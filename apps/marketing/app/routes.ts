@@ -16,5 +16,7 @@ export default [
   route("terms", "routes/terms.tsx"),
   route("payment-policy", "routes/payment-policy.tsx"),
   route("contact", "routes/contact.tsx"),
+  route("robots.txt", "routes/robots.tsx"),
+  route("sitemap.xml", "routes/sitemap.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
