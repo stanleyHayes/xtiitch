@@ -17,17 +17,17 @@ type Config struct {
 	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
 	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
 	// IP (<=0 disables).
-	CORSAllowedOrigins        []string
-	RateLimitRPS              int
-	DatabaseURL               string
-	Environment               string
-	ExpoAccessToken           string
-	GrowthPolicyConfirmed     bool
-	HTTPAddr                  string
-	JWTAudience               string
-	JWTIssuer                 string
-	JWTSigningKey             string
-	LegalReviewConfirmed      bool
+	CORSAllowedOrigins    []string
+	RateLimitRPS          int
+	DatabaseURL           string
+	Environment           string
+	ExpoAccessToken       string
+	GrowthPolicyConfirmed bool
+	HTTPAddr              string
+	JWTAudience           string
+	JWTIssuer             string
+	JWTSigningKey         string
+	LegalReviewConfirmed  bool
 	// MFAIssuer is the label authenticator apps show for TOTP entries.
 	// MFAEncryptionKey encrypts stored TOTP secrets at rest; when empty it falls
 	// back to the JWT signing key so local dev works without extra config.
