@@ -13,6 +13,7 @@ import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
+import { alpha } from "@mui/material/styles";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 
@@ -97,36 +98,125 @@ function RouteProgressBar() {
 
 export function ErrorBoundary({ error }: { error: unknown }) {
   const is404 = isRouteErrorResponse(error) && error.status === 404;
-  const title = is404 ? "Admin page not found" : "Admin console unavailable";
+  const isAPIUnavailable =
+    isRouteErrorResponse(error) && [502, 503].includes(error.status);
+  const title = is404
+    ? "Admin page not found"
+    : isAPIUnavailable
+      ? "Admin API unavailable"
+      : "Admin console unavailable";
   const message = is404
-    ? "That operator route does not exist in this console."
-    : "The admin surface hit an unexpected error. Try again after a moment.";
+    ? "That operator route does not exist in this console. The link may be wrong, or the section may have moved."
+    : isAPIUnavailable
+      ? "The console is running, but the API did not respond. Start the API, then reopen the console."
+      : "The admin surface hit an unexpected error. Try again in a moment.";
+  const code = is404 ? "404" : isAPIUnavailable ? "503" : "Error";
 
   return (
     <Box
       sx={{
-        minHeight: "80vh",
+        minHeight: "100vh",
+        position: "relative",
+        overflow: "hidden",
         display: "grid",
         placeItems: "center",
-        bgcolor: "background.default",
+        px: 3,
+        color: tokens.white,
+        background: `radial-gradient(circle at 50% 16%, ${alpha(tokens.burgundy, 0.42)}, transparent 56%), linear-gradient(160deg, ${tokens.ink} 0%, ${tokens.charcoal} 100%)`,
       }}
     >
-      <Container sx={{ textAlign: "center", maxWidth: 520 }}>
+      {/* Faint operator grid, masked to a soft vignette. */}
+      <Box
+        aria-hidden
+        sx={{
+          position: "absolute",
+          inset: 0,
+          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px)`,
+          backgroundSize: "42px 42px",
+          maskImage:
+            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
+          WebkitMaskImage:
+            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
+        }}
+      />
+      <Container
+        sx={{ position: "relative", textAlign: "center", maxWidth: 560 }}
+      >
+        <Box
+          component="img"
+          src="/favicon.svg"
+          alt="Xtiitch"
+          sx={{
+            width: 54,
+            height: 54,
+            borderRadius: "15px",
+            mb: 3,
+            boxShadow: `0 18px 50px ${alpha(tokens.ink, 0.6)}`,
+          }}
+        />
         <Typography
-          variant="overline"
-          sx={{ color: "primary.main", fontWeight: 800 }}
+          aria-hidden
+          sx={{
+            fontFamily: '"Fraunces", Georgia, serif',
+            fontWeight: 600,
+            fontSize: { xs: 78, md: 110 },
+            lineHeight: 0.95,
+            letterSpacing: "-0.04em",
+            color: tokens.white,
+          }}
         >
-          {is404 ? "404" : "Admin"}
+          {code}
         </Typography>
-        <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
+        <Box
+          aria-hidden
+          sx={{
+            width: 132,
+            mx: "auto",
+            my: 2.5,
+            borderBottom: `2px dashed ${alpha(tokens.white, 0.32)}`,
+          }}
+        />
+        <Typography
+          variant="h5"
+          component="h1"
+          sx={{
+            fontFamily: '"Fraunces", Georgia, serif',
+            fontWeight: 600,
+            color: tokens.white,
+          }}
+        >
           {title}
         </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>
+        <Typography
+          sx={{
+            mt: 1.5,
+            color: alpha(tokens.white, 0.7),
+            maxWidth: 440,
+            mx: "auto",
+            lineHeight: 1.6,
+          }}
+        >
           {message}
         </Typography>
-        <Button href="/admin" variant="contained" size="large" sx={{ mt: 4 }}>
+        <Button
+          href="/admin"
+          variant="contained"
+          size="large"
+          sx={{ mt: 4, bgcolor: tokens.burgundy }}
+        >
           Open console
         </Button>
+        <Typography
+          sx={{
+            mt: 5,
+            color: alpha(tokens.white, 0.42),
+            fontSize: 11,
+            letterSpacing: 2,
+            textTransform: "uppercase",
+          }}
+        >
+          Xtiitch operations
+        </Typography>
       </Container>
     </Box>
   );
