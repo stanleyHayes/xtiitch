@@ -33,6 +33,8 @@ const (
 	stepMenu          = "menu"
 	stepBrowsing      = "browsing"
 	stepAwaitingOrder = "awaiting_order"
+	stepOrderSize     = "order_size"
+	stepOrderName     = "order_name"
 )
 
 type Service struct {
@@ -79,16 +81,30 @@ type InboundMessage struct {
 
 // conversationState is the opaque per-sender state persisted as JSON.
 type conversationState struct {
-	Step     string         `json:"step"`
-	Shop     string         `json:"shop,omitempty"`
-	ShopName string         `json:"shop_name,omitempty"`
-	Listing  []listedDesign `json:"listing,omitempty"`
-	Turns    int            `json:"turns"`
+	Step           string         `json:"step"`
+	Shop           string         `json:"shop,omitempty"`
+	ShopName       string         `json:"shop_name,omitempty"`
+	OnlineOrdering bool           `json:"online_ordering,omitempty"`
+	Listing        []listedDesign `json:"listing,omitempty"`
+	// Order-in-progress (Phase 2). Held across the size → name → pay steps.
+	OrderDesign  string      `json:"order_design,omitempty"`
+	OrderTitle   string      `json:"order_title,omitempty"`
+	OrderSizes   []orderSize `json:"order_sizes,omitempty"`
+	ChosenBandID string      `json:"chosen_band,omitempty"`
+	ChosenLabel  string      `json:"chosen_label,omitempty"`
+	ChosenAmount int64       `json:"chosen_amount,omitempty"`
+	Turns        int         `json:"turns"`
 }
 
 type listedDesign struct {
 	Title  string `json:"t"`
 	Handle string `json:"h"`
+}
+
+type orderSize struct {
+	BandID     string `json:"b"`
+	Label      string `json:"l"`
+	PriceMinor int64  `json:"p"`
 }
 
 // outcome is what one turn produces: the reply, the next state, the resolved
@@ -173,6 +189,10 @@ func (s Service) advance(ctx context.Context, existed bool, businessID string, s
 		return s.handleBrowsing(ctx, businessID, state, msg.Text)
 	case stepAwaitingOrder:
 		return s.handleOrderCode(ctx, businessID, state, msg.Text)
+	case stepOrderSize:
+		return s.handleOrderSize(ctx, businessID, state, msg.Text)
+	case stepOrderName:
+		return s.handleOrderName(ctx, businessID, state, msg.WaID, msg.Text)
 	default:
 		return outcome{reply: greeting(msg.ContactName), state: withStep(state, stepAwaitingShop)}, nil
 	}
@@ -198,6 +218,7 @@ func (s Service) handleShopInput(ctx context.Context, state conversationState, t
 	next.Step = stepMenu
 	next.Shop = shop.Handle
 	next.ShopName = shop.Name
+	next.OnlineOrdering = shop.OnlineOrdering
 	return outcome{reply: s.shopMenu(shop.Name), state: next, businessID: shop.BusinessID}, nil
 }
 
@@ -213,6 +234,8 @@ func (s Service) handleMenu(ctx context.Context, businessID string, state conver
 		return s.trackOrder(ctx, businessID, state, strings.TrimSpace(text[len("track "):]))
 	case strings.HasPrefix(command, "shop "):
 		return s.handleShopInput(ctx, state, strings.TrimSpace(text[len("shop "):]))
+	case command == "order" || command == "buy":
+		return s.startOrder(ctx, businessID, state)
 	case command == "menu" || command == "help" || command == "hi" || command == "hello":
 		return outcome{reply: s.shopMenu(state.ShopName), state: state, businessID: businessID}, nil
 	default:
@@ -278,14 +301,138 @@ func (s Service) designDetail(ctx context.Context, businessID string, state conv
 		}
 		var b strings.Builder
 		fmt.Fprintf(&b, "*%s*\nFrom %s\n", d.Title, formatGHS(d.FromPriceMinor))
-		if len(d.Sizes) > 0 {
-			fmt.Fprintf(&b, "Sizes: %s\n", strings.Join(d.Sizes, ", "))
+		if labels := sizeLabels(d.Sizes); labels != "" {
+			fmt.Fprintf(&b, "Sizes: %s\n", labels)
 		}
-		fmt.Fprintf(&b, "\nTo order, open %s/%s — in-chat ordering is coming soon. Reply *MENU* to keep browsing.", s.storefrontBase, state.Shop)
-		return outcome{reply: b.String(), state: withStep(state, stepMenu), businessID: businessID}, nil
+		next := state
+		next.Step = stepMenu
+		next.OrderDesign = d.Handle
+		next.OrderTitle = d.Title
+		if state.OnlineOrdering && len(d.Sizes) > 0 {
+			b.WriteString("\n🛒 Reply *ORDER* to buy this one, or *MENU* to keep browsing.")
+		} else {
+			fmt.Fprintf(&b, "\nTo order, open %s/%s. Reply *MENU* to keep browsing.", s.storefrontBase, state.Shop)
+		}
+		return outcome{reply: b.String(), state: next, businessID: businessID}, nil
 	}
 	// The design vanished between listing and selection; re-list.
 	return s.listDesigns(ctx, businessID, state)
+}
+
+// startOrder begins in-chat ordering for the design last viewed: it lists the
+// size bands and moves to the size-pick step. Refused when the shop's plan lacks
+// online ordering.
+func (s Service) startOrder(ctx context.Context, businessID string, state conversationState) (outcome, error) {
+	if !state.OnlineOrdering {
+		return outcome{reply: fmt.Sprintf("This shop isn't taking online orders in chat yet. You can still order at %s/%s. Reply *MENU* for more.", s.storefrontBase, state.Shop), state: withStep(state, stepMenu), businessID: businessID}, nil
+	}
+	if state.OrderDesign == "" {
+		return outcome{reply: "Pick a design first: reply *BROWSE*, choose a number, then *ORDER*.", state: withStep(state, stepMenu), businessID: businessID}, nil
+	}
+	designs, err := s.catalogue.ListDesigns(ctx, businessID)
+	if err != nil {
+		return outcome{}, err
+	}
+	for _, d := range designs {
+		if d.Handle != state.OrderDesign || len(d.Sizes) == 0 {
+			continue
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Ordering *%s* 🛒\nWhich size? Reply with a number:\n", d.Title)
+		sizes := make([]orderSize, 0, len(d.Sizes))
+		for i, band := range d.Sizes {
+			fmt.Fprintf(&b, "%d. %s — %s\n", i+1, band.Label, formatGHS(band.PriceMinor))
+			sizes = append(sizes, orderSize{BandID: band.ID, Label: band.Label, PriceMinor: band.PriceMinor})
+		}
+		b.WriteString("\nOr reply *MENU* to cancel.")
+		next := state
+		next.Step = stepOrderSize
+		next.OrderTitle = d.Title
+		next.OrderSizes = sizes
+		return outcome{reply: b.String(), state: next, businessID: businessID}, nil
+	}
+	return outcome{reply: "That design isn't available to order right now. Reply *MENU* for more.", state: withStep(state, stepMenu), businessID: businessID}, nil
+}
+
+// handleOrderSize records the chosen size band and asks for the customer's name.
+func (s Service) handleOrderSize(_ context.Context, businessID string, state conversationState, text string) (outcome, error) {
+	command := strings.ToLower(strings.TrimSpace(text))
+	if command == "menu" || command == "cancel" {
+		return outcome{reply: s.shopMenu(state.ShopName), state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+	}
+	n, err := strconv.Atoi(command)
+	if err != nil || n < 1 || n > len(state.OrderSizes) {
+		return outcome{reply: "Reply with a size number from the list, or *MENU* to cancel.", state: state, businessID: businessID}, nil
+	}
+	band := state.OrderSizes[n-1]
+	next := state
+	next.Step = stepOrderName
+	next.ChosenBandID = band.BandID
+	next.ChosenLabel = band.Label
+	next.ChosenAmount = band.PriceMinor
+	reply := fmt.Sprintf("Great — *%s* (%s), size %s.\nWhat name should we put on the order?", state.OrderTitle, formatGHS(band.PriceMinor), band.Label)
+	return outcome{reply: reply, state: next, businessID: businessID}, nil
+}
+
+// handleOrderName captures the name, places the order via checkout, and sends the
+// Paystack payment link. The existing webhook confirms the order on payment and
+// auto-sends the WhatsApp confirmation, so the bot's job ends at the link.
+func (s Service) handleOrderName(ctx context.Context, businessID string, state conversationState, waID, text string) (outcome, error) {
+	name := strings.TrimSpace(text)
+	if strings.EqualFold(name, "menu") || strings.EqualFold(name, "cancel") {
+		return outcome{reply: s.shopMenu(state.ShopName), state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+	}
+	if name == "" {
+		return outcome{reply: "Please reply with the name for the order, or *MENU* to cancel.", state: state, businessID: businessID}, nil
+	}
+
+	draft, err := s.catalogue.PlaceStandardOrder(ctx, ports.BotOrderRequest{
+		StoreHandle:   state.Shop,
+		DesignHandle:  state.OrderDesign,
+		SizeBandID:    state.ChosenBandID,
+		CustomerName:  name,
+		CustomerPhone: waID,
+		CustomerEmail: synthEmail(waID),
+	})
+	if errors.Is(err, ports.ErrOrderingUnavailable) {
+		return outcome{reply: "This shop isn't taking online orders right now. Reply *MENU* for more.", state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+	}
+	if err != nil {
+		return outcome{reply: "Sorry, I couldn't start that order just now. Please try again in a moment, or reply *MENU*.", state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+	}
+
+	reply := fmt.Sprintf(
+		"🧾 Order ready: *%s* (size %s) — %s.\n\nTap to pay securely:\n%s\n\nOnce your payment is confirmed you'll get a confirmation here. Reply *MENU* for more.",
+		state.OrderTitle, state.ChosenLabel, formatGHS(draft.AmountMinor), draft.AuthorizationURL,
+	)
+	return outcome{reply: reply, state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+}
+
+// clearOrder wipes the in-progress order fields once an order is placed/cancelled.
+func clearOrder(state conversationState) conversationState {
+	state.OrderDesign = ""
+	state.OrderTitle = ""
+	state.OrderSizes = nil
+	state.ChosenBandID = ""
+	state.ChosenLabel = ""
+	state.ChosenAmount = 0
+	return state
+}
+
+// synthEmail builds a placeholder email from the WhatsApp number; Paystack
+// requires one and chat customers rarely have/share email. They get the order
+// confirmation on WhatsApp, not by email.
+func synthEmail(waID string) string {
+	digits := strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, waID)
+	if digits == "" {
+		digits = "guest"
+	}
+	return "wa" + digits + "@whatsapp.xtiitch.com"
 }
 
 // handleOrderCode looks up an order by its tracking code.
@@ -336,6 +483,17 @@ func decodeState(raw []byte) conversationState {
 	}
 	_ = json.Unmarshal(raw, &state)
 	return state
+}
+
+// sizeLabels joins a design's size-band labels for display ("S, M, L").
+func sizeLabels(bands []ports.BotSizeBand) string {
+	labels := make([]string, 0, len(bands))
+	for _, b := range bands {
+		if b.Label != "" {
+			labels = append(labels, b.Label)
+		}
+	}
+	return strings.Join(labels, ", ")
 }
 
 // normalizeHandle turns "Demo Atelier" or "demo atelier" into "demo-atelier".

@@ -56,43 +56,68 @@ func (f *fakeSender) last() string {
 }
 
 // fakeCatalogue serves one shop ("demo-atelier") with two designs and one order.
-type fakeCatalogue struct{}
+// onlineOrdering toggles the plan benefit; placed records bot orders.
+type fakeCatalogue struct {
+	onlineOrdering bool
+	placed         []ports.BotOrderRequest
+}
 
-func (fakeCatalogue) ResolveShop(_ context.Context, handle string) (ports.BotShop, error) {
+func (f *fakeCatalogue) ResolveShop(_ context.Context, handle string) (ports.BotShop, error) {
 	if handle != "demo-atelier" {
 		return ports.BotShop{}, ports.ErrNotFound
 	}
-	return ports.BotShop{BusinessID: "biz-1", Name: "Demo Atelier", Handle: "demo-atelier", OnlineOrdering: true}, nil
+	return ports.BotShop{BusinessID: "biz-1", Name: "Demo Atelier", Handle: "demo-atelier", OnlineOrdering: f.onlineOrdering}, nil
 }
 
-func (fakeCatalogue) ListDesigns(_ context.Context, businessID string) ([]ports.BotDesign, error) {
+func (f *fakeCatalogue) ListDesigns(_ context.Context, businessID string) ([]ports.BotDesign, error) {
 	if businessID != "biz-1" {
 		return nil, nil
 	}
 	return []ports.BotDesign{
-		{Title: "Kente Wrap Dress", Handle: "kente-wrap-dress", FromPriceMinor: 45000, Sizes: []string{"S", "M", "L"}},
-		{Title: "Ankara Blazer", Handle: "ankara-blazer", FromPriceMinor: 60000, Sizes: []string{"M", "L"}},
+		{Title: "Kente Wrap Dress", Handle: "kente-wrap-dress", FromPriceMinor: 45000, Sizes: []ports.BotSizeBand{
+			{ID: "band-s", Label: "S", PriceMinor: 45000},
+			{ID: "band-m", Label: "M", PriceMinor: 50000},
+			{ID: "band-l", Label: "L", PriceMinor: 55000},
+		}},
+		{Title: "Ankara Blazer", Handle: "ankara-blazer", FromPriceMinor: 60000, Sizes: []ports.BotSizeBand{
+			{ID: "band-m2", Label: "M", PriceMinor: 60000},
+			{ID: "band-l2", Label: "L", PriceMinor: 65000},
+		}},
 	}, nil
 }
 
-func (fakeCatalogue) TrackOrder(_ context.Context, code string) (ports.BotOrder, error) {
+func (f *fakeCatalogue) TrackOrder(_ context.Context, code string) (ports.BotOrder, error) {
 	if code != "ORDER123" {
 		return ports.BotOrder{}, ports.ErrNotFound
 	}
 	return ports.BotOrder{DesignTitle: "Kente Wrap Dress", StoreName: "Demo Atelier", Status: "awaiting_deposit", Stage: "Deposit", Colour: "yellow"}, nil
 }
 
+func (f *fakeCatalogue) PlaceStandardOrder(_ context.Context, req ports.BotOrderRequest) (ports.BotOrderDraft, error) {
+	if !f.onlineOrdering {
+		return ports.BotOrderDraft{}, ports.ErrOrderingUnavailable
+	}
+	f.placed = append(f.placed, req)
+	return ports.BotOrderDraft{OrderID: "order-xyz", AuthorizationURL: "https://paystack.test/pay/abc", AmountMinor: 50000}, nil
+}
+
 func newService() (Service, *fakeSessions, *fakeSender) {
+	svc, sessions, sender, _ := newServiceWith(true)
+	return svc, sessions, sender
+}
+
+func newServiceWith(onlineOrdering bool) (Service, *fakeSessions, *fakeSender, *fakeCatalogue) {
 	sessions := newFakeSessions()
 	sender := &fakeSender{}
+	cat := &fakeCatalogue{onlineOrdering: onlineOrdering}
 	svc := NewService(Dependencies{
 		Sessions:       sessions,
 		Dedupe:         newFakeDedupe(),
 		Sender:         sender,
-		Catalogue:      fakeCatalogue{},
+		Catalogue:      cat,
 		StorefrontBase: "https://shop.xtiitch.com",
 	})
-	return svc, sessions, sender
+	return svc, sessions, sender, cat
 }
 
 // send is a tiny helper to drive a turn with a unique message id.
@@ -170,6 +195,62 @@ func TestTrackUnknownOrder(t *testing.T) {
 	send(t, svc, "233244000111", "m3", "track NOPE")
 	if !strings.Contains(strings.ToLower(sender.last()), "couldn't find an order") {
 		t.Fatalf("expected order not-found, got %q", sender.last())
+	}
+}
+
+func TestOrderFlowPlacesOrderAndSendsPaymentLink(t *testing.T) {
+	svc, _, sender, cat := newServiceWith(true)
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "demo-atelier")
+	send(t, svc, "233244000111", "m3", "browse")
+	send(t, svc, "233244000111", "m4", "1") // open Kente Wrap Dress
+	if !strings.Contains(strings.ToUpper(sender.last()), "ORDER") {
+		t.Fatalf("expected an ORDER prompt on the detail, got %q", sender.last())
+	}
+	send(t, svc, "233244000111", "m5", "order") // → list sizes
+	if !strings.Contains(sender.last(), "Which size") {
+		t.Fatalf("expected size prompt, got %q", sender.last())
+	}
+	send(t, svc, "233244000111", "m6", "2") // pick size M
+	if !strings.Contains(strings.ToLower(sender.last()), "name") {
+		t.Fatalf("expected a name prompt, got %q", sender.last())
+	}
+	send(t, svc, "233244000111", "m7", "Ama Mensah") // give name → place order
+
+	if len(cat.placed) != 1 {
+		t.Fatalf("expected exactly one placed order, got %d", len(cat.placed))
+	}
+	req := cat.placed[0]
+	if req.StoreHandle != "demo-atelier" || req.DesignHandle != "kente-wrap-dress" || req.SizeBandID != "band-m" {
+		t.Fatalf("order request mismatch: %+v", req)
+	}
+	if req.CustomerName != "Ama Mensah" || req.CustomerPhone != "233244000111" {
+		t.Fatalf("customer details mismatch: %+v", req)
+	}
+	if req.CustomerEmail == "" {
+		t.Fatal("expected a synthesised email for Paystack")
+	}
+	if !strings.Contains(sender.last(), "https://paystack.test/pay/abc") {
+		t.Fatalf("expected the payment link in the reply, got %q", sender.last())
+	}
+}
+
+func TestOrderRefusedWhenOnlineOrderingOff(t *testing.T) {
+	svc, _, sender, cat := newServiceWith(false)
+	send(t, svc, "233244000111", "m1", "hi")
+	send(t, svc, "233244000111", "m2", "demo-atelier")
+	send(t, svc, "233244000111", "m3", "browse")
+	send(t, svc, "233244000111", "m4", "1")
+	// Detail should NOT show the ORDER prompt for a non-ordering shop.
+	if strings.Contains(strings.ToUpper(sender.last()), "REPLY *ORDER*") {
+		t.Fatalf("did not expect an ORDER prompt when ordering is off, got %q", sender.last())
+	}
+	send(t, svc, "233244000111", "m5", "order")
+	if len(cat.placed) != 0 {
+		t.Fatal("no order should be placed when online ordering is off")
+	}
+	if !strings.Contains(strings.ToLower(sender.last()), "isn't taking online orders") {
+		t.Fatalf("expected a refusal pointing to the shop page, got %q", sender.last())
 	}
 }
 

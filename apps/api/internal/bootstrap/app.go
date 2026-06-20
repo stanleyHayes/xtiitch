@@ -247,7 +247,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
-	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db)
+	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
@@ -336,7 +336,7 @@ func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Po
 // Replies go through the Cloud API when WHATSAPP_PHONE_NUMBER_ID and
 // WHATSAPP_ACCESS_TOKEN are set, else a logging sender (dev fallback) so the
 // engine is fully exercisable locally.
-func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) whatsappbotapp.Service {
+func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, checkout botcatalogueadapter.CheckoutPlacer) whatsappbotapp.Service {
 	var sender ports.WhatsAppSender
 	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
 		sender = whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion)
@@ -349,6 +349,7 @@ func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool
 	catalogue := botcatalogueadapter.New(
 		postgres.NewStorefrontRepository(db),
 		postgres.NewOrderRepository(db),
+		checkout,
 	)
 	return whatsappbotapp.NewService(whatsappbotapp.Dependencies{
 		Sessions:       repo,

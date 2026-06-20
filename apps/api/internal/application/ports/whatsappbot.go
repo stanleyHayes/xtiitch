@@ -2,8 +2,13 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrOrderingUnavailable means the shop's plan does not grant online ordering, so
+// the bot can browse/track but not place & pay. Mapped from the checkout gate.
+var ErrOrderingUnavailable = errors.New("online ordering unavailable")
 
 // WhatsAppSessionRepository persists the per-sender conversation state for the
 // inbound bot. Sessions are global (keyed by the sender's WhatsApp id) and carry
@@ -48,6 +53,11 @@ type BotCatalogue interface {
 	ResolveShop(ctx context.Context, handle string) (BotShop, error)
 	ListDesigns(ctx context.Context, businessID string) ([]BotDesign, error)
 	TrackOrder(ctx context.Context, code string) (BotOrder, error)
+	// PlaceStandardOrder creates a draft order and returns a Paystack payment link.
+	// Reuses the storefront checkout path; returns ErrOrderingUnavailable when the
+	// shop's plan lacks online_ordering. Xtiitch never holds funds — the link
+	// settles to the business's subaccount.
+	PlaceStandardOrder(ctx context.Context, req BotOrderRequest) (BotOrderDraft, error)
 }
 
 type BotShop struct {
@@ -61,7 +71,28 @@ type BotDesign struct {
 	Title          string
 	Handle         string
 	FromPriceMinor int64
-	Sizes          []string
+	Sizes          []BotSizeBand
+}
+
+type BotSizeBand struct {
+	ID         string
+	Label      string
+	PriceMinor int64
+}
+
+type BotOrderRequest struct {
+	StoreHandle   string
+	DesignHandle  string
+	SizeBandID    string
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+}
+
+type BotOrderDraft struct {
+	OrderID          string
+	AuthorizationURL string
+	AmountMinor      int64
 }
 
 type BotOrder struct {

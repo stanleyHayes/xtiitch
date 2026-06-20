@@ -7,19 +7,29 @@ package botcatalogueadapter
 
 import (
 	"context"
+	"errors"
 
+	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
+
+// CheckoutPlacer is the slice of the checkout service the bot needs (placing a
+// standard order + payment link). The concrete checkout.Service satisfies it.
+type CheckoutPlacer interface {
+	PlaceStandardOrder(ctx context.Context, cmd checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
+}
 
 type Adapter struct {
 	storefront ports.StorefrontRepository
 	orders     ports.OrderRepository
+	checkout   CheckoutPlacer
 }
 
-func New(storefront ports.StorefrontRepository, orders ports.OrderRepository) Adapter {
-	return Adapter{storefront: storefront, orders: orders}
+func New(storefront ports.StorefrontRepository, orders ports.OrderRepository, checkout CheckoutPlacer) Adapter {
+	return Adapter{storefront: storefront, orders: orders, checkout: checkout}
 }
 
 func (a Adapter) ResolveShop(ctx context.Context, handle string) (ports.BotShop, error) {
@@ -46,10 +56,38 @@ func (a Adapter) ListDesigns(ctx context.Context, businessID string) ([]ports.Bo
 			Title:          d.Design.Title,
 			Handle:         d.Design.Handle,
 			FromPriceMinor: minPrice(d.Prices),
-			Sizes:          sizeLabels(d.Prices),
+			Sizes:          sizeBands(d.Prices),
 		})
 	}
 	return out, nil
+}
+
+// PlaceStandardOrder reuses the storefront checkout path so bot orders are
+// identical and idempotent. The customer's WhatsApp number is the phone (so the
+// auto-enqueued order-confirmation notification reaches them on WhatsApp); a
+// placeholder email is synthesised since Paystack requires one. Mobile money is
+// the default method (dominant in Ghana).
+func (a Adapter) PlaceStandardOrder(ctx context.Context, req ports.BotOrderRequest) (ports.BotOrderDraft, error) {
+	result, err := a.checkout.PlaceStandardOrder(ctx, checkoutapp.PlaceStandardOrderCommand{
+		StoreHandle:   req.StoreHandle,
+		DesignHandle:  req.DesignHandle,
+		SizeBandID:    common.ID(req.SizeBandID),
+		CustomerName:  req.CustomerName,
+		CustomerPhone: req.CustomerPhone,
+		CustomerEmail: req.CustomerEmail,
+		Method:        money.PaymentMethodMomo,
+	})
+	if errors.Is(err, checkoutapp.ErrOnlineOrderingOff) {
+		return ports.BotOrderDraft{}, ports.ErrOrderingUnavailable
+	}
+	if err != nil {
+		return ports.BotOrderDraft{}, err
+	}
+	return ports.BotOrderDraft{
+		OrderID:          result.OrderID.String(),
+		AuthorizationURL: result.AuthorizationURL,
+		AmountMinor:      result.AmountMinor,
+	}, nil
 }
 
 func (a Adapter) TrackOrder(ctx context.Context, code string) (ports.BotOrder, error) {
@@ -81,12 +119,14 @@ func minPrice(prices []catalogue.BandPrice) int64 {
 	return min
 }
 
-func sizeLabels(prices []catalogue.BandPrice) []string {
-	out := make([]string, 0, len(prices))
+func sizeBands(prices []catalogue.BandPrice) []ports.BotSizeBand {
+	out := make([]ports.BotSizeBand, 0, len(prices))
 	for _, p := range prices {
-		if p.Label != "" {
-			out = append(out, p.Label)
-		}
+		out = append(out, ports.BotSizeBand{
+			ID:         p.SizeBandID.String(),
+			Label:      p.Label,
+			PriceMinor: p.PriceMinor,
+		})
 	}
 	return out
 }
