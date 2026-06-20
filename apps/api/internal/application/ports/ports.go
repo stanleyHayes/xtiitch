@@ -18,10 +18,16 @@ type BusinessIdentityRepository interface {
 	GetBusinessSubscription(ctx context.Context, businessID common.ID) (BusinessSubscriptionRecord, error)
 	ActivateRecurringBilling(ctx context.Context, input ActivateRecurringBillingInput) error
 	FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (BusinessUserCredentials, error)
+	FindBusinessUserCredentialsByID(ctx context.Context, scope common.TenantScope, userID common.ID) (BusinessUserCredentials, error)
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserPasswordInput) error
+	// UpdateOwnPassword sets the password for the authenticated user themselves.
+	// Unlike UpdateBusinessUserPassword (the admin reset path, which refuses to
+	// touch an owner), this is scoped to the caller's own user id, so an owner
+	// can rotate their own credential.
+	UpdateOwnPassword(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserPasswordInput) error
 	TransferBusinessOwner(ctx context.Context, scope common.TenantScope, input TransferBusinessOwnerInput) (TransferBusinessOwnerResult, error)
 }
 

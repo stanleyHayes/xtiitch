@@ -504,6 +504,8 @@ type fakeAuthService struct {
 	updateUserCommand        authapp.UpdateBusinessUserCommand
 	resetUserPasswordCalled  bool
 	resetUserPasswordCommand authapp.ResetBusinessUserPasswordCommand
+	changeOwnPasswordCalled  bool
+	changeOwnPasswordCommand authapp.ChangeOwnPasswordCommand
 	transferOwnerCalled      bool
 	transferOwnerCommand     authapp.TransferBusinessOwnerCommand
 	transferResult           ports.TransferBusinessOwnerResult
@@ -590,6 +592,20 @@ func (service *fakeAuthService) ResetBusinessUserPassword(_ context.Context, com
 	service.resetUserPasswordCalled = true
 	service.resetUserPasswordCommand = command
 	return service.userErr
+}
+
+func (service *fakeAuthService) ChangeOwnPassword(_ context.Context, command authapp.ChangeOwnPasswordCommand) error {
+	service.changeOwnPasswordCalled = true
+	service.changeOwnPasswordCommand = command
+	return service.userErr
+}
+
+func (service *fakeAuthService) RequestPasswordReset(_ context.Context, _ string) error {
+	return service.err
+}
+
+func (service *fakeAuthService) ConfirmPasswordReset(_ context.Context, _ string, _ string, _ string) error {
+	return service.err
 }
 
 func (service *fakeAuthService) TransferBusinessOwner(_ context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error) {

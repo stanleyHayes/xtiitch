@@ -126,6 +126,60 @@ export async function action({ request }: Route.ActionArgs) {
     return { disabled: true };
   }
 
+  if (intent === "change_password") {
+    const currentPassword = String(form.get("current_password") ?? "");
+    const newPassword = String(form.get("new_password") ?? "");
+    const confirmPassword = String(form.get("confirm_password") ?? "");
+    if (newPassword.length < 8 || newPassword.length > 72) {
+      return {
+        error: "Your new password must be 8 to 72 characters.",
+        context: "password" as const,
+      };
+    }
+    if (newPassword !== confirmPassword) {
+      return {
+        error: "The new passwords don't match.",
+        context: "password" as const,
+      };
+    }
+    if (newPassword === currentPassword) {
+      return {
+        error: "Choose a new password that's different from your current one.",
+        context: "password" as const,
+      };
+    }
+    const response = await fetchApi("/auth/business/password", {
+      method: "POST",
+      headers: { ...auth, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    });
+    // A wrong current password also comes back as 401 (invalid_credentials), so
+    // we can't blanket-redirect here: only a genuine token problem
+    // (missing_token/invalid_token) should bounce the user to sign in.
+    if (response.status === 401) {
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (body.error === "invalid_credentials") {
+        return {
+          error: "That current password is incorrect.",
+          context: "password" as const,
+        };
+      }
+      throw redirect("/login");
+    }
+    if (!response.ok) {
+      return {
+        error: "Could not change your password. Try again.",
+        context: "password" as const,
+      };
+    }
+    return { passwordChanged: true };
+  }
+
   return { error: "Unknown action." };
 }
 
@@ -137,9 +191,11 @@ export default function Security({
   const busy = navigation.state !== "idle";
   const result = (actionData ?? {}) as {
     error?: string;
+    context?: "password";
     setup?: { secret: string; provisioning_uri: string };
     backupCodes?: string[];
     disabled?: boolean;
+    passwordChanged?: boolean;
   };
   const status = loaderData.status;
   const enabled = status.enabled && !result.disabled;
@@ -155,7 +211,12 @@ export default function Security({
             message: "Two-step verification is off.",
             severity: "success" as const,
           }
-        : null;
+        : result.passwordChanged
+          ? {
+              message: "Your password has been changed.",
+              severity: "success" as const,
+            }
+          : null;
   const [securityFeedbackOpen, setSecurityFeedbackOpen] = useState(
     Boolean(securityFeedback),
   );
@@ -228,7 +289,7 @@ export default function Security({
             </Box>
           </Stack>
 
-          {result.error ? (
+          {result.error && result.context !== "password" ? (
             <Alert severity="error" sx={{ mb: 2 }}>
               {result.error}
             </Alert>
@@ -360,6 +421,81 @@ export default function Security({
               </Button>
             </Form>
           )}
+        </Paper>
+
+        <Paper
+          elevation={0}
+          sx={{
+            mt: 3,
+            p: { xs: 3, md: 4 },
+            border: "1px solid",
+            borderColor: alpha(tokens.ink, 0.12),
+            borderRadius: 3,
+          }}
+        >
+          <Stack spacing={1} sx={{ mb: 3 }}>
+            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+              <KeyRounded sx={{ color: tokens.burgundy }} />
+              <Typography variant="h5" component="h2">
+                Change password
+              </Typography>
+            </Stack>
+            <Typography sx={{ color: "text.secondary" }}>
+              Update the password you use to sign in. Enter your current password
+              to confirm it's you.
+            </Typography>
+          </Stack>
+
+          {result.error && result.context === "password" ? (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {result.error}
+            </Alert>
+          ) : null}
+
+          {result.passwordChanged ? (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Your password has been changed. Use it next time you sign in.
+            </Alert>
+          ) : null}
+
+          <Form method="post">
+            <input type="hidden" name="intent" value="change_password" />
+            <Stack spacing={2}>
+              <TextField
+                name="current_password"
+                label="Current password"
+                type="password"
+                required
+                fullWidth
+                autoComplete="current-password"
+              />
+              <TextField
+                name="new_password"
+                label="New password"
+                type="password"
+                required
+                fullWidth
+                autoComplete="new-password"
+                helperText="At least 8 characters."
+              />
+              <TextField
+                name="confirm_password"
+                label="Confirm new password"
+                type="password"
+                required
+                fullWidth
+                autoComplete="new-password"
+              />
+              <Button
+                type="submit"
+                variant="contained"
+                disabled={busy}
+                startIcon={<KeyRounded />}
+              >
+                {busy ? "Saving…" : "Change password"}
+              </Button>
+            </Stack>
+          </Form>
         </Paper>
       </Container>
     </Box>

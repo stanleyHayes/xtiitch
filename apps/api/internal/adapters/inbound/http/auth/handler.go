@@ -30,6 +30,7 @@ type Service interface {
 	CreateBusinessUser(ctx context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error)
 	ResetBusinessUserPassword(ctx context.Context, command authapp.ResetBusinessUserPasswordCommand) error
+	ChangeOwnPassword(ctx context.Context, command authapp.ChangeOwnPasswordCommand) error
 	RequestPasswordReset(ctx context.Context, email string) error
 	ConfirmPasswordReset(ctx context.Context, email string, code string, newPassword string) error
 	TransferBusinessOwner(ctx context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error)
@@ -73,6 +74,9 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/auth/business/users", handler.createBusinessUser)
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
 		protected.Post("/auth/business/users/{id}/password", handler.resetBusinessUserPassword)
+		// Self-service: the signed-in user changes their own password by
+		// confirming the current one. Distinct from the admin reset above.
+		protected.Post("/auth/business/password", handler.changeOwnPassword)
 		protected.Post("/auth/business/owner-transfer", handler.transferBusinessOwner)
 		protected.Get("/auth/business/mfa", handler.mfaStatus)
 		protected.Post("/auth/business/mfa/setup", handler.startMFAEnrollment)
@@ -119,6 +123,11 @@ type updateBusinessUserRequest struct {
 
 type resetBusinessUserPasswordRequest struct {
 	Password string `json:"password"`
+}
+
+type changeOwnPasswordRequest struct {
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }
 
 type transferBusinessOwnerRequest struct {
@@ -524,6 +533,34 @@ func (handler Handler) resetBusinessUserPassword(w http.ResponseWriter, r *http.
 		ActorRole:   principal.Role,
 		UserID:      common.ID(chi.URLParam(r, "id")),
 		NewPassword: request.Password,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) changeOwnPassword(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request changeOwnPasswordRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	err := handler.service.ChangeOwnPassword(r.Context(), authapp.ChangeOwnPasswordCommand{
+		Scope:           principal.TenantScope(),
+		UserID:          principal.UserID,
+		CurrentPassword: request.CurrentPassword,
+		NewPassword:     request.NewPassword,
 	})
 	if err != nil {
 		status, code := authError(err)

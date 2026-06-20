@@ -632,6 +632,75 @@ func TestResetBusinessUserPasswordRequiresOwnerOrAdminAndHashesPassword(t *testi
 	}
 }
 
+func TestChangeOwnPasswordVerifiesCurrentAndHashesNew(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		credentialsByID: ports.BusinessUserCredentials{
+			BusinessID:   "business-1",
+			UserID:       "owner-1",
+			PasswordHash: "hashed:current-password",
+			Role:         business.UserRoleOwner,
+			IsActive:     true,
+		},
+	}
+	service := NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		IDs:           &sequenceIDs{ids: []common.ID{"unused"}},
+		Clock:         fixedClock{now: time.Now()},
+	})
+
+	scope := common.TenantScope{BusinessID: "business-1"}
+
+	// Owner can rotate their own password via the no-role-guard update path.
+	err := service.ChangeOwnPassword(context.Background(), ChangeOwnPasswordCommand{
+		Scope:           scope,
+		UserID:          "owner-1",
+		CurrentPassword: "current-password",
+		NewPassword:     "fresh-strong-password",
+	})
+	if err != nil {
+		t.Fatalf("change own password: %v", err)
+	}
+	if businesses.lookupUserID != "owner-1" {
+		t.Fatalf("expected lookup by own user id, got %q", businesses.lookupUserID)
+	}
+	if businesses.updatedOwnPassword.UserID != "owner-1" || businesses.updatedOwnPassword.PasswordHash != "hashed:fresh-strong-password" {
+		t.Fatalf("expected hashed own-password update, got %+v", businesses.updatedOwnPassword)
+	}
+
+	// A wrong current password is rejected as invalid credentials, and no update
+	// is attempted.
+	businesses.updatedOwnPassword = ports.UpdateBusinessUserPasswordInput{}
+	err = service.ChangeOwnPassword(context.Background(), ChangeOwnPasswordCommand{
+		Scope:           scope,
+		UserID:          "owner-1",
+		CurrentPassword: "wrong-password",
+		NewPassword:     "fresh-strong-password",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidCredentials) {
+		t.Fatalf("expected invalid credentials for wrong current password, got %v", err)
+	}
+	if businesses.updatedOwnPassword.PasswordHash != "" {
+		t.Fatal("expected no password update when current password is wrong")
+	}
+
+	// A weak new password is rejected before any lookup.
+	err = service.ChangeOwnPassword(context.Background(), ChangeOwnPasswordCommand{
+		Scope:           scope,
+		UserID:          "owner-1",
+		CurrentPassword: "current-password",
+		NewPassword:     "short",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected weak new password to be rejected, got %v", err)
+	}
+}
+
 func TestTransferBusinessOwnerRequiresCurrentOwnerAndConfirmation(t *testing.T) {
 	t.Parallel()
 
@@ -698,25 +767,30 @@ func TestTransferBusinessOwnerRequiresCurrentOwnerAndConfirmation(t *testing.T) 
 }
 
 type fakeBusinessIdentityRepository struct {
-	created           ports.CreateBusinessWithOwnerInput
-	createErr         error
-	credentials       ports.BusinessUserCredentials
-	findErr           error
-	lookupHandle      string
-	lookupEmail       string
-	users             []ports.BusinessUserRecord
-	listScope         common.TenantScope
-	listErr           error
-	createdUser       ports.CreateBusinessUserInput
-	createUserErr     error
-	updatedUser       ports.UpdateBusinessUserInput
-	updateScope       common.TenantScope
-	updateUserErr     error
-	updatedPassword   ports.UpdateBusinessUserPasswordInput
-	updatePasswordErr error
-	transferredOwner  ports.TransferBusinessOwnerInput
-	transferScope     common.TenantScope
-	transferErr       error
+	created              ports.CreateBusinessWithOwnerInput
+	createErr            error
+	credentials          ports.BusinessUserCredentials
+	findErr              error
+	credentialsByID      ports.BusinessUserCredentials
+	findByIDErr          error
+	lookupUserID         common.ID
+	lookupHandle         string
+	lookupEmail          string
+	users                []ports.BusinessUserRecord
+	listScope            common.TenantScope
+	listErr              error
+	createdUser          ports.CreateBusinessUserInput
+	createUserErr        error
+	updatedUser          ports.UpdateBusinessUserInput
+	updateScope          common.TenantScope
+	updateUserErr        error
+	updatedPassword      ports.UpdateBusinessUserPasswordInput
+	updatePasswordErr    error
+	updatedOwnPassword   ports.UpdateBusinessUserPasswordInput
+	updateOwnPasswordErr error
+	transferredOwner     ports.TransferBusinessOwnerInput
+	transferScope        common.TenantScope
+	transferErr          error
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
@@ -750,6 +824,15 @@ func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ c
 		return ports.BusinessUserCredentials{}, repo.findErr
 	}
 	return repo.credentials, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserCredentialsByID(_ context.Context, scope common.TenantScope, userID common.ID) (ports.BusinessUserCredentials, error) {
+	repo.listScope = scope
+	repo.lookupUserID = userID
+	if repo.findByIDErr != nil {
+		return ports.BusinessUserCredentials{}, repo.findByIDErr
+	}
+	return repo.credentialsByID, nil
 }
 
 func (repo *fakeBusinessIdentityRepository) ListBusinessUsers(_ context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
@@ -795,6 +878,12 @@ func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword(_ context
 	repo.updateScope = scope
 	repo.updatedPassword = input
 	return repo.updatePasswordErr
+}
+
+func (repo *fakeBusinessIdentityRepository) UpdateOwnPassword(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+	repo.updateScope = scope
+	repo.updatedOwnPassword = input
+	return repo.updateOwnPasswordErr
 }
 
 func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner(_ context.Context, scope common.TenantScope, input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult, error) {

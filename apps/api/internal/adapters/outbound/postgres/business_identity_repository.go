@@ -427,6 +427,51 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 	return credentials, nil
 }
 
+func (repo BusinessIdentityRepository) FindBusinessUserCredentialsByID(ctx context.Context, scope common.TenantScope, userID common.ID) (ports.BusinessUserCredentials, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
+
+	var credentials ports.BusinessUserCredentials
+	var role string
+	if err := tx.QueryRow(ctx, `
+		select
+			business_id,
+			business_user_id,
+			password_hash,
+			role,
+			is_active
+		from business_users
+		where business_user_id = $1
+			and business_id = $2
+		limit 1
+	`, userID.String(), scope.BusinessID.String()).Scan(
+		&credentials.BusinessID,
+		&credentials.UserID,
+		&credentials.PasswordHash,
+		&role,
+		&credentials.IsActive,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.BusinessUserCredentials{}, ErrNotFound
+		}
+		return ports.BusinessUserCredentials{}, err
+	}
+	credentials.Role = business.UserRole(role)
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessUserCredentials{}, err
+	}
+
+	return credentials, nil
+}
+
 func (repo BusinessIdentityRepository) ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -590,6 +635,36 @@ func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(ctx context.Co
 		where business_user_id = $1
 			and business_id = $2
 			and role <> 'owner'
+	`, input.UserID.String(), scope.BusinessID.String(), input.PasswordHash)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ports.ErrNotFound
+	}
+
+	return tx.Commit(ctx)
+}
+
+func (repo BusinessIdentityRepository) UpdateOwnPassword(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// No role guard here: the caller updates their own credential, identified by
+	// their authenticated user id, so an owner can rotate their own password.
+	tag, err := tx.Exec(ctx, `
+		update business_users
+		set password_hash = $3,
+			updated_at = now()
+		where business_user_id = $1
+			and business_id = $2
 	`, input.UserID.String(), scope.BusinessID.String(), input.PasswordHash)
 	if err != nil {
 		return err

@@ -527,6 +527,53 @@ func (s Service) ResetBusinessUserPassword(ctx context.Context, cmd ResetBusines
 	})
 }
 
+// ChangeOwnPasswordCommand carries a self-service password change for the
+// authenticated user: they prove knowledge of CurrentPassword and set NewPassword.
+type ChangeOwnPasswordCommand struct {
+	Scope           common.TenantScope
+	UserID          common.ID
+	CurrentPassword string
+	NewPassword     string
+}
+
+// ChangeOwnPassword lets a signed-in business user (owner or staff) rotate their
+// own password by confirming the current one first. Unlike the admin reset path,
+// it works for the owner too, since it is scoped to the caller's own user id.
+func (s Service) ChangeOwnPassword(ctx context.Context, cmd ChangeOwnPasswordCommand) error {
+	if cmd.UserID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	if len(cmd.NewPassword) < minPasswordLength || len(cmd.NewPassword) > maxPasswordLength {
+		return authdomain.ErrInvalidInput
+	}
+
+	credentials, err := s.businesses.FindBusinessUserCredentialsByID(ctx, cmd.Scope, cmd.UserID)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return authdomain.ErrInvalidCredentials
+		}
+		return err
+	}
+	if !credentials.IsActive {
+		return authdomain.ErrInvalidCredentials
+	}
+	// Confirm the current password before allowing a change. A mismatch is an
+	// invalid-credentials failure, distinct from a missing/expired session.
+	if err := s.passwords.Compare(credentials.PasswordHash, cmd.CurrentPassword); err != nil {
+		return authdomain.ErrInvalidCredentials
+	}
+
+	passwordHash, err := s.passwords.Hash(cmd.NewPassword)
+	if err != nil {
+		return err
+	}
+
+	return s.businesses.UpdateOwnPassword(ctx, cmd.Scope, ports.UpdateBusinessUserPasswordInput{
+		UserID:       cmd.UserID,
+		PasswordHash: passwordHash,
+	})
+}
+
 // RequestPasswordReset emails a one-time code to a business login so a
 // locked-out owner or staff member can set a new password. It always returns
 // nil — whether or not the email maps to an account — so the endpoint never
