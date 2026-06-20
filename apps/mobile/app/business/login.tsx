@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Pressable,
   ScrollView,
@@ -10,10 +10,13 @@ import {
 import { useRouter } from "expo-router";
 
 import { loadSession, login } from "../../src/auth";
-import { fonts, palette, radius, spacing } from "../../src/theme";
+import { fonts, radius, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 import { LoadingButtonLabel, SkeletonBlock } from "../../src/ui";
 
 export default function BusinessLoginScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [email, setEmail] = useState("");
@@ -150,6 +153,8 @@ function Field({
   keyboardType?: "email-address";
   secureTextEntry?: boolean;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -168,7 +173,7 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   checking: {
     flex: 1,

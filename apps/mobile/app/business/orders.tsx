@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -16,7 +16,8 @@ import {
   type BusinessOrder,
 } from "../../src/businessApi";
 import { CenterState, OrderRow } from "../../src/ui";
-import { fonts, palette, radius, spacing } from "../../src/theme";
+import { fonts, radius, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 type Filter = "all" | "open" | "done";
 
@@ -27,6 +28,8 @@ const FILTERS: { key: Filter; label: string }[] = [
 ];
 
 export default function BusinessOrdersScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
   const [orders, setOrders] = useState<BusinessOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -141,7 +144,7 @@ export default function BusinessOrdersScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   headerAction: {

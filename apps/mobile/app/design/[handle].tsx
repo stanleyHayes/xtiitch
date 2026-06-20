@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Linking,
   Pressable,
@@ -17,7 +17,8 @@ import {
   type PlaceOrderResult,
 } from "../../src/api";
 import { CenterState, ImageTile } from "../../src/ui";
-import { fonts, palette, radius, shadow, spacing } from "../../src/theme";
+import { fonts, radius, shadow, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 type LoadState =
   | { phase: "loading" }
@@ -32,6 +33,8 @@ function cleanRewardCode(value: string): string | undefined {
 }
 
 export default function DesignScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const { handle } = useLocalSearchParams<{ handle: string }>();
   const router = useRouter();
   const [state, setState] = useState<LoadState>({ phase: "loading" });
@@ -300,6 +303,8 @@ function Field({
   keyboardType?: "phone-pad" | "email-address";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -326,6 +331,8 @@ function OrderConfirmation({
   order: PlaceOrderResult;
   onTrack: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.confirm}>
       <Text style={styles.confirmTitle}>Order placed</Text>
@@ -350,7 +357,7 @@ function OrderConfirmation({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   hero: { width: "100%", height: 280 },

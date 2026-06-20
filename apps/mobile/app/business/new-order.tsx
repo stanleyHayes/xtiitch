@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   Pressable,
   ScrollView,
@@ -16,9 +16,12 @@ import {
   type SizeBand,
 } from "../../src/businessApi";
 import { CenterState, ImageTile, LoadingButtonLabel } from "../../src/ui";
-import { fonts, palette, radius, spacing } from "../../src/theme";
+import { fonts, radius, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 export default function NewOrderScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
   const [designs, setDesigns] = useState<BusinessDesign[]>([]);
   const [bands, setBands] = useState<SizeBand[]>([]);
@@ -244,6 +247,8 @@ function Field({
   placeholder: string;
   keyboardType?: "phone-pad" | "email-address" | "decimal-pad";
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View>
       <Text style={styles.fieldLabel}>{label}</Text>
@@ -261,7 +266,7 @@ function Field({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   sectionLabel: {

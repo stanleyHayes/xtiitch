@@ -28,9 +28,6 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
-  // System scheme is read but not yet defaulted to: until every screen is
-  // theme-aware, the app stays light unless explicitly toggled, so a dark-mode
-  // phone never lands on half-themed screens.
   const system = useColorScheme();
   const [override, setOverride] = useState<ThemeMode | null>(null);
 
@@ -42,13 +39,12 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        /* first run / storage unavailable — fall back to light */
+        /* first run / storage unavailable — fall back to the system scheme */
       });
   }, []);
 
-  const systemDefault: ThemeMode = system === "dark" ? "dark" : "light";
-  void systemDefault; // wired in with the per-screen conversion follow-up
-  const mode: ThemeMode = override ?? "light";
+  // Follow the device scheme until the user explicitly picks a mode.
+  const mode: ThemeMode = override ?? (system === "dark" ? "dark" : "light");
   const palette = mode === "dark" ? darkPalette : lightPalette;
 
   // Dramatic cross-fade: flash a full-screen veil of the incoming background on

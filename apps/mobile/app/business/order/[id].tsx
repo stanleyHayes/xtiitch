@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   Linking,
   Pressable,
@@ -19,7 +19,8 @@ import {
   type CollectBalanceResult,
 } from "../../../src/businessApi";
 import { CenterState, StageTimeline } from "../../../src/ui";
-import { fonts, palette, radius, shadow, spacing } from "../../../src/theme";
+import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
+import { useTheme } from "../../../src/theme-mode";
 
 function atFinalStage(tracking: Tracking | null): boolean {
   if (!tracking || tracking.stages.length === 0) return false;
@@ -29,6 +30,8 @@ function atFinalStage(tracking: Tracking | null): boolean {
 }
 
 export default function OrderDetailScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const [order, setOrder] = useState<BusinessOrder | null>(null);
@@ -322,6 +325,8 @@ function Row({
   strong?: boolean;
   tone?: string;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -339,7 +344,7 @@ function Row({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   headerCard: {

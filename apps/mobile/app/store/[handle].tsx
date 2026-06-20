@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import {
   Pressable,
   ScrollView,
@@ -11,7 +11,8 @@ import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-rout
 
 import { api, formatGHS, type Design, type StorePage } from "../../src/api";
 import { CenterState, ImageTile } from "../../src/ui";
-import { fonts, palette, radius, shadow, spacing } from "../../src/theme";
+import { fonts, radius, shadow, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 type LoadState =
   | { phase: "loading" }
@@ -27,6 +28,8 @@ function lowestPriceMinor(design: Design): number | null {
 }
 
 export default function StoreScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const { handle } = useLocalSearchParams<{ handle: string }>();
   const router = useRouter();
   const navigation = useNavigation();
@@ -177,7 +180,7 @@ export default function StoreScreen() {
 
 const CARD_GAP = spacing(2);
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(5) },
   storeHeader: {

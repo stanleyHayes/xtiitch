@@ -1,7 +1,7 @@
 // Shared presentational helpers: a centred loading / empty / error state, a
 // brand image-or-swatch tile, and the studio order row — so every screen
 // handles async outcomes and renders orders the same way.
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import {
   Animated,
   Image,
@@ -15,12 +15,13 @@ import {
 
 import { formatGHS, type TrackingStage } from "./api";
 import { orderTone, type BusinessOrder } from "./businessApi";
-import { fonts, palette, radius, spacing, swatchFor } from "./theme";
+import { fonts, radius, spacing, swatchFor, type Palette } from "./theme";
+import { useTheme } from "./theme-mode";
 
 // The ii-stitch brand mark (two dots over two columns) approximated with Views,
 // since react-native-svg isn't bundled. Reads as the "ii" signature.
 export function XtiitchMark({
-  color = palette.burgundy,
+  color = "#800020",
   size = 30,
 }: {
   color?: string;
@@ -53,6 +54,8 @@ export function CenterState({
   title?: string;
   hint?: string;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.center}>
       {loading ? (
@@ -83,6 +86,8 @@ export function SkeletonBlock({
   radiusOverride?: number;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View
       style={[
@@ -95,6 +100,8 @@ export function SkeletonBlock({
 }
 
 export function SkeletonStack({ rows = 3 }: { rows?: number }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const widths: ViewStyle["width"][] = ["82%", "100%", "64%", "90%"];
   return (
     <View style={styles.skeletonStack} accessibilityLabel="Loading section">
@@ -111,11 +118,13 @@ export function SkeletonStack({ rows = 3 }: { rows?: number }) {
 
 export function LoadingButtonLabel({
   label,
-  color = palette.white,
+  color = "#ffffff",
 }: {
   label: string;
   color?: string;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const dots = useRef([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -190,6 +199,8 @@ export function ImageTile({
   style?: object;
   radiusOverride?: number;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const [from, to] = swatchFor(seed);
   const borderRadius = radiusOverride ?? radius.md;
   if (uri) {
@@ -209,6 +220,8 @@ export function OrderRow({
   order: BusinessOrder;
   onPress?: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const tone = orderTone(order.status);
   const body = (
     <>
@@ -245,6 +258,8 @@ export function OrderRow({
 // Vertical fulfilment timeline shared by the customer track screen and the
 // studio order detail. Sorts by sequence and colours each node by completion.
 export function StageTimeline({ stages }: { stages: TrackingStage[] }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const ordered = [...stages].sort((a, b) => a.sequence - b.sequence);
   return (
     <View style={styles.timeline}>
@@ -301,7 +316,7 @@ export function StageTimeline({ stages }: { stages: TrackingStage[] }) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   center: {
     flex: 1,
     alignItems: "center",

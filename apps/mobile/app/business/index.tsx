@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useMemo } from "react";
 import {
   Pressable,
   RefreshControl,
@@ -18,9 +18,12 @@ import {
   type BusinessProfile,
 } from "../../src/businessApi";
 import { CenterState, OrderRow } from "../../src/ui";
-import { fonts, palette, radius, spacing } from "../../src/theme";
+import { fonts, radius, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 export default function BusinessDashboardScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
   const [session, setSession] = useState<BusinessSession | null>(null);
   const [profile, setProfile] = useState<BusinessProfile | null>(null);
@@ -181,6 +184,8 @@ function Kpi({
   tone?: string;
   wide?: boolean;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={[styles.kpi, wide && styles.kpiWide]}>
       <Text style={[styles.kpiValue, tone ? { color: tone } : null]}>
@@ -191,7 +196,7 @@ function Kpi({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   signOut: {

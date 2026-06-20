@@ -3,7 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { fonts } from "../src/theme";
-import { ThemeModeProvider, useTheme } from "../src/theme-mode";
+import { ThemeModeProvider, ThemeToggle, useTheme } from "../src/theme-mode";
 
 export default function RootLayout() {
   return (
@@ -31,8 +31,7 @@ function ThemedStack() {
           headerShadowVisible: false,
           headerBackTitle: "Back",
           contentStyle: { backgroundColor: palette.cream },
-          // Toggle is wired in once every screen is theme-aware (see follow-up).
-          // headerRight: () => <ThemeToggle />,
+          headerRight: () => <ThemeToggle />,
         }}
       >
         <Stack.Screen name="index" options={{ title: "Xtiitch" }} />

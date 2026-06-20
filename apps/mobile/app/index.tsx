@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Image,
   Pressable,
@@ -15,12 +15,15 @@ import {
   apiBaseUrl,
   type SponsoredPlacement,
 } from "../src/api";
-import { fonts, palette, radius, shadow, spacing, swatchFor } from "../src/theme";
+import { fonts, radius, shadow, spacing, swatchFor, type Palette } from "../src/theme";
+import { useTheme } from "../src/theme-mode";
 import { SkeletonBlock, XtiitchMark } from "../src/ui";
 
 const SUGGESTED_STORE = "demo-atelier";
 
 export default function HomeScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
   const [storeHandle, setStoreHandle] = useState("");
   const [orderId, setOrderId] = useState("");
@@ -183,6 +186,8 @@ function Section({
   label: string;
   children: React.ReactNode;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.section}>
       <Text style={styles.sectionLabel}>{label}</Text>
@@ -198,6 +203,8 @@ function PrimaryButton({
   label: string;
   onPress: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <Pressable
       onPress={onPress}
@@ -218,6 +225,8 @@ function FeaturedCard({
   placement: SponsoredPlacement;
   onPress: () => void;
 }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const [from, to] = swatchFor(placement.business_handle || placement.headline);
   return (
     <Pressable
@@ -243,7 +252,7 @@ function FeaturedCard({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { paddingBottom: spacing(5) },
   hero: {

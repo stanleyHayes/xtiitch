@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 
 import { api, type Tracking } from "../../src/api";
 import { CenterState, StageTimeline } from "../../src/ui";
-import { fonts, palette, radius, shadow, spacing } from "../../src/theme";
+import { fonts, radius, shadow, spacing, type Palette } from "../../src/theme";
+import { useTheme } from "../../src/theme-mode";
 
 type LoadState =
   | { phase: "loading" }
@@ -12,6 +13,8 @@ type LoadState =
   | { phase: "ready"; tracking: Tracking };
 
 export default function TrackScreen() {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   const { id } = useLocalSearchParams<{ id: string }>();
   const [state, setState] = useState<LoadState>({ phase: "loading" });
 
@@ -68,7 +71,7 @@ export default function TrackScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(6) },
   headerCard: {
