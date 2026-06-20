@@ -142,12 +142,16 @@ This is the hard part, and it's a **product decision**, not just engineering:
   extracts colours/categories/occasions + price bounds; the ranker blends cosine
   with hard price filters and soft facet boosts and returns the interpreted
   intent. Live-verified: "kente under 500" drops over-budget designs.
-- **Phase 2 — Customer accounts + paywall:** 🟧 **BACKEND SHIPPED** (accounts
-  87bc4c9/604be70; paywall aec3fc6). Customer phone-OTP accounts + a freemium
-  meter (`ai_search_usage`, migration 000050; anon 5/mo, free customer 25/mo, pro
-  unlimited; over quota → HTTP 402). **Remaining:** storefront search-box UI +
-  sign-in UI, and the Paystack charge to upgrade a customer to pro
-  (`customers.ai_search_pro`). UI deferred — storefront app is under parallel edits.
+- **Phase 2 — Customer accounts + paywall:** ✅ **SHIPPED** (accounts
+  87bc4c9/604be70; paywall aec3fc6; storefront UI 552bda7). Customer phone-OTP
+  accounts + a freemium meter (`ai_search_usage`, migration 000050; anon 5/mo,
+  free customer 25/mo, pro unlimited; over quota → HTTP 402), and the storefront
+  UI: `/discover` (search box, results, understood-intent chips, freemium meter,
+  402 prompt) + `/account` (phone-OTP sign-in, session cookie). Live-verified.
+  **Pro upgrade payment deferred (product decision):** the freemium meter is the
+  funnel for now and `customers.ai_search_pro` is a manual flag. The paid upgrade
+  needs a new customer→platform Paystack path (today's payments are all tied to a
+  business subaccount) and a pricing/cadence decision — revisit on demand signal.
 - **Phase 3 — Polish:** Claude rerank + natural-language result summary, "did you
   mean", multi-language (English/Twi/Pidgin), and feeding the same engine into
   the WhatsApp bot ("describe what you want" over chat).
