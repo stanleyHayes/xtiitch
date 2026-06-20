@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Form, Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -293,9 +293,12 @@ export function Marketplace({
       >
         <Container sx={{ py: { xs: 6, md: 9 } }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
-            <Box sx={{ width: 34, height: 34, borderRadius: "9px", bgcolor: tokens.burgundy, display: "grid", placeItems: "center" }}>
-              <StorefrontRounded sx={{ fontSize: 18 }} />
-            </Box>
+            <Box
+              component="img"
+              src="/favicon.svg"
+              alt="Xtiitch"
+              sx={{ width: 34, height: 34, borderRadius: "9px", display: "block" }}
+            />
             <Typography sx={{ fontWeight: 950, letterSpacing: 0.4 }}>Xtiitch</Typography>
             <Chip
               size="small"
@@ -324,7 +327,24 @@ export function Marketplace({
                   aria-label="Describe what you want"
                   fullWidth
                   sx={{
-                    "& .MuiOutlinedInput-root": { bgcolor: alpha(tokens.white, 0.96), borderRadius: "12px" },
+                    "& .MuiOutlinedInput-root": {
+                      bgcolor: tokens.white,
+                      borderRadius: "12px",
+                      color: tokens.ink,
+                      fontWeight: 600,
+                    },
+                    "& .MuiOutlinedInput-input::placeholder": {
+                      color: alpha(tokens.ink, 0.55),
+                      opacity: 1,
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
+                    "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: alpha(tokens.burgundy, 0.35),
+                    },
+                    "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                      borderColor: tokens.burgundy,
+                      borderWidth: 2,
+                    },
                   }}
                   slotProps={{
                     input: {
@@ -437,7 +457,26 @@ export function Marketplace({
         {/* Grid */}
         {tab === "studios" ? (
           visibleStudios.length === 0 ? (
-            <EmptyState label="No studios match that search." />
+            <EmptyState
+              icon={<StorefrontRounded sx={{ fontSize: 28 }} />}
+              title={q ? `No studios match “${search.trim()}”` : "Studios are on their way"}
+              hint={
+                q
+                  ? "Try a shorter or different name, or switch to Designs and describe what you’re after."
+                  : "Verified studios appear here as they open their storefronts. Check back soon — new shops are joining."
+              }
+              action={
+                q ? (
+                  <Button onClick={() => setSearch("")} variant="contained" startIcon={<SearchRounded />}>
+                    Clear search
+                  </Button>
+                ) : (
+                  <Button component={RouterLink} to="/discover" variant="contained" startIcon={<AutoAwesomeRounded />}>
+                    Try AI search
+                  </Button>
+                )
+              }
+            />
           ) : (
             <Box
               sx={{
@@ -452,7 +491,24 @@ export function Marketplace({
             </Box>
           )
         ) : visibleDesigns.length === 0 ? (
-          <EmptyState label="No designs match that search — try AI search for a description." />
+          <EmptyState
+            title={q ? `No designs match “${search.trim()}”` : "Designs are on their way"}
+            hint={
+              q
+                ? "Keyword match is strict. Describe the piece — fabric, occasion, budget — and AI search reads it across every shop."
+                : "As studios add pieces they appear here. Or describe what you want and let AI search look across every shop."
+            }
+            action={
+              <Button
+                component={RouterLink}
+                to={q ? `/discover?q=${encodeURIComponent(search.trim())}` : "/discover"}
+                variant="contained"
+                startIcon={<AutoAwesomeRounded />}
+              >
+                {q ? "Search with AI" : "Try AI search"}
+              </Button>
+            }
+          />
         ) : (
           <Box
             sx={{
@@ -471,11 +527,73 @@ export function Marketplace({
   );
 }
 
-function EmptyState({ label }: { label: string }) {
+function EmptyState({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon?: ReactNode;
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+}) {
   return (
-    <Box sx={{ textAlign: "center", py: 8 }}>
-      <StorefrontRounded sx={{ fontSize: 44, color: alpha(tokens.ink, 0.25) }} />
-      <Typography sx={{ mt: 1, color: "text.secondary" }}>{label}</Typography>
+    <Box sx={{ display: "grid", placeItems: "center", textAlign: "center", py: { xs: 8, md: 12 }, px: 3 }}>
+      <Box sx={{ maxWidth: 440 }}>
+        <Box
+          aria-hidden
+          sx={{
+            position: "relative",
+            width: 104,
+            height: 104,
+            mx: "auto",
+            mb: 3,
+            display: "grid",
+            placeItems: "center",
+            "&::before": {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              borderRadius: "50%",
+              background: `radial-gradient(circle at 50% 38%, ${alpha(tokens.burgundy, 0.16)}, transparent 68%)`,
+            },
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              inset: 6,
+              borderRadius: "50%",
+              border: `1px dashed ${alpha(tokens.ink, 0.18)}`,
+            },
+          }}
+        >
+          <Box
+            sx={{
+              width: 62,
+              height: 62,
+              borderRadius: "18px",
+              display: "grid",
+              placeItems: "center",
+              color: tokens.white,
+              background: `linear-gradient(150deg, ${tokens.wine}, ${tokens.ink})`,
+              boxShadow: `0 16px 34px ${alpha(tokens.ink, 0.28)}`,
+            }}
+          >
+            {icon ?? <SearchRounded sx={{ fontSize: 28 }} />}
+          </Box>
+        </Box>
+        <Typography variant="h5" component="p" sx={{ fontWeight: 900, color: "text.primary", letterSpacing: -0.2 }}>
+          {title}
+        </Typography>
+        {hint && (
+          <Typography sx={{ mt: 1.25, color: "text.secondary", lineHeight: 1.6 }}>{hint}</Typography>
+        )}
+        {action && (
+          <Stack direction="row" spacing={1.25} sx={{ mt: 3, justifyContent: "center", flexWrap: "wrap" }}>
+            {action}
+          </Stack>
+        )}
+      </Box>
     </Box>
   );
 }

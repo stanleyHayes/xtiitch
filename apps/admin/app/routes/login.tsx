@@ -15,7 +15,6 @@ import EmailRounded from "@mui/icons-material/EmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import type { Route } from "./+types/login";
@@ -238,18 +237,17 @@ export default function Login({ actionData }: Route.ComponentProps) {
           >
             <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
               <Box
+                component="img"
+                src="/favicon.svg"
+                alt="Xtiitch"
                 sx={{
                   width: 48,
                   height: 48,
                   borderRadius: 2,
-                  display: "grid",
-                  placeItems: "center",
-                  bgcolor: tokens.burgundy,
                   boxShadow: `0 18px 46px ${alpha(tokens.burgundy, 0.36)}`,
+                  display: "block",
                 }}
-              >
-                <AdminPanelSettingsRounded />
-              </Box>
+              />
               <Box>
                 <Typography variant="h6" sx={{ lineHeight: 1 }}>
                   Xtiitch Admin
@@ -449,18 +447,16 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 }}
               >
                 <Box
+                  component="img"
+                  src="/favicon.svg"
+                  alt="Xtiitch"
                   sx={{
                     width: 40,
                     height: 40,
                     borderRadius: 1.5,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: tokens.burgundy,
-                    color: tokens.white,
+                    display: "block",
                   }}
-                >
-                  <AdminPanelSettingsRounded />
-                </Box>
+                />
                 <Typography variant="h6" sx={{ lineHeight: 1 }}>
                   Xtiitch Admin
                 </Typography>
@@ -471,18 +467,16 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 sx={{ alignItems: "center" }}
               >
                 <Box
+                  component="img"
+                  src="/favicon.svg"
+                  alt="Xtiitch"
                   sx={{
                     width: 46,
                     height: 46,
                     borderRadius: 2,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: alpha(tokens.burgundy, 0.1),
-                    color: tokens.burgundy,
+                    display: "block",
                   }}
-                >
-                  <StorefrontRounded />
-                </Box>
+                />
                 <Box>
                   <Typography
                     variant="overline"
