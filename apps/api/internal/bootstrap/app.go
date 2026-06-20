@@ -11,6 +11,7 @@ import (
 
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
+	aiassisthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aiassist"
 	aisearchhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aisearch"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
@@ -35,6 +36,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	whatsappadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/whatsapp"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
+	aiassistapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aiassist"
 	aisearchapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aisearch"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
@@ -251,6 +253,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
+	aiAssistService := buildAIAssistService(cfg, logger, db)
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
 	router := httpadapter.NewRouter(logger, db.Ping,
@@ -263,6 +266,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),
+		aiassisthttp.NewHandler(aiAssistService, authenticator),
+		aiassisthttp.NewAdminHandler(aiAssistService, adminAuthenticator),
 		whatsapphttp.NewHandler(whatsAppBotService, cfg.WhatsAppVerifyToken, cfg.WhatsAppAppSecret, logger),
 		paymentshttp.NewHandler(paymentService, authenticator),
 		cataloguehttp.NewHandler(catalogueService, authenticator),
@@ -334,6 +339,22 @@ func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Po
 	}()
 
 	return service
+}
+
+// buildAIAssistService wires the ✨ AI writing assistant (a paid add-on billed
+// separately from a business's plan). The assist call uses Claude when
+// ANTHROPIC_API_KEY is set, reusing the same key + model as AI search; with no
+// key the ClaudeAssistant degrades to returning the input text unchanged, so the
+// endpoint stays exercisable locally. The add-on entitlement check is always
+// tenant-scoped via the business_addons repository.
+func buildAIAssistService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) aiassistapp.Service {
+	if cfg.AnthropicAPIKey == "" {
+		logger.Warn("anthropic api key not set; AI assistant will return input text unchanged")
+	}
+	return aiassistapp.NewService(aiassistapp.Dependencies{
+		Assistant: aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
+		Addons:    postgres.NewBusinessAddonRepository(db),
+	})
 }
 
 // buildWhatsAppBotService wires the inbound WhatsApp bot's conversation engine.
