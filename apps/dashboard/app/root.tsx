@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode } from "react";
 import {
   Links,
   Meta,
@@ -18,54 +18,6 @@ import Stack from "@mui/material/Stack";
 import { alpha } from "@mui/material/styles";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
-
-// First-paint splash: server-rendered so it shows instantly, then fades out once
-// React hydrates (App sets data-hydrated on <html>). Kept in the React tree and
-// hidden via CSS — never removed imperatively — so hydration stays clean.
-const splashStyles = `
-#xtiitch-splash {
-  position: fixed; inset: 0; z-index: 4000;
-  display: grid; place-items: center;
-  background:
-    radial-gradient(circle at 50% 32%, rgba(128,0,32,0.38), transparent 58%),
-    linear-gradient(160deg, #15111a 0%, #241f2b 100%);
-  opacity: 1; visibility: visible;
-}
-html[data-hydrated] #xtiitch-splash {
-  opacity: 0; visibility: hidden; pointer-events: none;
-  transition: opacity 480ms ease, visibility 0s linear 480ms;
-}
-#xtiitch-splash .xs-wrap {
-  display: flex; flex-direction: column; align-items: center; gap: 18px;
-}
-#xtiitch-splash .xs-mark {
-  width: 64px; height: 64px; border-radius: 18px; display: block;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
-}
-#xtiitch-splash .xs-word {
-  font-family: "Fraunces", Georgia, serif; color: #faf6f2;
-  font-size: 24px; font-weight: 600; letter-spacing: 0.4px;
-}
-#xtiitch-splash .xs-bar {
-  position: relative; width: 124px; height: 3px; border-radius: 999px;
-  background: rgba(250,246,242,0.14); overflow: hidden;
-}
-#xtiitch-splash .xs-bar::after {
-  content: ""; position: absolute; top: 0; left: 0; height: 100%; width: 40%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, transparent, #800020, transparent);
-}
-#xtiitch-splash .xs-motto {
-  color: rgba(250,246,242,0.5); font-size: 11px; letter-spacing: 2px;
-  text-transform: uppercase;
-}
-@media (prefers-reduced-motion: no-preference) {
-  #xtiitch-splash .xs-mark { animation: xsPulse 1.6s ease-in-out infinite; }
-  #xtiitch-splash .xs-bar::after { animation: xsSlide 1.15s ease-in-out infinite; }
-}
-@keyframes xsPulse { 0%,100% { transform: scale(1); opacity: 0.92; } 50% { transform: scale(1.06); opacity: 1; } }
-@keyframes xsSlide { 0% { transform: translateX(-110%); } 100% { transform: translateX(260%); } }
-`;
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -107,12 +59,6 @@ export async function loader() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  // Fade the first-paint splash once hydrated. Lives here (not in the default
-  // App component) so it also fires on error/404 routes, where React Router
-  // renders ErrorBoundary instead of App.
-  useEffect(() => {
-    document.documentElement.setAttribute("data-hydrated", "true");
-  }, []);
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -126,26 +72,6 @@ export function Layout({ children }: { children: ReactNode }) {
         <Links />
       </head>
       <body suppressHydrationWarning>
-        {/* Splash CSS lives in the body, not the head: React 19 reorders head
-            <style> tags and the client emotion cache inserts its styles at the
-            emotion-insertion-point meta — both collide with a head <style> and
-            break hydration. A body <style> (no `precedence`) stays in place,
-            the same pattern theme-mode.tsx already uses safely. */}
-        <style dangerouslySetInnerHTML={{ __html: splashStyles }} />
-        <div id="xtiitch-splash" aria-hidden="true">
-          <div className="xs-wrap">
-            <img
-              className="xs-mark"
-              src="/favicon.svg"
-              alt=""
-              width={64}
-              height={64}
-            />
-            <div className="xs-word">Xtiitch</div>
-            <div className="xs-bar" />
-            <div className="xs-motto">Fashion, in good order.</div>
-          </div>
-        </div>
         <ThemeModeProvider>{children}</ThemeModeProvider>
         <ScrollRestoration />
         <Scripts />
