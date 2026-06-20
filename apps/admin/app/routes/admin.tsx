@@ -3193,7 +3193,10 @@ function MetricCard({
           borderRadius: "50%",
           border: "1px solid",
           borderColor: alpha(tokens.burgundy, 0.12),
-          boxShadow: `inset 0 0 0 18px ${alpha(tokens.white, 0.42)}`,
+          // Theme-aware orb fill: matches the card surface so it reads as a soft
+          // flourish on cream AND ink. (Was a hardcoded white halo that turned
+          // into a harsh gray donut on dark.)
+          boxShadow: "inset 0 0 0 18px rgba(var(--surface-rgb), 0.6)",
         },
         "&:hover": {
           transform: "translateY(-2px)",
