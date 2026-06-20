@@ -19,7 +19,7 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Features",
     description:
-      "Storefront, catalogue, orders, tracking, payments, bookings, money tracker and notifications — everything a Ghanaian fashion business needs in one dashboard.",
+      "Storefront, catalogue, orders, tracking, payments, bookings, money tracker, notifications, plan-based branding, design waiting lists and two-step security — everything a Ghanaian fashion business needs in one dashboard.",
     path: "/features",
   });
 }

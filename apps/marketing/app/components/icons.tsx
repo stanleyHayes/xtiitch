@@ -7,6 +7,9 @@ import PaymentsOutlined from "@mui/icons-material/PaymentsOutlined";
 import EventAvailableOutlined from "@mui/icons-material/EventAvailableOutlined";
 import SavingsOutlined from "@mui/icons-material/SavingsOutlined";
 import NotificationsActiveOutlined from "@mui/icons-material/NotificationsActiveOutlined";
+import PaletteOutlined from "@mui/icons-material/PaletteOutlined";
+import PlaylistAddCheckOutlined from "@mui/icons-material/PlaylistAddCheckOutlined";
+import VerifiedUserOutlined from "@mui/icons-material/VerifiedUserOutlined";
 import type { ComponentType } from "react";
 import type { FeatureIcon } from "../content";
 
@@ -19,6 +22,9 @@ const map: Record<FeatureIcon, ComponentType<SvgIconProps>> = {
   bookings: EventAvailableOutlined,
   money: SavingsOutlined,
   notifications: NotificationsActiveOutlined,
+  branding: PaletteOutlined,
+  waitlist: PlaylistAddCheckOutlined,
+  security: VerifiedUserOutlined,
 };
 
 export function FeatureGlyph({

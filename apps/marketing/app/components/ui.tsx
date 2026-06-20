@@ -60,6 +60,9 @@ const featureAccent: Record<Feature["icon"], string> = {
   payments: "#237a4b",
   store: "#800020",
   tracking: "#b87914",
+  branding: "#6a1b9a",
+  waitlist: "#315f8f",
+  security: "#2f6b4f",
 };
 
 const riseInSx = (delayMs = 0) => ({

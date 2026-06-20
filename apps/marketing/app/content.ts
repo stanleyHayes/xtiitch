@@ -44,7 +44,10 @@ export type FeatureIcon =
   | "payments"
   | "bookings"
   | "money"
-  | "notifications";
+  | "notifications"
+  | "branding"
+  | "waitlist"
+  | "security";
 
 export const features: Feature[] = [
   {
@@ -86,6 +89,21 @@ export const features: Feature[] = [
     icon: "notifications",
     title: "Notifications on both sides",
     body: "App and email updates for a new order, a stage change, a booking or a payment — so a customer feels their garment move forward and a business never misses an order.",
+  },
+  {
+    icon: "branding",
+    title: "A store that grows with your plan",
+    body: "Start free and online. As you move up a plan, unlock your own accent colour, then a custom logo and hero banner, and store layouts — so your storefront looks more like you the more you grow.",
+  },
+  {
+    icon: "waitlist",
+    title: "Design waiting lists",
+    body: "When a piece is sold out or not yet released, customers can join its waiting list from your store. You see who is waiting and let them know when it is back — demand captured instead of lost.",
+  },
+  {
+    icon: "security",
+    title: "Two-step sign-in security",
+    body: "Protect the account that runs your money with optional two-step verification using an authenticator app, plus team roles for owners, admins and staff so everyone has the right level of access.",
   },
 ];
 
