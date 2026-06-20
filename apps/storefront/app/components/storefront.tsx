@@ -13,6 +13,7 @@ import Stack from "@mui/material/Stack";
 import InputAdornment from "@mui/material/InputAdornment";
 import Pagination from "@mui/material/Pagination";
 import { alpha } from "@mui/material/styles";
+import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
@@ -349,6 +350,19 @@ export function StoreHeader({
             }}
           >
             Track order
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/account"
+            variant="outlined"
+            startIcon={<AccountCircleRounded />}
+            sx={{
+              color: onBrand,
+              borderColor: alpha(onBrand, 0.32),
+              "&:hover": { borderColor: alpha(onBrand, 0.58) },
+            }}
+          >
+            Account
           </Button>
           <Button
             href="https://xtiitch.com"

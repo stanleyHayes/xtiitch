@@ -10,6 +10,7 @@ import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
@@ -364,6 +365,22 @@ export function Marketplace({
               label="Marketplace"
               sx={{ ml: 0.5, bgcolor: alpha(tokens.white, 0.12), color: tokens.white, fontWeight: 800, letterSpacing: 0.4 }}
             />
+            <Button
+              component={RouterLink}
+              to="/account"
+              variant="outlined"
+              size="small"
+              startIcon={<AccountCircleRounded />}
+              sx={{
+                ml: "auto",
+                color: tokens.white,
+                borderColor: alpha(tokens.white, 0.4),
+                fontWeight: 800,
+                "&:hover": { borderColor: tokens.white, bgcolor: alpha(tokens.white, 0.08) },
+              }}
+            >
+              Account
+            </Button>
           </Stack>
           <Typography
             variant="h1"
