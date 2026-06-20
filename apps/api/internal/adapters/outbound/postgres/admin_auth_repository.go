@@ -1007,6 +1007,110 @@ func (repo AdminAuthRepository) ListAdminCustomers(ctx context.Context) ([]ports
 	return records, nil
 }
 
+func (repo AdminAuthRepository) ExportAdminCustomer(ctx context.Context, customerID common.ID) (ports.AdminCustomerExportRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// A subject-access request spans every tenant the customer touched, so it
+	// runs with the cross-tenant bypass (the customer identity is global).
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	export := ports.AdminCustomerExportRecord{CustomerID: customerID}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(email, ''), coalesce(phone, ''), coalesce(display_name, ''), created_at, updated_at
+		from customers
+		where customer_id = $1
+	`, customerID.String()).Scan(
+		&export.Email, &export.Phone, &export.DisplayName, &export.CreatedAt, &export.UpdatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminCustomerExportRecord{}, ports.ErrNotFound
+		}
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	bizRows, err := tx.Query(ctx, `
+		select b.name, b.handle, cb.first_seen_at
+		from customer_businesses cb
+		join businesses b on b.business_id = cb.business_id
+		where cb.customer_id = $1
+		order by cb.first_seen_at
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+	for bizRows.Next() {
+		var b ports.AdminCustomerExportBusiness
+		if err := bizRows.Scan(&b.BusinessName, &b.BusinessHandle, &b.FirstSeenAt); err != nil {
+			bizRows.Close()
+			return ports.AdminCustomerExportRecord{}, err
+		}
+		export.Businesses = append(export.Businesses, b)
+	}
+	bizRows.Close()
+	if err := bizRows.Err(); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	orderRows, err := tx.Query(ctx, `
+		select o.order_id::text, b.name, coalesce(d.title, ''), o.order_type, o.status,
+			coalesce(o.agreed_total_minor, 0), o.created_at
+		from orders o
+		join businesses b on b.business_id = o.business_id
+		left join designs d on d.design_id = o.design_id
+		where o.customer_id = $1
+		order by o.created_at desc
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+	for orderRows.Next() {
+		var o ports.AdminCustomerExportOrder
+		if err := orderRows.Scan(&o.OrderID, &o.BusinessName, &o.DesignTitle, &o.OrderType, &o.Status, &o.AgreedTotalMinor, &o.CreatedAt); err != nil {
+			orderRows.Close()
+			return ports.AdminCustomerExportRecord{}, err
+		}
+		export.Orders = append(export.Orders, o)
+	}
+	orderRows.Close()
+	if err := orderRows.Err(); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	measureRows, err := tx.Query(ctx, `
+		select order_id::text, source, values::text, created_at
+		from order_measurements
+		where customer_id = $1
+		order by created_at desc
+	`, customerID.String())
+	if err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+	for measureRows.Next() {
+		var m ports.AdminCustomerExportMeasurement
+		if err := measureRows.Scan(&m.OrderID, &m.Source, &m.Values, &m.CreatedAt); err != nil {
+			measureRows.Close()
+			return ports.AdminCustomerExportRecord{}, err
+		}
+		export.Measurements = append(export.Measurements, m)
+	}
+	measureRows.Close()
+	if err := measureRows.Err(); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+
+	return export, nil
+}
+
 func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 	ctx context.Context,
 	input ports.UpdateAdminBusinessStatusInput,

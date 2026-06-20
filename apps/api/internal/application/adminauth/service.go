@@ -1079,6 +1079,28 @@ func (s Service) ListCustomers(ctx context.Context, cmd ListCustomersCommand) ([
 	return s.businesses.ListAdminCustomers(ctx)
 }
 
+type ExportCustomerDataCommand struct {
+	ActorRole  admindomain.Role
+	CustomerID common.ID
+}
+
+// ExportCustomerData assembles a Data Protection Act (Act 843) subject-access
+// export for one customer. It is read-only and gated by the same permission as
+// the customer directory.
+func (s Service) ExportCustomerData(ctx context.Context, cmd ExportCustomerDataCommand) (ports.AdminCustomerExportRecord, error) {
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
+		return ports.AdminCustomerExportRecord{}, err
+	}
+	if s.businesses == nil {
+		return ports.AdminCustomerExportRecord{}, authdomain.ErrForbidden
+	}
+	if cmd.CustomerID.IsZero() {
+		return ports.AdminCustomerExportRecord{}, authdomain.ErrInvalidInput
+	}
+
+	return s.businesses.ExportAdminCustomer(ctx, cmd.CustomerID)
+}
+
 func (s Service) GetPlatformMetrics(ctx context.Context, cmd GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error) {
 	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionReviewBusinesses); err != nil {
 		return ports.AdminPlatformMetricsRecord{}, err

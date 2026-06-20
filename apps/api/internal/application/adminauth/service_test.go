@@ -3316,6 +3316,10 @@ func (repo *fakeAdminBusinesses) ListAdminCustomers(context.Context) ([]ports.Ad
 	return repo.customers, nil
 }
 
+func (repo *fakeAdminBusinesses) ExportAdminCustomer(_ context.Context, customerID common.ID) (ports.AdminCustomerExportRecord, error) {
+	return ports.AdminCustomerExportRecord{CustomerID: customerID}, nil
+}
+
 func (repo *fakeAdminBusinesses) UpdateAdminBusinessStatus(
 	_ context.Context,
 	input ports.UpdateAdminBusinessStatusInput,

@@ -36,6 +36,9 @@ type AdminBusinessRepository interface {
 	DecideAdminBusinessVerification(ctx context.Context, input AdminBusinessVerificationDecisionInput) (AdminVerificationCaseRecord, error)
 	ListAdminBusinesses(ctx context.Context) ([]AdminBusinessRecord, error)
 	ListAdminCustomers(ctx context.Context) ([]AdminCustomerRecord, error)
+	// ExportAdminCustomer gathers every record held about one customer for a Data
+	// Protection Act (Act 843) subject-access request. Read-only.
+	ExportAdminCustomer(ctx context.Context, customerID common.ID) (AdminCustomerExportRecord, error)
 	UpdateAdminBusinessStatus(ctx context.Context, input UpdateAdminBusinessStatusInput) (AdminBusinessRecord, error)
 	GetAdminPlatformMetrics(ctx context.Context) (AdminPlatformMetricsRecord, error)
 	GetAdminMoneyRails(ctx context.Context) (AdminMoneyRailsRecord, error)
@@ -274,6 +277,43 @@ type AdminCustomerRecord struct {
 	LastActiveAt       time.Time
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
+}
+
+// AdminCustomerExportRecord is the complete picture of one customer's data held
+// across the platform, assembled for a subject-access request.
+type AdminCustomerExportRecord struct {
+	CustomerID   common.ID
+	Email        string
+	Phone        string
+	DisplayName  string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+	Businesses   []AdminCustomerExportBusiness
+	Orders       []AdminCustomerExportOrder
+	Measurements []AdminCustomerExportMeasurement
+}
+
+type AdminCustomerExportBusiness struct {
+	BusinessName   string
+	BusinessHandle string
+	FirstSeenAt    time.Time
+}
+
+type AdminCustomerExportOrder struct {
+	OrderID          common.ID
+	BusinessName     string
+	DesignTitle      string
+	OrderType        string
+	Status           string
+	AgreedTotalMinor int64
+	CreatedAt        time.Time
+}
+
+type AdminCustomerExportMeasurement struct {
+	OrderID   common.ID
+	Source    string
+	Values    string // raw JSON object of measurement field → value
+	CreatedAt time.Time
 }
 
 type UpdateAdminBusinessStatusInput struct {
