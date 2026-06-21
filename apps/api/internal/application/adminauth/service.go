@@ -37,6 +37,11 @@ type Service struct {
 	ids           ports.IDGenerator
 	clock         ports.Clock
 	readiness     AdminLaunchReadinessConfig
+	// whatsAppEnabled is true only when the WhatsApp Cloud credentials required to
+	// actually SEND customer OTPs are configured (mirrors buildCustomerOTPDelivery).
+	// When false, the storefront disables the WhatsApp sign-in tab because the OTP
+	// is logged, never delivered.
+	whatsAppEnabled bool
 }
 
 type Dependencies struct {
@@ -52,23 +57,34 @@ type Dependencies struct {
 	IDs           ports.IDGenerator
 	Clock         ports.Clock
 	Readiness     AdminLaunchReadinessConfig
+	// WhatsAppEnabled reflects whether WhatsApp Cloud credentials are configured
+	// to actually send customer OTPs (see buildCustomerOTPDelivery).
+	WhatsAppEnabled bool
 }
 
 func NewService(deps Dependencies) Service {
 	return Service{
-		users:         deps.Users,
-		sessions:      deps.Sessions,
-		audits:        deps.Audits,
-		businesses:    deps.Businesses,
-		media:         deps.Media,
-		payments:      deps.Payments,
-		passwords:     deps.Passwords,
-		accessTokens:  deps.AccessTokens,
-		refreshTokens: deps.RefreshTokens,
-		ids:           deps.IDs,
-		clock:         deps.Clock,
-		readiness:     deps.Readiness,
+		users:           deps.Users,
+		sessions:        deps.Sessions,
+		audits:          deps.Audits,
+		businesses:      deps.Businesses,
+		media:           deps.Media,
+		payments:        deps.Payments,
+		passwords:       deps.Passwords,
+		accessTokens:    deps.AccessTokens,
+		refreshTokens:   deps.RefreshTokens,
+		ids:             deps.IDs,
+		clock:           deps.Clock,
+		readiness:       deps.Readiness,
+		whatsAppEnabled: deps.WhatsAppEnabled,
 	}
+}
+
+// WhatsAppEnabled reports whether the WhatsApp Cloud credentials required to send
+// customer sign-in OTPs are configured. The public branding endpoint surfaces this
+// so storefronts can gate the WhatsApp sign-in tab.
+func (s Service) WhatsAppEnabled() bool {
+	return s.whatsAppEnabled
 }
 
 type BootstrapAdminCommand struct {

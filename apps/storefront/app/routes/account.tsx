@@ -4,6 +4,7 @@ import {
   redirect,
   useActionData,
   useNavigation,
+  useRouteLoaderData,
 } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -35,6 +36,7 @@ import {
   fetchCustomerOrders,
   fetchCustomerProfile,
   updateCustomerProfile,
+  whatsAppOtpEnabled,
   type CustomerOrder,
   type CustomerProfile,
 } from "../lib/discovery";
@@ -500,8 +502,16 @@ export default function Account({ loaderData }: Route.ComponentProps) {
       ? String(navigation.formData?.get("intent") ?? "")
       : null;
   const { signedInPhone, redirectTo, orders, profile } = loaderData;
+  // WhatsApp Cloud creds may not be configured (then the OTP is logged, never
+  // delivered). The root loader surfaces this from GET /v1/branding so SSR and
+  // client agree; default false on fetch failure.
+  const rootData = useRouteLoaderData("root") as
+    | { whatsappEnabled?: boolean }
+    | undefined;
+  const whatsappEnabled = rootData?.whatsappEnabled ?? false;
   const step: Step = action?.step ?? "identify";
-  const channel: OtpChannel = action?.channel ?? "whatsapp";
+  const channel: OtpChannel =
+    action?.channel ?? (whatsappEnabled ? "whatsapp" : "email");
 
   if (signedInPhone) {
     return (
@@ -733,14 +743,38 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     ] as const
                   ).map((tab) => {
                     const selected = channel === tab.value;
+                    // WhatsApp creds aren't configured in prod, so the OTP only
+                    // logs (never delivers). Disable the tab + annotate "Soon" so
+                    // it re-enables automatically when the flag flips true.
+                    const disabled = tab.value === "whatsapp" && !whatsappEnabled;
                     return (
                       <Form method="post" key={tab.value}>
                         <input type="hidden" name="intent" value="switch" />
                         <input type="hidden" name="channel" value={tab.value} />
                         <Button
                           type="submit"
+                          disabled={disabled}
                           startIcon={<tab.Icon fontSize="small" />}
                           aria-pressed={selected}
+                          endIcon={
+                            disabled ? (
+                              <Box
+                                component="span"
+                                sx={{
+                                  px: 0.75,
+                                  py: 0.125,
+                                  borderRadius: 999,
+                                  fontSize: 11,
+                                  fontWeight: 800,
+                                  lineHeight: 1.4,
+                                  color: tokens.burgundy,
+                                  bgcolor: alpha(tokens.burgundy, 0.12),
+                                }}
+                              >
+                                Soon
+                              </Box>
+                            ) : undefined
+                          }
                           sx={{
                             px: 2,
                             borderRadius: 999,
@@ -751,6 +785,9 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                               bgcolor: selected
                                 ? tokens.burgundy
                                 : alpha(tokens.burgundy, 0.08),
+                            },
+                            "&.Mui-disabled": {
+                              color: "text.disabled",
                             },
                           }}
                         >

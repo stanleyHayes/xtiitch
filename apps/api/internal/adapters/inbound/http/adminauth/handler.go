@@ -32,6 +32,7 @@ type Service interface {
 	UpdateProfile(ctx context.Context, command adminauthapp.UpdateProfileCommand) (ports.AdminUserRecord, error)
 	UpdatePreferences(ctx context.Context, command adminauthapp.UpdatePreferencesCommand) (ports.AdminPreferencesRecord, error)
 	GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error)
+	WhatsAppEnabled() bool
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
 	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
 	ListBusinessVerifications(ctx context.Context, command adminauthapp.ListBusinessVerificationsCommand) ([]ports.AdminVerificationCaseRecord, error)
@@ -510,6 +511,9 @@ type brandingUploadSignatureResponse struct {
 type publicBrandingResponse struct {
 	PlatformName string `json:"platform_name"`
 	LogoURL      string `json:"logo_url"`
+	// WhatsAppEnabled is true only when WhatsApp Cloud credentials are configured to
+	// actually send customer OTPs. Storefronts gate the WhatsApp sign-in tab on it.
+	WhatsAppEnabled bool `json:"whatsapp_enabled"`
 }
 
 type auditEventResponse struct {
@@ -1339,8 +1343,9 @@ func (handler Handler) branding(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, publicBrandingResponse{
-		PlatformName: settings.PlatformName,
-		LogoURL:      settings.BrandLogoURL,
+		PlatformName:    settings.PlatformName,
+		LogoURL:         settings.BrandLogoURL,
+		WhatsAppEnabled: handler.service.WhatsAppEnabled(),
 	})
 }
 

@@ -33,12 +33,18 @@ export async function loader() {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {
-      return { brandLogoUrl: "" };
+      return { brandLogoUrl: "", whatsappEnabled: false };
     }
-    const data = (await response.json()) as { logo_url?: string };
-    return { brandLogoUrl: data.logo_url ?? "" };
+    const data = (await response.json()) as {
+      logo_url?: string;
+      whatsapp_enabled?: boolean;
+    };
+    return {
+      brandLogoUrl: data.logo_url ?? "",
+      whatsappEnabled: data.whatsapp_enabled ?? false,
+    };
   } catch {
-    return { brandLogoUrl: "" };
+    return { brandLogoUrl: "", whatsappEnabled: false };
   }
 }
 
