@@ -66,3 +66,36 @@ func (d WhatsAppOTPDelivery) SendOTP(ctx context.Context, phone string, code str
 	)
 	return d.sender.SendText(ctx, phone, body)
 }
+
+// EmailOTPDelivery emails the one-time code via the configured email sender
+// (Resend). When no sender is configured (empty key) it falls back to logging
+// the code, so email sign-in is exercisable locally with no provider key —
+// exactly like LoggingOTPDelivery does for WhatsApp.
+type EmailOTPDelivery struct {
+	sender ports.EmailSender
+	logger *slog.Logger
+}
+
+func NewEmailOTPDelivery(sender ports.EmailSender, logger *slog.Logger) EmailOTPDelivery {
+	return EmailOTPDelivery{sender: sender, logger: logger}
+}
+
+func (d EmailOTPDelivery) SendEmailOTP(ctx context.Context, email string, code string) error {
+	if d.sender == nil {
+		// Dev fallback: no email provider configured. Log the code so a local
+		// tester can read it from the API output.
+		if d.logger != nil {
+			d.logger.Info("customer email OTP (dev)", "email", email, "code", code)
+		}
+		return nil
+	}
+	body := fmt.Sprintf(
+		"Your Xtiitch sign-in code is:\n\n    %s\n\nIt expires in 5 minutes. If you didn't request this, you can ignore this email.\n\nThanks,\nXtiitch",
+		code,
+	)
+	return d.sender.Send(ctx, ports.EmailMessage{
+		To:      email,
+		Subject: "Your Xtiitch sign-in code",
+		Body:    body,
+	})
+}

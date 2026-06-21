@@ -16,7 +16,9 @@ import (
 
 type Service interface {
 	RequestOTP(ctx context.Context, phone string) error
+	RequestEmailOTP(ctx context.Context, email string) error
 	VerifyOTP(ctx context.Context, phone string, code string) (customerauthapp.CustomerAuthResult, error)
+	VerifyEmailOTP(ctx context.Context, email string, code string) (customerauthapp.CustomerAuthResult, error)
 	ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error)
 	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
 	UpdateProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error)
@@ -40,19 +42,31 @@ func (handler Handler) Register(router chi.Router) {
 }
 
 type requestOTPRequest struct {
-	Phone string `json:"phone"`
+	Channel string `json:"channel"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
 }
 
 type verifyOTPRequest struct {
-	Phone string `json:"phone"`
-	Code  string `json:"code"`
+	Channel string `json:"channel"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
+	Code    string `json:"code"`
 }
 
 type customerAuthResponse struct {
 	CustomerID  string `json:"customer_id"`
 	Phone       string `json:"phone"`
+	Email       string `json:"email"`
 	AccessToken string `json:"access_token"`
 	ExpiresAt   string `json:"expires_at"`
+}
+
+// isEmailChannel reports whether the request asked for the email channel. The
+// default (empty/unknown) is the WhatsApp phone channel, preserving existing
+// callers that only send a phone.
+func isEmailChannel(channel string) bool {
+	return strings.EqualFold(strings.TrimSpace(channel), string(ports.CustomerOTPChannelEmail))
 }
 
 type meResponse struct {
@@ -68,12 +82,18 @@ func (handler Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	if err := handler.service.RequestOTP(r.Context(), request.Phone); err != nil {
+	var err error
+	if isEmailChannel(request.Channel) {
+		err = handler.service.RequestEmailOTP(r.Context(), request.Email)
+	} else {
+		err = handler.service.RequestOTP(r.Context(), request.Phone)
+	}
+	if err != nil {
 		status, code := customerAuthError(err)
 		writeError(w, status, code)
 		return
 	}
-	// Always 202 — never reveal whether the phone is registered.
+	// Always 202 — never reveal whether the identifier is registered.
 	w.WriteHeader(http.StatusAccepted)
 }
 
@@ -83,7 +103,13 @@ func (handler Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	result, err := handler.service.VerifyOTP(r.Context(), request.Phone, request.Code)
+	var result customerauthapp.CustomerAuthResult
+	var err error
+	if isEmailChannel(request.Channel) {
+		result, err = handler.service.VerifyEmailOTP(r.Context(), request.Email, request.Code)
+	} else {
+		result, err = handler.service.VerifyOTP(r.Context(), request.Phone, request.Code)
+	}
 	if err != nil {
 		status, code := customerAuthError(err)
 		writeError(w, status, code)
@@ -92,6 +118,7 @@ func (handler Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, customerAuthResponse{
 		CustomerID:  result.CustomerID.String(),
 		Phone:       result.Phone,
+		Email:       result.Email,
 		AccessToken: result.AccessToken,
 		ExpiresAt:   result.ExpiresAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
 	})
@@ -201,6 +228,8 @@ func customerAuthError(err error) (int, string) {
 	switch {
 	case errors.Is(err, customerauthapp.ErrInvalidPhone):
 		return http.StatusBadRequest, "invalid_phone"
+	case errors.Is(err, customerauthapp.ErrInvalidEmail):
+		return http.StatusBadRequest, "invalid_email"
 	case errors.Is(err, customerauthapp.ErrInvalidCode):
 		return http.StatusUnauthorized, "invalid_code"
 	case errors.Is(err, customerauthapp.ErrCodeExpired):

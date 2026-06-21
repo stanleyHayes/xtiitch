@@ -144,16 +144,23 @@ func (repo CustomerAuthRepository) CreateOTPChallenge(ctx context.Context, input
 		return err
 	}
 
+	channel := input.Channel
+	if channel == "" {
+		channel = ports.CustomerOTPChannelWhatsApp
+	}
 	if _, err := tx.Exec(ctx, `
-		insert into customer_otp_challenges (challenge_id, phone, code_hash, expires_at)
-		values ($1, $2, $3, $4)
-	`, input.ChallengeID.String(), input.Phone, input.CodeHash, input.ExpiresAt); err != nil {
+		insert into customer_otp_challenges (challenge_id, channel, phone, email, code_hash, expires_at)
+		values ($1, $2, $3, $4, $5, $6)
+	`, input.ChallengeID.String(), string(channel), nullIfEmpty(input.Phone), nullIfEmpty(input.Email), input.CodeHash, input.ExpiresAt); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-func (repo CustomerAuthRepository) LatestActiveOTPChallenge(ctx context.Context, phone string, now time.Time) (ports.OTPChallengeRecord, error) {
+// LatestActiveOTPChallenge resolves the newest active challenge for a channel +
+// identifier. The identifier is matched against the channel's column (phone for
+// whatsapp, email for email) so the two channels never collide.
+func (repo CustomerAuthRepository) LatestActiveOTPChallenge(ctx context.Context, channel ports.CustomerOTPChannel, identifier string, now time.Time) (ports.OTPChallengeRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.OTPChallengeRecord{}, err
@@ -163,21 +170,28 @@ func (repo CustomerAuthRepository) LatestActiveOTPChallenge(ctx context.Context,
 		return ports.OTPChallengeRecord{}, err
 	}
 
+	identifierColumn := "phone"
+	if channel == ports.CustomerOTPChannelEmail {
+		identifierColumn = "email"
+	}
+
 	var record ports.OTPChallengeRecord
+	var channelText string
 	if err := tx.QueryRow(ctx, `
-		select challenge_id::text, phone, code_hash, attempts, expires_at
+		select challenge_id::text, channel, coalesce(phone, ''), coalesce(email, ''), code_hash, attempts, expires_at
 		from customer_otp_challenges
-		where phone = $1 and consumed_at is null and expires_at > $2
+		where channel = $1 and `+identifierColumn+` = $2 and consumed_at is null and expires_at > $3
 		order by created_at desc
 		limit 1
-	`, phone, now).Scan(
-		&record.ChallengeID, &record.Phone, &record.CodeHash, &record.Attempts, &record.ExpiresAt,
+	`, string(channel), identifier, now).Scan(
+		&record.ChallengeID, &channelText, &record.Phone, &record.Email, &record.CodeHash, &record.Attempts, &record.ExpiresAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.OTPChallengeRecord{}, ports.ErrNotFound
 		}
 		return ports.OTPChallengeRecord{}, err
 	}
+	record.Channel = ports.CustomerOTPChannel(channelText)
 	if err := tx.Commit(ctx); err != nil {
 		return ports.OTPChallengeRecord{}, err
 	}
@@ -239,6 +253,63 @@ func (repo CustomerAuthRepository) UpsertVerifiedCustomerByPhone(ctx context.Con
 		return common.ID(""), err
 	}
 	return newID, nil
+}
+
+// UpsertVerifiedCustomerByEmail resolves the customer for a verified email,
+// matched case-insensitively (earliest match wins), or creates one with that
+// email and no phone. Mirrors UpsertVerifiedCustomerByPhone.
+func (repo CustomerAuthRepository) UpsertVerifiedCustomerByEmail(ctx context.Context, newID common.ID, email string) (common.ID, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return common.ID(""), err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return common.ID(""), err
+	}
+
+	var existing string
+	err = tx.QueryRow(ctx, `
+		select customer_id::text from customers
+		where lower(email) = lower($1) and erased_at is null
+		order by created_at asc
+		limit 1
+	`, email).Scan(&existing)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return common.ID(""), err
+	}
+
+	if existing != "" {
+		if _, err := tx.Exec(ctx, `
+			update customers set updated_at = now() where customer_id = $1
+		`, existing); err != nil {
+			return common.ID(""), err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return common.ID(""), err
+		}
+		return common.ID(existing), nil
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, email)
+		values ($1, $2)
+	`, newID.String(), email); err != nil {
+		return common.ID(""), err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return common.ID(""), err
+	}
+	return newID, nil
+}
+
+// nullIfEmpty maps an empty string to a SQL NULL so the unused identifier column
+// (phone for an email challenge, or vice versa) stays null rather than blank.
+func nullIfEmpty(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 func (repo CustomerAuthRepository) execBypass(ctx context.Context, sql string, args ...any) error {

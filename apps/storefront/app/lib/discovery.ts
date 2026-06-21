@@ -1,18 +1,30 @@
-// Server-side client for customer accounts (phone OTP) and AI marketplace
+// Server-side client for customer accounts (phone/email OTP) and AI marketplace
 // search. Storefront loaders/actions call these; nothing here runs in the
 // browser. The access token is attached server-side from the session cookie.
 const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
 
-// ── Customer phone-OTP auth ────────────────────────────────────────────────
+// ── Customer OTP auth (WhatsApp phone or email) ────────────────────────────
+
+// A customer signs in over one of two channels. WhatsApp uses the phone number;
+// email uses the email address. The API defaults to "whatsapp" when omitted.
+export type OtpChannel = "whatsapp" | "email";
 
 // requestCustomerOtp always reports success (the API returns 202 regardless, to
-// avoid leaking which numbers exist).
-export async function requestCustomerOtp(phone: string): Promise<boolean> {
+// avoid leaking which identifiers exist). Pass channel "email" with an email to
+// send the code by email instead of WhatsApp.
+export async function requestCustomerOtp(
+  identifier: string,
+  channel: OtpChannel = "whatsapp",
+): Promise<boolean> {
   try {
+    const body =
+      channel === "email"
+        ? { channel, email: identifier }
+        : { channel, phone: identifier };
     const response = await fetch(`${API_BASE}/v1/customer/auth/request-otp`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ phone }),
+      body: JSON.stringify(body),
     });
     return response.status === 202 || response.ok;
   } catch {
@@ -21,17 +33,22 @@ export async function requestCustomerOtp(phone: string): Promise<boolean> {
 }
 
 export type VerifyOtpResult =
-  | { ok: true; token: string; phone: string }
+  | { ok: true; token: string; phone: string; email: string }
   | { ok: false; status: number; error: string };
 
 export async function verifyCustomerOtp(
-  phone: string,
+  identifier: string,
   code: string,
+  channel: OtpChannel = "whatsapp",
 ): Promise<VerifyOtpResult> {
+  const requestBody =
+    channel === "email"
+      ? { channel, email: identifier, code }
+      : { channel, phone: identifier, code };
   const response = await fetch(`${API_BASE}/v1/customer/auth/verify-otp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ phone, code }),
+    body: JSON.stringify(requestBody),
   });
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as {
@@ -46,8 +63,14 @@ export async function verifyCustomerOtp(
   const body = (await response.json()) as {
     access_token: string;
     phone: string;
+    email?: string;
   };
-  return { ok: true, token: body.access_token, phone: body.phone };
+  return {
+    ok: true,
+    token: body.access_token,
+    phone: body.phone,
+    email: body.email ?? "",
+  };
 }
 
 // ── Customer account (orders + profile) ────────────────────────────────────

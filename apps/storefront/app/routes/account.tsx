@@ -13,6 +13,8 @@ import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
 import PinRounded from "@mui/icons-material/PinRounded";
+import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
+import EmailRounded from "@mui/icons-material/EmailRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
@@ -33,14 +35,21 @@ import { commitSession, destroySession, getSession } from "../lib/session";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
 
-type Step = "phone" | "verify";
+type Step = "identify" | "verify";
+type OtpChannel = "whatsapp" | "email";
 type ActionResult = {
   step: Step;
-  phone?: string;
+  channel?: OtpChannel;
+  // identifier is the phone (whatsapp) or email (email) the code was sent to.
+  identifier?: string;
   error?: string;
   profileSaved?: boolean;
   profileError?: string;
 };
+
+function normalizeChannel(raw: unknown): OtpChannel {
+  return String(raw ?? "") === "email" ? "email" : "whatsapp";
+}
 
 // safeRedirect blocks open redirects: only same-site absolute paths are allowed.
 function safeRedirect(raw: string | null): string {
@@ -56,7 +65,7 @@ export function meta() {
     {
       name: "description",
       content:
-        "Sign in with your phone number to track your orders and unlock more AI searches across Xtiitch shops.",
+        "Sign in with your phone or email to track your orders and unlock more AI searches across Xtiitch shops.",
     },
     { name: "robots", content: "noindex" },
   ];
@@ -107,7 +116,7 @@ export async function action({ request }: Route.ActionArgs) {
       email: String(form.get("email") ?? "").trim(),
     });
     return {
-      step: "phone",
+      step: "identify",
       profileSaved: Boolean(updated),
       profileError: updated
         ? undefined
@@ -115,19 +124,37 @@ export async function action({ request }: Route.ActionArgs) {
     } as ActionResult;
   }
 
+  // The channel tabs (WhatsApp | Email) re-render the sign-in form pre-selected
+  // on the chosen channel, with no client JS.
+  if (intent === "switch") {
+    return {
+      step: "identify",
+      channel: normalizeChannel(form.get("channel")),
+    } as ActionResult;
+  }
+
   if (intent === "request") {
-    const phone = String(form.get("phone") ?? "").trim();
-    if (!phone) {
-      return { step: "phone", error: "Enter your phone number." } as ActionResult;
+    const channel = normalizeChannel(form.get("channel"));
+    const identifier = String(form.get("identifier") ?? "").trim();
+    if (!identifier) {
+      return {
+        step: "identify",
+        channel,
+        error:
+          channel === "email"
+            ? "Enter your email address."
+            : "Enter your phone number.",
+      } as ActionResult;
     }
-    await requestCustomerOtp(phone);
-    return { step: "verify", phone } as ActionResult;
+    await requestCustomerOtp(identifier, channel);
+    return { step: "verify", channel, identifier } as ActionResult;
   }
 
   if (intent === "verify") {
-    const phone = String(form.get("phone") ?? "").trim();
+    const channel = normalizeChannel(form.get("channel"));
+    const identifier = String(form.get("identifier") ?? "").trim();
     const code = String(form.get("code") ?? "").trim();
-    const result = await verifyCustomerOtp(phone, code);
+    const result = await verifyCustomerOtp(identifier, code, channel);
     if (!result.ok) {
       const error =
         result.status === 401
@@ -135,17 +162,19 @@ export async function action({ request }: Route.ActionArgs) {
           : result.status === 429
             ? "Too many attempts — request a fresh code."
             : "We couldn't verify that code. Please try again.";
-      return { step: "verify", phone, error } as ActionResult;
+      return { step: "verify", channel, identifier, error } as ActionResult;
     }
     const session = await getSession(request.headers.get("Cookie"));
     session.set("customerToken", result.token);
-    session.set("customerPhone", result.phone);
+    // The account header shows whichever identity the customer signed in with.
+    // Email-only customers have no phone, so fall back to the email/identifier.
+    session.set("customerPhone", result.phone || result.email || identifier);
     return redirect(safeRedirect(String(form.get("redirectTo") ?? "/discover")), {
       headers: { "Set-Cookie": await commitSession(session) },
     });
   }
 
-  return { step: "phone" } as ActionResult;
+  return { step: "identify" } as ActionResult;
 }
 
 const MONTHS = [
@@ -318,16 +347,16 @@ function AccountHub({
                   }}
                 />
                 <TextField
-                  label="Phone"
+                  label="Login"
                   value={phone}
                   disabled
                   fullWidth
-                  helperText="Your phone is your login and can't be changed here."
+                  helperText="This is your verified login and can't be changed here."
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <PhoneIphoneRounded fontSize="small" />
+                          <VerifiedUserRounded fontSize="small" />
                         </InputAdornment>
                       ),
                     },
@@ -458,7 +487,8 @@ function AccountHub({
 export default function Account({ loaderData }: Route.ComponentProps) {
   const action = useActionData<ActionResult>();
   const { signedInPhone, redirectTo, orders, profile } = loaderData;
-  const step: Step = action?.step ?? "phone";
+  const step: Step = action?.step ?? "identify";
+  const channel: OtpChannel = action?.channel ?? "whatsapp";
 
   if (signedInPhone) {
     return (
@@ -567,9 +597,9 @@ export default function Account({ loaderData }: Route.ComponentProps) {
               Sign in to track orders
             </Typography>
             <Typography sx={{ mt: 2, color: "text.secondary", maxWidth: 560, fontSize: { xs: 16, md: 18 } }}>
-              One phone number, no password. Signing in keeps your order history
-              in one place and unlocks more natural-language AI searches across
-              every Xtiitch shop.
+              Your phone or email, no password. Signing in keeps your order
+              history in one place and unlocks more natural-language AI searches
+              across every Xtiitch shop.
             </Typography>
             <Stack direction="row" spacing={1} sx={{ mt: 2.5, alignItems: "center", color: tokens.burgundy }}>
               <AutoAwesomeRounded fontSize="small" />
@@ -606,12 +636,18 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                   Enter your code
                 </Typography>
                 <Typography sx={{ color: "text.secondary" }}>
-                  We sent a 6-digit code to <strong>{action?.phone}</strong> on
-                  WhatsApp. Enter it below.
+                  We sent a 6-digit code to <strong>{action?.identifier}</strong>{" "}
+                  {channel === "email" ? "by email" : "on WhatsApp"}. Enter it
+                  below.
                 </Typography>
                 <Form method="post">
                   <input type="hidden" name="intent" value="verify" />
-                  <input type="hidden" name="phone" value={action?.phone ?? ""} />
+                  <input type="hidden" name="channel" value={channel} />
+                  <input
+                    type="hidden"
+                    name="identifier"
+                    value={action?.identifier ?? ""}
+                  />
                   <input type="hidden" name="redirectTo" value={redirectTo} />
                   <Stack spacing={1.5} sx={{ mt: 1 }}>
                     <TextField
@@ -641,44 +677,131 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                 </Form>
                 <Form method="post">
                   <input type="hidden" name="intent" value="request" />
-                  <input type="hidden" name="phone" value={action?.phone ?? ""} />
+                  <input type="hidden" name="channel" value={channel} />
+                  <input
+                    type="hidden"
+                    name="identifier"
+                    value={action?.identifier ?? ""}
+                  />
+                  <input type="hidden" name="redirectTo" value={redirectTo} />
                   <Button type="submit" variant="text" size="small" sx={{ color: "text.secondary", px: 0 }}>
-                    Resend code / change number
+                    {channel === "email"
+                      ? "Resend code / change email"
+                      : "Resend code / change number"}
                   </Button>
                 </Form>
               </Stack>
             ) : (
               <Stack spacing={1.5}>
                 <Typography variant="h5" component="h2">
-                  Sign in with your phone
+                  {channel === "email"
+                    ? "Sign in with your email"
+                    : "Sign in with your phone"}
                 </Typography>
+
+                {/* Channel switch: WhatsApp | Email. Each tab re-renders this
+                    form pre-selected on that channel (no client JS). */}
+                <Stack
+                  direction="row"
+                  spacing={0}
+                  sx={{
+                    p: 0.5,
+                    borderRadius: 999,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.12),
+                    bgcolor: alpha(tokens.ink, 0.03),
+                    width: "fit-content",
+                  }}
+                >
+                  {(
+                    [
+                      { value: "whatsapp", label: "WhatsApp", Icon: PhoneIphoneRounded },
+                      { value: "email", label: "Email", Icon: EmailRounded },
+                    ] as const
+                  ).map((tab) => {
+                    const selected = channel === tab.value;
+                    return (
+                      <Form method="post" key={tab.value}>
+                        <input type="hidden" name="intent" value="switch" />
+                        <input type="hidden" name="channel" value={tab.value} />
+                        <Button
+                          type="submit"
+                          startIcon={<tab.Icon fontSize="small" />}
+                          aria-pressed={selected}
+                          sx={{
+                            px: 2,
+                            borderRadius: 999,
+                            fontWeight: 800,
+                            color: selected ? "#fff" : "text.secondary",
+                            bgcolor: selected ? tokens.burgundy : "transparent",
+                            "&:hover": {
+                              bgcolor: selected
+                                ? tokens.burgundy
+                                : alpha(tokens.burgundy, 0.08),
+                            },
+                          }}
+                        >
+                          {tab.label}
+                        </Button>
+                      </Form>
+                    );
+                  })}
+                </Stack>
+
                 <Typography sx={{ color: "text.secondary" }}>
-                  We'll send a one-time code to your WhatsApp. No password needed.
+                  {channel === "email"
+                    ? "We'll email you a one-time code. No password needed."
+                    : "We'll send a one-time code to your WhatsApp. No password needed."}
                 </Typography>
                 <Form method="post">
                   <input type="hidden" name="intent" value="request" />
+                  <input type="hidden" name="channel" value={channel} />
                   <input type="hidden" name="redirectTo" value={redirectTo} />
                   <Stack spacing={1.5} sx={{ mt: 1 }}>
-                    <TextField
-                      name="phone"
-                      label="Phone number"
-                      placeholder="024 000 0000"
-                      inputMode="tel"
-                      autoComplete="tel"
-                      required
-                      fullWidth
-                      error={Boolean(action?.error)}
-                      helperText={action?.error}
-                      slotProps={{
-                        input: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PhoneIphoneRounded fontSize="small" />
-                            </InputAdornment>
-                          ),
-                        },
-                      }}
-                    />
+                    {channel === "email" ? (
+                      <TextField
+                        name="identifier"
+                        label="Email address"
+                        placeholder="you@example.com"
+                        type="email"
+                        inputMode="email"
+                        autoComplete="email"
+                        required
+                        fullWidth
+                        error={Boolean(action?.error)}
+                        helperText={action?.error}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <EmailRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                    ) : (
+                      <TextField
+                        name="identifier"
+                        label="Phone number"
+                        placeholder="024 000 0000"
+                        inputMode="tel"
+                        autoComplete="tel"
+                        required
+                        fullWidth
+                        error={Boolean(action?.error)}
+                        helperText={action?.error}
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <PhoneIphoneRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                    )}
                     <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardRounded />}>
                       Send my code
                     </Button>

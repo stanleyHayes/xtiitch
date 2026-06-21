@@ -244,12 +244,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	customerAuthService := customerauthapp.NewService(customerauthapp.Dependencies{
-		Repo:     postgres.NewCustomerAuthRepository(db),
-		Tokens:   jwtIssuer,
-		OTP:      authadapter.NewCustomerOTPGenerator(),
-		Delivery: buildCustomerOTPDelivery(cfg, logger),
-		IDs:      ids.UUIDGenerator{},
-		Clock:    clock.SystemClock{},
+		Repo:          postgres.NewCustomerAuthRepository(db),
+		Tokens:        jwtIssuer,
+		OTP:           authadapter.NewCustomerOTPGenerator(),
+		Delivery:      buildCustomerOTPDelivery(cfg, logger),
+		EmailDelivery: buildCustomerEmailOTPDelivery(cfg, logger),
+		IDs:           ids.UUIDGenerator{},
+		Clock:         clock.SystemClock{},
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
@@ -407,6 +408,18 @@ func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.Cust
 	}
 	logger.Warn("whatsapp credentials not set; customer OTPs will be logged, not sent")
 	return authadapter.NewLoggingOTPDelivery(logger)
+}
+
+// buildCustomerEmailOTPDelivery emails customer sign-in codes via Resend when a
+// key is configured; otherwise NewResendSender returns nil and the email
+// delivery logs the code (dev), so email sign-in is exercisable locally with no
+// provider key.
+func buildCustomerEmailOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerEmailOTPDelivery {
+	sender := emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail)
+	if sender == nil {
+		logger.Warn("resend not configured; customer email OTPs will be logged, not sent")
+	}
+	return authadapter.NewEmailOTPDelivery(sender, logger)
 }
 
 func (a App) HTTPServer() *http.Server {
