@@ -1,6 +1,14 @@
-import { Form, Link as RouterLink, redirect, useActionData } from "react-router";
+import {
+  Form,
+  Link as RouterLink,
+  redirect,
+  useActionData,
+  useNavigation,
+} from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import OtpCodeInput from "../components/otp-code-input";
+import ButtonDots from "../components/button-dots";
 import Container from "@mui/material/Container";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
@@ -12,7 +20,6 @@ import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
-import PinRounded from "@mui/icons-material/PinRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import EmailRounded from "@mui/icons-material/EmailRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -486,6 +493,12 @@ function AccountHub({
 
 export default function Account({ loaderData }: Route.ComponentProps) {
   const action = useActionData<ActionResult>();
+  const navigation = useNavigation();
+  // Which form is mid-submit, so the matching button can show a spinner.
+  const pendingIntent =
+    navigation.state === "submitting"
+      ? String(navigation.formData?.get("intent") ?? "")
+      : null;
   const { signedInPhone, redirectTo, orders, profile } = loaderData;
   const step: Step = action?.step ?? "identify";
   const channel: OtpChannel = action?.channel ?? "whatsapp";
@@ -649,29 +662,29 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     value={action?.identifier ?? ""}
                   />
                   <input type="hidden" name="redirectTo" value={redirectTo} />
-                  <Stack spacing={1.5} sx={{ mt: 1 }}>
-                    <TextField
-                      name="code"
-                      label="6-digit code"
-                      placeholder="000000"
-                      inputMode="numeric"
-                      autoComplete="one-time-code"
-                      required
-                      fullWidth
-                      error={Boolean(action?.error)}
-                      helperText={action?.error}
-                      slotProps={{
-                        input: {
-                          startAdornment: (
-                            <InputAdornment position="start">
-                              <PinRounded fontSize="small" />
-                            </InputAdornment>
-                          ),
-                        },
-                      }}
-                    />
-                    <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardRounded />}>
-                      Verify & sign in
+                  <Stack spacing={1.75} sx={{ mt: 1 }}>
+                    <OtpCodeInput error={Boolean(action?.error)} />
+                    {action?.error ? (
+                      <Typography variant="body2" sx={{ color: "error.main" }}>
+                        {action.error}
+                      </Typography>
+                    ) : null}
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={pendingIntent === "verify"}
+                      endIcon={
+                        pendingIntent === "verify" ? undefined : (
+                          <ArrowForwardRounded />
+                        )
+                      }
+                    >
+                      {pendingIntent === "verify" ? (
+                        <ButtonDots label="Verifying" />
+                      ) : (
+                        "Verify & sign in"
+                      )}
                     </Button>
                   </Stack>
                 </Form>
@@ -802,8 +815,22 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                         }}
                       />
                     )}
-                    <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardRounded />}>
-                      Send my code
+                    <Button
+                      type="submit"
+                      variant="contained"
+                      size="large"
+                      disabled={pendingIntent === "request"}
+                      endIcon={
+                        pendingIntent === "request" ? undefined : (
+                          <ArrowForwardRounded />
+                        )
+                      }
+                    >
+                      {pendingIntent === "request" ? (
+                        <ButtonDots label="Sending" />
+                      ) : (
+                        "Send my code"
+                      )}
                     </Button>
                   </Stack>
                 </Form>
