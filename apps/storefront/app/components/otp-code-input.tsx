@@ -27,7 +27,7 @@ export default function OtpCodeInput({
   autoFocus?: boolean;
 }) {
   const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(""));
-  const refs = useRef<Array<HTMLInputElement | null>>([]);
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
   const code = digits.join("");
 
   function writeFrom(index: number, chars: string[]) {
@@ -98,7 +98,6 @@ export default function OtpCodeInput({
       >
         {digits.map((digit, index) => (
           <Box
-            // eslint-disable-next-line react/no-array-index-key
             key={index}
             component="input"
             ref={(el: HTMLInputElement | null) => {

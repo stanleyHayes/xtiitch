@@ -4081,7 +4081,7 @@ function ToneChip({
 // promised "finish later" but offered no way back to the billing flow.
 // Dismissible per business (localStorage); links into the existing onboarding.
 function BillingSetupBanner({ plan, handle }: { plan: string; handle: string }) {
-  const paid = !!plan && plan !== "free";
+  const paid = Boolean(plan) && plan !== "free";
   const storageKey = `xtiitch:billing-setup-dismissed:${handle}`;
   const [hidden, setHidden] = useState(true);
   useEffect(() => {
