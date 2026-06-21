@@ -253,11 +253,8 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		OTP:           authadapter.NewCustomerOTPGenerator(),
 		Delivery:      buildCustomerOTPDelivery(cfg, logger),
 		EmailDelivery: buildCustomerEmailOTPDelivery(cfg, logger),
-		// Same condition as buildCustomerOTPDelivery / the branding flag: only
-		// accept the WhatsApp OTP channel when Cloud creds can actually deliver.
-		WhatsAppEnabled: cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "",
-		IDs:             ids.UUIDGenerator{},
-		Clock:           clock.SystemClock{},
+		IDs:           ids.UUIDGenerator{},
+		Clock:         clock.SystemClock{},
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)

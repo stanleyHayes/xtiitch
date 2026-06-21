@@ -143,7 +143,15 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "request") {
-    const channel = normalizeChannel(form.get("channel"));
+    let channel = normalizeChannel(form.get("channel"));
+    // Server-side backstop: the WhatsApp tab is disabled in the UI when the flag
+    // is false, but a stale render or a bfcache/back-forward-restored document
+    // can still POST channel=whatsapp. Re-check the live flag and fall back to
+    // email so we never mint a WhatsApp code that would never be delivered. This
+    // matches the API's buildCustomerOTPDelivery condition.
+    if (channel === "whatsapp" && !(await whatsAppOtpEnabled())) {
+      channel = "email";
+    }
     const identifier = String(form.get("identifier") ?? "").trim();
     if (!identifier) {
       return {
