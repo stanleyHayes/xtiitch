@@ -322,10 +322,15 @@ export default function Discover({ loaderData }: Route.ComponentProps) {
                 label={ex}
                 sx={{
                   fontWeight: 700,
-                  bgcolor: alpha(tokens.burgundy, 0.06),
-                  color: tokens.ink,
+                  bgcolor: alpha(tokens.burgundy, 0.12),
+                  color: "text.primary",
                   border: "1px solid",
-                  borderColor: alpha(tokens.burgundy, 0.14),
+                  borderColor: alpha(tokens.burgundy, 0.3),
+                  transition: "background-color .15s ease, border-color .15s ease",
+                  "&:hover": {
+                    bgcolor: alpha(tokens.burgundy, 0.2),
+                    borderColor: tokens.burgundy,
+                  },
                 }}
               />
             ))}
