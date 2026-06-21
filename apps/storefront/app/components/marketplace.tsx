@@ -448,7 +448,7 @@ export function Marketplace({
               >
                 Track an order
               </Button>
-              <Button href="https://xtiitch.com" variant="text" size="small" sx={{ color: alpha(tokens.white, 0.7) }}>
+              <Button href="https://xtiitch.com" target="_blank" rel="noopener noreferrer" variant="text" size="small" sx={{ color: alpha(tokens.white, 0.7) }}>
                 Learn about Xtiitch
               </Button>
             </Stack>

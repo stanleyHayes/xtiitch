@@ -276,6 +276,8 @@ function Hero() {
               <Button
                 component="a"
                 href={signupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 size="large"
                 endIcon={<ArrowForwardRoundedIcon />}
                 sx={{

@@ -79,6 +79,8 @@ export default function Shops() {
           </Typography>
           <Button
             href={marketplaceUrl}
+            target="_blank"
+            rel="noopener noreferrer"
             variant="contained"
             size="large"
             startIcon={<StorefrontRoundedIcon />}

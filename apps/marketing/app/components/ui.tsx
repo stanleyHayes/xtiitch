@@ -1246,6 +1246,8 @@ export function PlanCards({ items }: { items: Plan[] }) {
             <Button
               component="a"
               href={signupUrl}
+              target="_blank"
+              rel="noopener noreferrer"
               variant={plan.highlight ? "contained" : "outlined"}
               size="large"
               disabled={!plan.available}

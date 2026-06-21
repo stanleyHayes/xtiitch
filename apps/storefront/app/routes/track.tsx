@@ -513,6 +513,8 @@ export default function Track({ loaderData }: Route.ComponentProps) {
 
               <Button
                 href="https://xtiitch.com"
+                target="_blank"
+                rel="noopener noreferrer"
                 variant="outlined"
                 endIcon={<ArrowForwardRounded />}
                 sx={{ alignSelf: "flex-start" }}

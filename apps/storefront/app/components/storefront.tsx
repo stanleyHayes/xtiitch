@@ -366,6 +366,8 @@ export function StoreHeader({
           </Button>
           <Button
             href="https://xtiitch.com"
+            target="_blank"
+            rel="noopener noreferrer"
             variant="outlined"
             sx={{
               color: onBrand,
