@@ -51,6 +51,23 @@ test("parseWaitlist requires contact consent", () => {
   }
 });
 
+test("parseWaitlist requires a town or city", () => {
+  const result = parseWaitlist(
+    waitlistForm({
+      website: "",
+      name: "Ama",
+      business: "Ama Stitch House",
+      phone: "0240000000",
+      consent: "on",
+    }),
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.errors.city, "Please enter your town or city");
+  }
+});
+
 test("parseWaitlist rejects filled honeypot submissions", () => {
   const result = parseWaitlist(
     waitlistForm({

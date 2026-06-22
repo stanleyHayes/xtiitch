@@ -26,8 +26,8 @@ export default function ForCustomers() {
     <>
       <PageHero
         eyebrow="For customers"
-        title="Got an Xtiitch link? Here’s how it works"
-        subtitle="When a fashion business sends you an Xtiitch link, you can browse, order and pay with confidence — and finally see where your garment has reached."
+        title="Got a Xtiitch link? Here’s how it works"
+        subtitle="When a fashion business sends you a Xtiitch link, you can browse, order and pay with confidence — and finally see where your garment has reached."
       />
 
       <Section>

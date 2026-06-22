@@ -39,6 +39,7 @@ import {
   type Step,
   type TrustPoint,
 } from "../content";
+import { useMarketingFlags } from "../root";
 
 const pageHeroIcons: Record<string, SvgIconComponent> = {
   FAQ: HelpRoundedIcon,
@@ -1072,6 +1073,9 @@ export function PlanCards({ items }: { items: Plan[] }) {
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
+  // Pre-launch (pricing flag off) the per-plan signup CTAs are hidden and
+  // replaced by a single prominent "Join the waitlist" button below the grid.
+  const { pricing: pricingLive } = useMarketingFlags();
   return (
     <Box>
       <Box
@@ -1110,14 +1114,18 @@ export function PlanCards({ items }: { items: Plan[] }) {
           }}
         >
           <ToggleButton value="monthly">Monthly</ToggleButton>
-          <ToggleButton value="yearly">Yearly · 2 months free</ToggleButton>
+          <ToggleButton value="yearly">Yearly · 3 months free</ToggleButton>
         </ToggleButtonGroup>
       </Box>
       <Box
         sx={{
           display: "grid",
           gap: 3,
-          gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "repeat(2, 1fr)",
+            lg: "repeat(4, 1fr)",
+          },
           alignItems: "stretch",
         }}
       >
@@ -1214,6 +1222,14 @@ export function PlanCards({ items }: { items: Plan[] }) {
                 sx={{ alignSelf: "flex-start", mt: 1, fontWeight: 800 }}
               />
             ) : null}
+            {!yearly && plan.quarterlyPrice ? (
+              <Typography
+                variant="body2"
+                sx={{ mt: 0.75, color: "text.secondary" }}
+              >
+                or {plan.quarterlyPrice} · save 20%
+              </Typography>
+            ) : null}
             <Chip
               size="small"
               variant="outlined"
@@ -1243,22 +1259,40 @@ export function PlanCards({ items }: { items: Plan[] }) {
                 </Box>
               ))}
             </Stack>
-            <Button
-              component="a"
-              href={signupUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              variant={plan.highlight ? "contained" : "outlined"}
-              size="large"
-              disabled={!plan.available}
-              sx={{ mt: 3 }}
-            >
-              {plan.available ? "Get started" : "Coming later"}
-            </Button>
+            {pricingLive ? (
+              <Button
+                component="a"
+                href={signupUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                variant={plan.highlight ? "contained" : "outlined"}
+                size="large"
+                disabled={!plan.available}
+                sx={{ mt: 3 }}
+              >
+                {plan.available ? "Get started" : "Coming later"}
+              </Button>
+            ) : null}
           </CardContent>
         </Card>
         ))}
       </Box>
+      {/* Pre-launch: one prominent waitlist CTA stands in for the per-plan
+          signup buttons, scrolling/linking to the waitlist form. */}
+      {pricingLive ? null : (
+        <Box sx={{ mt: { xs: 4, md: 5 }, display: "flex", justifyContent: "center" }}>
+          <Button
+            component={RouterLink}
+            to={site.primaryCta.href}
+            variant="contained"
+            size="large"
+            endIcon={<ArrowForwardRoundedIcon />}
+            sx={{ minWidth: { xs: "100%", sm: 280 } }}
+          >
+            {site.primaryCta.label}
+          </Button>
+        </Box>
+      )}
     </Box>
   );
 }

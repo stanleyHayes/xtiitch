@@ -57,7 +57,11 @@ function LoadingButtonLabel({ label }: { label: string }) {
   );
 }
 
-export function WaitlistForm() {
+export function WaitlistForm({
+  source = "marketing-contact",
+}: {
+  source?: string;
+}) {
   const fetcher = useFetcher<WaitlistResult>();
   const result = fetcher.data;
   const submitting = fetcher.state !== "idle";
@@ -113,6 +117,7 @@ export function WaitlistForm() {
 
   return (
     <fetcher.Form method="post" noValidate>
+      <input type="hidden" name="source" value={source} />
       <Stack spacing={2.5}>
         <Box>
           <Chip
@@ -235,8 +240,11 @@ export function WaitlistForm() {
         </Box>
         <TextField
           name="city"
-          label="Town or city (optional)"
+          label="Town or city"
+          required
           autoComplete="address-level2"
+          error={errors?.city !== undefined}
+          helperText={errors?.city}
           slotProps={{
             input: {
               startAdornment: (

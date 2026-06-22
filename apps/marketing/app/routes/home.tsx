@@ -46,6 +46,7 @@ import {
   type SponsoredEventInput,
   type SponsoredPlacement,
 } from "../lib/sponsored";
+import { useMarketingFlags } from "../root";
 
 const homeRiseSx = (delayMs = 0) => ({
   animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
@@ -127,6 +128,9 @@ function Hero() {
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
+  // The hero "Create your store" button only shows once self-serve signup is
+  // live (create_store flag). Pre-launch it's hidden, leaving the waitlist CTA.
+  const { create_store: createStoreLive } = useMarketingFlags();
   return (
     <Box
       sx={{
@@ -273,34 +277,52 @@ function Hero() {
                 ...homeRiseSx(320),
               }}
             >
-              <Button
-                component="a"
-                href={signupUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                size="large"
-                endIcon={<ArrowForwardRoundedIcon />}
-                sx={{
-                  bgcolor: "common.white",
-                  color: "primary.main",
-                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
-                }}
-              >
-                Create your store
-              </Button>
+              {createStoreLive ? (
+                <Button
+                  component="a"
+                  href={signupUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  size="large"
+                  endIcon={<ArrowForwardRoundedIcon />}
+                  sx={{
+                    bgcolor: "common.white",
+                    color: "primary.main",
+                    "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
+                  }}
+                >
+                  Create your store
+                </Button>
+              ) : null}
+              {/* Pre-launch the waitlist CTA is the prominent white button (it's
+                  the only hero action); once "Create your store" is live it
+                  steps back to the outlined secondary style. */}
               <Button
                 component={RouterLink}
                 to={site.primaryCta.href}
                 size="large"
-                variant="outlined"
-                sx={{
-                  color: "common.white",
-                  borderColor: "rgba(255,255,255,0.62)",
-                  "&:hover": {
-                    borderColor: "common.white",
-                    bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                  },
-                }}
+                variant={createStoreLive ? "outlined" : "contained"}
+                endIcon={
+                  createStoreLive ? undefined : <ArrowForwardRoundedIcon />
+                }
+                sx={
+                  createStoreLive
+                    ? {
+                        color: "common.white",
+                        borderColor: "rgba(255,255,255,0.62)",
+                        "&:hover": {
+                          borderColor: "common.white",
+                          bgcolor: "rgba(var(--surface-rgb), 0.08)",
+                        },
+                      }
+                    : {
+                        bgcolor: "common.white",
+                        color: "primary.main",
+                        "&:hover": {
+                          bgcolor: "rgba(var(--surface-rgb), 0.9)",
+                        },
+                      }
+                }
               >
                 {site.primaryCta.label}
               </Button>
@@ -437,7 +459,7 @@ const stats: {
     Icon: LocalOfferRoundedIcon,
   },
   {
-    eyebrow: "Tracking customers understand",
+    eyebrow: "Tracking customers can understand",
     value: "Red · Yellow · Green",
     label: "order status anyone can read",
     accent: "#b87914",
@@ -573,7 +595,17 @@ function AtelierImageStrip() {
               color: "common.white",
             }}
           >
-            <Typography variant={index === 0 ? "h3" : "h5"} component="h3">
+            <Typography
+              variant={index === 0 ? "h3" : "h5"}
+              component="h3"
+              // The first card uses the larger h3 on desktop; on mobile it must
+              // match the sibling (h5) titles so all three read consistently.
+              sx={
+                index === 0
+                  ? { fontSize: { xs: "1.125rem", md: "1.8rem" } }
+                  : undefined
+              }
+            >
               {story.title}
             </Typography>
             <Typography
@@ -773,6 +805,32 @@ function SponsoredPlacements({
   );
 }
 
+// Pre-launch (discover flag off) the home page must NOT list businesses — real
+// or placeholder. Instead it explains, warmly, what being featured on Xtiitch
+// will do for a fashion business once the directory goes live.
+function DiscoverFeaturedBlurb() {
+  return (
+    <Section alt>
+      <Box sx={{ maxWidth: 760, mx: "auto", textAlign: "center" }}>
+        <SectionHeading
+          eyebrow="Featured on Xtiitch"
+          title="Get discovered by new customers"
+          subtitle="When the storefront directory opens, verified fashion businesses on Xtiitch will be featured here — putting your designs in front of customers who are looking for exactly what you make. Being featured helps people find your shop, browse your latest pieces, and order directly, so a new customer can discover you without ever knowing your name first."
+        />
+        <Button
+          component={RouterLink}
+          to={site.primaryCta.href}
+          variant="contained"
+          size="large"
+          endIcon={<ArrowForwardRoundedIcon />}
+        >
+          {site.primaryCta.label}
+        </Button>
+      </Box>
+    </Section>
+  );
+}
+
 const growthIcons = [
   LocalOfferRoundedIcon,
   HandshakeRoundedIcon,
@@ -947,6 +1005,9 @@ function sendSponsoredEvent(
 
 export default function Home() {
   const { sponsored } = useLoaderData<typeof loader>();
+  // The live business directory is gated behind the discover flag. Pre-launch
+  // (flag off) we never show businesses — only the explanatory blurb.
+  const { discover: discoverLive } = useMarketingFlags();
 
   return (
     <>
@@ -1132,7 +1193,11 @@ export default function Home() {
         </Container>
       </Box>
 
-      <SponsoredPlacements placements={sponsored} />
+      {discoverLive ? (
+        <SponsoredPlacements placements={sponsored} />
+      ) : (
+        <DiscoverFeaturedBlurb />
+      )}
       <GrowthProgrammesTeaser />
 
       <Section>

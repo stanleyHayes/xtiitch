@@ -9,6 +9,7 @@ import {
   type LinksFunction,
   useLocation,
   useNavigation,
+  useRouteLoaderData,
 } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
@@ -65,30 +66,83 @@ const MARKETPLACE_URL = (() => {
   return "https://store.xtiitch.com";
 })();
 
+// Pre-launch feature flags read from the public branding endpoint. Every flag
+// means "this feature is LIVE/shown" — so the fail-safe default is `false`
+// (hidden), which must hold on any fetch error so a network blip can never
+// reveal a pre-launch feature or crash the page.
+export type MarketingFlags = {
+  browse_store: boolean;
+  discover: boolean;
+  create_store: boolean;
+  pricing: boolean;
+};
+
+const DEFAULT_MARKETING_FLAGS: MarketingFlags = {
+  browse_store: false,
+  discover: false,
+  create_store: false,
+  pricing: false,
+};
+
+function coerceMarketingFlags(input: unknown): MarketingFlags {
+  if (typeof input !== "object" || input === null) {
+    return DEFAULT_MARKETING_FLAGS;
+  }
+  const flags = input as Record<string, unknown>;
+  return {
+    browse_store: flags.browse_store === true,
+    discover: flags.discover === true,
+    create_store: flags.create_store === true,
+    pricing: flags.pricing === true,
+  };
+}
+
+export type RootLoaderData = {
+  brandLogoUrl: string;
+  signupUrl: string;
+  marketplaceUrl: string;
+  marketingFlags: MarketingFlags;
+};
+
 // Platform branding (logo) is owner-managed in the admin console and served
-// publicly, so the marketing site renders the current Xtiitch logo. Failures
-// fall back to the built-in mark and never block the page.
-export async function loader() {
+// publicly, so the marketing site renders the current Xtiitch logo. The same
+// endpoint carries the pre-launch marketing feature flags. Failures fall back
+// to the built-in mark and all-hidden flags, and never block the page.
+export async function loader(): Promise<RootLoaderData> {
+  const fallback: RootLoaderData = {
+    brandLogoUrl: "",
+    signupUrl: SIGNUP_URL,
+    marketplaceUrl: MARKETPLACE_URL,
+    marketingFlags: DEFAULT_MARKETING_FLAGS,
+  };
   try {
     const response = await fetch(`${BRANDING_API_BASE}/v1/branding`, {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {
-      return {
-        brandLogoUrl: "",
-        signupUrl: SIGNUP_URL,
-        marketplaceUrl: MARKETPLACE_URL,
-      };
+      return fallback;
     }
-    const data = (await response.json()) as { logo_url?: string };
+    const data = (await response.json()) as {
+      logo_url?: string;
+      marketing_flags?: unknown;
+    };
     return {
       brandLogoUrl: data.logo_url ?? "",
       signupUrl: SIGNUP_URL,
       marketplaceUrl: MARKETPLACE_URL,
+      marketingFlags: coerceMarketingFlags(data.marketing_flags),
     };
   } catch {
-    return { brandLogoUrl: "", signupUrl: SIGNUP_URL };
+    return fallback;
   }
+}
+
+// Shared accessor for the pre-launch flags. Reads the root loader data from any
+// route/component; defaults to all-hidden if the root data is somehow absent so
+// the fail-safe holds everywhere.
+export function useMarketingFlags(): MarketingFlags {
+  const rootData = useRouteLoaderData("root") as RootLoaderData | undefined;
+  return rootData?.marketingFlags ?? DEFAULT_MARKETING_FLAGS;
 }
 
 export function Layout({ children }: { children: ReactNode }) {

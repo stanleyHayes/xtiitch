@@ -18,7 +18,7 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Pricing",
     description:
-      "Free to get online with a 3% share on Xtiitch sales, or Standard at GHS 50/month with a 1% share. Money taken outside Xtiitch carries no fee.",
+      "Start free with a real storefront and a 3% share on online sales, then move to a simple monthly plan as you grow — Starter GHS 49, Growth GHS 99, Studio GHS 199. Money you take outside Xtiitch is always yours, fee-free.",
     path: "/pricing",
   });
 }
@@ -29,7 +29,7 @@ export default function Pricing() {
       <PageHero
         eyebrow="Pricing"
         title="Small monthly fee, small share of online sales"
-        subtitle="Priced for real Ghanaian SME budgets. A free tier removes the wall for the smallest shops; the paid tier lowers your share as you grow."
+        subtitle="Priced for real Ghanaian SME budgets. Start free with a real storefront, then move to a simple monthly plan as you grow — money you take outside Xtiitch is always yours, fee-free."
       />
 
       <Section>
@@ -84,7 +84,7 @@ export default function Pricing() {
       <Section>
         <SectionHeading
           eyebrow="The fine print, in plain words"
-          title="How the fee actually works"
+          title="How the sales fee works"
           align="left"
         />
         <Stack spacing={1.5} sx={{ maxWidth: 900 }}>

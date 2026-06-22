@@ -90,6 +90,8 @@ services:
         value: "https://store.xtiitch.com"
       - key: RESEND_FROM_EMAIL
         value: "Xtiitch <hello@xtiitch.com>"
+      - key: MARKETING_WAITLIST_EMAIL_TO # where waitlist lead notifications are emailed
+        value: xcreativscompany@gmail.com
       - key: ADMIN_BOOTSTRAP_EMAIL
         value: owner@xtiitch.com
       - key: ADMIN_BOOTSTRAP_DISPLAY_NAME

@@ -37,6 +37,7 @@ import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import { useTheme } from "@mui/material/styles";
 import { site } from "../content";
 import { ThemeModeToggle } from "../theme-mode";
+import { useMarketingFlags } from "../root";
 
 // The ii-stitch brand mark (two stitches joined by a seam), per the brand
 // guidelines — replaces the old "X" placeholder tile.
@@ -343,7 +344,13 @@ function MegaItem({
   );
 }
 
-function MegaMenu({ active }: { active: string }) {
+function MegaMenu({
+  active,
+  groups,
+}: {
+  active: string;
+  groups: NavGroup[];
+}) {
   const [open, setOpen] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -387,7 +394,7 @@ function MegaMenu({ active }: { active: string }) {
 
   return (
     <>
-      {navGroups.map((group) => {
+      {groups.map((group) => {
         const isOpen = open === group.label;
         const hasActive = group.items.some((i) => i.href === active);
         return (
@@ -511,10 +518,16 @@ function MegaMenu({ active }: { active: string }) {
   );
 }
 
-function MobileNav({ onNavigate }: { onNavigate: () => void }) {
+function MobileNav({
+  onNavigate,
+  groups,
+}: {
+  onNavigate: () => void;
+  groups: NavGroup[];
+}) {
   return (
     <>
-      {navGroups.map((group) => (
+      {groups.map((group) => (
         <Box key={group.label} sx={{ mb: 1.5 }}>
           <Typography
             sx={{
@@ -553,6 +566,13 @@ export function Header() {
     | undefined;
   const marketplaceUrl =
     rootData?.marketplaceUrl ?? "https://store.xtiitch.com";
+  // Pre-launch gating: the "Discover" group (and its sub-items) only show when
+  // the discover flag is live; the "Browse the store" button only when
+  // browse_store is live. Both default hidden.
+  const flags = useMarketingFlags();
+  const visibleGroups = flags.discover
+    ? navGroups
+    : navGroups.filter((group) => group.label !== "Discover");
   const close = () => {
     setOpen(false);
   };
@@ -606,7 +626,7 @@ export function Header() {
               borderColor: "divider",
             }}
           >
-            <MegaMenu active={pathname} />
+            <MegaMenu active={pathname} groups={visibleGroups} />
           </Box>
           <Stack
             direction="row"
@@ -614,16 +634,18 @@ export function Header() {
             sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
           >
             <ThemeModeToggle />
-            <Button
-              href={marketplaceUrl}
-              target="_blank"
-              rel="noopener"
-              variant="outlined"
-              startIcon={<StorefrontRoundedIcon />}
-              sx={{ fontWeight: 800 }}
-            >
-              Browse the store
-            </Button>
+            {flags.browse_store ? (
+              <Button
+                href={marketplaceUrl}
+                target="_blank"
+                rel="noopener"
+                variant="outlined"
+                startIcon={<StorefrontRoundedIcon />}
+                sx={{ fontWeight: 800 }}
+              >
+                Browse the store
+              </Button>
+            ) : null}
             <Button
               component={RouterLink}
               to={site.primaryCta.href}
@@ -634,31 +656,44 @@ export function Header() {
               {site.primaryCta.label}
             </Button>
           </Stack>
-          <IconButton
-            aria-label="Open menu"
-            edge="end"
-            onClick={() => {
-              setOpen(true);
-            }}
+          {/* The menu trigger is wrapped in the same bordered "box" treatment as
+              the logo tile so the two read as a matched pair on mobile/tablet
+              (the logo sits in a box; the hamburger now does too). */}
+          <Box
             sx={{
               display: { xs: "inline-flex", md: "none" },
               ml: "auto",
-              width: 44,
-              height: 44,
-              color: "common.white",
-              bgcolor: "primary.main",
+              p: 0.5,
               borderRadius: 1.5,
-              boxShadow: "0 10px 24px -12px rgba(128,0,32,0.7)",
-              transition: "transform 180ms ease, background-color 180ms ease",
-              "&:hover": {
-                bgcolor: "primary.dark",
-                transform: "translateY(-1px)",
-              },
-              "&:active": { transform: "translateY(0)" },
+              bgcolor: "rgba(var(--surface-rgb),0.8)",
+              border: "1px solid",
+              borderColor: "divider",
             }}
           >
-            <MenuIcon />
-          </IconButton>
+            <IconButton
+              aria-label="Open menu"
+              edge={false}
+              onClick={() => {
+                setOpen(true);
+              }}
+              sx={{
+                width: 40,
+                height: 40,
+                color: "common.white",
+                bgcolor: "primary.main",
+                borderRadius: 1.25,
+                boxShadow: "0 10px 24px -12px rgba(128,0,32,0.7)",
+                transition: "transform 180ms ease, background-color 180ms ease",
+                "&:hover": {
+                  bgcolor: "primary.dark",
+                  transform: "translateY(-1px)",
+                },
+                "&:active": { transform: "translateY(0)" },
+              }}
+            >
+              <MenuIcon />
+            </IconButton>
+          </Box>
         </Toolbar>
       </Container>
 
@@ -721,19 +756,21 @@ export function Header() {
         </Box>
         <Divider sx={{ my: 2.25 }} />
         <Stack component="nav" aria-label="Mobile navigation" spacing={0.75}>
-          <MobileNav onNavigate={close} />
-          <Button
-            href={marketplaceUrl}
-            target="_blank"
-            rel="noopener"
-            onClick={close}
-            variant="outlined"
-            size="large"
-            startIcon={<StorefrontRoundedIcon />}
-            sx={{ mt: 1.25, fontWeight: 800 }}
-          >
-            Browse the store
-          </Button>
+          <MobileNav onNavigate={close} groups={visibleGroups} />
+          {flags.browse_store ? (
+            <Button
+              href={marketplaceUrl}
+              target="_blank"
+              rel="noopener"
+              onClick={close}
+              variant="outlined"
+              size="large"
+              startIcon={<StorefrontRoundedIcon />}
+              sx={{ mt: 1.25, fontWeight: 800 }}
+            >
+              Browse the store
+            </Button>
+          ) : null}
           <Button
             component={RouterLink}
             to={site.primaryCta.href}
@@ -753,7 +790,14 @@ export function Header() {
 const footerGroups: {
   heading: string;
   icon: ReactNode;
-  links: { label: string; href: string; icon: ReactNode }[];
+  links: {
+    label: string;
+    href: string;
+    icon: ReactNode;
+    // Legal pages aren't ready for public review, so the labels stay but must
+    // not navigate to their (unreviewed) routes yet.
+    nonNavigating?: boolean;
+  }[];
 }[] = [
   {
     heading: "Product",
@@ -797,12 +841,23 @@ const footerGroups: {
     heading: "Legal",
     icon: <ArticleRoundedIcon />,
     links: [
-      { label: "Privacy", href: "/privacy", icon: <PrivacyTipRoundedIcon /> },
-      { label: "Terms", href: "/terms", icon: <ArticleRoundedIcon /> },
+      {
+        label: "Privacy",
+        href: "/privacy",
+        icon: <PrivacyTipRoundedIcon />,
+        nonNavigating: true,
+      },
+      {
+        label: "Terms",
+        href: "/terms",
+        icon: <ArticleRoundedIcon />,
+        nonNavigating: true,
+      },
       {
         label: "Payment policy",
         href: "/payment-policy",
         icon: <PaymentsRoundedIcon />,
+        nonNavigating: true,
       },
     ],
   },
@@ -1068,37 +1123,32 @@ export function Footer() {
                   </Typography>
                 </Box>
                 <Stack spacing={0.5}>
-                  {group.links.map((link) => (
-                    <Link
-                      key={link.href}
-                      component={RouterLink}
-                      to={link.href}
-                      underline="none"
-                      sx={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 1,
-                        width: "fit-content",
-                        minHeight: 32,
-                        color: "rgba(255,255,255,0.74)",
-                        fontWeight: 600,
-                        fontSize: 14,
-                        "& svg": { fontSize: 16 },
+                  {group.links.map((link) => {
+                    const linkSx = {
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 1,
+                      width: "fit-content",
+                      minHeight: 32,
+                      color: "rgba(255,255,255,0.74)",
+                      fontWeight: 600,
+                      fontSize: 14,
+                      "& svg": { fontSize: 16 },
+                      "& .footer-link-icon": {
+                        color: "rgba(255,255,255,0.6)",
+                        transition:
+                          "transform 180ms ease, color 180ms ease, background-color 180ms ease",
+                      },
+                      "&:hover": {
+                        color: "common.white",
                         "& .footer-link-icon": {
-                          color: "rgba(255,255,255,0.6)",
-                          transition:
-                            "transform 180ms ease, color 180ms ease, background-color 180ms ease",
+                          transform: "translateX(2px)",
+                          color: "#e8c480",
+                          bgcolor: "rgba(197,139,44,0.18)",
                         },
-                        "&:hover": {
-                          color: "common.white",
-                          "& .footer-link-icon": {
-                            transform: "translateX(2px)",
-                            color: "#e8c480",
-                            bgcolor: "rgba(197,139,44,0.18)",
-                          },
-                        },
-                      }}
-                    >
+                      },
+                    } as const;
+                    const iconBox = (
                       <Box
                         component="span"
                         className="footer-link-icon"
@@ -1114,9 +1164,39 @@ export function Footer() {
                       >
                         {link.icon}
                       </Box>
-                      {link.label}
-                    </Link>
-                  ))}
+                    );
+                    // The Privacy/Terms/Payment-policy labels stay visible but
+                    // must not navigate to their unreviewed pages yet — render
+                    // them as a clickable-looking but inert span (href="#" with
+                    // the default suppressed).
+                    if (link.nonNavigating) {
+                      return (
+                        <Link
+                          key={link.href}
+                          component="a"
+                          href="#"
+                          underline="none"
+                          onClick={(event) => event.preventDefault()}
+                          sx={{ ...linkSx, cursor: "pointer" }}
+                        >
+                          {iconBox}
+                          {link.label}
+                        </Link>
+                      );
+                    }
+                    return (
+                      <Link
+                        key={link.href}
+                        component={RouterLink}
+                        to={link.href}
+                        underline="none"
+                        sx={linkSx}
+                      >
+                        {iconBox}
+                        {link.label}
+                      </Link>
+                    );
+                  })}
                 </Stack>
               </Box>
             ))}

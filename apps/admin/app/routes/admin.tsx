@@ -68,6 +68,7 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
 import FileDownloadRounded from "@mui/icons-material/FileDownloadRounded";
+import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import LightModeRounded from "@mui/icons-material/LightModeRounded";
@@ -153,6 +154,7 @@ import {
   type AdminRole,
   type AdminRoleDefinition,
   type AdminUser,
+  type AdminWaitlistLead,
 } from "../lib/api";
 import { logOut, requireAdminContext, type AdminSession } from "../lib/session";
 import TextField from "../components/form-text-field";
@@ -180,6 +182,7 @@ type Section =
   | "risk"
   | "support"
   | "settings"
+  | "waitlist"
   | "audit";
 
 // Sections are reflected in the URL (?section=…) so operators can deep-link,
@@ -205,6 +208,7 @@ const KNOWN_SECTIONS: readonly Section[] = [
   "risk",
   "support",
   "settings",
+  "waitlist",
   "audit",
 ];
 function sectionFromParam(value: string | null): Section | null {
@@ -429,6 +433,12 @@ const navItems: AdminNavItem[] = [
     icon: <SettingsRounded />,
   },
   {
+    id: "waitlist",
+    label: "Waitlist",
+    helper: "Launch signups",
+    icon: <GroupAddRounded />,
+  },
+  {
     id: "audit",
     label: "Audit log",
     helper: "Operator trail",
@@ -482,7 +492,14 @@ const adminNavGroups: AdminNavGroup[] = [
     id: "operations",
     label: "Operations",
     icon: <ShieldRounded />,
-    items: adminNavItems(["money", "risk", "support", "settings", "audit"]),
+    items: adminNavItems([
+      "money",
+      "risk",
+      "support",
+      "settings",
+      "waitlist",
+      "audit",
+    ]),
   },
   {
     id: "command",
@@ -644,6 +661,12 @@ function fallbackPlatformSettings(): AdminPlatformSettings {
     payoutReviewThresholdPesewas: 500000,
     maintenanceMode: false,
     brandLogoUrl: "",
+    marketingFlags: {
+      browseStore: false,
+      discover: false,
+      createStore: false,
+      pricing: false,
+    },
   };
 }
 
@@ -799,6 +822,12 @@ export async function loader({ request }: Route.LoaderArgs) {
     "Your role cannot view the durable audit trail.",
     "Audit events could not be loaded right now.",
   );
+  const waitlistLeadsResult = await loadAdminResource(
+    () => adminApi.waitlistLeads(accessToken),
+    [] as AdminWaitlistLead[],
+    "Your role cannot view marketing waitlist signups.",
+    "Waitlist signups could not be loaded right now.",
+  );
 
   return {
     admin,
@@ -850,6 +879,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     supportQueueError: supportTicketsResult.error,
     auditEvents: auditEventsResult.data,
     auditLogError: auditEventsResult.error,
+    waitlistLeads: waitlistLeadsResult.data,
+    waitlistError: waitlistLeadsResult.error,
   };
 }
 
@@ -1019,6 +1050,29 @@ export async function action({ request }: Route.ActionArgs) {
         section: "settings",
         severity: "success",
         message: "Platform settings saved.",
+      };
+    } catch (error) {
+      return {
+        section: "settings",
+        severity: "error",
+        message: adminSettingsActionError(error),
+      };
+    }
+  }
+
+  if (intent === "admin-marketing-flags:update") {
+    const { accessToken } = await requireAdminContext(request);
+    try {
+      await adminApi.updateMarketingFlags(accessToken, {
+        browseStore: readBoolean(form, "browse_store"),
+        discover: readBoolean(form, "discover"),
+        createStore: readBoolean(form, "create_store"),
+        pricing: readBoolean(form, "pricing"),
+      });
+      return {
+        section: "settings",
+        severity: "success",
+        message: "Marketing launch flags saved.",
       };
     } catch (error) {
       return {
@@ -16061,8 +16115,214 @@ function SettingsSection({
               </Stack>
             </Form>
           </Panel>
+
+          <Panel
+            sx={{
+              p: { xs: 2, md: 2.5 },
+              borderColor: alpha(tokens.info, 0.16),
+            }}
+          >
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-marketing-flags:update"
+              />
+              <Stack spacing={2}>
+                <Stack
+                  direction="row"
+                  spacing={1.5}
+                  sx={{ alignItems: "center" }}
+                >
+                  <Box
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 1.5,
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: alpha(tokens.info, 0.12),
+                      color: tokens.info,
+                    }}
+                  >
+                    <StorefrontRounded />
+                  </Box>
+                  <Box>
+                    <Typography variant="h6">Marketing launch flags</Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Control what is shown on the public marketing site. Changes
+                      take effect immediately with no redeploy. Each defaults off
+                      (hidden) for launch — turn one on once that experience is
+                      ready.
+                    </Typography>
+                  </Box>
+                </Stack>
+
+                {!canManagePlatformSettings ? (
+                  <Alert severity="info">
+                    Your role can view these flags, but cannot change them.
+                  </Alert>
+                ) : null}
+
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1.25,
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+                  }}
+                >
+                  <BooleanPreference
+                    name="browse_store"
+                    label="Browse the store"
+                    helper="Show the public storefront browsing entry point on the marketing site."
+                    defaultChecked={platformSettings.marketingFlags.browseStore}
+                    disabled={!canManagePlatformSettings}
+                  />
+                  <BooleanPreference
+                    name="discover"
+                    label="Discover menu & featured businesses"
+                    helper="Show the discovery menu and featured-business highlights."
+                    defaultChecked={platformSettings.marketingFlags.discover}
+                    disabled={!canManagePlatformSettings}
+                  />
+                  <BooleanPreference
+                    name="create_store"
+                    label="Create your store button"
+                    helper="Show the call-to-action that lets a business start creating a store."
+                    defaultChecked={platformSettings.marketingFlags.createStore}
+                    disabled={!canManagePlatformSettings}
+                  />
+                  <BooleanPreference
+                    name="pricing"
+                    label="Pricing plan buttons"
+                    helper="Show the pricing plans and their sign-up buttons on the marketing site."
+                    defaultChecked={platformSettings.marketingFlags.pricing}
+                    disabled={!canManagePlatformSettings}
+                  />
+                </Box>
+
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<StorefrontRounded />}
+                  disabled={!canManagePlatformSettings}
+                  sx={{ alignSelf: "flex-start" }}
+                >
+                  Save marketing flags
+                </Button>
+              </Stack>
+            </Form>
+          </Panel>
         </Stack>
       </Box>
+    </Stack>
+  );
+}
+
+function WaitlistSection({
+  leads,
+  error,
+  isLoading,
+}: {
+  leads: AdminWaitlistLead[];
+  error: string | null;
+  isLoading: boolean;
+}) {
+  const total = leads.length;
+  return (
+    <Stack spacing={2.5}>
+      <SectionHeader
+        eyebrow="Marketing launch"
+        title="Waitlist signups"
+        helper="People who registered interest from the public marketing site, newest first."
+      />
+
+      {error ? <Alert severity="warning">{error}</Alert> : null}
+
+      <Box
+        sx={{
+          display: "grid",
+          gap: 2,
+          gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
+        }}
+      >
+        <MetricCard
+          label="Total signups"
+          value={String(total)}
+          helper="Leads captured so far"
+          trend={total > 0 ? "Newest first" : "Awaiting first"}
+        />
+      </Box>
+
+      {isLoading ? (
+        <Panel sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack spacing={1.5}>
+            <Skeleton variant="rounded" height={28} />
+            <Skeleton variant="rounded" height={28} />
+            <Skeleton variant="rounded" height={28} />
+          </Stack>
+        </Panel>
+      ) : total === 0 && !error ? (
+        <Panel sx={{ p: { xs: 2, md: 3 } }}>
+          <Stack spacing={1}>
+            <Typography variant="h6">No waitlist signups yet</Typography>
+            <Typography sx={{ color: "text.secondary" }}>
+              New signups from the marketing site will appear here as soon as
+              people register interest.
+            </Typography>
+          </Stack>
+        </Panel>
+      ) : total > 0 ? (
+        <Panel sx={{ p: 0, overflow: "hidden" }}>
+          <TableContainer>
+            <Table size="small" sx={{ minWidth: 880 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Name</TableCell>
+                  <TableCell>Business</TableCell>
+                  <TableCell>Phone</TableCell>
+                  <TableCell>Email</TableCell>
+                  <TableCell>City</TableCell>
+                  <TableCell>Message</TableCell>
+                  <TableCell>Submitted</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {leads.map((lead) => (
+                  <TableRow key={lead.id} hover>
+                    <TableCell sx={{ fontWeight: 800 }}>
+                      {lead.name || "—"}
+                    </TableCell>
+                    <TableCell>{lead.business || "—"}</TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      {lead.phone || "—"}
+                    </TableCell>
+                    <TableCell sx={{ overflowWrap: "anywhere" }}>
+                      {lead.email || "—"}
+                    </TableCell>
+                    <TableCell>{lead.city || "—"}</TableCell>
+                    <TableCell
+                      sx={{
+                        maxWidth: 280,
+                        overflowWrap: "anywhere",
+                        color: lead.message ? "text.primary" : "text.secondary",
+                      }}
+                    >
+                      {lead.message || "—"}
+                    </TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      {lead.createdAt ? shortTime(lead.createdAt) : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Panel>
+      ) : null}
     </Stack>
   );
 }
@@ -18058,6 +18318,8 @@ export default function AdminDashboard({
     supportQueueError,
     auditEvents,
     auditLogError,
+    waitlistLeads,
+    waitlistError,
   } = loaderData;
   const actionFeedback = actionData as AdminActionFeedback | undefined;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -18615,6 +18877,14 @@ export default function AdminDashboard({
               platformSettings={platformSettings}
               platformSettingsError={platformSettingsError}
               roles={roleCatalog}
+            />
+          ) : null}
+
+          {section === "waitlist" ? (
+            <WaitlistSection
+              leads={waitlistLeads}
+              error={waitlistError}
+              isLoading={isNavLoading}
             />
           ) : null}
 

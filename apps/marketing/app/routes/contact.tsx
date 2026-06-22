@@ -35,7 +35,14 @@ export async function action({
     return { ok: false, errors: parsed.errors };
   }
 
-  const delivery = await submitWaitlistLead(parsed.values, request);
+  // The form carries an optional source page; default to the contact page.
+  const rawSource = formData.get("source");
+  const source =
+    typeof rawSource === "string" && rawSource.trim()
+      ? rawSource.trim()
+      : "marketing-contact";
+
+  const delivery = await submitWaitlistLead(parsed.values, source);
   if (!delivery.ok) {
     return { ok: false, errors: { form: delivery.message } };
   }

@@ -20,7 +20,13 @@ export const waitlistSchema = z.object({
     .refine((value) => !value || emailPattern.test(value), {
       message: "Please enter a valid email address",
     }),
-  city: z.string().trim().max(120).optional(),
+  // Required so we always know where a lead is coming from. Missing/non-string
+  // values coerce to "" first so the friendly min-length message always wins
+  // over zod's generic "expected string" message.
+  city: z.preprocess(
+    (value) => (typeof value === "string" ? value : ""),
+    z.string().trim().min(2, "Please enter your town or city").max(120),
+  ),
   message: z.string().trim().max(1000).optional(),
   consent: z.custom<"on">((value) => value === "on", {
     message: "Please confirm that Xtiitch can contact you about onboarding.",
@@ -58,117 +64,51 @@ export function parseWaitlist(formData: FormData): ParsedWaitlist {
 
 export type WaitlistDelivery = { ok: true } | { ok: false; message: string };
 
+const WAITLIST_API_BASE =
+  (typeof process !== "undefined" ? process.env.XTIITCH_API_URL : undefined) ??
+  "http://localhost:8080";
+
+// The Go API now owns DB storage + email for waitlist leads. We POST the lead to
+// the public marketing endpoint; a 202 means accepted. Any non-2xx or network
+// error returns a friendly, generic message (never the old "not connected"
+// copy, and never a raw API error).
 export async function submitWaitlistLead(
   values: WaitlistInput,
-  request: Request,
+  source: string,
 ): Promise<WaitlistDelivery> {
-  if (process.env.MARKETING_WAITLIST_WEBHOOK_URL) {
-    return sendWebhookLead(values, request);
-  }
-
-  if (
-    process.env.RESEND_API_KEY &&
-    process.env.RESEND_FROM_EMAIL &&
-    process.env.MARKETING_WAITLIST_EMAIL_TO
-  ) {
-    return sendResendLead(values, request);
-  }
-
-  return {
+  const friendlyError: WaitlistDelivery = {
     ok: false,
     message:
-      "Waitlist delivery is not connected yet. Add a webhook or Resend email target before public launch.",
+      "We couldn’t add you to the waitlist just now. Please try again in a moment.",
   };
-}
 
-async function sendWebhookLead(
-  values: WaitlistInput,
-  request: Request,
-): Promise<WaitlistDelivery> {
-  const url = process.env.MARKETING_WAITLIST_WEBHOOK_URL;
-  if (!url) {
-    return { ok: false, message: "Waitlist webhook is not configured." };
+  try {
+    const response = await fetch(
+      `${WAITLIST_API_BASE.replace(/\/+$/, "")}/v1/marketing/waitlist`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          name: values.name,
+          business: values.business,
+          phone: values.phone,
+          email: values.email || undefined,
+          city: values.city,
+          message: values.message || undefined,
+          source,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      return friendlyError;
+    }
+
+    return { ok: true };
+  } catch {
+    return friendlyError;
   }
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (process.env.MARKETING_WAITLIST_WEBHOOK_SECRET) {
-    headers.Authorization = `Bearer ${process.env.MARKETING_WAITLIST_WEBHOOK_SECRET}`;
-  }
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(newLeadPayload(values, request)),
-  });
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: "We could not send your request. Please try again.",
-    };
-  }
-
-  return { ok: true };
-}
-
-async function sendResendLead(
-  values: WaitlistInput,
-  request: Request,
-): Promise<WaitlistDelivery> {
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: process.env.RESEND_FROM_EMAIL,
-      to: [process.env.MARKETING_WAITLIST_EMAIL_TO],
-      subject: `New Xtiitch waitlist lead: ${values.business}`,
-      text: formatLeadEmail(values, request),
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      ok: false,
-      message: "We could not send your request. Please try again.",
-    };
-  }
-
-  return { ok: true };
-}
-
-function newLeadPayload(values: WaitlistInput, request: Request) {
-  return {
-    name: values.name,
-    business: values.business,
-    phone: values.phone,
-    email: values.email,
-    city: values.city,
-    message: values.message,
-    source: "xtiitch-marketing",
-    submittedAt: new Date().toISOString(),
-    userAgent: request.headers.get("user-agent") ?? "",
-  };
-}
-
-function formatLeadEmail(values: WaitlistInput, request: Request): string {
-  const lines = [
-    "New Xtiitch waitlist lead",
-    "",
-    `Name: ${values.name}`,
-    `Business: ${values.business}`,
-    `Phone: ${values.phone}`,
-    `Email: ${values.email || "Not provided"}`,
-    `Town or city: ${values.city || "Not provided"}`,
-    `Message: ${values.message || "Not provided"}`,
-    "",
-    `User agent: ${request.headers.get("user-agent") ?? "Not provided"}`,
-    `Submitted: ${new Date().toISOString()}`,
-  ];
-
-  return lines.join("\n");
 }

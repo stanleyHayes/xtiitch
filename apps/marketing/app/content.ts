@@ -138,7 +138,7 @@ export const steps: Step[] = [
   {
     number: "6",
     title: "Watch your takings",
-    body: "Through-Xtiitch sales record themselves; log offline takings by hand. See an honest picture of money in, in one place.",
+    body: "Sales through Xtiitch record themselves; log offline takings by hand. See an honest picture of money coming in, all in one place.",
   },
 ];
 
@@ -173,6 +173,8 @@ export type Plan = {
   badge?: string;
   monthlyPrice: string;
   yearlyPrice: string;
+  // Shown beneath the headline price as the alternative billing cycle.
+  quarterlyPrice?: string;
   // Shown on the yearly toggle when the annual price beats 12× monthly.
   yearlySaving?: string;
   feeLabel: string;
@@ -183,6 +185,8 @@ export type Plan = {
   includes: string[];
 };
 
+// Confirmed four-plan pricing (Xtiitch-Pricing-Section.pdf). Quarterly saves
+// ~20%; yearly gives ~3 months free. The Free plan is always GHS 0.
 export const plans: Plan[] = [
   {
     name: "Free — Get Online",
@@ -193,64 +197,91 @@ export const plans: Plan[] = [
     available: true,
     highlight: false,
     summary:
-      "Remove the wall. Get a real, branded catalogue store at no monthly cost; customers browse and reach you directly to arrange an order.",
+      "Open a real, branded storefront and start taking orders online — at no monthly cost. The simplest way to get your designs in front of customers and make your first sales.",
     includes: [
       "A real, branded catalogue storefront",
+      "Sell online — card & mobile money checkout",
       "Up to about 10 designs",
-      "Walk-in order logging in the dashboard",
+      "Walk-in & manual order logging",
       "Order tracking with the customer progress link",
     ],
   },
   {
-    name: "Standard",
-    badge: "Most popular",
-    monthlyPrice: "GHS 50",
-    yearlyPrice: "GHS 500",
-    yearlySaving: "2 months free",
+    name: "Starter — Start Selling",
+    monthlyPrice: "GHS 49",
+    quarterlyPrice: "GHS 119 / quarter",
+    yearlyPrice: "GHS 441",
+    yearlySaving: "3 months free",
     feeLabel: "Fee on Xtiitch sales",
-    feeValue: "1%",
+    feeValue: "Lower than Free",
     available: true,
-    highlight: true,
+    highlight: false,
     summary:
-      "For a shop selling steadily. Turn the store into a real checkout, with the full toolkit to run the business.",
+      "For a shop finding its rhythm. More room for your catalogue, your own storefront colour, and the everyday tools to keep orders and money in order.",
     includes: [
-      "Online ordering & checkout — card and mobile money",
+      "Everything in Free",
+      "Up to about 50 designs",
       "Your storefront accent colour",
-      "Unlimited designs and collections",
       "Full project tracking with the customer view",
       "The money tracker",
-      "Delivery zones and fees",
+      "Delivery zones & fees",
       "Two-step sign-in security",
     ],
   },
   {
-    name: "Growth",
-    badge: "Best for scale",
-    monthlyPrice: "GHS 120",
-    yearlyPrice: "GHS 1,200",
-    yearlySaving: "2 months free",
+    name: "Growth — Run the Business",
+    badge: "Most popular",
+    monthlyPrice: "GHS 99",
+    quarterlyPrice: "GHS 239 / quarter",
+    yearlyPrice: "GHS 891",
+    yearlySaving: "3 months free",
     feeLabel: "Fee on Xtiitch sales",
-    feeValue: "0.5% or none",
+    feeValue: "Lower than Starter",
+    available: true,
+    highlight: true,
+    summary:
+      "For a shop selling steadily. Unlimited designs, full branding, and the complete toolkit to run and grow the business — all in one place.",
+    includes: [
+      "Everything in Starter",
+      "Unlimited designs & collections",
+      "Custom logo, hero banner & layout variants",
+      "Design waiting lists",
+      "Discount codes & promotions",
+      "Deeper analytics & insights",
+      "Up to 2 staff logins with roles",
+      "Priority support",
+    ],
+  },
+  {
+    name: "Studio — Scale Up",
+    badge: "Best for scale",
+    monthlyPrice: "GHS 199",
+    quarterlyPrice: "GHS 479 / quarter",
+    yearlyPrice: "GHS 1,791",
+    yearlySaving: "3 months free",
+    feeLabel: "Fee on Xtiitch sales",
+    feeValue: "Lowest share",
     available: true,
     highlight: false,
     summary:
-      "For shops scaling up — full storefront branding, waiting lists and team access at the lowest per-sale fee.",
+      "For established studios and growing teams. Your own web address, deeper team controls, priority everything, and room to run at scale.",
     includes: [
-      "Everything in Standard",
-      "Custom logo, hero banner and layout variants",
-      "Design waiting lists",
-      "Staff logins and roles",
-      "Deeper analytics",
-      "The lowest or no per-sale fee",
+      "Everything in Growth",
+      "Up to 10 staff logins with roles & permissions",
+      "Multiple store locations",
+      "Advanced analytics & reports",
+      "Priority placement & early access to new features",
+      "Dedicated onboarding",
     ],
   },
 ];
 
 export const pricingNotes: string[] = [
-  "Our share is taken automatically as each payment passes through Xtiitch — there is never anything to chase.",
-  "It sits on top of Paystack’s own transaction fee of 1.95%.",
-  "Money taken outside Xtiitch — cash, or mobile money sent directly to you — carries no fee, because it never passed through the platform.",
-  "A shop selling steadily online usually pays less overall on Standard than on Free.",
+  "Our share is taken automatically as each online payment passes through Xtiitch — there’s never anything to chase or invoice.",
+  "It sits on top of Paystack’s transaction fee of 1.95%. That 1.95% goes to the payment processor, not to us.",
+  "The share gets smaller with every step up — from Free to Starter, Growth and Studio — so the more your shop grows, the less you pay on each sale.",
+  "Money taken outside Xtiitch — cash, or mobile money sent to you directly — carries no fee at all. It never passed through the platform, so it’s always 100% yours.",
+  "Once you’re selling steadily online, a paid plan usually works out cheaper overall than Free: the lower sales fee more than covers the small monthly cost.",
 ];
 
 export type TrustPoint = { title: string; body: string };
@@ -389,12 +420,12 @@ export const faqs: Faq[] = [
   {
     question: "What does it cost?",
     answer:
-      "Free costs nothing per month with a 3% share on sales through Xtiitch. Standard is GHS 50 a month — or GHS 500 a year, which is two months free — with a 1% share. Growth is GHS 120 a month, or GHS 1,200 a year (two months free), with the lowest or no share. Paying yearly gives you two months free on either paid plan. Our share sits on top of Paystack’s 1.95% transaction fee, and only applies to money that passes through Xtiitch. You can switch plan or billing cycle yourself from the dashboard.",
+      "Free costs nothing per month, with a 3% share on sales made through Xtiitch. The paid plans are Starter at GHS 49 a month, Growth at GHS 99 a month, and Studio at GHS 199 a month — each one taking a smaller share of your sales than the last, so the more you grow, the less you pay per sale. You can pay quarterly and save 20%, or pay yearly and get three months free. Whichever plan you’re on, our share sits on top of Paystack’s 1.95% transaction fee, and only ever applies to money that actually passes through Xtiitch. You can switch your plan or billing cycle yourself from the dashboard anytime.",
   },
   {
     question: "Do customers order and pay online?",
     answer:
-      "On a paid plan, yes — customers place and pay for orders directly from your storefront by mobile money or card. The Free plan is a catalogue store: customers browse your designs and reach you directly to arrange an order, which you log in the dashboard. Online ordering and checkout unlock on Standard and Growth.",
+      "Yes — on every plan, including Free. Customers browse your designs and place and pay for orders directly from your storefront by mobile money or card. The difference between plans isn’t whether you can sell; it’s how much room you get and how far you can brand your store. Every order — however it comes in — lands in your dashboard, where you track it through to delivery with the customer progress link.",
   },
   {
     question: "How do deposits work on custom orders?",
@@ -429,7 +460,7 @@ export const faqs: Faq[] = [
   {
     question: "Can I make my storefront look like my brand?",
     answer:
-      "Yes, and how far you can go depends on your plan. Standard unlocks your own accent colour. Growth unlocks a custom logo, a custom hero banner and storefront layout variants, plus design waiting lists so customers can register interest in sold-out or made-to-order pieces.",
+      "Yes, and how far you can take it depends on your plan. Every store comes with your business name in the link (business-name.xtiitch.com) and your designs front and centre. Starter adds your own storefront accent colour. Growth unlocks full branding — a custom logo, a custom hero banner, and storefront layout variants — plus design waiting lists, so customers can register interest in sold-out or made-to-order pieces. Studio takes it furthest with a fully self-branded store all round.",
   },
   {
     question: "Can I protect my account with two-step verification?",
