@@ -78,27 +78,20 @@ function notificationGroup() {
 }
 
 function waitlistGroup() {
-  const webhookReady = isSet("MARKETING_WAITLIST_WEBHOOK_URL");
-  const resendReady =
-    isSet("RESEND_API_KEY") &&
-    isSet("RESEND_FROM_EMAIL") &&
-    isSet("MARKETING_WAITLIST_EMAIL_TO");
-
+  // Waitlist leads always persist to the database via the API
+  // (POST /v1/marketing/waitlist -> waitlist_leads) and are visible in
+  // admin -> Waitlist, so capture is never a launch blocker. The Resend keys
+  // below are recommended: set them on the API to also email each lead to
+  // MARKETING_WAITLIST_EMAIL_TO.
   return {
     name: "Marketing waitlist delivery",
-    alternatives: [
-      {
-        label: "webhook",
-        keys: ["MARKETING_WAITLIST_WEBHOOK_URL"],
-        recommended: ["MARKETING_WAITLIST_WEBHOOK_SECRET"],
-        ready: webhookReady,
-      },
-      {
-        label: "resend",
-        keys: ["RESEND_API_KEY", "RESEND_FROM_EMAIL", "MARKETING_WAITLIST_EMAIL_TO"],
-        ready: resendReady,
-      },
+    required: [],
+    recommended: [
+      "RESEND_API_KEY",
+      "RESEND_FROM_EMAIL",
+      "MARKETING_WAITLIST_EMAIL_TO",
     ],
+    note: "Leads are always stored in the DB and shown in admin -> Waitlist; the keys above (set on the API) add an email copy to MARKETING_WAITLIST_EMAIL_TO.",
   };
 }
 

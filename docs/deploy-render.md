@@ -29,7 +29,7 @@ the whole stack: Go **API**, BullMQ **worker**, four SSR web apps
 - `ADMIN_BOOTSTRAP_PASSWORD` — first owner login (with `owner@xtiitch.com`)
 - `PAYSTACK_SECRET_KEY`, `PAYSTACK_PUBLIC_KEY`, `PAYSTACK_WEBHOOK_SECRET`
 - `CLOUDINARY_URL` — image uploads
-- `RESEND_API_KEY` — transactional email (domain xtiitch.com is verified)
+- `RESEND_API_KEY` — transactional email + waitlist lead notifications (domain xtiitch.com is verified)
 
 **API** — optional (each has a safe key-free fallback):
 - `OPENAI_API_KEY` — AI search uses the hosted embedder (else a dev embedder)

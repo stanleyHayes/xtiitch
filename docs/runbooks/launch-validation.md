@@ -102,28 +102,26 @@ Pass evidence:
 
 ## Marketing Waitlist Delivery
 
-Configure one delivery path before public launch:
+The marketing form POSTs to the API (`POST /v1/marketing/waitlist`). Every lead
+is stored in the `waitlist_leads` table and shown in admin → Waitlist, so
+capture works as soon as the API is deployed — the marketing app only needs
+`XTIITCH_API_URL`, no waitlist-specific config.
 
-```sh
-MARKETING_WAITLIST_WEBHOOK_URL=https://hooks.example/waitlist
-MARKETING_WAITLIST_WEBHOOK_SECRET=<secret>
-```
-
-or:
+To also email each lead, set these on the **API** (recommended, not required —
+leads are never lost since they persist to the DB):
 
 ```sh
 RESEND_API_KEY=<key>
-RESEND_FROM_EMAIL=launch@xtiitch.com
-MARKETING_WAITLIST_EMAIL_TO=team@xtiitch.com
+RESEND_FROM_EMAIL=Xtiitch <hello@xtiitch.com>
+MARKETING_WAITLIST_EMAIL_TO=xcreativscompany@gmail.com
 ```
 
 Smoke sequence:
 
 1. Submit the marketing contact/waitlist form with a real test lead.
-2. Confirm the webhook or email arrives once.
+2. Confirm the lead appears in admin → Waitlist (and an email arrives if Resend is configured).
 3. Submit with the honeypot field filled and confirm it is rejected or ignored.
-4. Confirm the app still shows the honest no-sink state if delivery config is absent
-   in a local development environment.
+4. Confirm town/city is required, and that a graceful error shows if the API is unreachable.
 
 ## Legal And Policy Sign-Off
 
