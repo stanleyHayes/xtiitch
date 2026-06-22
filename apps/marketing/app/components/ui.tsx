@@ -1230,16 +1230,6 @@ export function PlanCards({ items }: { items: Plan[] }) {
                 or {plan.quarterlyPrice} · save 20%
               </Typography>
             ) : null}
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`${plan.feeLabel}: ${plan.feeValue}`}
-              sx={{
-                mt: 1.5,
-                alignSelf: "flex-start",
-                bgcolor: plan.highlight ? "rgba(128,0,32,0.06)" : undefined,
-              }}
-            />
             <Typography variant="body2" sx={{ mt: 2, color: "text.secondary" }}>
               {plan.summary}
             </Typography>

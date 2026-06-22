@@ -177,8 +177,6 @@ export type Plan = {
   quarterlyPrice?: string;
   // Shown on the yearly toggle when the annual price beats 12× monthly.
   yearlySaving?: string;
-  feeLabel: string;
-  feeValue: string;
   available: boolean;
   highlight: boolean;
   summary: string;
@@ -192,13 +190,12 @@ export const plans: Plan[] = [
     name: "Free — Get Online",
     monthlyPrice: "GHS 0",
     yearlyPrice: "GHS 0",
-    feeLabel: "Fee on Xtiitch sales",
-    feeValue: "3%",
     available: true,
     highlight: false,
     summary:
       "Open a real, branded storefront and start taking orders online — at no monthly cost. The simplest way to get your designs in front of customers and make your first sales.",
     includes: [
+      "Your own store link — business-name.xtiitch.com",
       "A real, branded catalogue storefront",
       "Sell online — card & mobile money checkout",
       "Up to about 10 designs",
@@ -212,13 +209,12 @@ export const plans: Plan[] = [
     quarterlyPrice: "GHS 119 / quarter",
     yearlyPrice: "GHS 441",
     yearlySaving: "3 months free",
-    feeLabel: "Fee on Xtiitch sales",
-    feeValue: "Lower than Free",
     available: true,
     highlight: false,
     summary:
       "For a shop finding its rhythm. More room for your catalogue, your own storefront colour, and the everyday tools to keep orders and money in order.",
     includes: [
+      "Your own store link — business-name.xtiitch.com",
       "Everything in Free",
       "Up to about 50 designs",
       "Your storefront accent colour",
@@ -235,13 +231,12 @@ export const plans: Plan[] = [
     quarterlyPrice: "GHS 239 / quarter",
     yearlyPrice: "GHS 891",
     yearlySaving: "3 months free",
-    feeLabel: "Fee on Xtiitch sales",
-    feeValue: "Lower than Starter",
     available: true,
     highlight: true,
     summary:
       "For a shop selling steadily. Unlimited designs, full branding, and the complete toolkit to run and grow the business — all in one place.",
     includes: [
+      "Your own store link — business-name.xtiitch.com",
       "Everything in Starter",
       "Unlimited designs & collections",
       "Custom logo, hero banner & layout variants",
@@ -259,13 +254,12 @@ export const plans: Plan[] = [
     quarterlyPrice: "GHS 479 / quarter",
     yearlyPrice: "GHS 1,791",
     yearlySaving: "3 months free",
-    feeLabel: "Fee on Xtiitch sales",
-    feeValue: "Lowest share",
     available: true,
     highlight: false,
     summary:
-      "For established studios and growing teams. Your own web address, deeper team controls, priority everything, and room to run at scale.",
+      "For established studios and growing teams. Deeper team controls, priority everything, and room to run at scale.",
     includes: [
+      "Your own store link — business-name.xtiitch.com",
       "Everything in Growth",
       "Up to 10 staff logins with roles & permissions",
       "Multiple store locations",
