@@ -321,6 +321,53 @@ func TestUpdatePlatformSettingsRequiresManageSettings(t *testing.T) {
 	}
 }
 
+func TestUpdateMarketingFlagsPartialUpdateAndPermission(t *testing.T) {
+	t.Parallel()
+
+	users := &fakeAdminUsers{}
+	service := newTestService(users, &fakeAdminSessions{}, time.Now(), []common.ID{"unused"})
+
+	enabled := true
+	settings, err := service.UpdateMarketingFlags(context.Background(), UpdateMarketingFlagsCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+		Pricing:     &enabled,
+	})
+	if err != nil {
+		t.Fatalf("update marketing flags: %v", err)
+	}
+	// Only Pricing was provided; the other three pointers must stay nil so the repo
+	// leaves them unchanged.
+	if users.updatedMarketingFlags.Pricing == nil || !*users.updatedMarketingFlags.Pricing {
+		t.Fatalf("expected pricing flag set true, got %+v", users.updatedMarketingFlags)
+	}
+	if users.updatedMarketingFlags.BrowseStore != nil ||
+		users.updatedMarketingFlags.Discover != nil ||
+		users.updatedMarketingFlags.CreateStore != nil {
+		t.Fatalf("expected untouched flags to remain nil, got %+v", users.updatedMarketingFlags)
+	}
+	if !settings.MarketingFlags.Pricing {
+		t.Fatalf("expected response to reflect pricing=true, got %+v", settings.MarketingFlags)
+	}
+
+	// Empty body (no flags) is rejected.
+	if _, err := service.UpdateMarketingFlags(context.Background(), UpdateMarketingFlagsCommand{
+		ActorUserID: "owner-1",
+		ActorRole:   admindomain.RoleOwner,
+	}); !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for empty update, got %v", err)
+	}
+
+	// Support role lacks manage_settings.
+	if _, err := service.UpdateMarketingFlags(context.Background(), UpdateMarketingFlagsCommand{
+		ActorUserID: "support-1",
+		ActorRole:   admindomain.RoleSupport,
+		Pricing:     &enabled,
+	}); !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected support role to be forbidden, got %v", err)
+	}
+}
+
 func TestUpdateRolePermissionsRequiresManageRolesAndNormalizes(t *testing.T) {
 	t.Parallel()
 
@@ -3044,6 +3091,8 @@ type fakeAdminUsers struct {
 	updatedPreferences      ports.UpdateAdminPreferencesInput
 	platformSettings        ports.AdminPlatformSettingsRecord
 	updatedPlatformSettings ports.UpdateAdminPlatformSettingsInput
+	marketingFlags          ports.MarketingFlags
+	updatedMarketingFlags   ports.UpdateAdminMarketingFlagsInput
 	rolePermissions         []ports.AdminRolePermissionsRecord
 	updatedRolePermissions  ports.UpdateAdminRolePermissionsInput
 }
@@ -3171,6 +3220,28 @@ func (repo *fakeAdminUsers) UpdateAdminPlatformSettings(
 		PayoutReviewThresholdPesewas: input.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              input.MaintenanceMode,
 	}, nil
+}
+
+func (repo *fakeAdminUsers) UpdateAdminMarketingFlags(
+	_ context.Context,
+	input ports.UpdateAdminMarketingFlagsInput,
+) (ports.AdminPlatformSettingsRecord, error) {
+	repo.updatedMarketingFlags = input
+	if input.BrowseStore != nil {
+		repo.marketingFlags.BrowseStore = *input.BrowseStore
+	}
+	if input.Discover != nil {
+		repo.marketingFlags.Discover = *input.Discover
+	}
+	if input.CreateStore != nil {
+		repo.marketingFlags.CreateStore = *input.CreateStore
+	}
+	if input.Pricing != nil {
+		repo.marketingFlags.Pricing = *input.Pricing
+	}
+	settings := repo.platformSettings
+	settings.MarketingFlags = repo.marketingFlags
+	return settings, nil
 }
 
 func (repo *fakeAdminUsers) ReplaceAdminRolePermissions(

@@ -23,6 +23,7 @@ type AdminUserRepository interface {
 	UpdateAdminPreferences(ctx context.Context, input UpdateAdminPreferencesInput) (AdminPreferencesRecord, error)
 	GetAdminPlatformSettings(ctx context.Context) (AdminPlatformSettingsRecord, error)
 	UpdateAdminPlatformSettings(ctx context.Context, input UpdateAdminPlatformSettingsInput) (AdminPlatformSettingsRecord, error)
+	UpdateAdminMarketingFlags(ctx context.Context, input UpdateAdminMarketingFlagsInput) (AdminPlatformSettingsRecord, error)
 	RecordLogin(ctx context.Context, userID common.ID) error
 }
 
@@ -168,7 +169,18 @@ type AdminPlatformSettingsRecord struct {
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
 	BrandLogoURL                 string
+	MarketingFlags               MarketingFlags
 	UpdatedAt                    time.Time
+}
+
+// MarketingFlags gate whether each not-yet-launched marketing surface is shown.
+// All default false during the pre-launch / waitlist period; an owner reveals
+// each one from the admin console without a redeploy.
+type MarketingFlags struct {
+	BrowseStore bool
+	Discover    bool
+	CreateStore bool
+	Pricing     bool
 }
 
 type UpdateAdminPlatformSettingsInput struct {
@@ -178,6 +190,15 @@ type UpdateAdminPlatformSettingsInput struct {
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
 	BrandLogoURL                 string
+}
+
+// UpdateAdminMarketingFlagsInput is a partial update of the four marketing
+// launch flags: only fields whose matching *Set pointer is non-nil are written.
+type UpdateAdminMarketingFlagsInput struct {
+	BrowseStore *bool
+	Discover    *bool
+	CreateStore *bool
+	Pricing     *bool
 }
 
 type AdminUserCredentials struct {

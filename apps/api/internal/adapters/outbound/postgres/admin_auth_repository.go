@@ -478,6 +478,10 @@ func (repo AdminAuthRepository) GetAdminPlatformSettings(ctx context.Context) (p
 			payout_review_threshold_pesewas,
 			maintenance_mode,
 			brand_logo_url,
+			marketing_show_browse_store,
+			marketing_show_discover,
+			marketing_show_create_store,
+			marketing_show_pricing,
 			updated_at
 		from admin_platform_settings
 		where settings_id = true
@@ -523,6 +527,10 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			payout_review_threshold_pesewas,
 			maintenance_mode,
 			brand_logo_url,
+			marketing_show_browse_store,
+			marketing_show_discover,
+			marketing_show_create_store,
+			marketing_show_pricing,
 			updated_at
 	`, input.PlatformName,
 		input.SupportEmail,
@@ -530,6 +538,54 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 		input.PayoutReviewThresholdPesewas,
 		input.MaintenanceMode,
 		input.BrandLogoURL,
+	))
+	if err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	return settings, nil
+}
+
+// UpdateAdminMarketingFlags applies a partial update of the four marketing launch
+// flags. coalesce keeps any flag whose input pointer is nil unchanged, so callers
+// can toggle a single flag without sending the rest. The settings row is ensured
+// first so the very first call (before any platform-settings write) succeeds.
+func (repo AdminAuthRepository) UpdateAdminMarketingFlags(
+	ctx context.Context,
+	input ports.UpdateAdminMarketingFlagsInput,
+) (ports.AdminPlatformSettingsRecord, error) {
+	if _, err := repo.pool.Exec(ctx, `
+		insert into admin_platform_settings (settings_id)
+		values (true)
+		on conflict (settings_id) do nothing
+	`); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	settings, err := scanAdminPlatformSettingsRecord(repo.pool.QueryRow(ctx, `
+		update admin_platform_settings
+		set marketing_show_browse_store = coalesce($1, marketing_show_browse_store),
+			marketing_show_discover = coalesce($2, marketing_show_discover),
+			marketing_show_create_store = coalesce($3, marketing_show_create_store),
+			marketing_show_pricing = coalesce($4, marketing_show_pricing),
+			updated_at = now()
+		where settings_id = true
+		returning
+			platform_name,
+			support_email,
+			verification_sla_hours,
+			payout_review_threshold_pesewas,
+			maintenance_mode,
+			brand_logo_url,
+			marketing_show_browse_store,
+			marketing_show_discover,
+			marketing_show_create_store,
+			marketing_show_pricing,
+			updated_at
+	`, input.BrowseStore,
+		input.Discover,
+		input.CreateStore,
+		input.Pricing,
 	))
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
@@ -5085,6 +5141,10 @@ func scanAdminPlatformSettingsRecord(row pgx.Row) (ports.AdminPlatformSettingsRe
 		&settings.PayoutReviewThresholdPesewas,
 		&settings.MaintenanceMode,
 		&settings.BrandLogoURL,
+		&settings.MarketingFlags.BrowseStore,
+		&settings.MarketingFlags.Discover,
+		&settings.MarketingFlags.CreateStore,
+		&settings.MarketingFlags.Pricing,
 		&settings.UpdatedAt,
 	); err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err

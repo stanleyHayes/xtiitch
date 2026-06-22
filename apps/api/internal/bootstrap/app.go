@@ -21,6 +21,7 @@ import (
 	customerauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/customerauth"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
 	growthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/growth"
+	marketinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/marketing"
 	measurementhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/measurement"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
@@ -46,6 +47,7 @@ import (
 	customerauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/customerauth"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
+	marketingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/marketingwaitlist"
 	measurementapp "github.com/xcreativs/xtiitch/apps/api/internal/application/measurement"
 	mediaapp "github.com/xcreativs/xtiitch/apps/api/internal/application/media"
 	notifyapp "github.com/xcreativs/xtiitch/apps/api/internal/application/notification"
@@ -257,6 +259,17 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Clock:         clock.SystemClock{},
 	})
 
+	// Marketing waitlist: store every public lead, and email the team when Resend
+	// + a recipient are configured. NewResendSender returns nil with no key, and
+	// the service then skips the email step (best-effort) without failing inserts.
+	marketingWaitlistService := marketingapp.NewService(marketingapp.Dependencies{
+		Repo:    postgres.NewMarketingWaitlistRepository(db),
+		Emails:  emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		IDs:     ids.UUIDGenerator{},
+		EmailTo: cfg.MarketingWaitlistEmailTo,
+		Logger:  logger,
+	})
+
 	aiSearchService := buildAISearchService(cfg, logger, db)
 	aiAssistService := buildAIAssistService(cfg, logger, db, paymentProvider)
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
@@ -268,6 +281,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 			RateLimitRPS:   cfg.RateLimitRPS,
 		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
+		marketinghttp.NewHandler(marketingWaitlistService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),
 		aisearchhttp.NewHandler(aiSearchService, jwtIssuer, cfg.JWTSigningKey),

@@ -801,6 +801,20 @@ type UpdatePlatformSettingsCommand struct {
 	IPAddress                    string
 }
 
+// UpdateMarketingFlagsCommand is a partial update of the four marketing launch
+// flags. Only fields whose pointer is non-nil are written, so the admin can
+// toggle a single flag without disturbing the others.
+type UpdateMarketingFlagsCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	BrowseStore *bool
+	Discover    *bool
+	CreateStore *bool
+	Pricing     *bool
+	UserAgent   string
+	IPAddress   string
+}
+
 // SignBrandingUploadCommand authorises an owner to obtain a signed Cloudinary
 // payload for a direct browser upload of the platform brand logo.
 type SignBrandingUploadCommand struct {
@@ -3954,6 +3968,56 @@ func (s Service) UpdatePlatformSettings(
 			"verification_sla_hours":          intString(settings.VerificationSLAHours),
 			"payout_review_threshold_pesewas": intString(settings.PayoutReviewThresholdPesewas),
 			"maintenance_mode":                boolString(settings.MaintenanceMode),
+		},
+		IPAddress: cmd.IPAddress,
+		UserAgent: cmd.UserAgent,
+	}); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+
+	return settings, nil
+}
+
+// UpdateMarketingFlags applies a partial update of the four marketing launch
+// flags. Gated by manage_settings like the rest of the platform-settings
+// mutations. Only the flags present in the command are written.
+func (s Service) UpdateMarketingFlags(
+	ctx context.Context,
+	cmd UpdateMarketingFlagsCommand,
+) (ports.AdminPlatformSettingsRecord, error) {
+	if cmd.ActorUserID.IsZero() {
+		return ports.AdminPlatformSettingsRecord{}, authdomain.ErrInvalidInput
+	}
+	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSettings); err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+	if cmd.BrowseStore == nil && cmd.Discover == nil && cmd.CreateStore == nil && cmd.Pricing == nil {
+		return ports.AdminPlatformSettingsRecord{}, authdomain.ErrInvalidInput
+	}
+
+	settings, err := s.users.UpdateAdminMarketingFlags(ctx, ports.UpdateAdminMarketingFlagsInput{
+		BrowseStore: cmd.BrowseStore,
+		Discover:    cmd.Discover,
+		CreateStore: cmd.CreateStore,
+		Pricing:     cmd.Pricing,
+	})
+	if err != nil {
+		return ports.AdminPlatformSettingsRecord{}, err
+	}
+	if err := s.recordAudit(ctx, auditInput{
+		ActorUserID: cmd.ActorUserID,
+		ActorRole:   cmd.ActorRole,
+		Action:      "Updated marketing launch flags",
+		TargetType:  "admin_platform_settings",
+		TargetID:    "platform",
+		TargetLabel: settings.PlatformName,
+		Summary:     "Operator changed which marketing surfaces are publicly visible.",
+		Severity:    admindomain.AuditSeverityInfo,
+		Metadata: map[string]string{
+			"browse_store": boolString(settings.MarketingFlags.BrowseStore),
+			"discover":     boolString(settings.MarketingFlags.Discover),
+			"create_store": boolString(settings.MarketingFlags.CreateStore),
+			"pricing":      boolString(settings.MarketingFlags.Pricing),
 		},
 		IPAddress: cmd.IPAddress,
 		UserAgent: cmd.UserAgent,

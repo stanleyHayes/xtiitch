@@ -34,6 +34,7 @@ type Service interface {
 	GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error)
 	WhatsAppEnabled() bool
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
+	UpdateMarketingFlags(ctx context.Context, command adminauthapp.UpdateMarketingFlagsCommand) (ports.AdminPlatformSettingsRecord, error)
 	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
 	ListBusinessVerifications(ctx context.Context, command adminauthapp.ListBusinessVerificationsCommand) ([]ports.AdminVerificationCaseRecord, error)
 	DecideBusinessVerification(ctx context.Context, command adminauthapp.DecideBusinessVerificationCommand) (ports.AdminVerificationCaseRecord, error)
@@ -122,6 +123,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/settings/preferences", handler.updatePreferences)
 		protected.Get("/admin/settings/platform", handler.platformSettings)
 		protected.Patch("/admin/settings/platform", handler.updatePlatformSettings)
+		protected.Post("/admin/platform-settings/marketing-flags", handler.updateMarketingFlags)
 		protected.Post("/admin/settings/branding/upload-signature", handler.signBrandingUpload)
 		protected.Get("/admin/business-verifications", handler.businessVerifications)
 		protected.Post("/admin/business-verifications/{id}/decision", handler.decideBusinessVerification)
@@ -491,13 +493,32 @@ type profileSettingsResponse struct {
 }
 
 type platformSettingsResponse struct {
-	PlatformName                 string `json:"platform_name"`
-	SupportEmail                 string `json:"support_email"`
-	VerificationSLAHours         int    `json:"verification_sla_hours"`
-	PayoutReviewThresholdPesewas int    `json:"payout_review_threshold_pesewas"`
-	MaintenanceMode              bool   `json:"maintenance_mode"`
-	BrandLogoURL                 string `json:"brand_logo_url"`
-	UpdatedAt                    string `json:"updated_at,omitempty"`
+	PlatformName                 string                 `json:"platform_name"`
+	SupportEmail                 string                 `json:"support_email"`
+	VerificationSLAHours         int                    `json:"verification_sla_hours"`
+	PayoutReviewThresholdPesewas int                    `json:"payout_review_threshold_pesewas"`
+	MaintenanceMode              bool                   `json:"maintenance_mode"`
+	BrandLogoURL                 string                 `json:"brand_logo_url"`
+	MarketingFlags               marketingFlagsResponse `json:"marketing_flags"`
+	UpdatedAt                    string                 `json:"updated_at,omitempty"`
+}
+
+// marketingFlagsResponse mirrors the four marketing launch flags. Each reports
+// whether that not-yet-launched marketing surface should be shown.
+type marketingFlagsResponse struct {
+	BrowseStore bool `json:"browse_store"`
+	Discover    bool `json:"discover"`
+	CreateStore bool `json:"create_store"`
+	Pricing     bool `json:"pricing"`
+}
+
+// updateMarketingFlagsRequest is a partial update: an omitted key leaves that
+// flag unchanged, so pointers distinguish "not provided" from "set to false".
+type updateMarketingFlagsRequest struct {
+	BrowseStore *bool `json:"browse_store"`
+	Discover    *bool `json:"discover"`
+	CreateStore *bool `json:"create_store"`
+	Pricing     *bool `json:"pricing"`
 }
 
 type brandingUploadSignatureResponse struct {
@@ -514,6 +535,8 @@ type publicBrandingResponse struct {
 	// WhatsAppEnabled is true only when WhatsApp Cloud credentials are configured to
 	// actually send customer OTPs. Storefronts gate the WhatsApp sign-in tab on it.
 	WhatsAppEnabled bool `json:"whatsapp_enabled"`
+	// MarketingFlags tell the marketing site which not-yet-launched surfaces to show.
+	MarketingFlags marketingFlagsResponse `json:"marketing_flags"`
 }
 
 type auditEventResponse struct {
@@ -1306,6 +1329,38 @@ func (handler Handler) updatePlatformSettings(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, newPlatformSettingsResponse(settings))
 }
 
+func (handler Handler) updateMarketingFlags(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request updateMarketingFlagsRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	settings, err := handler.service.UpdateMarketingFlags(r.Context(), adminauthapp.UpdateMarketingFlagsCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		BrowseStore: request.BrowseStore,
+		Discover:    request.Discover,
+		CreateStore: request.CreateStore,
+		Pricing:     request.Pricing,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newPlatformSettingsResponse(settings))
+}
+
 func (handler Handler) signBrandingUpload(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -1346,6 +1401,7 @@ func (handler Handler) branding(w http.ResponseWriter, r *http.Request) {
 		PlatformName:    settings.PlatformName,
 		LogoURL:         settings.BrandLogoURL,
 		WhatsAppEnabled: handler.service.WhatsAppEnabled(),
+		MarketingFlags:  newMarketingFlagsResponse(settings.MarketingFlags),
 	})
 }
 
@@ -3781,7 +3837,17 @@ func newPlatformSettingsResponse(settings ports.AdminPlatformSettingsRecord) pla
 		PayoutReviewThresholdPesewas: settings.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              settings.MaintenanceMode,
 		BrandLogoURL:                 settings.BrandLogoURL,
+		MarketingFlags:               newMarketingFlagsResponse(settings.MarketingFlags),
 		UpdatedAt:                    settings.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newMarketingFlagsResponse(flags ports.MarketingFlags) marketingFlagsResponse {
+	return marketingFlagsResponse{
+		BrowseStore: flags.BrowseStore,
+		Discover:    flags.Discover,
+		CreateStore: flags.CreateStore,
+		Pricing:     flags.Pricing,
 	}
 }
 
