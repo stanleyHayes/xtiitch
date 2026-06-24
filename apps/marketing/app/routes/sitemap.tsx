@@ -1,11 +1,12 @@
-// Resource route: /sitemap.xml — the marketing site's public pages.
+// Resource route: /sitemap.xml — only the pages that are public at launch.
+// The marketplace/browse surfaces (shops, designs, discover) are flag-gated and
+// the legal pages (privacy, terms, payment-policy) aren't linked yet, so they're
+// intentionally excluded until they go live — no point asking Google to index
+// pages we're hiding.
 const BASE = "https://xtiitch.com";
 
 const PATHS = [
   "",
-  "shops",
-  "designs",
-  "discover",
   "features",
   "growth",
   "how-it-works",
@@ -13,9 +14,6 @@ const PATHS = [
   "for-customers",
   "security",
   "faq",
-  "privacy",
-  "terms",
-  "payment-policy",
   "contact",
 ];
 

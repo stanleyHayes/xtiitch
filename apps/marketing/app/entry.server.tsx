@@ -59,6 +59,27 @@ export default function handleRequest(
               "Permissions-Policy",
               "geolocation=(), microphone=(), camera=()",
             );
+            // Content-Security-Policy. 'unsafe-inline' is required for Emotion's
+            // injected critical CSS and React Router's hydration script; the rest
+            // is tightened (object-src none; base-uri/form-action/frame-ancestors
+            // self) and scoped to the Google Fonts hosts the app loads plus
+            // same-origin/https. HSTS is added by Vercel's edge.
+            responseHeaders.set(
+              "Content-Security-Policy",
+              [
+                "default-src 'self'",
+                "base-uri 'self'",
+                "object-src 'none'",
+                "frame-ancestors 'self'",
+                "form-action 'self'",
+                "img-src 'self' data: https:",
+                "font-src 'self' https://fonts.gstatic.com",
+                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+                "script-src 'self' 'unsafe-inline'",
+                "connect-src 'self' https:",
+                "upgrade-insecure-requests",
+              ].join("; "),
+            );
             resolve(
               new Response(withStyles, {
                 headers: responseHeaders,

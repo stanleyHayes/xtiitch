@@ -145,6 +145,32 @@ export function useMarketingFlags(): MarketingFlags {
   return rootData?.marketingFlags ?? DEFAULT_MARKETING_FLAGS;
 }
 
+// Organization + WebSite structured data (JSON-LD) for search engines and rich
+// results. Static brand facts, rendered once in the document head. The `<`
+// escape guards the inline <script> against early termination.
+const STRUCTURED_DATA = JSON.stringify({
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://xtiitch.com/#organization",
+      name: "Xtiitch",
+      url: "https://xtiitch.com",
+      logo: "https://xtiitch.com/og.png",
+      description:
+        "Xtiitch is the operating system for fashion businesses in Ghana — a real online store, plus orders, customers, payments and order tracking in one place.",
+      slogan: "Fashion, in good order.",
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://xtiitch.com/#website",
+      url: "https://xtiitch.com",
+      name: "Xtiitch",
+      publisher: { "@id": "https://xtiitch.com/#organization" },
+    },
+  ],
+}).replace(/</g, "\\u003c");
+
 export function Layout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -157,6 +183,10 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="emotion-insertion-point" content="" />
         <Meta />
         <Links />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: STRUCTURED_DATA }}
+        />
       </head>
       <body suppressHydrationWarning>
         <ThemeModeProvider>
