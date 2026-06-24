@@ -15,6 +15,7 @@ import {
   loadSponsoredOrFeatured,
   type SponsoredPlacement,
 } from "../lib/sponsored";
+import { requireMarketingFlag } from "../lib/launch-gate";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
@@ -29,6 +30,7 @@ export async function loader(): Promise<{
   designs: DirectoryDesign[];
   sponsored: SponsoredPlacement[];
 }> {
+  await requireMarketingFlag("discover");
   const [shops, sponsored] = await Promise.all([
     loadPublicShops(),
     loadSponsoredOrFeatured(3),
