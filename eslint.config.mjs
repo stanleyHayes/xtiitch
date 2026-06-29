@@ -11,6 +11,7 @@ export default [
       "**/coverage/**",
       "**/.expo/**",
       "**/.turbo/**",
+      "**/.vercel/**",
       "**/.react-router/**",
       "apps/api/**",
     ],

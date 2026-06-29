@@ -99,6 +99,232 @@ func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 	}
 }
 
+// A made-to-wear cart raises ONE combined charge for the group total, anchored
+// on the first order with the cart purpose, and records every line as its own
+// draft order sharing one checkout group and customer.
+func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:   orders,
+		Payments: payments,
+		IDs:      &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-a", "order-b"}},
+	})
+
+	res, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{
+			{DesignHandle: "design", SizeBandID: "band-1"},
+			{DesignHandle: "design", SizeBandID: "band-1"},
+		},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if orders.discardGroupCalled {
+		t.Fatal("a successfully charged cart must never be discarded")
+	}
+	if res.GroupID != "group-1" || res.OrderID != "order-a" || res.AmountMinor != 100000 || res.Reference != "xt_ref" {
+		t.Fatalf("unexpected cart result: %+v", res)
+	}
+	if payments.command.Purpose != money.PaymentPurposeCartFull || payments.command.AmountMinor != 100000 {
+		t.Fatalf("expected one combined cart charge for the total, got %+v", payments.command)
+	}
+	if payments.command.OrderID == nil || *payments.command.OrderID != "order-a" {
+		t.Fatalf("expected the charge anchored on the first order, got %+v", payments.command.OrderID)
+	}
+	if payments.command.Method != money.PaymentMethodMomo {
+		t.Fatalf("expected momo default method, got %q", payments.command.Method)
+	}
+	if len(orders.createdGroup) != 2 {
+		t.Fatalf("expected two draft orders in the group, got %d", len(orders.createdGroup))
+	}
+	wantOrderIDs := map[common.ID]bool{"order-a": true, "order-b": true}
+	for _, in := range orders.createdGroup {
+		if in.CheckoutGroupID == nil || *in.CheckoutGroupID != "group-1" {
+			t.Fatalf("expected every line in group-1, got %+v", in.CheckoutGroupID)
+		}
+		if in.CustomerID != "customer-1" || in.BusinessID != testBusinessID {
+			t.Fatalf("unexpected line owner: %+v", in)
+		}
+		if in.AgreedTotalMinor != 50000 {
+			t.Fatalf("expected each line settled by its own price, got %d", in.AgreedTotalMinor)
+		}
+		if !wantOrderIDs[in.OrderID] {
+			t.Fatalf("unexpected order id in group: %q", in.OrderID)
+		}
+		delete(wantOrderIDs, in.OrderID)
+	}
+}
+
+// A delivery cart adds the chosen zone's fee to the combined charge and folds it
+// into the anchor order's total (so the group confirmation settles it exactly),
+// while recording the delivery snapshot on the anchor only.
+func TestPlaceCartOrderAddsDeliveryFeeToAnchor(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	zones := &fakeDeliveryZones{zone: ports.DeliveryZone{ID: "zone-1", Name: "Accra Central", FeeMinor: 2500, Active: true}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{
+				BusinessID:            testBusinessID,
+				OnlineOrderingEnabled: true,
+				Settings:              ports.StoreSettings{DeliveryEnabled: true},
+			},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:        orders,
+		Payments:      payments,
+		DeliveryZones: zones,
+		IDs:           &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-a", "order-b"}},
+	})
+
+	res, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{
+			{DesignHandle: "design", SizeBandID: "band-1"},
+			{DesignHandle: "design", SizeBandID: "band-1"},
+		},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
+		DeliveryZoneID:  "zone-1",
+		DeliveryAddress: "12 Oxford St, Osu",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// 50000 + 50000 garment + 2500 delivery.
+	if res.AmountMinor != 102500 || payments.command.AmountMinor != 102500 {
+		t.Fatalf("expected charge of garment + delivery fee, got result=%d charge=%d", res.AmountMinor, payments.command.AmountMinor)
+	}
+	if len(orders.createdGroup) != 2 {
+		t.Fatalf("expected two orders, got %d", len(orders.createdGroup))
+	}
+	anchor := orders.createdGroup[0]
+	if anchor.AgreedTotalMinor != 52500 || anchor.DeliveryFeeMinor != 2500 || anchor.DeliveryMethod != "delivery" {
+		t.Fatalf("anchor must carry the fee folded into its total + the snapshot, got %+v", anchor)
+	}
+	if anchor.DeliveryAddress != "12 Oxford St, Osu" || anchor.DeliveryZoneID == nil || *anchor.DeliveryZoneID != "zone-1" {
+		t.Fatalf("anchor delivery snapshot wrong: %+v", anchor)
+	}
+	// Siblings carry the delivery method + address (so each piece segments as a
+	// delivery when fulfilled) but NOT the fee/zone — the cart pays one fee, on the
+	// anchor — and their agreed_total is just their own garment price.
+	sibling := orders.createdGroup[1]
+	if sibling.AgreedTotalMinor != 50000 || sibling.DeliveryFeeMinor != 0 || sibling.DeliveryZoneID != nil {
+		t.Fatalf("sibling must carry no fee/zone and its own garment total, got %+v", sibling)
+	}
+	if sibling.DeliveryMethod != "delivery" || sibling.DeliveryAddress != "12 Oxford St, Osu" {
+		t.Fatalf("sibling must carry the delivery method + address for segmentation, got %+v", sibling)
+	}
+}
+
+// Delivery is refused when the store has delivery turned off, even if a zone id
+// is supplied.
+func TestPlaceCartOrderRejectsDeliveryWhenDisabled(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref"}}
+	zones := &fakeDeliveryZones{zone: ports.DeliveryZone{ID: "zone-1", FeeMinor: 2500, Active: true}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{
+				BusinessID:            testBusinessID,
+				OnlineOrderingEnabled: true,
+				Settings:              ports.StoreSettings{DeliveryEnabled: false},
+			},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:        orders,
+		Payments:      payments,
+		DeliveryZones: zones,
+		IDs:           &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-a"}},
+	})
+
+	_, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle:     "shop",
+		Lines:           []CartLineCommand{{DesignHandle: "design", SizeBandID: "band-1"}},
+		CustomerName:    "Ama",
+		CustomerEmail:   "ama@example.com",
+		DeliveryZoneID:  "zone-1",
+		DeliveryAddress: "12 Oxford St",
+	})
+	if !errors.Is(err, ErrDeliveryUnavailable) {
+		t.Fatalf("expected ErrDeliveryUnavailable, got %v", err)
+	}
+	if len(orders.createdGroup) != 0 {
+		t.Fatal("no orders should be created when delivery is refused")
+	}
+}
+
+// A combined charge that cannot be raised must roll the whole group back so the
+// cart checkout stays all-or-nothing.
+func TestPlaceCartOrderDiscardsGroupWhenChargeFails(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{err: errors.New("provider down")}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:   orders,
+		Payments: payments,
+		IDs:      &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-a", "order-b"}},
+	})
+
+	if _, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{
+			{DesignHandle: "design", SizeBandID: "band-1"},
+			{DesignHandle: "design", SizeBandID: "band-1"},
+		},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
+	}); err == nil {
+		t.Fatal("expected the charge failure to propagate")
+	}
+	if !orders.discardGroupCalled {
+		t.Fatal("expected the draft group to be discarded after the charge failed")
+	}
+	if orders.discardGroupID != "group-1" || orders.discardGroupCustomer != "customer-1" {
+		t.Fatalf("discarded the wrong group: group=%q customer=%q", orders.discardGroupID, orders.discardGroupCustomer)
+	}
+}
+
 func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
 	t.Parallel()
 
@@ -880,18 +1106,23 @@ func (f fakeCharge) ProvisionSubaccount(context.Context, common.ID, string, stri
 }
 
 type fakeOrders struct {
-	created             ports.CreateOnlineOrderInput
-	discardCalled       bool
-	discardOrder        common.ID
-	discardCustomer     common.ID
-	draftTotalSet       bool
-	draftTotalOrder     common.ID
-	draftTotal          int64
-	customCreated       ports.CreateCustomOrderInput
-	createCustomErr     error
-	customConfirmed     ports.CreateCustomOrderConfirmedInput
-	customDiscardCalled bool
-	customDiscardOrder  common.ID
+	created              ports.CreateOnlineOrderInput
+	createdGroup         []ports.CreateOnlineOrderInput
+	createGroupErr       error
+	discardGroupCalled   bool
+	discardGroupID       common.ID
+	discardGroupCustomer common.ID
+	discardCalled        bool
+	discardOrder         common.ID
+	discardCustomer      common.ID
+	draftTotalSet        bool
+	draftTotalOrder      common.ID
+	draftTotal           int64
+	customCreated        ports.CreateCustomOrderInput
+	createCustomErr      error
+	customConfirmed      ports.CreateCustomOrderConfirmedInput
+	customDiscardCalled  bool
+	customDiscardOrder   common.ID
 }
 
 func (f *fakeOrders) CreateWalkInOrder(context.Context, common.TenantScope, ports.CreateWalkInOrderInput) error {
@@ -900,6 +1131,60 @@ func (f *fakeOrders) CreateWalkInOrder(context.Context, common.TenantScope, port
 
 func (f *fakeOrders) CreateOnlineOrder(_ context.Context, _ common.TenantScope, input ports.CreateOnlineOrderInput) error {
 	f.created = input
+	return nil
+}
+
+// fakeDeliveryZones is a minimal DeliveryZoneRepository for checkout tests: it
+// resolves one configured zone by id.
+type fakeDeliveryZones struct {
+	zone     ports.DeliveryZone
+	getErr   error
+	getCalls int
+}
+
+func (f *fakeDeliveryZones) ListDeliveryZones(_ context.Context, _ common.TenantScope) ([]ports.DeliveryZone, error) {
+	return []ports.DeliveryZone{f.zone}, nil
+}
+
+func (f *fakeDeliveryZones) ListActiveDeliveryZones(_ context.Context, _ common.TenantScope) ([]ports.DeliveryZone, error) {
+	return []ports.DeliveryZone{f.zone}, nil
+}
+
+func (f *fakeDeliveryZones) CreateDeliveryZone(_ context.Context, _ common.TenantScope, _ ports.CreateDeliveryZoneInput) error {
+	return nil
+}
+
+func (f *fakeDeliveryZones) UpdateDeliveryZone(_ context.Context, _ common.TenantScope, _ ports.UpdateDeliveryZoneInput) error {
+	return nil
+}
+
+func (f *fakeDeliveryZones) DeleteDeliveryZone(_ context.Context, _ common.TenantScope, _ common.ID) error {
+	return nil
+}
+
+func (f *fakeDeliveryZones) GetDeliveryZone(_ context.Context, _ common.TenantScope, zoneID common.ID) (ports.DeliveryZone, error) {
+	f.getCalls++
+	if f.getErr != nil {
+		return ports.DeliveryZone{}, f.getErr
+	}
+	if f.zone.ID != zoneID {
+		return ports.DeliveryZone{}, ports.ErrNotFound
+	}
+	return f.zone, nil
+}
+
+func (f *fakeOrders) CreateOnlineOrderGroup(_ context.Context, _ common.TenantScope, inputs []ports.CreateOnlineOrderInput) error {
+	if f.createGroupErr != nil {
+		return f.createGroupErr
+	}
+	f.createdGroup = inputs
+	return nil
+}
+
+func (f *fakeOrders) DiscardDraftOrderGroup(_ context.Context, _ common.TenantScope, groupID, customerID common.ID) error {
+	f.discardGroupCalled = true
+	f.discardGroupID = groupID
+	f.discardGroupCustomer = customerID
 	return nil
 }
 

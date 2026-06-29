@@ -259,8 +259,12 @@ type AdminVerificationCaseRecord struct {
 	SettlementProvider    string
 	SettlementSubaccount  string
 	SettlementAccountHint string
-	SubmittedAt           time.Time
-	UpdatedAt             time.Time
+	// Ghana Card identity document the business submitted for review (empty when
+	// none submitted yet).
+	IDCardNumber string
+	IDPhotoURL   string
+	SubmittedAt  time.Time
+	UpdatedAt    time.Time
 }
 
 type AdminBusinessVerificationDecisionInput struct {

@@ -28,7 +28,53 @@ var (
 	ErrMeasurementsDisabled = errors.New("self-measurement is not enabled for this store")
 	ErrInvalidMeasurements  = errors.New("invalid or missing measurements")
 	ErrPromotionUnavailable = errors.New("promotion unavailable for this order")
+	ErrDeliveryUnavailable  = errors.New("delivery unavailable for this order")
 )
+
+// maxCartLines bounds a combined cart checkout (one DB round-trip per line + one
+// group insert) to a realistic basket size.
+const maxCartLines = 50
+
+// deliveryChoice is the resolved delivery snapshot for a checkout: what to record
+// on the order and the fee to add to the charge. A zero value means pickup / no
+// delivery (no fee).
+type deliveryChoice struct {
+	method   string
+	address  string
+	feeMinor int64
+	zoneID   *common.ID
+}
+
+// resolveDelivery validates a chosen delivery zone for a store. An empty zone id
+// is pickup/no delivery (no fee). A zone is honoured only when the store has
+// delivery enabled, the zone exists for the tenant and is active, and a
+// destination address is given; otherwise ErrDeliveryUnavailable / ErrInvalidInput.
+func (s Service) resolveDelivery(ctx context.Context, scope common.TenantScope, store ports.Storefront, zoneID common.ID, address string) (deliveryChoice, error) {
+	if zoneID == "" {
+		return deliveryChoice{}, nil
+	}
+	if !store.Settings.DeliveryEnabled {
+		return deliveryChoice{}, ErrDeliveryUnavailable
+	}
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return deliveryChoice{}, ErrInvalidInput
+	}
+	zone, err := s.deliveryZones.GetDeliveryZone(ctx, scope, zoneID)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return deliveryChoice{}, ErrDeliveryUnavailable
+		}
+		return deliveryChoice{}, err
+	}
+	if !zone.Active {
+		return deliveryChoice{}, ErrDeliveryUnavailable
+	}
+	id := zone.ID
+	// "delivery" matches delivery.MethodDelivery and the orders.delivery_method
+	// CHECK; kept as a literal to avoid importing the domain just for one string.
+	return deliveryChoice{method: "delivery", address: address, feeMinor: zone.FeeMinor, zoneID: &id}, nil
+}
 
 // Payments is the slice of the payments use case the checkout needs.
 type Payments interface {
@@ -42,31 +88,33 @@ type Availability interface {
 }
 
 type Service struct {
-	storefront   ports.StorefrontRepository
-	businesses   ports.BusinessChargeRepository
-	orders       ports.OrderRepository
-	bookings     ports.BookingRepository
-	promotions   ports.PromotionRepository
-	affiliates   ports.AffiliateClickRepository
-	referrals    ports.ReferralRepository
-	availability Availability
-	payments     Payments
-	ids          ports.IDGenerator
-	logger       *slog.Logger
+	storefront    ports.StorefrontRepository
+	businesses    ports.BusinessChargeRepository
+	orders        ports.OrderRepository
+	bookings      ports.BookingRepository
+	promotions    ports.PromotionRepository
+	affiliates    ports.AffiliateClickRepository
+	referrals     ports.ReferralRepository
+	deliveryZones ports.DeliveryZoneRepository
+	availability  Availability
+	payments      Payments
+	ids           ports.IDGenerator
+	logger        *slog.Logger
 }
 
 type Dependencies struct {
-	Storefront   ports.StorefrontRepository
-	Businesses   ports.BusinessChargeRepository
-	Orders       ports.OrderRepository
-	Bookings     ports.BookingRepository
-	Promotions   ports.PromotionRepository
-	Affiliates   ports.AffiliateClickRepository
-	Referrals    ports.ReferralRepository
-	Availability Availability
-	Payments     Payments
-	IDs          ports.IDGenerator
-	Logger       *slog.Logger
+	Storefront    ports.StorefrontRepository
+	Businesses    ports.BusinessChargeRepository
+	Orders        ports.OrderRepository
+	Bookings      ports.BookingRepository
+	Promotions    ports.PromotionRepository
+	Affiliates    ports.AffiliateClickRepository
+	Referrals     ports.ReferralRepository
+	DeliveryZones ports.DeliveryZoneRepository
+	Availability  Availability
+	Payments      Payments
+	IDs           ports.IDGenerator
+	Logger        *slog.Logger
 }
 
 func NewService(deps Dependencies) Service {
@@ -75,17 +123,18 @@ func NewService(deps Dependencies) Service {
 		logger = slog.Default()
 	}
 	return Service{
-		storefront:   deps.Storefront,
-		businesses:   deps.Businesses,
-		orders:       deps.Orders,
-		bookings:     deps.Bookings,
-		promotions:   deps.Promotions,
-		affiliates:   deps.Affiliates,
-		referrals:    deps.Referrals,
-		availability: deps.Availability,
-		payments:     deps.Payments,
-		ids:          deps.IDs,
-		logger:       logger,
+		storefront:    deps.Storefront,
+		businesses:    deps.Businesses,
+		orders:        deps.Orders,
+		bookings:      deps.Bookings,
+		promotions:    deps.Promotions,
+		affiliates:    deps.Affiliates,
+		referrals:     deps.Referrals,
+		deliveryZones: deps.DeliveryZones,
+		availability:  deps.Availability,
+		payments:      deps.Payments,
+		ids:           deps.IDs,
+		logger:        logger,
 	}
 }
 
@@ -240,6 +289,187 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		AmountMinor:      chargeAmount,
 		DiscountMinor:    promotion.discountMinor,
 	}, nil
+}
+
+// CartLineCommand is one made-to-wear piece in a combined cart checkout: a
+// listed design and the chosen size band.
+type CartLineCommand struct {
+	DesignHandle string
+	SizeBandID   common.ID
+}
+
+type PlaceCartOrderCommand struct {
+	StoreHandle   string
+	Lines         []CartLineCommand
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+	Method        money.PaymentMethod
+	// DeliveryZoneID + DeliveryAddress are set when the customer chose delivery.
+	// An empty zone id means pickup (no fee).
+	DeliveryZoneID  common.ID
+	DeliveryAddress string
+}
+
+type PlaceCartOrderResult struct {
+	GroupID          common.ID
+	OrderID          common.ID
+	Reference        string
+	AuthorizationURL string
+	AmountMinor      int64
+}
+
+// PlaceCartOrder records several made-to-wear orders for one customer and raises
+// a single combined Paystack charge for their total. Each piece becomes its own
+// draft order, all sharing a checkout group; the one payment's webhook confirms
+// every order in the group (each settled by its own line total). The whole
+// checkout is all-or-nothing: if the charge cannot be raised, every draft and
+// the customer created for them are rolled back.
+func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) (PlaceCartOrderResult, error) {
+	name := strings.TrimSpace(cmd.CustomerName)
+	email := strings.TrimSpace(cmd.CustomerEmail)
+	// Bound the cart: each line is a DB round-trip + a row in one group insert, so
+	// cap it to a sane basket size rather than letting a client submit thousands.
+	if name == "" || email == "" || len(cmd.Lines) == 0 || len(cmd.Lines) > maxCartLines {
+		return PlaceCartOrderResult{}, ErrInvalidInput
+	}
+	if cmd.Method != "" && !cmd.Method.Valid() {
+		return PlaceCartOrderResult{}, ErrInvalidInput
+	}
+	for _, line := range cmd.Lines {
+		if line.SizeBandID == "" || strings.TrimSpace(line.DesignHandle) == "" {
+			return PlaceCartOrderResult{}, ErrInvalidInput
+		}
+	}
+
+	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(cmd.StoreHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return PlaceCartOrderResult{}, ErrStoreNotFound
+		}
+		return PlaceCartOrderResult{}, err
+	}
+	if !store.OnlineOrderingEnabled {
+		return PlaceCartOrderResult{}, ErrOnlineOrderingOff
+	}
+	scope := common.TenantScope{BusinessID: store.BusinessID}
+
+	charge, err := s.businesses.GetChargeContext(ctx, scope)
+	if err != nil {
+		return PlaceCartOrderResult{}, err
+	}
+	if !charge.Verified || charge.SubaccountRef == "" {
+		return PlaceCartOrderResult{}, ErrNotVerified
+	}
+
+	deliv, err := s.resolveDelivery(ctx, scope, store, cmd.DeliveryZoneID, cmd.DeliveryAddress)
+	if err != nil {
+		return PlaceCartOrderResult{}, err
+	}
+
+	groupID := s.ids.NewID()
+	customerID, customerCreated := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	cleanupCustomerID := common.ID("")
+	if customerCreated {
+		cleanupCustomerID = customerID
+	}
+	phone := strings.TrimSpace(cmd.CustomerPhone)
+
+	inputs := make([]ports.CreateOnlineOrderInput, 0, len(cmd.Lines))
+	var total int64
+	for index, line := range cmd.Lines {
+		designID, price, err := s.resolvePricedDesign(ctx, store.BusinessID, line.DesignHandle, line.SizeBandID)
+		if err != nil {
+			return PlaceCartOrderResult{}, err
+		}
+		bandID := line.SizeBandID
+		input := ports.CreateOnlineOrderInput{
+			OrderID:          s.ids.NewID(),
+			BusinessID:       store.BusinessID,
+			CustomerID:       customerID,
+			DesignID:         designID,
+			SizeBandID:       &bandID,
+			CustomerName:     name,
+			CustomerPhone:    phone,
+			CustomerEmail:    email,
+			AgreedTotalMinor: price,
+			CheckoutGroupID:  &groupID,
+		}
+		// Delivery method + destination ride EVERY order in the group so each piece
+		// is segmented correctly when it is fulfilled (auto-handover reads the
+		// order's own delivery_method). The fee + zone, and the fee added to
+		// agreed_total, ride the ANCHOR only — the cart pays one delivery fee, and
+		// the group confirmation (which settles each order by its own agreed_total)
+		// settles the whole charge exactly.
+		if deliv.method != "" {
+			input.DeliveryMethod = deliv.method
+			input.DeliveryAddress = deliv.address
+			if index == 0 {
+				input.AgreedTotalMinor += deliv.feeMinor
+				input.DeliveryFeeMinor = deliv.feeMinor
+				input.DeliveryZoneID = deliv.zoneID
+			}
+		}
+		inputs = append(inputs, input)
+		total += price
+	}
+	total += deliv.feeMinor
+	if total <= 0 {
+		return PlaceCartOrderResult{}, ErrInvalidInput
+	}
+
+	if err := s.orders.CreateOnlineOrderGroup(ctx, scope, inputs); err != nil {
+		return PlaceCartOrderResult{}, err
+	}
+
+	anchorOrderID := inputs[0].OrderID
+	method := cmd.Method
+	if method == "" {
+		method = money.PaymentMethodMomo
+	}
+	chargeResult, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
+		Scope:         scope,
+		OrderID:       &anchorOrderID,
+		Purpose:       money.PaymentPurposeCartFull,
+		AmountMinor:   total,
+		Method:        method,
+		CustomerEmail: email,
+	})
+	if err != nil {
+		// The group is committed but no payment was raised, so it could never be
+		// confirmed. Roll the whole group back so checkout stays all-or-nothing.
+		if discardErr := s.orders.DiscardDraftOrderGroup(ctx, scope, groupID, cleanupCustomerID); discardErr != nil {
+			s.logger.ErrorContext(ctx, "checkout: failed to discard orphaned cart order group after charge failure",
+				"business_id", scope.BusinessID.String(), "group_id", groupID.String(), "error", discardErr)
+		}
+		return PlaceCartOrderResult{}, err
+	}
+
+	return PlaceCartOrderResult{
+		GroupID:          groupID,
+		OrderID:          anchorOrderID,
+		Reference:        chargeResult.Reference,
+		AuthorizationURL: chargeResult.AuthorizationURL,
+		AmountMinor:      total,
+	}, nil
+}
+
+// StoreDeliveryZones lists the active delivery zones a storefront offers at
+// checkout. It returns an empty list (not an error) when the store does not
+// exist or has delivery turned off, so the public checkout simply shows pickup
+// only.
+func (s Service) StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error) {
+	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(storeHandle))
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return []ports.DeliveryZone{}, nil
+		}
+		return nil, err
+	}
+	if !store.Settings.DeliveryEnabled {
+		return []ports.DeliveryZone{}, nil
+	}
+	return s.deliveryZones.ListActiveDeliveryZones(ctx, common.TenantScope{BusinessID: store.BusinessID})
 }
 
 // resolveCustomerByPhone links a returning guest (by phone) to their existing

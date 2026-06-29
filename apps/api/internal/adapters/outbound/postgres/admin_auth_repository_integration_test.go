@@ -642,7 +642,7 @@ func seedAdminSubscriptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminSubscriptionFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -663,7 +663,7 @@ func seedAdminPromotionRedemptionFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminPromotionRedemptionFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -714,7 +714,7 @@ func seedAdminAffiliateConversionFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminAffiliateConversionFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -784,7 +784,7 @@ func seedAdminReferralRewardFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminReferralRewardFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -875,7 +875,7 @@ func seedAdminReferralCodeFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminReferralCodeFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -908,7 +908,7 @@ func seedAdminMoneyReversalFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminMoneyReversalFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -1088,7 +1088,7 @@ func seedAdminAdCampaignPaymentFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdminAdCampaignPaymentFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 

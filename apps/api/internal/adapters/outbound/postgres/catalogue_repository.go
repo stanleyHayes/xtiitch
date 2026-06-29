@@ -3,9 +3,11 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
@@ -38,11 +40,46 @@ func nullableInt64Arg(value *int64) any {
 
 func (repo CatalogueRepository) CreateCollection(ctx context.Context, scope common.TenantScope, input ports.CollectionInput) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		sequence := input.Sequence
+		if sequence <= 0 {
+			next, err := nextSequence(ctx, tx, "collections", " and status <> 'deleted'", input.BusinessID)
+			if err != nil {
+				return err
+			}
+			sequence = next
+		}
 		_, err := tx.Exec(ctx, `
 			insert into collections (collection_id, business_id, name, theme, handle, status, sequence)
 			values ($1, $2, $3, $4, $5, 'active', $6)
-		`, input.CollectionID.String(), input.BusinessID.String(), input.Name, input.Theme, input.Handle, input.Sequence)
+		`, input.CollectionID.String(), input.BusinessID.String(), input.Name, input.Theme, input.Handle, sequence)
+		if collectionSequenceTaken(err) {
+			return ports.ErrSequenceTaken
+		}
 		return err
+	})
+}
+
+func (repo CatalogueRepository) UpdateCollection(ctx context.Context, scope common.TenantScope, input ports.CollectionUpdateInput) error {
+	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		// On edit, a blank ( <=0 ) order keeps the collection's current position —
+		// only an explicit number moves it (auto-numbering is for creation).
+		tag, err := tx.Exec(ctx, `
+			update collections
+			set name = $3, theme = $4,
+				sequence = case when $5 <= 0 then sequence else $5 end,
+				updated_at = now()
+			where collection_id = $1 and business_id = $2 and status <> 'deleted'
+		`, input.CollectionID.String(), input.BusinessID.String(), input.Name, input.Theme, input.Sequence)
+		if collectionSequenceTaken(err) {
+			return ports.ErrSequenceTaken
+		}
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
 	})
 }
 
@@ -103,6 +140,9 @@ func (repo CatalogueRepository) CreateDesign(ctx context.Context, scope common.T
 	}
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		if err := ensureDesignCapacity(ctx, tx, input.BusinessID); err != nil {
+			return err
+		}
+		if err := ensureImageCapacity(ctx, tx, input.BusinessID, len(images)); err != nil {
 			return err
 		}
 		_, err := tx.Exec(ctx, `
@@ -196,6 +236,9 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 		images = []string{}
 	}
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		if err := ensureImageCapacity(ctx, tx, scope.BusinessID, len(images)); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, `
 			update designs
 			set collection_id = $3, title = $4, description = $5, images = $6,
@@ -210,6 +253,17 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 		}
 		if tag.RowsAffected() == 0 {
 			return ErrNotFound
+		}
+		// Pricing-mode exclusivity: a customisation design is priced by deposit,
+		// not by size-band prices, so drop any stale band prices when it switches
+		// to (or stays in) customisation mode. Keeps the storefront single-price
+		// rule consistent with stored data.
+		if input.CustomisationAllowed {
+			if _, err := tx.Exec(ctx, `
+				delete from design_prices where design_id = $1 and business_id = $2
+			`, input.DesignID.String(), scope.BusinessID.String()); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -254,11 +308,26 @@ func (repo CatalogueRepository) SetDesignStatus(ctx context.Context, scope commo
 // --- Size bands & pricing ---
 
 func (repo CatalogueRepository) CreateSizeBand(ctx context.Context, scope common.TenantScope, input ports.SizeBandInput) error {
+	chartJSON, err := marshalSizeChart(input.Chart)
+	if err != nil {
+		return err
+	}
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		sequence := input.Sequence
+		if sequence <= 0 {
+			next, err := nextSequence(ctx, tx, "size_bands", "", input.BusinessID)
+			if err != nil {
+				return err
+			}
+			sequence = next
+		}
 		_, err := tx.Exec(ctx, `
-			insert into size_bands (size_band_id, business_id, label, sequence)
-			values ($1, $2, $3, $4)
-		`, input.SizeBandID.String(), input.BusinessID.String(), input.Label, input.Sequence)
+			insert into size_bands (size_band_id, business_id, label, chart, sequence)
+			values ($1, $2, $3, $4, $5)
+		`, input.SizeBandID.String(), input.BusinessID.String(), input.Label, chartJSON, sequence)
+		if sizeBandSequenceTaken(err) {
+			return ports.ErrSequenceTaken
+		}
 		return err
 	})
 }
@@ -267,7 +336,7 @@ func (repo CatalogueRepository) ListSizeBands(ctx context.Context, scope common.
 	var bands []catalogue.SizeBand
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			select size_band_id, business_id, label, sequence
+			select size_band_id, business_id, label, chart, sequence
 			from size_bands where business_id = $1 order by sequence, label
 		`, scope.BusinessID.String())
 		if err != nil {
@@ -277,9 +346,11 @@ func (repo CatalogueRepository) ListSizeBands(ctx context.Context, scope common.
 
 		for rows.Next() {
 			var b catalogue.SizeBand
-			if err := rows.Scan(&b.ID, &b.BusinessID, &b.Label, &b.Sequence); err != nil {
+			var chartRaw []byte
+			if err := rows.Scan(&b.ID, &b.BusinessID, &b.Label, &chartRaw, &b.Sequence); err != nil {
 				return err
 			}
+			b.Chart = unmarshalSizeChart(chartRaw)
 			bands = append(bands, b)
 		}
 		return rows.Err()
@@ -287,9 +358,73 @@ func (repo CatalogueRepository) ListSizeBands(ctx context.Context, scope common.
 	return bands, err
 }
 
+func (repo CatalogueRepository) UpdateSizeBand(ctx context.Context, scope common.TenantScope, input ports.SizeBandUpdateInput) error {
+	chartJSON, err := marshalSizeChart(input.Chart)
+	if err != nil {
+		return err
+	}
+	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		// On edit, a blank ( <=0 ) order keeps the band's current position — only an
+		// explicit number moves it (auto-numbering is for creation).
+		tag, err := tx.Exec(ctx, `
+			update size_bands
+			set label = $3, chart = $4,
+				sequence = case when $5 <= 0 then sequence else $5 end,
+				updated_at = now()
+			where size_band_id = $1 and business_id = $2
+		`, input.SizeBandID.String(), input.BusinessID.String(), input.Label, chartJSON, input.Sequence)
+		if sizeBandSequenceTaken(err) {
+			return ports.ErrSequenceTaken
+		}
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
+func (repo CatalogueRepository) DeleteSizeBand(ctx context.Context, scope common.TenantScope, sizeBandID common.ID) error {
+	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		// design_prices(size_band_id) FK is ON DELETE CASCADE, so removing a band
+		// also clears its per-design prices.
+		tag, err := tx.Exec(ctx, `
+			delete from size_bands where size_band_id = $1 and business_id = $2
+		`, sizeBandID.String(), scope.BusinessID.String())
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			return ErrNotFound
+		}
+		return nil
+	})
+}
+
 func (repo CatalogueRepository) SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
-		_, err := tx.Exec(ctx, `
+		// Pricing-mode exclusivity, enforced atomically with the write: a
+		// customisation design is priced by deposit, never by band prices. Lock the
+		// design row so a concurrent UpdateDesign cannot flip the mode between this
+		// check and the insert.
+		var customisationAllowed bool
+		err := tx.QueryRow(ctx, `
+			select customisation_allowed from designs
+			where design_id = $1 and business_id = $2 and status <> 'deleted'
+			for update
+		`, designID.String(), scope.BusinessID.String()).Scan(&customisationAllowed)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		if err != nil {
+			return err
+		}
+		if customisationAllowed {
+			return ports.ErrPricingModeConflict
+		}
+		_, err = tx.Exec(ctx, `
 			insert into design_prices (design_id, size_band_id, business_id, price_minor)
 			values ($1, $2, $3, $4)
 			on conflict (design_id, size_band_id)
@@ -352,6 +487,100 @@ func ensureDesignCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) 
 		return ports.ErrPlanLimitExceeded
 	}
 	return nil
+}
+
+// ensureImageCapacity caps the number of images a design may carry by plan: the
+// free plan allows 2, any paid plan allows 5 (Version-one review §"Adding a
+// design" 4). Runs under tenant scope.
+func ensureImageCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID, imageCount int) error {
+	var planCode string
+	err := tx.QueryRow(ctx, `
+		select p.code
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1
+	`, businessID.String()).Scan(&planCode)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	limit := 5
+	if planCode == "free" {
+		limit = 2
+	}
+	if imageCount > limit {
+		return ports.ErrImageLimitExceeded
+	}
+	return nil
+}
+
+// size_band_chart is the on-disk JSON shape for size_bands.chart. It is an object
+// (not a bare array) so it stays compatible with the column's legacy '{}'
+// default, which unmarshals cleanly to an empty Items slice.
+type sizeBandChartRow struct {
+	Items []sizeBandChartItemRow `json:"items"`
+}
+
+type sizeBandChartItemRow struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
+}
+
+func marshalSizeChart(items []catalogue.SizeChartItem) ([]byte, error) {
+	// Store an empty chart as the column's legacy '{}' default rather than
+	// {"items":[]}, so unset bands keep a single canonical empty representation.
+	if len(items) == 0 {
+		return []byte("{}"), nil
+	}
+	doc := sizeBandChartRow{Items: make([]sizeBandChartItemRow, 0, len(items))}
+	for _, item := range items {
+		doc.Items = append(doc.Items, sizeBandChartItemRow{Name: item.Name, Value: item.Value, Unit: item.Unit})
+	}
+	return json.Marshal(doc)
+}
+
+func unmarshalSizeChart(raw []byte) []catalogue.SizeChartItem {
+	if len(raw) == 0 {
+		return nil
+	}
+	var doc sizeBandChartRow
+	if err := json.Unmarshal(raw, &doc); err != nil || len(doc.Items) == 0 {
+		return nil
+	}
+	out := make([]catalogue.SizeChartItem, 0, len(doc.Items))
+	for _, item := range doc.Items {
+		out = append(out, catalogue.SizeChartItem{Name: item.Name, Value: item.Value, Unit: item.Unit})
+	}
+	return out
+}
+
+// nextSequence returns the next free display position for an entity within a
+// business, used to auto-number creation when the caller leaves the sequence
+// blank (<=0). whereExtra (may be empty) MUST stay in sync with the table's
+// unique sequence index predicate (migration 000057): collections pass
+// " and status <> 'deleted'" to match collections_business_sequence_active_idx;
+// size_bands pass "" because size_bands_business_sequence_idx is unconditional.
+// table/whereExtra are package-internal constants, never request input.
+func nextSequence(ctx context.Context, tx pgx.Tx, table, whereExtra string, businessID common.ID) (int, error) {
+	var next int
+	query := "select coalesce(max(sequence), 0) + 1 from " + table + " where business_id = $1" + whereExtra
+	if err := tx.QueryRow(ctx, query, businessID.String()).Scan(&next); err != nil {
+		return 0, err
+	}
+	return next, nil
+}
+
+func collectionSequenceTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "collections_business_sequence_active_idx"
+}
+
+func sizeBandSequenceTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "size_bands_business_sequence_idx"
 }
 
 func (repo CatalogueRepository) inTenantTx(ctx context.Context, scope common.TenantScope, fn func(tx pgx.Tx) error) error {

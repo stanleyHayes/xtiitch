@@ -567,6 +567,8 @@ type businessVerificationResponse struct {
 	Checks       []string `json:"checks"`
 	Evidence     []string `json:"evidence"`
 	Notes        string   `json:"notes"`
+	IDCardNumber string   `json:"id_card_number"`
+	IDPhotoURL   string   `json:"id_photo_url"`
 }
 
 type businessResponse struct {
@@ -3882,6 +3884,8 @@ func newBusinessVerificationResponse(record ports.AdminVerificationCaseRecord) b
 		Checks:       verificationChecks(record),
 		Evidence:     verificationEvidence(record),
 		Notes:        verificationNotes(record),
+		IDCardNumber: record.IDCardNumber,
+		IDPhotoURL:   record.IDPhotoURL,
 	}
 }
 

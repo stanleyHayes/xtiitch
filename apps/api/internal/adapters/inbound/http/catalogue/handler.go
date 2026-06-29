@@ -51,6 +51,7 @@ func (handler Handler) Register(router chi.Router) {
 
 		protected.Post("/collections", handler.createCollection)
 		protected.Get("/collections", handler.listCollections)
+		protected.Patch("/collections/{id}", handler.updateCollection)
 		protected.Post("/collections/{id}/retire", handler.collectionAction(catalogueapp.Service.RetireCollection))
 		protected.Post("/collections/{id}/restore", handler.collectionAction(catalogueapp.Service.RestoreCollection))
 		protected.Delete("/collections/{id}", handler.collectionAction(catalogueapp.Service.DeleteCollection))
@@ -67,6 +68,8 @@ func (handler Handler) Register(router chi.Router) {
 
 		protected.Post("/size-bands", handler.createSizeBand)
 		protected.Get("/size-bands", handler.listSizeBands)
+		protected.Patch("/size-bands/{id}", handler.updateSizeBand)
+		protected.Delete("/size-bands/{id}", handler.deleteSizeBand)
 
 		protected.Get("/promotions", handler.listPromotions)
 		protected.Post("/promotions", handler.createPromotion)
@@ -294,6 +297,30 @@ func (handler Handler) createCollection(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusCreated, map[string]string{"collection_id": id.String()})
 }
 
+func (handler Handler) updateCollection(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body createCollectionBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateCollection(r.Context(), catalogueapp.UpdateCollectionCommand{
+		Scope:        scope,
+		ActorRole:    role,
+		CollectionID: common.ID(chi.URLParam(r, "id")),
+		Name:         body.Name,
+		Theme:        body.Theme,
+		Sequence:     body.Sequence,
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (handler Handler) listCollections(w http.ResponseWriter, r *http.Request) {
 	scope, ok := tenantScope(w, r)
 	if !ok {
@@ -468,15 +495,43 @@ func (handler Handler) designAction(action func(catalogueapp.Service, context.Co
 
 // --- size bands & prices ---
 
+type sizeChartItemBody struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+	Unit  string `json:"unit"`
+}
+
+type sizeBandBody struct {
+	Label    string              `json:"label"`
+	Chart    []sizeChartItemBody `json:"chart"`
+	Sequence int                 `json:"sequence"`
+}
+
+func toSizeChartItems(body []sizeChartItemBody) []catalogue.SizeChartItem {
+	if len(body) == 0 {
+		return nil
+	}
+	items := make([]catalogue.SizeChartItem, 0, len(body))
+	for _, item := range body {
+		items = append(items, catalogue.SizeChartItem{Name: item.Name, Value: item.Value, Unit: item.Unit})
+	}
+	return items
+}
+
+func toSizeChartBody(items []catalogue.SizeChartItem) []sizeChartItemBody {
+	out := make([]sizeChartItemBody, 0, len(items))
+	for _, item := range items {
+		out = append(out, sizeChartItemBody{Name: item.Name, Value: item.Value, Unit: item.Unit})
+	}
+	return out
+}
+
 func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
 	scope, role, ok := tenantPrincipal(w, r)
 	if !ok {
 		return
 	}
-	var body struct {
-		Label    string `json:"label"`
-		Sequence int    `json:"sequence"`
-	}
+	var body sizeBandBody
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
@@ -485,6 +540,7 @@ func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
 		Scope:     scope,
 		ActorRole: role,
 		Label:     body.Label,
+		Chart:     toSizeChartItems(body.Chart),
 		Sequence:  body.Sequence,
 	})
 	if err != nil {
@@ -492,6 +548,46 @@ func (handler Handler) createSizeBand(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]string{"size_band_id": id.String()})
+}
+
+func (handler Handler) updateSizeBand(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body sizeBandBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateSizeBand(r.Context(), catalogueapp.UpdateSizeBandCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		SizeBandID: common.ID(chi.URLParam(r, "id")),
+		Label:      body.Label,
+		Chart:      toSizeChartItems(body.Chart),
+		Sequence:   body.Sequence,
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) deleteSizeBand(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteSizeBand(r.Context(), catalogueapp.DeleteSizeBandCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		SizeBandID: common.ID(chi.URLParam(r, "id")),
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (handler Handler) listSizeBands(w http.ResponseWriter, r *http.Request) {
@@ -506,7 +602,12 @@ func (handler Handler) listSizeBands(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]map[string]any, 0, len(bands))
 	for _, b := range bands {
-		out = append(out, map[string]any{"size_band_id": b.ID.String(), "label": b.Label, "sequence": b.Sequence})
+		out = append(out, map[string]any{
+			"size_band_id": b.ID.String(),
+			"label":        b.Label,
+			"chart":        toSizeChartBody(b.Chart),
+			"sequence":     b.Sequence,
+		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"size_bands": out})
 }
@@ -683,9 +784,10 @@ type designResponse struct {
 }
 
 type priceResponse struct {
-	SizeBandID string `json:"size_band_id"`
-	Label      string `json:"label"`
-	PriceMinor int64  `json:"price_minor"`
+	SizeBandID string              `json:"size_band_id"`
+	Label      string              `json:"label"`
+	PriceMinor int64               `json:"price_minor"`
+	Chart      []sizeChartItemBody `json:"chart"`
 }
 
 type promotionResponse struct {
@@ -756,7 +858,7 @@ func toDesignResponse(d catalogue.Design, prices []catalogue.BandPrice) designRe
 func toPrices(prices []catalogue.BandPrice) []priceResponse {
 	out := make([]priceResponse, 0, len(prices))
 	for _, p := range prices {
-		out = append(out, priceResponse{SizeBandID: p.SizeBandID.String(), Label: p.Label, PriceMinor: p.PriceMinor})
+		out = append(out, priceResponse{SizeBandID: p.SizeBandID.String(), Label: p.Label, PriceMinor: p.PriceMinor, Chart: toSizeChartBody(p.Chart)})
 	}
 	return out
 }
@@ -835,12 +937,24 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_input")
 		return
 	}
+	if errors.Is(err, catalogueapp.ErrPricingModeConflict) {
+		writeError(w, http.StatusConflict, "pricing_mode_conflict")
+		return
+	}
 	if errors.Is(err, ports.ErrPromotionCodeTaken) {
 		writeError(w, http.StatusConflict, "promotion_code_taken")
 		return
 	}
 	if errors.Is(err, ports.ErrPlanLimitExceeded) {
 		writeError(w, http.StatusConflict, "plan_limit_exceeded")
+		return
+	}
+	if errors.Is(err, ports.ErrSequenceTaken) {
+		writeError(w, http.StatusConflict, "sequence_taken")
+		return
+	}
+	if errors.Is(err, ports.ErrImageLimitExceeded) {
+		writeError(w, http.StatusConflict, "image_limit_exceeded")
 		return
 	}
 	writeRepoError(w, err)

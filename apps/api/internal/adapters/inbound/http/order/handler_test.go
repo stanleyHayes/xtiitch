@@ -224,6 +224,7 @@ type fakeOrderService struct {
 	orders           []ports.OrderSummary
 	createdOrderID   common.ID
 	createCommand    orderapp.CreateWalkInOrderCommand
+	customCommand    orderapp.CreateConfirmedCustomOrderCommand
 	advanceErr       error
 	advanceCommand   orderapp.AdvanceStageCommand
 	tracking         order.Tracking
@@ -234,6 +235,11 @@ type fakeOrderService struct {
 
 func (s *fakeOrderService) CreateWalkInOrder(_ context.Context, command orderapp.CreateWalkInOrderCommand) (common.ID, error) {
 	s.createCommand = command
+	return s.createdOrderID, nil
+}
+
+func (s *fakeOrderService) CreateConfirmedCustomOrder(_ context.Context, command orderapp.CreateConfirmedCustomOrderCommand) (common.ID, error) {
+	s.customCommand = command
 	return s.createdOrderID, nil
 }
 

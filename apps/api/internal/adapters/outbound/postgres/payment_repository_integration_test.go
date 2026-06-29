@@ -304,7 +304,7 @@ func seedSubscriptionInvoiceFixtures(t *testing.T, pool *pgxpool.Pool) {
 	cleanupSubscriptionInvoiceFixtures(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 
@@ -421,7 +421,7 @@ func seedAdCampaignPaymentWebhookFixture(t *testing.T, pool *pgxpool.Pool) {
 	cleanupAdCampaignPaymentWebhookFixture(t, pool)
 
 	var planID string
-	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'standard' limit 1`).Scan(&planID); err != nil {
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
 		t.Fatalf("probe standard plan: %v", err)
 	}
 

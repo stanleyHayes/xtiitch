@@ -16,6 +16,7 @@ type storeSummary struct {
 	Settings              settingsBody              `json:"settings"`
 	WaitlistEnabled       bool                      `json:"waitlist_enabled"`
 	OnlineOrderingEnabled bool                      `json:"online_ordering_enabled"`
+	PlanCode              string                    `json:"plan_code"`
 }
 
 type measurementFieldSummary struct {
@@ -35,6 +36,7 @@ func toStoreSummary(store ports.Storefront) storeSummary {
 		Settings:              toSettingsBody(store.Settings),
 		WaitlistEnabled:       store.WaitlistEnabled,
 		OnlineOrderingEnabled: store.OnlineOrderingEnabled,
+		PlanCode:              store.PlanCode,
 	}
 }
 

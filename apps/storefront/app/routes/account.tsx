@@ -61,11 +61,13 @@ function normalizeChannel(raw: unknown): OtpChannel {
 }
 
 // safeRedirect blocks open redirects: only same-site absolute paths are allowed.
+// Default destination after sign-in/registration is the customer's own account
+// interface (never the discover/AI-search page).
 function safeRedirect(raw: string | null): string {
   if (raw && raw.startsWith("/") && !raw.startsWith("//")) {
     return raw;
   }
-  return "/discover";
+  return "/account";
 }
 
 export function meta() {
@@ -186,9 +188,12 @@ export async function action({ request }: Route.ActionArgs) {
     // The account header shows whichever identity the customer signed in with.
     // Email-only customers have no phone, so fall back to the email/identifier.
     session.set("customerPhone", result.phone || result.email || identifier);
-    return redirect(safeRedirect(String(form.get("redirectTo") ?? "/discover")), {
-      headers: { "Set-Cookie": await commitSession(session) },
-    });
+    return redirect(
+      safeRedirect(String(form.get("redirectTo") ?? "/account")),
+      {
+        headers: { "Set-Cookie": await commitSession(session) },
+      },
+    );
   }
 
   return { step: "identify" } as ActionResult;
@@ -291,7 +296,11 @@ function AccountHub({
           </Form>
         </Stack>
 
-        <Typography variant="h3" component="h1" sx={{ fontSize: { xs: "2.2rem", md: "3rem" } }}>
+        <Typography
+          variant="h3"
+          component="h1"
+          sx={{ fontSize: { xs: "2.2rem", md: "3rem" } }}
+        >
           Your account
         </Typography>
         <Typography sx={{ mt: 1, color: "text.secondary" }}>
@@ -309,7 +318,11 @@ function AccountHub({
         >
           {/* Profile */}
           <Box sx={cardSx}>
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 2 }}>
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", mb: 2 }}
+            >
               <PersonRounded sx={{ color: tokens.burgundy }} />
               <Typography variant="h6" component="h2">
                 Profile
@@ -399,7 +412,11 @@ function AccountHub({
 
           {/* Orders */}
           <Box sx={cardSx}>
-            <Stack direction="row" spacing={1.25} sx={{ alignItems: "center", mb: 2 }}>
+            <Stack
+              direction="row"
+              spacing={1.25}
+              sx={{ alignItems: "center", mb: 2 }}
+            >
               <ReceiptLongRounded sx={{ color: tokens.burgundy }} />
               <Typography variant="h6" component="h2">
                 Your orders
@@ -414,7 +431,10 @@ function AccountHub({
                 <Typography sx={{ mt: 1, fontWeight: 800 }}>
                   No orders yet
                 </Typography>
-                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary", mt: 0.5 }}
+                >
                   When you order from a studio, it shows up here.
                 </Typography>
                 <Button
@@ -444,13 +464,21 @@ function AccountHub({
                     >
                       <Stack
                         direction="row"
-                        sx={{ justifyContent: "space-between", gap: 1.5, alignItems: "flex-start" }}
+                        sx={{
+                          justifyContent: "space-between",
+                          gap: 1.5,
+                          alignItems: "flex-start",
+                        }}
                       >
                         <Box sx={{ minWidth: 0 }}>
                           <Typography sx={{ fontWeight: 800 }} noWrap>
                             {o.design_title || "Custom order"}
                           </Typography>
-                          <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                            noWrap
+                          >
                             {o.business_name} · {formatDate(o.created_at)}
                           </Typography>
                         </Box>
@@ -472,9 +500,15 @@ function AccountHub({
                       </Stack>
                       <Stack
                         direction="row"
-                        sx={{ mt: 1.25, justifyContent: "space-between", alignItems: "center" }}
+                        sx={{
+                          mt: 1.25,
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
                       >
-                        <Typography sx={{ fontWeight: 900, color: tokens.burgundy }}>
+                        <Typography
+                          sx={{ fontWeight: 900, color: tokens.burgundy }}
+                        >
                           {o.agreed_total_minor > 0
                             ? formatGHS(o.agreed_total_minor)
                             : "Price on confirmation"}
@@ -559,8 +593,10 @@ export default function Account({ loaderData }: Route.ComponentProps) {
           inset: 0,
           backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.05)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.05)} 1px, transparent 1px)`,
           backgroundSize: "38px 38px",
-          maskImage: "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
-          WebkitMaskImage: "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
+          maskImage:
+            "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
+          WebkitMaskImage:
+            "radial-gradient(circle at 28% 45%, #000, transparent 78%)",
         }}
       />
       <Container
@@ -581,7 +617,10 @@ export default function Account({ loaderData }: Route.ComponentProps) {
           }}
         >
           <Box component="header">
-            <Stack spacing={1.5} sx={{ mb: { xs: 2, md: 2.5 }, alignItems: "flex-start" }}>
+            <Stack
+              spacing={1.5}
+              sx={{ mb: { xs: 2, md: 2.5 }, alignItems: "flex-start" }}
+            >
               <Button
                 component={RouterLink}
                 to="/"
@@ -623,16 +662,31 @@ export default function Account({ loaderData }: Route.ComponentProps) {
             <Typography
               variant="h2"
               component="h1"
-              sx={{ mt: 1, maxWidth: 620, fontSize: { xs: "2.6rem", md: "4rem" } }}
+              sx={{
+                mt: 1,
+                maxWidth: 620,
+                fontSize: { xs: "2.6rem", md: "4rem" },
+              }}
             >
               Sign in to track orders
             </Typography>
-            <Typography sx={{ mt: 2, color: "text.secondary", maxWidth: 560, fontSize: { xs: 16, md: 18 } }}>
+            <Typography
+              sx={{
+                mt: 2,
+                color: "text.secondary",
+                maxWidth: 560,
+                fontSize: { xs: 16, md: 18 },
+              }}
+            >
               Your phone or email, no password. Signing in keeps your order
               history in one place and unlocks more natural-language AI searches
               across every Xtiitch shop.
             </Typography>
-            <Stack direction="row" spacing={1} sx={{ mt: 2.5, alignItems: "center", color: tokens.burgundy }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{ mt: 2.5, alignItems: "center", color: tokens.burgundy }}
+            >
               <AutoAwesomeRounded fontSize="small" />
               <Typography sx={{ fontWeight: 800 }}>
                 25 free AI searches a month, signed in.
@@ -667,7 +721,8 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                   Enter your code
                 </Typography>
                 <Typography sx={{ color: "text.secondary" }}>
-                  We sent a 6-digit code to <strong>{action?.identifier}</strong>{" "}
+                  We sent a 6-digit code to{" "}
+                  <strong>{action?.identifier}</strong>{" "}
                   {channel === "email" ? "by email" : "on WhatsApp"}. Enter it
                   below.
                 </Typography>
@@ -715,7 +770,12 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     value={action?.identifier ?? ""}
                   />
                   <input type="hidden" name="redirectTo" value={redirectTo} />
-                  <Button type="submit" variant="text" size="small" sx={{ color: "text.secondary", px: 0 }}>
+                  <Button
+                    type="submit"
+                    variant="text"
+                    size="small"
+                    sx={{ color: "text.secondary", px: 0 }}
+                  >
                     {channel === "email"
                       ? "Resend code / change email"
                       : "Resend code / change number"}
@@ -746,7 +806,11 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                 >
                   {(
                     [
-                      { value: "whatsapp", label: "WhatsApp", Icon: PhoneIphoneRounded },
+                      {
+                        value: "whatsapp",
+                        label: "WhatsApp",
+                        Icon: PhoneIphoneRounded,
+                      },
                       { value: "email", label: "Email", Icon: EmailRounded },
                     ] as const
                   ).map((tab) => {
@@ -754,7 +818,8 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     // WhatsApp creds aren't configured in prod, so the OTP only
                     // logs (never delivers). Disable the tab + annotate "Soon" so
                     // it re-enables automatically when the flag flips true.
-                    const disabled = tab.value === "whatsapp" && !whatsappEnabled;
+                    const disabled =
+                      tab.value === "whatsapp" && !whatsappEnabled;
                     return (
                       <Form method="post" key={tab.value}>
                         <input type="hidden" name="intent" value="switch" />

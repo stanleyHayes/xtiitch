@@ -19,7 +19,6 @@ import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import HomeWorkRounded from "@mui/icons-material/HomeWorkRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import PointOfSaleRounded from "@mui/icons-material/PointOfSaleRounded";
 import SecurityRounded from "@mui/icons-material/SecurityRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
@@ -38,6 +37,8 @@ import {
   type StoreSummary,
 } from "../lib/api";
 import { formatGHS, priceLabel } from "../lib/format";
+import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
+import { addToCart } from "../lib/cart";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 import { DesignCard } from "../components/storefront";
@@ -121,6 +122,66 @@ export async function action({ request, params }: Route.ActionArgs) {
   const method =
     String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
   const rewardCodes = rewardCodesFromForm(form);
+
+  if (intent === "add_to_cart") {
+    const designHandle = params.handle ?? "";
+    const title = String(form.get("title") ?? "").trim();
+    const image = String(form.get("image") ?? "").trim();
+    const kind =
+      String(form.get("kind") ?? "made_to_wear") === "bespoke"
+        ? "bespoke"
+        : "made_to_wear";
+    if (!storeHandle || !designHandle || !title) {
+      return actionFailure(
+        rewardCodes,
+        "Could not add that to your cart.",
+        null,
+      );
+    }
+    let sizeBandID = "";
+    let sizeLabel = "Bespoke deposit";
+    let amountMinor: number;
+    if (kind === "bespoke") {
+      amountMinor =
+        Number.parseInt(String(form.get("deposit_minor") ?? "0"), 10) || 0;
+    } else {
+      sizeBandID = String(form.get("size_band_id") ?? "").trim();
+      try {
+        const bands = JSON.parse(String(form.get("bands_json") ?? "[]")) as {
+          size_band_id: string;
+          label: string;
+          price_minor: number;
+        }[];
+        const band = bands.find((entry) => entry.size_band_id === sizeBandID);
+        if (!band) {
+          return actionFailure(
+            rewardCodes,
+            "Choose a size before adding to cart.",
+            null,
+          );
+        }
+        sizeLabel = band.label;
+        amountMinor = band.price_minor;
+      } catch {
+        return actionFailure(
+          rewardCodes,
+          "Could not add that to your cart.",
+          null,
+        );
+      }
+    }
+    const cookie = await addToCart(request, {
+      store_handle: storeHandle,
+      design_handle: designHandle,
+      title,
+      image,
+      kind,
+      size_band_id: sizeBandID,
+      size_label: sizeLabel,
+      amount_minor: amountMinor,
+    });
+    return redirect("/cart", { headers: { "Set-Cookie": cookie } });
+  }
 
   if (intent === "waitlist") {
     const contact = String(form.get("customer_contact") ?? "").trim();
@@ -574,11 +635,7 @@ function PaymentMethodField() {
   );
 }
 
-function LoadingButtonLabel({
-  label,
-}: {
-  label: string;
-}) {
+function LoadingButtonLabel({ label }: { label: string }) {
   return (
     <Box
       component="span"
@@ -732,7 +789,9 @@ function RewardFields({
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <SecurityRounded sx={{ color: tokens.success }} />
           <Box>
-            <Typography sx={{ fontWeight: 950 }}>Rewards &amp; codes</Typography>
+            <Typography sx={{ fontWeight: 950 }}>
+              Rewards &amp; codes
+            </Typography>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
               Optional codes are applied before payment; tracking stays private.
             </Typography>
@@ -892,23 +951,45 @@ function SizePriceList({ design }: { design: Design }) {
           bgcolor: "rgba(var(--surface-rgb), 0.72)",
         }}
       >
-        {design.prices.map((price) => (
-          <Stack
-            key={price.size_band_id}
-            direction="row"
-            sx={{
-              justifyContent: "space-between",
-              gap: 2,
-              px: 2,
-              py: 1.25,
-            }}
-          >
-            <Typography>{price.label}</Typography>
-            <Typography sx={{ fontWeight: 800 }}>
-              {formatGHS(price.price_minor)}
-            </Typography>
-          </Stack>
-        ))}
+        {design.prices.map((price) => {
+          const chart = price.chart ?? [];
+          return (
+            <Box key={price.size_band_id} sx={{ px: 2, py: 1.25 }}>
+              <Stack
+                direction="row"
+                sx={{ justifyContent: "space-between", gap: 2 }}
+              >
+                <Typography>{price.label}</Typography>
+                <Typography sx={{ fontWeight: 800 }}>
+                  {formatGHS(price.price_minor)}
+                </Typography>
+              </Stack>
+              {chart.length > 0 ? (
+                <Stack
+                  direction="row"
+                  sx={{ mt: 0.75, flexWrap: "wrap", gap: 0.75 }}
+                >
+                  {chart.map((item, index) => (
+                    <Box
+                      key={index}
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: "6px",
+                        border: "1px solid",
+                        borderColor: "divider",
+                        fontSize: 12,
+                        color: "text.secondary",
+                      }}
+                    >
+                      {item.name}: {item.value} {item.unit}
+                    </Box>
+                  ))}
+                </Stack>
+              ) : null}
+            </Box>
+          );
+        })}
       </Stack>
     </Box>
   );
@@ -965,90 +1046,6 @@ function DetailSignal({
   );
 }
 
-function CustomerPromiseBand({
-  design,
-  store,
-  visitSlots,
-}: {
-  design: Design;
-  store?: StoreSummary;
-  visitSlots: AvailabilitySlot[];
-}) {
-  const brand = store?.brand_color || tokens.burgundy;
-  const promises = [
-    {
-      title: "Clear checkout",
-      helper: store
-        ? `Orders start through ${store.name}'s Xtiitch checkout route.`
-        : "Orders start through Xtiitch when the store is connected.",
-      icon: <SecurityRounded />,
-    },
-    {
-      title: "Fit options",
-      helper: design.customisation_allowed
-        ? visitSlots.length > 0
-          ? "Listed size, self-measure, shop measurement, and home visit routes are visible below."
-          : "Listed size, self-measure, and shop measurement routes are visible below."
-        : "This piece is configured for listed-size ordering.",
-      icon: <StraightenRounded />,
-    },
-    {
-      title: "Track after ordering",
-      helper:
-        "After payment or request submission, you get a private tracking link for production updates.",
-      icon: <LocalShippingRounded />,
-    },
-  ];
-
-  return (
-    <Box
-      sx={{
-        mt: 2.5,
-        display: "grid",
-        gap: 1.25,
-        gridTemplateColumns: {
-          xs: "1fr",
-          sm: "repeat(3, minmax(0, 1fr))",
-        },
-      }}
-    >
-      {promises.map((promise) => (
-        <Box
-          key={promise.title}
-          sx={{
-            p: 1.35,
-            borderRadius: "8px",
-            border: "1px solid",
-            borderColor: alpha(brand, 0.12),
-            bgcolor: alpha(brand, 0.04),
-          }}
-        >
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <Box
-              sx={{
-                width: 32,
-                height: 32,
-                borderRadius: "8px",
-                display: "grid",
-                placeItems: "center",
-                color: brand,
-                bgcolor: alpha(brand, 0.08),
-                flexShrink: 0,
-              }}
-            >
-              {promise.icon}
-            </Box>
-            <Typography sx={{ fontWeight: 950 }}>{promise.title}</Typography>
-          </Stack>
-          <Typography variant="body2" sx={{ mt: 0.8, color: "text.secondary" }}>
-            {promise.helper}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  );
-}
-
 function StandardOrderPanel({
   design,
   store,
@@ -1096,10 +1093,6 @@ function StandardOrderPanel({
         </Box>
         <Box>
           <Typography variant="h6">Order a listed size</Typography>
-          <Typography sx={{ mt: 0.35, color: "text.secondary" }}>
-            Pick a published size, pay online, and track the piece as the studio
-            moves it through production.
-          </Typography>
         </Box>
       </Stack>
 
@@ -1116,11 +1109,24 @@ function StandardOrderPanel({
         </Alert>
       ) : (
         <Form method="post">
-          <input type="hidden" name="intent" value="standard" />
           <input
             type="hidden"
             name="store_handle"
             value={store?.handle ?? ""}
+          />
+          <input type="hidden" name="title" value={design.title} />
+          <input type="hidden" name="image" value={design.images[0] ?? ""} />
+          <input type="hidden" name="kind" value="made_to_wear" />
+          <input
+            type="hidden"
+            name="bands_json"
+            value={JSON.stringify(
+              design.prices.map((price) => ({
+                size_band_id: price.size_band_id,
+                label: price.label,
+                price_minor: price.price_minor,
+              })),
+            )}
           />
           <Stack spacing={1.5} sx={{ mt: 2 }}>
             <TextField
@@ -1143,26 +1149,42 @@ function StandardOrderPanel({
               referralPreview={referralPreview}
             />
             <PaymentMethodField />
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              disabled={isSubmitting}
-              sx={{
-                alignSelf: "stretch",
-                "&.Mui-disabled": {
-                  bgcolor: tokens.burgundy,
-                  color: tokens.white,
-                  opacity: 0.72,
-                },
-              }}
-            >
-              {isSubmitting ? (
-                <LoadingButtonLabel label="Opening checkout" />
-              ) : (
-                "Pay and place order"
-              )}
-            </Button>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+              <Button
+                type="submit"
+                name="intent"
+                value="add_to_cart"
+                formNoValidate
+                variant="outlined"
+                size="large"
+                startIcon={<ShoppingBagRounded />}
+                sx={{ flex: 1 }}
+              >
+                Add to cart
+              </Button>
+              <Button
+                type="submit"
+                name="intent"
+                value="standard"
+                variant="contained"
+                size="large"
+                disabled={isSubmitting}
+                sx={{
+                  flex: 1,
+                  "&.Mui-disabled": {
+                    bgcolor: tokens.burgundy,
+                    color: tokens.white,
+                    opacity: 0.72,
+                  },
+                }}
+              >
+                {isSubmitting ? (
+                  <LoadingButtonLabel label="Opening checkout" />
+                ) : (
+                  "Pay now"
+                )}
+              </Button>
+            </Stack>
           </Stack>
         </Form>
       )}
@@ -1529,11 +1551,6 @@ function BespokeOrderPanel({
         </Box>
         <Box>
           <Typography variant="h6">Request a bespoke fit</Typography>
-          <Typography sx={{ mt: 0.35, color: "text.secondary" }}>
-            Choose how the store should capture your measurements. Deposit
-            routes redirect to checkout; shop measurement starts tracking
-            immediately.
-          </Typography>
         </Box>
       </Stack>
 
@@ -1680,8 +1697,8 @@ function WaitlistPanel({
         </Typography>
       </Stack>
       <Typography variant="body2" sx={{ color: "text.secondary", mb: 2 }}>
-        Sold out or made to order? Leave your details and {store.name} will reach
-        out when {design.title} is ready to order.
+        Sold out or made to order? Leave your details and {store.name} will
+        reach out when {design.title} is ready to order.
       </Typography>
       {success ? (
         <Alert severity="success">
@@ -1858,7 +1875,9 @@ export default function DesignPage({
                 variant="h5"
                 sx={{ mt: 1, color: "primary.main", fontWeight: 900 }}
               >
-                {priceLabel(design.prices)}
+                {design.customisation_allowed
+                  ? depositLabel
+                  : priceLabel(design.prices)}
               </Typography>
 
               {design.description ? (
@@ -1874,6 +1893,9 @@ export default function DesignPage({
                 </Typography>
               ) : null}
 
+              {/* Only one price type is ever shown: the listed price for
+                  made-to-wear pieces, or the deposit for customisation pieces —
+                  never both. */}
               <Box
                 sx={{
                   mt: 2.5,
@@ -1881,20 +1903,23 @@ export default function DesignPage({
                   gap: 1.25,
                   gridTemplateColumns: {
                     xs: "1fr",
-                    sm: "repeat(3, minmax(0, 1fr))",
+                    sm: "repeat(2, minmax(0, 1fr))",
                   },
                 }}
               >
-                <DetailSignal
-                  icon={<CreditCardRounded />}
-                  label="Price"
-                  value={priceLabel(design.prices)}
-                />
-                <DetailSignal
-                  icon={<PointOfSaleRounded />}
-                  label="Deposit"
-                  value={design.customisation_allowed ? depositLabel : "N/A"}
-                />
+                {design.customisation_allowed ? (
+                  <DetailSignal
+                    icon={<PointOfSaleRounded />}
+                    label="Deposit"
+                    value={depositLabel}
+                  />
+                ) : (
+                  <DetailSignal
+                    icon={<CreditCardRounded />}
+                    label="Price"
+                    value={priceLabel(design.prices)}
+                  />
+                )}
                 <DetailSignal
                   icon={<StraightenRounded />}
                   label="Fit route"
@@ -1902,15 +1927,11 @@ export default function DesignPage({
                 />
               </Box>
 
-              <Box sx={{ mt: 2.5 }}>
-                <SizePriceList design={design} />
-              </Box>
-
-              <CustomerPromiseBand
-                design={design}
-                store={store}
-                visitSlots={visitSlots}
-              />
+              {!design.customisation_allowed ? (
+                <Box sx={{ mt: 2.5 }}>
+                  <SizePriceList design={design} />
+                </Box>
+              ) : null}
             </Box>
 
             <Box

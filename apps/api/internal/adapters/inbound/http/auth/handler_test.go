@@ -465,6 +465,38 @@ func TestTransferBusinessOwnerReturnsAffectedUsers(t *testing.T) {
 	}
 }
 
+func TestSubmitIdentityVerificationPassesPrincipalRole(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeAuthService{}
+	router := newTestRouterWithVerifier(service, fakeTokenVerifier{verified: ports.VerifiedAccessToken{
+		Subject:    "admin-1",
+		BusinessID: "business-1",
+		Role:       business.UserRoleAdmin,
+	}})
+	request := httptest.NewRequest(http.MethodPost, "/auth/business/identity-verification", bytes.NewReader([]byte(`{
+		"card_number": "GHA-123456789-0",
+		"id_photo_url": "https://cdn.example.com/card.jpg"
+	}`)))
+	request.Header.Set("Authorization", "Bearer access-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d with body %s", http.StatusOK, response.Code, response.Body.String())
+	}
+	if !service.submitIdentityCalled {
+		t.Fatal("expected submit identity service to be called")
+	}
+	if service.submitIdentityCommand.Scope.BusinessID != "business-1" ||
+		service.submitIdentityCommand.ActorRole != business.UserRoleAdmin ||
+		service.submitIdentityCommand.CardNumber != "GHA-123456789-0" ||
+		service.submitIdentityCommand.IDPhotoURL != "https://cdn.example.com/card.jpg" {
+		t.Fatalf("unexpected identity command: %+v", service.submitIdentityCommand)
+	}
+}
+
 func newTestRouter(service *fakeAuthService) http.Handler {
 	return newTestRouterWithVerifier(service, fakeTokenVerifier{err: errors.New("no verifier")})
 }
@@ -509,6 +541,8 @@ type fakeAuthService struct {
 	transferOwnerCalled      bool
 	transferOwnerCommand     authapp.TransferBusinessOwnerCommand
 	transferResult           ports.TransferBusinessOwnerResult
+	submitIdentityCalled     bool
+	submitIdentityCommand    authapp.SubmitIdentityVerificationCommand
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -521,6 +555,10 @@ func (service *fakeAuthService) RegisterBusiness(_ context.Context, command auth
 	return service.result, nil
 }
 
+func (service *fakeAuthService) CheckHandleAvailability(_ context.Context, raw string) (authapp.HandleAvailability, error) {
+	return authapp.HandleAvailability{Handle: raw, Available: true}, nil
+}
+
 func (service *fakeAuthService) ListPublicPlans(_ context.Context) ([]ports.PublicPlanRecord, error) {
 	return nil, nil
 }
@@ -531,6 +569,12 @@ func (service *fakeAuthService) InitializeSubscriptionAuthorization(_ context.Co
 
 func (service *fakeAuthService) VerifySubscriptionAuthorization(_ context.Context, _ authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error) {
 	return authapp.SubscriptionAuthorizationResult{}, nil
+}
+
+func (service *fakeAuthService) SubmitIdentityVerification(_ context.Context, command authapp.SubmitIdentityVerificationCommand) error {
+	service.submitIdentityCalled = true
+	service.submitIdentityCommand = command
+	return nil
 }
 
 func (service *fakeAuthService) LoginBusiness(_ context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error) {

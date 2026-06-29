@@ -36,12 +36,23 @@ export type StoreSummary = {
   // True when the store's plan grants the online_ordering benefit. When false the
   // storefront is a catalogue only and checkout is refused server-side.
   online_ordering_enabled?: boolean;
+  // The store's current plan code (e.g. "free", "starter", "growth", "studio").
+  // The "Discover other studios" strip only shows for free-plan stores.
+  plan_code?: string;
+};
+
+export type SizeChartItem = {
+  name: string;
+  value: string;
+  unit: string;
 };
 
 export type BandPrice = {
   size_band_id: string;
   label: string;
   price_minor: number;
+  // The size band's measurement chart, shown to customers under the size option.
+  chart?: SizeChartItem[];
 };
 
 export type Design = {
@@ -163,6 +174,31 @@ export type PlaceOrderInput = {
   affiliate_click_id?: string;
   affiliate_visitor_id?: string;
   referral_code?: string;
+};
+
+export type CartOrderLine = {
+  design_handle: string;
+  size_band_id: string;
+};
+
+export type PlaceCartOrderInput = {
+  items: CartOrderLine[];
+  customer_name: string;
+  customer_phone: string;
+  customer_email: string;
+  method: "momo" | "card";
+  delivery_zone_id?: string;
+  delivery_address?: string;
+};
+
+export type DeliveryZone = {
+  zone_id: string;
+  name: string;
+  fee_minor: number;
+};
+
+export type DeliveryZonesPage = {
+  zones: DeliveryZone[];
 };
 
 export type CustomSizeMode = "self_measure" | "home_visit" | "come_to_shop";
@@ -306,6 +342,15 @@ export const api = {
     postJSON<PlaceOrderResult>(
       `/public/stores/${enc(storeHandle)}/orders`,
       input,
+    ),
+  placeCartOrder: (storeHandle: string, input: PlaceCartOrderInput) =>
+    postJSON<PlaceOrderResult>(
+      `/public/stores/${enc(storeHandle)}/cart-orders`,
+      input,
+    ),
+  deliveryZones: (storeHandle: string) =>
+    getJSON<DeliveryZonesPage>(
+      `/public/stores/${enc(storeHandle)}/delivery-zones`,
     ),
   placeCustomOrder: (storeHandle: string, input: PlaceCustomOrderInput) =>
     postJSON<PlaceOrderResult>(

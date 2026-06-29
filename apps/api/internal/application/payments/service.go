@@ -213,9 +213,10 @@ type LogManualTakingResult struct {
 }
 
 // LogManualTaking records an off-platform sale (cash/momo/other) for the money
-// tracker. Paystack never splits this money because it did not process the
-// payment; instead, the current plan commission is snapshotted as an offline
-// receivable for later invoice/reconciliation.
+// tracker. Off-platform money is always fee-free: the platform commission
+// applies only to payments processed through Paystack. A manually logged taking
+// never flows through the provider, so no commission is deducted or accrued —
+// it carries zero commission and a "not_applicable" status.
 func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (LogManualTakingResult, error) {
 	if err := authorizeMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return LogManualTakingResult{}, err
@@ -237,13 +238,6 @@ func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand
 	if businessID.IsZero() {
 		businessID = cmd.Scope.BusinessID
 	}
-	commission := money.Commission(cmd.AmountMinor, info.CommissionBps)
-	commissionStatus := "not_applicable"
-	commissionNote := ""
-	if commission > 0 {
-		commissionStatus = "due"
-		commissionNote = "Offline payment logged; collect through package invoice or admin reconciliation."
-	}
 
 	id := s.ids.NewID()
 	if err := s.payments.RecordManualTaking(ctx, cmd.Scope, ports.ManualTakingInput{
@@ -253,17 +247,17 @@ func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand
 		AmountMinor:      cmd.AmountMinor,
 		Method:           cmd.Method,
 		WhatFor:          strings.TrimSpace(cmd.WhatFor),
-		CommissionBps:    info.CommissionBps,
-		CommissionMinor:  commission,
-		CommissionStatus: commissionStatus,
-		CommissionNote:   commissionNote,
+		CommissionBps:    0,
+		CommissionMinor:  0,
+		CommissionStatus: "not_applicable",
+		CommissionNote:   "",
 	}); err != nil {
 		return LogManualTakingResult{}, err
 	}
 	return LogManualTakingResult{
 		TakingID:         id,
-		CommissionMinor:  commission,
-		CommissionStatus: commissionStatus,
+		CommissionMinor:  0,
+		CommissionStatus: "not_applicable",
 	}, nil
 }
 

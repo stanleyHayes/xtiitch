@@ -19,8 +19,10 @@ const maxBodyBytes = 1 << 20
 
 type Service interface {
 	PlaceStandardOrder(ctx context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
+	PlaceCartOrder(ctx context.Context, command checkoutapp.PlaceCartOrderCommand) (checkoutapp.PlaceCartOrderResult, error)
 	PlaceCustomOrder(ctx context.Context, command checkoutapp.PlaceCustomOrderCommand) (checkoutapp.PlaceCustomOrderResult, error)
 	PlaceHomeVisitBooking(ctx context.Context, command checkoutapp.PlaceHomeVisitBookingCommand) (checkoutapp.PlaceHomeVisitBookingResult, error)
+	StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error)
 }
 
 type Handler struct {
@@ -33,8 +35,27 @@ func NewHandler(service Service) Handler {
 
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/public/stores/{handle}/orders", handler.placeOrder)
+	router.Post("/public/stores/{handle}/cart-orders", handler.placeCartOrder)
+	router.Get("/public/stores/{handle}/delivery-zones", handler.listDeliveryZones)
 	router.Post("/public/stores/{handle}/custom-orders", handler.placeCustomOrder)
 	router.Post("/public/stores/{handle}/bookings", handler.placeBooking)
+}
+
+func (handler Handler) listDeliveryZones(w http.ResponseWriter, r *http.Request) {
+	zones, err := handler.service.StoreDeliveryZones(r.Context(), chi.URLParam(r, "handle"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	out := make([]map[string]any, 0, len(zones))
+	for _, z := range zones {
+		out = append(out, map[string]any{
+			"zone_id":   z.ID.String(),
+			"name":      z.Name,
+			"fee_minor": z.FeeMinor,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"zones": out})
 }
 
 type placeOrderBody struct {
@@ -79,6 +100,55 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor)
+}
+
+type cartLineBody struct {
+	DesignHandle string `json:"design_handle"`
+	SizeBandID   string `json:"size_band_id"`
+}
+
+type placeCartOrderBody struct {
+	Items           []cartLineBody `json:"items"`
+	CustomerName    string         `json:"customer_name"`
+	CustomerPhone   string         `json:"customer_phone"`
+	CustomerEmail   string         `json:"customer_email"`
+	Method          string         `json:"method"`
+	DeliveryZoneID  string         `json:"delivery_zone_id"`
+	DeliveryAddress string         `json:"delivery_address"`
+}
+
+func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
+	var body placeCartOrderBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	lines := make([]checkoutapp.CartLineCommand, 0, len(body.Items))
+	for _, item := range body.Items {
+		lines = append(lines, checkoutapp.CartLineCommand{
+			DesignHandle: item.DesignHandle,
+			SizeBandID:   common.ID(item.SizeBandID),
+		})
+	}
+
+	result, err := handler.service.PlaceCartOrder(r.Context(), checkoutapp.PlaceCartOrderCommand{
+		StoreHandle:     chi.URLParam(r, "handle"),
+		Lines:           lines,
+		CustomerName:    body.CustomerName,
+		CustomerPhone:   body.CustomerPhone,
+		CustomerEmail:   body.CustomerEmail,
+		Method:          money.PaymentMethod(body.Method),
+		DeliveryZoneID:  common.ID(body.DeliveryZoneID),
+		DeliveryAddress: body.DeliveryAddress,
+	})
+	if err != nil {
+		status, code := checkoutError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
 }
 
 type placeCustomOrderBody struct {
@@ -199,6 +269,8 @@ func checkoutError(err error) (int, string) {
 		return http.StatusConflict, "store_cannot_take_order"
 	case errors.Is(err, checkoutapp.ErrOnlineOrderingOff):
 		return http.StatusConflict, "online_ordering_unavailable"
+	case errors.Is(err, checkoutapp.ErrDeliveryUnavailable):
+		return http.StatusConflict, "delivery_unavailable"
 	case errors.Is(err, checkoutapp.ErrPromotionUnavailable):
 		return http.StatusConflict, "promotion_unavailable"
 	case errors.Is(err, ports.ErrSlotTaken), errors.Is(err, ports.ErrNoAvailability):

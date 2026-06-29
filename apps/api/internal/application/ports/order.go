@@ -16,6 +16,15 @@ type OrderRepository interface {
 	// CreateOnlineOrder records an online standard order as draft: it is confirmed
 	// at its first stage only when its payment succeeds (see the payment webhook).
 	CreateOnlineOrder(ctx context.Context, scope common.TenantScope, input CreateOnlineOrderInput) error
+	// CreateOnlineOrderGroup records several online standard orders as draft in one
+	// transaction, all sharing the same customer and checkout group, so a single
+	// combined payment can confirm them together. It is all-or-nothing: any failure
+	// rolls back the whole group.
+	CreateOnlineOrderGroup(ctx context.Context, scope common.TenantScope, inputs []CreateOnlineOrderInput) error
+	// DiscardDraftOrderGroup removes every still-draft order in a checkout group and
+	// the customer created with it, compensating a combined checkout whose payment
+	// could not be raised.
+	DiscardDraftOrderGroup(ctx context.Context, scope common.TenantScope, groupID, customerID common.ID) error
 	// FindCustomerIDByPhone resolves an existing (non-erased) customer by phone so
 	// repeat guest orders link to one identity; the bool reports a match.
 	FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error)
@@ -92,6 +101,16 @@ type CreateOnlineOrderInput struct {
 	CustomerPhone    string
 	CustomerEmail    string
 	AgreedTotalMinor int64
+	// CheckoutGroupID links this order to the other orders paid by one combined
+	// cart charge. Nil for a stand-alone order.
+	CheckoutGroupID *common.ID
+	// Delivery snapshot, set only when the customer chose delivery at checkout.
+	// For a combined cart the snapshot rides the anchor order (the fee is added to
+	// the cart total once). DeliveryMethod is "" for the default (no handover yet).
+	DeliveryMethod   string
+	DeliveryAddress  string
+	DeliveryFeeMinor int64
+	DeliveryZoneID   *common.ID
 }
 
 type CreateCustomOrderInput struct {
@@ -118,6 +137,15 @@ type CreateCustomOrderConfirmedInput struct {
 	CustomerName  string
 	CustomerPhone string
 	CustomerEmail string
+	// Channel records where the order came from: "online" (customer chose
+	// come-to-shop at online checkout) or "walk_in" (staff logged it in person).
+	// Empty defaults to "online" for back-compatibility.
+	Channel string
+	// MeasurementID and Measurements are set when staff captured the customer's
+	// measurements at the counter; Measurements maps the business's measurement
+	// field ids to entered values. Stored against the order with source 'shop'.
+	MeasurementID common.ID
+	Measurements  map[string]string
 }
 
 type OrderSummary struct {

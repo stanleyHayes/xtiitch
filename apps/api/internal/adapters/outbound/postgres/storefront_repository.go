@@ -65,8 +65,12 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 					where d.business_id = b.business_id and d.status = 'active')
 			from businesses b
 			join store_settings ss on ss.business_id = b.business_id
-			where b.verification_status = 'verified'
-				and b.operational_status = 'active'
+			-- Every active (non-suspended) store is listed in the public directory
+			-- and "Discover other studios" as soon as it is created — payment
+			-- verification is not required to be discoverable (Version-one review:
+			-- newly created stores must appear automatically). Suspended stores are
+			-- still excluded.
+			where b.operational_status = 'active'
 			order by b.name
 		`)
 		if err != nil {
@@ -185,7 +189,8 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled,
 			coalesce(ss.logo_url, ''), coalesce(ss.banner_url, ''), ss.layout_variant,
 			coalesce((p.features->>'design_waitlist')::boolean, false),
-			coalesce((p.features->>'online_ordering')::boolean, false)
+			coalesce((p.features->>'online_ordering')::boolean, false),
+			p.code
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
 		join plans p on p.plan_id = b.plan_id
@@ -197,6 +202,7 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.Settings.LogoURL, &store.Settings.BannerURL, &store.Settings.LayoutVariant,
 		&store.WaitlistEnabled,
 		&store.OnlineOrderingEnabled,
+		&store.PlanCode,
 	)
 	if err != nil {
 		return store, err
@@ -306,7 +312,7 @@ func attachPrices(ctx context.Context, tx pgx.Tx, designs []catalogue.Design) ([
 	results := make([]ports.StorefrontDesign, 0, len(designs))
 	for _, design := range designs {
 		rows, err := tx.Query(ctx, `
-			select dp.size_band_id, sb.label, dp.price_minor
+			select dp.size_band_id, sb.label, dp.price_minor, sb.chart
 			from design_prices dp
 			join size_bands sb on sb.size_band_id = dp.size_band_id
 			where dp.design_id = $1
@@ -319,10 +325,12 @@ func attachPrices(ctx context.Context, tx pgx.Tx, designs []catalogue.Design) ([
 		var prices []catalogue.BandPrice
 		for rows.Next() {
 			var price catalogue.BandPrice
-			if err := rows.Scan(&price.SizeBandID, &price.Label, &price.PriceMinor); err != nil {
+			var chartRaw []byte
+			if err := rows.Scan(&price.SizeBandID, &price.Label, &price.PriceMinor, &chartRaw); err != nil {
 				rows.Close()
 				return nil, err
 			}
+			price.Chart = unmarshalSizeChart(chartRaw)
 			prices = append(prices, price)
 		}
 		rows.Close()

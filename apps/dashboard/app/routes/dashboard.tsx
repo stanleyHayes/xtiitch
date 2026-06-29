@@ -1,4 +1,10 @@
-import { Form, Link as RouterLink, redirect, useSubmit } from "react-router";
+import {
+  Form,
+  Link as RouterLink,
+  redirect,
+  useNavigation,
+  useSubmit,
+} from "react-router";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -47,6 +53,7 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
 import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
 import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
@@ -139,6 +146,14 @@ type StoreSettings = {
   layout_variant: string;
 };
 
+type DeliveryZone = {
+  zone_id: string;
+  name: string;
+  fee_minor: number;
+  sequence: number;
+  active: boolean;
+};
+
 type WaitlistEntry = {
   entry_id: string;
   design_id: string;
@@ -160,11 +175,21 @@ type CollectionSummary = {
   sequence: number;
 };
 
+type SizeChartItem = {
+  name: string;
+  value: string;
+  unit: string;
+};
+
 type SizeBand = {
   size_band_id: string;
   label: string;
+  chart: SizeChartItem[];
   sequence: number;
 };
+
+// Allowed size-chart units (mirrors catalogue.SizeChartUnits on the API).
+const SIZE_CHART_UNITS = ["cm", "in", "inches", "mm", "m", "ft"];
 
 type BusinessPromotion = {
   promotion_id: string;
@@ -364,6 +389,8 @@ type DashboardActionData = {
   teamError?: string;
   settingsError?: string;
   settingsSuccess?: string;
+  verificationError?: string;
+  verificationSuccess?: string;
   collectionError?: string;
   sizeBandError?: string;
   priceError?: string;
@@ -493,11 +520,15 @@ function PlanGatedControl({
         {locked ? (
           <Chip
             size="small"
+            component={RouterLink}
+            to="/onboarding/billing"
+            clickable
             icon={<LockRounded sx={{ fontSize: 14 }} />}
             label="Upgrade"
             sx={{
               height: 22,
               flexShrink: 0,
+              cursor: "pointer",
               "& .MuiChip-label": { px: 0.75, fontSize: 11 },
             }}
           />
@@ -790,14 +821,24 @@ const dashboardActionIntents = new Set([
   "create_measurement_field",
   "update_measurement_field",
   "delete_measurement_field",
+  "update_waitlist_status",
   "create_business_user",
   "update_business_user",
+  "reset_business_user_password",
+  "transfer_owner",
   "save_store_settings",
+  "create_delivery_zone",
+  "update_delivery_zone",
+  "delete_delivery_zone",
+  "submit_identity_verification",
   "create_collection",
   "retire_collection",
   "restore_collection",
+  "update_collection",
   "delete_collection",
   "create_size_band",
+  "update_size_band",
+  "delete_size_band",
   "set_design_price",
   "create_promotion",
   "update_promotion",
@@ -980,6 +1021,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   let sizeBands: SizeBand[] = [];
   let promotions: BusinessPromotion[] = [];
   let waitlistEntries: WaitlistEntry[] = [];
+  let deliveryZones: DeliveryZone[] = [];
   const orders = ordersData.orders ?? [];
 
   if (canManage) {
@@ -994,6 +1036,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       sizeBandsResult,
       promotionsResult,
       waitlistResult,
+      deliveryZonesResult,
     ] = await Promise.all([
       loadDashboardJSON<{ designs: Design[] }>(
         request,
@@ -1055,6 +1098,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         { entries: [] },
         "Design waiting lists could not be loaded right now.",
       ),
+      loadDashboardJSON<{ zones: DeliveryZone[] }>(
+        request,
+        "/delivery-zones",
+        { zones: [] },
+        "Delivery zones could not be loaded right now.",
+      ),
     ]);
     const designsData = readResult(designsResult);
     const moneySummaryData = readResult(moneySummaryResult);
@@ -1066,6 +1115,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const sizeBandsData = readResult(sizeBandsResult);
     const promotionsData = readResult(promotionsResult);
     const waitlistData = readResult(waitlistResult);
+    const deliveryZonesData = readResult(deliveryZonesResult);
 
     const listedDesigns = designsData.designs ?? [];
     let designPriceWarning = false;
@@ -1103,6 +1153,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     sizeBands = sizeBandsData.size_bands ?? [];
     promotions = promotionsData.promotions ?? [];
     waitlistEntries = waitlistData.entries ?? [];
+    deliveryZones = deliveryZonesData.zones ?? [];
   }
 
   return {
@@ -1123,6 +1174,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     sizeBands,
     promotions,
     waitlistEntries,
+    deliveryZones,
     section,
     orderFilter,
     dataWarnings: uniqueDashboardWarnings(dataWarnings),
@@ -1218,6 +1270,43 @@ export async function action({ request }: Route.ActionArgs) {
       return {
         walkInError:
           "Could not log that walk-in order. Check the design, size, and customer details.",
+      };
+    }
+    return redirect("/dashboard/orders?orders=confirmed");
+  }
+
+  if (intent === "create_custom_walk_in_order") {
+    const designID = String(form.get("design_id") ?? "").trim();
+    const customerName = String(form.get("customer_name") ?? "").trim();
+    if (!designID || !customerName) {
+      return {
+        walkInError:
+          "Choose a design and add the customer name before logging a bespoke order.",
+      };
+    }
+    // Measurement fields are posted as m_<field_id>; collect the non-empty ones
+    // into the measurements map the API validates against the business's fields.
+    const measurements: Record<string, string> = {};
+    for (const [key, value] of form.entries()) {
+      if (key.startsWith("m_") && typeof value === "string" && value.trim()) {
+        measurements[key.slice(2)] = value.trim();
+      }
+    }
+    const response = await apiFetch(request, "/orders/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        design_id: designID,
+        customer_name: customerName,
+        customer_phone: String(form.get("customer_phone") ?? "").trim(),
+        customer_email: String(form.get("customer_email") ?? "").trim(),
+        measurements,
+      }),
+    });
+    if (!response.ok) {
+      return {
+        walkInError:
+          "Could not log that bespoke order. Bespoke needs a bespoke stage configured for your studio.",
       };
     }
     return redirect("/dashboard/orders?orders=confirmed");
@@ -1564,6 +1653,120 @@ export async function action({ request }: Route.ActionArgs) {
     return { settingsSuccess: "Storefront settings saved." };
   }
 
+  if (intent === "create_delivery_zone" || intent === "update_delivery_zone") {
+    const name = String(form.get("name") ?? "").trim();
+    // The business enters a fee in GHS; store it in minor units (pesewas).
+    const feeMajor = Number(String(form.get("fee") ?? "").trim());
+    if (!name || !Number.isFinite(feeMajor) || feeMajor < 0) {
+      return { settingsError: "Enter a zone name and a valid delivery fee." };
+    }
+    const feeMinor = Math.round(feeMajor * 100);
+    const sequence = Number(String(form.get("sequence") ?? "0").trim()) || 0;
+    if (intent === "create_delivery_zone") {
+      const response = await apiFetch(request, "/delivery-zones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, fee_minor: feeMinor, sequence }),
+      });
+      if (!response.ok) {
+        return {
+          settingsError:
+            response.status === 409
+              ? "A delivery zone with that name already exists."
+              : "Could not add that delivery zone.",
+        };
+      }
+      return { settingsSuccess: "Delivery zone added." };
+    }
+    const zoneID = String(form.get("zone_id") ?? "").trim();
+    if (!zoneID) {
+      return { settingsError: "That delivery zone could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/delivery-zones/${encodeURIComponent(zoneID)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          fee_minor: feeMinor,
+          sequence,
+          active: form.get("active") === "on",
+        }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        settingsError:
+          response.status === 409
+            ? "A delivery zone with that name already exists."
+            : "Could not update that delivery zone.",
+      };
+    }
+    return { settingsSuccess: "Delivery zone updated." };
+  }
+
+  if (intent === "delete_delivery_zone") {
+    const zoneID = String(form.get("zone_id") ?? "").trim();
+    if (!zoneID) {
+      return { settingsError: "That delivery zone could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/delivery-zones/${encodeURIComponent(zoneID)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      return { settingsError: "Could not remove that delivery zone." };
+    }
+    return { settingsSuccess: "Delivery zone removed." };
+  }
+
+  if (intent === "submit_identity_verification") {
+    const cardNumber = String(form.get("card_number") ?? "").trim();
+    if (!cardNumber) {
+      return { verificationError: "Enter your Ghana Card number." };
+    }
+    // The photo is uploaded to Cloudinary first (same path as logos/designs);
+    // the API stores the resulting URL and moves the business to 'pending'.
+    let photoURL = String(form.get("id_photo_url_existing") ?? "").trim();
+    const photoFile = form.get("id_photo_file");
+    if (photoFile instanceof File && photoFile.size > 0) {
+      const uploaded = await uploadDesignImage(request, photoFile);
+      if (uploaded) {
+        photoURL = uploaded;
+      }
+    }
+    if (!photoURL) {
+      return {
+        verificationError: "Upload a clear photo of your Ghana Card.",
+      };
+    }
+    const response = await apiFetch(
+      request,
+      "/auth/business/identity-verification",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          card_number: cardNumber,
+          id_photo_url: photoURL,
+        }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        verificationError:
+          "Could not submit your verification. Check the details and try again.",
+      };
+    }
+    return {
+      verificationSuccess:
+        "Verification submitted. We'll review your Ghana Card shortly.",
+    };
+  }
+
   if (intent === "update_waitlist_status") {
     const entryId = String(form.get("entry_id") ?? "").trim();
     const status = String(form.get("status") ?? "").trim();
@@ -1728,26 +1931,85 @@ export async function action({ request }: Route.ActionArgs) {
     return redirect("/dashboard/catalogue");
   }
 
-  if (intent === "create_size_band") {
+  if (intent === "update_collection") {
+    const collectionID = String(form.get("collection_id") ?? "").trim();
+    const sequence = parseSequence(form.get("sequence"));
+    if (!collectionID || sequence === null) {
+      return {
+        collectionError: "Could not update that collection. Check the order.",
+      };
+    }
+    const response = await apiFetch(
+      request,
+      `/collections/${encodeURIComponent(collectionID)}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: String(form.get("name") ?? "").trim(),
+          theme: String(form.get("theme") ?? "").trim(),
+          sequence,
+        }),
+      },
+    );
+    if (!response.ok) {
+      return {
+        collectionError:
+          "Could not update that collection. Add a name and an unused display order.",
+      };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "create_size_band" || intent === "update_size_band") {
     const sequence = parseSequence(form.get("sequence"));
     if (sequence === null) {
       return {
         sizeBandError: "Use a zero or positive display order for the size.",
       };
     }
-    const response = await apiFetch(request, "/size-bands", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        label: String(form.get("label") ?? "").trim(),
-        sequence,
-      }),
+    const body = JSON.stringify({
+      label: String(form.get("label") ?? "").trim(),
+      chart: parseSizeChartJSON(form.get("chart_json")),
+      sequence,
     });
+    const sizeBandID = String(form.get("size_band_id") ?? "").trim();
+    const isUpdate = intent === "update_size_band";
+    if (isUpdate && !sizeBandID) {
+      return { sizeBandError: "That size band could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      isUpdate
+        ? `/size-bands/${encodeURIComponent(sizeBandID)}`
+        : "/size-bands",
+      {
+        method: isUpdate ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+      },
+    );
     if (!response.ok) {
       return {
         sizeBandError:
-          "Could not create that size band. Add a label and unique display order.",
+          "Could not save that size band. Add a label, a unique display order, and complete chart rows.",
       };
+    }
+    return redirect("/dashboard/catalogue");
+  }
+
+  if (intent === "delete_size_band") {
+    const sizeBandID = String(form.get("size_band_id") ?? "").trim();
+    if (!sizeBandID) {
+      return { sizeBandError: "That size band could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/size-bands/${encodeURIComponent(sizeBandID)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      return { sizeBandError: "Could not delete that size band." };
     }
     return redirect("/dashboard/catalogue");
   }
@@ -1861,6 +2123,28 @@ export async function action({ request }: Route.ActionArgs) {
         designError: "Could not update that design. Check the display order.",
       };
     }
+    // Kept images (the owner may have removed some) plus any newly uploaded
+    // files. New files are sent to Cloudinary and appended; the API enforces the
+    // per-plan image cap and returns image_limit_exceeded if exceeded.
+    const keptImages = parseImageURLs(form.get("image_urls"));
+    const newFiles = form
+      .getAll("image_files")
+      .filter(
+        (entry): entry is File => entry instanceof File && entry.size > 0,
+      );
+    const uploaded: string[] = [];
+    for (const file of newFiles) {
+      if (!file.type.startsWith("image/")) {
+        return { designError: "Upload image files such as JPG, PNG, or WebP." };
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        return { designError: "Keep each design image under 10 MB." };
+      }
+      const url = await uploadDesignImage(request, file);
+      if (url) {
+        uploaded.push(url);
+      }
+    }
     const response = await apiFetch(
       request,
       `/designs/${encodeURIComponent(designID)}`,
@@ -1874,15 +2158,12 @@ export async function action({ request }: Route.ActionArgs) {
           customisation_allowed: form.get("customisation") === "on",
           deposit_override_minor: depositOverrideMinor,
           sequence,
-          images: parseImageURLs(form.get("image_urls")),
+          images: [...keptImages, ...uploaded],
         }),
       },
     );
     if (!response.ok) {
-      return {
-        designError:
-          "Could not update that design. Check the title, images, deposit, and collection.",
-      };
+      return { designError: await designWriteErrorMessage(response) };
     }
     return redirect("/dashboard/catalogue");
   }
@@ -2297,6 +2578,33 @@ function parseSequence(value: FormDataEntryValue | null): number | null {
   return Number.isFinite(sequence) && sequence >= 0 ? sequence : null;
 }
 
+// parseSizeChartJSON reads the serialized size-chart rows from a hidden form
+// field and returns clean {name,value,unit} entries. Malformed input yields an
+// empty chart; the API re-validates names, values, and the unit vocabulary.
+function parseSizeChartJSON(value: FormDataEntryValue | null): SizeChartItem[] {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return [];
+  }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed
+      .map((item) => ({
+        name: String(item?.name ?? "").trim(),
+        value: String(item?.value ?? "").trim(),
+        unit: String(item?.unit ?? "").trim(),
+      }))
+      .filter(
+        (item) => item.name !== "" && item.value !== "" && item.unit !== "",
+      );
+  } catch {
+    return [];
+  }
+}
+
 function parseMoneyMinor(value: FormDataEntryValue | null): number | null {
   const entered = String(value ?? "")
     .replaceAll(",", "")
@@ -2497,6 +2805,28 @@ function parseImageURLs(value: FormDataEntryValue | null): string[] {
     .split(/\r?\n|,/)
     .map((url) => url.trim())
     .filter(Boolean);
+}
+
+// Maps a failed design write to a plain, plan-aware message — so the dashboard
+// can prompt an upgrade when the plan's image/design caps are hit.
+async function designWriteErrorMessage(response: Response): Promise<string> {
+  let code: string;
+  try {
+    const body = (await response.json()) as { error?: string };
+    code = body.error ?? "";
+  } catch {
+    code = "";
+  }
+  if (code === "image_limit_exceeded") {
+    return "You've reached your plan's image limit. Upgrade your plan to add more images per design.";
+  }
+  if (code === "plan_limit_exceeded") {
+    return "You've reached your plan's design limit. Upgrade your plan to add more designs.";
+  }
+  if (code === "pricing_mode_conflict") {
+    return "Switch this design to made-to-wear before setting size-band prices.";
+  }
+  return "Could not update that design. Check the title, images, deposit, and collection.";
 }
 
 async function uploadDesignImage(
@@ -3317,9 +3647,7 @@ const StyledTemporalField = styled(Box)(({ theme }) => {
       ? `linear-gradient(180deg, ${alpha(tokens.white, 0.075)}, ${alpha(tokens.white, 0.035)})`
       : `linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.78))`,
     padding: theme.spacing(0.9),
-    boxShadow: dark
-      ? `inset 0 1px 0 ${alpha(tokens.white, 0.08)}`
-      : "none",
+    boxShadow: dark ? `inset 0 1px 0 ${alpha(tokens.white, 0.08)}` : "none",
     transition:
       "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
     "&:focus-within": {
@@ -4035,8 +4363,19 @@ function MetricCard({
             {icon}
           </Box>
         </Stack>
-        <Box>
-          <Typography variant="h4" sx={{ lineHeight: 1.05 }}>
+        <Box sx={{ minWidth: 0 }}>
+          {/* Large figures truncate with an ellipsis (full value on hover via
+              title) and shrink the type, so the card never breaks its layout. */}
+          <Typography
+            variant="h4"
+            noWrap
+            title={value}
+            sx={{
+              lineHeight: 1.05,
+              maxWidth: "100%",
+              fontSize: value.length > 9 ? "1.4rem" : undefined,
+            }}
+          >
             {value}
           </Typography>
           <Typography
@@ -4080,7 +4419,13 @@ function ToneChip({
 // they hit "Skip for now" at signup). Closes the gap where the dashboard
 // promised "finish later" but offered no way back to the billing flow.
 // Dismissible per business (localStorage); links into the existing onboarding.
-function BillingSetupBanner({ plan, handle }: { plan: string; handle: string }) {
+function BillingSetupBanner({
+  plan,
+  handle,
+}: {
+  plan: string;
+  handle: string;
+}) {
   const paid = Boolean(plan) && plan !== "free";
   const storageKey = `xtiitch:billing-setup-dismissed:${handle}`;
   const [hidden, setHidden] = useState(true);
@@ -4582,7 +4927,9 @@ function WorkspaceRail({
                       color: tokens.gold,
                     }}
                   >
-                    Business
+                    {profile.plan
+                      ? `${profile.plan.charAt(0).toUpperCase()}${profile.plan.slice(1)} plan`
+                      : "Business"}
                   </Typography>
                 </Box>
               ) : null}
@@ -4667,6 +5014,46 @@ function WorkspaceRail({
               View storefront
             </Button>
           )}
+          {profile.plan !== "growth" && profile.plan !== "studio" ? (
+            compact ? (
+              <Tooltip title="Upgrade plan" placement="right">
+                <IconButton
+                  component={RouterLink}
+                  to="/onboarding/billing"
+                  aria-label="Upgrade plan"
+                  sx={{
+                    mt: 1,
+                    width: "100%",
+                    height: 48,
+                    color: tokens.charcoal,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.gold, 0.6),
+                    bgcolor: tokens.gold,
+                    borderRadius: 1.5,
+                    "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
+                  }}
+                >
+                  <TrendingUpRounded />
+                </IconButton>
+              </Tooltip>
+            ) : (
+              <Button
+                component={RouterLink}
+                to="/onboarding/billing"
+                startIcon={<TrendingUpRounded />}
+                fullWidth
+                sx={{
+                  mt: 1,
+                  color: tokens.charcoal,
+                  fontWeight: 800,
+                  bgcolor: tokens.gold,
+                  "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
+                }}
+              >
+                Upgrade plan
+              </Button>
+            )
+          ) : null}
           <Form method="post">
             <input type="hidden" name="intent" value="logout" />
             {compact ? (
@@ -5568,7 +5955,7 @@ function PriorityRibbon({
           {
             label: "Draft pay",
             value: pendingPayments,
-            href: "/dashboard/orders?orders=draft",
+            href: "/dashboard/money",
             icon: <ReceiptLongRounded fontSize="small" />,
             tone: tokens.warning,
           },
@@ -5577,7 +5964,7 @@ function PriorityRibbon({
     {
       label: "Measurements",
       value: needsMeasurements,
-      href: "/dashboard/orders?orders=confirmed",
+      href: "/dashboard/measurements",
       icon: <StraightenRounded fontSize="small" />,
       tone: tokens.burgundy,
     },
@@ -6156,6 +6543,258 @@ function EmptyState({
   );
 }
 
+// Default stage names (registration seeds these) ranked left→right so the board
+// columns read as a production pipeline. Custom/renamed stages fall back to a
+// middle rank and sort by first appearance.
+const ORDER_STAGE_RANK: Record<string, number> = {
+  "Order placed": 10,
+  "Order received": 11,
+  Preparing: 20,
+  "Being made": 21,
+  "Ready for fitting": 30,
+  "Ready / delivered": 40,
+};
+
+// A board column key for an order: confirmed orders sit under their production
+// stage; everything else under its lifecycle status.
+function orderBoardKey(order: OrderSummary): string {
+  if (order.status === "confirmed") {
+    return order.stage_name || "In production";
+  }
+  return statusLabel(order.status);
+}
+
+function orderBoardRank(order: OrderSummary): number {
+  switch (order.status) {
+    case "draft":
+      return 0;
+    case "awaiting_deposit":
+      return 1;
+    case "confirmed":
+      return ORDER_STAGE_RANK[order.stage_name] ?? 25;
+    case "fulfilled":
+      return 90;
+    case "cancelled":
+      return 95;
+    default:
+      return 50;
+  }
+}
+
+// OrdersKanban shows the orders as a stage pipeline board. Each confirmed card
+// can move forward one stage via its "Advance" control or by dragging it onto a
+// later column; the API's single-step advance stays authoritative (a drop only
+// ever advances one stage, and the board revalidates to the order's real stage).
+function OrdersKanban({
+  orders,
+  returnTo,
+  showMoneyDetails,
+}: {
+  orders: OrderSummary[];
+  returnTo: string;
+  showMoneyDetails: boolean;
+}) {
+  const submit = useSubmit();
+  const [dragging, setDragging] = useState<OrderSummary | null>(null);
+
+  const columnsMap = new Map<string, { rank: number; orders: OrderSummary[] }>();
+  for (const order of orders) {
+    const key = orderBoardKey(order);
+    const existing = columnsMap.get(key);
+    if (existing) {
+      existing.orders.push(order);
+      existing.rank = Math.min(existing.rank, orderBoardRank(order));
+    } else {
+      columnsMap.set(key, { rank: orderBoardRank(order), orders: [order] });
+    }
+  }
+  const columns = Array.from(columnsMap.entries())
+    .map(([key, value]) => ({ key, ...value }))
+    .sort((a, b) => a.rank - b.rank);
+
+  const advance = (orderID: string) => {
+    const data = new FormData();
+    data.set("intent", "advance");
+    data.set("order_id", orderID);
+    data.set("return_to", returnTo);
+    submit(data, { method: "post" });
+  };
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        gap: 1.5,
+        overflowX: "auto",
+        pb: 1,
+        alignItems: "flex-start",
+      }}
+    >
+      {columns.map((column) => (
+        <Box
+          key={column.key}
+          onDragOver={(event) => {
+            if (dragging && dragging.status === "confirmed") {
+              event.preventDefault();
+            }
+          }}
+          onDrop={() => {
+            // Forward-only: dropping a confirmed order onto a later column
+            // advances it one stage (the API decides the actual next stage).
+            if (
+              dragging &&
+              dragging.status === "confirmed" &&
+              column.rank > orderBoardRank(dragging)
+            ) {
+              advance(dragging.order_id);
+            }
+            setDragging(null);
+          }}
+          sx={{
+            flex: "0 0 auto",
+            width: 260,
+            bgcolor: alpha(tokens.ink, 0.04),
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: 2,
+            p: 1.25,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", mb: 1 }}
+          >
+            <Typography sx={{ fontWeight: 900, fontSize: 14 }} noWrap>
+              {column.key}
+            </Typography>
+            <ToneChip label={String(column.orders.length)} tone={tokens.ink} />
+          </Stack>
+          <Stack spacing={1}>
+            {column.orders.map((order) => {
+              const advanceable = order.status === "confirmed";
+              return (
+                <Box
+                  key={order.order_id}
+                  draggable={advanceable}
+                  onDragStart={() => setDragging(order)}
+                  onDragEnd={() => setDragging(null)}
+                  sx={{
+                    bgcolor: "rgba(var(--surface-rgb), 0.96)",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 1.5,
+                    p: 1.25,
+                    cursor: advanceable ? "grab" : "default",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 800 }} noWrap>
+                    {order.design_title}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "text.secondary" }}
+                    noWrap
+                  >
+                    {order.customer_name} ·{" "}
+                    {order.channel === "walk_in" ? "Walk-in" : "Online"}
+                  </Typography>
+                  {showMoneyDetails && order.agreed_total_minor !== null ? (
+                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                      {formatGHS(order.settled_minor)} /{" "}
+                      {formatGHS(order.agreed_total_minor)}
+                    </Typography>
+                  ) : null}
+                  {advanceable ? (
+                    <Form method="post" style={{ marginTop: 6 }}>
+                      <input type="hidden" name="intent" value="advance" />
+                      <input
+                        type="hidden"
+                        name="order_id"
+                        value={order.order_id}
+                      />
+                      <input type="hidden" name="return_to" value={returnTo} />
+                      <Button
+                        type="submit"
+                        size="small"
+                        variant="outlined"
+                        fullWidth
+                      >
+                        Advance →
+                      </Button>
+                    </Form>
+                  ) : null}
+                </Box>
+              );
+            })}
+          </Stack>
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+// OrdersWorkspace switches the orders list between a scannable table and a stage
+// pipeline board, and renders the empty state when there are no orders.
+function OrdersWorkspace({
+  orders,
+  returnTo,
+  measurementFields,
+  showMoneyDetails,
+}: {
+  orders: OrderSummary[];
+  returnTo: string;
+  measurementFields: MeasurementField[];
+  showMoneyDetails: boolean;
+}) {
+  const [view, setView] = useState<"table" | "board">("table");
+
+  if (orders.length === 0) {
+    return (
+      <EmptyState
+        icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
+        title="No orders in this view"
+        helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
+      />
+    );
+  }
+
+  return (
+    <Stack spacing={1.5}>
+      <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+        <Button
+          size="small"
+          variant={view === "table" ? "contained" : "outlined"}
+          onClick={() => setView("table")}
+        >
+          Table
+        </Button>
+        <Button
+          size="small"
+          variant={view === "board" ? "contained" : "outlined"}
+          onClick={() => setView("board")}
+        >
+          Board
+        </Button>
+      </Stack>
+      {view === "table" ? (
+        <OrdersTable
+          orders={orders}
+          returnTo={returnTo}
+          measurementFields={measurementFields}
+          showMoneyDetails={showMoneyDetails}
+        />
+      ) : (
+        <OrdersKanban
+          orders={orders}
+          returnTo={returnTo}
+          showMoneyDetails={showMoneyDetails}
+        />
+      )}
+    </Stack>
+  );
+}
+
 // OrdersTable presents orders as a scannable MUI table. Each row carries the key
 // facts; the actions menu and a row click open a right-hand detail drawer that
 // reuses OrderCard for the full record (stage advance, payment, measurements).
@@ -6174,12 +6813,27 @@ function OrdersTable({
   const [detailId, setDetailId] = useState<string | null>(null);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [menuOrderId, setMenuOrderId] = useState<string | null>(null);
+  // Filter by source: online (storefront checkout) vs in-person (walk-in).
+  const [channelFilter, setChannelFilter] = useState<
+    "all" | "online" | "walk_in"
+  >("all");
+  const visibleOrders =
+    channelFilter === "all"
+      ? orders
+      : orders.filter((order) => order.channel === channelFilter);
+  const onlineCount = orders.filter(
+    (order) => order.channel === "online",
+  ).length;
   const {
     page: orderPage,
     pageCount: orderPageCount,
     pagedItems: pagedOrders,
     setPage: setOrderPage,
-  } = usePagedItems(orders, 10, orders.length);
+  } = usePagedItems(
+    visibleOrders,
+    10,
+    `${channelFilter}:${visibleOrders.length}`,
+  );
 
   const detailOrder =
     orders.find((order) => order.order_id === detailId) ?? null;
@@ -6201,6 +6855,31 @@ function OrdersTable({
 
   return (
     <>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ mb: 1.5, flexWrap: "wrap", gap: 1 }}
+      >
+        {(
+          [
+            { value: "all", label: `All (${orders.length})` },
+            { value: "online", label: `Online (${onlineCount})` },
+            {
+              value: "walk_in",
+              label: `In-person (${orders.length - onlineCount})`,
+            },
+          ] as const
+        ).map((option) => (
+          <Button
+            key={option.value}
+            size="small"
+            variant={channelFilter === option.value ? "contained" : "outlined"}
+            onClick={() => setChannelFilter(option.value)}
+          >
+            {option.label}
+          </Button>
+        ))}
+      </Stack>
       <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
         <Table sx={{ minWidth: 760 }}>
           <TableHead>
@@ -6336,8 +7015,7 @@ function OrdersTable({
                         variant="body2"
                         sx={{
                           fontWeight: 700,
-                          color:
-                            balance > 0 ? "warning.main" : "success.main",
+                          color: balance > 0 ? "warning.main" : "success.main",
                         }}
                       >
                         {balance > 0 ? formatGHS(balance) : "Settled"}
@@ -6453,7 +7131,11 @@ function OrdersTable({
               <Typography sx={{ fontWeight: 900, lineHeight: 1.2 }} noWrap>
                 {menuOrder.design_title}
               </Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary" }}
+                noWrap
+              >
                 Ref {menuOrder.order_id.slice(0, 8)} ·{" "}
                 {menuOrder.customer_name || "Unnamed customer"}
               </Typography>
@@ -6490,40 +7172,40 @@ function OrdersTable({
             helper="Open the full order drawer"
             onClick={() => menuOrderId && openDetail(menuOrderId)}
           />
-        {menuOrder && menuOrder.status === "confirmed" ? (
-          <OrderActionMenuItem
-            icon={<TimelineRounded fontSize="small" />}
-            label="Advance stage"
-            helper="Move this order to the next step"
-            onClick={() => {
-              submit(
-                {
-                  intent: "advance",
-                  order_id: menuOrder.order_id,
-                  return_to: returnTo,
-                },
-                { method: "post" },
-              );
-              closeMenu();
-            }}
-          />
-        ) : null}
-        {showMoneyDetails ? (
-          <OrderActionMenuItem
-            icon={<PaymentsRounded fontSize="small" />}
-            label="Manage payment"
-            helper="Review balances and payment notes"
-            onClick={() => menuOrderId && openDetail(menuOrderId)}
-          />
-        ) : null}
-        {menuOrder && measurementSourceFor(menuOrder) ? (
-          <OrderActionMenuItem
-            icon={<StraightenRounded fontSize="small" />}
-            label="Record measurements"
-            helper="Capture fitting values for this order"
-            onClick={() => menuOrderId && openDetail(menuOrderId)}
-          />
-        ) : null}
+          {menuOrder && menuOrder.status === "confirmed" ? (
+            <OrderActionMenuItem
+              icon={<TimelineRounded fontSize="small" />}
+              label="Advance stage"
+              helper="Move this order to the next step"
+              onClick={() => {
+                submit(
+                  {
+                    intent: "advance",
+                    order_id: menuOrder.order_id,
+                    return_to: returnTo,
+                  },
+                  { method: "post" },
+                );
+                closeMenu();
+              }}
+            />
+          ) : null}
+          {showMoneyDetails ? (
+            <OrderActionMenuItem
+              icon={<PaymentsRounded fontSize="small" />}
+              label="Manage payment"
+              helper="Review balances and payment notes"
+              onClick={() => menuOrderId && openDetail(menuOrderId)}
+            />
+          ) : null}
+          {menuOrder && measurementSourceFor(menuOrder) ? (
+            <OrderActionMenuItem
+              icon={<StraightenRounded fontSize="small" />}
+              label="Record measurements"
+              helper="Capture fitting values for this order"
+              onClick={() => menuOrderId && openDetail(menuOrderId)}
+            />
+          ) : null}
         </Box>
       </Menu>
 
@@ -6612,7 +7294,10 @@ function OrderActionMenuItem({
         {icon}
       </Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }} noWrap>
+        <Typography
+          sx={{ fontWeight: 800, fontSize: 14, lineHeight: 1.2 }}
+          noWrap
+        >
           {label}
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }} noWrap>
@@ -7229,13 +7914,61 @@ function InfoStrip({
   );
 }
 
+// CopyLinkButton copies a storefront URL (design or collection) to the clipboard
+// so the owner can drop it straight into marketing. Shows a transient "Copied!"
+// confirmation. stopPropagation keeps it usable inside clickable cards/rows.
+function CopyLinkButton({
+  url,
+  label = "Copy share link",
+}: {
+  url: string;
+  label?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async (event: React.MouseEvent) => {
+    event.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch {
+      // Clipboard API can be unavailable in insecure contexts; surface the URL
+      // so the owner can copy it by hand rather than failing silently.
+      window.prompt("Copy this share link", url);
+    }
+  };
+  return (
+    <Tooltip title={copied ? "Copied!" : label}>
+      <IconButton
+        type="button"
+        size="small"
+        aria-label={label}
+        onClick={onCopy}
+        sx={{
+          color: copied ? tokens.success : "text.secondary",
+          bgcolor: "rgba(var(--surface-rgb), 0.82)",
+          "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.96)" },
+        }}
+      >
+        {copied ? (
+          <CheckCircleRounded fontSize="small" />
+        ) : (
+          <ContentCopyRounded fontSize="small" />
+        )}
+      </IconButton>
+    </Tooltip>
+  );
+}
+
 function DesignCard({
   design,
   collections,
+  storeHandle,
   onOpen,
 }: {
   design: Design;
   collections: CollectionSummary[];
+  storeHandle: string;
   onOpen: () => void;
 }) {
   const retired = design.status === "retired";
@@ -7255,110 +7988,331 @@ function DesignCard({
       : design.prices.length === 1
         ? formatGHS(lowestPriceMinor)
         : `From ${formatGHS(lowestPriceMinor)}`;
+  const shareUrl = `https://${storeHandle}.xtiitch.com/design/${design.handle}`;
   return (
-    <ButtonBase
-      onClick={onOpen}
-      aria-label={`Open ${design.title}`}
-      sx={{
-        textAlign: "left",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "stretch",
-        width: "100%",
-        minHeight: "100%",
-        border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.1),
-        borderRadius: 2,
-        overflow: "hidden",
-        bgcolor: "background.paper",
-        opacity: retired ? 0.62 : 1,
-        transition:
-          "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
-        "&:hover": {
-          transform: "translateY(-2px)",
-          borderColor: alpha(tokens.burgundy, 0.3),
-          boxShadow: `0 18px 40px ${alpha(tokens.ink, 0.1)}`,
-        },
-        "&:focus-visible": {
-          outline: `2px solid ${tokens.burgundy}`,
-          outlineOffset: 2,
-        },
-      }}
-    >
-      <Box
+    <Box sx={{ position: "relative", display: "flex", minHeight: "100%" }}>
+      <Box sx={{ position: "absolute", top: 8, right: 8, zIndex: 2 }}>
+        <CopyLinkButton url={shareUrl} label="Copy design link" />
+      </Box>
+      <ButtonBase
+        onClick={onOpen}
+        aria-label={`Open ${design.title}`}
         sx={{
-          position: "relative",
-          aspectRatio: "4 / 3",
-          bgcolor: alpha(tokens.burgundy, 0.06),
+          textAlign: "left",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+          width: "100%",
+          minHeight: "100%",
+          border: "1px solid",
+          borderColor: alpha(tokens.ink, 0.1),
+          borderRadius: 2,
+          overflow: "hidden",
+          bgcolor: "background.paper",
+          opacity: retired ? 0.62 : 1,
+          transition:
+            "transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease",
+          "&:hover": {
+            transform: "translateY(-2px)",
+            borderColor: alpha(tokens.burgundy, 0.3),
+            boxShadow: `0 18px 40px ${alpha(tokens.ink, 0.1)}`,
+          },
+          "&:focus-visible": {
+            outline: `2px solid ${tokens.burgundy}`,
+            outlineOffset: 2,
+          },
         }}
       >
         <Box
-          component="img"
-          src={image}
-          alt=""
           sx={{
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            display: "block",
-            filter: design.images[0] ? "none" : "saturate(0.9) contrast(1.04)",
+            position: "relative",
+            aspectRatio: "4 / 3",
+            bgcolor: alpha(tokens.burgundy, 0.06),
           }}
-        />
-        <Box sx={{ position: "absolute", top: 8, left: 8 }}>
-          <ToneChip
-            label={design.status}
-            tone={retired ? tokens.mutedText : tokens.success}
+        >
+          <Box
+            component="img"
+            src={image}
+            alt=""
+            sx={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+              filter: design.images[0]
+                ? "none"
+                : "saturate(0.9) contrast(1.04)",
+            }}
           />
+          <Box sx={{ position: "absolute", top: 8, left: 8 }}>
+            <ToneChip
+              label={design.status}
+              tone={retired ? tokens.mutedText : tokens.success}
+            />
+          </Box>
         </Box>
-      </Box>
-      <Box
-        sx={{
-          p: 1.5,
-          minWidth: 0,
-          display: "flex",
-          flex: 1,
-          flexDirection: "column",
-        }}
+        <Box
+          sx={{
+            p: 1.5,
+            minWidth: 0,
+            display: "flex",
+            flex: 1,
+            flexDirection: "column",
+          }}
+        >
+          <Typography sx={{ fontWeight: 800 }} noWrap>
+            {design.title}
+          </Typography>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", display: "block" }}
+            noWrap
+          >
+            {collectionName}
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={0.75}
+            sx={{
+              mt: "auto",
+              pt: 1,
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 0.5,
+            }}
+          >
+            <Chip size="small" variant="outlined" label={priceSummary} />
+            {design.customisation_allowed ? (
+              <Chip size="small" variant="outlined" label="Bespoke" />
+            ) : null}
+          </Stack>
+        </Box>
+      </ButtonBase>
+    </Box>
+  );
+}
+
+// Image manager for the design edit form: shows current images with remove
+// controls, lets the owner upload more (multiple at once), states the plan's
+// image cap, and prompts an upgrade on the free plan when the cap is reached.
+// Kept images submit as `image_urls`; new files submit as `image_files`.
+function DesignImagesField({
+  images,
+  imageLimit,
+  isFreePlan,
+}: {
+  images: string[];
+  imageLimit: number;
+  isFreePlan: boolean;
+}) {
+  const [kept, setKept] = useState<string[]>(images);
+  const [pendingNames, setPendingNames] = useState<string[]>([]);
+  const full = kept.length >= imageLimit;
+  const overLimit = kept.length + pendingNames.length > imageLimit;
+  return (
+    <Box>
+      <Stack
+        direction="row"
+        sx={{ justifyContent: "space-between", alignItems: "center", mb: 1 }}
       >
-        <Typography sx={{ fontWeight: 800 }} noWrap>
-          {design.title}
+        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+          Images
         </Typography>
+        <Typography variant="caption" sx={{ color: "text.secondary" }}>
+          {kept.length}
+          {pendingNames.length ? ` + ${pendingNames.length} new` : ""} of{" "}
+          {imageLimit} on your plan
+        </Typography>
+      </Stack>
+      <input type="hidden" name="image_urls" value={kept.join("\n")} />
+      {kept.length > 0 ? (
+        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mb: 1 }}>
+          {kept.map((url) => (
+            <Box
+              key={url}
+              sx={{
+                position: "relative",
+                width: 72,
+                height: 90,
+                borderRadius: 1,
+                overflow: "hidden",
+                border: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Box
+                component="img"
+                src={url}
+                alt=""
+                sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+              <IconButton
+                size="small"
+                aria-label="Remove image"
+                onClick={() =>
+                  setKept((current) => current.filter((item) => item !== url))
+                }
+                sx={{
+                  position: "absolute",
+                  top: 2,
+                  right: 2,
+                  bgcolor: "rgba(0,0,0,0.55)",
+                  color: "#fff",
+                  "&:hover": { bgcolor: "rgba(0,0,0,0.72)" },
+                }}
+              >
+                <DeleteOutlineRounded sx={{ fontSize: 14 }} />
+              </IconButton>
+            </Box>
+          ))}
+        </Stack>
+      ) : null}
+      <Button
+        component="label"
+        variant="outlined"
+        size="small"
+        startIcon={<AddRounded />}
+        disabled={full}
+      >
+        Add images
+        <input
+          type="file"
+          name="image_files"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(event) =>
+            setPendingNames(
+              Array.from(event.target.files ?? []).map((file) => file.name),
+            )
+          }
+        />
+      </Button>
+      {pendingNames.length > 0 ? (
         <Typography
           variant="caption"
-          sx={{ color: "text.secondary", display: "block" }}
-          noWrap
+          sx={{ display: "block", mt: 0.5, color: "text.secondary" }}
         >
-          {collectionName}
+          To upload: {pendingNames.join(", ")}
         </Typography>
-        <Stack
-          direction="row"
-          spacing={0.75}
-          sx={{
-            mt: "auto",
-            pt: 1,
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: 0.5,
-          }}
+      ) : null}
+      {full ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", mt: 0.5, color: "text.secondary" }}
         >
-          <Chip size="small" variant="outlined" label={priceSummary} />
-          {design.customisation_allowed ? (
-            <Chip size="small" variant="outlined" label="Bespoke" />
-          ) : null}
+          {isFreePlan ? (
+            <>
+              You've reached the {imageLimit}-image limit on the Free plan.{" "}
+              <MuiLink component={RouterLink} to="/onboarding/billing">
+                Upgrade
+              </MuiLink>{" "}
+              to add more.
+            </>
+          ) : (
+            `Maximum ${imageLimit} images on your plan.`
+          )}
+        </Typography>
+      ) : null}
+      {overLimit ? (
+        <Alert severity="warning" sx={{ mt: 1 }}>
+          Only {imageLimit} images are allowed on your plan — extra selections
+          will be rejected on save.
+        </Alert>
+      ) : null}
+    </Box>
+  );
+}
+
+// Per-design size-band pricing, shown inside the design edit modal for
+// made-to-wear pieces (review: pricing lives in the design flow, not a separate
+// board). Each band is its own set_design_price form.
+function DesignPricesSection({
+  design,
+  sizeBands,
+  error,
+}: {
+  design: Design;
+  sizeBands: SizeBand[];
+  error?: string;
+}) {
+  const priceByBand = new Map(
+    design.prices.map((price) => [price.size_band_id, price.price_minor]),
+  );
+  return (
+    <Box sx={{ mt: 1 }}>
+      <Typography sx={{ fontWeight: 900, mb: 1 }}>Size band prices</Typography>
+      {error ? (
+        <Alert severity="warning" sx={{ mb: 1 }}>
+          {error}
+        </Alert>
+      ) : null}
+      {sizeBands.length === 0 ? (
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          Add size bands under Catalogue to price this design.
+        </Typography>
+      ) : (
+        <Stack spacing={1}>
+          {sizeBands.map((band) => (
+            <Form method="post" key={band.size_band_id}>
+              <input type="hidden" name="intent" value="set_design_price" />
+              <input type="hidden" name="design_id" value={design.design_id} />
+              <input
+                type="hidden"
+                name="size_band_id"
+                value={band.size_band_id}
+              />
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Typography sx={{ flex: 1, minWidth: 0 }} noWrap>
+                  {band.label}
+                </Typography>
+                <TextField
+                  name="price_ghs"
+                  size="small"
+                  label="Price"
+                  defaultValue={moneyInputValue(
+                    priceByBand.get(band.size_band_id) ?? null,
+                  )}
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">GHS</InputAdornment>
+                      ),
+                    },
+                    htmlInput: { inputMode: "decimal" },
+                  }}
+                  sx={{ width: 150 }}
+                />
+                <Button type="submit" size="small" variant="outlined">
+                  Save
+                </Button>
+              </Stack>
+            </Form>
+          ))}
         </Stack>
-      </Box>
-    </ButtonBase>
+      )}
+    </Box>
   );
 }
 
 function DesignRow({
   design,
   collections,
+  sizeBands,
+  storeHandle,
   defaultOpen = false,
+  priceError,
+  imageLimit,
+  isFreePlan,
 }: {
   design: Design;
   collections: CollectionSummary[];
+  sizeBands: SizeBand[];
+  storeHandle: string;
   defaultOpen?: boolean;
+  priceError?: string;
+  imageLimit: number;
+  isFreePlan: boolean;
 }) {
   const retired = design.status === "retired";
   const image = design.images[0] || fallbackDesignImage(design);
@@ -7378,6 +8332,14 @@ function DesignRow({
         ? formatGHS(lowestPriceMinor)
         : `From ${formatGHS(lowestPriceMinor)}`;
   const [editOpen, setEditOpen] = useState(defaultOpen);
+  // Made-to-Wear vs Bespoke drives which pricing field shows (review: dynamic
+  // Price/Deposit label). Controlled so the deposit field reacts immediately.
+  const [customisation, setCustomisation] = useState(
+    design.customisation_allowed,
+  );
+  // Close the edit modal once a successful update settles (review: the modal
+  // used to stay open after saving).
+  useCloseOnSuccess(setEditOpen, "update_design", false);
   return (
     <Box
       sx={{
@@ -7459,6 +8421,10 @@ function DesignRow({
             justifyContent: "flex-end",
           }}
         >
+          <CopyLinkButton
+            url={`https://${storeHandle}.xtiitch.com/design/${design.handle}`}
+            label="Copy design link"
+          />
           <Button
             type="button"
             variant="outlined"
@@ -7504,7 +8470,7 @@ function DesignRow({
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
-          <Form method="post">
+          <Form method="post" encType="multipart/form-data">
             <input type="hidden" name="intent" value="update_design" />
             <input type="hidden" name="design_id" value={design.design_id} />
             <Stack spacing={2}>
@@ -7559,22 +8525,38 @@ function DesignRow({
                     fullWidth
                     sx={{ gridColumn: { md: "1 / -1" } }}
                   />
-                  <TextField
-                    name="image_urls"
-                    label="Image URLs"
-                    defaultValue={design.images.join("\n")}
-                    size="small"
-                    multiline
-                    minRows={2}
-                    placeholder="https://..."
-                    helperText="Use one URL per line; the first image becomes the catalogue thumbnail."
-                    sx={{ gridColumn: { md: "1 / -1" } }}
-                  />
+                  <Box sx={{ gridColumn: { md: "1 / -1" } }}>
+                    <DesignImagesField
+                      images={design.images}
+                      imageLimit={imageLimit}
+                      isFreePlan={isFreePlan}
+                    />
+                  </Box>
                 </Box>
               </Box>
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 900 }}>
                   Pricing & display
+                </Typography>
+                <FormControlLabel
+                  control={
+                    <Checkbox
+                      name="customisation"
+                      checked={customisation}
+                      onChange={(event) =>
+                        setCustomisation(event.target.checked)
+                      }
+                    />
+                  }
+                  label="Allow customisation (bespoke / custom orders)"
+                />
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", mb: 1.25, color: "text.secondary" }}
+                >
+                  {customisation
+                    ? "Bespoke: the customer pays a deposit (set below). Size-band prices don't apply."
+                    : "Made-to-wear: the customer pays the size-band price (set in the price board). Deposit is N/A."}
                 </Typography>
                 <Box
                   sx={{
@@ -7595,33 +8577,28 @@ function DesignRow({
                     required
                     slotProps={{ htmlInput: { min: 0 } }}
                   />
-                  <TextField
-                    name="deposit_ghs"
-                    label="Custom deposit"
-                    defaultValue={moneyInputValue(
-                      design.deposit_override_minor,
-                    )}
-                    size="small"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
+                  {customisation ? (
+                    <TextField
+                      name="deposit_ghs"
+                      label="Deposit amount"
+                      defaultValue={moneyInputValue(
+                        design.deposit_override_minor,
+                      )}
+                      size="small"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              GHS
+                            </InputAdornment>
+                          ),
+                        },
+                        htmlInput: { inputMode: "decimal" },
+                      }}
+                    />
+                  ) : null}
                 </Box>
               </Box>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    name="customisation"
-                    defaultChecked={design.customisation_allowed}
-                  />
-                }
-                label="Allow customisation"
-              />
               <Stack
                 direction={{ xs: "column", sm: "row" }}
                 spacing={1}
@@ -7644,6 +8621,14 @@ function DesignRow({
               </Stack>
             </Stack>
           </Form>
+
+          {!customisation ? (
+            <DesignPricesSection
+              design={design}
+              sizeBands={sizeBands}
+              error={priceError}
+            />
+          ) : null}
 
           <Divider sx={{ my: 2 }} />
           <Stack
@@ -7886,10 +8871,13 @@ function MiniStat({
         </Typography>
       </Stack>
       <Typography
+        noWrap
+        title={value}
         sx={{
           mt: 0.75,
           fontWeight: 900,
-          overflowWrap: "anywhere",
+          maxWidth: "100%",
+          fontSize: value.length > 10 ? "0.95rem" : undefined,
           position: "relative",
           zIndex: 1,
         }}
@@ -8038,9 +9026,7 @@ function ReportsPanel({
     px: 1.75,
     py: 1.5,
     bgcolor: (theme) =>
-      theme.palette.mode === "dark"
-        ? alpha(tokens.white, 0.055)
-        : tokens.panel,
+      theme.palette.mode === "dark" ? alpha(tokens.white, 0.055) : tokens.panel,
     color: "text.primary",
     backgroundImage: (theme) =>
       theme.palette.mode === "dark"
@@ -8226,7 +9212,10 @@ function ReportsPanel({
                   >
                     Income mix
                   </Typography>
-                  <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary" }}
+                  >
                     {weekEntries} {weekEntries === 1 ? "entry" : "entries"} this
                     week
                   </Typography>
@@ -9159,7 +10148,10 @@ function MoneyPanel({
                     {shortDateTime(taking.taken_at)}
                   </Typography>
                   {taking.commission_minor > 0 ? (
-                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
                       Offline commission {formatGHS(taking.commission_minor)} ·{" "}
                       {formatCommissionStatus(taking.commission_status)}
                     </Typography>
@@ -9201,14 +10193,21 @@ function MoneyPanel({
 function WalkInOrderPanel({
   designs,
   sizeBands,
+  measurementFields,
   error,
 }: {
   designs: Design[];
   sizeBands: SizeBand[];
+  measurementFields: MeasurementField[];
   error?: string;
 }) {
   const activeDesigns = designs.filter((design) => design.status === "active");
   const [createOpen, setCreateOpen] = useState(false);
+  // Ready-made (priced against a size band) vs bespoke (measured, priced later).
+  const [orderType, setOrderType] = useState<"ready_made" | "bespoke">(
+    "ready_made",
+  );
+  const bespoke = orderType === "bespoke";
   return (
     <Panel
       sx={{
@@ -9297,8 +10296,29 @@ function WalkInOrderPanel({
         </DialogTitle>
         <DialogContent dividers>
           <Form method="post">
-            <input type="hidden" name="intent" value="create_walk_in_order" />
+            <input
+              type="hidden"
+              name="intent"
+              value={
+                bespoke ? "create_custom_walk_in_order" : "create_walk_in_order"
+              }
+            />
             <Stack spacing={2}>
+              <TextField
+                select
+                label="Order type"
+                size="small"
+                value={orderType}
+                onChange={(event) =>
+                  setOrderType(
+                    event.target.value as "ready_made" | "bespoke",
+                  )
+                }
+                sx={{ maxWidth: { sm: 240 } }}
+              >
+                <MenuItem value="ready_made">Ready-made (priced now)</MenuItem>
+                <MenuItem value="bespoke">Bespoke (measured, priced later)</MenuItem>
+              </TextField>
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 900 }}>
                   Order details
@@ -9331,38 +10351,97 @@ function WalkInOrderPanel({
                       </MenuItem>
                     ))}
                   </TextField>
-                  <TextField
-                    name="size_band_id"
-                    label="Size"
-                    select
-                    size="small"
-                    defaultValue=""
-                  >
-                    <MenuItem value="">No size yet</MenuItem>
-                    {sizeBands.map((band) => (
-                      <MenuItem
-                        key={band.size_band_id}
-                        value={band.size_band_id}
+                  {!bespoke ? (
+                    <>
+                      <TextField
+                        name="size_band_id"
+                        label="Size"
+                        select
+                        size="small"
+                        defaultValue=""
                       >
-                        {band.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <TextField
-                    name="agreed_total_ghs"
-                    label="Agreed total"
-                    size="small"
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">GHS</InputAdornment>
-                        ),
-                      },
-                      htmlInput: { inputMode: "decimal" },
-                    }}
-                  />
+                        <MenuItem value="">No size yet</MenuItem>
+                        {sizeBands.map((band) => (
+                          <MenuItem
+                            key={band.size_band_id}
+                            value={band.size_band_id}
+                          >
+                            {band.label}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        name="agreed_total_ghs"
+                        label="Agreed total"
+                        size="small"
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                GHS
+                              </InputAdornment>
+                            ),
+                          },
+                          htmlInput: { inputMode: "decimal" },
+                        }}
+                      />
+                    </>
+                  ) : null}
                 </Box>
+                {bespoke ? (
+                  <Typography
+                    variant="caption"
+                    sx={{ color: "text.secondary", mt: 0.5, display: "block" }}
+                  >
+                    Bespoke pricing is agreed later — set the total once the work
+                    is scoped.
+                  </Typography>
+                ) : null}
               </Box>
+              {bespoke ? (
+                <Box>
+                  <Typography sx={{ mb: 1, fontWeight: 900 }}>
+                    Measurements{" "}
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      sx={{ color: "text.secondary", fontWeight: 400 }}
+                    >
+                      (optional)
+                    </Typography>
+                  </Typography>
+                  {measurementFields.length === 0 ? (
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      Add measurement fields under Measurements to capture them
+                      here.
+                    </Typography>
+                  ) : (
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 1.25,
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          md: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      {measurementFields.map((field) => (
+                        <TextField
+                          key={field.field_id}
+                          name={`m_${field.field_id}`}
+                          label={`${field.label} (${field.unit})`}
+                          size="small"
+                          slotProps={{ htmlInput: { inputMode: "decimal" } }}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              ) : null}
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 900 }}>
                   Customer details
@@ -9730,7 +10809,11 @@ function WaitlistEntriesPanel({ entries }: { entries: WaitlistEntry[] }) {
                   {entry.note ? (
                     <Typography
                       variant="caption"
-                      sx={{ color: "text.secondary", display: "block", mt: 0.25 }}
+                      sx={{
+                        color: "text.secondary",
+                        display: "block",
+                        mt: 0.25,
+                      }}
                     >
                       “{entry.note}”
                     </Typography>
@@ -9796,11 +10879,7 @@ function StorefrontImageUploadField({
   const [picked, setPicked] = useState<string | null>(null);
   return (
     <Box>
-      <input
-        type="hidden"
-        name={`${name}_url_existing`}
-        value={currentUrl}
-      />
+      <input type="hidden" name={`${name}_url_existing`} value={currentUrl} />
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
         <Box
           sx={{
@@ -9862,6 +10941,279 @@ function StorefrontImageUploadField({
         </Box>
       </Stack>
     </Box>
+  );
+}
+
+function BusinessVerificationPanel({
+  status,
+  error,
+  success,
+}: {
+  status: string;
+  error?: string;
+  success?: string;
+}) {
+  const verified = status === "verified";
+  const pending = status === "pending";
+  const rejected = status === "rejected";
+  const tone = verified
+    ? "#1b7f4d"
+    : pending
+      ? tokens.burgundy
+      : rejected
+        ? "#b3261e"
+        : alpha(tokens.ink, 0.5);
+  const label = verified
+    ? "Verified"
+    : pending
+      ? "In review"
+      : rejected
+        ? "Rejected — resubmit"
+        : "Not verified";
+
+  return (
+    <Panel id="verification" sx={{ mt: 2 }}>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{ alignItems: "center", justifyContent: "space-between" }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <VerifiedUserRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>
+                Business verification
+              </Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Submit your Ghana Card to verify your business and take payments.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip label={label} tone={tone} />
+        </Stack>
+
+        {success ? (
+          <Alert severity="success" sx={{ mt: 2 }}>
+            {success}
+          </Alert>
+        ) : null}
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        {verified ? (
+          <Alert severity="success" sx={{ mt: 2 }}>
+            Your business is verified. There's nothing more to do here.
+          </Alert>
+        ) : (
+          <Form method="post" encType="multipart/form-data">
+            <input
+              type="hidden"
+              name="intent"
+              value="submit_identity_verification"
+            />
+            <Stack spacing={1.5} sx={{ mt: 2 }}>
+              {pending ? (
+                <Alert severity="info">
+                  Your Ghana Card is under review. You can resubmit if you need
+                  to correct anything.
+                </Alert>
+              ) : null}
+              <TextField
+                name="card_number"
+                label="Ghana Card number"
+                placeholder="GHA-000000000-0"
+                required
+                fullWidth
+              />
+              <Box>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<CloudUploadRounded />}
+                >
+                  Upload Ghana Card photo
+                  <input
+                    type="file"
+                    name="id_photo_file"
+                    accept="image/*"
+                    hidden
+                  />
+                </Button>
+                <Typography
+                  variant="caption"
+                  sx={{ display: "block", color: "text.secondary", mt: 0.5 }}
+                >
+                  A clear photo of the front of your Ghana Card.
+                </Typography>
+              </Box>
+              <Button type="submit" variant="contained">
+                {rejected || pending
+                  ? "Resubmit for review"
+                  : "Submit for verification"}
+              </Button>
+            </Stack>
+          </Form>
+        )}
+      </Box>
+    </Panel>
+  );
+}
+
+function DeliveryZonesPanel({
+  zones,
+  error,
+  success,
+}: {
+  zones: DeliveryZone[];
+  error?: string;
+  success?: string;
+}) {
+  return (
+    <Panel id="delivery-zones" sx={{ mt: 2 }}>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+          <Box sx={{ color: "primary.main" }}>
+            <LocalShippingRounded />
+          </Box>
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Delivery zones</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              The areas you deliver to and the fee added at checkout. Customers
+              choose a zone and pay its fee with their order.
+            </Typography>
+          </Box>
+        </Stack>
+
+        {success ? (
+          <Alert severity="success" sx={{ mt: 2 }}>
+            {success}
+          </Alert>
+        ) : null}
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+
+        <Stack spacing={1.5} sx={{ mt: 2 }}>
+          {zones.length === 0 ? (
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              No zones yet — add your first delivery area below.
+            </Typography>
+          ) : (
+            zones.map((zone) => (
+              <Box
+                key={zone.zone_id}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 2,
+                  p: 1.5,
+                }}
+              >
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="update_delivery_zone"
+                  />
+                  <input type="hidden" name="zone_id" value={zone.zone_id} />
+                  <input type="hidden" name="sequence" value={zone.sequence} />
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1.25}
+                    sx={{ alignItems: { sm: "center" } }}
+                  >
+                    <TextField
+                      name="name"
+                      label="Zone name"
+                      defaultValue={zone.name}
+                      size="small"
+                      fullWidth
+                      required
+                    />
+                    <TextField
+                      name="fee"
+                      label="Fee (GHS)"
+                      type="number"
+                      defaultValue={String(zone.fee_minor / 100)}
+                      size="small"
+                      required
+                      sx={{ maxWidth: { sm: 160 } }}
+                    />
+                    <FormControlLabel
+                      control={
+                        <Checkbox name="active" defaultChecked={zone.active} />
+                      }
+                      label="Visible"
+                    />
+                    <Button type="submit" variant="outlined" size="small">
+                      Save
+                    </Button>
+                  </Stack>
+                </Form>
+                <Box sx={{ mt: 1 }}>
+                  <Form method="post">
+                    <input
+                      type="hidden"
+                      name="intent"
+                      value="delete_delivery_zone"
+                    />
+                    <input type="hidden" name="zone_id" value={zone.zone_id} />
+                    <Button
+                      type="submit"
+                      color="error"
+                      size="small"
+                      startIcon={<DeleteOutlineRounded fontSize="small" />}
+                    >
+                      Remove
+                    </Button>
+                  </Form>
+                </Box>
+              </Box>
+            ))
+          )}
+
+          <Divider />
+          <Typography sx={{ fontWeight: 800 }}>Add a zone</Typography>
+          {/* Re-key on the zone count so the inputs clear after a zone is added. */}
+          <Form method="post" key={zones.length}>
+            <input type="hidden" name="intent" value="create_delivery_zone" />
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.25}
+              sx={{ alignItems: { sm: "center" } }}
+            >
+              <TextField
+                name="name"
+                label="Zone name"
+                placeholder="e.g. Accra Central"
+                size="small"
+                fullWidth
+                required
+              />
+              <TextField
+                name="fee"
+                label="Fee (GHS)"
+                type="number"
+                size="small"
+                required
+                sx={{ maxWidth: { sm: 160 } }}
+              />
+              <Button type="submit" variant="contained" size="small">
+                Add zone
+              </Button>
+            </Stack>
+          </Form>
+        </Stack>
+      </Box>
+    </Panel>
   );
 }
 
@@ -10220,14 +11572,405 @@ function StoreSettingsPanel({
   );
 }
 
+// useCloseOnSuccess closes a dialog once its own form submission settles without
+// a surfaced error — the dashboard-wide rule that modals close on success.
+function useCloseOnSuccess(
+  setOpen: (open: boolean) => void,
+  intent: string,
+  errorPresent: boolean,
+) {
+  const navigation = useNavigation();
+  const submittedRef = useRef(false);
+  useEffect(() => {
+    if (
+      navigation.state === "submitting" &&
+      navigation.formData?.get("intent") === intent
+    ) {
+      submittedRef.current = true;
+    } else if (navigation.state === "idle" && submittedRef.current) {
+      submittedRef.current = false;
+      if (!errorPresent) {
+        setOpen(false);
+      }
+    }
+  }, [navigation.state, navigation.formData, intent, errorPresent, setOpen]);
+}
+
+function CollectionEditButton({
+  collection,
+  error,
+}: {
+  collection: CollectionSummary;
+  error?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  useCloseOnSuccess(setOpen, "update_collection", Boolean(error));
+  return (
+    <>
+      <Button size="small" variant="outlined" onClick={() => setOpen(true)}>
+        Edit
+      </Button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Edit collection</DialogTitle>
+        <DialogContent>
+          {error ? (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              {error}
+            </Alert>
+          ) : null}
+          {open ? (
+            <Form method="post">
+              <input type="hidden" name="intent" value="update_collection" />
+              <input
+                type="hidden"
+                name="collection_id"
+                value={collection.collection_id}
+              />
+              <Stack spacing={1.5} sx={{ mt: 0.5 }}>
+                <TextField
+                  name="name"
+                  label="Name"
+                  size="small"
+                  defaultValue={collection.name}
+                  required
+                />
+                <TextField
+                  name="theme"
+                  label="Theme"
+                  size="small"
+                  defaultValue={collection.theme}
+                />
+                <TextField
+                  name="sequence"
+                  label="Display order"
+                  type="number"
+                  size="small"
+                  defaultValue={collection.sequence}
+                  slotProps={{ htmlInput: { min: 0 } }}
+                  helperText="0 keeps the current position."
+                />
+                <Stack
+                  direction="row"
+                  spacing={1}
+                  sx={{ justifyContent: "flex-end" }}
+                >
+                  <Button onClick={() => setOpen(false)}>Cancel</Button>
+                  <Button type="submit" variant="contained">
+                    Save
+                  </Button>
+                </Stack>
+              </Stack>
+            </Form>
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+// SizeBandForm is the size-band editor body (label, order, and the measurement
+// chart). It mounts fresh each time its dialog opens, so chart rows always seed
+// from the band's saved chart.
+function SizeBandForm({
+  band,
+  onCancel,
+}: {
+  band: SizeBand;
+  onCancel: () => void;
+}) {
+  const [rows, setRows] = useState<SizeChartItem[]>(
+    (band.chart ?? []).map((row) => ({ ...row })),
+  );
+  const updateRow = (index: number, patch: Partial<SizeChartItem>) =>
+    setRows((current) =>
+      current.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  return (
+    <Form method="post">
+      <input type="hidden" name="intent" value="update_size_band" />
+      <input type="hidden" name="size_band_id" value={band.size_band_id} />
+      <input type="hidden" name="chart_json" value={JSON.stringify(rows)} />
+      <Stack spacing={1.5} sx={{ mt: 0.5 }}>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <TextField
+            name="label"
+            label="Size label"
+            size="small"
+            defaultValue={band.label}
+            required
+            fullWidth
+          />
+          <TextField
+            name="sequence"
+            label="Order"
+            type="number"
+            size="small"
+            defaultValue={band.sequence}
+            slotProps={{ htmlInput: { min: 0 } }}
+            sx={{ width: { sm: 120 } }}
+            helperText="0 keeps position"
+          />
+        </Stack>
+        <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+          Size chart
+        </Typography>
+        {rows.length === 0 ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            No measurements yet — add bust, waist, neck, etc.
+          </Typography>
+        ) : (
+          rows.map((row, index) => (
+            <Stack
+              key={index}
+              direction="row"
+              spacing={1}
+              sx={{ alignItems: "center" }}
+            >
+              <TextField
+                label="Measurement"
+                size="small"
+                value={row.name}
+                onChange={(event) =>
+                  updateRow(index, { name: event.target.value })
+                }
+                placeholder="Bust"
+                fullWidth
+              />
+              <TextField
+                label="Value"
+                size="small"
+                value={row.value}
+                onChange={(event) =>
+                  updateRow(index, { value: event.target.value })
+                }
+                placeholder="36"
+                sx={{ width: 90 }}
+              />
+              <TextField
+                select
+                label="Unit"
+                size="small"
+                value={SIZE_CHART_UNITS.includes(row.unit) ? row.unit : "in"}
+                onChange={(event) =>
+                  updateRow(index, { unit: event.target.value })
+                }
+                sx={{ width: 100 }}
+              >
+                {SIZE_CHART_UNITS.map((unit) => (
+                  <MenuItem key={unit} value={unit}>
+                    {unit}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Tooltip title="Remove measurement">
+                <IconButton
+                  aria-label="Remove measurement"
+                  onClick={() =>
+                    setRows((current) => current.filter((_, i) => i !== index))
+                  }
+                >
+                  <DeleteOutlineRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          ))
+        )}
+        <Button
+          startIcon={<AddRounded />}
+          onClick={() =>
+            setRows((current) => [
+              ...current,
+              { name: "", value: "", unit: "in" },
+            ])
+          }
+          sx={{ alignSelf: "flex-start" }}
+        >
+          Add measurement
+        </Button>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+          <Button onClick={onCancel}>Cancel</Button>
+          <Button type="submit" variant="contained">
+            Save size band
+          </Button>
+        </Stack>
+      </Stack>
+    </Form>
+  );
+}
+
+function SizeBandEditButton({
+  band,
+  error,
+}: {
+  band: SizeBand;
+  error?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  useCloseOnSuccess(setOpen, "update_size_band", Boolean(error));
+  return (
+    <>
+      <Button size="small" variant="outlined" onClick={() => setOpen(true)}>
+        Edit
+      </Button>
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Edit size band &amp; chart</DialogTitle>
+        <DialogContent>
+          {error ? (
+            <Alert severity="warning" sx={{ mb: 1.5 }}>
+              {error}
+            </Alert>
+          ) : null}
+          {open ? (
+            <SizeBandForm band={band} onCancel={() => setOpen(false)} />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
+function SizeBandDeleteButton({ band }: { band: SizeBand }) {
+  return (
+    <Form
+      method="post"
+      onSubmit={(event) => {
+        if (
+          !window.confirm(
+            `Delete size band "${band.label}"? This also removes its design prices.`,
+          )
+        ) {
+          event.preventDefault();
+        }
+      }}
+    >
+      <input type="hidden" name="intent" value="delete_size_band" />
+      <input type="hidden" name="size_band_id" value={band.size_band_id} />
+      <Tooltip title="Delete size band">
+        <IconButton
+          type="submit"
+          color="error"
+          size="small"
+          aria-label={`Delete ${band.label}`}
+        >
+          <DeleteOutlineRounded fontSize="small" />
+        </IconButton>
+      </Tooltip>
+    </Form>
+  );
+}
+
+// Read-only mirror of the catalogue size-band library, shown on the Measurements
+// page so the same size bands + charts back both surfaces (review: the
+// measurement section should reflect the master size-band library).
+function SizeBandLibraryPanel({ sizeBands }: { sizeBands: SizeBand[] }) {
+  return (
+    <Panel sx={{ mt: 2 }}>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
+        >
+          <Box sx={{ color: "primary.main" }}>
+            <StraightenRounded />
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontWeight: 900 }}>Size band library</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Your size bands and their charts. Customers see these measurements
+              when choosing a size. Edit them under Catalogue.
+            </Typography>
+          </Box>
+          <Button
+            component={RouterLink}
+            to="/dashboard/catalogue"
+            size="small"
+            variant="outlined"
+          >
+            Manage size bands
+          </Button>
+        </Stack>
+        {sizeBands.length === 0 ? (
+          <Box sx={{ mt: 2 }}>
+            <InlineEmptyState
+              icon={<StraightenRounded sx={{ fontSize: 34 }} />}
+              title="No size bands yet"
+              helper="Add size bands and their charts under Catalogue to reuse them here."
+            />
+          </Box>
+        ) : (
+          <Stack spacing={1.25} sx={{ mt: 2 }}>
+            {sizeBands.map((band) => {
+              const chart = band.chart ?? [];
+              return (
+                <Box
+                  key={band.size_band_id}
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    bgcolor: "rgba(var(--surface-rgb), 0.72)",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 800 }}>
+                    {band.label} · #{band.sequence}
+                  </Typography>
+                  {chart.length === 0 ? (
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      No size chart yet.
+                    </Typography>
+                  ) : (
+                    <Box
+                      sx={{
+                        mt: 0.75,
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 0.75,
+                      }}
+                    >
+                      {chart.map((item, index) => (
+                        <ToneChip
+                          key={index}
+                          tone={tokens.info}
+                          label={`${item.name}: ${item.value} ${item.unit}`}
+                        />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              );
+            })}
+          </Stack>
+        )}
+      </Box>
+    </Panel>
+  );
+}
+
 function CatalogueSetupPanel({
   collections,
   sizeBands,
+  storeHandle,
   collectionError,
   sizeBandError,
 }: {
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
+  storeHandle: string;
   collectionError?: string;
   sizeBandError?: string;
 }) {
@@ -10353,7 +12096,19 @@ function CatalogueSetupPanel({
                     {collection.sequence}
                   </Typography>
                 </Box>
-                <Stack direction="row" spacing={0.75}>
+                <Stack
+                  direction="row"
+                  spacing={0.75}
+                  sx={{ alignItems: "center" }}
+                >
+                  <CopyLinkButton
+                    url={`https://${storeHandle}.xtiitch.com/collection/${collection.handle}`}
+                    label="Copy collection link"
+                  />
+                  <CollectionEditButton
+                    collection={collection}
+                    error={collectionError}
+                  />
                   <Form method="post">
                     <input
                       type="hidden"
@@ -10480,24 +12235,56 @@ function CatalogueSetupPanel({
             helper="Add sizes before setting per-design prices."
           />
         ) : (
-          <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
-            {pagedSizeBands.map((band) => (
-              <ToneChip
-                key={band.size_band_id}
-                label={`${band.label} · #${band.sequence}`}
-                tone={tokens.info}
-              />
-            ))}
-            <Box sx={{ flexBasis: "100%", width: "100%" }}>
-              <PaginationFooter
-                count={sizeBandPageCount}
-                label="size bands"
-                page={sizeBandPage}
-                pageSize={12}
-                total={sizeBands.length}
-                onChange={setSizeBandPage}
-              />
-            </Box>
+          <Stack spacing={1}>
+            {pagedSizeBands.map((band) => {
+              const chartCount = band.chart?.length ?? 0;
+              return (
+                <Stack
+                  key={band.size_band_id}
+                  direction="row"
+                  spacing={1}
+                  sx={{
+                    p: 1,
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    borderRadius: 2,
+                    bgcolor: "rgba(var(--surface-rgb), 0.72)",
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 800 }} noWrap>
+                      {band.label} · #{band.sequence}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {chartCount === 0
+                        ? "No size chart"
+                        : `${chartCount} measurement${chartCount === 1 ? "" : "s"}`}
+                    </Typography>
+                  </Box>
+                  <Stack
+                    direction="row"
+                    spacing={0.75}
+                    sx={{ alignItems: "center" }}
+                  >
+                    <SizeBandEditButton band={band} error={sizeBandError} />
+                    <SizeBandDeleteButton band={band} />
+                  </Stack>
+                </Stack>
+              );
+            })}
+            <PaginationFooter
+              count={sizeBandPageCount}
+              label="size bands"
+              page={sizeBandPage}
+              pageSize={12}
+              total={sizeBands.length}
+              onChange={setSizeBandPage}
+            />
           </Stack>
         )}
       </Panel>
@@ -11744,11 +13531,7 @@ function TeamPanel({
     pageCount: userPageCount,
     pagedItems: pagedUsers,
     setPage: setUserPage,
-  } = usePagedItems(
-    filteredUsers,
-    8,
-    `${query}:${roleFilter}:${statusFilter}`,
-  );
+  } = usePagedItems(filteredUsers, 8, `${query}:${roleFilter}:${statusFilter}`);
   const selectedUser =
     users.find((user) => user.business_user_id === detailID) ?? null;
 
@@ -12787,127 +14570,130 @@ function HandoverPanel({
       ) : (
         <>
           {pagedHandovers.map((handover) => {
-          const active = canAdvanceHandover(handover.status);
-          return (
-            <Box
-              key={handover.handover_id}
-              sx={{
-                px: { xs: 2, md: 2.5 },
-                py: 1.75,
-                borderTop: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Stack spacing={1.5}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  sx={{
-                    alignItems: { xs: "flex-start", sm: "center" },
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 900 }} noWrap>
-                      {handover.customer_name || "Customer"} ·{" "}
-                      {handover.design_title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      {formatMethod(handover.method)} ·{" "}
-                      {shortDateTime(handover.created_at)}
-                    </Typography>
-                  </Box>
-                  <ToneChip
-                    label={handover.status}
-                    tone={handoverTone(handover.status)}
+            const active = canAdvanceHandover(handover.status);
+            return (
+              <Box
+                key={handover.handover_id}
+                sx={{
+                  px: { xs: 2, md: 2.5 },
+                  py: 1.75,
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                }}
+              >
+                <Stack spacing={1.5}>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={1}
+                    sx={{
+                      alignItems: { xs: "flex-start", sm: "center" },
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 900 }} noWrap>
+                        {handover.customer_name || "Customer"} ·{" "}
+                        {handover.design_title}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {formatMethod(handover.method)} ·{" "}
+                        {shortDateTime(handover.created_at)}
+                      </Typography>
+                    </Box>
+                    <ToneChip
+                      label={handover.status}
+                      tone={handoverTone(handover.status)}
+                    />
+                  </Stack>
+                  <InfoStrip
+                    icon={<PhoneRounded />}
+                    tone={tokens.info}
+                    title={
+                      handover.recipient_phone ||
+                      handover.customer_phone ||
+                      "No phone captured"
+                    }
+                    helper={
+                      handover.address ||
+                      handover.recipient_name ||
+                      handover.note ||
+                      "Pickup from shop"
+                    }
                   />
-                </Stack>
-                <InfoStrip
-                  icon={<PhoneRounded />}
-                  tone={tokens.info}
-                  title={
-                    handover.recipient_phone ||
-                    handover.customer_phone ||
-                    "No phone captured"
-                  }
-                  helper={
-                    handover.address ||
-                    handover.recipient_name ||
-                    handover.note ||
-                    "Pickup from shop"
-                  }
-                />
-                <Stack
-                  direction={{ xs: "column", md: "row" }}
-                  spacing={1}
-                  sx={{ alignItems: { xs: "stretch", md: "center" } }}
-                >
-                  <Form method="post" style={{ flex: 1 }}>
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="advance_handover"
-                    />
-                    <input
-                      type="hidden"
-                      name="handover_id"
-                      value={handover.handover_id}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        name="courier"
-                        label="Courier"
-                        size="small"
-                        defaultValue={handover.courier}
-                        disabled={!active}
-                        fullWidth
+                  <Stack
+                    direction={{ xs: "column", md: "row" }}
+                    spacing={1}
+                    sx={{ alignItems: { xs: "stretch", md: "center" } }}
+                  >
+                    <Form method="post" style={{ flex: 1 }}>
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="advance_handover"
                       />
-                      <TextField
-                        name="note"
-                        label="Note"
-                        size="small"
-                        defaultValue={handover.note}
-                        disabled={!active}
-                        fullWidth
+                      <input
+                        type="hidden"
+                        name="handover_id"
+                        value={handover.handover_id}
+                      />
+                      <Stack
+                        direction={{ xs: "column", sm: "row" }}
+                        spacing={1}
+                      >
+                        <TextField
+                          name="courier"
+                          label="Courier"
+                          size="small"
+                          defaultValue={handover.courier}
+                          disabled={!active}
+                          fullWidth
+                        />
+                        <TextField
+                          name="note"
+                          label="Note"
+                          size="small"
+                          defaultValue={handover.note}
+                          disabled={!active}
+                          fullWidth
+                        />
+                        <Button
+                          type="submit"
+                          variant="outlined"
+                          disabled={!active}
+                          sx={{ minWidth: 150 }}
+                        >
+                          {handoverActionLabel(handover)}
+                        </Button>
+                      </Stack>
+                    </Form>
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value="cancel_handover"
+                      />
+                      <input
+                        type="hidden"
+                        name="handover_id"
+                        value={handover.handover_id}
                       />
                       <Button
                         type="submit"
                         variant="outlined"
+                        color="error"
                         disabled={!active}
-                        sx={{ minWidth: 150 }}
+                        fullWidth
                       >
-                        {handoverActionLabel(handover)}
+                        Cancel
                       </Button>
-                    </Stack>
-                  </Form>
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="cancel_handover"
-                    />
-                    <input
-                      type="hidden"
-                      name="handover_id"
-                      value={handover.handover_id}
-                    />
-                    <Button
-                      type="submit"
-                      variant="outlined"
-                      color="error"
-                      disabled={!active}
-                      fullWidth
-                    >
-                      Cancel
-                    </Button>
-                  </Form>
+                    </Form>
+                  </Stack>
                 </Stack>
-              </Stack>
-            </Box>
-          );
+              </Box>
+            );
           })}
           <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
             <PaginationFooter
@@ -13182,6 +14968,7 @@ export default function Dashboard({
     sizeBands,
     promotions,
     waitlistEntries,
+    deliveryZones,
     section,
     orderFilter,
     dataWarnings,
@@ -13205,17 +14992,44 @@ export default function Dashboard({
   );
   const { isDark: darkChrome, toggleMode } = useThemeMode();
   const [catalogueView, setCatalogueView] = useState<"all" | "add">("all");
+  // Add-design pricing mode: Bespoke shows a deposit field, Made-to-Wear hides it
+  // (prices are set per size band). Mirrors the edit modal's dynamic label.
+  const [addCustomisation, setAddCustomisation] = useState(false);
+  const [designLimitDialogOpen, setDesignLimitDialogOpen] = useState(false);
   const [openDesignId, setOpenDesignId] = useState<string | null>(null);
+  // Design-studio filters: by collection and by type (made-to-wear / bespoke).
+  const [designCollectionFilter, setDesignCollectionFilter] =
+    useState<string>("all");
+  const [designTypeFilter, setDesignTypeFilter] = useState<
+    "all" | "made_to_wear" | "bespoke"
+  >("all");
   const openCatalogueDesign =
     openDesignId === null
       ? null
       : (designs.find((design) => design.design_id === openDesignId) ?? null);
+  const filteredCatalogueDesigns = designs.filter((design) => {
+    const collectionOk =
+      designCollectionFilter === "all" ||
+      (designCollectionFilter === "none"
+        ? !design.collection_id
+        : design.collection_id === designCollectionFilter);
+    const typeOk =
+      designTypeFilter === "all" ||
+      (designTypeFilter === "bespoke"
+        ? design.customisation_allowed
+        : !design.customisation_allowed);
+    return collectionOk && typeOk;
+  });
   const {
     page: cataloguePage,
     pageCount: cataloguePageCount,
     pagedItems: pagedCatalogueDesigns,
     setPage: setCataloguePage,
-  } = usePagedItems(designs, 8, `${catalogueView}:${designs.length}`);
+  } = usePagedItems(
+    filteredCatalogueDesigns,
+    8,
+    `${catalogueView}:${designCollectionFilter}:${designTypeFilter}:${filteredCatalogueDesigns.length}`,
+  );
   const {
     page: measurementFieldPage,
     pageCount: measurementFieldPageCount,
@@ -13224,6 +15038,12 @@ export default function Dashboard({
   } = usePagedItems(measurementFields, 8, measurementFields.length);
   const verified = profile.verification_status === "verified";
   const canManage = canManageDashboard(currentUser.role);
+  // Plan-driven design limits (mirrors the API): free plan caps images at 2 and
+  // designs at ~10; paid plans allow 5 images and unlimited designs.
+  const isFreePlan = profile.plan === "free";
+  const imageLimit = isFreePlan ? 2 : 5;
+  const designLimit = isFreePlan ? 10 : null;
+  const atDesignLimit = designLimit !== null && designs.length >= designLimit;
   const workspaceGroups = canManage
     ? managementWorkspaceGroups
     : staffWorkspaceGroups;
@@ -13558,6 +15378,37 @@ export default function Dashboard({
         onClose={() => setHelpOpen(false)}
         section={section}
       />
+      <Dialog
+        open={designLimitDialogOpen}
+        onClose={() => setDesignLimitDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>Design limit reached</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2, color: "text.secondary" }}>
+            You've added the maximum {designLimit} designs allowed on the Free
+            plan. Upgrade to a paid plan to publish more designs.
+          </Typography>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ justifyContent: "flex-end" }}
+          >
+            <Button onClick={() => setDesignLimitDialogOpen(false)}>
+              Not now
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/onboarding/billing"
+              variant="contained"
+              startIcon={<TrendingUpRounded />}
+            >
+              Upgrade plan
+            </Button>
+          </Stack>
+        </DialogContent>
+      </Dialog>
       <ProductTour
         open={tourOpen}
         onClose={() => {
@@ -13904,6 +15755,7 @@ export default function Dashboard({
                           <WalkInOrderPanel
                             designs={designs}
                             sizeBands={sizeBands}
+                            measurementFields={measurementFields}
                             error={action.walkInError}
                           />
                         </Box>
@@ -13960,20 +15812,12 @@ export default function Dashboard({
                             {action.measurementError}
                           </Alert>
                         ) : null}
-                        {filteredOrders.length === 0 ? (
-                          <EmptyState
-                            icon={<CheckCircleRounded sx={{ fontSize: 42 }} />}
-                            title="No orders in this view"
-                            helper="New checkout, custom, and walk-in orders will land here as soon as they are created."
-                          />
-                        ) : (
-                          <OrdersTable
-                            orders={filteredOrders}
-                            returnTo={returnTo}
-                            measurementFields={measurementFields}
-                            showMoneyDetails={canManage}
-                          />
-                        )}
+                        <OrdersWorkspace
+                          orders={filteredOrders}
+                          returnTo={returnTo}
+                          measurementFields={measurementFields}
+                          showMoneyDetails={canManage}
+                        />
                       </Stack>
                     </Box>
                   ) : null}
@@ -14017,20 +15861,42 @@ export default function Dashboard({
                         >
                           All designs ({designs.length})
                         </Button>
-                        <Button
-                          variant={
-                            !openCatalogueDesign && catalogueView === "add"
-                              ? "contained"
-                              : "outlined"
+                        <Tooltip
+                          title={
+                            atDesignLimit
+                              ? `You've reached the ${designLimit}-design limit on the Free plan`
+                              : ""
                           }
-                          onClick={() => {
-                            setOpenDesignId(null);
-                            setCatalogueView("add");
-                          }}
-                          startIcon={<AddRounded />}
                         >
-                          Add design
-                        </Button>
+                          <Button
+                            variant={
+                              !openCatalogueDesign && catalogueView === "add"
+                                ? "contained"
+                                : "outlined"
+                            }
+                            onClick={() => {
+                              if (atDesignLimit) {
+                                setDesignLimitDialogOpen(true);
+                                return;
+                              }
+                              setOpenDesignId(null);
+                              setCatalogueView("add");
+                            }}
+                            startIcon={
+                              atDesignLimit ? <LockRounded /> : <AddRounded />
+                            }
+                            sx={
+                              atDesignLimit
+                                ? {
+                                    color: "text.disabled",
+                                    borderColor: "divider",
+                                  }
+                                : undefined
+                            }
+                          >
+                            Add design
+                          </Button>
+                        </Tooltip>
                         {openCatalogueDesign ? (
                           <ToneChip
                             label={`Editing: ${openCatalogueDesign.title}`}
@@ -14071,7 +15937,12 @@ export default function Dashboard({
                               key={openCatalogueDesign.design_id}
                               design={openCatalogueDesign}
                               collections={collections}
+                              sizeBands={sizeBands}
+                              storeHandle={profile.handle}
                               defaultOpen
+                              priceError={action.priceError}
+                              imageLimit={imageLimit}
+                              isFreePlan={isFreePlan}
                             />
                           </Panel>
                         </Box>
@@ -14174,6 +16045,31 @@ export default function Dashboard({
                                     helper="JPG, PNG, or WebP up to 10 MB — uploaded to your gallery as the first catalogue image."
                                   />
                                 </Box>
+                                <FormControlLabel
+                                  control={
+                                    <Checkbox
+                                      name="customisation"
+                                      checked={addCustomisation}
+                                      onChange={(event) =>
+                                        setAddCustomisation(
+                                          event.target.checked,
+                                        )
+                                      }
+                                    />
+                                  }
+                                  label="Allow customisation (bespoke / custom orders)"
+                                />
+                                <Typography
+                                  variant="caption"
+                                  sx={{
+                                    display: "block",
+                                    color: "text.secondary",
+                                  }}
+                                >
+                                  {addCustomisation
+                                    ? "Bespoke: the customer pays a deposit (set below); size-band prices don't apply."
+                                    : "Made-to-wear: the customer pays the size-band price (set in the price board). Deposit is N/A."}
+                                </Typography>
                                 <Box
                                   sx={{
                                     display: "grid",
@@ -14191,25 +16087,23 @@ export default function Dashboard({
                                     defaultValue={designs.length + 1}
                                     slotProps={{ htmlInput: { min: 0 } }}
                                   />
-                                  <TextField
-                                    name="deposit_ghs"
-                                    label="Custom deposit"
-                                    slotProps={{
-                                      input: {
-                                        startAdornment: (
-                                          <InputAdornment position="start">
-                                            GHS
-                                          </InputAdornment>
-                                        ),
-                                      },
-                                      htmlInput: { inputMode: "decimal" },
-                                    }}
-                                  />
+                                  {addCustomisation ? (
+                                    <TextField
+                                      name="deposit_ghs"
+                                      label="Deposit amount"
+                                      slotProps={{
+                                        input: {
+                                          startAdornment: (
+                                            <InputAdornment position="start">
+                                              GHS
+                                            </InputAdornment>
+                                          ),
+                                        },
+                                        htmlInput: { inputMode: "decimal" },
+                                      }}
+                                    />
+                                  ) : null}
                                 </Box>
-                                <FormControlLabel
-                                  control={<Checkbox name="customisation" />}
-                                  label="Allow customisation"
-                                />
                                 <Button
                                   type="submit"
                                   variant="contained"
@@ -14304,43 +16198,137 @@ export default function Dashboard({
                             </Panel>
                           ) : (
                             <>
-                              <Box
+                              <Stack
+                                direction="row"
+                                spacing={1}
                                 sx={{
                                   mt: 2,
-                                  display: "grid",
-                                  gap: 1.5,
-                                  gridTemplateColumns: {
-                                    xs: "1fr",
-                                    sm: "repeat(2, minmax(0, 1fr))",
-                                    md: "repeat(3, minmax(0, 1fr))",
-                                    xl: "repeat(4, minmax(0, 1fr))",
-                                  },
+                                  flexWrap: "wrap",
+                                  gap: 1,
+                                  alignItems: "center",
                                 }}
                               >
-                                {pagedCatalogueDesigns.map((design) => (
-                                  <DesignCard
-                                    key={design.design_id}
-                                    design={design}
-                                    collections={collections}
-                                    onOpen={() =>
-                                      setOpenDesignId(design.design_id)
+                                <TextField
+                                  select
+                                  size="small"
+                                  label="Collection"
+                                  value={designCollectionFilter}
+                                  onChange={(event) =>
+                                    setDesignCollectionFilter(
+                                      event.target.value,
+                                    )
+                                  }
+                                  sx={{ minWidth: 180 }}
+                                >
+                                  <MenuItem value="all">
+                                    All collections
+                                  </MenuItem>
+                                  <MenuItem value="none">
+                                    No collection
+                                  </MenuItem>
+                                  {collections
+                                    .filter(
+                                      (collection) =>
+                                        collection.status === "active",
+                                    )
+                                    .map((collection) => (
+                                      <MenuItem
+                                        key={collection.collection_id}
+                                        value={collection.collection_id}
+                                      >
+                                        {collection.name}
+                                      </MenuItem>
+                                    ))}
+                                </TextField>
+                                <TextField
+                                  select
+                                  size="small"
+                                  label="Type"
+                                  value={designTypeFilter}
+                                  onChange={(event) =>
+                                    setDesignTypeFilter(
+                                      event.target.value as
+                                        | "all"
+                                        | "made_to_wear"
+                                        | "bespoke",
+                                    )
+                                  }
+                                  sx={{ minWidth: 160 }}
+                                >
+                                  <MenuItem value="all">All types</MenuItem>
+                                  <MenuItem value="made_to_wear">
+                                    Made-to-wear
+                                  </MenuItem>
+                                  <MenuItem value="bespoke">Bespoke</MenuItem>
+                                </TextField>
+                                {designCollectionFilter !== "all" ||
+                                designTypeFilter !== "all" ? (
+                                  <Button
+                                    size="small"
+                                    onClick={() => {
+                                      setDesignCollectionFilter("all");
+                                      setDesignTypeFilter("all");
+                                    }}
+                                  >
+                                    Clear filters
+                                  </Button>
+                                ) : null}
+                              </Stack>
+                              {filteredCatalogueDesigns.length === 0 ? (
+                                <Box sx={{ mt: 2 }}>
+                                  <InlineEmptyState
+                                    icon={
+                                      <DesignServicesRounded
+                                        sx={{ fontSize: 34 }}
+                                      />
                                     }
+                                    title="No designs match"
+                                    helper="Try a different collection or design type."
                                   />
-                                ))}
-                              </Box>
-                              <PaginationFooter
-                                count={cataloguePageCount}
-                                label="designs"
-                                page={cataloguePage}
-                                total={designs.length}
-                                onChange={setCataloguePage}
-                              />
+                                </Box>
+                              ) : (
+                                <>
+                                  <Box
+                                    sx={{
+                                      mt: 2,
+                                      display: "grid",
+                                      gap: 1.5,
+                                      gridTemplateColumns: {
+                                        xs: "1fr",
+                                        sm: "repeat(2, minmax(0, 1fr))",
+                                        md: "repeat(3, minmax(0, 1fr))",
+                                        xl: "repeat(4, minmax(0, 1fr))",
+                                      },
+                                    }}
+                                  >
+                                    {pagedCatalogueDesigns.map((design) => (
+                                      <DesignCard
+                                        key={design.design_id}
+                                        design={design}
+                                        collections={collections}
+                                        storeHandle={profile.handle}
+                                        onOpen={() =>
+                                          setOpenDesignId(design.design_id)
+                                        }
+                                      />
+                                    ))}
+                                  </Box>
+                                  <PaginationFooter
+                                    count={cataloguePageCount}
+                                    label="designs"
+                                    page={cataloguePage}
+                                    total={filteredCatalogueDesigns.length}
+                                    onChange={setCataloguePage}
+                                  />
+                                </>
+                              )}
                             </>
                           )}
                           <Box sx={{ mt: 2 }}>
                             <CatalogueSetupPanel
                               collections={collections}
                               sizeBands={sizeBands}
+                              storeHandle={profile.handle}
                               collectionError={action.collectionError}
                               sizeBandError={action.sizeBandError}
                             />
@@ -14361,120 +16349,123 @@ export default function Dashboard({
 
               <Stack spacing={2.5} sx={{ minWidth: 0 }}>
                 {canManage && section === "measurements" ? (
-                  <Panel id="measurements">
-                    <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                      <Stack
-                        direction="row"
-                        spacing={1.25}
-                        sx={{ alignItems: "center" }}
-                      >
-                        <Box sx={{ color: "primary.main" }}>
-                          <StraightenRounded />
-                        </Box>
-                        <Box>
-                          <Typography sx={{ fontWeight: 900 }}>
-                            Measurement setup
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            Define the fields used for self, visit, and shop
-                            measurements.
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      {action.fieldError ? (
-                        <Alert severity="warning" sx={{ mt: 2 }}>
-                          {action.fieldError}
-                        </Alert>
-                      ) : null}
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="create_measurement_field"
-                        />
-                        <Box
-                          sx={{
-                            mt: 2,
-                            display: "grid",
-                            gap: 1.25,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              sm: "minmax(0, 1fr) 96px 96px",
-                            },
-                          }}
+                  <>
+                    <Panel id="measurements">
+                      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                        <Stack
+                          direction="row"
+                          spacing={1.25}
+                          sx={{ alignItems: "center" }}
                         >
-                          <TextField
-                            name="label"
-                            label="Field label"
-                            placeholder="Chest"
-                            size="small"
-                            required
+                          <Box sx={{ color: "primary.main" }}>
+                            <StraightenRounded />
+                          </Box>
+                          <Box>
+                            <Typography sx={{ fontWeight: 900 }}>
+                              Measurement setup
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ color: "text.secondary" }}
+                            >
+                              Define the fields used for self, visit, and shop
+                              measurements.
+                            </Typography>
+                          </Box>
+                        </Stack>
+                        {action.fieldError ? (
+                          <Alert severity="warning" sx={{ mt: 2 }}>
+                            {action.fieldError}
+                          </Alert>
+                        ) : null}
+                        <Form method="post">
+                          <input
+                            type="hidden"
+                            name="intent"
+                            value="create_measurement_field"
                           />
-                          <TextField
-                            name="unit"
-                            label="Unit"
-                            select
-                            defaultValue="in"
-                            size="small"
+                          <Box
+                            sx={{
+                              mt: 2,
+                              display: "grid",
+                              gap: 1.25,
+                              gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "minmax(0, 1fr) 96px 96px",
+                              },
+                            }}
                           >
-                            {fieldUnits.map((unit) => (
-                              <MenuItem key={unit.value} value={unit.value}>
-                                {unit.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                          <TextField
-                            name="sequence"
-                            label="Order"
-                            type="number"
-                            defaultValue={nextFieldSequence}
-                            size="small"
-                            slotProps={{ htmlInput: { min: 0 } }}
-                            required
-                          />
-                        </Box>
-                        <Button
-                          type="submit"
-                          variant="contained"
-                          startIcon={<AddRounded />}
-                          sx={{ mt: 1.5 }}
-                        >
-                          Add field
-                        </Button>
-                      </Form>
-                    </Box>
-
-                    {measurementFields.length === 0 ? (
-                      <Box sx={{ px: 2.5, pb: 2.5 }}>
-                        <EmptyState
-                          icon={<StraightenRounded sx={{ fontSize: 38 }} />}
-                          title="No measurement fields yet"
-                          helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
-                        />
+                            <TextField
+                              name="label"
+                              label="Field label"
+                              placeholder="Chest"
+                              size="small"
+                              required
+                            />
+                            <TextField
+                              name="unit"
+                              label="Unit"
+                              select
+                              defaultValue="in"
+                              size="small"
+                            >
+                              {fieldUnits.map((unit) => (
+                                <MenuItem key={unit.value} value={unit.value}>
+                                  {unit.label}
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            <TextField
+                              name="sequence"
+                              label="Order"
+                              type="number"
+                              defaultValue={nextFieldSequence}
+                              size="small"
+                              slotProps={{ htmlInput: { min: 0 } }}
+                              required
+                            />
+                          </Box>
+                          <Button
+                            type="submit"
+                            variant="contained"
+                            startIcon={<AddRounded />}
+                            sx={{ mt: 1.5 }}
+                          >
+                            Add field
+                          </Button>
+                        </Form>
                       </Box>
-                    ) : (
-                      <>
-                        {pagedMeasurementFields.map((field) => (
-                          <MeasurementFieldRow
-                            key={field.field_id}
-                            field={field}
-                          />
-                        ))}
-                        <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-                          <PaginationFooter
-                            count={measurementFieldPageCount}
-                            label="measurement fields"
-                            page={measurementFieldPage}
-                            total={measurementFields.length}
-                            onChange={setMeasurementFieldPage}
+
+                      {measurementFields.length === 0 ? (
+                        <Box sx={{ px: 2.5, pb: 2.5 }}>
+                          <EmptyState
+                            icon={<StraightenRounded sx={{ fontSize: 38 }} />}
+                            title="No measurement fields yet"
+                            helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
                           />
                         </Box>
-                      </>
-                    )}
-                  </Panel>
+                      ) : (
+                        <>
+                          {pagedMeasurementFields.map((field) => (
+                            <MeasurementFieldRow
+                              key={field.field_id}
+                              field={field}
+                            />
+                          ))}
+                          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+                            <PaginationFooter
+                              count={measurementFieldPageCount}
+                              label="measurement fields"
+                              page={measurementFieldPage}
+                              total={measurementFields.length}
+                              onChange={setMeasurementFieldPage}
+                            />
+                          </Box>
+                        </>
+                      )}
+                    </Panel>
+                    <SizeBandLibraryPanel sizeBands={sizeBands} />
+                  </>
                 ) : null}
 
                 {canManage && section === "availability" ? (
@@ -14486,11 +16477,23 @@ export default function Dashboard({
 
                 {canManage && section === "settings" ? (
                   <>
+                    <BusinessVerificationPanel
+                      status={profile.verification_status}
+                      error={action.verificationError}
+                      success={action.verificationSuccess}
+                    />
                     <StoreSettingsPanel
                       settings={storeSettings}
                       profile={profile}
                       error={action.settingsError}
                     />
+                    {storeSettings.delivery_enabled ? (
+                      <DeliveryZonesPanel
+                        zones={deliveryZones}
+                        error={action.settingsError}
+                        success={action.settingsSuccess}
+                      />
+                    ) : null}
                     {(profile.entitlements ?? {}).design_waitlist ? (
                       <WaitlistEntriesPanel entries={waitlistEntries} />
                     ) : null}

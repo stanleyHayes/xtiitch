@@ -10,6 +10,8 @@ export default [
   route("store/:handle", "routes/store.tsx"),
   route("d/:handle", "routes/design.tsx"),
   route("c/:handle", "routes/collection.tsx"),
+  route("cart", "routes/cart.tsx"),
+  route("checkout", "routes/checkout.tsx"),
   route("track", "routes/track-lookup.tsx"),
   route("track/:orderId", "routes/track.tsx"),
   route("robots.txt", "routes/robots.tsx"),

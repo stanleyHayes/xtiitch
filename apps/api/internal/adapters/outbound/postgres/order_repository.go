@@ -130,12 +130,100 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 	if _, err := tx.Exec(ctx, `
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
-			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status
+			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
+			checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id
 		)
-		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft')
+		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
-		nullableIDArg(input.SizeBandID), input.AgreedTotalMinor); err != nil {
+		nullableIDArg(input.SizeBandID), input.AgreedTotalMinor, nullableIDArg(input.CheckoutGroupID),
+		nullableTextArg(input.DeliveryMethod), input.DeliveryAddress, input.DeliveryFeeMinor,
+		nullableIDArg(input.DeliveryZoneID)); err != nil {
 		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// CreateOnlineOrderGroup inserts every order of a combined cart in one
+// transaction. The customer is upserted once (all orders share one identity)
+// and each order carries the shared checkout_group_id, so the combined payment
+// webhook can confirm them together. All-or-nothing: any insert error rolls the
+// whole group back, keeping the cart checkout atomic before the charge.
+func (repo OrderRepository) CreateOnlineOrderGroup(ctx context.Context, scope common.TenantScope, inputs []ports.CreateOnlineOrderInput) error {
+	if len(inputs) == 0 {
+		return nil
+	}
+
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// One shared customer across the group: upsert from the first order.
+	first := inputs[0]
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, display_name, phone, email)
+		values ($1, $2, $3, $4)
+		on conflict (customer_id) do update
+		set display_name = excluded.display_name,
+			email = case when excluded.email <> '' then excluded.email else customers.email end,
+			updated_at = now()
+	`, first.CustomerID.String(), first.CustomerName, first.CustomerPhone, first.CustomerEmail); err != nil {
+		return err
+	}
+
+	for _, input := range inputs {
+		if _, err := tx.Exec(ctx, `
+			insert into orders (
+				order_id, business_id, customer_id, design_id, size_band_id,
+				order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
+				checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id
+			)
+			values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11)
+		`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
+			nullableIDArg(input.SizeBandID), input.AgreedTotalMinor, nullableIDArg(input.CheckoutGroupID),
+			nullableTextArg(input.DeliveryMethod), input.DeliveryAddress, input.DeliveryFeeMinor,
+			nullableIDArg(input.DeliveryZoneID)); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
+// DiscardDraftOrderGroup removes every still-draft order in a checkout group and
+// the customer created for it, scoped to the tenant. It compensates a combined
+// checkout whose payment could not be raised, so no un-payable drafts are left.
+func (repo OrderRepository) DiscardDraftOrderGroup(ctx context.Context, scope common.TenantScope, groupID, customerID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackCatalogueUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return err
+	}
+
+	// Only ever remove still-draft orders of this tenant; a confirmed order (or
+	// one in another tenant, walled off by RLS) is left untouched. Orders go
+	// before the customer to satisfy the orders -> customers foreign key.
+	if _, err := tx.Exec(ctx, `
+		delete from orders where checkout_group_id = $1 and business_id = $2 and status = 'draft'
+	`, groupID.String(), scope.BusinessID.String()); err != nil {
+		return err
+	}
+	if customerID != "" {
+		if _, err := tx.Exec(ctx, `
+			delete from customers where customer_id = $1
+		`, customerID.String()); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
@@ -260,28 +348,50 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 
 // insertOrderMeasurement validates the submitted keys against the business's own
 // measurement fields (fail closed on any stray key) and records the self-measure
-// values for the order.
+// values for the order (online self-measure route).
 func insertOrderMeasurement(ctx context.Context, tx pgx.Tx, scope common.TenantScope, input ports.CreateCustomOrderInput) error {
+	return insertOrderMeasurementRow(ctx, tx, scope, measurementRow{
+		MeasurementID: input.MeasurementID,
+		OrderID:       input.OrderID,
+		BusinessID:    input.BusinessID,
+		CustomerID:    input.CustomerID,
+		Measurements:  input.Measurements,
+		Source:        "self",
+	})
+}
+
+// measurementRow is the tenant-scoped data needed to store a measurement set
+// against an order, with its provenance (self/visit/shop — see 000008 CHECK).
+type measurementRow struct {
+	MeasurementID common.ID
+	OrderID       common.ID
+	BusinessID    common.ID
+	CustomerID    common.ID
+	Measurements  map[string]string
+	Source        string
+}
+
+func insertOrderMeasurementRow(ctx context.Context, tx pgx.Tx, scope common.TenantScope, row measurementRow) error {
 	known, err := businessMeasurementFields(ctx, tx, scope.BusinessID)
 	if err != nil {
 		return err
 	}
-	for field := range input.Measurements {
+	for field := range row.Measurements {
 		if !known[field] {
 			return ports.ErrUnknownMeasurementField
 		}
 	}
 
-	values, err := json.Marshal(input.Measurements)
+	values, err := json.Marshal(row.Measurements)
 	if err != nil {
 		return err
 	}
 
 	_, err = tx.Exec(ctx, `
 		insert into order_measurements (measurement_id, business_id, order_id, customer_id, source, values)
-		values ($1, $2, $3, $4, 'self', $5::jsonb)
-	`, input.MeasurementID.String(), input.BusinessID.String(), input.OrderID.String(),
-		input.CustomerID.String(), string(values))
+		values ($1, $2, $3, $4, $5, $6::jsonb)
+	`, row.MeasurementID.String(), row.BusinessID.String(), row.OrderID.String(),
+		row.CustomerID.String(), row.Source, string(values))
 	return err
 }
 
@@ -350,6 +460,11 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scop
 		return err
 	}
 
+	channel := input.Channel
+	if channel == "" {
+		channel = "online"
+	}
+
 	// Come-to-shop: nothing is paid online, so the order is confirmed at its
 	// first bespoke stage immediately (mirrors the walk-in writer, bespoke flow).
 	if _, err := tx.Exec(ctx, `
@@ -358,9 +473,9 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scop
 			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor,
 			status, current_stage_id
 		)
-		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', null, 0, 'confirmed', $6)
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', $6, null, 0, 'confirmed', $7)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
-		input.DesignID.String(), input.SizeMode, stageID); err != nil {
+		input.DesignID.String(), input.SizeMode, channel, stageID); err != nil {
 		return err
 	}
 
@@ -369,6 +484,21 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scop
 		values (gen_random_uuid(), $1, $2, $3)
 	`, input.BusinessID.String(), input.OrderID.String(), stageID); err != nil {
 		return err
+	}
+
+	// Staff may have measured the customer at the counter; store it (source
+	// 'shop'). Validated against the business's own measurement fields.
+	if input.MeasurementID != "" && len(input.Measurements) > 0 {
+		if err := insertOrderMeasurementRow(ctx, tx, scope, measurementRow{
+			MeasurementID: input.MeasurementID,
+			OrderID:       input.OrderID,
+			BusinessID:    input.BusinessID,
+			CustomerID:    input.CustomerID,
+			Measurements:  input.Measurements,
+			Source:        "shop",
+		}); err != nil {
+			return err
+		}
 	}
 
 	return tx.Commit(ctx)
@@ -629,10 +759,44 @@ func advanceOrFulfil(ctx context.Context, tx pgx.Tx, businessID, flow string, or
 		`, orderID.String()); err != nil {
 			return err
 		}
-		return enqueueOrderNotification(ctx, tx, businessID, orderID.String(), notification.KindOrderFulfilled)
+		if err := enqueueOrderNotification(ctx, tx, businessID, orderID.String(), notification.KindOrderFulfilled); err != nil {
+			return err
+		}
+		return autoArrangeHandoverOnFulfilment(ctx, tx, businessID, orderID)
 	default:
 		return nextErr
 	}
+}
+
+// autoArrangeHandoverOnFulfilment queues the last fulfilment leg for an online
+// order the moment it is fulfilled, so the dispatch desk doesn't have to create
+// it by hand. It segments by the order's delivery snapshot: an order that chose
+// delivery at checkout becomes a 'delivery' handover to its address, everything
+// else a 'pickup'. Walk-in/in-person orders are handed over at the counter, so
+// they are skipped. It is a no-op when the order already has an open handover
+// (e.g. one was arranged manually), so it never collides with that flow.
+func autoArrangeHandoverOnFulfilment(ctx context.Context, tx pgx.Tx, businessID string, orderID common.ID) error {
+	_, err := tx.Exec(ctx, `
+		insert into handovers (
+			handover_id, business_id, order_id, method, status,
+			recipient_name, recipient_phone, address
+		)
+		select
+			gen_random_uuid(), o.business_id, o.order_id,
+			case when o.delivery_method = 'delivery' then 'delivery' else 'pickup' end,
+			'pending',
+			coalesce(c.display_name, ''),
+			coalesce(c.phone, ''),
+			case when o.delivery_method = 'delivery' then o.delivery_address else '' end
+		from orders o
+		left join customers c on c.customer_id = o.customer_id
+		where o.order_id = $1 and o.business_id = $2 and o.channel = 'online'
+			and not exists (
+				select 1 from handovers h
+				where h.order_id = o.order_id and h.status in ('pending', 'dispatched')
+			)
+	`, orderID.String(), businessID)
+	return err
 }
 
 func (repo OrderRepository) GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error) {
