@@ -8,6 +8,14 @@
 -- uniqueness guard. The application also auto-assigns the next free position
 -- when an owner leaves the order blank.
 
+-- Migrations run as a NON-SUPERUSER role on managed Postgres (e.g. Render), and
+-- collections/size_bands have FORCE row-level security. Without bypassing RLS the
+-- renumber UPDATEs below would match ZERO rows (the role can't see tenant rows),
+-- leaving duplicates in place so the unique index then fails to build. Turn on the
+-- app's RLS bypass (session-level, so it persists across the statements in this
+-- migration) for the data-modifying steps, and turn it back off at the end.
+select set_config('xtiitch.bypass', 'on', false);
+
 -- Renumber EVERY non-deleted row to its rank (no "only if changed" guard): this
 -- guarantees the post-update set has unique (business_id, sequence) so the index
 -- below always builds, and it is safely re-runnable (idempotent) if a prior
@@ -45,3 +53,5 @@ where s.size_band_id = r.size_band_id;
 
 create unique index if not exists size_bands_business_sequence_idx
   on size_bands (business_id, sequence);
+
+select set_config('xtiitch.bypass', 'off', false);
