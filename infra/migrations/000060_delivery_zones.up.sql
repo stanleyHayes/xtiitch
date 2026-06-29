@@ -3,7 +3,7 @@
 -- "Tema") each with a fee; at online checkout the customer picks a zone and its
 -- fee is added to the charge. Xtiitch never escrows the fee — it rides the same
 -- Paystack split as the garment payment and settles to the business subaccount.
-CREATE TABLE delivery_zones (
+CREATE TABLE IF NOT EXISTS delivery_zones (
   zone_id uuid PRIMARY KEY,
   business_id uuid NOT NULL REFERENCES businesses (business_id) ON DELETE CASCADE,
   name text NOT NULL,
@@ -19,7 +19,7 @@ CREATE TABLE delivery_zones (
   CONSTRAINT delivery_zones_id_business_unique UNIQUE (zone_id, business_id)
 );
 
-CREATE INDEX delivery_zones_business_seq_idx ON delivery_zones (business_id, sequence);
+CREATE INDEX IF NOT EXISTS delivery_zones_business_seq_idx ON delivery_zones (business_id, sequence);
 
 -- Snapshot the chosen delivery on the order: the method, the destination, the
 -- fee charged (kept even if the zone's fee later changes or the zone is removed),
@@ -34,11 +34,21 @@ ALTER TABLE orders
     CHECK (delivery_fee_minor >= 0),
   ADD COLUMN IF NOT EXISTS delivery_zone_id uuid;
 
-ALTER TABLE orders
-  ADD CONSTRAINT orders_delivery_zone_fk
-  FOREIGN KEY (delivery_zone_id) REFERENCES delivery_zones (zone_id) ON DELETE SET NULL;
+-- Add the FK only if missing, so a re-run after a partial failure doesn't error
+-- on "constraint already exists" (Postgres has no ADD CONSTRAINT IF NOT EXISTS).
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'orders_delivery_zone_fk'
+  ) THEN
+    ALTER TABLE orders
+      ADD CONSTRAINT orders_delivery_zone_fk
+      FOREIGN KEY (delivery_zone_id) REFERENCES delivery_zones (zone_id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 -- Tenant isolation under the project's hardened RLS shape (bypass-clause + FORCE).
+-- DROP POLICY IF EXISTS before CREATE so the whole migration is re-runnable.
 DO $$
 DECLARE
   tenant_table text;
@@ -48,6 +58,7 @@ BEGIN
   FOREACH tenant_table IN ARRAY ARRAY['delivery_zones'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', tenant_table || '_tenant_isolation', tenant_table);
     EXECUTE format(
       'CREATE POLICY %I ON %I USING %s WITH CHECK %s',
       tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using

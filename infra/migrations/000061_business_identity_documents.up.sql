@@ -4,7 +4,7 @@
 -- business-verification decision flow approves -> 'verified' or rejects). One
 -- row per business, upserted on resubmission. This is PII, so it lives in its
 -- own tenant-isolated table rather than on businesses.
-CREATE TABLE business_identity_documents (
+CREATE TABLE IF NOT EXISTS business_identity_documents (
   business_id uuid PRIMARY KEY REFERENCES businesses (business_id) ON DELETE CASCADE,
   card_number text NOT NULL,
   id_photo_url text NOT NULL,
@@ -25,6 +25,7 @@ BEGIN
   FOREACH tenant_table IN ARRAY ARRAY['business_identity_documents'] LOOP
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tenant_table);
     EXECUTE format('ALTER TABLE %I FORCE ROW LEVEL SECURITY', tenant_table);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON %I', tenant_table || '_tenant_isolation', tenant_table);
     EXECUTE format(
       'CREATE POLICY %I ON %I USING %s WITH CHECK %s',
       tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using
