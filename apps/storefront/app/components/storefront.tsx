@@ -14,6 +14,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Pagination from "@mui/material/Pagination";
 import { alpha } from "@mui/material/styles";
 import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
+import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
@@ -231,7 +232,9 @@ export function StoreHeader({
         ? `linear-gradient(90deg, ${alpha(brand, 0.82)} 0%, ${alpha(brand, 0.4)} 52%, ${alpha(brand, 0.12)} 100%)`
         : `linear-gradient(90deg, ${alpha(brand, 0.96)} 0%, ${alpha(brand, 0.88)} 46%, ${alpha(brand, 0.46)} 100%)`;
   const heroBackground =
-    layout === "minimal" ? heroGradient : `${heroGradient}, url("${heroImage}")`;
+    layout === "minimal"
+      ? heroGradient
+      : `${heroGradient}, url("${heroImage}")`;
   const heroMinHeight =
     layout === "minimal"
       ? { xs: 420, md: 460 }
@@ -338,6 +341,19 @@ export function StoreHeader({
             }}
           >
             Browse pieces
+          </Button>
+          <Button
+            component={RouterLink}
+            to="/cart"
+            variant="outlined"
+            startIcon={<ShoppingBagRounded />}
+            sx={{
+              color: onBrand,
+              borderColor: alpha(onBrand, 0.32),
+              "&:hover": { borderColor: alpha(onBrand, 0.58) },
+            }}
+          >
+            Cart
           </Button>
           <Button
             component={RouterLink}
@@ -919,6 +935,9 @@ export function StoreView({
 }) {
   const brand = store.brand_color || tokens.burgundy;
   const otherShops = marketplace.filter((shop) => shop.handle !== store.handle);
+  // "Discover other studios" only shows on free-plan storefronts; paid plans get
+  // a clean, distraction-free store with no cross-promotion of other shops.
+  const showDiscover = store.plan_code === "free";
 
   return (
     <Box
@@ -999,7 +1018,7 @@ export function StoreView({
         </Container>
       </Box>
 
-      {!query && otherShops.length > 0 ? (
+      {showDiscover && !query && otherShops.length > 0 ? (
         <MarketplaceStrip shops={otherShops} brand={brand} />
       ) : null}
     </Box>
@@ -1124,7 +1143,8 @@ function MarketplaceShopCard({ shop }: { shop: PublicShop }) {
   const shopBrand = shop.brand_color || tokens.burgundy;
   // Mirror the store page hero (StoreHeader) so the card cover matches the page
   // you land on: the merchant's banner, else the shared Xtiitch atelier hero.
-  const cover = shop.banner_url?.trim() || "/images/storefront-atelier-hero.webp";
+  const cover =
+    shop.banner_url?.trim() || "/images/storefront-atelier-hero.webp";
   return (
     <Card
       component={RouterLink}

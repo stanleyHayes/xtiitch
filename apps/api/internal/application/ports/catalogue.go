@@ -47,6 +47,7 @@ type StoreProfile struct {
 type CatalogueRepository interface {
 	CreateCollection(ctx context.Context, scope common.TenantScope, input CollectionInput) error
 	ListCollections(ctx context.Context, scope common.TenantScope) ([]catalogue.Collection, error)
+	UpdateCollection(ctx context.Context, scope common.TenantScope, input CollectionUpdateInput) error
 	SetCollectionStatus(ctx context.Context, scope common.TenantScope, collectionID common.ID, status catalogue.Status) error
 
 	CreateDesign(ctx context.Context, scope common.TenantScope, input DesignInput) error
@@ -57,6 +58,8 @@ type CatalogueRepository interface {
 
 	CreateSizeBand(ctx context.Context, scope common.TenantScope, input SizeBandInput) error
 	ListSizeBands(ctx context.Context, scope common.TenantScope) ([]catalogue.SizeBand, error)
+	UpdateSizeBand(ctx context.Context, scope common.TenantScope, input SizeBandUpdateInput) error
+	DeleteSizeBand(ctx context.Context, scope common.TenantScope, sizeBandID common.ID) error
 
 	SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error
 	ListDesignPrices(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.BandPrice, error)
@@ -68,6 +71,17 @@ type CollectionInput struct {
 	Name         string
 	Theme        string
 	Handle       string
+	Sequence     int
+}
+
+// CollectionUpdateInput edits a collection's name, theme, and display order. The
+// handle is intentionally omitted — it is immutable so existing share links keep
+// resolving.
+type CollectionUpdateInput struct {
+	CollectionID common.ID
+	BusinessID   common.ID
+	Name         string
+	Theme        string
 	Sequence     int
 }
 
@@ -88,6 +102,17 @@ type SizeBandInput struct {
 	SizeBandID common.ID
 	BusinessID common.ID
 	Label      string
+	Chart      []catalogue.SizeChartItem
+	Sequence   int
+}
+
+// SizeBandUpdateInput edits a size band's label, measurement chart, and display
+// order.
+type SizeBandUpdateInput struct {
+	SizeBandID common.ID
+	BusinessID common.ID
+	Label      string
+	Chart      []catalogue.SizeChartItem
 	Sequence   int
 }
 
@@ -150,6 +175,10 @@ type Storefront struct {
 	// online_ordering benefit. When false the storefront is a catalogue only and
 	// checkout is refused server-side.
 	OnlineOrderingEnabled bool
+	// PlanCode is the business's current plan code (e.g. "free", "starter").
+	// The storefront uses it to gate plan-specific surfaces such as the
+	// "Discover other studios" strip, which only shows for free-plan stores.
+	PlanCode string
 }
 
 // DesignWaitlistEntryInput is a customer's public request to join a design's

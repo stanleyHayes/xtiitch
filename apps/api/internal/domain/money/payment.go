@@ -18,11 +18,15 @@ const (
 	PaymentPurposeDeposit        PaymentPurpose = "deposit"
 	PaymentPurposeBalance        PaymentPurpose = "balance"
 	PaymentPurposeBookingDeposit PaymentPurpose = "booking_deposit"
+	// PaymentPurposeCartFull is the single charge that pays for a cart of several
+	// made-to-wear pieces at once. Its webhook confirmation settles every order in
+	// the checkout group, each by its own line total.
+	PaymentPurposeCartFull PaymentPurpose = "cart_full"
 )
 
 func (p PaymentPurpose) Valid() bool {
 	switch p {
-	case PaymentPurposeStandardFull, PaymentPurposeDeposit, PaymentPurposeBalance, PaymentPurposeBookingDeposit:
+	case PaymentPurposeStandardFull, PaymentPurposeDeposit, PaymentPurposeBalance, PaymentPurposeBookingDeposit, PaymentPurposeCartFull:
 		return true
 	default:
 		return false

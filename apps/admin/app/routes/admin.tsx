@@ -73,6 +73,7 @@ import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import LightModeRounded from "@mui/icons-material/LightModeRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
+import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotesRounded from "@mui/icons-material/NotesRounded";
@@ -160,6 +161,7 @@ import { logOut, requireAdminContext, type AdminSession } from "../lib/session";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 import { useThemeMode } from "../theme-mode";
+import { HelpDrawer } from "../help-center";
 
 type Section =
   | "overview"
@@ -3411,6 +3413,61 @@ function VerificationCard({
               <Typography sx={{ color: "text.secondary" }}>
                 {item.notes}
               </Typography>
+              {item.idCardNumber || item.idPhotoURL ? (
+                <Box
+                  sx={{
+                    p: 1.5,
+                    border: "1px solid",
+                    borderColor: alpha(tokens.ink, 0.08),
+                    borderRadius: 1.5,
+                    bgcolor: "rgba(var(--surface-rgb), 0.62)",
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                    Ghana Card
+                  </Typography>
+                  <Stack
+                    direction={{ xs: "column", sm: "row" }}
+                    spacing={2}
+                    sx={{ alignItems: { sm: "center" } }}
+                  >
+                    {item.idPhotoURL ? (
+                      <Box
+                        component="a"
+                        href={item.idPhotoURL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{ flexShrink: 0 }}
+                      >
+                        <Box
+                          component="img"
+                          src={item.idPhotoURL}
+                          alt="Ghana Card"
+                          sx={{
+                            width: 180,
+                            height: 114,
+                            objectFit: "cover",
+                            borderRadius: 1.5,
+                            border: "1px solid",
+                            borderColor: alpha(tokens.ink, 0.12),
+                          }}
+                        />
+                      </Box>
+                    ) : null}
+                    <Box>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        Card number
+                      </Typography>
+                      <Typography sx={{ fontWeight: 800, letterSpacing: 0.5 }}>
+                        {item.idCardNumber || "—"}
+                      </Typography>
+                    </Box>
+                  </Stack>
+                </Box>
+              ) : null}
               <Box
                 sx={{
                   display: "grid",
@@ -3942,8 +3999,8 @@ function CustomerInspector({
         </Button>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           Downloads everything the platform holds about this customer — profile,
-          linked businesses, orders and measurements — as a JSON file, for a Data
-          Protection Act subject-access request.
+          linked businesses, orders and measurements — as a JSON file, for a
+          Data Protection Act subject-access request.
         </Typography>
         <Button
           variant="outlined"
@@ -4112,7 +4169,11 @@ function BusinessTable({
         </Table>
       </TableContainer>
 
-      <Menu anchorEl={menuAnchor} open={Boolean(menuAnchor)} onClose={closeMenu}>
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={closeMenu}
+      >
         <MenuItem
           onClick={() => {
             if (menuBusiness) {
@@ -7512,10 +7573,7 @@ function PlanBenefitsField({ selected }: { selected?: string[] }) {
                 <Typography sx={{ fontWeight: 700, fontSize: 13 }}>
                   {benefit.label}
                 </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "text.secondary" }}
-                >
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
                   {benefit.description}
                 </Typography>
               </Box>
@@ -8410,9 +8468,7 @@ function SubscriptionsSection({
         subscription.billingMode !== "recurring") ||
       (subscription.planCode === "free" && subscription.gmvMinor >= 50000),
   );
-  const lifecycleRows = attentionRows.length
-    ? attentionRows
-    : subscriptions;
+  const lifecycleRows = attentionRows.length ? attentionRows : subscriptions;
   const {
     page: planPage,
     pageCount: planPageCount,
@@ -11737,468 +11793,422 @@ function AdminAdCampaignDetailForm({
       </Box>
 
       <Stack spacing={1.5}>
-                  {campaign.description || campaign.reviewNote ? (
-                    <Box
+        {campaign.description || campaign.reviewNote ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.7)",
+            }}
+          >
+            {campaign.description ? (
+              <Typography sx={{ overflowWrap: "anywhere" }}>
+                {campaign.description}
+              </Typography>
+            ) : null}
+            {campaign.reviewNote ? (
+              <Typography
+                variant="body2"
+                sx={{ mt: 0.5, color: "text.secondary" }}
+              >
+                Review: {campaign.reviewNote}
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
+
+        <Box
+          sx={{
+            p: 1.5,
+            border: "1px solid",
+            borderColor: alpha(
+              openPayment
+                ? tokens.warning
+                : dueMinor > 0
+                  ? tokens.info
+                  : tokens.success,
+              0.18,
+            ),
+            borderRadius: 1.5,
+            bgcolor: "rgba(var(--surface-rgb), 0.72)",
+          }}
+        >
+          <Stack spacing={1.5}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{
+                alignItems: { xs: "flex-start", sm: "center" },
+                justifyContent: "space-between",
+              }}
+            >
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <PaymentsRounded sx={{ color: tokens.burgundy }} />
+                <Box>
+                  <Typography variant="subtitle1">
+                    Payment collection
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    {dueMinor > 0
+                      ? `${formatGHS(dueMinor)} still due for this placement.`
+                      : "Booked budget has been collected."}
+                  </Typography>
+                </Box>
+              </Stack>
+              <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap" }}>
+                <Chip
+                  size="small"
+                  label={
+                    openPayment
+                      ? "Payment link open"
+                      : dueMinor > 0
+                        ? "Awaiting collection"
+                        : "Paid"
+                  }
+                  sx={{
+                    bgcolor: alpha(
+                      openPayment
+                        ? tokens.warning
+                        : dueMinor > 0
+                          ? tokens.info
+                          : tokens.success,
+                      0.12,
+                    ),
+                    color: openPayment
+                      ? tokens.warning
+                      : dueMinor > 0
+                        ? tokens.info
+                        : tokens.success,
+                    fontWeight: 900,
+                  }}
+                />
+                {openPayment?.paymentUrl ? (
+                  <Button
+                    component="a"
+                    href={openPayment.paymentUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    size="small"
+                    variant="outlined"
+                    endIcon={<ArrowForwardRounded />}
+                  >
+                    Open link
+                  </Button>
+                ) : null}
+              </Stack>
+            </Stack>
+
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  sm: "repeat(3, 1fr)",
+                },
+              }}
+            >
+              <DetailLine label="Collected" value={formatGHS(paidMinor)} />
+              <DetailLine label="Due" value={formatGHS(dueMinor)} />
+              <DetailLine
+                label="Open"
+                value={
+                  openPayment
+                    ? `${formatGHS(openPayment.amountMinor)} · ${openPayment.providerReference}`
+                    : "No open link"
+                }
+              />
+            </Box>
+
+            {latestPayments.length > 0 ? (
+              <Stack spacing={0.75}>
+                {latestPayments.map((payment) => {
+                  const paymentColor = adCampaignPaymentStatusColor(
+                    payment.status,
+                  );
+                  return (
+                    <Stack
+                      key={payment.paymentId}
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
                       sx={{
-                        p: 1.25,
+                        alignItems: {
+                          xs: "flex-start",
+                          sm: "center",
+                        },
+                        justifyContent: "space-between",
+                        p: 1,
                         border: "1px solid",
                         borderColor: alpha(tokens.ink, 0.08),
                         borderRadius: 1,
-                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                        bgcolor: "rgba(var(--surface-rgb), 0.56)",
                       }}
                     >
-                      {campaign.description ? (
-                        <Typography sx={{ overflowWrap: "anywhere" }}>
-                          {campaign.description}
-                        </Typography>
-                      ) : null}
-                      {campaign.reviewNote ? (
+                      <Box sx={{ minWidth: 0 }}>
                         <Typography
                           variant="body2"
-                          sx={{ mt: 0.5, color: "text.secondary" }}
+                          sx={{
+                            fontWeight: 900,
+                            overflowWrap: "anywhere",
+                          }}
                         >
-                          Review: {campaign.reviewNote}
+                          {payment.providerReference}
                         </Typography>
-                      ) : null}
-                    </Box>
-                  ) : null}
-
-                  <Box
-                    sx={{
-                      p: 1.5,
-                      border: "1px solid",
-                      borderColor: alpha(
-                        openPayment
-                          ? tokens.warning
-                          : dueMinor > 0
-                            ? tokens.info
-                            : tokens.success,
-                        0.18,
-                      ),
-                      borderRadius: 1.5,
-                      bgcolor: "rgba(var(--surface-rgb), 0.72)",
-                    }}
-                  >
-                    <Stack spacing={1.5}>
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
-                        sx={{
-                          alignItems: { xs: "flex-start", sm: "center" },
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{ alignItems: "center" }}
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
                         >
-                          <PaymentsRounded sx={{ color: tokens.burgundy }} />
-                          <Box>
-                            <Typography variant="subtitle1">
-                              Payment collection
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              {dueMinor > 0
-                                ? `${formatGHS(dueMinor)} still due for this placement.`
-                                : "Booked budget has been collected."}
-                            </Typography>
-                          </Box>
-                        </Stack>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{ flexWrap: "wrap" }}
-                        >
-                          <Chip
-                            size="small"
-                            label={
-                              openPayment
-                                ? "Payment link open"
-                                : dueMinor > 0
-                                  ? "Awaiting collection"
-                                  : "Paid"
-                            }
-                            sx={{
-                              bgcolor: alpha(
-                                openPayment
-                                  ? tokens.warning
-                                  : dueMinor > 0
-                                    ? tokens.info
-                                    : tokens.success,
-                                0.12,
-                              ),
-                              color: openPayment
-                                ? tokens.warning
-                                : dueMinor > 0
-                                  ? tokens.info
-                                  : tokens.success,
-                              fontWeight: 900,
-                            }}
-                          />
-                          {openPayment?.paymentUrl ? (
-                            <Button
-                              component="a"
-                              href={openPayment.paymentUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              size="small"
-                              variant="outlined"
-                              endIcon={<ArrowForwardRounded />}
-                            >
-                              Open link
-                            </Button>
-                          ) : null}
-                        </Stack>
-                      </Stack>
-
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            sm: "repeat(3, 1fr)",
-                          },
-                        }}
-                      >
-                        <DetailLine
-                          label="Collected"
-                          value={formatGHS(paidMinor)}
-                        />
-                        <DetailLine label="Due" value={formatGHS(dueMinor)} />
-                        <DetailLine
-                          label="Open"
-                          value={
-                            openPayment
-                              ? `${formatGHS(openPayment.amountMinor)} · ${openPayment.providerReference}`
-                              : "No open link"
-                          }
-                        />
+                          {formatGHS(payment.amountMinor)} ·{" "}
+                          {shortTime(payment.updatedAt)}
+                        </Typography>
                       </Box>
-
-                      {latestPayments.length > 0 ? (
-                        <Stack spacing={0.75}>
-                          {latestPayments.map((payment) => {
-                            const paymentColor = adCampaignPaymentStatusColor(
-                              payment.status,
-                            );
-                            return (
-                              <Stack
-                                key={payment.paymentId}
-                                direction={{ xs: "column", sm: "row" }}
-                                spacing={1}
-                                sx={{
-                                  alignItems: {
-                                    xs: "flex-start",
-                                    sm: "center",
-                                  },
-                                  justifyContent: "space-between",
-                                  p: 1,
-                                  border: "1px solid",
-                                  borderColor: alpha(tokens.ink, 0.08),
-                                  borderRadius: 1,
-                                  bgcolor: "rgba(var(--surface-rgb), 0.56)",
-                                }}
-                              >
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontWeight: 900,
-                                      overflowWrap: "anywhere",
-                                    }}
-                                  >
-                                    {payment.providerReference}
-                                  </Typography>
-                                  <Typography
-                                    variant="caption"
-                                    sx={{ color: "text.secondary" }}
-                                  >
-                                    {formatGHS(payment.amountMinor)} ·{" "}
-                                    {shortTime(payment.updatedAt)}
-                                  </Typography>
-                                </Box>
-                                <Chip
-                                  size="small"
-                                  label={payment.status}
-                                  sx={{
-                                    bgcolor: alpha(paymentColor, 0.12),
-                                    color: paymentColor,
-                                    fontWeight: 900,
-                                    textTransform: "capitalize",
-                                  }}
-                                />
-                              </Stack>
-                            );
-                          })}
-                        </Stack>
-                      ) : null}
-
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="admin-ad-campaign-payment:collect"
-                        />
-                        <input
-                          type="hidden"
-                          name="campaign_id"
-                          value={campaign.campaignId}
-                        />
-                        <Stack
-                          direction={{ xs: "column", sm: "row" }}
-                          spacing={1}
-                        >
-                          <TextField
-                            label="Advertiser email"
-                            name="customer_email"
-                            size="small"
-                            type="email"
-                            placeholder="Defaults to business owner"
-                            fullWidth
-                            disabled={
-                              archived || Boolean(openPayment) || dueMinor <= 0
-                            }
-                          />
-                          <Button
-                            type="submit"
-                            variant="contained"
-                            startIcon={<PaymentsRounded />}
-                            disabled={
-                              archived || Boolean(openPayment) || dueMinor <= 0
-                            }
-                            sx={{ minWidth: { sm: 170 } }}
-                          >
-                            Collect payment
-                          </Button>
-                        </Stack>
-                      </Form>
-                    </Stack>
-                  </Box>
-
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-ad-campaign:update"
-                    />
-                    <input
-                      type="hidden"
-                      name="campaign_id"
-                      value={campaign.campaignId}
-                    />
-                    <input
-                      type="hidden"
-                      name="pricing_model"
-                      value="flat_time"
-                    />
-                    <Stack spacing={1.25}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            md: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                        <TextField
-                          select
-                          label="Business"
-                          name="business_id"
-                          size="small"
-                          defaultValue={campaign.businessId}
-                          disabled={archived}
-                        >
-                          {!eligibleBusinesses.some(
-                            (business) => business.id === campaign.businessId,
-                          ) ? (
-                            <MenuItem value={campaign.businessId}>
-                              {campaign.businessName} ·{" "}
-                              {campaign.businessHandle}
-                            </MenuItem>
-                          ) : null}
-                          {eligibleBusinesses.map((business) => (
-                            <MenuItem key={business.id} value={business.id}>
-                              {business.name} · {business.handle}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Placement"
-                          name="placement_type"
-                          size="small"
-                          defaultValue={campaign.placementType}
-                          disabled={archived}
-                        >
-                          {adPlacementOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Target ref"
-                          name="target_ref_id"
-                          size="small"
-                          defaultValue={campaign.targetRefId}
-                          disabled={archived}
-                        />
-                        <TextField
-                          select
-                          label="Status"
-                          name="status"
-                          size="small"
-                          defaultValue={
-                            campaign.status === "archived"
-                              ? "paused"
-                              : campaign.status
-                          }
-                          disabled={archived}
-                        >
-                          {adCampaignStatusOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Headline"
-                          name="headline"
-                          size="small"
-                          defaultValue={campaign.headline}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Budget"
-                          name="budget_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(campaign.budgetMinor)}
-                          disabled={archived}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  GHS
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, step: "0.01" },
-                          }}
-                        />
-                        <TextField
-                          label="Daily cap"
-                          name="daily_cap_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(
-                            campaign.dailyCapMinor,
-                          )}
-                          disabled={archived}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  GHS
-                                </InputAdornment>
-                              ),
-                            },
-                            htmlInput: { min: 0, step: "0.01" },
-                          }}
-                        />
-                        <StyledDateTimeField
-                          label="Starts"
-                          name="starts_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(campaign.startsAt)}
-                          required
-                          disabled={archived}
-                        />
-                        <StyledDateTimeField
-                          label="Ends"
-                          name="ends_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(campaign.endsAt)}
-                          required
-                          disabled={archived}
-                        />
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                        }}
-                      >
-                        <TextField
-                          label="Description"
-                          name="description"
-                          multiline
-                          minRows={2}
-                          size="small"
-                          defaultValue={campaign.description}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Review note"
-                          name="review_note"
-                          multiline
-                          minRows={2}
-                          size="small"
-                          defaultValue={campaign.reviewNote}
-                          disabled={archived}
-                        />
-                      </Box>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={archived}
-                        sx={{ alignSelf: "flex-start" }}
-                      >
-                        Save placement
-                      </Button>
-                    </Stack>
-                  </Form>
-
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-ad-campaign:archive"
-                    />
-                    <input
-                      type="hidden"
-                      name="campaign_id"
-                      value={campaign.campaignId}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        label="Archive reason"
-                        name="reason"
+                      <Chip
                         size="small"
-                        placeholder="Placement completed"
-                        fullWidth
-                        disabled={archived}
+                        label={payment.status}
+                        sx={{
+                          bgcolor: alpha(paymentColor, 0.12),
+                          color: paymentColor,
+                          fontWeight: 900,
+                          textTransform: "capitalize",
+                        }}
                       />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        disabled={archived}
-                        sx={{ minWidth: { sm: 140 } }}
-                      >
-                        Archive
-                      </Button>
                     </Stack>
-                  </Form>
+                  );
+                })}
+              </Stack>
+            ) : null}
+
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-ad-campaign-payment:collect"
+              />
+              <input
+                type="hidden"
+                name="campaign_id"
+                value={campaign.campaignId}
+              />
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                <TextField
+                  label="Advertiser email"
+                  name="customer_email"
+                  size="small"
+                  type="email"
+                  placeholder="Defaults to business owner"
+                  fullWidth
+                  disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                />
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<PaymentsRounded />}
+                  disabled={archived || Boolean(openPayment) || dueMinor <= 0}
+                  sx={{ minWidth: { sm: 170 } }}
+                >
+                  Collect payment
+                </Button>
+              </Stack>
+            </Form>
+          </Stack>
+        </Box>
+
+        <Form method="post">
+          <input type="hidden" name="intent" value="admin-ad-campaign:update" />
+          <input type="hidden" name="campaign_id" value={campaign.campaignId} />
+          <input type="hidden" name="pricing_model" value="flat_time" />
+          <Stack spacing={1.25}>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(2, minmax(0, 1fr))",
+                },
+              }}
+            >
+              <TextField
+                select
+                label="Business"
+                name="business_id"
+                size="small"
+                defaultValue={campaign.businessId}
+                disabled={archived}
+              >
+                {!eligibleBusinesses.some(
+                  (business) => business.id === campaign.businessId,
+                ) ? (
+                  <MenuItem value={campaign.businessId}>
+                    {campaign.businessName} · {campaign.businessHandle}
+                  </MenuItem>
+                ) : null}
+                {eligibleBusinesses.map((business) => (
+                  <MenuItem key={business.id} value={business.id}>
+                    {business.name} · {business.handle}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Placement"
+                name="placement_type"
+                size="small"
+                defaultValue={campaign.placementType}
+                disabled={archived}
+              >
+                {adPlacementOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Target ref"
+                name="target_ref_id"
+                size="small"
+                defaultValue={campaign.targetRefId}
+                disabled={archived}
+              />
+              <TextField
+                select
+                label="Status"
+                name="status"
+                size="small"
+                defaultValue={
+                  campaign.status === "archived" ? "paused" : campaign.status
+                }
+                disabled={archived}
+              >
+                {adCampaignStatusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Headline"
+                name="headline"
+                size="small"
+                defaultValue={campaign.headline}
+                required
+                disabled={archived}
+              />
+              <TextField
+                label="Budget"
+                name="budget_ghs"
+                type="number"
+                size="small"
+                defaultValue={moneyInputDefault(campaign.budgetMinor)}
+                disabled={archived}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { min: 0, step: "0.01" },
+                }}
+              />
+              <TextField
+                label="Daily cap"
+                name="daily_cap_ghs"
+                type="number"
+                size="small"
+                defaultValue={moneyInputDefault(campaign.dailyCapMinor)}
+                disabled={archived}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">GHS</InputAdornment>
+                    ),
+                  },
+                  htmlInput: { min: 0, step: "0.01" },
+                }}
+              />
+              <StyledDateTimeField
+                label="Starts"
+                name="starts_at"
+                size="small"
+                defaultValue={datetimeLocalDefault(campaign.startsAt)}
+                required
+                disabled={archived}
+              />
+              <StyledDateTimeField
+                label="Ends"
+                name="ends_at"
+                size="small"
+                defaultValue={datetimeLocalDefault(campaign.endsAt)}
+                required
+                disabled={archived}
+              />
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              }}
+            >
+              <TextField
+                label="Description"
+                name="description"
+                multiline
+                minRows={2}
+                size="small"
+                defaultValue={campaign.description}
+                disabled={archived}
+              />
+              <TextField
+                label="Review note"
+                name="review_note"
+                multiline
+                minRows={2}
+                size="small"
+                defaultValue={campaign.reviewNote}
+                disabled={archived}
+              />
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={archived}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              Save placement
+            </Button>
+          </Stack>
+        </Form>
+
+        <Form method="post">
+          <input
+            type="hidden"
+            name="intent"
+            value="admin-ad-campaign:archive"
+          />
+          <input type="hidden" name="campaign_id" value={campaign.campaignId} />
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <TextField
+              label="Archive reason"
+              name="reason"
+              size="small"
+              placeholder="Placement completed"
+              fullWidth
+              disabled={archived}
+            />
+            <Button
+              type="submit"
+              variant="outlined"
+              color="warning"
+              disabled={archived}
+              sx={{ minWidth: { sm: 140 } }}
+            >
+              Archive
+            </Button>
+          </Stack>
+        </Form>
       </Stack>
     </Stack>
   );
@@ -12784,7 +12794,8 @@ function AdminAffiliateDetailForm({
   const recentApprovedCommissionMinor =
     performance?.recentConversions
       .filter((conversion) => conversion.status === "approved")
-      .reduce((total, conversion) => total + conversion.commissionMinor, 0) ?? 0;
+      .reduce((total, conversion) => total + conversion.commissionMinor, 0) ??
+    0;
   const lastPayout = performance?.recentPayouts[0];
   return (
     <Stack spacing={2}>
@@ -12848,519 +12859,498 @@ function AdminAffiliateDetailForm({
       </Box>
 
       <Stack spacing={1.5}>
-                  {performance?.recentConversions.length ? (
-                    <Box
+        {performance?.recentConversions.length ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.info, 0.14),
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.7)",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", fontWeight: 900 }}
+            >
+              Recent conversions
+            </Typography>
+            <Stack spacing={0.75} sx={{ mt: 1 }}>
+              {performance.recentConversions.map((conversion) => {
+                const actions = affiliateConversionActions(conversion.status);
+                return (
+                  <Stack
+                    key={conversion.conversionId}
+                    spacing={1}
+                    sx={{
+                      p: 1,
+                      borderRadius: 1,
+                      bgcolor: "rgba(var(--surface-rgb), 0.76)",
+                    }}
+                  >
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
                       sx={{
-                        p: 1.25,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.info, 0.14),
-                        borderRadius: 1,
-                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                        justifyContent: "space-between",
+                        alignItems: { sm: "center" },
                       }}
                     >
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", fontWeight: 900 }}
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {conversion.businessName || "Unknown business"}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {shortID(conversion.orderId)} ·{" "}
+                          {conversion.attributionModel.replace("_", " ")}
+                        </Typography>
+                      </Box>
+                      <Stack
+                        direction="row"
+                        spacing={1}
+                        sx={{
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                        }}
                       >
-                        Recent conversions
-                      </Typography>
-                      <Stack spacing={0.75} sx={{ mt: 1 }}>
-                        {performance.recentConversions.map((conversion) => {
-                          const actions = affiliateConversionActions(
-                            conversion.status,
-                          );
-                          return (
-                            <Stack
-                              key={conversion.conversionId}
-                              spacing={1}
-                              sx={{
-                                p: 1,
-                                borderRadius: 1,
-                                bgcolor: "rgba(var(--surface-rgb), 0.76)",
-                              }}
-                            >
-                              <Stack
-                                direction={{ xs: "column", sm: "row" }}
-                                spacing={1}
-                                sx={{
-                                  justifyContent: "space-between",
-                                  alignItems: { sm: "center" },
-                                }}
-                              >
-                                <Box sx={{ minWidth: 0 }}>
-                                  <Typography sx={{ fontWeight: 900 }}>
-                                    {conversion.businessName ||
-                                      "Unknown business"}
-                                  </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{ color: "text.secondary" }}
-                                  >
-                                    {shortID(conversion.orderId)} ·{" "}
-                                    {conversion.attributionModel.replace(
-                                      "_",
-                                      " ",
-                                    )}
-                                  </Typography>
-                                </Box>
-                                <Stack
-                                  direction="row"
-                                  spacing={1}
-                                  sx={{
-                                    alignItems: "center",
-                                    flexWrap: "wrap",
-                                  }}
-                                >
-                                  <Chip
-                                    size="small"
-                                    label={conversion.status}
-                                    variant="outlined"
-                                  />
-                                  <Typography sx={{ fontWeight: 900 }}>
-                                    {formatGHS(conversion.commissionMinor)}
-                                  </Typography>
-                                </Stack>
-                              </Stack>
-                              {actions.length ? (
-                                <Form method="post">
-                                  <input
-                                    type="hidden"
-                                    name="intent"
-                                    value="admin-affiliate-conversion:update"
-                                  />
-                                  <input
-                                    type="hidden"
-                                    name="conversion_id"
-                                    value={conversion.conversionId}
-                                  />
-                                  <Stack
-                                    direction={{ xs: "column", sm: "row" }}
-                                    spacing={1}
-                                    sx={{ alignItems: { sm: "center" } }}
-                                  >
-                                    <TextField
-                                      label="Note"
-                                      name="reason"
-                                      size="small"
-                                      sx={{ flex: 1 }}
-                                    />
-                                    <Stack
-                                      direction="row"
-                                      spacing={1}
-                                      sx={{ flexWrap: "wrap" }}
-                                    >
-                                      {actions.map((action) => (
-                                        <Button
-                                          key={action.status}
-                                          type="submit"
-                                          name="status"
-                                          value={action.status}
-                                          size="small"
-                                          variant="outlined"
-                                        >
-                                          {action.label}
-                                        </Button>
-                                      ))}
-                                    </Stack>
-                                  </Stack>
-                                </Form>
-                              ) : null}
-                            </Stack>
-                          );
-                        })}
+                        <Chip
+                          size="small"
+                          label={conversion.status}
+                          variant="outlined"
+                        />
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {formatGHS(conversion.commissionMinor)}
+                        </Typography>
                       </Stack>
-                    </Box>
-                  ) : null}
-
-                  {approvedConversionCount > 0 && !archived ? (
-                    <Box
-                      sx={{
-                        p: 1.25,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.success, 0.18),
-                        borderRadius: 1,
-                        bgcolor: alpha(tokens.success, 0.06),
-                      }}
-                    >
+                    </Stack>
+                    {actions.length ? (
                       <Form method="post">
                         <input
                           type="hidden"
                           name="intent"
-                          value="admin-affiliate-payout:create"
+                          value="admin-affiliate-conversion:update"
                         />
                         <input
                           type="hidden"
-                          name="affiliate_id"
-                          value={affiliate.affiliateId}
+                          name="conversion_id"
+                          value={conversion.conversionId}
                         />
-                        <Stack spacing={1}>
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          sx={{ alignItems: { sm: "center" } }}
+                        >
+                          <TextField
+                            label="Note"
+                            name="reason"
+                            size="small"
+                            sx={{ flex: 1 }}
+                          />
                           <Stack
-                            direction={{ xs: "column", sm: "row" }}
+                            direction="row"
                             spacing={1}
-                            sx={{
-                              justifyContent: "space-between",
-                              alignItems: { sm: "center" },
-                            }}
+                            sx={{ flexWrap: "wrap" }}
                           >
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 900 }}>
-                                Approved payout
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
+                            {actions.map((action) => (
+                              <Button
+                                key={action.status}
+                                type="submit"
+                                name="status"
+                                value={action.status}
+                                size="small"
+                                variant="outlined"
                               >
-                                {approvedConversionCount} rows ·{" "}
-                                {formatGHS(recentApprovedCommissionMinor)}
-                              </Typography>
-                            </Box>
-                            <Button
-                              type="submit"
-                              size="small"
-                              variant="contained"
-                            >
-                              Reconcile payout
-                            </Button>
+                                {action.label}
+                              </Button>
+                            ))}
                           </Stack>
-                          <Box
-                            sx={{
-                              display: "grid",
-                              gap: 1,
-                              gridTemplateColumns: {
-                                xs: "1fr",
-                                sm: "minmax(0, 1fr) minmax(0, 1.2fr)",
-                              },
-                            }}
-                          >
-                            <TextField
-                              label="Payout reference"
-                              name="payout_reference"
-                              size="small"
-                              defaultValue={affiliate.payoutReference}
-                            />
-                            <TextField
-                              label="Notes"
-                              name="notes"
-                              size="small"
-                              defaultValue="Settled from approved affiliate commission."
-                            />
-                          </Box>
                         </Stack>
                       </Form>
-                    </Box>
-                  ) : null}
+                    ) : null}
+                  </Stack>
+                );
+              })}
+            </Stack>
+          </Box>
+        ) : null}
 
-                  {performance?.recentPayouts.length ? (
-                    <Box
+        {approvedConversionCount > 0 && !archived ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.success, 0.18),
+              borderRadius: 1,
+              bgcolor: alpha(tokens.success, 0.06),
+            }}
+          >
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-affiliate-payout:create"
+              />
+              <input
+                type="hidden"
+                name="affiliate_id"
+                value={affiliate.affiliateId}
+              />
+              <Stack spacing={1}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: { sm: "center" },
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      Approved payout
+                    </Typography>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {approvedConversionCount} rows ·{" "}
+                      {formatGHS(recentApprovedCommissionMinor)}
+                    </Typography>
+                  </Box>
+                  <Button type="submit" size="small" variant="contained">
+                    Reconcile payout
+                  </Button>
+                </Stack>
+                <Box
+                  sx={{
+                    display: "grid",
+                    gap: 1,
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "minmax(0, 1fr) minmax(0, 1.2fr)",
+                    },
+                  }}
+                >
+                  <TextField
+                    label="Payout reference"
+                    name="payout_reference"
+                    size="small"
+                    defaultValue={affiliate.payoutReference}
+                  />
+                  <TextField
+                    label="Notes"
+                    name="notes"
+                    size="small"
+                    defaultValue="Settled from approved affiliate commission."
+                  />
+                </Box>
+              </Stack>
+            </Form>
+          </Box>
+        ) : null}
+
+        {performance?.recentPayouts.length ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.success, 0.14),
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.7)",
+            }}
+          >
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", fontWeight: 900 }}
+            >
+              Recent payouts
+            </Typography>
+            <Stack spacing={0.75} sx={{ mt: 1 }}>
+              {performance.recentPayouts.map((payout) => (
+                <Stack
+                  key={payout.payoutBatchId}
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  sx={{
+                    p: 1,
+                    borderRadius: 1,
+                    bgcolor: "rgba(var(--surface-rgb), 0.76)",
+                    justifyContent: "space-between",
+                    alignItems: { sm: "center" },
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 900 }}>
+                      {formatGHS(payout.commissionMinor)}
+                    </Typography>
+                    <Typography
+                      variant="body2"
                       sx={{
-                        p: 1.25,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.success, 0.14),
-                        borderRadius: 1,
-                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                        color: "text.secondary",
+                        overflowWrap: "anywhere",
                       }}
                     >
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", fontWeight: 900 }}
-                      >
-                        Recent payouts
-                      </Typography>
-                      <Stack spacing={0.75} sx={{ mt: 1 }}>
-                        {performance.recentPayouts.map((payout) => (
-                          <Stack
-                            key={payout.payoutBatchId}
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1}
-                            sx={{
-                              p: 1,
-                              borderRadius: 1,
-                              bgcolor: "rgba(var(--surface-rgb), 0.76)",
-                              justifyContent: "space-between",
-                              alignItems: { sm: "center" },
-                            }}
-                          >
-                            <Box sx={{ minWidth: 0 }}>
-                              <Typography sx={{ fontWeight: 900 }}>
-                                {formatGHS(payout.commissionMinor)}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  color: "text.secondary",
-                                  overflowWrap: "anywhere",
-                                }}
-                              >
-                                {payout.payoutReference ||
-                                  shortID(payout.payoutBatchId)}
-                              </Typography>
-                            </Box>
-                            <Stack
-                              direction="row"
-                              spacing={1}
-                              sx={{ alignItems: "center", flexWrap: "wrap" }}
-                            >
-                              <Chip
-                                size="small"
-                                label={payout.status}
-                                variant="outlined"
-                              />
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
-                              >
-                                {payout.conversionCount} rows ·{" "}
-                                {shortTime(payout.createdAt)}
-                              </Typography>
-                            </Stack>
-                          </Stack>
-                        ))}
-                      </Stack>
-                    </Box>
-                  ) : null}
-
-                  {affiliate.notes || affiliate.payoutReference ? (
-                    <Box
-                      sx={{
-                        p: 1.25,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.ink, 0.08),
-                        borderRadius: 1,
-                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
-                      }}
+                      {payout.payoutReference || shortID(payout.payoutBatchId)}
+                    </Typography>
+                  </Box>
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{ alignItems: "center", flexWrap: "wrap" }}
+                  >
+                    <Chip
+                      size="small"
+                      label={payout.status}
+                      variant="outlined"
+                    />
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
                     >
-                      {affiliate.payoutReference ? (
-                        <Typography sx={{ overflowWrap: "anywhere" }}>
-                          {affiliate.payoutReference}
-                        </Typography>
-                      ) : null}
-                      {affiliate.notes ? (
-                        <Typography
-                          variant="body2"
-                          sx={{ mt: 0.5, color: "text.secondary" }}
-                        >
-                          Notes: {affiliate.notes}
-                        </Typography>
-                      ) : null}
-                    </Box>
-                  ) : null}
+                      {payout.conversionCount} rows ·{" "}
+                      {shortTime(payout.createdAt)}
+                    </Typography>
+                  </Stack>
+                </Stack>
+              ))}
+            </Stack>
+          </Box>
+        ) : null}
 
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-affiliate:update"
-                    />
-                    <input
-                      type="hidden"
-                      name="affiliate_id"
-                      value={affiliate.affiliateId}
-                    />
-                    <Stack spacing={1.25}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            md: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                        <TextField
-                          select
-                          label="Entity"
-                          name="entity_type"
-                          size="small"
-                          defaultValue={affiliate.entityType}
-                          disabled={archived}
-                        >
-                          {affiliateEntityOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Code"
-                          name="code"
-                          size="small"
-                          defaultValue={affiliate.code}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Display name"
-                          name="display_name"
-                          size="small"
-                          defaultValue={affiliate.displayName}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Contact name"
-                          name="contact_name"
-                          size="small"
-                          defaultValue={affiliate.contactName}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Email"
-                          name="email"
-                          type="email"
-                          size="small"
-                          defaultValue={affiliate.email}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Phone"
-                          name="phone"
-                          size="small"
-                          defaultValue={affiliate.phone}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Website"
-                          name="website_url"
-                          type="url"
-                          size="small"
-                          defaultValue={affiliate.websiteUrl}
-                          disabled={archived}
-                        />
-                        <TextField
-                          select
-                          label="Commission"
-                          name="commission_model"
-                          size="small"
-                          defaultValue={affiliate.commissionModel}
-                          disabled={archived}
-                        >
-                          {affiliateCommissionOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Commission value"
-                          name="commission_value"
-                          type="number"
-                          size="small"
-                          defaultValue={affiliateCommissionDefault(affiliate)}
-                          required
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                        />
-                        <TextField
-                          label="Cookie window"
-                          name="cookie_window_days"
-                          type="number"
-                          size="small"
-                          defaultValue={affiliate.cookieWindowDays}
-                          disabled={archived}
-                          slotProps={{
-                            htmlInput: { min: 1, max: 365, step: 1 },
-                          }}
-                        />
-                        <TextField
-                          select
-                          label="Payout mode"
-                          name="payout_mode"
-                          size="small"
-                          defaultValue={affiliate.payoutMode}
-                          disabled={archived}
-                        >
-                          {affiliatePayoutOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Status"
-                          name="status"
-                          size="small"
-                          defaultValue={
-                            affiliate.status === "archived"
-                              ? "paused"
-                              : affiliate.status
-                          }
-                          disabled={archived}
-                        >
-                          {affiliateStatusOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                      </Box>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                        }}
-                      >
-                        <TextField
-                          label="Payout reference"
-                          name="payout_reference"
-                          size="small"
-                          defaultValue={affiliate.payoutReference}
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Notes"
-                          name="notes"
-                          multiline
-                          minRows={2}
-                          size="small"
-                          defaultValue={affiliate.notes}
-                          disabled={archived}
-                        />
-                      </Box>
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={archived}
-                        sx={{ alignSelf: "flex-start" }}
-                      >
-                        Save partner
-                      </Button>
-                    </Stack>
-                  </Form>
+        {affiliate.notes || affiliate.payoutReference ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.7)",
+            }}
+          >
+            {affiliate.payoutReference ? (
+              <Typography sx={{ overflowWrap: "anywhere" }}>
+                {affiliate.payoutReference}
+              </Typography>
+            ) : null}
+            {affiliate.notes ? (
+              <Typography
+                variant="body2"
+                sx={{ mt: 0.5, color: "text.secondary" }}
+              >
+                Notes: {affiliate.notes}
+              </Typography>
+            ) : null}
+          </Box>
+        ) : null}
 
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-affiliate:archive"
-                    />
-                    <input
-                      type="hidden"
-                      name="affiliate_id"
-                      value={affiliate.affiliateId}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        label="Archive reason"
-                        name="reason"
-                        size="small"
-                        placeholder="Programme closed"
-                        fullWidth
-                        disabled={archived}
-                      />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        disabled={archived}
-                        sx={{ minWidth: { sm: 140 } }}
-                      >
-                        Archive
-                      </Button>
-                    </Stack>
-                  </Form>
+        <Form method="post">
+          <input type="hidden" name="intent" value="admin-affiliate:update" />
+          <input
+            type="hidden"
+            name="affiliate_id"
+            value={affiliate.affiliateId}
+          />
+          <Stack spacing={1.25}>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(2, minmax(0, 1fr))",
+                },
+              }}
+            >
+              <TextField
+                select
+                label="Entity"
+                name="entity_type"
+                size="small"
+                defaultValue={affiliate.entityType}
+                disabled={archived}
+              >
+                {affiliateEntityOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Code"
+                name="code"
+                size="small"
+                defaultValue={affiliate.code}
+                required
+                disabled={archived}
+              />
+              <TextField
+                label="Display name"
+                name="display_name"
+                size="small"
+                defaultValue={affiliate.displayName}
+                required
+                disabled={archived}
+              />
+              <TextField
+                label="Contact name"
+                name="contact_name"
+                size="small"
+                defaultValue={affiliate.contactName}
+                disabled={archived}
+              />
+              <TextField
+                label="Email"
+                name="email"
+                type="email"
+                size="small"
+                defaultValue={affiliate.email}
+                disabled={archived}
+              />
+              <TextField
+                label="Phone"
+                name="phone"
+                size="small"
+                defaultValue={affiliate.phone}
+                disabled={archived}
+              />
+              <TextField
+                label="Website"
+                name="website_url"
+                type="url"
+                size="small"
+                defaultValue={affiliate.websiteUrl}
+                disabled={archived}
+              />
+              <TextField
+                select
+                label="Commission"
+                name="commission_model"
+                size="small"
+                defaultValue={affiliate.commissionModel}
+                disabled={archived}
+              >
+                {affiliateCommissionOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Commission value"
+                name="commission_value"
+                type="number"
+                size="small"
+                defaultValue={affiliateCommissionDefault(affiliate)}
+                required
+                disabled={archived}
+                slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+              />
+              <TextField
+                label="Cookie window"
+                name="cookie_window_days"
+                type="number"
+                size="small"
+                defaultValue={affiliate.cookieWindowDays}
+                disabled={archived}
+                slotProps={{
+                  htmlInput: { min: 1, max: 365, step: 1 },
+                }}
+              />
+              <TextField
+                select
+                label="Payout mode"
+                name="payout_mode"
+                size="small"
+                defaultValue={affiliate.payoutMode}
+                disabled={archived}
+              >
+                {affiliatePayoutOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Status"
+                name="status"
+                size="small"
+                defaultValue={
+                  affiliate.status === "archived" ? "paused" : affiliate.status
+                }
+                disabled={archived}
+              >
+                {affiliateStatusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Box>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+              }}
+            >
+              <TextField
+                label="Payout reference"
+                name="payout_reference"
+                size="small"
+                defaultValue={affiliate.payoutReference}
+                disabled={archived}
+              />
+              <TextField
+                label="Notes"
+                name="notes"
+                multiline
+                minRows={2}
+                size="small"
+                defaultValue={affiliate.notes}
+                disabled={archived}
+              />
+            </Box>
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={archived}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              Save partner
+            </Button>
+          </Stack>
+        </Form>
+
+        <Form method="post">
+          <input type="hidden" name="intent" value="admin-affiliate:archive" />
+          <input
+            type="hidden"
+            name="affiliate_id"
+            value={affiliate.affiliateId}
+          />
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <TextField
+              label="Archive reason"
+              name="reason"
+              size="small"
+              placeholder="Programme closed"
+              fullWidth
+              disabled={archived}
+            />
+            <Button
+              type="submit"
+              variant="outlined"
+              color="warning"
+              disabled={archived}
+              sx={{ minWidth: { sm: 140 } }}
+            >
+              Archive
+            </Button>
+          </Stack>
+        </Form>
       </Stack>
     </Stack>
   );
@@ -13890,454 +13880,439 @@ function AdminReferralProgrammeDetailForm({
       </Box>
 
       <Stack spacing={1.5}>
-                  {programme.notes ? (
-                    <Box
-                      sx={{
-                        p: 1.25,
-                        border: "1px solid",
-                        borderColor: alpha(tokens.ink, 0.08),
-                        borderRadius: 1,
-                        bgcolor: "rgba(var(--surface-rgb), 0.7)",
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
-                      >
-                        Notes
-                      </Typography>
-                      <Typography sx={{ overflowWrap: "anywhere" }}>
-                        {programme.notes}
-                      </Typography>
-                    </Box>
-                  ) : null}
+        {programme.notes ? (
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: alpha(tokens.ink, 0.08),
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.7)",
+            }}
+          >
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              Notes
+            </Typography>
+            <Typography sx={{ overflowWrap: "anywhere" }}>
+              {programme.notes}
+            </Typography>
+          </Box>
+        ) : null}
 
+        <Box
+          sx={{
+            p: 1.25,
+            border: "1px solid",
+            borderColor: alpha(tokens.ink, 0.08),
+            borderRadius: 1,
+            bgcolor: "rgba(var(--surface-rgb), 0.74)",
+          }}
+        >
+          <Stack spacing={1.25}>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{
+                alignItems: { sm: "center" },
+                justifyContent: "space-between",
+              }}
+            >
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+                  Issued codes
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  {programme.codes.length
+                    ? `${programme.codes.length} recent code${
+                        programme.codes.length === 1 ? "" : "s"
+                      }`
+                    : "No codes issued"}
+                </Typography>
+              </Box>
+              <Chip
+                size="small"
+                label={`${programme.codes.reduce(
+                  (total, code) => total + code.referralCount,
+                  0,
+                )} referrals`}
+                variant="outlined"
+              />
+            </Stack>
+
+            {programme.codes.length > 0 ? (
+              <Stack spacing={0.75}>
+                {programme.codes.map((code) => (
                   <Box
+                    key={code.referralCodeId}
                     sx={{
-                      p: 1.25,
-                      border: "1px solid",
-                      borderColor: alpha(tokens.ink, 0.08),
+                      display: "grid",
+                      gap: 1,
+                      gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "minmax(0, 1.2fr) minmax(0, 1fr) auto",
+                      },
+                      alignItems: "center",
+                      p: 1,
                       borderRadius: 1,
-                      bgcolor: "rgba(var(--surface-rgb), 0.74)",
+                      bgcolor: alpha(tokens.ink, 0.035),
                     }}
                   >
-                    <Stack spacing={1.25}>
-                      <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={1}
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography
                         sx={{
-                          alignItems: { sm: "center" },
-                          justifyContent: "space-between",
+                          fontWeight: 900,
+                          overflowWrap: "anywhere",
                         }}
                       >
-                        <Box>
-                          <Typography
-                            variant="subtitle2"
-                            sx={{ fontWeight: 900 }}
-                          >
-                            Issued codes
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {programme.codes.length
-                              ? `${programme.codes.length} recent code${
-                                  programme.codes.length === 1 ? "" : "s"
-                                }`
-                              : "No codes issued"}
-                          </Typography>
-                        </Box>
-                        <Chip
-                          size="small"
-                          label={`${programme.codes.reduce(
-                            (total, code) => total + code.referralCount,
-                            0,
-                          )} referrals`}
-                          variant="outlined"
-                        />
-                      </Stack>
-
-                      {programme.codes.length > 0 ? (
-                        <Stack spacing={0.75}>
-                          {programme.codes.map((code) => (
-                            <Box
-                              key={code.referralCodeId}
-                              sx={{
-                                display: "grid",
-                                gap: 1,
-                                gridTemplateColumns: {
-                                  xs: "1fr",
-                                  sm: "minmax(0, 1.2fr) minmax(0, 1fr) auto",
-                                },
-                                alignItems: "center",
-                                p: 1,
-                                borderRadius: 1,
-                                bgcolor: alpha(tokens.ink, 0.035),
-                              }}
-                            >
-                              <Box sx={{ minWidth: 0 }}>
-                                <Typography
-                                  sx={{
-                                    fontWeight: 900,
-                                    overflowWrap: "anywhere",
-                                  }}
-                                >
-                                  {code.code}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  sx={{ color: "text.secondary" }}
-                                >
-                                  {code.ownerLabel || "Platform"} ·{" "}
-                                  {shortTime(code.updatedAt)}
-                                </Typography>
-                              </Box>
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary" }}
-                              >
-                                {code.referralCount} total ·{" "}
-                                {code.qualifiedCount} qualified
-                              </Typography>
-                              <Chip
-                                size="small"
-                                label={code.status}
-                                sx={{
-                                  justifySelf: { sm: "end" },
-                                  bgcolor: alpha(
-                                    code.status === "active"
-                                      ? tokens.success
-                                      : tokens.warning,
-                                    0.12,
-                                  ),
-                                  color:
-                                    code.status === "active"
-                                      ? tokens.success
-                                      : tokens.warning,
-                                  fontWeight: 900,
-                                }}
-                              />
-                            </Box>
-                          ))}
-                        </Stack>
-                      ) : null}
-
-                      <Divider />
-
-                      <Form method="post">
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="admin-referral-code:create"
-                        />
-                        <input
-                          type="hidden"
-                          name="programme_id"
-                          value={programme.programmeId}
-                        />
-                        <Box
-                          sx={{
-                            display: "grid",
-                            gap: 1,
-                            gridTemplateColumns: {
-                              xs: "1fr",
-                              md: "1fr 1fr 1.2fr auto",
-                            },
-                            alignItems: "center",
-                          }}
-                        >
-                          <TextField
-                            select
-                            label="Owner"
-                            name="owner_type"
-                            size="small"
-                            defaultValue="platform"
-                            disabled={archived || programme.status !== "active"}
-                          >
-                            {referralCodeOwnerOptions.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                          <TextField
-                            select
-                            label="Business"
-                            name="business_id"
-                            size="small"
-                            defaultValue=""
-                            disabled={
-                              archived ||
-                              programme.status !== "active" ||
-                              eligibleBusinesses.length === 0
-                            }
-                          >
-                            <MenuItem value="">None</MenuItem>
-                            {eligibleBusinesses.map((business) => (
-                              <MenuItem key={business.id} value={business.id}>
-                                {business.name}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                          <TextField
-                            label="Code"
-                            name="code"
-                            size="small"
-                            placeholder={`${programme.codePrefix}AMA`}
-                            required
-                            disabled={archived || programme.status !== "active"}
-                          />
-                          <TextField
-                            select
-                            label="Status"
-                            name="status"
-                            size="small"
-                            defaultValue="active"
-                            disabled={archived || programme.status !== "active"}
-                          >
-                            {referralCodeStatusOptions.map((option) => (
-                              <MenuItem key={option.value} value={option.value}>
-                                {option.label}
-                              </MenuItem>
-                            ))}
-                          </TextField>
-                        </Box>
-                        <Button
-                          type="submit"
-                          variant="outlined"
-                          disabled={archived || programme.status !== "active"}
-                          sx={{ mt: 1.25 }}
-                        >
-                          Issue code
-                        </Button>
-                      </Form>
-                    </Stack>
+                        {code.code}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {code.ownerLabel || "Platform"} ·{" "}
+                        {shortTime(code.updatedAt)}
+                      </Typography>
+                    </Box>
+                    <Typography
+                      variant="body2"
+                      sx={{ color: "text.secondary" }}
+                    >
+                      {code.referralCount} total · {code.qualifiedCount}{" "}
+                      qualified
+                    </Typography>
+                    <Chip
+                      size="small"
+                      label={code.status}
+                      sx={{
+                        justifySelf: { sm: "end" },
+                        bgcolor: alpha(
+                          code.status === "active"
+                            ? tokens.success
+                            : tokens.warning,
+                          0.12,
+                        ),
+                        color:
+                          code.status === "active"
+                            ? tokens.success
+                            : tokens.warning,
+                        fontWeight: 900,
+                      }}
+                    />
                   </Box>
+                ))}
+              </Stack>
+            ) : null}
 
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-referral-programme:update"
-                    />
-                    <input
-                      type="hidden"
-                      name="programme_id"
-                      value={programme.programmeId}
-                    />
-                    <Stack spacing={1.25}>
-                      <Box
-                        sx={{
-                          display: "grid",
-                          gap: 1.25,
-                          gridTemplateColumns: {
-                            xs: "1fr",
-                            md: "repeat(2, minmax(0, 1fr))",
-                          },
-                        }}
-                      >
-                        <TextField
-                          label="Title"
-                          name="title"
-                          size="small"
-                          defaultValue={programme.title}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          label="Code prefix"
-                          name="code_prefix"
-                          size="small"
-                          defaultValue={programme.codePrefix}
-                          required
-                          disabled={archived}
-                        />
-                        <TextField
-                          select
-                          label="Audience"
-                          name="audience"
-                          size="small"
-                          defaultValue={programme.audience}
-                          disabled={archived}
-                        >
-                          {referralAudienceOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Referrer reward"
-                          name="referrer_reward_kind"
-                          size="small"
-                          defaultValue={programme.referrerRewardKind}
-                          disabled={archived}
-                        >
-                          {referralRewardKindOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="New customer reward"
-                          name="referee_reward_kind"
-                          size="small"
-                          defaultValue={programme.refereeRewardKind}
-                          disabled={archived}
-                        >
-                          {referralRefereeRewardKindOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          select
-                          label="Reward type"
-                          name="reward_type"
-                          size="small"
-                          defaultValue={programme.rewardType}
-                          disabled={archived}
-                        >
-                          {referralRewardTypeOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <TextField
-                          label="Reward value"
-                          name="reward_value"
-                          type="number"
-                          size="small"
-                          defaultValue={referralRewardDefault(programme)}
-                          required
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                        />
-                        <TextField
-                          label="Percentage cap (GHS)"
-                          name="max_reward_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(
-                            programme.maxRewardMinor,
-                          )}
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                        />
-                        <TextField
-                          label="Minimum order (GHS)"
-                          name="qualifying_order_min_ghs"
-                          type="number"
-                          size="small"
-                          defaultValue={moneyInputDefault(
-                            programme.qualifyingOrderMinMinor,
-                          )}
-                          disabled={archived}
-                          slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
-                        />
-                        <TextField
-                          label="Reward hold days"
-                          name="reward_hold_days"
-                          type="number"
-                          size="small"
-                          defaultValue={programme.rewardHoldDays}
-                          disabled={archived}
-                          slotProps={{
-                            htmlInput: { min: 0, max: 180, step: 1 },
-                          }}
-                        />
-                        <TextField
-                          select
-                          label="Status"
-                          name="status"
-                          size="small"
-                          defaultValue={
-                            programme.status === "archived"
-                              ? "paused"
-                              : programme.status
-                          }
-                          disabled={archived}
-                        >
-                          {referralStatusOptions.map((option) => (
-                            <MenuItem key={option.value} value={option.value}>
-                              {option.label}
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <StyledDateTimeField
-                          label="Starts"
-                          name="starts_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(
-                            programme.startsAt,
-                          )}
-                          disabled={archived}
-                        />
-                        <StyledDateTimeField
-                          label="Ends"
-                          name="ends_at"
-                          size="small"
-                          defaultValue={datetimeLocalDefault(programme.endsAt)}
-                          disabled={archived}
-                        />
-                      </Box>
-                      <TextField
-                        label="Notes"
-                        name="notes"
-                        multiline
-                        minRows={2}
-                        size="small"
-                        defaultValue={programme.notes}
-                        disabled={archived}
-                      />
-                      <Button
-                        type="submit"
-                        variant="contained"
-                        disabled={archived}
-                        sx={{ alignSelf: "flex-start" }}
-                      >
-                        Save programme
-                      </Button>
-                    </Stack>
-                  </Form>
+            <Divider />
 
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="admin-referral-programme:archive"
-                    />
-                    <input
-                      type="hidden"
-                      name="programme_id"
-                      value={programme.programmeId}
-                    />
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                      <TextField
-                        label="Archive reason"
-                        name="reason"
-                        size="small"
-                        placeholder="Campaign ended"
-                        fullWidth
-                        disabled={archived}
-                      />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        disabled={archived}
-                        sx={{ minWidth: { sm: 140 } }}
-                      >
-                        Archive
-                      </Button>
-                    </Stack>
-                  </Form>
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-referral-code:create"
+              />
+              <input
+                type="hidden"
+                name="programme_id"
+                value={programme.programmeId}
+              />
+              <Box
+                sx={{
+                  display: "grid",
+                  gap: 1,
+                  gridTemplateColumns: {
+                    xs: "1fr",
+                    md: "1fr 1fr 1.2fr auto",
+                  },
+                  alignItems: "center",
+                }}
+              >
+                <TextField
+                  select
+                  label="Owner"
+                  name="owner_type"
+                  size="small"
+                  defaultValue="platform"
+                  disabled={archived || programme.status !== "active"}
+                >
+                  {referralCodeOwnerOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  select
+                  label="Business"
+                  name="business_id"
+                  size="small"
+                  defaultValue=""
+                  disabled={
+                    archived ||
+                    programme.status !== "active" ||
+                    eligibleBusinesses.length === 0
+                  }
+                >
+                  <MenuItem value="">None</MenuItem>
+                  {eligibleBusinesses.map((business) => (
+                    <MenuItem key={business.id} value={business.id}>
+                      {business.name}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
+                  label="Code"
+                  name="code"
+                  size="small"
+                  placeholder={`${programme.codePrefix}AMA`}
+                  required
+                  disabled={archived || programme.status !== "active"}
+                />
+                <TextField
+                  select
+                  label="Status"
+                  name="status"
+                  size="small"
+                  defaultValue="active"
+                  disabled={archived || programme.status !== "active"}
+                >
+                  {referralCodeStatusOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Box>
+              <Button
+                type="submit"
+                variant="outlined"
+                disabled={archived || programme.status !== "active"}
+                sx={{ mt: 1.25 }}
+              >
+                Issue code
+              </Button>
+            </Form>
+          </Stack>
+        </Box>
+
+        <Form method="post">
+          <input
+            type="hidden"
+            name="intent"
+            value="admin-referral-programme:update"
+          />
+          <input
+            type="hidden"
+            name="programme_id"
+            value={programme.programmeId}
+          />
+          <Stack spacing={1.25}>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.25,
+                gridTemplateColumns: {
+                  xs: "1fr",
+                  md: "repeat(2, minmax(0, 1fr))",
+                },
+              }}
+            >
+              <TextField
+                label="Title"
+                name="title"
+                size="small"
+                defaultValue={programme.title}
+                required
+                disabled={archived}
+              />
+              <TextField
+                label="Code prefix"
+                name="code_prefix"
+                size="small"
+                defaultValue={programme.codePrefix}
+                required
+                disabled={archived}
+              />
+              <TextField
+                select
+                label="Audience"
+                name="audience"
+                size="small"
+                defaultValue={programme.audience}
+                disabled={archived}
+              >
+                {referralAudienceOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Referrer reward"
+                name="referrer_reward_kind"
+                size="small"
+                defaultValue={programme.referrerRewardKind}
+                disabled={archived}
+              >
+                {referralRewardKindOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="New customer reward"
+                name="referee_reward_kind"
+                size="small"
+                defaultValue={programme.refereeRewardKind}
+                disabled={archived}
+              >
+                {referralRefereeRewardKindOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                select
+                label="Reward type"
+                name="reward_type"
+                size="small"
+                defaultValue={programme.rewardType}
+                disabled={archived}
+              >
+                {referralRewardTypeOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Reward value"
+                name="reward_value"
+                type="number"
+                size="small"
+                defaultValue={referralRewardDefault(programme)}
+                required
+                disabled={archived}
+                slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+              />
+              <TextField
+                label="Percentage cap (GHS)"
+                name="max_reward_ghs"
+                type="number"
+                size="small"
+                defaultValue={moneyInputDefault(programme.maxRewardMinor)}
+                disabled={archived}
+                slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+              />
+              <TextField
+                label="Minimum order (GHS)"
+                name="qualifying_order_min_ghs"
+                type="number"
+                size="small"
+                defaultValue={moneyInputDefault(
+                  programme.qualifyingOrderMinMinor,
+                )}
+                disabled={archived}
+                slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+              />
+              <TextField
+                label="Reward hold days"
+                name="reward_hold_days"
+                type="number"
+                size="small"
+                defaultValue={programme.rewardHoldDays}
+                disabled={archived}
+                slotProps={{
+                  htmlInput: { min: 0, max: 180, step: 1 },
+                }}
+              />
+              <TextField
+                select
+                label="Status"
+                name="status"
+                size="small"
+                defaultValue={
+                  programme.status === "archived" ? "paused" : programme.status
+                }
+                disabled={archived}
+              >
+                {referralStatusOptions.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <StyledDateTimeField
+                label="Starts"
+                name="starts_at"
+                size="small"
+                defaultValue={datetimeLocalDefault(programme.startsAt)}
+                disabled={archived}
+              />
+              <StyledDateTimeField
+                label="Ends"
+                name="ends_at"
+                size="small"
+                defaultValue={datetimeLocalDefault(programme.endsAt)}
+                disabled={archived}
+              />
+            </Box>
+            <TextField
+              label="Notes"
+              name="notes"
+              multiline
+              minRows={2}
+              size="small"
+              defaultValue={programme.notes}
+              disabled={archived}
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={archived}
+              sx={{ alignSelf: "flex-start" }}
+            >
+              Save programme
+            </Button>
+          </Stack>
+        </Form>
+
+        <Form method="post">
+          <input
+            type="hidden"
+            name="intent"
+            value="admin-referral-programme:archive"
+          />
+          <input
+            type="hidden"
+            name="programme_id"
+            value={programme.programmeId}
+          />
+          <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+            <TextField
+              label="Archive reason"
+              name="reason"
+              size="small"
+              placeholder="Campaign ended"
+              fullWidth
+              disabled={archived}
+            />
+            <Button
+              type="submit"
+              variant="outlined"
+              color="warning"
+              disabled={archived}
+              sx={{ minWidth: { sm: 140 } }}
+            >
+              Archive
+            </Button>
+          </Stack>
+        </Form>
       </Stack>
     </Stack>
   );
@@ -14991,11 +14966,7 @@ function AdminUsersSection({
     pageCount: userPageCount,
     pagedItems: pagedUsers,
     setPage: setUserPage,
-  } = usePagedItems(
-    filteredUsers,
-    8,
-    `${query}:${roleFilter}:${statusFilter}`,
-  );
+  } = usePagedItems(filteredUsers, 8, `${query}:${roleFilter}:${statusFilter}`);
 
   return (
     <Stack spacing={2.5}>
@@ -16153,10 +16124,10 @@ function SettingsSection({
                       variant="body2"
                       sx={{ color: "text.secondary" }}
                     >
-                      Control what is shown on the public marketing site. Changes
-                      take effect immediately with no redeploy. Each defaults off
-                      (hidden) for launch — turn one on once that experience is
-                      ready.
+                      Control what is shown on the public marketing site.
+                      Changes take effect immediately with no redeploy. Each
+                      defaults off (hidden) for launch — turn one on once that
+                      experience is ready.
                     </Typography>
                   </Box>
                 </Stack>
@@ -16957,6 +16928,7 @@ function AdminTopBar({
   onToggleCollapsed,
   onToggleDarkChrome,
   onSelect,
+  onOpenHelp,
 }: {
   admin: AdminSession;
   currentSection: AdminNavItem;
@@ -16967,6 +16939,7 @@ function AdminTopBar({
   onToggleCollapsed: () => void;
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
   onSelect: (section: Section) => void;
+  onOpenHelp: () => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
   const profileOpen = Boolean(profileAnchor);
@@ -17060,17 +17033,40 @@ function AdminTopBar({
             >
               admin.xtiitch.com
             </Typography>
-            <Typography
-              variant="h5"
-              component="h1"
-              sx={{
-                lineHeight: 1.05,
-                fontSize: { xs: "1.3rem", sm: "1.55rem" },
-              }}
-              noWrap
+            <Stack
+              direction="row"
+              spacing={0.75}
+              sx={{ alignItems: "center", minWidth: 0 }}
             >
-              {currentSection.label}
-            </Typography>
+              <Typography
+                variant="h5"
+                component="h1"
+                sx={{
+                  lineHeight: 1.05,
+                  fontSize: { xs: "1.3rem", sm: "1.55rem" },
+                }}
+                noWrap
+              >
+                {currentSection.label}
+              </Typography>
+              <Tooltip title={`Guide: ${currentSection.label}`}>
+                <IconButton
+                  size="small"
+                  aria-label="Open section guide"
+                  onClick={onOpenHelp}
+                  sx={{
+                    color: "inherit",
+                    flexShrink: 0,
+                    border: "1px solid",
+                    borderColor: darkChrome
+                      ? alpha(tokens.white, 0.16)
+                      : alpha(tokens.ink, 0.1),
+                  }}
+                >
+                  <HelpOutlineRounded fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
           </Box>
         </Stack>
 
@@ -17753,7 +17749,10 @@ function OverviewSection({
     })),
     30,
   );
-  const customerNew = customerSeries.reduce((sum, point) => sum + point.value, 0);
+  const customerNew = customerSeries.reduce(
+    (sum, point) => sum + point.value,
+    0,
+  );
   const auditSeries = buildOverviewSeries(
     auditEvents.map((event) => ({
       ts: overviewParseMs(event.createdAt),
@@ -17851,7 +17850,11 @@ function OverviewSection({
       value: urgentSupport.length,
       color: tokens.danger,
     },
-    { label: "Open support", value: openSupport.length, color: tokens.burgundy },
+    {
+      label: "Open support",
+      value: openSupport.length,
+      color: tokens.burgundy,
+    },
   ];
   const growthBars: OverviewBar[] = [
     {
@@ -18214,7 +18217,8 @@ function OverviewSection({
                       borderLeft: "3px solid",
                       borderColor: item.tone,
                       cursor: "pointer",
-                      transition: "transform 160ms ease, background-color 160ms",
+                      transition:
+                        "transform 160ms ease, background-color 160ms",
                       "&:hover": { transform: "translateX(3px)" },
                     }}
                   >
@@ -18364,6 +18368,7 @@ export default function AdminDashboard({
   const [auditFilter, setAuditFilter] = useState<AuditFilter>("all");
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const settingsFeedback =
     actionFeedback?.section === "settings" && actionFeedback.message
       ? actionFeedback
@@ -18377,8 +18382,7 @@ export default function AdminDashboard({
   // A plain GET navigation that is loading means the loader is fetching a fresh
   // dataset (e.g. a deep-link or hard refresh) — show a skeleton. Action revalidations
   // (formMethod set) keep the current content in place under the top progress bar.
-  const isNavLoading =
-    navigation.state === "loading" && !navigation.formMethod;
+  const isNavLoading = navigation.state === "loading" && !navigation.formMethod;
 
   const pendingCount = verificationCases.filter(
     (item) => item.status === "pending" || item.status === "unverified",
@@ -18661,6 +18665,12 @@ export default function AdminDashboard({
           onToggleCollapsed={() => setRailCollapsed((value) => !value)}
           onToggleDarkChrome={toggleMode}
           onSelect={setSection}
+          onOpenHelp={() => setHelpOpen(true)}
+        />
+        <HelpDrawer
+          open={helpOpen}
+          onClose={() => setHelpOpen(false)}
+          section={currentSection.id}
         />
 
         <Box
@@ -18717,1038 +18727,1057 @@ export default function AdminDashboard({
                 />
               ) : null}
 
-          {section === "notifications" ? (
-            <NotificationsSection
-              notifications={adminNotifications}
-              notificationsError={backendNotificationsError}
-              preferences={profileSettings.preferences}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "reports" ? (
-            <ReportsSection
-              platformMetrics={platformMetrics}
-              platformSettings={platformSettings}
-              backendReportItems={backendReportItems}
-              backendReportsError={backendReportsError}
-              adminBusinesses={adminBusinesses}
-              verificationCases={verificationCases}
-              moneyRails={moneyRails}
-              subscriptions={subscriptions}
-              promotions={promotions}
-              adCampaigns={adCampaigns}
-              affiliates={affiliates}
-              referralProgrammes={referralProgrammes}
-              riskReviews={riskReviews}
-              supportTickets={supportTickets}
-              auditEvents={auditEvents}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "exports" ? (
-            <ExportsSection
-              platformMetrics={platformMetrics}
-              platformSettings={platformSettings}
-              profileSettings={profileSettings}
-              launchReadiness={launchReadiness}
-              adminUsers={adminUsers}
-              adminBusinesses={adminBusinesses}
-              adminCustomers={adminCustomers}
-              verificationCases={verificationCases}
-              moneyRails={moneyRails}
-              roleCatalog={roleCatalog}
-              plans={plans}
-              subscriptions={subscriptions}
-              promotions={promotions}
-              adCampaigns={adCampaigns}
-              affiliates={affiliates}
-              referralProgrammes={referralProgrammes}
-              riskReviews={riskReviews}
-              supportTickets={supportTickets}
-              auditEvents={auditEvents}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "health" ? (
-            <HealthSection
-              platformMetrics={platformMetrics}
-              platformSettings={platformSettings}
-              adminUsers={adminUsers}
-              adminBusinesses={adminBusinesses}
-              verificationCases={verificationCases}
-              moneyRails={moneyRails}
-              subscriptions={subscriptions}
-              promotions={promotions}
-              adCampaigns={adCampaigns}
-              affiliates={affiliates}
-              referralProgrammes={referralProgrammes}
-              riskReviews={riskReviews}
-              supportTickets={supportTickets}
-              auditEvents={auditEvents}
-              operationsHealth={operationsHealth}
-              operationsHealthError={operationsHealthError}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "readiness" ? (
-            <LaunchReadinessSection
-              readiness={launchReadiness}
-              readinessError={launchReadinessError}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "subscriptions" ? (
-            <SubscriptionsSection
-              subscriptions={subscriptions}
-              subscriptionsError={subscriptionsError}
-              plans={plans}
-              plansError={plansError}
-              platformMetrics={platformMetrics}
-              actionData={actionFeedback}
-              onSelect={setSection}
-            />
-          ) : null}
-
-          {section === "promotions" ? (
-            <PromotionsSection
-              promotions={promotions}
-              promotionsError={promotionsError}
-              businesses={adminBusinesses}
-              actionData={actionFeedback}
-            />
-          ) : null}
-
-          {section === "ads" ? (
-            <AdsSection
-              campaigns={adCampaigns}
-              adCampaignsError={adCampaignsError}
-              businesses={adminBusinesses}
-              actionData={actionFeedback}
-            />
-          ) : null}
-
-          {section === "affiliates" ? (
-            <AffiliatesSection
-              affiliates={affiliates}
-              affiliatesError={affiliatesError}
-              affiliateAttribution={affiliateAttribution}
-              affiliateAttributionError={affiliateAttributionError}
-              actionData={actionFeedback}
-            />
-          ) : null}
-
-          {section === "referrals" ? (
-            <ReferralsSection
-              programmes={referralProgrammes}
-              referralProgrammesError={referralProgrammesError}
-              businesses={adminBusinesses}
-              actionData={actionFeedback}
-            />
-          ) : null}
-
-          {section === "users" ? (
-            <AdminUsersSection
-              users={adminUsers}
-              roles={roleCatalog}
-              currentUserId={admin.adminUserId}
-              actionData={actionFeedback}
-              error={userManagementError}
-            />
-          ) : null}
-
-          {section === "roles" ? (
-            <RolePermissionsSection
-              roles={roleCatalog}
-              permissions={permissionCatalog}
-              actionData={actionFeedback}
-            />
-          ) : null}
-
-          {section === "settings" ? (
-            <SettingsSection
-              admin={admin}
-              profileSettings={profileSettings}
-              profileSettingsError={profileSettingsError}
-              platformSettings={platformSettings}
-              platformSettingsError={platformSettingsError}
-              roles={roleCatalog}
-            />
-          ) : null}
-
-          {section === "waitlist" ? (
-            <WaitlistSection
-              leads={waitlistLeads}
-              error={waitlistError}
-              isLoading={isNavLoading}
-            />
-          ) : null}
-
-          {section === "verification" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="KYC and business review"
-                title="Payment verification queue"
-                helper="Approve only when business identity, settlement account, and operator notes are clean."
-              />
-              {actionFeedback?.section === "verification" &&
-              actionFeedback.message ? (
-                <Alert severity={actionFeedback.severity ?? "success"}>
-                  {actionFeedback.message}
-                </Alert>
-              ) : null}
-              {verificationQueueError ? (
-                <Alert severity="warning">{verificationQueueError}</Alert>
-              ) : null}
-              {verificationCases.length === 0 && !verificationQueueError ? (
-                <Panel sx={{ p: { xs: 2, md: 3 } }}>
-                  <Stack spacing={1}>
-                    <Typography variant="h6">No verification cases</Typography>
-                    <Typography sx={{ color: "text.secondary" }}>
-                      New businesses will appear here as soon as they need an
-                      operator decision.
-                    </Typography>
-                  </Stack>
-                </Panel>
-              ) : null}
-              {pagedVerificationCases.map((item) => (
-                <VerificationCard
-                  key={item.id}
-                  item={item}
-                  note={verificationNotes[item.id] ?? ""}
-                  onNoteChange={updateVerificationNote}
+              {section === "notifications" ? (
+                <NotificationsSection
+                  notifications={adminNotifications}
+                  notificationsError={backendNotificationsError}
+                  preferences={profileSettings.preferences}
+                  onSelect={setSection}
                 />
-              ))}
-              <PaginationFooter
-                count={verificationPageCount}
-                label="verification cases"
-                page={verificationPage}
-                pageSize={6}
-                total={verificationCases.length}
-                onChange={setVerificationPage}
-              />
-            </Stack>
-          ) : null}
+              ) : null}
 
-          {section === "businesses" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="Tenant operations"
-                title="Businesses"
-                helper="Search stores, monitor GMV and commission, and suspend risky tenants without touching customer data."
-              />
-              {actionFeedback?.section === "businesses" &&
-              actionFeedback.message ? (
-                <Alert severity={actionFeedback.severity ?? "success"}>
-                  {actionFeedback.message}
-                </Alert>
+              {section === "reports" ? (
+                <ReportsSection
+                  platformMetrics={platformMetrics}
+                  platformSettings={platformSettings}
+                  backendReportItems={backendReportItems}
+                  backendReportsError={backendReportsError}
+                  adminBusinesses={adminBusinesses}
+                  verificationCases={verificationCases}
+                  moneyRails={moneyRails}
+                  subscriptions={subscriptions}
+                  promotions={promotions}
+                  adCampaigns={adCampaigns}
+                  affiliates={affiliates}
+                  referralProgrammes={referralProgrammes}
+                  riskReviews={riskReviews}
+                  supportTickets={supportTickets}
+                  auditEvents={auditEvents}
+                  onSelect={setSection}
+                />
               ) : null}
-              {businessManagementError ? (
-                <Alert severity="warning">{businessManagementError}</Alert>
+
+              {section === "exports" ? (
+                <ExportsSection
+                  platformMetrics={platformMetrics}
+                  platformSettings={platformSettings}
+                  profileSettings={profileSettings}
+                  launchReadiness={launchReadiness}
+                  adminUsers={adminUsers}
+                  adminBusinesses={adminBusinesses}
+                  adminCustomers={adminCustomers}
+                  verificationCases={verificationCases}
+                  moneyRails={moneyRails}
+                  roleCatalog={roleCatalog}
+                  plans={plans}
+                  subscriptions={subscriptions}
+                  promotions={promotions}
+                  adCampaigns={adCampaigns}
+                  affiliates={affiliates}
+                  referralProgrammes={referralProgrammes}
+                  riskReviews={riskReviews}
+                  supportTickets={supportTickets}
+                  auditEvents={auditEvents}
+                  onSelect={setSection}
+                />
               ) : null}
-              <Panel sx={{ p: 2 }}>
-                <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
-                  <TextField
-                    label="Search business"
-                    value={businessQuery}
-                    onChange={(event) => setBusinessQuery(event.target.value)}
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <SearchRounded />
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
+
+              {section === "health" ? (
+                <HealthSection
+                  platformMetrics={platformMetrics}
+                  platformSettings={platformSettings}
+                  adminUsers={adminUsers}
+                  adminBusinesses={adminBusinesses}
+                  verificationCases={verificationCases}
+                  moneyRails={moneyRails}
+                  subscriptions={subscriptions}
+                  promotions={promotions}
+                  adCampaigns={adCampaigns}
+                  affiliates={affiliates}
+                  referralProgrammes={referralProgrammes}
+                  riskReviews={riskReviews}
+                  supportTickets={supportTickets}
+                  auditEvents={auditEvents}
+                  operationsHealth={operationsHealth}
+                  operationsHealthError={operationsHealthError}
+                  onSelect={setSection}
+                />
+              ) : null}
+
+              {section === "readiness" ? (
+                <LaunchReadinessSection
+                  readiness={launchReadiness}
+                  readinessError={launchReadinessError}
+                  onSelect={setSection}
+                />
+              ) : null}
+
+              {section === "subscriptions" ? (
+                <SubscriptionsSection
+                  subscriptions={subscriptions}
+                  subscriptionsError={subscriptionsError}
+                  plans={plans}
+                  plansError={plansError}
+                  platformMetrics={platformMetrics}
+                  actionData={actionFeedback}
+                  onSelect={setSection}
+                />
+              ) : null}
+
+              {section === "promotions" ? (
+                <PromotionsSection
+                  promotions={promotions}
+                  promotionsError={promotionsError}
+                  businesses={adminBusinesses}
+                  actionData={actionFeedback}
+                />
+              ) : null}
+
+              {section === "ads" ? (
+                <AdsSection
+                  campaigns={adCampaigns}
+                  adCampaignsError={adCampaignsError}
+                  businesses={adminBusinesses}
+                  actionData={actionFeedback}
+                />
+              ) : null}
+
+              {section === "affiliates" ? (
+                <AffiliatesSection
+                  affiliates={affiliates}
+                  affiliatesError={affiliatesError}
+                  affiliateAttribution={affiliateAttribution}
+                  affiliateAttributionError={affiliateAttributionError}
+                  actionData={actionFeedback}
+                />
+              ) : null}
+
+              {section === "referrals" ? (
+                <ReferralsSection
+                  programmes={referralProgrammes}
+                  referralProgrammesError={referralProgrammesError}
+                  businesses={adminBusinesses}
+                  actionData={actionFeedback}
+                />
+              ) : null}
+
+              {section === "users" ? (
+                <AdminUsersSection
+                  users={adminUsers}
+                  roles={roleCatalog}
+                  currentUserId={admin.adminUserId}
+                  actionData={actionFeedback}
+                  error={userManagementError}
+                />
+              ) : null}
+
+              {section === "roles" ? (
+                <RolePermissionsSection
+                  roles={roleCatalog}
+                  permissions={permissionCatalog}
+                  actionData={actionFeedback}
+                />
+              ) : null}
+
+              {section === "settings" ? (
+                <SettingsSection
+                  admin={admin}
+                  profileSettings={profileSettings}
+                  profileSettingsError={profileSettingsError}
+                  platformSettings={platformSettings}
+                  platformSettingsError={platformSettingsError}
+                  roles={roleCatalog}
+                />
+              ) : null}
+
+              {section === "waitlist" ? (
+                <WaitlistSection
+                  leads={waitlistLeads}
+                  error={waitlistError}
+                  isLoading={isNavLoading}
+                />
+              ) : null}
+
+              {section === "verification" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="KYC and business review"
+                    title="Payment verification queue"
+                    helper="Approve only when business identity, settlement account, and operator notes are clean."
                   />
-                  <TextField
-                    select
-                    label="Status"
-                    value={statusFilter}
-                    onChange={(event) =>
-                      setStatusFilter(event.target.value as StatusFilter)
-                    }
-                    sx={{ minWidth: { md: 220 } }}
-                  >
-                    {statusFilters.map((filter) => (
-                      <MenuItem key={filter.value} value={filter.value}>
-                        {filter.label}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                  <ToggleButtonGroup
-                    exclusive
-                    value={businessView}
-                    onChange={(_event, next) => {
-                      if (next) setBusinessView(next as "list" | "card");
-                    }}
-                    aria-label="Business view"
-                    sx={{
-                      alignSelf: { xs: "stretch", md: "center" },
-                      "& .MuiToggleButton-root": {
-                        px: 1.5,
-                        border: "1px solid",
-                        borderColor: "divider",
-                        color: "text.secondary",
-                        "&.Mui-selected": {
-                          color: "primary.main",
-                          bgcolor: (theme) =>
-                            alpha(theme.palette.primary.main, 0.12),
+                  {actionFeedback?.section === "verification" &&
+                  actionFeedback.message ? (
+                    <Alert severity={actionFeedback.severity ?? "success"}>
+                      {actionFeedback.message}
+                    </Alert>
+                  ) : null}
+                  {verificationQueueError ? (
+                    <Alert severity="warning">{verificationQueueError}</Alert>
+                  ) : null}
+                  {verificationCases.length === 0 && !verificationQueueError ? (
+                    <Panel sx={{ p: { xs: 2, md: 3 } }}>
+                      <Stack spacing={1}>
+                        <Typography variant="h6">
+                          No verification cases
+                        </Typography>
+                        <Typography sx={{ color: "text.secondary" }}>
+                          New businesses will appear here as soon as they need
+                          an operator decision.
+                        </Typography>
+                      </Stack>
+                    </Panel>
+                  ) : null}
+                  {pagedVerificationCases.map((item) => (
+                    <VerificationCard
+                      key={item.id}
+                      item={item}
+                      note={verificationNotes[item.id] ?? ""}
+                      onNoteChange={updateVerificationNote}
+                    />
+                  ))}
+                  <PaginationFooter
+                    count={verificationPageCount}
+                    label="verification cases"
+                    page={verificationPage}
+                    pageSize={6}
+                    total={verificationCases.length}
+                    onChange={setVerificationPage}
+                  />
+                </Stack>
+              ) : null}
+
+              {section === "businesses" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="Tenant operations"
+                    title="Businesses"
+                    helper="Search stores, monitor GMV and commission, and suspend risky tenants without touching customer data."
+                  />
+                  {actionFeedback?.section === "businesses" &&
+                  actionFeedback.message ? (
+                    <Alert severity={actionFeedback.severity ?? "success"}>
+                      {actionFeedback.message}
+                    </Alert>
+                  ) : null}
+                  {businessManagementError ? (
+                    <Alert severity="warning">{businessManagementError}</Alert>
+                  ) : null}
+                  <Panel sx={{ p: 2 }}>
+                    <Stack
+                      direction={{ xs: "column", md: "row" }}
+                      spacing={1.5}
+                    >
+                      <TextField
+                        label="Search business"
+                        value={businessQuery}
+                        onChange={(event) =>
+                          setBusinessQuery(event.target.value)
+                        }
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <SearchRounded />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      <TextField
+                        select
+                        label="Status"
+                        value={statusFilter}
+                        onChange={(event) =>
+                          setStatusFilter(event.target.value as StatusFilter)
+                        }
+                        sx={{ minWidth: { md: 220 } }}
+                      >
+                        {statusFilters.map((filter) => (
+                          <MenuItem key={filter.value} value={filter.value}>
+                            {filter.label}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <ToggleButtonGroup
+                        exclusive
+                        value={businessView}
+                        onChange={(_event, next) => {
+                          if (next) setBusinessView(next as "list" | "card");
+                        }}
+                        aria-label="Business view"
+                        sx={{
+                          alignSelf: { xs: "stretch", md: "center" },
+                          "& .MuiToggleButton-root": {
+                            px: 1.5,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            color: "text.secondary",
+                            "&.Mui-selected": {
+                              color: "primary.main",
+                              bgcolor: (theme) =>
+                                alpha(theme.palette.primary.main, 0.12),
+                            },
+                          },
+                        }}
+                      >
+                        <ToggleButton value="list" aria-label="List view">
+                          <ViewListRounded fontSize="small" />
+                        </ToggleButton>
+                        <ToggleButton value="card" aria-label="Card view">
+                          <GridViewRounded fontSize="small" />
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    </Stack>
+                  </Panel>
+                  {filteredBusinesses.length === 0 ? (
+                    <Panel sx={{ p: 3, textAlign: "center" }}>
+                      <Typography sx={{ fontWeight: 800 }}>
+                        No businesses match this view.
+                      </Typography>
+                      <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                        Clear the search or choose another status.
+                      </Typography>
+                    </Panel>
+                  ) : businessView === "card" ? (
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 1.5,
+                        alignContent: "start",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          xl: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      {pagedBusinesses.map((business) => (
+                        <BusinessRow
+                          key={business.id}
+                          business={business}
+                          selected={selectedBusiness?.id === business.id}
+                          onInspect={setSelectedBusiness}
+                          compact
+                        />
+                      ))}
+                    </Box>
+                  ) : (
+                    <BusinessTable
+                      businesses={pagedBusinesses}
+                      selectedId={selectedBusiness?.id ?? null}
+                      onInspect={setSelectedBusiness}
+                    />
+                  )}
+                  <PaginationFooter
+                    count={businessPageCount}
+                    label="businesses"
+                    page={businessPage}
+                    pageSize={businessPageSize}
+                    total={filteredBusinesses.length}
+                    onChange={setBusinessPage}
+                  />
+                  <Drawer
+                    anchor="right"
+                    open={Boolean(selectedBusiness)}
+                    onClose={() => setSelectedBusiness(null)}
+                    slotProps={{
+                      paper: {
+                        sx: {
+                          width: { xs: "100%", sm: 460 },
+                          maxWidth: "100%",
+                          bgcolor: "background.default",
+                          p: { xs: 2, sm: 2.5 },
                         },
                       },
                     }}
                   >
-                    <ToggleButton value="list" aria-label="List view">
-                      <ViewListRounded fontSize="small" />
-                    </ToggleButton>
-                    <ToggleButton value="card" aria-label="Card view">
-                      <GridViewRounded fontSize="small" />
-                    </ToggleButton>
-                  </ToggleButtonGroup>
-                </Stack>
-              </Panel>
-              {filteredBusinesses.length === 0 ? (
-                <Panel sx={{ p: 3, textAlign: "center" }}>
-                  <Typography sx={{ fontWeight: 800 }}>
-                    No businesses match this view.
-                  </Typography>
-                  <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-                    Clear the search or choose another status.
-                  </Typography>
-                </Panel>
-              ) : businessView === "card" ? (
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1.5,
-                    alignContent: "start",
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      sm: "repeat(2, minmax(0, 1fr))",
-                      xl: "repeat(3, minmax(0, 1fr))",
-                    },
-                  }}
-                >
-                  {pagedBusinesses.map((business) => (
-                    <BusinessRow
-                      key={business.id}
-                      business={business}
-                      selected={selectedBusiness?.id === business.id}
-                      onInspect={setSelectedBusiness}
-                      compact
+                    <BusinessInspector
+                      business={selectedBusiness}
+                      onReviewPayments={() => {
+                        setSection("money");
+                        setSelectedBusiness(null);
+                      }}
+                      onOpenAudit={() => {
+                        setSection("audit");
+                        setSelectedBusiness(null);
+                      }}
+                      onClose={() => setSelectedBusiness(null)}
                     />
-                  ))}
-                </Box>
-              ) : (
-                <BusinessTable
-                  businesses={pagedBusinesses}
-                  selectedId={selectedBusiness?.id ?? null}
-                  onInspect={setSelectedBusiness}
-                />
-              )}
-              <PaginationFooter
-                count={businessPageCount}
-                label="businesses"
-                page={businessPage}
-                pageSize={businessPageSize}
-                total={filteredBusinesses.length}
-                onChange={setBusinessPage}
-              />
-              <Drawer
-                anchor="right"
-                open={Boolean(selectedBusiness)}
-                onClose={() => setSelectedBusiness(null)}
-                slotProps={{
-                  paper: {
-                    sx: {
-                      width: { xs: "100%", sm: 460 },
-                      maxWidth: "100%",
-                      bgcolor: "background.default",
-                      p: { xs: 2, sm: 2.5 },
-                    },
-                  },
-                }}
-              >
-                <BusinessInspector
-                  business={selectedBusiness}
-                  onReviewPayments={() => {
-                    setSection("money");
-                    setSelectedBusiness(null);
-                  }}
-                  onOpenAudit={() => {
-                    setSection("audit");
-                    setSelectedBusiness(null);
-                  }}
-                  onClose={() => setSelectedBusiness(null)}
-                />
-              </Drawer>
-            </Stack>
-          ) : null}
-
-          {section === "customers" ? (
-            <CustomerDirectoryPanel
-              customers={adminCustomers}
-              visibleCustomers={filteredCustomers}
-              selectedCustomer={selectedCustomer}
-              query={customerQuery}
-              error={customerDirectoryError}
-              onQueryChange={setCustomerQuery}
-              onInspect={setSelectedCustomer}
-              onCloseInspector={() => setSelectedCustomer(null)}
-            />
-          ) : null}
-
-          {section === "money" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="Paystack operations"
-                title="Money rails"
-                helper="Watch webhook delivery, split settlement, subaccount health, and payout holds without touching tenant funds."
-              />
-              {moneyRailsError ? (
-                <Alert severity="warning">{moneyRailsError}</Alert>
+                  </Drawer>
+                </Stack>
               ) : null}
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 2,
-                  gridTemplateColumns: { xs: "1fr", xl: "1.08fr 0.92fr" },
-                }}
-              >
-                <Panel
-                  sx={{
-                    p: { xs: 2, md: 2.5 },
-                    borderColor: alpha(tokens.info, 0.16),
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1.5}
-                    sx={{ alignItems: "center", mb: 2 }}
+
+              {section === "customers" ? (
+                <CustomerDirectoryPanel
+                  customers={adminCustomers}
+                  visibleCustomers={filteredCustomers}
+                  selectedCustomer={selectedCustomer}
+                  query={customerQuery}
+                  error={customerDirectoryError}
+                  onQueryChange={setCustomerQuery}
+                  onInspect={setSelectedCustomer}
+                  onCloseInspector={() => setSelectedCustomer(null)}
+                />
+              ) : null}
+
+              {section === "money" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="Paystack operations"
+                    title="Money rails"
+                    helper="Watch webhook delivery, split settlement, subaccount health, and payout holds without touching tenant funds."
+                  />
+                  {moneyRailsError ? (
+                    <Alert severity="warning">{moneyRailsError}</Alert>
+                  ) : null}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 2,
+                      gridTemplateColumns: { xs: "1fr", xl: "1.08fr 0.92fr" },
+                    }}
                   >
-                    <SyncRounded sx={{ color: tokens.burgundy }} />
-                    <Box>
-                      <Typography variant="h6">Webhook ledger</Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
+                    <Panel
+                      sx={{
+                        p: { xs: 2, md: 2.5 },
+                        borderColor: alpha(tokens.info, 0.16),
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        sx={{ alignItems: "center", mb: 2 }}
                       >
-                        Verified events, failed lookups, and safe replays.
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Stack spacing={1.5}>
-                    {pagedMoneyWebhookEvents.map((event) => {
-                      const replayed = event.status === "replayed";
-                      return (
-                        <Box
-                          key={event.id}
-                          sx={{
-                            p: 1.5,
-                            border: "1px solid",
-                            borderColor: alpha(
-                              replayed
-                                ? tokens.info
-                                : webhookColor(event.status),
-                              0.2,
-                            ),
-                            borderRadius: 1.5,
-                            bgcolor: "rgba(var(--surface-rgb), 0.7)",
-                            backgroundImage: `linear-gradient(90deg, ${alpha(
-                              replayed
-                                ? tokens.info
-                                : webhookColor(event.status),
-                              0.075,
-                            )}, transparent 36%)`,
-                            transition:
-                              "transform 180ms ease, border-color 180ms ease",
-                            "&:hover": {
-                              transform: "translateX(3px)",
-                              borderColor: alpha(
-                                replayed
-                                  ? tokens.info
-                                  : webhookColor(event.status),
-                                0.34,
-                              ),
-                            },
-                          }}
-                        >
-                          <Stack
-                            direction={{ xs: "column", md: "row" }}
-                            spacing={1.5}
-                            sx={{ justifyContent: "space-between" }}
+                        <SyncRounded sx={{ color: tokens.burgundy }} />
+                        <Box>
+                          <Typography variant="h6">Webhook ledger</Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
                           >
-                            <Box>
-                              <Stack
-                                direction="row"
-                                spacing={1}
-                                sx={{ alignItems: "center", flexWrap: "wrap" }}
-                              >
-                                <Typography sx={{ fontWeight: 900 }}>
-                                  {event.providerReference}
-                                </Typography>
-                                <Chip
-                                  size="small"
-                                  label={
-                                    replayed ? "replay queued" : event.status
-                                  }
-                                  sx={{
-                                    bgcolor: alpha(
-                                      replayed
-                                        ? tokens.info
-                                        : webhookColor(event.status),
-                                      0.12,
-                                    ),
-                                    color: replayed
+                            Verified events, failed lookups, and safe replays.
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Stack spacing={1.5}>
+                        {pagedMoneyWebhookEvents.map((event) => {
+                          const replayed = event.status === "replayed";
+                          return (
+                            <Box
+                              key={event.id}
+                              sx={{
+                                p: 1.5,
+                                border: "1px solid",
+                                borderColor: alpha(
+                                  replayed
+                                    ? tokens.info
+                                    : webhookColor(event.status),
+                                  0.2,
+                                ),
+                                borderRadius: 1.5,
+                                bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                                backgroundImage: `linear-gradient(90deg, ${alpha(
+                                  replayed
+                                    ? tokens.info
+                                    : webhookColor(event.status),
+                                  0.075,
+                                )}, transparent 36%)`,
+                                transition:
+                                  "transform 180ms ease, border-color 180ms ease",
+                                "&:hover": {
+                                  transform: "translateX(3px)",
+                                  borderColor: alpha(
+                                    replayed
                                       ? tokens.info
                                       : webhookColor(event.status),
-                                    textTransform: "capitalize",
-                                  }}
-                                />
-                              </Stack>
-                              <Typography
-                                variant="body2"
-                                sx={{ color: "text.secondary", mt: 0.5 }}
-                              >
-                                {event.business} · {event.purpose} ·{" "}
-                                {formatGHS(event.amountMinor)} ·{" "}
-                                {event.attempts} attempts
-                              </Typography>
-                              <Typography variant="body2" sx={{ mt: 1 }}>
-                                {event.note}
-                              </Typography>
-                            </Box>
-                            <Stack
-                              spacing={1}
-                              sx={{ alignItems: { md: "flex-end" } }}
+                                    0.34,
+                                  ),
+                                },
+                              }}
                             >
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  color: "text.secondary",
-                                  fontWeight: 800,
-                                }}
+                              <Stack
+                                direction={{ xs: "column", md: "row" }}
+                                spacing={1.5}
+                                sx={{ justifyContent: "space-between" }}
                               >
-                                {shortTime(event.receivedAt)}
-                              </Typography>
-                              <Form method="post">
-                                <input
-                                  type="hidden"
-                                  name="intent"
-                                  value="money:webhook-replay"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="provider_reference"
-                                  value={event.providerReference}
-                                />
-                                <input
-                                  type="hidden"
-                                  name="reason"
-                                  value={event.note}
-                                />
-                                <Button
-                                  type="submit"
-                                  variant="outlined"
-                                  size="small"
-                                  startIcon={<SyncRounded />}
-                                  disabled={
-                                    event.status === "verified" || replayed
-                                  }
-                                >
-                                  {replayed ? "Queued" : "Replay"}
-                                </Button>
-                              </Form>
-                              {event.status === "verified" ? (
-                                <Form method="post">
-                                  <input
-                                    type="hidden"
-                                    name="intent"
-                                    value="money:payment-reversal"
-                                  />
-                                  <input
-                                    type="hidden"
-                                    name="provider_reference"
-                                    value={event.providerReference}
-                                  />
-                                  <input
-                                    type="hidden"
-                                    name="reason"
-                                    value="Refund or dispute confirmed by provider."
-                                  />
-                                  <Button
-                                    type="submit"
-                                    variant="outlined"
-                                    color="warning"
-                                    size="small"
+                                <Box>
+                                  <Stack
+                                    direction="row"
+                                    spacing={1}
+                                    sx={{
+                                      alignItems: "center",
+                                      flexWrap: "wrap",
+                                    }}
                                   >
-                                    Reverse
-                                  </Button>
-                                </Form>
-                              ) : null}
-                            </Stack>
-                          </Stack>
-                        </Box>
-                      );
-                    })}
-                    {moneyWebhookEvents.length === 0 ? (
-                      <Box
-                        sx={{
-                          p: 2,
-                          border: "1px dashed",
-                          borderColor: alpha(tokens.info, 0.28),
-                          borderRadius: 1.5,
-                          bgcolor: "rgba(var(--surface-rgb), 0.68)",
-                        }}
-                      >
-                        <Typography sx={{ fontWeight: 900 }}>
-                          No provider events yet.
-                        </Typography>
-                        <Typography
-                          variant="body2"
-                          sx={{ mt: 0.5, color: "text.secondary" }}
-                        >
-                          Paystack webhook deliveries will appear here after
-                          checkout confirmations reach the API.
-                        </Typography>
-                      </Box>
-                    ) : null}
-                    <PaginationFooter
-                      count={webhookPageCount}
-                      label="webhook events"
-                      page={webhookPage}
-                      pageSize={6}
-                      total={moneyWebhookEvents.length}
-                      onChange={setWebhookPage}
-                    />
-                  </Stack>
-                </Panel>
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                      {event.providerReference}
+                                    </Typography>
+                                    <Chip
+                                      size="small"
+                                      label={
+                                        replayed
+                                          ? "replay queued"
+                                          : event.status
+                                      }
+                                      sx={{
+                                        bgcolor: alpha(
+                                          replayed
+                                            ? tokens.info
+                                            : webhookColor(event.status),
+                                          0.12,
+                                        ),
+                                        color: replayed
+                                          ? tokens.info
+                                          : webhookColor(event.status),
+                                        textTransform: "capitalize",
+                                      }}
+                                    />
+                                  </Stack>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ color: "text.secondary", mt: 0.5 }}
+                                  >
+                                    {event.business} · {event.purpose} ·{" "}
+                                    {formatGHS(event.amountMinor)} ·{" "}
+                                    {event.attempts} attempts
+                                  </Typography>
+                                  <Typography variant="body2" sx={{ mt: 1 }}>
+                                    {event.note}
+                                  </Typography>
+                                </Box>
+                                <Stack
+                                  spacing={1}
+                                  sx={{ alignItems: { md: "flex-end" } }}
+                                >
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: "text.secondary",
+                                      fontWeight: 800,
+                                    }}
+                                  >
+                                    {shortTime(event.receivedAt)}
+                                  </Typography>
+                                  <Form method="post">
+                                    <input
+                                      type="hidden"
+                                      name="intent"
+                                      value="money:webhook-replay"
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="provider_reference"
+                                      value={event.providerReference}
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="reason"
+                                      value={event.note}
+                                    />
+                                    <Button
+                                      type="submit"
+                                      variant="outlined"
+                                      size="small"
+                                      startIcon={<SyncRounded />}
+                                      disabled={
+                                        event.status === "verified" || replayed
+                                      }
+                                    >
+                                      {replayed ? "Queued" : "Replay"}
+                                    </Button>
+                                  </Form>
+                                  {event.status === "verified" ? (
+                                    <Form method="post">
+                                      <input
+                                        type="hidden"
+                                        name="intent"
+                                        value="money:payment-reversal"
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="provider_reference"
+                                        value={event.providerReference}
+                                      />
+                                      <input
+                                        type="hidden"
+                                        name="reason"
+                                        value="Refund or dispute confirmed by provider."
+                                      />
+                                      <Button
+                                        type="submit"
+                                        variant="outlined"
+                                        color="warning"
+                                        size="small"
+                                      >
+                                        Reverse
+                                      </Button>
+                                    </Form>
+                                  ) : null}
+                                </Stack>
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                        {moneyWebhookEvents.length === 0 ? (
+                          <Box
+                            sx={{
+                              p: 2,
+                              border: "1px dashed",
+                              borderColor: alpha(tokens.info, 0.28),
+                              borderRadius: 1.5,
+                              bgcolor: "rgba(var(--surface-rgb), 0.68)",
+                            }}
+                          >
+                            <Typography sx={{ fontWeight: 900 }}>
+                              No provider events yet.
+                            </Typography>
+                            <Typography
+                              variant="body2"
+                              sx={{ mt: 0.5, color: "text.secondary" }}
+                            >
+                              Paystack webhook deliveries will appear here after
+                              checkout confirmations reach the API.
+                            </Typography>
+                          </Box>
+                        ) : null}
+                        <PaginationFooter
+                          count={webhookPageCount}
+                          label="webhook events"
+                          page={webhookPage}
+                          pageSize={6}
+                          total={moneyWebhookEvents.length}
+                          onChange={setWebhookPage}
+                        />
+                      </Stack>
+                    </Panel>
 
-                <Panel
-                  sx={{
-                    p: { xs: 2, md: 2.5 },
-                    borderColor: alpha(tokens.warning, 0.16),
-                    backgroundImage: `
+                    <Panel
+                      sx={{
+                        p: { xs: 2, md: 2.5 },
+                        borderColor: alpha(tokens.warning, 0.16),
+                        backgroundImage: `
                       radial-gradient(circle at 92% 2%, ${alpha(tokens.warning, 0.14)}, transparent 34%),
                       linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                     `,
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1.5}
-                    sx={{ alignItems: "center", mb: 2 }}
-                  >
-                    <AccountBalanceRounded sx={{ color: tokens.burgundy }} />
-                    <Box>
-                      <Typography variant="h6">Settlement review</Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary" }}
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        spacing={1.5}
+                        sx={{ alignItems: "center", mb: 2 }}
                       >
-                        Subaccount status and operator holds.
-                      </Typography>
-                    </Box>
-                  </Stack>
-                  <Stack spacing={1.5}>
-                    {pagedMoneyPayoutReviews.map((review) => {
-                      const held = review.holdActive;
-                      const blockedByBusinessState =
-                        review.status === "blocked" && !review.holdActive;
-                      return (
-                        <Box
-                          key={review.id}
-                          sx={{
-                            p: 1.5,
-                            border: "1px solid",
-                            borderColor: held
-                              ? alpha(tokens.danger, 0.32)
-                              : alpha(payoutColor(review.status), 0.2),
-                            borderRadius: 1.5,
-                            bgcolor: held
-                              ? alpha(tokens.danger, 0.04)
-                              : alpha(tokens.white, 0.72),
-                            backgroundImage: `linear-gradient(90deg, ${alpha(
-                              held ? tokens.danger : payoutColor(review.status),
-                              0.075,
-                            )}, transparent 38%)`,
-                            transition:
-                              "transform 180ms ease, border-color 180ms ease",
-                            "&:hover": {
-                              transform: "translateX(3px)",
-                              borderColor: alpha(
-                                held
-                                  ? tokens.danger
-                                  : payoutColor(review.status),
-                                0.34,
-                              ),
-                            },
-                          }}
-                        >
-                          <Stack spacing={1.25}>
-                            <Stack
-                              direction="row"
-                              spacing={1}
+                        <AccountBalanceRounded
+                          sx={{ color: tokens.burgundy }}
+                        />
+                        <Box>
+                          <Typography variant="h6">
+                            Settlement review
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            Subaccount status and operator holds.
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      <Stack spacing={1.5}>
+                        {pagedMoneyPayoutReviews.map((review) => {
+                          const held = review.holdActive;
+                          const blockedByBusinessState =
+                            review.status === "blocked" && !review.holdActive;
+                          return (
+                            <Box
+                              key={review.id}
                               sx={{
-                                alignItems: "center",
-                                justifyContent: "space-between",
+                                p: 1.5,
+                                border: "1px solid",
+                                borderColor: held
+                                  ? alpha(tokens.danger, 0.32)
+                                  : alpha(payoutColor(review.status), 0.2),
+                                borderRadius: 1.5,
+                                bgcolor: held
+                                  ? alpha(tokens.danger, 0.04)
+                                  : alpha(tokens.white, 0.72),
+                                backgroundImage: `linear-gradient(90deg, ${alpha(
+                                  held
+                                    ? tokens.danger
+                                    : payoutColor(review.status),
+                                  0.075,
+                                )}, transparent 38%)`,
+                                transition:
+                                  "transform 180ms ease, border-color 180ms ease",
+                                "&:hover": {
+                                  transform: "translateX(3px)",
+                                  borderColor: alpha(
+                                    held
+                                      ? tokens.danger
+                                      : payoutColor(review.status),
+                                    0.34,
+                                  ),
+                                },
                               }}
                             >
-                              <Box>
-                                <Typography sx={{ fontWeight: 900 }}>
-                                  {review.business}
-                                </Typography>
+                              <Stack spacing={1.25}>
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  sx={{
+                                    alignItems: "center",
+                                    justifyContent: "space-between",
+                                  }}
+                                >
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 900 }}>
+                                      {review.business}
+                                    </Typography>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ color: "text.secondary" }}
+                                    >
+                                      {review.subaccountRef}
+                                    </Typography>
+                                  </Box>
+                                  <Chip
+                                    size="small"
+                                    label={held ? "held" : review.status}
+                                    sx={{
+                                      bgcolor: alpha(
+                                        held
+                                          ? tokens.danger
+                                          : payoutColor(review.status),
+                                        0.12,
+                                      ),
+                                      color: held
+                                        ? tokens.danger
+                                        : payoutColor(review.status),
+                                      textTransform: "capitalize",
+                                    }}
+                                  />
+                                </Stack>
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  sx={{ justifyContent: "space-between" }}
+                                >
+                                  <Typography variant="body2">
+                                    Settlement
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 900 }}
+                                  >
+                                    {formatGHS(review.settlementMinor)}
+                                  </Typography>
+                                </Stack>
+                                <Stack
+                                  direction="row"
+                                  spacing={1}
+                                  sx={{ justifyContent: "space-between" }}
+                                >
+                                  <Typography variant="body2">
+                                    Commission
+                                  </Typography>
+                                  <Typography
+                                    variant="body2"
+                                    sx={{ fontWeight: 900 }}
+                                  >
+                                    {formatGHS(review.commissionMinor)}
+                                  </Typography>
+                                </Stack>
                                 <Typography
                                   variant="body2"
                                   sx={{ color: "text.secondary" }}
                                 >
-                                  {review.subaccountRef}
+                                  {review.nextAction}
                                 </Typography>
-                              </Box>
-                              <Chip
-                                size="small"
-                                label={held ? "held" : review.status}
-                                sx={{
-                                  bgcolor: alpha(
-                                    held
-                                      ? tokens.danger
-                                      : payoutColor(review.status),
-                                    0.12,
-                                  ),
-                                  color: held
-                                    ? tokens.danger
-                                    : payoutColor(review.status),
-                                  textTransform: "capitalize",
-                                }}
-                              />
-                            </Stack>
-                            <Stack
-                              direction="row"
-                              spacing={1}
-                              sx={{ justifyContent: "space-between" }}
-                            >
-                              <Typography variant="body2">
-                                Settlement
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 900 }}
-                              >
-                                {formatGHS(review.settlementMinor)}
-                              </Typography>
-                            </Stack>
-                            <Stack
-                              direction="row"
-                              spacing={1}
-                              sx={{ justifyContent: "space-between" }}
-                            >
-                              <Typography variant="body2">
-                                Commission
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ fontWeight: 900 }}
-                              >
-                                {formatGHS(review.commissionMinor)}
-                              </Typography>
-                            </Stack>
+                                <Form method="post">
+                                  <input
+                                    type="hidden"
+                                    name="intent"
+                                    value="money:settlement-hold"
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="business_id"
+                                    value={review.id}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="hold"
+                                    value={held ? "false" : "true"}
+                                  />
+                                  <input
+                                    type="hidden"
+                                    name="reason"
+                                    value={
+                                      held
+                                        ? "Operator released settlement review hold."
+                                        : review.nextAction
+                                    }
+                                  />
+                                  <Button
+                                    type="submit"
+                                    variant={held ? "contained" : "outlined"}
+                                    color={held ? "primary" : "error"}
+                                    size="small"
+                                    startIcon={
+                                      held ? (
+                                        <CheckCircleRounded />
+                                      ) : (
+                                        <BlockRounded />
+                                      )
+                                    }
+                                    disabled={blockedByBusinessState}
+                                  >
+                                    {blockedByBusinessState
+                                      ? "Blocked by status"
+                                      : held
+                                        ? "Release hold"
+                                        : "Place review hold"}
+                                  </Button>
+                                </Form>
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                        {moneyPayoutReviews.length === 0 ? (
+                          <Box
+                            sx={{
+                              p: 2,
+                              border: "1px dashed",
+                              borderColor: alpha(tokens.warning, 0.28),
+                              borderRadius: 1.5,
+                              bgcolor: "rgba(var(--surface-rgb), 0.68)",
+                            }}
+                          >
+                            <Typography sx={{ fontWeight: 900 }}>
+                              No settlement rows yet.
+                            </Typography>
                             <Typography
                               variant="body2"
+                              sx={{ mt: 0.5, color: "text.secondary" }}
+                            >
+                              Verified stores with subaccounts or payment
+                              activity will appear here for operator review.
+                            </Typography>
+                          </Box>
+                        ) : null}
+                        <PaginationFooter
+                          count={payoutPageCount}
+                          label="payout reviews"
+                          page={payoutPage}
+                          pageSize={6}
+                          total={moneyPayoutReviews.length}
+                          onChange={setPayoutPage}
+                        />
+                      </Stack>
+                    </Panel>
+                  </Box>
+                </Stack>
+              ) : null}
+
+              {section === "risk" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="Trust and compliance"
+                    title="Risk review"
+                    helper="Open issues for payment integrity, tenant isolation evidence, complaints, and manual escalation."
+                  />
+                  {actionFeedback?.section === "risk" &&
+                  actionFeedback.message ? (
+                    <Alert severity={actionFeedback.severity ?? "success"}>
+                      {actionFeedback.message}
+                    </Alert>
+                  ) : null}
+                  {riskReviewError ? (
+                    <Alert severity="warning">{riskReviewError}</Alert>
+                  ) : null}
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gap: 2,
+                      gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" },
+                    }}
+                  >
+                    {pagedRiskReviews.map((item) => {
+                      const closed = item.status === "closed";
+                      return (
+                        <Panel
+                          key={item.id}
+                          sx={{
+                            p: 2.5,
+                            minHeight: "100%",
+                            borderColor: alpha(riskColor(item.level), 0.22),
+                            backgroundImage: `
+                          radial-gradient(circle at 100% 0%, ${alpha(riskColor(item.level), closed ? 0.06 : 0.12)}, transparent 34%),
+                          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
+                        `,
+                            opacity: closed ? 0.72 : 1,
+                            "&:hover": {
+                              transform: "translateY(-2px)",
+                              borderColor: alpha(riskColor(item.level), 0.36),
+                              boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.1)}`,
+                            },
+                          }}
+                        >
+                          <Stack spacing={1.5}>
+                            <Stack
+                              direction="row"
+                              spacing={1}
+                              sx={{
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Stack direction="row" spacing={1}>
+                                <RiskChip level={item.level} />
+                                {closed ? (
+                                  <Chip
+                                    size="small"
+                                    label="closed"
+                                    sx={{ color: tokens.success }}
+                                  />
+                                ) : null}
+                              </Stack>
+                              <Chip
+                                size="small"
+                                label={item.owner}
+                                variant="outlined"
+                              />
+                            </Stack>
+                            <Box>
+                              <Typography variant="h6">{item.title}</Typography>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {item.business}
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ color: "text.secondary" }}>
+                              {item.reason}
+                            </Typography>
+                            <Typography
+                              variant="caption"
                               sx={{ color: "text.secondary" }}
                             >
-                              {review.nextAction}
+                              Updated {shortTime(item.updatedAt)}
                             </Typography>
                             <Form method="post">
                               <input
                                 type="hidden"
                                 name="intent"
-                                value="money:settlement-hold"
+                                value="admin-risk-review:update"
                               />
                               <input
                                 type="hidden"
-                                name="business_id"
-                                value={review.id}
+                                name="review_key"
+                                value={item.id}
                               />
                               <input
                                 type="hidden"
-                                name="hold"
-                                value={held ? "false" : "true"}
+                                name="status"
+                                value={closed ? "open" : "closed"}
                               />
                               <input
                                 type="hidden"
                                 name="reason"
                                 value={
-                                  held
-                                    ? "Operator released settlement review hold."
-                                    : review.nextAction
+                                  closed
+                                    ? `Reopened ${item.title}`
+                                    : `Closed ${item.title}`
                                 }
                               />
                               <Button
                                 type="submit"
-                                variant={held ? "contained" : "outlined"}
-                                color={held ? "primary" : "error"}
-                                size="small"
+                                variant={closed ? "contained" : "outlined"}
                                 startIcon={
-                                  held ? (
+                                  closed ? (
                                     <CheckCircleRounded />
                                   ) : (
-                                    <BlockRounded />
+                                    <PersonSearchRounded />
                                   )
                                 }
-                                disabled={blockedByBusinessState}
+                                fullWidth
                               >
-                                {blockedByBusinessState
-                                  ? "Blocked by status"
-                                  : held
-                                    ? "Release hold"
-                                    : "Place review hold"}
+                                {closed ? "Reopen review" : "Close review"}
                               </Button>
                             </Form>
                           </Stack>
-                        </Box>
+                        </Panel>
                       );
                     })}
-                    {moneyPayoutReviews.length === 0 ? (
+                    {!riskReviewError && riskReviews.length === 0 ? (
                       <Box
                         sx={{
                           p: 2,
                           border: "1px dashed",
-                          borderColor: alpha(tokens.warning, 0.28),
+                          borderColor: alpha(tokens.success, 0.28),
                           borderRadius: 1.5,
                           bgcolor: "rgba(var(--surface-rgb), 0.68)",
                         }}
                       >
                         <Typography sx={{ fontWeight: 900 }}>
-                          No settlement rows yet.
+                          No active risk signals.
                         </Typography>
                         <Typography
                           variant="body2"
                           sx={{ mt: 0.5, color: "text.secondary" }}
                         >
-                          Verified stores with subaccounts or payment activity
-                          will appear here for operator review.
+                          Payment failures, active holds, suspended stores, and
+                          rejected verification cases will appear here.
                         </Typography>
                       </Box>
                     ) : null}
-                    <PaginationFooter
-                      count={payoutPageCount}
-                      label="payout reviews"
-                      page={payoutPage}
-                      pageSize={6}
-                      total={moneyPayoutReviews.length}
-                      onChange={setPayoutPage}
-                    />
-                  </Stack>
-                </Panel>
-              </Box>
-            </Stack>
-          ) : null}
-
-          {section === "risk" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="Trust and compliance"
-                title="Risk review"
-                helper="Open issues for payment integrity, tenant isolation evidence, complaints, and manual escalation."
-              />
-              {actionFeedback?.section === "risk" && actionFeedback.message ? (
-                <Alert severity={actionFeedback.severity ?? "success"}>
-                  {actionFeedback.message}
-                </Alert>
-              ) : null}
-              {riskReviewError ? (
-                <Alert severity="warning">{riskReviewError}</Alert>
-              ) : null}
-              <Box
-                sx={{
-                  display: "grid",
-                  gap: 2,
-                  gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" },
-                }}
-              >
-                {pagedRiskReviews.map((item) => {
-                  const closed = item.status === "closed";
-                  return (
-                    <Panel
-                      key={item.id}
-                      sx={{
-                        p: 2.5,
-                        minHeight: "100%",
-                        borderColor: alpha(riskColor(item.level), 0.22),
-                        backgroundImage: `
-                          radial-gradient(circle at 100% 0%, ${alpha(riskColor(item.level), closed ? 0.06 : 0.12)}, transparent 34%),
-                          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-                        `,
-                        opacity: closed ? 0.72 : 1,
-                        "&:hover": {
-                          transform: "translateY(-2px)",
-                          borderColor: alpha(riskColor(item.level), 0.36),
-                          boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.1)}`,
-                        },
-                      }}
-                    >
-                      <Stack spacing={1.5}>
-                        <Stack
-                          direction="row"
-                          spacing={1}
-                          sx={{
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Stack direction="row" spacing={1}>
-                            <RiskChip level={item.level} />
-                            {closed ? (
-                              <Chip
-                                size="small"
-                                label="closed"
-                                sx={{ color: tokens.success }}
-                              />
-                            ) : null}
-                          </Stack>
-                          <Chip
-                            size="small"
-                            label={item.owner}
-                            variant="outlined"
-                          />
-                        </Stack>
-                        <Box>
-                          <Typography variant="h6">{item.title}</Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {item.business}
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ color: "text.secondary" }}>
-                          {item.reason}
-                        </Typography>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: "text.secondary" }}
-                        >
-                          Updated {shortTime(item.updatedAt)}
-                        </Typography>
-                        <Form method="post">
-                          <input
-                            type="hidden"
-                            name="intent"
-                            value="admin-risk-review:update"
-                          />
-                          <input
-                            type="hidden"
-                            name="review_key"
-                            value={item.id}
-                          />
-                          <input
-                            type="hidden"
-                            name="status"
-                            value={closed ? "open" : "closed"}
-                          />
-                          <input
-                            type="hidden"
-                            name="reason"
-                            value={
-                              closed
-                                ? `Reopened ${item.title}`
-                                : `Closed ${item.title}`
-                            }
-                          />
-                          <Button
-                            type="submit"
-                            variant={closed ? "contained" : "outlined"}
-                            startIcon={
-                              closed ? (
-                                <CheckCircleRounded />
-                              ) : (
-                                <PersonSearchRounded />
-                              )
-                            }
-                            fullWidth
-                          >
-                            {closed ? "Reopen review" : "Close review"}
-                          </Button>
-                        </Form>
-                      </Stack>
-                    </Panel>
-                  );
-                })}
-                {!riskReviewError && riskReviews.length === 0 ? (
-                  <Box
-                    sx={{
-                      p: 2,
-                      border: "1px dashed",
-                      borderColor: alpha(tokens.success, 0.28),
-                      borderRadius: 1.5,
-                      bgcolor: "rgba(var(--surface-rgb), 0.68)",
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 900 }}>
-                      No active risk signals.
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 0.5, color: "text.secondary" }}
-                    >
-                      Payment failures, active holds, suspended stores, and
-                      rejected verification cases will appear here.
-                    </Typography>
                   </Box>
-                ) : null}
-              </Box>
-              <PaginationFooter
-                count={riskPageCount}
-                label="risk reviews"
-                page={riskPage}
-                pageSize={6}
-                total={riskReviews.length}
-                onChange={setRiskPage}
-              />
-            </Stack>
-          ) : null}
+                  <PaginationFooter
+                    count={riskPageCount}
+                    label="risk reviews"
+                    page={riskPage}
+                    pageSize={6}
+                    total={riskReviews.length}
+                    onChange={setRiskPage}
+                  />
+                </Stack>
+              ) : null}
 
-          {section === "support" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="Operator support"
-                title="Support queue"
-                helper="Prioritise payment, delivery, and tracking issues before they become trust problems."
-              />
-              {actionFeedback?.section === "support" &&
-              actionFeedback.message ? (
-                <Alert severity={actionFeedback.severity ?? "success"}>
-                  {actionFeedback.message}
-                </Alert>
-              ) : null}
-              {supportQueueError ? (
-                <Alert severity="warning">{supportQueueError}</Alert>
-              ) : null}
-              <Stack spacing={1.5}>
-                {pagedSupportTickets.map((ticket) => {
-                  const resolved = ticket.status === "resolved";
-                  const assignedToMe =
-                    ticket.assignedAdminEmail === admin.adminEmail;
-                  const assignee =
-                    ticket.assignedAdminName || ticket.assignedAdminEmail;
-                  return (
-                    <Panel
-                      key={ticket.id}
-                      sx={{
-                        p: 2.5,
-                        borderColor: alpha(
-                          ticket.priority === "urgent"
-                            ? tokens.danger
-                            : tokens.info,
-                          ticket.priority === "urgent" ? 0.28 : 0.18,
-                        ),
-                        backgroundImage: `
+              {section === "support" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="Operator support"
+                    title="Support queue"
+                    helper="Prioritise payment, delivery, and tracking issues before they become trust problems."
+                  />
+                  {actionFeedback?.section === "support" &&
+                  actionFeedback.message ? (
+                    <Alert severity={actionFeedback.severity ?? "success"}>
+                      {actionFeedback.message}
+                    </Alert>
+                  ) : null}
+                  {supportQueueError ? (
+                    <Alert severity="warning">{supportQueueError}</Alert>
+                  ) : null}
+                  <Stack spacing={1.5}>
+                    {pagedSupportTickets.map((ticket) => {
+                      const resolved = ticket.status === "resolved";
+                      const assignedToMe =
+                        ticket.assignedAdminEmail === admin.adminEmail;
+                      const assignee =
+                        ticket.assignedAdminName || ticket.assignedAdminEmail;
+                      return (
+                        <Panel
+                          key={ticket.id}
+                          sx={{
+                            p: 2.5,
+                            borderColor: alpha(
+                              ticket.priority === "urgent"
+                                ? tokens.danger
+                                : tokens.info,
+                              ticket.priority === "urgent" ? 0.28 : 0.18,
+                            ),
+                            backgroundImage: `
                           linear-gradient(90deg, ${alpha(
                             ticket.priority === "urgent"
                               ? tokens.danger
@@ -19757,337 +19786,350 @@ export default function AdminDashboard({
                           )}, transparent 38%),
                           linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
                         `,
-                        opacity: resolved ? 0.72 : 1,
-                        "&:hover": {
-                          transform: "translateY(-2px)",
-                          boxShadow: `0 22px 56px ${alpha(tokens.ink, 0.09)}`,
-                        },
-                      }}
-                    >
-                      <Stack
-                        direction={{ xs: "column", md: "row" }}
-                        spacing={2}
-                        sx={{ justifyContent: "space-between" }}
-                      >
-                        <Box sx={{ minWidth: 0 }}>
+                            opacity: resolved ? 0.72 : 1,
+                            "&:hover": {
+                              transform: "translateY(-2px)",
+                              boxShadow: `0 22px 56px ${alpha(tokens.ink, 0.09)}`,
+                            },
+                          }}
+                        >
                           <Stack
-                            direction="row"
-                            spacing={1}
-                            sx={{ alignItems: "center", flexWrap: "wrap" }}
+                            direction={{ xs: "column", md: "row" }}
+                            spacing={2}
+                            sx={{ justifyContent: "space-between" }}
                           >
-                            <Typography variant="h6">
-                              {ticket.subject}
-                            </Typography>
-                            <Chip
-                              size="small"
-                              label={ticket.priority}
+                            <Box sx={{ minWidth: 0 }}>
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: "center", flexWrap: "wrap" }}
+                              >
+                                <Typography variant="h6">
+                                  {ticket.subject}
+                                </Typography>
+                                <Chip
+                                  size="small"
+                                  label={ticket.priority}
+                                  sx={{
+                                    bgcolor: alpha(
+                                      ticket.priority === "urgent"
+                                        ? tokens.danger
+                                        : tokens.info,
+                                      0.12,
+                                    ),
+                                    color:
+                                      ticket.priority === "urgent"
+                                        ? tokens.danger
+                                        : tokens.info,
+                                    textTransform: "capitalize",
+                                  }}
+                                />
+                                {resolved ? (
+                                  <Chip
+                                    size="small"
+                                    label="resolved"
+                                    sx={{ color: tokens.success }}
+                                  />
+                                ) : null}
+                              </Stack>
+                              <Typography
+                                variant="body2"
+                                sx={{ color: "text.secondary" }}
+                              >
+                                {ticket.category} · {ticket.business} · opened{" "}
+                                {shortTime(ticket.createdAt)}
+                              </Typography>
+                              <Typography sx={{ mt: 1 }}>
+                                {ticket.summary}
+                              </Typography>
+                              {assignee ? (
+                                <Chip
+                                  size="small"
+                                  icon={<AssignmentTurnedInRounded />}
+                                  label={`Assigned to ${assignee}`}
+                                  sx={{
+                                    mt: 1.5,
+                                    bgcolor: alpha(tokens.success, 0.1),
+                                    color: tokens.success,
+                                  }}
+                                />
+                              ) : null}
+                            </Box>
+                            <Stack
+                              direction={{ xs: "row", md: "column" }}
+                              spacing={1}
                               sx={{
-                                bgcolor: alpha(
-                                  ticket.priority === "urgent"
-                                    ? tokens.danger
-                                    : tokens.info,
-                                  0.12,
-                                ),
-                                color:
-                                  ticket.priority === "urgent"
-                                    ? tokens.danger
-                                    : tokens.info,
-                                textTransform: "capitalize",
+                                alignSelf: { md: "center" },
+                                flexWrap: "wrap",
+                                minWidth: { md: 180 },
                               }}
-                            />
-                            {resolved ? (
-                              <Chip
-                                size="small"
-                                label="resolved"
-                                sx={{ color: tokens.success }}
-                              />
-                            ) : null}
+                            >
+                              <Form method="post">
+                                <input
+                                  type="hidden"
+                                  name="intent"
+                                  value="admin-support-ticket:update"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="ticket_key"
+                                  value={ticket.id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="status"
+                                  value="open"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="assignment"
+                                  value={assignedToMe ? "unassigned" : "self"}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="note"
+                                  value={
+                                    assignedToMe
+                                      ? `Unassigned ${ticket.subject}`
+                                      : `Assigned ${ticket.subject}`
+                                  }
+                                />
+                                <Button
+                                  type="submit"
+                                  variant={
+                                    assignedToMe ? "outlined" : "contained"
+                                  }
+                                  startIcon={<SupportAgentRounded />}
+                                  fullWidth
+                                >
+                                  {assignedToMe ? "Unassign" : "Assign to me"}
+                                </Button>
+                              </Form>
+                              <Form method="post">
+                                <input
+                                  type="hidden"
+                                  name="intent"
+                                  value="admin-support-ticket:update"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="ticket_key"
+                                  value={ticket.id}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="status"
+                                  value={resolved ? "open" : "resolved"}
+                                />
+                                <input
+                                  type="hidden"
+                                  name="assignment"
+                                  value="unchanged"
+                                />
+                                <input
+                                  type="hidden"
+                                  name="note"
+                                  value={
+                                    resolved
+                                      ? `Reopened ${ticket.subject}`
+                                      : `Resolved ${ticket.subject}`
+                                  }
+                                />
+                                <Button
+                                  type="submit"
+                                  variant="outlined"
+                                  startIcon={
+                                    resolved ? (
+                                      <SupportAgentRounded />
+                                    ) : (
+                                      <CheckCircleRounded />
+                                    )
+                                  }
+                                  fullWidth
+                                >
+                                  {resolved ? "Reopen" : "Resolve"}
+                                </Button>
+                              </Form>
+                            </Stack>
                           </Stack>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                          >
-                            {ticket.category} · {ticket.business} · opened{" "}
-                            {shortTime(ticket.createdAt)}
-                          </Typography>
-                          <Typography sx={{ mt: 1 }}>
-                            {ticket.summary}
-                          </Typography>
-                          {assignee ? (
-                            <Chip
-                              size="small"
-                              icon={<AssignmentTurnedInRounded />}
-                              label={`Assigned to ${assignee}`}
-                              sx={{
-                                mt: 1.5,
-                                bgcolor: alpha(tokens.success, 0.1),
-                                color: tokens.success,
-                              }}
-                            />
-                          ) : null}
-                        </Box>
-                        <Stack
-                          direction={{ xs: "row", md: "column" }}
-                          spacing={1}
-                          sx={{
-                            alignSelf: { md: "center" },
-                            flexWrap: "wrap",
-                            minWidth: { md: 180 },
-                          }}
-                        >
-                          <Form method="post">
-                            <input
-                              type="hidden"
-                              name="intent"
-                              value="admin-support-ticket:update"
-                            />
-                            <input
-                              type="hidden"
-                              name="ticket_key"
-                              value={ticket.id}
-                            />
-                            <input type="hidden" name="status" value="open" />
-                            <input
-                              type="hidden"
-                              name="assignment"
-                              value={assignedToMe ? "unassigned" : "self"}
-                            />
-                            <input
-                              type="hidden"
-                              name="note"
-                              value={
-                                assignedToMe
-                                  ? `Unassigned ${ticket.subject}`
-                                  : `Assigned ${ticket.subject}`
-                              }
-                            />
-                            <Button
-                              type="submit"
-                              variant={assignedToMe ? "outlined" : "contained"}
-                              startIcon={<SupportAgentRounded />}
-                              fullWidth
-                            >
-                              {assignedToMe ? "Unassign" : "Assign to me"}
-                            </Button>
-                          </Form>
-                          <Form method="post">
-                            <input
-                              type="hidden"
-                              name="intent"
-                              value="admin-support-ticket:update"
-                            />
-                            <input
-                              type="hidden"
-                              name="ticket_key"
-                              value={ticket.id}
-                            />
-                            <input
-                              type="hidden"
-                              name="status"
-                              value={resolved ? "open" : "resolved"}
-                            />
-                            <input
-                              type="hidden"
-                              name="assignment"
-                              value="unchanged"
-                            />
-                            <input
-                              type="hidden"
-                              name="note"
-                              value={
-                                resolved
-                                  ? `Reopened ${ticket.subject}`
-                                  : `Resolved ${ticket.subject}`
-                              }
-                            />
-                            <Button
-                              type="submit"
-                              variant="outlined"
-                              startIcon={
-                                resolved ? (
-                                  <SupportAgentRounded />
-                                ) : (
-                                  <CheckCircleRounded />
-                                )
-                              }
-                              fullWidth
-                            >
-                              {resolved ? "Reopen" : "Resolve"}
-                            </Button>
-                          </Form>
-                        </Stack>
-                      </Stack>
-                    </Panel>
-                  );
-                })}
-                {!supportQueueError && supportTickets.length === 0 ? (
-                  <Box
-                    sx={{
-                      p: 2,
-                      border: "1px dashed",
-                      borderColor: alpha(tokens.success, 0.28),
-                      borderRadius: 1.5,
-                      bgcolor: "rgba(var(--surface-rgb), 0.68)",
-                    }}
-                  >
-                    <Typography sx={{ fontWeight: 900 }}>
-                      No support tickets need action.
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ mt: 0.5, color: "text.secondary" }}
-                    >
-                      Failed payments, delayed messages, stale orders, overdue
-                      visits, and handover follow-ups will appear here.
-                    </Typography>
-                  </Box>
-                ) : null}
-                <PaginationFooter
-                  count={supportPageCount}
-                  label="support tickets"
-                  page={supportPage}
-                  pageSize={6}
-                  total={supportTickets.length}
-                  onChange={setSupportPage}
-                />
-              </Stack>
-            </Stack>
-          ) : null}
-
-          {section === "audit" ? (
-            <Stack spacing={2.5}>
-              <SectionHeader
-                eyebrow="Operator accountability"
-                title="Audit log"
-                helper="Every sensitive operator decision should be attributable, reviewable, and ready for compliance export."
-              />
-              {auditLogError ? (
-                <Alert severity="warning">{auditLogError}</Alert>
-              ) : null}
-              <Panel sx={{ p: 2 }}>
-                <TextField
-                  select
-                  label="Severity"
-                  value={auditFilter}
-                  onChange={(event) =>
-                    setAuditFilter(event.target.value as AuditFilter)
-                  }
-                  sx={{ minWidth: { xs: "100%", sm: 220 } }}
-                >
-                  {auditFilters.map((filter) => (
-                    <MenuItem key={filter.value} value={filter.value}>
-                      {filter.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Panel>
-              <Stack spacing={1.5}>
-                {pagedAuditLog.map((event) => (
-                  <Panel
-                    key={event.id}
-                    sx={{
-                      p: 2,
-                      borderColor: alpha(auditColor(event.severity), 0.18),
-                      backgroundImage: `linear-gradient(90deg, ${alpha(
-                        auditColor(event.severity),
-                        0.065,
-                      )}, transparent 36%)`,
-                      "&:hover": {
-                        transform: "translateY(-2px)",
-                        borderColor: alpha(auditColor(event.severity), 0.32),
-                        boxShadow: `0 18px 48px ${alpha(tokens.ink, 0.085)}`,
-                      },
-                    }}
-                  >
-                    <Stack
-                      direction={{ xs: "column", md: "row" }}
-                      spacing={2}
-                      sx={{ justifyContent: "space-between", minWidth: 0 }}
-                    >
-                      <Stack
-                        direction="row"
-                        spacing={1.5}
-                        sx={{ alignItems: "flex-start", minWidth: 0 }}
+                        </Panel>
+                      );
+                    })}
+                    {!supportQueueError && supportTickets.length === 0 ? (
+                      <Box
+                        sx={{
+                          p: 2,
+                          border: "1px dashed",
+                          borderColor: alpha(tokens.success, 0.28),
+                          borderRadius: 1.5,
+                          bgcolor: "rgba(var(--surface-rgb), 0.68)",
+                        }}
                       >
-                        <Box
-                          sx={{
-                            width: 42,
-                            height: 42,
-                            borderRadius: 1.5,
-                            display: "grid",
-                            placeItems: "center",
-                            bgcolor: alpha(auditColor(event.severity), 0.12),
-                            color: auditColor(event.severity),
-                            flex: "0 0 auto",
-                          }}
+                        <Typography sx={{ fontWeight: 900 }}>
+                          No support tickets need action.
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          sx={{ mt: 0.5, color: "text.secondary" }}
                         >
-                          <HistoryRounded />
-                        </Box>
-                        <Box sx={{ minWidth: 0 }}>
+                          Failed payments, delayed messages, stale orders,
+                          overdue visits, and handover follow-ups will appear
+                          here.
+                        </Typography>
+                      </Box>
+                    ) : null}
+                    <PaginationFooter
+                      count={supportPageCount}
+                      label="support tickets"
+                      page={supportPage}
+                      pageSize={6}
+                      total={supportTickets.length}
+                      onChange={setSupportPage}
+                    />
+                  </Stack>
+                </Stack>
+              ) : null}
+
+              {section === "audit" ? (
+                <Stack spacing={2.5}>
+                  <SectionHeader
+                    eyebrow="Operator accountability"
+                    title="Audit log"
+                    helper="Every sensitive operator decision should be attributable, reviewable, and ready for compliance export."
+                  />
+                  {auditLogError ? (
+                    <Alert severity="warning">{auditLogError}</Alert>
+                  ) : null}
+                  <Panel sx={{ p: 2 }}>
+                    <TextField
+                      select
+                      label="Severity"
+                      value={auditFilter}
+                      onChange={(event) =>
+                        setAuditFilter(event.target.value as AuditFilter)
+                      }
+                      sx={{ minWidth: { xs: "100%", sm: 220 } }}
+                    >
+                      {auditFilters.map((filter) => (
+                        <MenuItem key={filter.value} value={filter.value}>
+                          {filter.label}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Panel>
+                  <Stack spacing={1.5}>
+                    {pagedAuditLog.map((event) => (
+                      <Panel
+                        key={event.id}
+                        sx={{
+                          p: 2,
+                          borderColor: alpha(auditColor(event.severity), 0.18),
+                          backgroundImage: `linear-gradient(90deg, ${alpha(
+                            auditColor(event.severity),
+                            0.065,
+                          )}, transparent 36%)`,
+                          "&:hover": {
+                            transform: "translateY(-2px)",
+                            borderColor: alpha(
+                              auditColor(event.severity),
+                              0.32,
+                            ),
+                            boxShadow: `0 18px 48px ${alpha(tokens.ink, 0.085)}`,
+                          },
+                        }}
+                      >
+                        <Stack
+                          direction={{ xs: "column", md: "row" }}
+                          spacing={2}
+                          sx={{ justifyContent: "space-between", minWidth: 0 }}
+                        >
                           <Stack
                             direction="row"
-                            spacing={1}
-                            sx={{ alignItems: "center", flexWrap: "wrap" }}
+                            spacing={1.5}
+                            sx={{ alignItems: "flex-start", minWidth: 0 }}
                           >
-                            <Typography sx={{ fontWeight: 900 }}>
-                              {event.action}
-                            </Typography>
-                            <Chip
-                              size="small"
-                              label={event.severity}
+                            <Box
                               sx={{
+                                width: 42,
+                                height: 42,
+                                borderRadius: 1.5,
+                                display: "grid",
+                                placeItems: "center",
                                 bgcolor: alpha(
                                   auditColor(event.severity),
                                   0.12,
                                 ),
                                 color: auditColor(event.severity),
-                                textTransform: "capitalize",
+                                flex: "0 0 auto",
                               }}
-                            />
+                            >
+                              <HistoryRounded />
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Stack
+                                direction="row"
+                                spacing={1}
+                                sx={{ alignItems: "center", flexWrap: "wrap" }}
+                              >
+                                <Typography sx={{ fontWeight: 900 }}>
+                                  {event.action}
+                                </Typography>
+                                <Chip
+                                  size="small"
+                                  label={event.severity}
+                                  sx={{
+                                    bgcolor: alpha(
+                                      auditColor(event.severity),
+                                      0.12,
+                                    ),
+                                    color: auditColor(event.severity),
+                                    textTransform: "capitalize",
+                                  }}
+                                />
+                              </Stack>
+                              <Typography
+                                variant="body2"
+                                sx={{
+                                  color: "text.secondary",
+                                  overflowWrap: "anywhere",
+                                }}
+                              >
+                                {event.target} · {event.actor}
+                              </Typography>
+                              <Typography
+                                sx={{ mt: 0.75, overflowWrap: "anywhere" }}
+                              >
+                                {event.detail}
+                              </Typography>
+                            </Box>
                           </Stack>
                           <Typography
                             variant="body2"
                             sx={{
                               color: "text.secondary",
-                              overflowWrap: "anywhere",
+                              fontWeight: 800,
+                              whiteSpace: "nowrap",
                             }}
                           >
-                            {event.target} · {event.actor}
+                            {shortTime(event.createdAt)}
                           </Typography>
-                          <Typography
-                            sx={{ mt: 0.75, overflowWrap: "anywhere" }}
-                          >
-                            {event.detail}
-                          </Typography>
-                        </Box>
-                      </Stack>
-                      <Typography
-                        variant="body2"
-                        sx={{
-                          color: "text.secondary",
-                          fontWeight: 800,
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {shortTime(event.createdAt)}
-                      </Typography>
+                        </Stack>
+                      </Panel>
+                    ))}
+                  </Stack>
+                  {auditPageCount > 1 ? (
+                    <Stack sx={{ alignItems: "center", pt: 0.5 }}>
+                      <Pagination
+                        count={auditPageCount}
+                        page={auditPage}
+                        onChange={(_event, value) => setAuditPage(value)}
+                        color="primary"
+                        shape="rounded"
+                      />
                     </Stack>
-                  </Panel>
-                ))}
-              </Stack>
-              {auditPageCount > 1 ? (
-                <Stack sx={{ alignItems: "center", pt: 0.5 }}>
-                  <Pagination
-                    count={auditPageCount}
-                    page={auditPage}
-                    onChange={(_event, value) => setAuditPage(value)}
-                    color="primary"
-                    shape="rounded"
-                  />
+                  ) : null}
                 </Stack>
               ) : null}
-            </Stack>
-          ) : null}
             </Box>
           )}
         </Box>

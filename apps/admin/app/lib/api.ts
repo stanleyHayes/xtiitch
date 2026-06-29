@@ -685,6 +685,8 @@ export type AdminVerificationCase = {
   checks: string[];
   evidence: string[];
   notes: string;
+  idCardNumber: string;
+  idPhotoURL: string;
 };
 
 export type AdminBusiness = {
@@ -1363,6 +1365,8 @@ type AdminVerificationCasePayload = {
   checks: string[];
   evidence: string[];
   notes: string;
+  id_card_number: string;
+  id_photo_url: string;
 };
 
 type AdminBusinessPayload = {
@@ -2120,6 +2124,8 @@ function mapVerificationCase(
     checks: payload.checks,
     evidence: payload.evidence,
     notes: payload.notes,
+    idCardNumber: payload.id_card_number ?? "",
+    idPhotoURL: payload.id_photo_url ?? "",
   };
 }
 

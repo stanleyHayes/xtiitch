@@ -13,6 +13,7 @@ import (
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/delivery"
 )
@@ -24,6 +25,10 @@ type Service interface {
 	ListHandovers(ctx context.Context, scope common.TenantScope) ([]ports.HandoverSummary, error)
 	AdvanceHandover(ctx context.Context, command deliveryapp.AdvanceHandoverCommand) error
 	CancelHandover(ctx context.Context, command deliveryapp.CancelHandoverCommand) error
+	ListDeliveryZones(ctx context.Context, scope common.TenantScope) ([]ports.DeliveryZone, error)
+	CreateDeliveryZone(ctx context.Context, command deliveryapp.ZoneCommand) (common.ID, error)
+	UpdateDeliveryZone(ctx context.Context, command deliveryapp.ZoneCommand) error
+	DeleteDeliveryZone(ctx context.Context, scope common.TenantScope, role business.UserRole, zoneID common.ID) error
 }
 
 type Handler struct {
@@ -42,7 +47,124 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/handovers", handler.list)
 		protected.Post("/handovers/{id}/advance", handler.advance)
 		protected.Post("/handovers/{id}/cancel", handler.cancel)
+		protected.Get("/delivery-zones", handler.listZones)
+		protected.Post("/delivery-zones", handler.createZone)
+		protected.Patch("/delivery-zones/{id}", handler.updateZone)
+		protected.Delete("/delivery-zones/{id}", handler.deleteZone)
 	})
+}
+
+type zoneBody struct {
+	Name     string `json:"name"`
+	FeeMinor int64  `json:"fee_minor"`
+	Sequence int    `json:"sequence"`
+	Active   bool   `json:"active"`
+}
+
+func (handler Handler) listZones(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	zones, err := handler.service.ListDeliveryZones(r.Context(), principal.TenantScope())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	out := make([]map[string]any, 0, len(zones))
+	for _, z := range zones {
+		out = append(out, map[string]any{
+			"zone_id":   z.ID.String(),
+			"name":      z.Name,
+			"fee_minor": z.FeeMinor,
+			"sequence":  z.Sequence,
+			"active":    z.Active,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"zones": out})
+}
+
+func (handler Handler) createZone(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var body zoneBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	id, err := handler.service.CreateDeliveryZone(r.Context(), deliveryapp.ZoneCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		Name:      body.Name,
+		FeeMinor:  body.FeeMinor,
+		Sequence:  body.Sequence,
+	})
+	if err != nil {
+		status, code := zoneError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"zone_id": id.String()})
+}
+
+func (handler Handler) updateZone(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var body zoneBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateDeliveryZone(r.Context(), deliveryapp.ZoneCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		ZoneID:    common.ID(chi.URLParam(r, "id")),
+		Name:      body.Name,
+		FeeMinor:  body.FeeMinor,
+		Sequence:  body.Sequence,
+		Active:    body.Active,
+	}); err != nil {
+		status, code := zoneError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "updated"})
+}
+
+func (handler Handler) deleteZone(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	if err := handler.service.DeleteDeliveryZone(r.Context(), principal.TenantScope(), principal.Role, common.ID(chi.URLParam(r, "id"))); err != nil {
+		status, code := zoneError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
+}
+
+func zoneError(err error) (int, string) {
+	switch {
+	case errors.Is(err, authdomain.ErrInvalidInput):
+		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, authdomain.ErrForbidden):
+		return http.StatusForbidden, "forbidden"
+	case errors.Is(err, ports.ErrNotFound):
+		return http.StatusNotFound, "not_found"
+	case errors.Is(err, ports.ErrZoneNameTaken):
+		return http.StatusConflict, "zone_name_taken"
+	default:
+		return http.StatusInternalServerError, "internal_error"
+	}
 }
 
 type arrangeBody struct {

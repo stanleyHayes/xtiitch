@@ -14,9 +14,31 @@ type BusinessRepository interface {
 
 type BusinessIdentityRepository interface {
 	CreateBusinessWithOwner(ctx context.Context, input CreateBusinessWithOwnerInput) (BusinessOwnerIdentity, error)
+	// HandleExists reports whether a business already owns the given (normalized)
+	// store handle. Handles are globally unique, so this is a cross-tenant lookup
+	// that runs under the RLS bypass. Powers the signup form's real-time handle
+	// availability check.
+	HandleExists(ctx context.Context, handle string) (bool, error)
 	ListActivePlans(ctx context.Context) ([]PublicPlanRecord, error)
 	GetBusinessSubscription(ctx context.Context, businessID common.ID) (BusinessSubscriptionRecord, error)
 	ActivateRecurringBilling(ctx context.Context, input ActivateRecurringBillingInput) error
+	// PrepareSubscriptionActivationCharge returns a DETERMINISTIC charge reference
+	// for the subscription's current period and whether a first charge is still
+	// due (no paid invoice for that period yet). The stable ref makes the
+	// first-period charge idempotent: a repeated authorization-verify reuses the
+	// same ref, so Paystack dedupes the charge and the paid-invoice insert is a
+	// no-op — preventing a double charge on retry/replay.
+	PrepareSubscriptionActivationCharge(ctx context.Context, businessID common.ID) (SubscriptionActivationCharge, error)
+	// RecordSubscriptionActivationPayment books the first recurring charge a tenant
+	// paid at authorization time: a paid invoice for the current period plus the
+	// subscription flipped to active with next_billing_at at the period end. It is
+	// idempotent on the charge ref (re-recording the same ref is a no-op).
+	RecordSubscriptionActivationPayment(ctx context.Context, input RecordSubscriptionActivationPaymentInput) error
+	// SubmitIdentityDocument stores (or replaces) a business's Ghana Card number and
+	// ID photo and moves it into verification 'pending' for operator review. An
+	// already-verified business keeps its status (resubmission only updates the
+	// document); unverified/rejected/pending move to pending.
+	SubmitIdentityDocument(ctx context.Context, input SubmitIdentityDocumentInput) error
 	FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (BusinessUserCredentials, error)
 	FindBusinessUserCredentialsByID(ctx context.Context, scope common.TenantScope, userID common.ID) (BusinessUserCredentials, error)
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
@@ -111,6 +133,30 @@ type ActivateRecurringBillingInput struct {
 	BusinessID              common.ID
 	ProviderCustomerRef     string
 	ProviderSubscriptionRef string
+}
+
+// RecordSubscriptionActivationPaymentInput books the first recurring charge.
+type RecordSubscriptionActivationPaymentInput struct {
+	BusinessID  common.ID
+	AmountMinor int64
+	Currency    string
+	// ChargeRef is the Paystack charge reference; it becomes the invoice ref so the
+	// charge webhook reconciles to this already-paid invoice (a no-op).
+	ChargeRef string
+}
+
+// SubscriptionActivationCharge is the deterministic reference for a
+// subscription's first-period charge plus whether that charge is still due.
+type SubscriptionActivationCharge struct {
+	Ref          string
+	ShouldCharge bool
+}
+
+// SubmitIdentityDocumentInput carries a business's Ghana Card submission.
+type SubmitIdentityDocumentInput struct {
+	BusinessID common.ID
+	CardNumber string
+	IDPhotoURL string
 }
 
 type BusinessOwnerIdentity struct {

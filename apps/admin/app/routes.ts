@@ -5,5 +5,6 @@ export default [
   route("login", "routes/login.tsx"),
   route("admin", "routes/admin.tsx"),
   route("admin/customers/:id/export", "routes/customer-export.tsx"),
+  route("help", "routes/help.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

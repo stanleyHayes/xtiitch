@@ -123,6 +123,14 @@ func (r *fakeOrderRepo) CreateOnlineOrder(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (r *fakeOrderRepo) CreateOnlineOrderGroup(_ context.Context, _ common.TenantScope, _ []ports.CreateOnlineOrderInput) error {
+	return nil
+}
+
+func (r *fakeOrderRepo) DiscardDraftOrderGroup(_ context.Context, _ common.TenantScope, _, _ common.ID) error {
+	return nil
+}
+
 func (r *fakeOrderRepo) FindCustomerIDByPhone(_ context.Context, _ string) (common.ID, bool, error) {
 	return "", false, nil
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Form,
   Link as RouterLink,
@@ -172,12 +172,60 @@ export default function Register({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // Plan selection is controlled so a paid-plan choice always registers and is
+  // submitted (the previous uncontrolled radios could fall back to "free").
+  const [selectedPlan, setSelectedPlan] = useState(defaultPlan);
 
   const handleOk = /^[a-z0-9-]{2,}$/.test(handle.trim().toLowerCase());
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const passwordOk = password.length >= 8;
   const passwordsMatch = password === confirmPassword;
-  const step0Valid = businessName.trim().length > 1 && handleOk;
+
+  // Real-time store-handle availability (Instagram/TikTok-style): once the
+  // format is valid we debounce a check against the API and surface the result
+  // inline on the handle field, before the user ever reaches plan selection.
+  const [handleStatus, setHandleStatus] = useState<
+    "idle" | "checking" | "available" | "taken" | "reserved" | "error"
+  >("idle");
+
+  useEffect(() => {
+    const normalized = handle.trim().toLowerCase();
+    if (!handleOk) {
+      setHandleStatus("idle");
+      return;
+    }
+    setHandleStatus("checking");
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/handle-check?handle=${encodeURIComponent(normalized)}`, {
+        signal: controller.signal,
+      })
+        .then((response) => (response.ok ? response.json() : Promise.reject()))
+        .then((data: { available?: boolean; reason?: string }) => {
+          if (data.available) {
+            setHandleStatus("available");
+          } else if (data.reason === "reserved") {
+            setHandleStatus("reserved");
+          } else {
+            setHandleStatus("taken");
+          }
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setHandleStatus("error");
+          }
+        });
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [handle, handleOk]);
+
+  const handleUnavailable =
+    handleStatus === "taken" || handleStatus === "reserved";
+  const step0Valid =
+    businessName.trim().length > 1 && handleOk && !handleUnavailable;
   const step1Valid =
     ownerName.trim().length > 0 &&
     emailOk &&
@@ -328,7 +376,8 @@ export default function Register({
                     mt: 0.75,
                     display: "block",
                     fontWeight: i === step ? 800 : 600,
-                    color: i <= step ? tokens.burgundy : alpha(tokens.ink, 0.55),
+                    color:
+                      i <= step ? tokens.burgundy : alpha(tokens.ink, 0.55),
                   }}
                 >
                   {i + 1}. {label}
@@ -372,11 +421,21 @@ export default function Register({
                   fullWidth
                   value={handle}
                   onChange={(e) => setHandle(e.target.value)}
-                  error={handle.length > 0 && !handleOk}
+                  error={(handle.length > 0 && !handleOk) || handleUnavailable}
+                  color={handleStatus === "available" ? "success" : undefined}
+                  focused={handleStatus === "available" ? true : undefined}
                   helperText={
                     handle.length > 0 && !handleOk
                       ? "Lowercase letters, numbers and dashes only."
-                      : "Becomes <handle>.xtiitch.com"
+                      : handleStatus === "checking"
+                        ? "Checking availability…"
+                        : handleStatus === "available"
+                          ? `✓ ${handle.trim().toLowerCase()}.xtiitch.com is available`
+                          : handleStatus === "taken"
+                            ? "That store handle is already taken — try another."
+                            : handleStatus === "reserved"
+                              ? "That handle is reserved — please choose another."
+                              : "Becomes <handle>.xtiitch.com"
                   }
                   slotProps={{
                     input: {
@@ -530,7 +589,11 @@ export default function Register({
                 <Box>
                   <Typography
                     variant="body2"
-                    sx={{ fontWeight: 800, mb: 1, color: alpha(tokens.ink, 0.8) }}
+                    sx={{
+                      fontWeight: 800,
+                      mb: 1,
+                      color: alpha(tokens.ink, 0.8),
+                    }}
                   >
                     Choose a plan
                   </Typography>
@@ -548,7 +611,8 @@ export default function Register({
                           border: "1px solid",
                           borderColor: alpha(tokens.ink, 0.16),
                           cursor: "pointer",
-                          transition: "border-color 160ms ease, background 160ms",
+                          transition:
+                            "border-color 160ms ease, background 160ms",
                           "&:has(input:checked)": {
                             borderColor: tokens.burgundy,
                             bgcolor: alpha(tokens.burgundy, 0.05),
@@ -561,8 +625,13 @@ export default function Register({
                           type="radio"
                           name="plan_code"
                           value={plan.code}
-                          defaultChecked={plan.code === defaultPlan}
-                          sx={{ accentColor: tokens.burgundy, width: 18, height: 18 }}
+                          checked={selectedPlan === plan.code}
+                          onChange={() => setSelectedPlan(plan.code)}
+                          sx={{
+                            accentColor: tokens.burgundy,
+                            width: 18,
+                            height: 18,
+                          }}
                         />
                         <Box sx={{ flex: 1, minWidth: 0 }}>
                           <Typography sx={{ fontWeight: 800 }}>
@@ -588,16 +657,22 @@ export default function Register({
                   </Stack>
                   <Typography
                     variant="caption"
-                    sx={{ display: "block", mt: 1, color: alpha(tokens.ink, 0.6) }}
+                    sx={{
+                      display: "block",
+                      mt: 1,
+                      color: alpha(tokens.ink, 0.6),
+                    }}
                   >
-                    Paid plans: we'll help you set up billing from your dashboard
-                    after signup.
+                    Paid plans: we'll help you set up billing from your
+                    dashboard after signup.
                   </Typography>
                 </Box>
               ) : (
                 <Box>
                   <input type="hidden" name="plan_code" value="free" />
-                  <Typography sx={{ fontWeight: 800, color: alpha(tokens.ink, 0.8) }}>
+                  <Typography
+                    sx={{ fontWeight: 800, color: alpha(tokens.ink, 0.8) }}
+                  >
                     You're starting on the Free plan
                   </Typography>
                   <Typography
@@ -668,7 +743,11 @@ export default function Register({
 
             <Typography
               variant="body2"
-              sx={{ textAlign: "center", color: alpha(tokens.ink, 0.68), mt: 2.5 }}
+              sx={{
+                textAlign: "center",
+                color: alpha(tokens.ink, 0.68),
+                mt: 2.5,
+              }}
             >
               Already have a store?{" "}
               <Link component={RouterLink} to="/login" sx={{ fontWeight: 700 }}>

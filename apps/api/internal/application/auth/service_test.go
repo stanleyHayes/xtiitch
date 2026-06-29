@@ -117,6 +117,47 @@ func TestRegisterBusinessRejectsReservedHandle(t *testing.T) {
 	}
 }
 
+func TestCheckHandleAvailability(t *testing.T) {
+	t.Parallel()
+
+	newService := func(exists bool) Service {
+		return NewService(Dependencies{
+			Businesses:    &fakeBusinessIdentityRepository{handleExists: exists},
+			Sessions:      &fakeSessionRepository{},
+			Passwords:     fakePasswordHasher{},
+			AccessTokens:  fakeTokenIssuer{},
+			RefreshTokens: fakeRefreshTokens{},
+			IDs:           &sequenceIDs{},
+			Clock:         fixedClock{now: time.Now()},
+		})
+	}
+
+	cases := []struct {
+		name      string
+		raw       string
+		exists    bool
+		available bool
+		reason    string
+	}{
+		{"free handle", "ama-designs", false, true, ""},
+		{"normalizes case", "  Ama-Designs ", false, true, ""},
+		{"taken", "ama-designs", true, false, "taken"},
+		{"reserved", "admin", false, false, "reserved"},
+		{"invalid chars", "-bad-", false, false, "invalid"},
+		{"too short", "a", false, false, "invalid"},
+	}
+	for _, tc := range cases {
+		result, err := newService(tc.exists).CheckHandleAvailability(context.Background(), tc.raw)
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", tc.name, err)
+		}
+		if result.Available != tc.available || result.Reason != tc.reason {
+			t.Fatalf("%s: expected available=%v reason=%q, got available=%v reason=%q",
+				tc.name, tc.available, tc.reason, result.Available, result.Reason)
+		}
+	}
+}
+
 func TestLoginBusinessIssuesSessionForValidCredentials(t *testing.T) {
 	t.Parallel()
 
@@ -767,30 +808,36 @@ func TestTransferBusinessOwnerRequiresCurrentOwnerAndConfirmation(t *testing.T) 
 }
 
 type fakeBusinessIdentityRepository struct {
-	created              ports.CreateBusinessWithOwnerInput
-	createErr            error
-	credentials          ports.BusinessUserCredentials
-	findErr              error
-	credentialsByID      ports.BusinessUserCredentials
-	findByIDErr          error
-	lookupUserID         common.ID
-	lookupHandle         string
-	lookupEmail          string
-	users                []ports.BusinessUserRecord
-	listScope            common.TenantScope
-	listErr              error
-	createdUser          ports.CreateBusinessUserInput
-	createUserErr        error
-	updatedUser          ports.UpdateBusinessUserInput
-	updateScope          common.TenantScope
-	updateUserErr        error
-	updatedPassword      ports.UpdateBusinessUserPasswordInput
-	updatePasswordErr    error
-	updatedOwnPassword   ports.UpdateBusinessUserPasswordInput
-	updateOwnPasswordErr error
-	transferredOwner     ports.TransferBusinessOwnerInput
-	transferScope        common.TenantScope
-	transferErr          error
+	created               ports.CreateBusinessWithOwnerInput
+	createErr             error
+	handleExists          bool
+	handleExistsErr       error
+	credentials           ports.BusinessUserCredentials
+	findErr               error
+	credentialsByID       ports.BusinessUserCredentials
+	findByIDErr           error
+	lookupUserID          common.ID
+	lookupHandle          string
+	lookupEmail           string
+	users                 []ports.BusinessUserRecord
+	listScope             common.TenantScope
+	listErr               error
+	createdUser           ports.CreateBusinessUserInput
+	createUserErr         error
+	updatedUser           ports.UpdateBusinessUserInput
+	updateScope           common.TenantScope
+	updateUserErr         error
+	updatedPassword       ports.UpdateBusinessUserPasswordInput
+	updatePasswordErr     error
+	updatedOwnPassword    ports.UpdateBusinessUserPasswordInput
+	updateOwnPasswordErr  error
+	transferredOwner      ports.TransferBusinessOwnerInput
+	transferScope         common.TenantScope
+	transferErr           error
+	subscription          ports.BusinessSubscriptionRecord
+	activationPayment     ports.RecordSubscriptionActivationPaymentInput
+	activationAlreadyPaid bool
+	identityDocument      ports.SubmitIdentityDocumentInput
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
@@ -805,16 +852,238 @@ func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Co
 	}, nil
 }
 
+func (repo *fakeBusinessIdentityRepository) HandleExists(_ context.Context, handle string) (bool, error) {
+	return repo.handleExists, repo.handleExistsErr
+}
+
 func (repo *fakeBusinessIdentityRepository) ListActivePlans(_ context.Context) ([]ports.PublicPlanRecord, error) {
 	return nil, nil
 }
 
 func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(_ context.Context, _ common.ID) (ports.BusinessSubscriptionRecord, error) {
-	return ports.BusinessSubscriptionRecord{}, nil
+	return repo.subscription, nil
 }
 
 func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling(_ context.Context, _ ports.ActivateRecurringBillingInput) error {
 	return nil
+}
+
+func (repo *fakeBusinessIdentityRepository) RecordSubscriptionActivationPayment(_ context.Context, input ports.RecordSubscriptionActivationPaymentInput) error {
+	repo.activationPayment = input
+	return nil
+}
+
+func (repo *fakeBusinessIdentityRepository) PrepareSubscriptionActivationCharge(_ context.Context, _ common.ID) (ports.SubscriptionActivationCharge, error) {
+	return ports.SubscriptionActivationCharge{Ref: "xtsub_act_test", ShouldCharge: !repo.activationAlreadyPaid}, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) SubmitIdentityDocument(_ context.Context, input ports.SubmitIdentityDocumentInput) error {
+	repo.identityDocument = input
+	return nil
+}
+
+// fakeSubscriptionPayments is a minimal PaymentProvider for the subscription
+// first-charge tests: a verified authorization plus a configurable charge status.
+type fakeSubscriptionPayments struct {
+	chargeStatus string
+	chargeInput  ports.ChargeAuthorizationInput
+	chargeErr    error
+}
+
+func (f *fakeSubscriptionPayments) CreateBusinessSubaccount(_ context.Context, _ ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
+	return ports.CreateBusinessSubaccountResult{}, nil
+}
+
+func (f *fakeSubscriptionPayments) InitializeTransaction(_ context.Context, _ ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+	return ports.InitializeTransactionResult{}, nil
+}
+
+func (f *fakeSubscriptionPayments) InitializeAuthorization(_ context.Context, _ ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	return ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: "ref"}, nil
+}
+
+func (f *fakeSubscriptionPayments) VerifyAuthorization(_ context.Context, _ ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	return ports.VerifyAuthorizationResult{
+		Active:            true,
+		AuthorizationCode: "AUTH_x",
+		CustomerCode:      "CUS_x",
+		CustomerEmail:     "owner@example.com",
+	}, nil
+}
+
+func (f *fakeSubscriptionPayments) ChargeAuthorization(_ context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+	f.chargeInput = input
+	if f.chargeErr != nil {
+		return ports.ChargeAuthorizationResult{}, f.chargeErr
+	}
+	return ports.ChargeAuthorizationResult{Status: f.chargeStatus, AmountMinor: input.AmountMinor}, nil
+}
+
+func (f *fakeSubscriptionPayments) VerifyWebhookSignature(_ []byte, _ string) bool { return true }
+
+func (f *fakeSubscriptionPayments) ParseChargeEvent(_ []byte) (ports.ProviderChargeEvent, error) {
+	return ports.ProviderChargeEvent{}, nil
+}
+
+func newSubscriptionTestService(businesses *fakeBusinessIdentityRepository, payments ports.PaymentProvider) Service {
+	return NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		Payments:      payments,
+		IDs:           &sequenceIDs{ids: []common.ID{"charge-1"}},
+		Clock:         fixedClock{now: time.Date(2026, 6, 14, 20, 0, 0, 0, time.UTC)},
+	})
+}
+
+// A paid plan's authorization-verify charges the first period immediately and,
+// on success, books the activation payment and reports the subscription active.
+func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:  "sub-1",
+			BusinessID:      "business-1",
+			OwnerEmail:      "owner@adwoa.test",
+			MonthlyFeeMinor: 9900,
+			Status:          "trialing",
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "active" || result.BillingMode != "recurring" {
+		t.Fatalf("expected active recurring subscription, got %+v", result)
+	}
+	if payments.chargeInput.AmountMinor != 9900 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
+		t.Fatalf("expected first charge of the plan fee on the stored authorization, got %+v", payments.chargeInput)
+	}
+	if businesses.activationPayment.AmountMinor != 9900 || businesses.activationPayment.ChargeRef == "" {
+		t.Fatalf("expected the activation payment to be booked, got %+v", businesses.activationPayment)
+	}
+	if businesses.activationPayment.ChargeRef != payments.chargeInput.Reference {
+		t.Fatalf("invoice ref must equal the charge reference for webhook idempotency: %q vs %q",
+			businesses.activationPayment.ChargeRef, payments.chargeInput.Reference)
+	}
+}
+
+// When the first charge does not succeed, the authorization is still stored
+// (recurring) but the subscription is not reported active and no payment booked.
+func TestVerifySubscriptionAuthorizationLeavesAuthorizedWhenChargeNotSuccessful(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:  "sub-1",
+			BusinessID:      "business-1",
+			OwnerEmail:      "owner@adwoa.test",
+			MonthlyFeeMinor: 9900,
+			Status:          "trialing",
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "failed"}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status == "active" {
+		t.Fatal("a non-success charge must not report the subscription active")
+	}
+	if businesses.activationPayment.ChargeRef != "" {
+		t.Fatal("no activation payment should be booked when the charge did not succeed")
+	}
+}
+
+// Re-verifying after the first period is already paid must NOT charge the card
+// again (idempotency guard against double-submit / callback replay).
+func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		activationAlreadyPaid: true,
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:  "sub-1",
+			BusinessID:      "business-1",
+			OwnerEmail:      "owner@adwoa.test",
+			MonthlyFeeMinor: 9900,
+			Status:          "active",
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if payments.chargeInput.AuthorizationCode != "" {
+		t.Fatalf("must not charge again when the period is already paid, but charged %+v", payments.chargeInput)
+	}
+	if businesses.activationPayment.ChargeRef != "" {
+		t.Fatal("must not re-book an activation payment when already paid")
+	}
+	if result.Status != "active" {
+		t.Fatalf("an already-paid subscription should still report active, got %q", result.Status)
+	}
+}
+
+func TestSubmitIdentityVerificationRequiresManagerRole(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{}
+	service := NewService(Dependencies{
+		Businesses: businesses,
+		Sessions:   &fakeSessionRepository{},
+		Passwords:  fakePasswordHasher{},
+		IDs:        &sequenceIDs{},
+		Clock:      fixedClock{now: time.Now()},
+	})
+
+	err := service.SubmitIdentityVerification(context.Background(), SubmitIdentityVerificationCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleStaff,
+		CardNumber: "GHA-123456789-0",
+		IDPhotoURL: "https://cdn.example.com/card.jpg",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected staff identity submission to be forbidden, got %v", err)
+	}
+	if businesses.identityDocument.BusinessID != "" {
+		t.Fatal("forbidden identity submission must not write a document")
+	}
+
+	err = service.SubmitIdentityVerification(context.Background(), SubmitIdentityVerificationCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleAdmin,
+		CardNumber: " GHA-123456789-0 ",
+		IDPhotoURL: "https://cdn.example.com/card.jpg",
+	})
+	if err != nil {
+		t.Fatalf("expected admin identity submission to pass, got %v", err)
+	}
+	if businesses.identityDocument.BusinessID != "business-1" ||
+		businesses.identityDocument.CardNumber != "GHA-123456789-0" ||
+		businesses.identityDocument.IDPhotoURL != "https://cdn.example.com/card.jpg" {
+		t.Fatalf("unexpected identity document: %+v", businesses.identityDocument)
+	}
 }
 
 func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {

@@ -79,6 +79,51 @@ func (s Service) CreateWalkInOrder(ctx context.Context, cmd CreateWalkInOrderCom
 	return orderID, err
 }
 
+// CreateConfirmedCustomOrderCommand logs an in-person BESPOKE order for a
+// customer at the counter. Bespoke pricing is settled later, so there is no
+// agreed total here; any measurements taken are stored against the order.
+type CreateConfirmedCustomOrderCommand struct {
+	Scope         common.TenantScope
+	ActorRole     business.UserRole
+	DesignID      common.ID
+	CustomerName  string
+	CustomerPhone string
+	CustomerEmail string
+	Measurements  map[string]string
+}
+
+// CreateConfirmedCustomOrder records an in-person bespoke order confirmed at the
+// first bespoke stage (no online payment) and returns its reference. It fails
+// closed if the business has no bespoke stages, or if a measurement key is not
+// one of the business's measurement fields.
+func (s Service) CreateConfirmedCustomOrder(ctx context.Context, cmd CreateConfirmedCustomOrderCommand) (common.ID, error) {
+	if err := authorizeOrderOperation(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(cmd.CustomerName)
+	if cmd.DesignID == "" || name == "" {
+		return "", ErrInvalidInput
+	}
+
+	orderID := s.ids.NewID()
+	input := ports.CreateCustomOrderConfirmedInput{
+		OrderID:       orderID,
+		BusinessID:    cmd.Scope.BusinessID,
+		CustomerID:    s.ids.NewID(),
+		DesignID:      cmd.DesignID,
+		SizeMode:      "come_to_shop",
+		CustomerName:  name,
+		CustomerPhone: strings.TrimSpace(cmd.CustomerPhone),
+		CustomerEmail: strings.TrimSpace(cmd.CustomerEmail),
+		Channel:       "walk_in",
+	}
+	if len(cmd.Measurements) > 0 {
+		input.MeasurementID = s.ids.NewID()
+		input.Measurements = cmd.Measurements
+	}
+	return orderID, s.orders.CreateCustomOrderConfirmed(ctx, cmd.Scope, input)
+}
+
 func (s Service) ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error) {
 	return s.orders.ListOrders(ctx, scope)
 }

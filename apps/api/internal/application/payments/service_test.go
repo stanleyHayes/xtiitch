@@ -154,11 +154,13 @@ func TestLogManualTakingRecordsOffPlatformSale(t *testing.T) {
 	if payments.taking.AmountMinor != 5000 || payments.taking.Method != "cash" || payments.taking.WhatFor != "alteration" {
 		t.Fatalf("unexpected taking content: %+v", payments.taking)
 	}
-	if payments.taking.CommissionBps != 300 || payments.taking.CommissionMinor != 150 || payments.taking.CommissionStatus != "due" {
-		t.Fatalf("expected offline commission accrual, got %+v", payments.taking)
+	// Off-platform takings are fee-free: no commission is deducted or accrued,
+	// regardless of the plan's through-platform commission rate.
+	if payments.taking.CommissionBps != 0 || payments.taking.CommissionMinor != 0 || payments.taking.CommissionStatus != "not_applicable" {
+		t.Fatalf("expected fee-free offline taking, got %+v", payments.taking)
 	}
-	if result.CommissionMinor != 150 || result.CommissionStatus != "due" {
-		t.Fatalf("expected accrued commission result, got %+v", result)
+	if result.CommissionMinor != 0 || result.CommissionStatus != "not_applicable" {
+		t.Fatalf("expected fee-free commission result, got %+v", result)
 	}
 }
 

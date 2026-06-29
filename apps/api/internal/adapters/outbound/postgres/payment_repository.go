@@ -646,9 +646,71 @@ func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 		return confirmBookingOnPayment(ctx, tx, payment)
 	case "balance":
 		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.paymentID, payment.amountMinor)
+	case "cart_full":
+		// One combined charge anchored on the first order: confirm every order in
+		// its checkout group, each settled by its own line total.
+		return confirmOrderGroupOnPayment(ctx, tx, payment.businessID, payment.orderID.String)
 	default:
 		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
 	}
+}
+
+// confirmOrderGroupOnPayment confirms every still-draft order that shares the
+// anchor order's checkout group, each settled by its own agreed_total_minor
+// (not the combined charge amount) — exact for the made-to-wear cart, where
+// every line was paid in full in one transaction. The tenant scope is already
+// set by applyConfirmation, matching the other confirm helpers. If the anchor
+// carries no group (defensive), it confirms the anchor alone.
+func confirmOrderGroupOnPayment(ctx context.Context, tx pgx.Tx, businessID, anchorOrderID string) error {
+	var groupID sql.NullString
+	err := tx.QueryRow(ctx, `
+		select checkout_group_id from orders where order_id = $1 and business_id = $2
+	`, anchorOrderID, businessID).Scan(&groupID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	type member struct {
+		orderID     string
+		amountMinor int64
+	}
+	var members []member
+	if groupID.Valid {
+		rows, err := tx.Query(ctx, `
+			select order_id::text, agreed_total_minor
+			from orders
+			where checkout_group_id = $1 and business_id = $2 and status = 'draft'
+		`, groupID.String, businessID)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var m member
+			if err := rows.Scan(&m.orderID, &m.amountMinor); err != nil {
+				rows.Close()
+				return err
+			}
+			members = append(members, m)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	if len(members) == 0 {
+		// No group, or it was already confirmed: fall back to the anchor.
+		return confirmOrderOnPayment(ctx, tx, businessID, anchorOrderID, 0)
+	}
+
+	for _, m := range members {
+		if err := confirmOrderOnPayment(ctx, tx, businessID, m.orderID, m.amountMinor); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // applyPaymentFailure releases a held home-visit slot when its booking deposit

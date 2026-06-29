@@ -6,6 +6,7 @@ package deliveryapp
 
 import (
 	"context"
+	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
@@ -16,16 +17,18 @@ import (
 
 type Service struct {
 	handovers ports.DeliveryRepository
+	zones     ports.DeliveryZoneRepository
 	ids       ports.IDGenerator
 }
 
 type Dependencies struct {
 	Handovers ports.DeliveryRepository
+	Zones     ports.DeliveryZoneRepository
 	IDs       ports.IDGenerator
 }
 
 func NewService(deps Dependencies) Service {
-	return Service{handovers: deps.Handovers, ids: deps.IDs}
+	return Service{handovers: deps.Handovers, zones: deps.Zones, ids: deps.IDs}
 }
 
 // ArrangeHandoverCommand is the validated request to arrange a handover for a
@@ -152,6 +155,96 @@ func authorizeHandoverOperation(scope common.TenantScope, role business.UserRole
 	}
 	switch role {
 	case business.UserRoleOwner, business.UserRoleAdmin, business.UserRoleStaff:
+		return nil
+	default:
+		return authdomain.ErrForbidden
+	}
+}
+
+// --- Delivery zones -------------------------------------------------------
+
+// ListDeliveryZones returns every zone for the dashboard manager (active and
+// inactive).
+func (s Service) ListDeliveryZones(ctx context.Context, scope common.TenantScope) ([]ports.DeliveryZone, error) {
+	return s.zones.ListDeliveryZones(ctx, scope)
+}
+
+// ListActiveDeliveryZones returns the active zones a storefront offers at
+// checkout. It is a public read (no actor role).
+func (s Service) ListActiveDeliveryZones(ctx context.Context, scope common.TenantScope) ([]ports.DeliveryZone, error) {
+	return s.zones.ListActiveDeliveryZones(ctx, scope)
+}
+
+// ZoneCommand is the validated request to create or update a delivery zone.
+type ZoneCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	ZoneID    common.ID
+	Name      string
+	FeeMinor  int64
+	Sequence  int
+	Active    bool
+}
+
+// CreateDeliveryZone adds a delivery zone. Configuring delivery pricing is an
+// owner/admin operation; the name must be non-empty and the fee non-negative.
+func (s Service) CreateDeliveryZone(ctx context.Context, cmd ZoneCommand) (common.ID, error) {
+	if err := authorizeZoneManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" || cmd.FeeMinor < 0 {
+		return "", authdomain.ErrInvalidInput
+	}
+	id := s.ids.NewID()
+	if err := s.zones.CreateDeliveryZone(ctx, cmd.Scope, ports.CreateDeliveryZoneInput{
+		ZoneID:   id,
+		Name:     name,
+		FeeMinor: cmd.FeeMinor,
+		Sequence: cmd.Sequence,
+	}); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+// UpdateDeliveryZone edits a delivery zone.
+func (s Service) UpdateDeliveryZone(ctx context.Context, cmd ZoneCommand) error {
+	if err := authorizeZoneManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(cmd.Name)
+	if cmd.ZoneID.IsZero() || name == "" || cmd.FeeMinor < 0 {
+		return authdomain.ErrInvalidInput
+	}
+	return s.zones.UpdateDeliveryZone(ctx, cmd.Scope, ports.UpdateDeliveryZoneInput{
+		ZoneID:   cmd.ZoneID,
+		Name:     name,
+		FeeMinor: cmd.FeeMinor,
+		Sequence: cmd.Sequence,
+		Active:   cmd.Active,
+	})
+}
+
+// DeleteDeliveryZone removes a delivery zone.
+func (s Service) DeleteDeliveryZone(ctx context.Context, scope common.TenantScope, role business.UserRole, zoneID common.ID) error {
+	if err := authorizeZoneManagement(scope, role); err != nil {
+		return err
+	}
+	if zoneID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	return s.zones.DeleteDeliveryZone(ctx, scope, zoneID)
+}
+
+// authorizeZoneManagement gates delivery-pricing configuration to owners and
+// admins (staff arrange handovers but do not set fees).
+func authorizeZoneManagement(scope common.TenantScope, role business.UserRole) error {
+	if scope.BusinessID.IsZero() {
+		return authdomain.ErrInvalidInput
+	}
+	switch role {
+	case business.UserRoleOwner, business.UserRoleAdmin:
 		return nil
 	default:
 		return authdomain.ErrForbidden

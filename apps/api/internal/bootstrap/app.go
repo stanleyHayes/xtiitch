@@ -213,8 +213,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:          ids.UUIDGenerator{},
 	})
 
+	deliveryZoneRepository := postgres.NewDeliveryZoneRepository(db)
 	deliveryService := deliveryapp.NewService(deliveryapp.Dependencies{
 		Handovers: postgres.NewDeliveryRepository(db),
+		Zones:     deliveryZoneRepository,
 		IDs:       ids.UUIDGenerator{},
 	})
 
@@ -236,17 +238,18 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
-		Storefront:   postgres.NewStorefrontRepository(db),
-		Businesses:   postgres.NewBusinessChargeRepository(db),
-		Orders:       postgres.NewOrderRepository(db),
-		Bookings:     postgres.NewBookingRepository(db),
-		Promotions:   promotionRepository,
-		Affiliates:   growthRepository,
-		Referrals:    growthRepository,
-		Availability: availabilityService,
-		Payments:     paymentService,
-		IDs:          ids.UUIDGenerator{},
-		Logger:       logger,
+		Storefront:    postgres.NewStorefrontRepository(db),
+		Businesses:    postgres.NewBusinessChargeRepository(db),
+		Orders:        postgres.NewOrderRepository(db),
+		Bookings:      postgres.NewBookingRepository(db),
+		Promotions:    promotionRepository,
+		Affiliates:    growthRepository,
+		Referrals:     growthRepository,
+		DeliveryZones: deliveryZoneRepository,
+		Availability:  availabilityService,
+		Payments:      paymentService,
+		IDs:           ids.UUIDGenerator{},
+		Logger:        logger,
 	})
 
 	customerAuthService := customerauthapp.NewService(customerauthapp.Dependencies{

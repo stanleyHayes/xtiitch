@@ -48,6 +48,26 @@ var ErrSubscriptionInvoiceOpen = errors.New("subscription invoice already open")
 // business's current subscription/package entitlement.
 var ErrPlanLimitExceeded = errors.New("plan limit exceeded")
 
+// ErrSequenceTaken is returned when a business tries to give two collections (or
+// two size bands) the same display position. The unique database index makes the
+// check race-proof; services map it to a 409.
+var ErrSequenceTaken = errors.New("display order position already in use")
+
+// ErrImageLimitExceeded is returned when a design carries more images than the
+// business's plan allows (free: 2, paid: 5). Services map it to a 409.
+var ErrImageLimitExceeded = errors.New("image limit exceeded for plan")
+
+// ErrZoneNameTaken is returned when a business tries to create two delivery zones
+// with the same name. The unique database index makes it race-proof; services map
+// it to a 409.
+var ErrZoneNameTaken = errors.New("delivery zone name already in use")
+
+// ErrPricingModeConflict is returned when a size-band price is set on a design in
+// customisation (deposit) mode, where band prices do not apply. The repository
+// enforces it atomically inside the price-write transaction; services map it to a
+// 409.
+var ErrPricingModeConflict = errors.New("design is in customisation mode; band prices do not apply")
+
 // ErrSlotTaken is returned when a home-visit slot cannot be held because it is
 // already held/booked, or is not an offerable open slot. The partial unique
 // index on bookings makes this race-proof.

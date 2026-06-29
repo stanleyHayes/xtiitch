@@ -60,6 +60,54 @@ type HandoverState struct {
 	Status delivery.Status
 }
 
+// DeliveryZoneRepository persists a business's delivery zones — named areas each
+// with a flat fee charged when a customer picks them at online checkout.
+type DeliveryZoneRepository interface {
+	// ListDeliveryZones returns every zone for the tenant (active and inactive),
+	// ordered by sequence then name, for the dashboard manager.
+	ListDeliveryZones(ctx context.Context, scope common.TenantScope) ([]DeliveryZone, error)
+	// ListActiveDeliveryZones returns only the active zones, for the storefront
+	// checkout picker.
+	ListActiveDeliveryZones(ctx context.Context, scope common.TenantScope) ([]DeliveryZone, error)
+	// CreateDeliveryZone adds a zone; a duplicate name within the tenant returns
+	// ErrZoneNameTaken.
+	CreateDeliveryZone(ctx context.Context, scope common.TenantScope, input CreateDeliveryZoneInput) error
+	// UpdateDeliveryZone edits a zone's name, fee, ordering and active flag.
+	UpdateDeliveryZone(ctx context.Context, scope common.TenantScope, input UpdateDeliveryZoneInput) error
+	// DeleteDeliveryZone removes a zone; orders that referenced it keep their
+	// snapshotted fee (the FK is ON DELETE SET NULL).
+	DeleteDeliveryZone(ctx context.Context, scope common.TenantScope, zoneID common.ID) error
+	// GetDeliveryZone reads one zone (tenant-scoped) so checkout can resolve its
+	// fee; ErrNotFound when it does not exist for this tenant.
+	GetDeliveryZone(ctx context.Context, scope common.TenantScope, zoneID common.ID) (DeliveryZone, error)
+}
+
+// DeliveryZone is a named delivery area with a flat fee (minor units).
+type DeliveryZone struct {
+	ID       common.ID
+	Name     string
+	FeeMinor int64
+	Sequence int
+	Active   bool
+}
+
+// CreateDeliveryZoneInput adds a delivery zone.
+type CreateDeliveryZoneInput struct {
+	ZoneID   common.ID
+	Name     string
+	FeeMinor int64
+	Sequence int
+}
+
+// UpdateDeliveryZoneInput edits a delivery zone.
+type UpdateDeliveryZoneInput struct {
+	ZoneID   common.ID
+	Name     string
+	FeeMinor int64
+	Sequence int
+	Active   bool
+}
+
 // HandoverSummary is one row of the business's handover queue, with the order,
 // customer, and design context the dashboard renders.
 type HandoverSummary struct {

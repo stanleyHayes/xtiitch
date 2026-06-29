@@ -15,6 +15,31 @@ import (
 
 var ErrInvalidInput = errors.New("invalid catalogue input")
 
+// ErrPricingModeConflict is returned when a size-band price is set on a design
+// in customisation (deposit) mode. It aliases the port-level error so the
+// repository can surface it atomically and the handler maps it to a 409.
+var ErrPricingModeConflict = ports.ErrPricingModeConflict
+
+// normalizeSizeChart trims and validates a size band's chart entries: every entry
+// must have a non-empty name and value and a unit from catalogue.SizeChartUnits.
+// Units are lower-cased. Returns the cleaned chart or ErrInvalidInput.
+func normalizeSizeChart(items []catalogue.SizeChartItem) ([]catalogue.SizeChartItem, error) {
+	if len(items) == 0 {
+		return nil, nil
+	}
+	cleaned := make([]catalogue.SizeChartItem, 0, len(items))
+	for _, item := range items {
+		name := strings.TrimSpace(item.Name)
+		value := strings.TrimSpace(item.Value)
+		unit := strings.ToLower(strings.TrimSpace(item.Unit))
+		if name == "" || value == "" || !catalogue.ValidSizeChartUnit(unit) {
+			return nil, ErrInvalidInput
+		}
+		cleaned = append(cleaned, catalogue.SizeChartItem{Name: name, Value: value, Unit: unit})
+	}
+	return cleaned, nil
+}
+
 // ErrWaitlistUnavailable is returned when a customer tries to join a design's
 // waiting list but the store's plan does not grant the design_waitlist benefit.
 var ErrWaitlistUnavailable = errors.New("waiting list not available for this store")
@@ -256,6 +281,34 @@ func (s Service) DeleteCollection(ctx context.Context, cmd CollectionStatusComma
 	return s.catalogue.SetCollectionStatus(ctx, cmd.Scope, cmd.CollectionID, catalogue.StatusDeleted)
 }
 
+type UpdateCollectionCommand struct {
+	Scope        common.TenantScope
+	ActorRole    business.UserRole
+	CollectionID common.ID
+	Name         string
+	Theme        string
+	Sequence     int
+}
+
+// UpdateCollection edits a collection's name, theme, and display order. The
+// handle stays immutable so existing share links keep resolving.
+func (s Service) UpdateCollection(ctx context.Context, cmd UpdateCollectionCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" {
+		return ErrInvalidInput
+	}
+	return s.catalogue.UpdateCollection(ctx, cmd.Scope, ports.CollectionUpdateInput{
+		CollectionID: cmd.CollectionID,
+		BusinessID:   cmd.Scope.BusinessID,
+		Name:         name,
+		Theme:        strings.TrimSpace(cmd.Theme),
+		Sequence:     cmd.Sequence,
+	})
+}
+
 // --- Designs ---
 
 type DesignCommand struct {
@@ -301,11 +354,21 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 		Description:          strings.TrimSpace(cmd.Description),
 		Images:               cmd.Images,
 		CustomisationAllowed: cmd.CustomisationAllowed,
-		DepositOverrideMinor: cmd.DepositOverrideMinor,
+		DepositOverrideMinor: cmd.depositForMode(),
 		Handle:               s.newHandle(title),
 		Sequence:             cmd.Sequence,
 	})
 	return id, createErr
+}
+
+// depositForMode enforces pricing-mode exclusivity: only a customisation design
+// carries a deposit. A made-to-wear design is priced by its size bands, so any
+// deposit value is coerced away (deposit is N/A on the storefront).
+func (cmd DesignCommand) depositForMode() *int64 {
+	if !cmd.CustomisationAllowed {
+		return nil
+	}
+	return cmd.DepositOverrideMinor
 }
 
 func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
@@ -324,7 +387,7 @@ func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
 		Description:          strings.TrimSpace(cmd.Description),
 		Images:               cmd.Images,
 		CustomisationAllowed: cmd.CustomisationAllowed,
-		DepositOverrideMinor: cmd.DepositOverrideMinor,
+		DepositOverrideMinor: cmd.depositForMode(),
 		Sequence:             cmd.Sequence,
 	})
 }
@@ -370,6 +433,7 @@ type CreateSizeBandCommand struct {
 	Scope     common.TenantScope
 	ActorRole business.UserRole
 	Label     string
+	Chart     []catalogue.SizeChartItem
 	Sequence  int
 }
 
@@ -381,18 +445,68 @@ func (s Service) CreateSizeBand(ctx context.Context, cmd CreateSizeBandCommand) 
 	if label == "" {
 		return "", ErrInvalidInput
 	}
+	chart, err := normalizeSizeChart(cmd.Chart)
+	if err != nil {
+		return "", err
+	}
 	id := s.ids.NewID()
-	err := s.catalogue.CreateSizeBand(ctx, cmd.Scope, ports.SizeBandInput{
+	createErr := s.catalogue.CreateSizeBand(ctx, cmd.Scope, ports.SizeBandInput{
 		SizeBandID: id,
 		BusinessID: cmd.Scope.BusinessID,
 		Label:      label,
+		Chart:      chart,
 		Sequence:   cmd.Sequence,
 	})
-	return id, err
+	return id, createErr
 }
 
 func (s Service) ListSizeBands(ctx context.Context, scope common.TenantScope) ([]catalogue.SizeBand, error) {
 	return s.catalogue.ListSizeBands(ctx, scope)
+}
+
+type UpdateSizeBandCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	SizeBandID common.ID
+	Label      string
+	Chart      []catalogue.SizeChartItem
+	Sequence   int
+}
+
+// UpdateSizeBand edits a size band's label, measurement chart, and display order.
+func (s Service) UpdateSizeBand(ctx context.Context, cmd UpdateSizeBandCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	label := strings.TrimSpace(cmd.Label)
+	if label == "" {
+		return ErrInvalidInput
+	}
+	chart, err := normalizeSizeChart(cmd.Chart)
+	if err != nil {
+		return err
+	}
+	return s.catalogue.UpdateSizeBand(ctx, cmd.Scope, ports.SizeBandUpdateInput{
+		SizeBandID: cmd.SizeBandID,
+		BusinessID: cmd.Scope.BusinessID,
+		Label:      label,
+		Chart:      chart,
+		Sequence:   cmd.Sequence,
+	})
+}
+
+type DeleteSizeBandCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	SizeBandID common.ID
+}
+
+// DeleteSizeBand removes a size band; its per-design prices cascade away.
+func (s Service) DeleteSizeBand(ctx context.Context, cmd DeleteSizeBandCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	return s.catalogue.DeleteSizeBand(ctx, cmd.Scope, cmd.SizeBandID)
 }
 
 type SetDesignPriceCommand struct {
@@ -410,6 +524,9 @@ func (s Service) SetDesignPrice(ctx context.Context, cmd SetDesignPriceCommand) 
 	if cmd.PriceMinor < 0 {
 		return ErrInvalidInput
 	}
+	// Pricing-mode exclusivity (customisation designs are priced by deposit, not
+	// size-band prices) is enforced atomically inside the repository's write
+	// transaction, which returns ports.ErrPricingModeConflict.
 	return s.catalogue.SetDesignPrice(ctx, cmd.Scope, cmd.DesignID, cmd.SizeBandID, cmd.PriceMinor)
 }
 

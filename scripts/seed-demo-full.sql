@@ -39,9 +39,9 @@ from (
         'https://res.cloudinary.com/demo/image/upload/w_240/sample.jpg',
         'https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1600&q=80',
         'minimal'),
-    ('4d4d4d4d-0000-4000-8000-000000000004'::uuid, 'Accra Atelier',  'accra-atelier',  'standard', 'yearly',  'verified',
+    ('4d4d4d4d-0000-4000-8000-000000000004'::uuid, 'Accra Atelier',  'accra-atelier',  'starter', 'yearly',  'verified',
         '#c2410c', null, null, 'standard'),
-    ('3c3c3c3c-0000-4000-8000-000000000003'::uuid, 'Nubian Threads', 'nubian-threads', 'standard', 'monthly', 'verified',
+    ('3c3c3c3c-0000-4000-8000-000000000003'::uuid, 'Nubian Threads', 'nubian-threads', 'starter', 'monthly', 'verified',
         '#2e7d32', null, null, 'standard')
 ) as d(business_id, name, handle, plan_code, billing_cycle, verification, brand_color, logo_url, banner_url, layout_variant);
 
@@ -205,8 +205,50 @@ cross join (values
 ) as c(customer_id)
 on conflict (business_id, customer_id) do nothing;
 
+-- 7.5) Catalogue: size bands, designs and their band prices. These were
+--      previously assumed to come from scripts/seed-demo.sql, but the orders
+--      below reference them by id, so the full seed must create them itself to
+--      be self-contained (otherwise every order fails its design/band FK and the
+--      whole transaction rolls back). Band/design ids match the orders block.
+insert into size_bands (size_band_id, business_id, label, chart, sequence, created_at, updated_at) values
+  ('1a1a1a1a-0000-4000-8000-0000000000b1','1a1a1a1a-0000-4000-8000-000000000001','Standard fit','{}',1, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000b2','2b2b2b2b-0000-4000-8000-000000000002','Standard fit','{}',1, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000b3','3c3c3c3c-0000-4000-8000-000000000003','Standard fit','{}',1, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000b4','4d4d4d4d-0000-4000-8000-000000000004','Standard fit','{}',1, now(), now())
+on conflict (size_band_id) do nothing;
+
+insert into designs (design_id, business_id, collection_id, title, description, images, customisation_allowed, handle, status, sequence, created_at, updated_at) values
+  ('1a1a1a1a-0000-4000-8000-0000000000d1','1a1a1a1a-0000-4000-8000-000000000001',null,'Royal Purple Kaftan','Flowing kaftan in deep purple with gold-thread trim.',ARRAY['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80']::text[],true,'royal-purple-kaftan','active',1, now(), now()),
+  ('1a1a1a1a-0000-4000-8000-0000000000d2','1a1a1a1a-0000-4000-8000-000000000001',null,'Beaded Ankara Gown','Floor-length Ankara gown with hand-beaded bodice.',ARRAY['https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1000&q=80']::text[],true,'beaded-ankara-gown','active',2, now(), now()),
+  ('1a1a1a1a-0000-4000-8000-0000000000d3','1a1a1a1a-0000-4000-8000-000000000001',null,'Adinkra Shirt Dress','Relaxed shirt dress printed with Adinkra symbols.',ARRAY['https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=1000&q=80']::text[],true,'adinkra-shirt-dress','active',3, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d4','2b2b2b2b-0000-4000-8000-000000000002',null,'Kente Power Blazer','Sharp tailored blazer with a kente-trim lapel.',ARRAY['https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1000&q=80']::text[],true,'kente-power-blazer','active',1, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d5','2b2b2b2b-0000-4000-8000-000000000002',null,'Slim Kente Trousers','Slim-cut trousers with a woven kente side stripe.',ARRAY['https://images.unsplash.com/photo-1525507119028-ed4c629a60a3?auto=format&fit=crop&w=1000&q=80']::text[],false,'slim-kente-trousers','active',2, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d6','2b2b2b2b-0000-4000-8000-000000000002',null,'Festival Kente Set','Two-piece festival set in bold royal kente.',ARRAY['https://images.unsplash.com/photo-1469334031218-e382a71b716b?auto=format&fit=crop&w=1000&q=80']::text[],true,'festival-kente-set','active',3, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d7','3c3c3c3c-0000-4000-8000-000000000003',null,'Emerald Boubou','Grand boubou in emerald with tonal embroidery.',ARRAY['https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=1000&q=80']::text[],true,'emerald-boubou','active',1, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d8','3c3c3c3c-0000-4000-8000-000000000003',null,'Mudcloth Jacket','Structured jacket in hand-stamped mudcloth.',ARRAY['https://images.unsplash.com/photo-1496747611176-843222e1e57c?auto=format&fit=crop&w=1000&q=80']::text[],true,'mudcloth-jacket','active',2, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d9','3c3c3c3c-0000-4000-8000-000000000003',null,'Green Lace Kaba','Kaba and slit in soft green guipure lace.',ARRAY['https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?auto=format&fit=crop&w=1000&q=80']::text[],true,'green-lace-kaba','active',3, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000da','4d4d4d4d-0000-4000-8000-000000000004',null,'Terracotta Agbada','Three-piece agbada in warm terracotta.',ARRAY['https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1000&q=80']::text[],true,'terracotta-agbada','active',1, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000db','4d4d4d4d-0000-4000-8000-000000000004',null,'Sunset Wrap Skirt','Bias-cut wrap skirt in a sunset ombré.',ARRAY['https://images.unsplash.com/photo-1539109136881-3be0616acf4b?auto=format&fit=crop&w=1000&q=80']::text[],false,'sunset-wrap-skirt','active',2, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000dc','4d4d4d4d-0000-4000-8000-000000000004',null,'Coastal Linen Shirt','Breezy unisex linen shirt for the coast.',ARRAY['https://images.unsplash.com/photo-1483985988355-763728e1935b?auto=format&fit=crop&w=1000&q=80']::text[],false,'coastal-linen-shirt','active',3, now(), now())
+on conflict (design_id) do nothing;
+
+insert into design_prices (design_id, size_band_id, business_id, price_minor, created_at, updated_at) values
+  ('1a1a1a1a-0000-4000-8000-0000000000d1','1a1a1a1a-0000-4000-8000-0000000000b1','1a1a1a1a-0000-4000-8000-000000000001',52000, now(), now()),
+  ('1a1a1a1a-0000-4000-8000-0000000000d2','1a1a1a1a-0000-4000-8000-0000000000b1','1a1a1a1a-0000-4000-8000-000000000001',68000, now(), now()),
+  ('1a1a1a1a-0000-4000-8000-0000000000d3','1a1a1a1a-0000-4000-8000-0000000000b1','1a1a1a1a-0000-4000-8000-000000000001',41000, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d4','2b2b2b2b-0000-4000-8000-0000000000b2','2b2b2b2b-0000-4000-8000-000000000002',75000, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d5','2b2b2b2b-0000-4000-8000-0000000000b2','2b2b2b2b-0000-4000-8000-000000000002',38000, now(), now()),
+  ('2b2b2b2b-0000-4000-8000-0000000000d6','2b2b2b2b-0000-4000-8000-0000000000b2','2b2b2b2b-0000-4000-8000-000000000002',90000, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d7','3c3c3c3c-0000-4000-8000-0000000000b3','3c3c3c3c-0000-4000-8000-000000000003',60000, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d8','3c3c3c3c-0000-4000-8000-0000000000b3','3c3c3c3c-0000-4000-8000-000000000003',55000, now(), now()),
+  ('3c3c3c3c-0000-4000-8000-0000000000d9','3c3c3c3c-0000-4000-8000-0000000000b3','3c3c3c3c-0000-4000-8000-000000000003',48000, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000da','4d4d4d4d-0000-4000-8000-0000000000b4','4d4d4d4d-0000-4000-8000-000000000004',85000, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000db','4d4d4d4d-0000-4000-8000-0000000000b4','4d4d4d4d-0000-4000-8000-000000000004',33000, now(), now()),
+  ('4d4d4d4d-0000-4000-8000-0000000000dc','4d4d4d4d-0000-4000-8000-0000000000b4','4d4d4d4d-0000-4000-8000-000000000004',29000, now(), now())
+on conflict do nothing;
+
 -- 8) Orders across statuses + flows, each pinned to a real stage. ----------
---    Design ids and size-band ids come from scripts/seed-demo.sql.
+--    Design ids and size-band ids are seeded in section 7.5 above.
 insert into orders (
   order_id, business_id, customer_id, design_id, size_band_id,
   order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,

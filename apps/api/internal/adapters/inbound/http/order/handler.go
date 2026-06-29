@@ -23,6 +23,7 @@ const maxBodyBytes = 1 << 20
 
 type Service interface {
 	CreateWalkInOrder(ctx context.Context, command orderapp.CreateWalkInOrderCommand) (common.ID, error)
+	CreateConfirmedCustomOrder(ctx context.Context, command orderapp.CreateConfirmedCustomOrderCommand) (common.ID, error)
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error)
 	AdvanceStage(ctx context.Context, command orderapp.AdvanceStageCommand) (order.Tracking, error)
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
@@ -45,6 +46,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Post("/orders", handler.createWalkIn)
+		protected.Post("/orders/custom", handler.createCustomWalkIn)
 		protected.Get("/orders", handler.listOrders)
 		protected.Post("/orders/{id}/advance", handler.advance)
 		protected.Post("/orders/{id}/agreed-total", handler.setAgreedTotal)
@@ -88,6 +90,42 @@ func (handler Handler) createWalkIn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	orderID, err := handler.service.CreateWalkInOrder(r.Context(), cmd)
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"order_id": orderID.String()})
+}
+
+type createCustomWalkInBody struct {
+	DesignID      string            `json:"design_id"`
+	CustomerName  string            `json:"customer_name"`
+	CustomerPhone string            `json:"customer_phone"`
+	CustomerEmail string            `json:"customer_email"`
+	Measurements  map[string]string `json:"measurements"`
+}
+
+func (handler Handler) createCustomWalkIn(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var body createCustomWalkInBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	orderID, err := handler.service.CreateConfirmedCustomOrder(r.Context(), orderapp.CreateConfirmedCustomOrderCommand{
+		Scope:         principal.TenantScope(),
+		ActorRole:     principal.Role,
+		DesignID:      common.ID(body.DesignID),
+		CustomerName:  body.CustomerName,
+		CustomerPhone: body.CustomerPhone,
+		CustomerEmail: body.CustomerEmail,
+		Measurements:  body.Measurements,
+	})
 	if err != nil {
 		writeServiceError(w, err)
 		return

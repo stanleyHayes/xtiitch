@@ -20,9 +20,11 @@ import (
 
 type Service interface {
 	RegisterBusiness(ctx context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error)
+	CheckHandleAvailability(ctx context.Context, raw string) (authapp.HandleAvailability, error)
 	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
 	InitializeSubscriptionAuthorization(ctx context.Context, command authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error)
 	VerifySubscriptionAuthorization(ctx context.Context, command authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error)
+	SubmitIdentityVerification(ctx context.Context, command authapp.SubmitIdentityVerificationCommand) error
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
 	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
 	Logout(ctx context.Context, command authapp.LogoutCommand) error
@@ -64,12 +66,15 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/auth/business/mfa/verify", handler.verifyMFALogin)
 	// Public plan catalogue powering the signup plan picker.
 	router.Get("/plans", handler.listPlans)
+	// Real-time store-handle availability for the signup form (Instagram-style).
+	router.Get("/auth/business/handle-availability", handler.checkHandleAvailability)
 
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Get("/auth/business/me", handler.me)
 		protected.Post("/auth/business/subscription/authorization-link", handler.initializeSubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/authorization-verifications", handler.verifySubscriptionAuthorization)
+		protected.Post("/auth/business/identity-verification", handler.submitIdentityVerification)
 		protected.Get("/auth/business/users", handler.listBusinessUsers)
 		protected.Post("/auth/business/users", handler.createBusinessUser)
 		protected.Patch("/auth/business/users/{id}", handler.updateBusinessUser)
@@ -264,6 +269,19 @@ func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (handler Handler) checkHandleAvailability(w http.ResponseWriter, r *http.Request) {
+	result, err := handler.service.CheckHandleAvailability(r.Context(), r.URL.Query().Get("handle"))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"handle":    result.Handle,
+		"available": result.Available,
+		"reason":    result.Reason,
+	})
+}
+
 type subscriptionAuthorizationLinkRequest struct {
 	CallbackURL string `json:"callback_url"`
 }
@@ -348,6 +366,35 @@ func (handler Handler) verifySubscriptionAuthorization(w http.ResponseWriter, r 
 		ProviderCustomerRef:     result.ProviderCustomerRef,
 		ProviderSubscriptionRef: result.ProviderSubscriptionRef,
 	})
+}
+
+type identityVerificationRequest struct {
+	CardNumber string `json:"card_number"`
+	IDPhotoURL string `json:"id_photo_url"`
+}
+
+func (handler Handler) submitIdentityVerification(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request identityVerificationRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.SubmitIdentityVerification(r.Context(), authapp.SubmitIdentityVerificationCommand{
+		Scope:      principal.TenantScope(),
+		ActorRole:  principal.Role,
+		CardNumber: request.CardNumber,
+		IDPhotoURL: request.IDPhotoURL,
+	}); err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "pending"})
 }
 
 func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {

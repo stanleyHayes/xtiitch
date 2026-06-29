@@ -25,8 +25,12 @@ const (
 	// bcrypt silently truncates input beyond 72 bytes, so reject longer
 	// passwords rather than hashing a quietly-truncated value.
 	maxPasswordLength = 72
-	accessTokenTTL    = 15 * time.Minute
-	refreshTokenTTL   = 30 * 24 * time.Hour
+	// accessTokenTTL bounds how long the dashboard can act on one access token
+	// before re-auth. The dashboard logs out on a 401, so this is effectively the
+	// inactivity timeout — kept at 60 min so switching tabs briefly does not drop
+	// the session (Version-one review: "30–60 minutes of inactivity").
+	accessTokenTTL  = 60 * time.Minute
+	refreshTokenTTL = 30 * 24 * time.Hour
 	// mfaChallengeTTL bounds how long a password-verified caller has to present
 	// their second factor before the challenge token expires.
 	mfaChallengeTTL = 5 * time.Minute
@@ -184,6 +188,38 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 	})
 }
 
+// HandleAvailability is the result of a store-handle availability check, used by
+// the signup form to validate the handle in real time.
+type HandleAvailability struct {
+	Handle    string
+	Available bool
+	// Reason explains an unavailable handle: "invalid", "reserved", or "taken".
+	// Empty when Available is true.
+	Reason string
+}
+
+// CheckHandleAvailability validates a candidate store handle and reports whether
+// it can be claimed, applying exactly the same normalization, format,
+// reserved-word and uniqueness rules as RegisterBusiness. It performs no
+// mutation and is safe to call unauthenticated.
+func (s Service) CheckHandleAvailability(ctx context.Context, raw string) (HandleAvailability, error) {
+	handle := normalizeHandle(raw)
+	if handle == "" || !handlePattern.MatchString(handle) {
+		return HandleAvailability{Handle: handle, Available: false, Reason: "invalid"}, nil
+	}
+	if reservedHandles[handle] {
+		return HandleAvailability{Handle: handle, Available: false, Reason: "reserved"}, nil
+	}
+	exists, err := s.businesses.HandleExists(ctx, handle)
+	if err != nil {
+		return HandleAvailability{}, err
+	}
+	if exists {
+		return HandleAvailability{Handle: handle, Available: false, Reason: "taken"}, nil
+	}
+	return HandleAvailability{Handle: handle, Available: true}, nil
+}
+
 // ListPublicPlans returns the active plan catalogue for the unauthenticated
 // signup plan picker.
 func (s Service) ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error) {
@@ -297,15 +333,99 @@ func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd Verify
 	}); err != nil {
 		return SubscriptionAuthorizationResult{}, err
 	}
+
+	// Charge the first period immediately so a paid signup/upgrade is active and
+	// paid at once rather than waiting for the next recurring sweep. The charge is
+	// IDEMPOTENT: PrepareSubscriptionActivationCharge returns a deterministic ref
+	// for the current period and whether a charge is still due, so a repeated
+	// authorization-verify (double submit, client retry, callback re-hit) reuses
+	// the same ref — Paystack dedupes the charge and the paid-invoice insert
+	// no-ops — and the pre-check skips the provider call entirely once paid. A
+	// non-success charge leaves the subscription authorized (recurring) for the
+	// sweep to retry; the returned Status only reads 'active' when a paid invoice
+	// exists, so the caller never sees a paid status for an unpaid first period.
+	activation, err := s.businesses.PrepareSubscriptionActivationCharge(ctx, subscription.BusinessID)
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	status := subscription.Status
+	if !activation.ShouldCharge {
+		// Already paid for this period (e.g. a prior verify call succeeded).
+		status = "active"
+	} else {
+		email := strings.TrimSpace(subscription.OwnerEmail)
+		if email == "" {
+			email = strings.TrimSpace(result.CustomerEmail)
+		}
+		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
+			BusinessID:        subscription.BusinessID,
+			AuthorizationCode: strings.TrimSpace(result.AuthorizationCode),
+			CustomerEmail:     email,
+			AmountMinor:       int64(subscription.MonthlyFeeMinor),
+			Currency:          "GHS",
+			Reference:         activation.Ref,
+		})
+		if chargeErr == nil && strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
+			if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
+				BusinessID:  subscription.BusinessID,
+				AmountMinor: int64(subscription.MonthlyFeeMinor),
+				Currency:    "GHS",
+				ChargeRef:   activation.Ref,
+			}); err != nil {
+				return SubscriptionAuthorizationResult{}, err
+			}
+			status = "active"
+		} else if status == "active" {
+			// The plan was seeded 'active' at signup but the first charge has not
+			// gone through; report it as not-yet-paid so the dashboard can prompt.
+			status = "past_due"
+		}
+	}
+
 	return SubscriptionAuthorizationResult{
 		SubscriptionID:          subscription.SubscriptionID,
 		BusinessID:              subscription.BusinessID,
-		Status:                  subscription.Status,
+		Status:                  status,
 		BillingMode:             "recurring",
 		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
 		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
 	}, nil
 }
+
+// SubmitIdentityVerificationCommand is a business's Ghana Card submission.
+type SubmitIdentityVerificationCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	CardNumber string
+	IDPhotoURL string
+}
+
+// SubmitIdentityVerification stores the tenant's Ghana Card number + ID photo and
+// moves them into verification 'pending' for operator review. The photo is
+// uploaded to media storage by the caller; this records the resulting URL.
+func (s Service) SubmitIdentityVerification(ctx context.Context, cmd SubmitIdentityVerificationCommand) error {
+	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	// Normalize to the canonical Ghana Card PIN (GHA-#########-#) and validate the
+	// format, so operators review a well-formed number rather than free text.
+	card := strings.ToUpper(strings.TrimSpace(cmd.CardNumber))
+	photo := strings.TrimSpace(cmd.IDPhotoURL)
+	if !ghanaCardPattern.MatchString(card) || photo == "" || len(photo) > 2048 {
+		return authdomain.ErrInvalidInput
+	}
+	if !strings.HasPrefix(photo, "http://") && !strings.HasPrefix(photo, "https://") {
+		return authdomain.ErrInvalidInput
+	}
+	return s.businesses.SubmitIdentityDocument(ctx, ports.SubmitIdentityDocumentInput{
+		BusinessID: cmd.Scope.BusinessID,
+		CardNumber: card,
+		IDPhotoURL: photo,
+	})
+}
+
+// ghanaCardPattern matches the Ghana Card personal id number: GHA-#########-#.
+var ghanaCardPattern = regexp.MustCompile(`^GHA-[0-9]{9}-[0-9]$`)
 
 func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (AuthResult, error) {
 	handle := normalizeHandle(cmd.BusinessHandle)

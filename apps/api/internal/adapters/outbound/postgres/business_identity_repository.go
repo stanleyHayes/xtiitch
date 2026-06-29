@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"errors"
+	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -284,6 +285,33 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 	}, nil
 }
 
+// HandleExists reports whether any business already owns the given handle.
+// Handles are globally unique across tenants, so the lookup runs under the RLS
+// bypass.
+func (repo BusinessIdentityRepository) HandleExists(ctx context.Context, handle string) (bool, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return false, err
+	}
+
+	var exists bool
+	if err := tx.QueryRow(ctx, `
+		select exists(select 1 from businesses where lower(handle) = lower($1))
+	`, handle).Scan(&exists); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 // ListActivePlans returns the public-safe plan catalogue for the signup picker.
 func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]ports.PublicPlanRecord, error) {
 	rows, err := repo.pool.Query(ctx, `
@@ -321,8 +349,20 @@ func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]p
 // GetBusinessSubscription returns the tenant's subscription joined with its plan
 // and owner email, powering the self-serve billing flow.
 func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Context, businessID common.ID) (ports.BusinessSubscriptionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessSubscriptionRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// business_subscriptions is tenant-isolated (forced RLS), so the read must run
+	// under the business's scope or the row is invisible.
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, businessID.String()); err != nil {
+		return ports.BusinessSubscriptionRecord{}, err
+	}
+
 	var record ports.BusinessSubscriptionRecord
-	err := repo.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		select
 			s.subscription_id::text,
 			s.business_id::text,
@@ -361,13 +401,28 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Conte
 		}
 		return ports.BusinessSubscriptionRecord{}, err
 	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessSubscriptionRecord{}, err
+	}
 	return record, nil
 }
 
 // ActivateRecurringBilling stores the verified Paystack customer + authorization
 // codes and flips the subscription to recurring Paystack billing.
 func (repo BusinessIdentityRepository) ActivateRecurringBilling(ctx context.Context, input ports.ActivateRecurringBillingInput) error {
-	_, err := repo.pool.Exec(ctx, `
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// business_subscriptions is tenant-isolated (forced RLS); scope to the business
+	// so the update actually matches its row.
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set billing_mode = 'recurring',
 			provider = 'paystack',
@@ -375,8 +430,171 @@ func (repo BusinessIdentityRepository) ActivateRecurringBilling(ctx context.Cont
 			provider_subscription_ref = $3,
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.ProviderCustomerRef, input.ProviderSubscriptionRef)
-	return err
+	`, input.BusinessID.String(), input.ProviderCustomerRef, input.ProviderSubscriptionRef); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// RecordSubscriptionActivationPayment books the first recurring charge a tenant
+// just paid at authorization time: it writes a paid invoice for the current
+// period and flips the subscription to active with the next billing date set to
+// the period end. It is tenant-scoped and idempotent against the charge webhook —
+// the invoice is created already 'paid', and the webhook only advances
+// 'issued'/'failed' invoices, so a redelivered charge.success is a no-op.
+func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx context.Context, input ports.RecordSubscriptionActivationPaymentInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	var subscriptionID, planID string
+	var periodStart, periodEnd time.Time
+	if err := tx.QueryRow(ctx, `
+		select subscription_id::text, plan_id::text, current_period_start, current_period_end
+		from business_subscriptions where business_id = $1
+	`, input.BusinessID.String()).Scan(&subscriptionID, &planID, &periodStart, &periodEnd); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	// Idempotent on the charge ref: the activation ref is deterministic per period
+	// (see PrepareSubscriptionActivationCharge), so a repeated verify re-uses it and
+	// this insert no-ops rather than booking a second paid invoice. Gate the
+	// subscription update on a fresh insert so a replay never re-bumps last_payment_at.
+	tag, err := tx.Exec(ctx, `
+		insert into business_subscription_invoices (
+			invoice_id, subscription_id, business_id, plan_id,
+			invoice_ref, provider_invoice_ref, status, billing_mode, provider,
+			amount_minor, currency, period_start, period_end, due_at, paid_at
+		)
+		values (
+			gen_random_uuid(), $1, $2, $3,
+			$4, $4, 'paid', 'recurring', 'paystack',
+			$5, $6, $7, $8, now(), now()
+		)
+		on conflict (invoice_ref) do nothing
+	`, subscriptionID, input.BusinessID.String(), planID,
+		input.ChargeRef, input.AmountMinor, input.Currency, periodStart, periodEnd)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		// Already recorded for this period — nothing more to do.
+		return tx.Commit(ctx)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update business_subscriptions
+		set status = 'active',
+			failed_payment_count = 0,
+			grace_ends_at = null,
+			cancel_at_period_end = false,
+			last_invoice_ref = $2,
+			last_payment_at = now(),
+			next_billing_at = current_period_end,
+			updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String(), input.ChargeRef); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// PrepareSubscriptionActivationCharge returns the deterministic charge reference
+// for the subscription's current period and whether a first charge is still due
+// (no paid invoice already recorded for that period). Keying the ref on the
+// subscription + period makes the first-period charge idempotent against retries
+// and the verify-callback being hit twice.
+func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(ctx context.Context, businessID common.ID) (ports.SubscriptionActivationCharge, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.SubscriptionActivationCharge{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, businessID.String()); err != nil {
+		return ports.SubscriptionActivationCharge{}, err
+	}
+
+	var subscriptionID string
+	var periodStart time.Time
+	if err := tx.QueryRow(ctx, `
+		select subscription_id::text, current_period_start
+		from business_subscriptions where business_id = $1
+	`, businessID.String()).Scan(&subscriptionID, &periodStart); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.SubscriptionActivationCharge{}, ErrNotFound
+		}
+		return ports.SubscriptionActivationCharge{}, err
+	}
+
+	ref := "xtsub_act_" + subscriptionID + "_" + strconv.FormatInt(periodStart.Unix(), 10)
+
+	var alreadyPaid bool
+	if err := tx.QueryRow(ctx, `
+		select exists(
+			select 1 from business_subscription_invoices
+			where invoice_ref = $1 and status = 'paid'
+		)
+	`, ref).Scan(&alreadyPaid); err != nil {
+		return ports.SubscriptionActivationCharge{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.SubscriptionActivationCharge{}, err
+	}
+	return ports.SubscriptionActivationCharge{Ref: ref, ShouldCharge: !alreadyPaid}, nil
+}
+
+// SubmitIdentityDocument upserts a business's Ghana Card number + ID photo and
+// moves it into verification 'pending' for operator review. Tenant-scoped (the
+// document table is RLS-isolated). An already-verified business keeps its status
+// so a resubmission never silently de-verifies a live store.
+func (repo BusinessIdentityRepository) SubmitIdentityDocument(ctx context.Context, input ports.SubmitIdentityDocumentInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into business_identity_documents (business_id, card_number, id_photo_url, submitted_at)
+		values ($1, $2, $3, now())
+		on conflict (business_id) do update
+		set card_number = excluded.card_number,
+			id_photo_url = excluded.id_photo_url,
+			submitted_at = now(),
+			updated_at = now()
+	`, input.BusinessID.String(), input.CardNumber, input.IDPhotoURL); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update businesses
+		set verification_status = case
+				when verification_status = 'verified' then verification_status
+				else 'pending'
+			end,
+			updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {

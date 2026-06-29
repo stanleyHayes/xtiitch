@@ -116,7 +116,7 @@ func TestRecordAndListManualTakings(t *testing.T) {
 	if err := repo.RecordManualTaking(ctx, mtScope(), ports.ManualTakingInput{
 		TakingID: common.ID("00000000-0000-0000-0000-0000000000aa"), BusinessID: common.ID(mtBiz),
 		AmountMinor: 1000, Method: "other", WhatFor: "deposit top-up",
-		CommissionBps: 300, CommissionMinor: 30,
+		CommissionBps: 0, CommissionMinor: 0, CommissionStatus: "not_applicable",
 	}); err != nil {
 		t.Fatalf("record taking: %v", err)
 	}
@@ -128,15 +128,16 @@ func TestRecordAndListManualTakings(t *testing.T) {
 	if len(takings) != 3 { // 2 seeded + 1 recorded
 		t.Fatalf("expected 3 takings for this business, got %d", len(takings))
 	}
-	if takings[0].CommissionBps != 300 || takings[0].CommissionMinor != 30 || takings[0].CommissionStatus != "due" {
-		t.Fatalf("expected new taking to carry offline commission due, got %+v", takings[0])
+	// Off-platform takings are fee-free: no commission accrues.
+	if takings[0].CommissionBps != 0 || takings[0].CommissionMinor != 0 || takings[0].CommissionStatus != "not_applicable" {
+		t.Fatalf("expected fee-free offline taking, got %+v", takings[0])
 	}
 
 	summary, err := repo.MoneySummary(ctx, mtScope())
 	if err != nil {
 		t.Fatalf("summary: %v", err)
 	}
-	if summary.ManualTakingsMinor != 9000 || summary.OfflineCommissionDueMinor != 30 || summary.NetIncomeMinor != 88170 {
-		t.Fatalf("expected manual=9000 offline_due=30 net=88170 after the new taking, got manual=%d offline_due=%d net=%d", summary.ManualTakingsMinor, summary.OfflineCommissionDueMinor, summary.NetIncomeMinor)
+	if summary.ManualTakingsMinor != 9000 || summary.OfflineCommissionDueMinor != 0 || summary.NetIncomeMinor != 88200 {
+		t.Fatalf("expected manual=9000 offline_due=0 net=88200 after the new taking, got manual=%d offline_due=%d net=%d", summary.ManualTakingsMinor, summary.OfflineCommissionDueMinor, summary.NetIncomeMinor)
 	}
 }
