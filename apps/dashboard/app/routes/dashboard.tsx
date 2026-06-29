@@ -6699,7 +6699,7 @@ function OrdersKanban({
                     {order.customer_name} ·{" "}
                     {order.channel === "walk_in" ? "Walk-in" : "Online"}
                   </Typography>
-                  {showMoneyDetails && order.agreed_total_minor != null ? (
+                  {showMoneyDetails && order.agreed_total_minor !== null ? (
                     <Typography variant="caption" sx={{ color: "text.secondary" }}>
                       {formatGHS(order.settled_minor)} /{" "}
                       {formatGHS(order.agreed_total_minor)}
