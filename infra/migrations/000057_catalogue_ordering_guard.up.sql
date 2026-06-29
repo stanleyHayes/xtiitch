@@ -8,6 +8,10 @@
 -- uniqueness guard. The application also auto-assigns the next free position
 -- when an owner leaves the order blank.
 
+-- Renumber EVERY non-deleted row to its rank (no "only if changed" guard): this
+-- guarantees the post-update set has unique (business_id, sequence) so the index
+-- below always builds, and it is safely re-runnable (idempotent) if a prior
+-- attempt left the migration dirty.
 with ranked as (
   select collection_id,
          row_number() over (
@@ -20,10 +24,9 @@ with ranked as (
 update collections c
 set sequence = r.rn, updated_at = now()
 from ranked r
-where c.collection_id = r.collection_id
-  and c.sequence <> r.rn;
+where c.collection_id = r.collection_id;
 
-create unique index collections_business_sequence_active_idx
+create unique index if not exists collections_business_sequence_active_idx
   on collections (business_id, sequence)
   where status <> 'deleted';
 
@@ -38,8 +41,7 @@ with ranked as (
 update size_bands s
 set sequence = r.rn, updated_at = now()
 from ranked r
-where s.size_band_id = r.size_band_id
-  and s.sequence <> r.rn;
+where s.size_band_id = r.size_band_id;
 
-create unique index size_bands_business_sequence_idx
+create unique index if not exists size_bands_business_sequence_idx
   on size_bands (business_id, sequence);
