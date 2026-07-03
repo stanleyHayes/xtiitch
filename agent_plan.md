@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-06-29 GMT
+Last updated: 2026-07-03 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -71,6 +71,13 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 ### Review follow-up — 2026-07-03
 - ✅ Rechecked `Version_one_system_review_business.xtiitch.com, store.xtiitch.com.pdf`
   against the dashboard/storefront implementation.
+- ✅ Re-verified the same review with a screenshot-backed audit on 2026-07-03.
+  Evidence is in `tmp/version-one-review-audit-20260703/` (`audit-report.md`,
+  `contact-sheet.png`, and `screenshots/`). Verdict: logo fallbacks are fixed,
+  many dashboard/storefront items are complete, but WhatsApp flows, mixed
+  bespoke + made-to-wear checkout, live Paystack completion, full recurring
+  availability booking, and several mutation/stress cases remain incomplete or
+  only partially verified.
 - ✅ Dashboard catalogue review gaps closed: add-design now supports multiple
   image uploads up to the plan cap, made-to-wear prices can be entered in the
   add/edit design flows, collection and size-band management moved into
@@ -79,6 +86,10 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 - ✅ Storefront review gaps closed: design thumbnails now update the main product
   image, delivery checkout accepts an optional GPS code/link, and overview stat
   cards route to their detail pages when clicked.
+- ✅ Logo review gap closed: admin, dashboard, and storefront favicon fallbacks
+  now match the stitched Xtiitch mark already used by marketing; the admin
+  platform-logo preview and rail fallback also render `/favicon.svg` instead of
+  a plain `X`.
 - 🟡 Remaining product gap: mixed bespoke + made-to-wear cart checkout is not
   complete. The cart data model has a `bespoke` item kind, but checkout still
   accepts only made-to-wear lines for combined Paystack settlement. Completing

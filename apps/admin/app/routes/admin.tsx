@@ -15993,16 +15993,17 @@ function SettingsSection({
                             }}
                           />
                         ) : (
-                          <Typography
+                          <Box
+                            component="img"
+                            src="/favicon.svg"
+                            alt="Built-in Xtiitch mark"
                             sx={{
-                              fontFamily: '"Fraunces", serif',
-                              fontWeight: 900,
-                              fontSize: 26,
-                              color: tokens.burgundy,
+                              width: "100%",
+                              height: "100%",
+                              objectFit: "contain",
+                              p: 1,
                             }}
-                          >
-                            X
-                          </Typography>
+                          />
                         )}
                       </Box>
                       <Box sx={{ minWidth: 0 }}>
@@ -16702,18 +16703,18 @@ function AdminRail({
                 />
               ) : (
                 <>
-                  <Typography
-                    component="span"
+                  <Box
+                    component="img"
+                    src="/favicon.svg"
+                    alt=""
                     aria-hidden
                     sx={{
-                      fontFamily: '"Fraunces", serif',
-                      fontSize: 24,
-                      lineHeight: 1,
-                      mt: "2px",
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "contain",
+                      p: 0.85,
                     }}
-                  >
-                    X
-                  </Typography>
+                  />
                   <ShieldRounded
                     sx={{
                       position: "absolute",
