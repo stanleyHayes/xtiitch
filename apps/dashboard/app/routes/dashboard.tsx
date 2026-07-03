@@ -4382,11 +4382,21 @@ function MetricCard({
         <Stack
           direction="row"
           spacing={1.25}
-          sx={{ alignItems: "center", justifyContent: "space-between" }}
+          sx={{
+            alignItems: "center",
+            justifyContent: "space-between",
+            minWidth: 0,
+          }}
         >
           <Typography
             variant="body2"
-            sx={{ color: "text.secondary", fontWeight: 800 }}
+            title={label}
+            noWrap
+            sx={{
+              color: "text.secondary",
+              fontWeight: 800,
+              minWidth: 0,
+            }}
           >
             {label}
           </Typography>
@@ -4402,6 +4412,7 @@ function MetricCard({
               border: "1px solid",
               borderColor: alpha(tone, 0.16),
               boxShadow: `0 12px 28px ${alpha(tone, 0.08)}`,
+              flex: "0 0 auto",
             }}
           >
             {icon}
@@ -4417,14 +4428,24 @@ function MetricCard({
             sx={{
               lineHeight: 1.05,
               maxWidth: "100%",
-              fontSize: value.length > 9 ? "1.4rem" : undefined,
+              letterSpacing: 0,
+              fontSize:
+                value.length > 15
+                  ? "1.1rem"
+                  : value.length > 9
+                    ? "1.4rem"
+                    : undefined,
             }}
           >
             {value}
           </Typography>
           <Typography
             variant="body2"
-            sx={{ mt: 0.75, color: "text.secondary" }}
+            sx={{
+              mt: 0.75,
+              color: "text.secondary",
+              overflowWrap: "anywhere",
+            }}
           >
             {helper}
           </Typography>
@@ -6659,7 +6680,10 @@ function OrdersKanban({
   const submit = useSubmit();
   const [dragging, setDragging] = useState<OrderSummary | null>(null);
 
-  const columnsMap = new Map<string, { rank: number; orders: OrderSummary[] }>();
+  const columnsMap = new Map<
+    string,
+    { rank: number; orders: OrderSummary[] }
+  >();
   for (const order of orders) {
     const key = orderBoardKey(order);
     const existing = columnsMap.get(key);
@@ -6762,7 +6786,10 @@ function OrdersKanban({
                     {order.channel === "walk_in" ? "Walk-in" : "Online"}
                   </Typography>
                   {showMoneyDetails && order.agreed_total_minor !== null ? (
-                    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: "text.secondary" }}
+                    >
                       {formatGHS(order.settled_minor)} /{" "}
                       {formatGHS(order.agreed_total_minor)}
                     </Typography>
@@ -8912,7 +8939,12 @@ function MiniStat({
       <Stack
         direction="row"
         spacing={1}
-        sx={{ alignItems: "center", position: "relative", zIndex: 1 }}
+        sx={{
+          alignItems: "center",
+          minWidth: 0,
+          position: "relative",
+          zIndex: 1,
+        }}
       >
         <Box
           sx={{
@@ -8923,13 +8955,16 @@ function MiniStat({
             borderRadius: 1,
             placeItems: "center",
             bgcolor: alpha(tone, 0.1),
+            flex: "0 0 auto",
           }}
         >
           {icon}
         </Box>
         <Typography
           variant="caption"
-          sx={{ color: "text.secondary", fontWeight: 900 }}
+          noWrap
+          title={label}
+          sx={{ color: "text.secondary", fontWeight: 900, minWidth: 0 }}
         >
           {label}
         </Typography>
@@ -8941,7 +8976,13 @@ function MiniStat({
           mt: 0.75,
           fontWeight: 900,
           maxWidth: "100%",
-          fontSize: value.length > 10 ? "0.95rem" : undefined,
+          letterSpacing: 0,
+          fontSize:
+            value.length > 15
+              ? "0.82rem"
+              : value.length > 10
+                ? "0.95rem"
+                : undefined,
           position: "relative",
           zIndex: 1,
         }}
@@ -8951,13 +8992,29 @@ function MiniStat({
       {helper ? (
         <Typography
           variant="caption"
-          sx={{ color: "text.secondary", position: "relative", zIndex: 1 }}
+          sx={{
+            color: "text.secondary",
+            overflowWrap: "anywhere",
+            position: "relative",
+            zIndex: 1,
+          }}
         >
           {helper}
         </Typography>
       ) : null}
       {action ? (
-        <Box sx={{ mt: 1.25, position: "relative", zIndex: 1 }}>{action}</Box>
+        <Box
+          sx={{
+            mt: 1.25,
+            maxWidth: "100%",
+            minWidth: 0,
+            position: "relative",
+            zIndex: 1,
+            "& .MuiButton-root": { maxWidth: "100%" },
+          }}
+        >
+          {action}
+        </Box>
       ) : null}
     </Box>
   );
@@ -10377,14 +10434,14 @@ function WalkInOrderPanel({
                 size="small"
                 value={orderType}
                 onChange={(event) =>
-                  setOrderType(
-                    event.target.value as "ready_made" | "bespoke",
-                  )
+                  setOrderType(event.target.value as "ready_made" | "bespoke")
                 }
                 sx={{ maxWidth: { sm: 240 } }}
               >
                 <MenuItem value="ready_made">Ready-made (priced now)</MenuItem>
-                <MenuItem value="bespoke">Bespoke (measured, priced later)</MenuItem>
+                <MenuItem value="bespoke">
+                  Bespoke (measured, priced later)
+                </MenuItem>
               </TextField>
               <Box>
                 <Typography sx={{ mb: 1, fontWeight: 900 }}>
@@ -10460,8 +10517,8 @@ function WalkInOrderPanel({
                     variant="caption"
                     sx={{ color: "text.secondary", mt: 0.5, display: "block" }}
                   >
-                    Bespoke pricing is agreed later — set the total once the work
-                    is scoped.
+                    Bespoke pricing is agreed later — set the total once the
+                    work is scoped.
                   </Typography>
                 ) : null}
               </Box>
@@ -10610,7 +10667,12 @@ function ImageDropzone({
     setFileNames(files.map((file) => file.name));
   };
   const capInputFiles = (input: HTMLInputElement) => {
-    if (!multiple || !maxFiles || !input.files || input.files.length <= maxFiles) {
+    if (
+      !multiple ||
+      !maxFiles ||
+      !input.files ||
+      input.files.length <= maxFiles
+    ) {
       return;
     }
     const transfer = new DataTransfer();
@@ -10640,8 +10702,8 @@ function ImageDropzone({
         }
         const dropped = multiple
           ? Array.from(event.dataTransfer.files ?? [])
-          : [event.dataTransfer.files?.[0]].filter(
-              (file): file is File => Boolean(file),
+          : [event.dataTransfer.files?.[0]].filter((file): file is File =>
+              Boolean(file),
             );
         if (dropped.length > 0 && inputRef.current) {
           const transfer = new DataTransfer();
@@ -11090,7 +11152,8 @@ function BusinessVerificationPanel({
                 Business verification
               </Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Submit your Ghana Card to verify your business and take payments.
+                Submit your Ghana Card to verify your business and take
+                payments.
               </Typography>
             </Box>
           </Stack>
@@ -16038,9 +16101,7 @@ export default function Dashboard({
                                 </Typography>
                                 {!addCustomisation ? (
                                   <Box>
-                                    <Typography
-                                      sx={{ mb: 1, fontWeight: 900 }}
-                                    >
+                                    <Typography sx={{ mb: 1, fontWeight: 900 }}>
                                       Size band prices
                                     </Typography>
                                     {sizeBands.length === 0 ? (
