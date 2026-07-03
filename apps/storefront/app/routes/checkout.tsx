@@ -41,11 +41,12 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (items.length === 0) {
     return redirect("/cart");
   }
-  // Delivery zones are offered only for ready-made carts (bespoke pays a deposit
-  // on its own page) and only when the store has them configured.
-  const allMadeToWear = items.every((item) => item.kind === "made_to_wear");
+  // Delivery zones are offered when the cart has at least one ready-made piece.
+  // Bespoke self-measure deposit lines can pay in the same transaction, but they
+  // do not carry delivery fulfilment until the balance/order details are agreed.
+  const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
   let zones: { zone_id: string; name: string; fee_minor: number }[] = [];
-  if (allMadeToWear && storeHandle) {
+  if (hasMadeToWear && storeHandle) {
     const page = await api.deliveryZones(storeHandle);
     zones = page?.zones ?? [];
   }
@@ -66,20 +67,17 @@ export async function action({ request }: Route.ActionArgs) {
     return { error: "Add your name and email to check out." };
   }
 
-  // Bespoke pieces carry a deposit + balance, so they aren't part of the
-  // combined ready-made charge yet: those still check out from their own page.
-  const allMadeToWear = items.every((item) => item.kind === "made_to_wear");
-  if (!allMadeToWear) {
-    return {
-      error:
-        "A bespoke piece pays a deposit and is checked out from its own page. Remove it here to pay for your ready-made pieces together, or check it out separately.",
-    };
-  }
-
   const fulfilment = String(form.get("fulfilment") ?? "pickup");
+  const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
   const deliveryZoneID = String(form.get("delivery_zone_id") ?? "").trim();
   const deliveryAddress = String(form.get("delivery_address") ?? "").trim();
   const gpsLocation = String(form.get("gps_location") ?? "").trim();
+  if (fulfilment === "delivery" && !hasMadeToWear) {
+    return {
+      error:
+        "Delivery can be selected when your cart includes a ready-made piece.",
+    };
+  }
   if (fulfilment === "delivery" && (!deliveryZoneID || !deliveryAddress)) {
     return {
       error: "Choose a delivery area and enter the delivery address.",
@@ -95,9 +93,16 @@ export async function action({ request }: Route.ActionArgs) {
     error: "We couldn't start that payment. Check your details and try again.",
   };
 
-  // Pickup + a single ready-made piece: the proven single-order checkout.
+  // Pickup + a single ready-made piece: the proven single-order checkout. A
+  // lone bespoke deposit has no size band, so it must not take this path — it
+  // falls through to the group charge below, which settles the deposit.
   const only = items[0];
-  if (fulfilment !== "delivery" && items.length === 1 && only) {
+  if (
+    fulfilment !== "delivery" &&
+    items.length === 1 &&
+    only &&
+    only.kind === "made_to_wear"
+  ) {
     const response = await api.placeOrder(storeHandle, {
       design_handle: only.design_handle,
       size_band_id: only.size_band_id,
@@ -127,6 +132,9 @@ export async function action({ request }: Route.ActionArgs) {
     items: items.map((item) => ({
       design_handle: item.design_handle,
       size_band_id: item.size_band_id,
+      kind: item.kind,
+      size_mode: item.size_mode,
+      measurements: item.measurements,
     })),
     customer_name: customerName,
     customer_phone: customerPhone,
@@ -156,14 +164,13 @@ export default function Checkout({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { storeHandle, items, totalMinor, zones } = loaderData;
+  const { items, totalMinor, zones } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
-  // Ready-made carts (one or several pieces) pay in one Paystack transaction.
-  // A bespoke piece still checks out from its own page (deposit + balance).
-  const canPayNow =
-    items.length > 0 && items.every((item) => item.kind === "made_to_wear");
-  const deliveryOffered = canPayNow && zones.length > 0;
+  const canPayNow = items.length > 0;
+  const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
+  const hasBespoke = items.some((item) => item.kind === "bespoke");
+  const deliveryOffered = hasMadeToWear && zones.length > 0;
 
   const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
   const [zoneID, setZoneID] = useState("");
@@ -238,17 +245,10 @@ export default function Checkout({
           </Alert>
         ) : null}
 
-        {!canPayNow ? (
+        {hasBespoke ? (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Your cart has a bespoke piece, which pays a deposit and is checked
-            out from its own page. Remove it to pay for your ready-made pieces
-            together, or check it out from{" "}
-            <RouterLink
-              to={storeHandle ? `/store/${storeHandle}` : "/discover"}
-            >
-              the store
-            </RouterLink>
-            .
+            Bespoke pieces are charged as deposits in this cart. The store can
+            confirm the remaining balance after reviewing the measurements.
           </Alert>
         ) : null}
 

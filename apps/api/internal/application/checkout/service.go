@@ -291,11 +291,36 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}, nil
 }
 
-// CartLineCommand is one made-to-wear piece in a combined cart checkout: a
-// listed design and the chosen size band.
+// CartLineKind identifies how one cart line should become an order. Made-to-wear
+// lines use a listed size band; bespoke lines collect a self-measure deposit.
+type CartLineKind string
+
+const (
+	CartLineMadeToWear CartLineKind = "made_to_wear"
+	CartLineBespoke    CartLineKind = "bespoke"
+)
+
+func (kind CartLineKind) normalized() CartLineKind {
+	switch kind {
+	case "", CartLineMadeToWear:
+		return CartLineMadeToWear
+	case CartLineBespoke:
+		return CartLineBespoke
+	default:
+		return kind
+	}
+}
+
+// CartLineCommand is one piece in a combined cart checkout. Made-to-wear lines
+// require a listed design and chosen size band. Bespoke lines require the
+// self-measure route and measurement values; their amount is the design/store
+// deposit and the remaining balance can still be negotiated later.
 type CartLineCommand struct {
 	DesignHandle string
 	SizeBandID   common.ID
+	Kind         CartLineKind
+	SizeMode     order.SizeMode
+	Measurements map[string]string
 }
 
 type PlaceCartOrderCommand struct {
@@ -319,12 +344,13 @@ type PlaceCartOrderResult struct {
 	AmountMinor      int64
 }
 
-// PlaceCartOrder records several made-to-wear orders for one customer and raises
-// a single combined Paystack charge for their total. Each piece becomes its own
-// draft order, all sharing a checkout group; the one payment's webhook confirms
-// every order in the group (each settled by its own line total). The whole
-// checkout is all-or-nothing: if the charge cannot be raised, every draft and
-// the customer created for them are rolled back.
+// PlaceCartOrder records several cart lines for one customer and raises a single
+// combined Paystack charge for their total. Made-to-wear lines become standard
+// draft orders; bespoke self-measure lines become custom draft orders whose
+// agreed total is the paid deposit. All orders share a checkout group, and the
+// one payment's webhook confirms every order in the group (each settled by its
+// own line total). The whole checkout is all-or-nothing: if the charge cannot be
+// raised, every draft and the customer created for them are rolled back.
 func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) (PlaceCartOrderResult, error) {
 	name := strings.TrimSpace(cmd.CustomerName)
 	email := strings.TrimSpace(cmd.CustomerEmail)
@@ -336,8 +362,25 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceCartOrderResult{}, ErrInvalidInput
 	}
+	hasMadeToWear := false
 	for _, line := range cmd.Lines {
-		if line.SizeBandID == "" || strings.TrimSpace(line.DesignHandle) == "" {
+		if strings.TrimSpace(line.DesignHandle) == "" {
+			return PlaceCartOrderResult{}, ErrInvalidInput
+		}
+		switch line.Kind.normalized() {
+		case CartLineMadeToWear:
+			if line.SizeBandID == "" {
+				return PlaceCartOrderResult{}, ErrInvalidInput
+			}
+			hasMadeToWear = true
+		case CartLineBespoke:
+			if line.SizeMode != order.SizeModeSelfMeasure {
+				return PlaceCartOrderResult{}, ErrInvalidSizeMode
+			}
+			if _, err := cleanMeasurements(line.Measurements); err != nil {
+				return PlaceCartOrderResult{}, err
+			}
+		default:
 			return PlaceCartOrderResult{}, ErrInvalidInput
 		}
 	}
@@ -366,6 +409,9 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	if err != nil {
 		return PlaceCartOrderResult{}, err
 	}
+	if deliv.method != "" && !hasMadeToWear {
+		return PlaceCartOrderResult{}, ErrDeliveryUnavailable
+	}
 
 	groupID := s.ids.NewID()
 	customerID, customerCreated := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
@@ -375,54 +421,100 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	}
 	phone := strings.TrimSpace(cmd.CustomerPhone)
 
-	inputs := make([]ports.CreateOnlineOrderInput, 0, len(cmd.Lines))
+	standardInputs := make([]ports.CreateOnlineOrderInput, 0, len(cmd.Lines))
+	customInputs := make([]ports.CreateCustomOrderInput, 0, len(cmd.Lines))
+	orderIDs := make([]common.ID, 0, len(cmd.Lines))
 	var total int64
-	for index, line := range cmd.Lines {
-		designID, price, err := s.resolvePricedDesign(ctx, store.BusinessID, line.DesignHandle, line.SizeBandID)
-		if err != nil {
-			return PlaceCartOrderResult{}, err
-		}
-		bandID := line.SizeBandID
-		input := ports.CreateOnlineOrderInput{
-			OrderID:          s.ids.NewID(),
-			BusinessID:       store.BusinessID,
-			CustomerID:       customerID,
-			DesignID:         designID,
-			SizeBandID:       &bandID,
-			CustomerName:     name,
-			CustomerPhone:    phone,
-			CustomerEmail:    email,
-			AgreedTotalMinor: price,
-			CheckoutGroupID:  &groupID,
-		}
-		// Delivery method + destination ride EVERY order in the group so each piece
-		// is segmented correctly when it is fulfilled (auto-handover reads the
-		// order's own delivery_method). The fee + zone, and the fee added to
-		// agreed_total, ride the ANCHOR only — the cart pays one delivery fee, and
-		// the group confirmation (which settles each order by its own agreed_total)
-		// settles the whole charge exactly.
-		if deliv.method != "" {
-			input.DeliveryMethod = deliv.method
-			input.DeliveryAddress = deliv.address
-			if index == 0 {
-				input.AgreedTotalMinor += deliv.feeMinor
-				input.DeliveryFeeMinor = deliv.feeMinor
-				input.DeliveryZoneID = deliv.zoneID
+	for _, line := range cmd.Lines {
+		orderID := s.ids.NewID()
+		orderIDs = append(orderIDs, orderID)
+		switch line.Kind.normalized() {
+		case CartLineMadeToWear:
+			designID, price, err := s.resolvePricedDesign(ctx, store.BusinessID, line.DesignHandle, line.SizeBandID)
+			if err != nil {
+				s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+				return PlaceCartOrderResult{}, err
 			}
+			bandID := line.SizeBandID
+			input := ports.CreateOnlineOrderInput{
+				OrderID:          orderID,
+				BusinessID:       store.BusinessID,
+				CustomerID:       customerID,
+				DesignID:         designID,
+				SizeBandID:       &bandID,
+				CustomerName:     name,
+				CustomerPhone:    phone,
+				CustomerEmail:    email,
+				AgreedTotalMinor: price,
+				CheckoutGroupID:  &groupID,
+			}
+			// Delivery method + destination ride every standard order in the
+			// group so each ready-made piece segments correctly when fulfilled.
+			// The fee + zone, and the fee added to agreed_total, ride the first
+			// standard line only: the cart pays one delivery fee.
+			if deliv.method != "" {
+				input.DeliveryMethod = deliv.method
+				input.DeliveryAddress = deliv.address
+				if len(standardInputs) == 0 {
+					input.AgreedTotalMinor += deliv.feeMinor
+					input.DeliveryFeeMinor = deliv.feeMinor
+					input.DeliveryZoneID = deliv.zoneID
+				}
+			}
+			standardInputs = append(standardInputs, input)
+			total += price
+		case CartLineBespoke:
+			design, err := s.resolveCustomDesign(ctx, store, line.DesignHandle, line.SizeMode)
+			if err != nil {
+				s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+				return PlaceCartOrderResult{}, err
+			}
+			measurements, err := cleanMeasurements(line.Measurements)
+			if err != nil {
+				s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+				return PlaceCartOrderResult{}, err
+			}
+			deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
+			input := ports.CreateCustomOrderInput{
+				OrderID:          orderID,
+				BusinessID:       store.BusinessID,
+				CustomerID:       customerID,
+				DesignID:         design.ID,
+				SizeMode:         string(line.SizeMode),
+				CustomerName:     name,
+				CustomerPhone:    phone,
+				CustomerEmail:    email,
+				AgreedTotalMinor: &deposit,
+				CheckoutGroupID:  &groupID,
+				MeasurementID:    s.ids.NewID(),
+				Measurements:     measurements,
+			}
+			customInputs = append(customInputs, input)
+			total += deposit
 		}
-		inputs = append(inputs, input)
-		total += price
 	}
 	total += deliv.feeMinor
 	if total <= 0 {
 		return PlaceCartOrderResult{}, ErrInvalidInput
 	}
 
-	if err := s.orders.CreateOnlineOrderGroup(ctx, scope, inputs); err != nil {
-		return PlaceCartOrderResult{}, err
+	if len(standardInputs) > 0 {
+		if err := s.orders.CreateOnlineOrderGroup(ctx, scope, standardInputs); err != nil {
+			s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+			return PlaceCartOrderResult{}, err
+		}
 	}
-
-	anchorOrderID := inputs[0].OrderID
+	for _, input := range customInputs {
+		if err := s.orders.CreateCustomOrder(ctx, scope, input); err != nil {
+			if errors.Is(err, ports.ErrUnknownMeasurementField) {
+				s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+				return PlaceCartOrderResult{}, ErrInvalidMeasurements
+			}
+			s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
+			return PlaceCartOrderResult{}, err
+		}
+	}
+	anchorOrderID := orderIDs[0]
 	method := cmd.Method
 	if method == "" {
 		method = money.PaymentMethodMomo
@@ -438,10 +530,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	if err != nil {
 		// The group is committed but no payment was raised, so it could never be
 		// confirmed. Roll the whole group back so checkout stays all-or-nothing.
-		if discardErr := s.orders.DiscardDraftOrderGroup(ctx, scope, groupID, cleanupCustomerID); discardErr != nil {
-			s.logger.ErrorContext(ctx, "checkout: failed to discard orphaned cart order group after charge failure",
-				"business_id", scope.BusinessID.String(), "group_id", groupID.String(), "error", discardErr)
-		}
+		s.discardGroup(ctx, scope, groupID, cleanupCustomerID)
 		return PlaceCartOrderResult{}, err
 	}
 
@@ -452,6 +541,13 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 		AuthorizationURL: chargeResult.AuthorizationURL,
 		AmountMinor:      total,
 	}, nil
+}
+
+func (s Service) discardGroup(ctx context.Context, scope common.TenantScope, groupID, customerID common.ID) {
+	if err := s.orders.DiscardDraftOrderGroup(ctx, scope, groupID, customerID); err != nil {
+		s.logger.ErrorContext(ctx, "checkout: failed to discard orphaned cart order group",
+			"business_id", scope.BusinessID.String(), "group_id", groupID.String(), "error", err)
+	}
 }
 
 // StoreDeliveryZones lists the active delivery zones a storefront offers at

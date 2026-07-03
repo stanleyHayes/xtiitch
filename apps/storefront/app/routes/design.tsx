@@ -4,7 +4,7 @@ import {
   redirect,
   useNavigation,
 } from "react-router";
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -57,6 +57,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     throw new Response("Design not found", { status: 404 });
   }
   const rewardCodes = await rewardCodesFromRequest(request);
+  const availabilityRange = availabilityRangeForRequest();
   const [referralPreview, availability, storePage] = await Promise.all([
     rewardCodes.referralCode
       ? api.referral(rewardCodes.referralCode).catch(() => null)
@@ -64,7 +65,9 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     design.store?.handle &&
     design.customisation_allowed &&
     design.store.settings.bespoke_enabled
-      ? api.availability(design.store.handle).catch(() => null)
+      ? api
+          .availability(design.store.handle, availabilityRange)
+          .catch(() => null)
       : Promise.resolve(null),
     design.store?.handle
       ? api.store(design.store.handle).catch(() => null)
@@ -77,6 +80,13 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     visitSlots: availability?.slots ?? [],
     relatedDesigns: relatedDesignsFor(design, storePage?.designs ?? []),
   };
+}
+
+function availabilityRangeForRequest() {
+  const from = new Date();
+  const to = new Date(from);
+  to.setDate(to.getDate() + 28);
+  return { from: from.toISOString(), to: to.toISOString() };
 }
 
 function relatedDesignsFor(current: Design, designs: Design[]): Design[] {
@@ -139,11 +149,31 @@ export async function action({ request, params }: Route.ActionArgs) {
       );
     }
     let sizeBandID = "";
-    let sizeLabel = "Bespoke deposit";
+    let sizeLabel: string;
+    let sizeMode: "self_measure" | "home_visit" | "come_to_shop" | undefined;
+    let measurements: Record<string, string> | undefined;
     let amountMinor: number;
     if (kind === "bespoke") {
+      sizeMode =
+        toCustomSizeMode(String(form.get("size_mode") ?? "")) ?? undefined;
+      if (sizeMode !== "self_measure") {
+        return actionFailure(
+          rewardCodes,
+          null,
+          "Only self-measure bespoke deposits can be added to cart. Use the visit or shop route separately.",
+        );
+      }
+      measurements = collectMeasurements(form);
+      if (Object.keys(measurements).length === 0) {
+        return actionFailure(
+          rewardCodes,
+          null,
+          "Add at least one measurement before adding this bespoke deposit to cart.",
+        );
+      }
       amountMinor =
         Number.parseInt(String(form.get("deposit_minor") ?? "0"), 10) || 0;
+      sizeLabel = "Self-measure deposit";
     } else {
       sizeBandID = String(form.get("size_band_id") ?? "").trim();
       try {
@@ -179,6 +209,8 @@ export async function action({ request, params }: Route.ActionArgs) {
       size_band_id: sizeBandID,
       size_label: sizeLabel,
       amount_minor: amountMinor,
+      size_mode: sizeMode,
+      measurements,
     });
     return redirect("/cart", { headers: { "Set-Cookie": cookie } });
   }
@@ -1259,7 +1291,7 @@ function customRoutes(
       icon: <HomeWorkRounded />,
       enabled: visitSlots.length > 0,
       disabledReason:
-        "No home-visit slots are open for the next two weeks. Try self-measure or come to the shop.",
+        "No home-visit slots are open for the next four weeks. Try self-measure or come to the shop.",
       takesPayment: true,
       showMeasurements: false,
       buttonLabel: "Pay visit deposit",
@@ -1358,23 +1390,191 @@ function formatVisitSlot(slot: AvailabilitySlot): string {
   return `${day}, ${time.format(start)} - ${time.format(end)}`;
 }
 
+function formatVisitTime(slot: AvailabilitySlot): string {
+  const start = new Date(slot.slot_start);
+  const end = new Date(slot.slot_end);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return slot.slot_start;
+  }
+  const time = new Intl.DateTimeFormat("en-GH", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Africa/Accra",
+  });
+  return `${time.format(start)} - ${time.format(end)}`;
+}
+
+function visitDayKey(date: Date): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    timeZone: "Africa/Accra",
+  }).formatToParts(date);
+  const get = (type: string) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function formatVisitDay(date: Date): { label: string; caption: string } {
+  return {
+    label: new Intl.DateTimeFormat("en-GH", {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+      timeZone: "Africa/Accra",
+    }).format(date),
+    caption: new Intl.DateTimeFormat("en-GH", {
+      weekday: "long",
+      timeZone: "Africa/Accra",
+    }).format(date),
+  };
+}
+
+type VisitSlotGroup = {
+  key: string;
+  label: string;
+  caption: string;
+  slots: AvailabilitySlot[];
+};
+
+function groupVisitSlots(slots: AvailabilitySlot[]): VisitSlotGroup[] {
+  const groups = new Map<string, VisitSlotGroup>();
+  [...slots]
+    .sort(
+      (a, b) =>
+        new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime(),
+    )
+    .forEach((slot) => {
+      const start = new Date(slot.slot_start);
+      if (Number.isNaN(start.getTime())) {
+        return;
+      }
+      const key = visitDayKey(start);
+      const existing = groups.get(key);
+      if (existing) {
+        existing.slots.push(slot);
+        return;
+      }
+      const { label, caption } = formatVisitDay(start);
+      groups.set(key, { key, label, caption, slots: [slot] });
+    });
+  return [...groups.values()];
+}
+
 function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
+  const groups = useMemo(() => groupVisitSlots(slots), [slots]);
+  const [selectedDay, setSelectedDay] = useState(groups[0]?.key ?? "");
+  const currentGroup =
+    groups.find((group) => group.key === selectedDay) ?? groups[0];
+  const [selectedSlot, setSelectedSlot] = useState(
+    currentGroup?.slots[0]?.slot_start ?? "",
+  );
+  const activeSlot =
+    currentGroup?.slots.find((slot) => slot.slot_start === selectedSlot) ??
+    currentGroup?.slots[0];
+
+  if (groups.length === 0 || !currentGroup || !activeSlot) {
+    return (
+      <Alert severity="info">
+        No home-visit slots are open right now. Try self-measure or come to the
+        shop.
+      </Alert>
+    );
+  }
+
   return (
     <>
-      <TextField
-        select
-        name="slot_start"
-        label="Visit slot"
-        defaultValue={slots[0]?.slot_start ?? ""}
-        required
-        fullWidth
+      <input type="hidden" name="slot_start" value={activeSlot.slot_start} />
+      <Box
+        sx={{
+          p: 1.5,
+          borderRadius: "8px",
+          border: "1px solid",
+          borderColor: alpha(tokens.burgundy, 0.12),
+          bgcolor: alpha(tokens.burgundy, 0.045),
+        }}
       >
-        {slots.slice(0, 12).map((slot) => (
-          <MenuItem key={slot.slot_start} value={slot.slot_start}>
-            {formatVisitSlot(slot)}
-          </MenuItem>
-        ))}
-      </TextField>
+        <Typography sx={{ fontWeight: 900, mb: 1 }}>
+          Choose visit day
+        </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "repeat(2, minmax(0, 1fr))",
+              sm: "repeat(4, minmax(0, 1fr))",
+            },
+            gap: 0.75,
+          }}
+        >
+          {groups.map((group) => {
+            const selected = group.key === currentGroup.key;
+            return (
+              <Button
+                key={group.key}
+                type="button"
+                variant={selected ? "contained" : "outlined"}
+                onClick={() => {
+                  setSelectedDay(group.key);
+                  setSelectedSlot(group.slots[0]?.slot_start ?? "");
+                }}
+                sx={{
+                  minHeight: 66,
+                  flexDirection: "column",
+                  alignItems: "flex-start",
+                  justifyContent: "center",
+                  textTransform: "none",
+                  px: 1.25,
+                }}
+              >
+                <Typography sx={{ fontWeight: 900, lineHeight: 1.1 }}>
+                  {group.label}
+                </Typography>
+                <Typography
+                  variant="caption"
+                  sx={{ opacity: selected ? 0.82 : 0.72, fontWeight: 800 }}
+                >
+                  {group.slots.length} slot{group.slots.length === 1 ? "" : "s"}
+                </Typography>
+              </Button>
+            );
+          })}
+        </Box>
+
+        <Typography sx={{ fontWeight: 900, mt: 1.5, mb: 1 }}>
+          {currentGroup.caption} times
+        </Typography>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+            gap: 0.75,
+          }}
+        >
+          {currentGroup.slots.map((slot) => {
+            const selected = slot.slot_start === activeSlot.slot_start;
+            return (
+              <Button
+                key={slot.slot_start}
+                type="button"
+                variant={selected ? "contained" : "outlined"}
+                onClick={() => setSelectedSlot(slot.slot_start)}
+                sx={{
+                  justifyContent: "flex-start",
+                  textTransform: "none",
+                  fontWeight: 900,
+                }}
+              >
+                {formatVisitTime(slot)}
+              </Button>
+            );
+          })}
+        </Box>
+        <Typography variant="body2" sx={{ mt: 1, color: "text.secondary" }}>
+          Selected: {formatVisitSlot(activeSlot)}
+        </Typography>
+      </Box>
       <TextField
         name="address"
         label="Visit address"
@@ -1390,6 +1590,7 @@ function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
 
 function CustomRouteForm({
   route,
+  design,
   store,
   isSubmitting,
   rewardCodes,
@@ -1397,6 +1598,7 @@ function CustomRouteForm({
   visitSlots,
 }: {
   route: CustomRoute;
+  design: Design;
   store: StoreSummary;
   isSubmitting: boolean;
   rewardCodes: RewardCodes;
@@ -1469,6 +1671,14 @@ function CustomRouteForm({
           <input type="hidden" name="intent" value="custom" />
           <input type="hidden" name="store_handle" value={store.handle} />
           <input type="hidden" name="size_mode" value={route.mode} />
+          <input type="hidden" name="title" value={design.title} />
+          <input type="hidden" name="image" value={design.images[0] ?? ""} />
+          <input type="hidden" name="kind" value="bespoke" />
+          <input
+            type="hidden"
+            name="deposit_minor"
+            value={resolveDepositMinor(design, store)}
+          />
           <Stack spacing={1.5} sx={{ mt: 1.5 }}>
             {route.showMeasurements ? (
               <MeasurementInputs store={store} />
@@ -1487,32 +1697,53 @@ function CustomRouteForm({
                 <PaymentMethodField />
               </>
             ) : null}
-            <Button
-              type="submit"
-              variant={route.takesPayment ? "contained" : "outlined"}
-              size="large"
-              disabled={isSubmitting}
-              sx={{
-                alignSelf: "stretch",
-                "&.Mui-disabled": route.takesPayment
-                  ? {
-                      bgcolor: tokens.burgundy,
-                      color: tokens.white,
-                      opacity: 0.72,
-                    }
-                  : {
-                      borderColor: alpha(tokens.burgundy, 0.42),
-                      color: tokens.burgundy,
-                      opacity: 0.72,
-                    },
-              }}
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1}
+              sx={{ alignItems: "stretch" }}
             >
-              {isSubmitting ? (
-                <LoadingButtonLabel label="Submitting request" />
-              ) : (
-                route.buttonLabel
-              )}
-            </Button>
+              {route.mode === "self_measure" ? (
+                <Button
+                  type="submit"
+                  name="intent"
+                  value="add_to_cart"
+                  formNoValidate
+                  variant="outlined"
+                  size="large"
+                  startIcon={<ShoppingBagRounded />}
+                  disabled={isSubmitting}
+                  sx={{ flex: 1 }}
+                >
+                  Add deposit to cart
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                variant={route.takesPayment ? "contained" : "outlined"}
+                size="large"
+                disabled={isSubmitting}
+                sx={{
+                  flex: 1,
+                  "&.Mui-disabled": route.takesPayment
+                    ? {
+                        bgcolor: tokens.burgundy,
+                        color: tokens.white,
+                        opacity: 0.72,
+                      }
+                    : {
+                        borderColor: alpha(tokens.burgundy, 0.42),
+                        color: tokens.burgundy,
+                        opacity: 0.72,
+                      },
+                }}
+              >
+                {isSubmitting ? (
+                  <LoadingButtonLabel label="Submitting request" />
+                ) : (
+                  route.buttonLabel
+                )}
+              </Button>
+            </Stack>
           </Stack>
         </Form>
       )}
@@ -1595,6 +1826,7 @@ function BespokeOrderPanel({
             <CustomRouteForm
               key={route.mode}
               route={route}
+              design={design}
               store={store}
               isSubmitting={isSubmitting}
               rewardCodes={rewardCodes}

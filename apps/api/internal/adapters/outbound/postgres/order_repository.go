@@ -324,16 +324,20 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 		return err
 	}
 
-	// Draft custom order: no stage yet, no agreed total yet (bespoke pricing is
-	// settled later). The deposit webhook confirms it at the first bespoke stage.
+	// Draft custom order: no stage yet. Stand-alone bespoke orders keep
+	// agreed_total_minor empty because the final price is negotiated later; mixed
+	// cart bespoke deposit lines set agreed_total_minor to the paid deposit and
+	// share the cart's checkout group so the cart webhook can settle them.
 	if _, err := tx.Exec(ctx, `
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
-			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status
+			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
+			checkout_group_id
 		)
-		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', null, 0, 'draft')
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', $6, 0, 'draft', $7)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
-		input.DesignID.String(), input.SizeMode); err != nil {
+		input.DesignID.String(), input.SizeMode, nullableInt64Arg(input.AgreedTotalMinor),
+		nullableIDArg(input.CheckoutGroupID)); err != nil {
 		return err
 	}
 

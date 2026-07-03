@@ -20,6 +20,10 @@ export type CartItem = {
   size_band_id: string;
   size_label: string;
   amount_minor: number;
+  // Bespoke cart lines use self-measure as the cart-compatible custom route and
+  // carry the customer's measurements until checkout creates the draft order.
+  size_mode?: "self_measure" | "home_visit" | "come_to_shop";
+  measurements?: Record<string, string>;
 };
 
 type CartData = {

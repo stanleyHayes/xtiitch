@@ -179,6 +179,9 @@ export type PlaceOrderInput = {
 export type CartOrderLine = {
   design_handle: string;
   size_band_id: string;
+  kind?: "made_to_wear" | "bespoke";
+  size_mode?: CustomSizeMode;
+  measurements?: Record<string, string>;
 };
 
 export type PlaceCartOrderInput = {
@@ -331,8 +334,19 @@ export const api = {
     getJSON<CollectionPage>(`/public/collections/${enc(handle)}`),
   referral: (code: string) =>
     getJSON<ReferralCode>(`/public/referrals/${enc(code)}`),
-  availability: (handle: string) =>
-    getJSON<AvailabilityPage>(`/public/stores/${enc(handle)}/availability`),
+  availability: (handle: string, range?: { from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (range?.from) {
+      params.set("from", range.from);
+    }
+    if (range?.to) {
+      params.set("to", range.to);
+    }
+    const query = params.toString();
+    return getJSON<AvailabilityPage>(
+      `/public/stores/${enc(handle)}/availability${query ? `?${query}` : ""}`,
+    );
+  },
   shops: () => getJSON<PublicShopsPage>(`/public/shops`),
   sponsored: (limit = 8) =>
     getJSON<SponsoredPage>(`/public/sponsored?limit=${limit}`),

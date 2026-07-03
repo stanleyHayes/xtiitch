@@ -170,6 +170,146 @@ func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine(t *testing.T) {
 	}
 }
 
+func TestPlaceCartOrderCreatesMixedReadyMadeAndBespokeGroup(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	deposit := int64(22000)
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: customStore(),
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID, DepositOverrideMinor: &deposit},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: verifiedCharge()},
+		Orders:     orders,
+		Payments:   payments,
+		IDs:        &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-ready", "order-custom", "measurement-1"}},
+	})
+
+	res, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{
+			{DesignHandle: "design", SizeBandID: "band-1", Kind: CartLineMadeToWear},
+			{
+				DesignHandle: "design",
+				Kind:         CartLineBespoke,
+				SizeMode:     order.SizeModeSelfMeasure,
+				Measurements: map[string]string{"field-1": " 40 ", "field-2": "32"},
+			},
+		},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.GroupID != "group-1" || res.OrderID != "order-ready" || res.AmountMinor != 72000 {
+		t.Fatalf("unexpected mixed cart result: %+v", res)
+	}
+	if payments.command.Purpose != money.PaymentPurposeCartFull || payments.command.AmountMinor != 72000 {
+		t.Fatalf("expected one combined cart payment, got %+v", payments.command)
+	}
+	if payments.command.OrderID == nil || *payments.command.OrderID != "order-ready" {
+		t.Fatalf("expected charge anchored on first cart order, got %+v", payments.command.OrderID)
+	}
+	if len(orders.createdGroup) != 1 {
+		t.Fatalf("expected one ready-made draft, got %d", len(orders.createdGroup))
+	}
+	standard := orders.createdGroup[0]
+	if standard.OrderID != "order-ready" || standard.CheckoutGroupID == nil || *standard.CheckoutGroupID != "group-1" {
+		t.Fatalf("ready-made line did not join the cart group: %+v", standard)
+	}
+	if standard.AgreedTotalMinor != 50000 || standard.CustomerID != "customer-1" {
+		t.Fatalf("unexpected ready-made draft: %+v", standard)
+	}
+	if len(orders.customGroup) != 1 {
+		t.Fatalf("expected one bespoke draft, got %d", len(orders.customGroup))
+	}
+	custom := orders.customGroup[0]
+	if custom.OrderID != "order-custom" || custom.CheckoutGroupID == nil || *custom.CheckoutGroupID != "group-1" {
+		t.Fatalf("bespoke line did not join the cart group: %+v", custom)
+	}
+	if custom.AgreedTotalMinor == nil || *custom.AgreedTotalMinor != deposit || custom.CustomerID != "customer-1" {
+		t.Fatalf("bespoke draft must carry its deposit as agreed total, got %+v", custom)
+	}
+	if custom.SizeMode != string(order.SizeModeSelfMeasure) || custom.MeasurementID != "measurement-1" || custom.Measurements["field-1"] != "40" {
+		t.Fatalf("bespoke measurements were not recorded cleanly: %+v", custom)
+	}
+}
+
+func TestPlaceCartOrderChargesBespokeOnlyDepositCart(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{store: customStore(), design: customDesign()},
+		Businesses: fakeCharge{ctx: verifiedCharge()},
+		Orders:     orders,
+		Payments:   payments,
+		IDs:        &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-custom", "measurement-1"}},
+	})
+
+	res, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{{
+			DesignHandle: "design",
+			Kind:         CartLineBespoke,
+			SizeMode:     order.SizeModeSelfMeasure,
+			Measurements: map[string]string{"field-1": "40"},
+		}},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(orders.createdGroup) != 0 || len(orders.customGroup) != 1 {
+		t.Fatalf("expected only a custom draft, standard=%d custom=%d", len(orders.createdGroup), len(orders.customGroup))
+	}
+	if res.OrderID != "order-custom" || res.AmountMinor != 15000 {
+		t.Fatalf("unexpected bespoke cart result: %+v", res)
+	}
+	if payments.command.Purpose != money.PaymentPurposeCartFull || payments.command.AmountMinor != 15000 {
+		t.Fatalf("expected one cart payment for the deposit, got %+v", payments.command)
+	}
+	if orders.customGroup[0].AgreedTotalMinor == nil || *orders.customGroup[0].AgreedTotalMinor != 15000 {
+		t.Fatalf("bespoke cart line must settle against the deposit, got %+v", orders.customGroup[0])
+	}
+}
+
+func TestPlaceCartOrderRejectsBespokeLineWithoutMeasurements(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{store: customStore(), design: customDesign()},
+		Businesses: fakeCharge{ctx: verifiedCharge()},
+		Orders:     orders,
+		Payments:   payments,
+		IDs:        &seqIDs{},
+	})
+
+	_, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{{
+			DesignHandle: "design",
+			Kind:         CartLineBespoke,
+			SizeMode:     order.SizeModeSelfMeasure,
+		}},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com",
+	})
+	if !errors.Is(err, ErrInvalidMeasurements) {
+		t.Fatalf("expected ErrInvalidMeasurements, got %v", err)
+	}
+	if payments.called || len(orders.createdGroup) != 0 || len(orders.customGroup) != 0 {
+		t.Fatal("invalid bespoke cart line must create nothing and charge nothing")
+	}
+}
+
 // A delivery cart adds the chosen zone's fee to the combined charge and folds it
 // into the anchor order's total (so the group confirmation settles it exactly),
 // while recording the delivery snapshot on the anchor only.
@@ -1119,6 +1259,7 @@ type fakeOrders struct {
 	draftTotalOrder      common.ID
 	draftTotal           int64
 	customCreated        ports.CreateCustomOrderInput
+	customGroup          []ports.CreateCustomOrderInput
 	createCustomErr      error
 	customConfirmed      ports.CreateCustomOrderConfirmedInput
 	customDiscardCalled  bool
@@ -1207,8 +1348,12 @@ func (f *fakeOrders) SetDraftOrderAgreedTotal(_ context.Context, _ common.Tenant
 }
 
 func (f *fakeOrders) CreateCustomOrder(_ context.Context, _ common.TenantScope, input ports.CreateCustomOrderInput) error {
+	if f.createCustomErr != nil {
+		return f.createCustomErr
+	}
 	f.customCreated = input
-	return f.createCustomErr
+	f.customGroup = append(f.customGroup, input)
+	return nil
 }
 
 func (f *fakeOrders) CreateCustomOrderConfirmed(_ context.Context, _ common.TenantScope, input ports.CreateCustomOrderConfirmedInput) error {

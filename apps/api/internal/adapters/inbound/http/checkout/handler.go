@@ -13,6 +13,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
 const maxBodyBytes = 1 << 20
@@ -103,8 +104,11 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 }
 
 type cartLineBody struct {
-	DesignHandle string `json:"design_handle"`
-	SizeBandID   string `json:"size_band_id"`
+	DesignHandle string            `json:"design_handle"`
+	SizeBandID   string            `json:"size_band_id"`
+	Kind         string            `json:"kind"`
+	SizeMode     string            `json:"size_mode"`
+	Measurements map[string]string `json:"measurements"`
 }
 
 type placeCartOrderBody struct {
@@ -129,6 +133,9 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 		lines = append(lines, checkoutapp.CartLineCommand{
 			DesignHandle: item.DesignHandle,
 			SizeBandID:   common.ID(item.SizeBandID),
+			Kind:         checkoutapp.CartLineKind(item.Kind),
+			SizeMode:     order.SizeMode(item.SizeMode),
+			Measurements: item.Measurements,
 		})
 	}
 

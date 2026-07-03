@@ -122,6 +122,14 @@ type CreateCustomOrderInput struct {
 	CustomerName  string
 	CustomerPhone string
 	CustomerEmail string
+	// AgreedTotalMinor is normally nil for standalone bespoke deposit flows
+	// because the final total is negotiated later. Cart checkout sets it to the
+	// deposit paid by this line so the checkout-group webhook can settle the
+	// order by its own line amount.
+	AgreedTotalMinor *int64
+	// CheckoutGroupID links a bespoke deposit line to a mixed cart checkout.
+	// Nil for bespoke orders placed from their standalone product-page flow.
+	CheckoutGroupID *common.ID
 	// MeasurementID and Measurements are set only for the self-measure route;
 	// Measurements maps the business's measurement field ids to entered values.
 	MeasurementID common.ID
