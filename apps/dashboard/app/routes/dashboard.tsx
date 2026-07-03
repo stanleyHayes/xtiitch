@@ -6906,10 +6906,25 @@ function OrdersTable({
   const [channelFilter, setChannelFilter] = useState<
     "all" | "online" | "walk_in"
   >("all");
-  const visibleOrders =
-    channelFilter === "all"
-      ? orders
-      : orders.filter((order) => order.channel === channelFilter);
+  // Free-text search so a high-volume store can find a specific order by the
+  // design, the customer (name/phone/email), or the short reference.
+  const [search, setSearch] = useState("");
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleOrders = orders.filter((order) => {
+    if (channelFilter !== "all" && order.channel !== channelFilter) {
+      return false;
+    }
+    if (!normalizedSearch) {
+      return true;
+    }
+    return [
+      order.design_title,
+      order.customer_name,
+      order.customer_phone,
+      order.customer_email,
+      order.order_id,
+    ].some((field) => (field ?? "").toLowerCase().includes(normalizedSearch));
+  });
   const onlineCount = orders.filter(
     (order) => order.channel === "online",
   ).length;
@@ -6921,7 +6936,7 @@ function OrdersTable({
   } = usePagedItems(
     visibleOrders,
     10,
-    `${channelFilter}:${visibleOrders.length}`,
+    `${channelFilter}:${normalizedSearch}:${visibleOrders.length}`,
   );
 
   const detailOrder =
@@ -6945,29 +6960,50 @@ function OrdersTable({
   return (
     <>
       <Stack
-        direction="row"
+        direction={{ xs: "column", md: "row" }}
         spacing={1}
-        sx={{ mb: 1.5, flexWrap: "wrap", gap: 1 }}
+        sx={{ mb: 1.5, gap: 1, alignItems: { md: "center" } }}
       >
-        {(
-          [
-            { value: "all", label: `All (${orders.length})` },
-            { value: "online", label: `Online (${onlineCount})` },
-            {
-              value: "walk_in",
-              label: `In-person (${orders.length - onlineCount})`,
+        <TextField
+          label="Search orders"
+          placeholder="Name, phone, email, or ref"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+          size="small"
+          sx={{ flex: 1, minWidth: 200 }}
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchRounded fontSize="small" />
+                </InputAdornment>
+              ),
             },
-          ] as const
-        ).map((option) => (
-          <Button
-            key={option.value}
-            size="small"
-            variant={channelFilter === option.value ? "contained" : "outlined"}
-            onClick={() => setChannelFilter(option.value)}
-          >
-            {option.label}
-          </Button>
-        ))}
+          }}
+        />
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+          {(
+            [
+              { value: "all", label: `All (${orders.length})` },
+              { value: "online", label: `Online (${onlineCount})` },
+              {
+                value: "walk_in",
+                label: `In-person (${orders.length - onlineCount})`,
+              },
+            ] as const
+          ).map((option) => (
+            <Button
+              key={option.value}
+              size="small"
+              variant={
+                channelFilter === option.value ? "contained" : "outlined"
+              }
+              onClick={() => setChannelFilter(option.value)}
+            >
+              {option.label}
+            </Button>
+          ))}
+        </Stack>
       </Stack>
       <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
         <Table sx={{ minWidth: 760 }}>
@@ -10012,6 +10048,7 @@ function MoneyPanel({
 }) {
   const linkableOrders = orders.filter((order) => order.status !== "cancelled");
   const [logOpen, setLogOpen] = useState(false);
+  useCloseOnSuccess(setLogOpen, "log_taking", Boolean(error));
   const {
     page: takingPage,
     pageCount: takingPageCount,
@@ -10327,6 +10364,11 @@ function WalkInOrderPanel({
 }) {
   const activeDesigns = designs.filter((design) => design.status === "active");
   const [createOpen, setCreateOpen] = useState(false);
+  useCloseOnSuccess(
+    setCreateOpen,
+    ["create_walk_in_order", "create_custom_walk_in_order"],
+    Boolean(error),
+  );
   // Ready-made (priced against a size band) vs bespoke (measured, priced later).
   const [orderType, setOrderType] = useState<"ready_made" | "bespoke">(
     "ready_made",
@@ -11739,17 +11781,24 @@ function StoreSettingsPanel({
 
 // useCloseOnSuccess closes a dialog once its own form submission settles without
 // a surfaced error — the dashboard-wide rule that modals close on success.
+// The dashboard-wide rule: a modal closes once its submit settles without an
+// error (its gated form then remounts fresh on reopen, clearing fields). Accepts
+// one intent or several (e.g. a form that posts different intents by mode).
 function useCloseOnSuccess(
   setOpen: (open: boolean) => void,
-  intent: string,
+  intent: string | string[],
   errorPresent: boolean,
 ) {
   const navigation = useNavigation();
   const submittedRef = useRef(false);
+  const intentKey = Array.isArray(intent) ? intent.join("|") : intent;
   useEffect(() => {
+    const intents = intentKey.split("|");
+    const submitted = navigation.formData?.get("intent");
     if (
       navigation.state === "submitting" &&
-      navigation.formData?.get("intent") === intent
+      typeof submitted === "string" &&
+      intents.includes(submitted)
     ) {
       submittedRef.current = true;
     } else if (navigation.state === "idle" && submittedRef.current) {
@@ -11758,7 +11807,7 @@ function useCloseOnSuccess(
         setOpen(false);
       }
     }
-  }, [navigation.state, navigation.formData, intent, errorPresent, setOpen]);
+  }, [navigation.state, navigation.formData, intentKey, errorPresent, setOpen]);
 }
 
 function CollectionEditButton({
@@ -11945,6 +11994,45 @@ function SizeBandForm({
             </Stack>
           ))
         )}
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+          <Typography
+            variant="caption"
+            sx={{ color: "text.secondary", width: "100%", mb: 0.25 }}
+          >
+            Quick add a common measurement
+          </Typography>
+          {[
+            "Bust",
+            "Waist",
+            "Hip",
+            "Neck",
+            "Shoulder",
+            "Sleeve",
+            "Inseam",
+            "Length",
+            "Chest",
+            "Thigh",
+          ].map((name) => {
+            const already = rows.some(
+              (row) => row.name.trim().toLowerCase() === name.toLowerCase(),
+            );
+            return (
+              <Chip
+                key={name}
+                label={name}
+                size="small"
+                variant="outlined"
+                disabled={already}
+                onClick={() =>
+                  setRows((current) => [
+                    ...current,
+                    { name, value: "", unit: "in" },
+                  ])
+                }
+              />
+            );
+          })}
+        </Box>
         <Button
           startIcon={<AddRounded />}
           onClick={() =>
@@ -11955,7 +12043,7 @@ function SizeBandForm({
           }
           sx={{ alignSelf: "flex-start" }}
         >
-          Add measurement
+          Add custom measurement
         </Button>
         <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
           <Button onClick={onCancel}>Cancel</Button>
@@ -12542,6 +12630,7 @@ function PromotionPanel({
   const [statusFilter, setStatusFilter] = useState("all");
   const [scopeFilter, setScopeFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
+  useCloseOnSuccess(setCreateOpen, "create_promotion", Boolean(error));
   const [detailID, setDetailID] = useState<string | null>(null);
   const pausedCount = promotions.filter(
     (promotion) => promotion.status === "paused",
@@ -13463,6 +13552,8 @@ function TeamPanel({
   const [statusFilter, setStatusFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  useCloseOnSuccess(setCreateOpen, "create_business_user", Boolean(error));
+  useCloseOnSuccess(setTransferOpen, "transfer_owner", Boolean(error));
   const [detailID, setDetailID] = useState<string | null>(null);
   const activeUsers = users.filter((user) => user.is_active).length;
   const adminUsers = users.filter((user) => user.role === "admin").length;
@@ -14423,12 +14514,36 @@ function HandoverPanel({
   error?: string;
 }) {
   const handoverOrders = fulfilledOrdersWithoutOpenHandover(orders, handovers);
+  // Segment handovers by fulfilment type (delivery vs pickup) so the owner can
+  // separate dispatch from collect-in-person, plus filter by status.
+  const [methodFilter, setMethodFilter] = useState<
+    "all" | "delivery" | "pickup"
+  >("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const deliveryCount = handovers.filter((h) => h.method === "delivery").length;
+  const pickupCount = handovers.filter((h) => h.method === "pickup").length;
+  const statusOptions = Array.from(
+    new Set(handovers.map((handover) => handover.status)),
+  );
+  const visibleHandovers = handovers.filter((handover) => {
+    if (methodFilter !== "all" && handover.method !== methodFilter) {
+      return false;
+    }
+    if (statusFilter !== "all" && handover.status !== statusFilter) {
+      return false;
+    }
+    return true;
+  });
   const {
     page: handoverPage,
     pageCount: handoverPageCount,
     pagedItems: pagedHandovers,
     setPage: setHandoverPage,
-  } = usePagedItems(handovers, 6, handovers.length);
+  } = usePagedItems(
+    visibleHandovers,
+    6,
+    `${methodFilter}:${statusFilter}:${visibleHandovers.length}`,
+  );
 
   return (
     <Panel id="handovers">
@@ -14536,6 +14651,69 @@ function HandoverPanel({
         </Box>
       ) : (
         <>
+          <Box
+            sx={{
+              px: { xs: 2, md: 2.5 },
+              py: 1.5,
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1}
+              sx={{ gap: 1, alignItems: { md: "center" } }}
+            >
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ flexWrap: "wrap", gap: 1, flex: 1 }}
+              >
+                {(
+                  [
+                    { value: "all", label: `All (${handovers.length})` },
+                    { value: "delivery", label: `Delivery (${deliveryCount})` },
+                    { value: "pickup", label: `Pickup (${pickupCount})` },
+                  ] as const
+                ).map((option) => (
+                  <Button
+                    key={option.value}
+                    size="small"
+                    variant={
+                      methodFilter === option.value ? "contained" : "outlined"
+                    }
+                    onClick={() => setMethodFilter(option.value)}
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </Stack>
+              <TextField
+                select
+                size="small"
+                label="Status"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value)}
+                sx={{ minWidth: 160 }}
+              >
+                <MenuItem value="all">All statuses</MenuItem>
+                {statusOptions.map((status) => (
+                  <MenuItem key={status} value={status}>
+                    {status.charAt(0).toUpperCase() + status.slice(1)}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Stack>
+          </Box>
+          {visibleHandovers.length === 0 ? (
+            <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 2.5 }}>
+              <InlineEmptyState
+                icon={<LocalShippingRounded sx={{ fontSize: 38 }} />}
+                title="No matching handovers"
+                helper="Try a different fulfilment type or status filter."
+              />
+            </Box>
+          ) : null}
           {pagedHandovers.map((handover) => {
             const active = canAdvanceHandover(handover.status);
             return (
@@ -14662,16 +14840,18 @@ function HandoverPanel({
               </Box>
             );
           })}
-          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-            <PaginationFooter
-              count={handoverPageCount}
-              label="handovers"
-              page={handoverPage}
-              pageSize={6}
-              total={handovers.length}
-              onChange={setHandoverPage}
-            />
-          </Box>
+          {visibleHandovers.length > 0 ? (
+            <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+              <PaginationFooter
+                count={handoverPageCount}
+                label="handovers"
+                page={handoverPage}
+                pageSize={6}
+                total={visibleHandovers.length}
+                onChange={setHandoverPage}
+              />
+            </Box>
+          ) : null}
         </>
       )}
     </Panel>
