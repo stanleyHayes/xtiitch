@@ -571,6 +571,11 @@ func adminLaunchReadinessConfig(cfg config.Config) adminauthapp.AdminLaunchReadi
 		NotificationHTTPReady: strings.EqualFold(notificationTransport, "http") &&
 			strings.TrimSpace(cfg.NotificationHTTPURL) != "" &&
 			strings.TrimSpace(cfg.NotificationHTTPAuthValue) != "",
+		NotificationWhatsAppReady: strings.EqualFold(notificationTransport, "whatsapp_cloud") &&
+			strings.TrimSpace(cfg.WhatsAppPhoneNumberID) != "" &&
+			strings.TrimSpace(cfg.WhatsAppAccessToken) != "" &&
+			strings.TrimSpace(cfg.WhatsAppVerifyToken) != "" &&
+			strings.TrimSpace(cfg.WhatsAppAppSecret) != "",
 		NotificationTransport:     strings.ToLower(notificationTransport),
 		PaystackSecretConfigured:  strings.TrimSpace(cfg.PaystackSecretKey) != "",
 		PaystackWebhookConfigured: strings.TrimSpace(cfg.PaystackWebhookKey) != "",

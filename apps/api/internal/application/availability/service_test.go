@@ -10,6 +10,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
@@ -33,6 +34,42 @@ func (r fakeAvailRepo) ListTakenSlots(context.Context, common.TenantScope, time.
 type fakeIDs struct{}
 
 func (fakeIDs) NewID() common.ID { return "window-id" }
+
+type fakeStorefrontRepo struct {
+	store ports.Storefront
+	err   error
+}
+
+func (r fakeStorefrontRepo) ResolveStore(context.Context, string) (ports.Storefront, error) {
+	if r.err != nil {
+		return ports.Storefront{}, r.err
+	}
+	return r.store, nil
+}
+
+func (fakeStorefrontRepo) ListActiveDesigns(context.Context, common.ID) ([]ports.StorefrontDesign, error) {
+	return nil, nil
+}
+
+func (fakeStorefrontRepo) GetActiveDesignByHandle(context.Context, string) (ports.StorefrontDesign, error) {
+	return ports.StorefrontDesign{}, nil
+}
+
+func (fakeStorefrontRepo) ListActiveCollections(context.Context, common.ID) ([]catalogue.Collection, error) {
+	return nil, nil
+}
+
+func (fakeStorefrontRepo) GetActiveCollectionByHandle(context.Context, string) (ports.StorefrontCollection, error) {
+	return ports.StorefrontCollection{}, nil
+}
+
+func (fakeStorefrontRepo) SearchActiveDesigns(context.Context, common.ID, string) ([]ports.StorefrontDesign, error) {
+	return nil, nil
+}
+
+func (fakeStorefrontRepo) ListPublicShops(context.Context) ([]ports.PublicShop, error) {
+	return nil, nil
+}
 
 func TestDefineAvailabilityRejectsOverlap(t *testing.T) {
 	t.Parallel()
@@ -126,5 +163,42 @@ func TestResolveOpenSlot(t *testing.T) {
 	}})
 	if _, err := soon.ResolveOpenSlot(ctx, scope, slot10); !errors.Is(err, ports.ErrSlotTaken) {
 		t.Fatalf("a slot inside the lead window should not resolve, got %v", err)
+	}
+}
+
+func TestListStoreAvailabilityReturnsRecurringOpenSlots(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scope := common.TenantScope{BusinessID: "b1"}
+	now := time.Date(2026, 7, 1, 6, 0, 0, 0, time.UTC)
+	firstWednesday := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
+	secondWednesday := firstWednesday.AddDate(0, 0, 7)
+	windows := []booking.Window{{
+		Weekday:     int(firstWednesday.Weekday()),
+		StartMinute: 9 * 60,
+		EndMinute:   11 * 60,
+		SlotMinutes: 60,
+	}}
+	svc := NewService(Dependencies{
+		Availability: fakeAvailRepo{windows: windows, taken: []time.Time{secondWednesday}},
+		Storefront:   fakeStorefrontRepo{store: ports.Storefront{BusinessID: scope.BusinessID}},
+		Now:          func() time.Time { return now },
+	})
+
+	slots, err := svc.ListStoreAvailability(ctx, "shop", now, now.AddDate(0, 0, 15))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(slots) != 5 {
+		t.Fatalf("expected five open recurring slots after one taken slot is removed, got %d: %+v", len(slots), slots)
+	}
+	if !slots[0].Start.Equal(firstWednesday) || !slots[1].Start.Equal(firstWednesday.Add(time.Hour)) {
+		t.Fatalf("first week's slots were not enumerated correctly: %+v", slots[:2])
+	}
+	for _, slot := range slots {
+		if slot.Start.Equal(secondWednesday) {
+			t.Fatalf("taken recurring slot %s should not be returned: %+v", secondWednesday, slots)
+		}
 	}
 }

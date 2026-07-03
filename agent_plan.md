@@ -15,14 +15,14 @@ The PDFs are the product and technical source of truth. This plan records implem
 
 This is the intended product split. Keep new work aligned to these audience boundaries:
 
-| Surface            | App                       | Audience                                       | Primary job                                                                                                                                           | Current state                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| ------------------ | ------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Surface            | App                       | Audience                                       | Primary job                                                                                                                                                                                                               | Current state                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Admin dashboard    | `apps/admin`              | Xtiitch platform operators                     | Manage platform operators, roles, settings, business verification, money rails, risk/support, health, launch readiness, notifications, reports, exports, subscriptions, promotions, sponsored placements, and audit trail | Admin auth, operator user management, role/permission editing, profile, settings, notification preferences, audit log reads, business verification decisions, business suspension/reactivation, platform metrics, money-rails read/replay/hold controls, subscription lifecycle/read/update/invoice/sweep/downgrade controls, plan-package create/update/archive controls, promotion create/update/archive controls, sponsored placement create/update/archive/payment-collection controls, risk-review close/reopen controls, support queue assignment/resolution, operations health, launch readiness, notifications, reports, and authenticated CSV exports are API-backed |
-| Storefront         | `apps/storefront`         | Customers/clients shopping a specific business | Browse designs, choose standard orders, start customer requests, pay where applicable, and track order status                                         | Built over public catalogue/order APIs; customer-first store browsing, collection browsing, design-detail checkout, standard orders, bespoke/custom requests, booking-backed home visits, reward/affiliate attribution, related-design discovery, and tracking exist                                                                                                                                                                  |
-| Business dashboard | `apps/dashboard`          | Business owners, admins, and staff             | Receive customer requests/orders, manage catalogue, process production stages, handle money, visits, handovers, team, measurements, and notifications | Built and backed by protected business APIs, with role-aware owner/admin/staff views                                                                                                                                                                                                                                                                                                                                                  |
-| Marketing          | `apps/marketing`          | Prospective businesses and public visitors     | Explain the product, pricing, trust posture, growth programmes, sponsored discovery, and capture waitlist/contact leads                                | Built with public product/pricing/trust pages, the sponsored placement band, and a `/growth` route covering promotion codes, referral rewards, affiliate links, and sponsored placements                                                                                                                                                                                                                                             |
-| Backend/worker     | `apps/api`, `apps/worker` | Shared system layer                            | Tenant-safe API, payments, catalogue, orders, notifications, and background jobs                                                                      | Built in slices; admin auth/users/roles/settings/audit/business verification/business lifecycle/platform metrics/money-rails/subscription lifecycle/plan-package/promotion/risk-review/support controls are started; notification outbox has dry-run and HTTP provider transports; subscription dunning/grace-expiry sweeps run from admin and worker paths; extra local admin bootstrap users can be seeded through env JSON; production notification provider credentials are pending                                                                                                                                                  |
-| Mobile             | `apps/mobile`             | Customer and business native/web-preview users | Native access mirroring the web split                                                                                                                 | Started: Expo Router app with customer home, sponsored discovery, store browsing, design checkout with promo/referral/affiliate codes, order tracking, business sign-in, order list/detail, stage advancement, balance collection, and walk-in order creation over the existing public/business APIs. Deeper parity, secure native storage, push registration, device QA, and store/team/catalogue/visit/handover management remain future mobile work.                                                           |
+| Storefront         | `apps/storefront`         | Customers/clients shopping a specific business | Browse designs, choose standard orders, start customer requests, pay where applicable, and track order status                                                                                                             | Built over public catalogue/order APIs; customer-first store browsing, collection browsing, design-detail checkout, standard orders, bespoke/custom requests, booking-backed home visits, reward/affiliate attribution, related-design discovery, and tracking exist                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Business dashboard | `apps/dashboard`          | Business owners, admins, and staff             | Receive customer requests/orders, manage catalogue, process production stages, handle money, visits, handovers, team, measurements, and notifications                                                                     | Built and backed by protected business APIs, with role-aware owner/admin/staff views                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| Marketing          | `apps/marketing`          | Prospective businesses and public visitors     | Explain the product, pricing, trust posture, growth programmes, sponsored discovery, and capture waitlist/contact leads                                                                                                   | Built with public product/pricing/trust pages, the sponsored placement band, and a `/growth` route covering promotion codes, referral rewards, affiliate links, and sponsored placements                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Backend/worker     | `apps/api`, `apps/worker` | Shared system layer                            | Tenant-safe API, payments, catalogue, orders, notifications, and background jobs                                                                                                                                          | Built in slices; admin auth/users/roles/settings/audit/business verification/business lifecycle/platform metrics/money-rails/subscription lifecycle/plan-package/promotion/risk-review/support controls are started; notification outbox has dry-run and HTTP provider transports; subscription dunning/grace-expiry sweeps run from admin and worker paths; extra local admin bootstrap users can be seeded through env JSON; production notification provider credentials are pending                                                                                                                                                                                       |
+| Mobile             | `apps/mobile`             | Customer and business native/web-preview users | Native access mirroring the web split                                                                                                                                                                                     | Started: Expo Router app with customer home, sponsored discovery, store browsing, design checkout with promo/referral/affiliate codes, order tracking, business sign-in, order list/detail, stage advancement, balance collection, and walk-in order creation over the existing public/business APIs. Deeper parity, secure native storage, push registration, device QA, and store/team/catalogue/visit/handover management remain future mobile work.                                                                                                                                                                                                                       |
 
 ## Status Checklist — 2026-06-29 (done / in progress / left)
 
@@ -30,36 +30,36 @@ A quick, scannable ledger of where each feature area stands. ✅ done & verified
 🟡 partial/in progress · ⬜ not started. See [FEATURES.md](FEATURES.md) for what
 each feature does and [architecture.md](architecture.md) for where it lives.
 
-| # | Feature area | State | Notes |
-|---|---|:---:|---|
-| 1 | Multi-tenant API + RLS isolation | ✅ | Hexagonal Go API, forced RLS, fails closed |
-| 2 | Business auth (register/login/refresh/logout/me) | ✅ | bcrypt + rotating JWT/refresh |
-| 3 | Team management + roles (owner/admin/staff) | ✅ | incl. owner transfer |
-| 4 | Catalogue (designs, collections, size bands, pricing) | ✅ | Cloudinary direct upload |
-| 5 | Storefront (per-shop, subdomain) | ✅ | customer-first; track, search, related |
-| 6 | Orders + kanban stages + colours | ✅ | dashboard orders MUI table + drawer |
-| 7 | Checkout: standard + bespoke (self/visit/shop) | ✅ | deposits + balance |
-| 8 | Measurements (fields + capture) | ✅ | self-measure + visit/shop entry |
-| 9 | Bookings + availability windows | ✅ | reschedule/cancel |
-| 10 | Delivery / handover (pickup/delivery) | ✅ | advance + cancel |
-| 11 | Payments (Paystack subaccounts, authorization_url) | ✅ | never holds funds; webhook HMAC + idempotent |
-| 12 | Money summary + manual takings | ✅ | through-platform split vs offline receivable |
-| 13 | Plans + feature entitlements (free/standard/growth) | ✅ | admin-editable `features` JSON |
-| 14 | Storefront customisation (brand/logo/banner/layout) | ✅ | plan-gated |
-| 15 | Design waitlist | ✅ | storefront join + dashboard view (growth) |
-| 16 | Self-service billing (monthly/yearly) | ✅ | plan change + cycle |
-| 17 | Admin: verification, status, plans, subscriptions | ✅ | MRR + revenue tables |
-| 18 | Admin: promotions, ads, affiliates, referrals | ✅ | ads create now inline |
-| 19 | Admin: risk, support, audit log | ✅ | full audit trail |
-| 20 | Notifications: outbox + worker (email/push) | ✅ | Resend + Expo; WhatsApp/SMS HTTP transport |
-| 21 | Marketing site (product/pricing/trust/growth) | ✅ | + features section refresh (this session) |
-| 22 | Mobile (customer + business lanes) | 🟡 | core flows; native storage/push/QA remain |
-| 23 | Security hardening (headers/rate-limit/CORS/CSP) | ✅ | live-tested incl. 429 burst |
-| 24 | Ghana legal pages (Act 843 / Act 772) | ✅ | privacy + terms |
-| 25 | Opt-in TOTP MFA (authenticator app) | ✅ | API + dashboard + login challenge; replay guard + lockout; live-verified |
-| 26 | Ghana compliance — DSAR subject-access export | ✅ | admin API + console download (Act 843); erasure + consent capture deferred (see note) |
-| 27 | Production notification provider credentials | ⬜ | env/keys pending (ops) |
-| 28 | Researched roadmap (see below) | ⬜ | proposed; prioritised |
+| #   | Feature area                                          | State | Notes                                                                                 |
+| --- | ----------------------------------------------------- | :---: | ------------------------------------------------------------------------------------- |
+| 1   | Multi-tenant API + RLS isolation                      |  ✅   | Hexagonal Go API, forced RLS, fails closed                                            |
+| 2   | Business auth (register/login/refresh/logout/me)      |  ✅   | bcrypt + rotating JWT/refresh                                                         |
+| 3   | Team management + roles (owner/admin/staff)           |  ✅   | incl. owner transfer                                                                  |
+| 4   | Catalogue (designs, collections, size bands, pricing) |  ✅   | Cloudinary direct upload                                                              |
+| 5   | Storefront (per-shop, subdomain)                      |  ✅   | customer-first; track, search, related                                                |
+| 6   | Orders + kanban stages + colours                      |  ✅   | dashboard orders MUI table + drawer                                                   |
+| 7   | Checkout: standard + bespoke (self/visit/shop)        |  ✅   | deposits + balance                                                                    |
+| 8   | Measurements (fields + capture)                       |  ✅   | self-measure + visit/shop entry                                                       |
+| 9   | Bookings + availability windows                       |  ✅   | reschedule/cancel                                                                     |
+| 10  | Delivery / handover (pickup/delivery)                 |  ✅   | advance + cancel                                                                      |
+| 11  | Payments (Paystack subaccounts, authorization_url)    |  ✅   | never holds funds; webhook HMAC + idempotent                                          |
+| 12  | Money summary + manual takings                        |  ✅   | through-platform split vs offline receivable                                          |
+| 13  | Plans + feature entitlements (free/standard/growth)   |  ✅   | admin-editable `features` JSON                                                        |
+| 14  | Storefront customisation (brand/logo/banner/layout)   |  ✅   | plan-gated                                                                            |
+| 15  | Design waitlist                                       |  ✅   | storefront join + dashboard view (growth)                                             |
+| 16  | Self-service billing (monthly/yearly)                 |  ✅   | plan change + cycle                                                                   |
+| 17  | Admin: verification, status, plans, subscriptions     |  ✅   | MRR + revenue tables                                                                  |
+| 18  | Admin: promotions, ads, affiliates, referrals         |  ✅   | ads create now inline                                                                 |
+| 19  | Admin: risk, support, audit log                       |  ✅   | full audit trail                                                                      |
+| 20  | Notifications: outbox + worker (email/push)           |  ✅   | Resend + Expo; WhatsApp/SMS HTTP transport                                            |
+| 21  | Marketing site (product/pricing/trust/growth)         |  ✅   | + features section refresh (this session)                                             |
+| 22  | Mobile (customer + business lanes)                    |  🟡   | core flows; native storage/push/QA remain                                             |
+| 23  | Security hardening (headers/rate-limit/CORS/CSP)      |  ✅   | live-tested incl. 429 burst                                                           |
+| 24  | Ghana legal pages (Act 843 / Act 772)                 |  ✅   | privacy + terms                                                                       |
+| 25  | Opt-in TOTP MFA (authenticator app)                   |  ✅   | API + dashboard + login challenge; replay guard + lockout; live-verified              |
+| 26  | Ghana compliance — DSAR subject-access export         |  ✅   | admin API + console download (Act 843); erasure + consent capture deferred (see note) |
+| 27  | Production notification provider credentials          |  ⬜   | env/keys pending (ops)                                                                |
+| 28  | Researched roadmap (see below)                        |  ⬜   | proposed; prioritised                                                                 |
 
 > **P5 compliance note:** the right-of-access **data export** is shipped and
 > verified. **Erasure** (right to be forgotten) and **consent capture** are
@@ -69,15 +69,17 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 > log. Both are specced as the next compliance slice.
 
 ### Review follow-up — 2026-07-03
+
 - ✅ Rechecked `Version_one_system_review_business.xtiitch.com, store.xtiitch.com.pdf`
   against the dashboard/storefront implementation.
 - ✅ Re-verified the same review with a screenshot-backed audit on 2026-07-03.
   Evidence is in `tmp/version-one-review-audit-20260703/` (`audit-report.md`,
   `contact-sheet.png`, and `screenshots/`). Verdict: logo fallbacks are fixed,
-  many dashboard/storefront items are complete, but WhatsApp flows, mixed
-  bespoke + made-to-wear checkout, live Paystack completion, full recurring
-  availability booking, and several mutation/stress cases remain incomplete or
-  only partially verified.
+  many dashboard/storefront items are complete, mixed bespoke + made-to-wear
+  checkout is now closed for self-measure deposits, recurring availability slot
+  discovery is closed, and the remaining local mutation/stress checks are
+  covered; WhatsApp flows, live Paystack completion/webhooks, and customer OTP
+  account completion still require provider credentials/callback verification.
 - ✅ Dashboard catalogue review gaps closed: add-design now supports multiple
   image uploads up to the plan cap, made-to-wear prices can be entered in the
   add/edit design flows, collection and size-band management moved into
@@ -90,13 +92,40 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   now match the stitched Xtiitch mark already used by marketing; the admin
   platform-logo preview and rail fallback also render `/favicon.svg` instead of
   a plain `X`.
-- 🟡 Remaining product gap: mixed bespoke + made-to-wear cart checkout is not
-  complete. The cart data model has a `bespoke` item kind, but checkout still
-  accepts only made-to-wear lines for combined Paystack settlement. Completing
-  this requires an API/order-flow slice to carry bespoke size mode/measurement
-  data in cart lines and create mixed standard/custom order groups in one charge.
+- ✅ Mixed bespoke + made-to-wear cart checkout gap closed for self-measure
+  bespoke deposits: cart lines now carry kind, size mode, and measurements;
+  checkout creates mixed standard/custom draft order groups under one
+  `cart_full` charge; and the storefront lets shoppers add bespoke deposits to
+  cart and pay one combined total. Verified with API tests and screenshots
+  `23-bespoke-add-deposit-to-cart.png`, `24-cart-mixed-ready-bespoke.png`, and
+  `25-checkout-mixed-ready-bespoke-enabled.png` in
+  `tmp/version-one-review-audit-20260703/screenshots/`.
+- ✅ Recurring customer availability gap closed for slot discovery and selection:
+  storefront availability now requests the next 28 days, groups recurring slots
+  into a day/time calendar, and captures the selected slot for home-visit
+  checkout. Verified with `TestListStoreAvailabilityReturnsRecurringOpenSlots`
+  and screenshot `26-availability-recurring-calendar.png`.
+- ✅ Remaining local review checks tightened: duplicate collection/size-band
+  display orders now have integration-test coverage, delivery-off checkout is
+  screenshot-verified with `27-checkout-delivery-off-hidden.png`, manual
+  off-platform takings are covered by payment-service tests, fresh active stores
+  are covered by discovery-directory integration tests, and dashboard metric
+  cards were hardened against large-value overflow.
+- ⬜ Still provider-dependent after this pass: WhatsApp OTP/notification
+  delivery and live Paystack checkout/subscription completion/webhooks. The UI
+  and payment-start paths exist locally, but these require real credentials or
+  provider callbacks to honestly mark end-to-end complete.
+- ✅ Provider readiness follow-up: launch gates now load `.env` safely and
+  recognise `NOTIFICATION_TRANSPORT=whatsapp_cloud` as the primary production
+  notification path when Meta phone/token/webhook credentials are present.
+  Added `pnpm smoke:paystack` and `pnpm smoke:whatsapp`; Paystack test-mode
+  initialization passed locally with a hosted authorization URL and webhook-HMAC
+  self-check. Full hosted-payment completion still needs a sandbox business with
+  a real Paystack subaccount plus provider callback evidence, and WhatsApp
+  remains blocked until real Cloud credentials are supplied.
 
 ### Closed this session (2026-06-19/20)
+
 - ✅ Route loading: replaced the flashing full-page skeleton with a thin top
   progress bar across all four web apps (`79e217e`).
 - ✅ Admin ad-placement create form → inline in-section view, not a modal (`bc4db34`).
@@ -119,23 +148,23 @@ connectivity) and in what the codebase already supports. **P0 = building now.**
 None of these may hold customer funds — vouchers/credits must be discount
 entitlements, never stored money.
 
-| Priority | Feature | Why it helps | Build leverage |
-|---|---|---|---|
-| **P0** | **Opt-in TOTP MFA** | Protects owner/operator accounts that control money rails | Reuses existing JWT/auth; add `mfa` table + challenge step |
-| **P0** | **Ghana compliance controls** | Act 843 needs consent capture + data subject access/erasure | Add consent log + export/erasure endpoints |
-| **P1** | **WhatsApp-first order updates** | Ghana runs on WhatsApp; lifts open rates vs email | Outbox already renders WhatsApp templates — needs a prod provider |
-| **P1** | **Mobile money as a first-class channel** | Most Ghanaian payments are MoMo, not card | Paystack supports MoMo; surface it explicitly at checkout |
-| **P1** | **Business analytics dashboard** | Best-sellers, repeat customers, revenue trends drive decisions | Data already in Postgres; add read-model queries |
-| **P1** | **AI Writing Assistant Bar** (Growth benefit) | Helps shops write design copy, announcements, customer messages faster; in-product AI value | Reuses Claude (live) + plan gate + monthly usage meter; spec in [docs/ai-writing-assistant-plan.md](docs/ai-writing-assistant-plan.md) |
-| **P2** | **Customer accounts + cross-shop order history** | Repeat customers, faster re-orders, retention | Currently account-free; add optional lightweight customer auth |
-| **P2** | **Reviews & ratings** | Social proof powers discovery + trust | New table + storefront/admin surfaces |
-| **P2** | **Ready-made stock / inventory** | Prevents overselling; auto-routes to waitlist when out | Extend designs with stock + decrement on order |
-| **P2** | **Abandoned-checkout recovery** | Recovers lost bespoke deposits via a WhatsApp nudge | Outbox + a scheduled worker job |
-| **P3** | **VAT-compliant receipts** | Ghana VAT/levy receipts for businesses & customers | Receipt builder off existing payment data |
-| **P3** | **Directory search & filters** | Find shops by city/category/price → more conversions | Index existing business/design data |
-| **P3** | **Returns / alterations workflow** | Tailoring needs fittings/alterations as a first-class flow | New order sub-state + stage |
-| **P3** | **Storefront SEO / social sharing** | Open Graph + sitemaps → organic discovery | Per-shop meta + sitemap route |
-| **P3** | **PWA / offline dashboard** | Shops work through patchy connectivity | Service worker + cached reads |
+| Priority | Feature                                          | Why it helps                                                                                | Build leverage                                                                                                                         |
+| -------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **P0**   | **Opt-in TOTP MFA**                              | Protects owner/operator accounts that control money rails                                   | Reuses existing JWT/auth; add `mfa` table + challenge step                                                                             |
+| **P0**   | **Ghana compliance controls**                    | Act 843 needs consent capture + data subject access/erasure                                 | Add consent log + export/erasure endpoints                                                                                             |
+| **P1**   | **WhatsApp-first order updates**                 | Ghana runs on WhatsApp; lifts open rates vs email                                           | Outbox already renders WhatsApp templates — needs a prod provider                                                                      |
+| **P1**   | **Mobile money as a first-class channel**        | Most Ghanaian payments are MoMo, not card                                                   | Paystack supports MoMo; surface it explicitly at checkout                                                                              |
+| **P1**   | **Business analytics dashboard**                 | Best-sellers, repeat customers, revenue trends drive decisions                              | Data already in Postgres; add read-model queries                                                                                       |
+| **P1**   | **AI Writing Assistant Bar** (Growth benefit)    | Helps shops write design copy, announcements, customer messages faster; in-product AI value | Reuses Claude (live) + plan gate + monthly usage meter; spec in [docs/ai-writing-assistant-plan.md](docs/ai-writing-assistant-plan.md) |
+| **P2**   | **Customer accounts + cross-shop order history** | Repeat customers, faster re-orders, retention                                               | Currently account-free; add optional lightweight customer auth                                                                         |
+| **P2**   | **Reviews & ratings**                            | Social proof powers discovery + trust                                                       | New table + storefront/admin surfaces                                                                                                  |
+| **P2**   | **Ready-made stock / inventory**                 | Prevents overselling; auto-routes to waitlist when out                                      | Extend designs with stock + decrement on order                                                                                         |
+| **P2**   | **Abandoned-checkout recovery**                  | Recovers lost bespoke deposits via a WhatsApp nudge                                         | Outbox + a scheduled worker job                                                                                                        |
+| **P3**   | **VAT-compliant receipts**                       | Ghana VAT/levy receipts for businesses & customers                                          | Receipt builder off existing payment data                                                                                              |
+| **P3**   | **Directory search & filters**                   | Find shops by city/category/price → more conversions                                        | Index existing business/design data                                                                                                    |
+| **P3**   | **Returns / alterations workflow**               | Tailoring needs fittings/alterations as a first-class flow                                  | New order sub-state + stage                                                                                                            |
+| **P3**   | **Storefront SEO / social sharing**              | Open Graph + sitemaps → organic discovery                                                   | Per-shop meta + sitemap route                                                                                                          |
+| **P3**   | **PWA / offline dashboard**                      | Shops work through patchy connectivity                                                      | Service worker + cached reads                                                                                                          |
 
 ---
 
@@ -602,20 +631,20 @@ Requested 2026-06-17 by the project owner. Researched against the current codeba
 Paystack supports a **per-transaction dynamic split** (set the split inline at charge time), which is the enabler for every reward below: the customer's charge is divided atomically by Paystack between the business's subaccount and Xtiitch's commission — Xtiitch only ever touches its own commission. Three reward mechanisms, and one forbidden:
 
 - **(a) Discount at charge time** — reduce what the customer pays, then charge the lower amount. Funded by shrinking the **business's** share, the **platform's** commission share, or a split of both. No money is moved or held; it is simply a smaller charge. Always prefer this.
-- **(b) Commission rebate** — Xtiitch waives or reduces its **own** split share on a business's qualifying orders. This is how you reward a *business* (referrer/affiliate) without any payout.
+- **(b) Commission rebate** — Xtiitch waives or reduces its **own** split share on a business's qualifying orders. This is how you reward a _business_ (referrer/affiliate) without any payout.
 - **(c) Forbidden: platform-funded cash credits/payouts.** Without a wallet there is no cash to hand out. Every "credit" is instead a **future-use, capped, expiring, non-withdrawable voucher** folded back into mechanism (a) — it only ever materialises as a smaller charge on a real future order. The **only** sanctioned real cash outflow is a KYC-gated Paystack **Transfer to an affiliate from Xtiitch's own settled commission**, or routing an affiliate as a **co-recipient on the split** — never customer funds, never held in between. This keeps the `## Product Boundary` "no wallet/escrow/pooled balance" invariant intact.
 
 ### Actor & permission boundary (the core rule)
 
 Businesses act only on **their own customers**; the platform (admin) acts on **businesses and customers**.
 
-| Capability                         | Business (dashboard, tenant-scoped)                          | Admin (operator, platform-wide)                                            |
-| ---------------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------- |
-| Promotions / discount codes        | Yes — for its own store's customers, business-funded only    | Yes — platform-wide or targeted at any business; platform- or split-funded |
-| Referral programme                 | Yes — refer/reward its own customers (vouchers)              | Yes — for customers **and** business→business (rewarded by commission rebate) |
-| Affiliate programme                 | No                                                           | Yes — registered partners/agents; payout via split co-recipient or KYC-gated transfer |
-| Plan packages (CRUD)               | No (a business only *selects/assigned to* a plan)            | Yes — create/update/archive packages, set commission/fee/limits            |
-| Sponsored placement on marketing   | Submit & pay for a campaign (advertiser)                     | Review/approve, curate, run, and price placements                          |
+| Capability                       | Business (dashboard, tenant-scoped)                       | Admin (operator, platform-wide)                                                       |
+| -------------------------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| Promotions / discount codes      | Yes — for its own store's customers, business-funded only | Yes — platform-wide or targeted at any business; platform- or split-funded            |
+| Referral programme               | Yes — refer/reward its own customers (vouchers)           | Yes — for customers **and** business→business (rewarded by commission rebate)         |
+| Affiliate programme              | No                                                        | Yes — registered partners/agents; payout via split co-recipient or KYC-gated transfer |
+| Plan packages (CRUD)             | No (a business only _selects/assigned to_ a plan)         | Yes — create/update/archive packages, set commission/fee/limits                       |
+| Sponsored placement on marketing | Submit & pay for a campaign (advertiser)                  | Review/approve, curate, run, and price placements                                     |
 
 Map to the existing admin RBAC (`internal/domain/admin/admin.go`: roles Owner/Operator/Support, permissions): `manage_plans`, `manage_promotions`, and `manage_ads` are separate admin permissions. Business-side surfaces use the business JWT + tenant RLS; admin-side surfaces use admin auth + the new permissions and write an audit event for every change.
 
@@ -625,9 +654,9 @@ Build the **promotions/voucher engine once**; referral rewards, referee rewards,
 
 ### Proposed slices (build order)
 
-1. **Promotions engine (business + admin).** New tables `promotions` (`promo_id`, `business_id` *nullable* for platform-wide, `code` nullable for automatic promos, `type` percentage|fixed, `value`, `max_discount_cap` — **required for %**, `min_spend`, `starts_at`/`ends_at`, `usage_limit_global`, `usage_limit_per_customer`, `funding_source` business|platform|split, scope store|collection|design, `status`, `created_by`) and `promotion_redemptions` (`promo_id`, `order_id`, `customer_id`, `discount_minor`, `redeemed_at`; unique `(promo_id, order_id)`). Business-owned rows are tenant-scoped via the hardened RLS DO-block + composite same-tenant FK; platform-wide rows (`business_id` null) are admin-managed and resolved at checkout alongside the store's own. **Apply at checkout:** add optional `promo_code` to `PlaceStandardOrder`/`PlaceCustomOrder`, validate (active, window, `min_spend`, caps via an atomic redemption insert), compute the discount on the scoped subtotal capped at `max_discount_cap`, and reduce `price`/`deposit` **before** `InitiateCharge` ([apps/api/internal/application/checkout/service.go](apps/api/internal/application/checkout/service.go) ≈ lines 159/330/514) so the Paystack split and commission auto-recompute on the lower amount. Finalise the redemption only on `charge.success` (the payment webhook) to avoid abandoned-cart leakage. Funding maps to the split: business-funded shrinks the business share; platform-funded shrinks the commission share (capped at the commission amount); split pro-rates. Money stays integer pesewas; enforce a minimum chargeable total (MoMo fee ≈ 1.95%). Permission: a business may only create `business_id = self`, `funding_source = business`; admin may create platform-wide / target any business / use `platform`|`split` funding. **Status:** admin promotion definition CRUD/archive is built in the admin Promotions section, checkout redemption/application is built for store, collection, and design scopes with pending→applied/void webhook finalisation, business owners/admins can create/update/archive business-funded store/collection/design codes from `/dashboard/promotions`, referral rewards now generate single-use voucher promotion rows, and storefront checkout now dedupes account-free promo/referral use by email/phone as well as generated customer id.
-2. **Plan-package CRUD (admin).** `plans` is static reference today (free/standard/growth; `commission_bps` 300/100/50; `design_limit`; `monthly_fee_minor`). Add admin CRUD to create/update/**archive** packages (never hard-delete — archive via `is_active`/`status` so businesses keep their assigned plan) under admin auth + `manage_plans`, auditing every change. Changing `commission_bps` affects **future** charges only (commission is computed per charge). Assigning a business to a package is an admin business-management action. **Status:** package definition CRUD/archive is built in the admin Subscriptions section. Note: actual recurring **billing** of `monthly_fee_minor` is the separate, still-open `## Opened / Pending` subscription-mechanics decision — this slice is package *definition + assignment*, not recurring billing.
-3. **Referral engine (two-sided).** Tables `referral_codes` (`owner_type` customer|business, `owner_id`, stable unique `code`, `status`), `referrals` (`referral_code_id`, referrer, referee, `status` pending→qualified→rewarded|void, `qualifying_order_id`; **unique referee** — referred once ever), `referral_rewards` (`referral_id`, beneficiary, `reward_kind` voucher|commission_rebate, `voucher_id` → a generated single-use promotion). Attribution is first-touch, locked at the referee's first interaction/order. **Reward triggers on the referee's first *paid* order** (`charge.success`), after a refund/dispute hold window. Delivery: referee → single-use voucher; referrer-is-customer → voucher; referrer-is-business → commission rebate (or voucher). Fraud: dedupe on **MoMo/phone number** (primary identity in Ghana), reject self-referral, per-referrer reward cap, void on refund inside the hold window. Permission: a business runs referral for **its own** customers (business-funded vouchers); admin runs platform/customer programmes and **business→business** referral (rewarded by commission rebate). Customers are platform-global (no account), so a customer's referral identity is global while the voucher it earns is scoped to the store where it redeems. **Status:** admin referral programme definition schema/API/UI registry, admin referral-code issuance, refund/dispute reversal, referral code execution tables, public referral-code resolution, checkout referral-attribution reservation, self-referral guard, unique-referee guard, webhook pending→qualified/void transitions, admin-triggered reward issuing/generation, and storefront referral preview/application polish are built.
+1. **Promotions engine (business + admin).** New tables `promotions` (`promo_id`, `business_id` _nullable_ for platform-wide, `code` nullable for automatic promos, `type` percentage|fixed, `value`, `max_discount_cap` — **required for %**, `min_spend`, `starts_at`/`ends_at`, `usage_limit_global`, `usage_limit_per_customer`, `funding_source` business|platform|split, scope store|collection|design, `status`, `created_by`) and `promotion_redemptions` (`promo_id`, `order_id`, `customer_id`, `discount_minor`, `redeemed_at`; unique `(promo_id, order_id)`). Business-owned rows are tenant-scoped via the hardened RLS DO-block + composite same-tenant FK; platform-wide rows (`business_id` null) are admin-managed and resolved at checkout alongside the store's own. **Apply at checkout:** add optional `promo_code` to `PlaceStandardOrder`/`PlaceCustomOrder`, validate (active, window, `min_spend`, caps via an atomic redemption insert), compute the discount on the scoped subtotal capped at `max_discount_cap`, and reduce `price`/`deposit` **before** `InitiateCharge` ([apps/api/internal/application/checkout/service.go](apps/api/internal/application/checkout/service.go) ≈ lines 159/330/514) so the Paystack split and commission auto-recompute on the lower amount. Finalise the redemption only on `charge.success` (the payment webhook) to avoid abandoned-cart leakage. Funding maps to the split: business-funded shrinks the business share; platform-funded shrinks the commission share (capped at the commission amount); split pro-rates. Money stays integer pesewas; enforce a minimum chargeable total (MoMo fee ≈ 1.95%). Permission: a business may only create `business_id = self`, `funding_source = business`; admin may create platform-wide / target any business / use `platform`|`split` funding. **Status:** admin promotion definition CRUD/archive is built in the admin Promotions section, checkout redemption/application is built for store, collection, and design scopes with pending→applied/void webhook finalisation, business owners/admins can create/update/archive business-funded store/collection/design codes from `/dashboard/promotions`, referral rewards now generate single-use voucher promotion rows, and storefront checkout now dedupes account-free promo/referral use by email/phone as well as generated customer id.
+2. **Plan-package CRUD (admin).** `plans` is static reference today (free/standard/growth; `commission_bps` 300/100/50; `design_limit`; `monthly_fee_minor`). Add admin CRUD to create/update/**archive** packages (never hard-delete — archive via `is_active`/`status` so businesses keep their assigned plan) under admin auth + `manage_plans`, auditing every change. Changing `commission_bps` affects **future** charges only (commission is computed per charge). Assigning a business to a package is an admin business-management action. **Status:** package definition CRUD/archive is built in the admin Subscriptions section. Note: actual recurring **billing** of `monthly_fee_minor` is the separate, still-open `## Opened / Pending` subscription-mechanics decision — this slice is package _definition + assignment_, not recurring billing.
+3. **Referral engine (two-sided).** Tables `referral_codes` (`owner_type` customer|business, `owner_id`, stable unique `code`, `status`), `referrals` (`referral_code_id`, referrer, referee, `status` pending→qualified→rewarded|void, `qualifying_order_id`; **unique referee** — referred once ever), `referral_rewards` (`referral_id`, beneficiary, `reward_kind` voucher|commission_rebate, `voucher_id` → a generated single-use promotion). Attribution is first-touch, locked at the referee's first interaction/order. **Reward triggers on the referee's first paid order** (`charge.success`), after a refund/dispute hold window. Delivery: referee → single-use voucher; referrer-is-customer → voucher; referrer-is-business → commission rebate (or voucher). Fraud: dedupe on **MoMo/phone number** (primary identity in Ghana), reject self-referral, per-referrer reward cap, void on refund inside the hold window. Permission: a business runs referral for **its own** customers (business-funded vouchers); admin runs platform/customer programmes and **business→business** referral (rewarded by commission rebate). Customers are platform-global (no account), so a customer's referral identity is global while the voucher it earns is scoped to the store where it redeems. **Status:** admin referral programme definition schema/API/UI registry, admin referral-code issuance, refund/dispute reversal, referral code execution tables, public referral-code resolution, checkout referral-attribution reservation, self-referral guard, unique-referee guard, webhook pending→qualified/void transitions, admin-triggered reward issuing/generation, and storefront referral preview/application polish are built.
 4. **Affiliate programme (admin-run).** Registered partners/agents with tracking links and last-click attribution within a cookie window — distinct from casual referral. Tables `affiliates` (`entity_type`, `code`, `commission_model` percent|flat, `rate`, `cookie_window_days`, payout account, `status`), `affiliate_clicks` (`visitor_id`, `clicked_at`), `affiliate_conversions` (`order_id`, gross, `commission`, `status` pending→approved→settled|reversed, `attributed_click_id`). Delivery, in order of preference: (1) affiliate is a registered business with a Paystack subaccount → add as a **co-recipient on the order's split** at charge time (no funds held — ideal); (2) batched/cross-business → accrue, then a **KYC-gated Paystack Transfer from Xtiitch's settled commission** (the only sanctioned cash outflow — min payout, hold window, reconciliation); (3) no payout rail → downgrade to vouchers. Admin-only (`manage_growth`); businesses do **not** run affiliate programmes. Define precedence vs referral so one order is never double-rewarded. **Status:** admin affiliate registry/reporting, click/conversion schema foundation, admin performance read model/UI, admin conversion approval/settlement/reversal controls, public click ingestion, checkout attribution reservation, webhook conversion materialisation, and payout reconciliation are built.
 5. **Sponsored placements on the marketing site.** Marketing now has a public sponsored placement loader for the home page. `GET /v1/public/sponsored` returns active, in-window campaigns for verified/active advertisers, resolves active promoted-design handles/images, and caps the public band; `POST /v1/public/sponsored/{id}/events` records server-side impression/click events with visitor/IP-hash based dedupe; the marketing home page renders a clearly labelled Sponsored band and proxies tracking through its same-origin route action. v1 = **flat-time** placement (simplest), **prepaid to Xtiitch's main account** via Paystack (the advertiser pays the platform — Xtiitch's own revenue, no third-party funds held). Admin reviews/approves campaigns (`manage_ads`); enforce `ends_at` **server-side at query time**; **label every placement "Sponsored"** (legal disclosure + trust). Only verified businesses are eligible advertisers. **Status:** admin RBAC, campaign/event tables, operator CRUD/review UI, audit events, verified/active advertiser enforcement, Paystack ad-payment collection, public marketing read/rendering, impression/click capture, and density-limited rendering are built.
 
@@ -1128,7 +1157,7 @@ feat(billing): add subscription packages and billing lifecycle
 ### Milestone 8.5: Plan Feature Entitlements And Storefront Customization
 
 Problem: every business currently gets every storefront capability. Branding and
-storefront customization must become *plan-gated* and *admin-editable*, so higher
+storefront customization must become _plan-gated_ and _admin-editable_, so higher
 packages unlock more. The gate must be enforceable server-side, not just hidden in
 the UI.
 
@@ -1149,10 +1178,10 @@ free-typed — admin picks from these predefined benefits when building a packag
 
 Packages (default benefit sets — seeded, but every mapping is admin-editable):
 
-| Package  | Monthly | Commission | Design limit | Benefits |
-| -------- | ------- | ---------- | ------------ | -------- |
-| Free     | GHS 0   | 3.00%      | 10 designs   | Core storefront + orders. No customization. |
-| Standard | GHS 50  | 1.00%      | Unlimited    | + `custom_brand_color` |
+| Package  | Monthly | Commission | Design limit | Benefits                                                             |
+| -------- | ------- | ---------- | ------------ | -------------------------------------------------------------------- |
+| Free     | GHS 0   | 3.00%      | 10 designs   | Core storefront + orders. No customization.                          |
+| Standard | GHS 50  | 1.00%      | Unlimited    | + `custom_brand_color`                                               |
 | Growth   | GHS 120 | 0.50%      | Unlimited    | + `custom_logo`, `custom_banner`, `custom_layout`, `design_waitlist` |
 
 `design_limit` and `commission_bps` stay first-class numeric plan columns; the

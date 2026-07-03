@@ -1,10 +1,12 @@
+import { loadDotEnvFile } from "./lib/env.mjs";
+
+loadDotEnvFile(".env.sonar.local");
+loadDotEnvFile(".env");
+
 const warnOnly = process.argv.includes("--warn-only");
 
 const groups = [
-  {
-    name: "Sonar quality gate",
-    required: ["SONAR_HOST_URL", "SONAR_ORGANIZATION", "SONAR_TOKEN"],
-  },
+  sonarGroup(),
   {
     name: "Paystack sandbox",
     required: ["PAYSTACK_SECRET_KEY", "PAYSTACK_WEBHOOK_SECRET"],
@@ -68,12 +70,41 @@ function notificationGroup() {
       recommended: ["NOTIFICATION_FROM", "NOTIFICATION_HTTP_AUTH_HEADER"],
     };
   }
+  if (transport === "whatsapp_cloud") {
+    return {
+      name: "WhatsApp Cloud notification sandbox",
+      required: [
+        "NOTIFICATION_TRANSPORT",
+        "WHATSAPP_PHONE_NUMBER_ID",
+        "WHATSAPP_ACCESS_TOKEN",
+        "WHATSAPP_VERIFY_TOKEN",
+        "WHATSAPP_APP_SECRET",
+      ],
+      recommended: ["WHATSAPP_API_VERSION", "WHATSAPP_GRAPH_VERSION"],
+      note: "WhatsApp Cloud credentials let the worker send lifecycle notifications and the API verify inbound bot callbacks.",
+    };
+  }
 
   return {
     name: "Notification provider sandbox",
     required: ["NOTIFICATION_TRANSPORT"],
-    note: `NOTIFICATION_TRANSPORT=${transport} is fine for development but is not production-provider validation.`,
+    note: `NOTIFICATION_TRANSPORT=${transport} is fine for development but is not production-provider validation. Use whatsapp_cloud or http for launch.`,
     forceBlocked: true,
+  };
+}
+
+function sonarGroup() {
+  const host = value("SONAR_HOST_URL");
+  const cloud = /sonarcloud\\.io/i.test(host);
+  return {
+    name: cloud ? "SonarCloud quality gate" : "SonarQube quality gate",
+    required: cloud
+      ? ["SONAR_HOST_URL", "SONAR_ORGANIZATION", "SONAR_TOKEN"]
+      : ["SONAR_HOST_URL", "SONAR_TOKEN"],
+    recommended: cloud ? [] : ["SONAR_ORGANIZATION"],
+    note: cloud
+      ? "SonarCloud requires SONAR_ORGANIZATION."
+      : "Self-hosted/local SonarQube does not require SONAR_ORGANIZATION.",
   };
 }
 
@@ -103,10 +134,14 @@ function evaluateGroup(group) {
   const missing = group.required.filter((key) =>
     group.truthy ? !isTrue(key) : !isSet(key),
   );
-  const missingRecommended = (group.recommended ?? []).filter((key) => !isSet(key));
+  const missingRecommended = (group.recommended ?? []).filter(
+    (key) => !isSet(key),
+  );
   const status = group.forceBlocked || missing.length > 0 ? "blocked" : "ready";
   const lines = [
-    ...group.required.map((key) => `${key}: ${displayState(key, group.truthy)}`),
+    ...group.required.map(
+      (key) => `${key}: ${displayState(key, group.truthy)}`,
+    ),
     ...missingRecommended.map((key) => `${key}: missing recommended value`),
   ];
 

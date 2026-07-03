@@ -51,6 +51,18 @@ PAYSTACK_WEBHOOK_SECRET=<test-webhook-secret>
 BUSINESS_DASHBOARD_BASE_URL=https://app.xtiitch.test
 ```
 
+First confirm the configured key can initialize a hosted checkout and that the
+local webhook signing secret can produce the Paystack HMAC shape:
+
+```sh
+pnpm smoke:paystack
+```
+
+This smoke only proves the provider key can initialize hosted checkout and that
+the local webhook secret signs events in Paystack's shape. Full storefront
+checkout still requires each sandbox business in the smoke to have a real
+Paystack subaccount code, not a local `DEV_SUB_*` seed value.
+
 Smoke sequence:
 
 1. Verify or create a sandbox business and confirm subaccount provisioning.
@@ -71,8 +83,22 @@ Pass evidence:
 
 ## Notification Provider Sandbox
 
-Use an approved WhatsApp/SMS provider sandbox endpoint or an internal gateway
-that behaves like the production provider.
+Use WhatsApp Cloud credentials for the primary Ghana customer channel, or an
+approved HTTP/SMS provider sandbox endpoint that behaves like production.
+
+For WhatsApp Cloud:
+
+```sh
+NOTIFICATION_TRANSPORT=whatsapp_cloud \
+WHATSAPP_PHONE_NUMBER_ID=<meta-phone-number-id> \
+WHATSAPP_ACCESS_TOKEN=<meta-access-token> \
+WHATSAPP_VERIFY_TOKEN=<webhook-verify-token> \
+WHATSAPP_APP_SECRET=<meta-app-secret> \
+pnpm launch:check -- --warn-only
+pnpm smoke:whatsapp
+```
+
+For a generic provider gateway:
 
 ```sh
 DATABASE_URL=<app-role-database-url> \

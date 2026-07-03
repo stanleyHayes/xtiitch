@@ -232,6 +232,7 @@ type AdminLaunchReadinessConfig struct {
 	MarketingWaitlistEmailReady   bool
 	MarketingWaitlistWebhookReady bool
 	NotificationHTTPReady         bool
+	NotificationWhatsAppReady     bool
 	NotificationTransport         string
 	PaystackSecretConfigured      bool
 	PaystackWebhookConfigured     bool
@@ -4771,6 +4772,16 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 		notificationTransport = "log"
 	}
 	waitlistReady := cfg.MarketingWaitlistWebhookReady || cfg.MarketingWaitlistEmailReady
+	notificationReady := (notificationTransport == "http" && cfg.NotificationHTTPReady) ||
+		(notificationTransport == "whatsapp_cloud" && cfg.NotificationWhatsAppReady)
+	notificationReadySummary := "HTTP notification provider transport is configured."
+	notificationBlockedSummary := "Configure NOTIFICATION_TRANSPORT=http plus provider URL/auth, or NOTIFICATION_TRANSPORT=whatsapp_cloud plus WhatsApp Cloud credentials."
+	notificationAction := "Set NOTIFICATION_HTTP_URL and NOTIFICATION_HTTP_AUTH_VALUE, or set WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET."
+	if notificationTransport == "whatsapp_cloud" {
+		notificationReadySummary = "WhatsApp Cloud notification and inbound webhook credentials are configured."
+		notificationBlockedSummary = "Configure WhatsApp Cloud phone-number, access-token, verify-token, and app-secret values."
+		notificationAction = "Set WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET."
+	}
 	secureAdminAccess := cfg.AdminBootstrapOwnerConfigured && !cfg.JWTSigningKeyDefault
 
 	sonarReady := cfg.SonarHostConfigured &&
@@ -4830,17 +4841,14 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 			ID:       "notification-provider",
 			Category: "Notifications",
 			Label:    "WhatsApp/SMS provider",
-			Status: healthStatus(
-				notificationTransport != "http" || !cfg.NotificationHTTPReady,
-				false,
-			),
+			Status:   healthStatus(!notificationReady, false),
 			Summary: readinessSummary(
-				notificationTransport == "http" && cfg.NotificationHTTPReady,
-				"HTTP notification provider transport is configured.",
-				"Configure NOTIFICATION_TRANSPORT=http plus provider URL and auth token.",
+				notificationReady,
+				notificationReadySummary,
+				notificationBlockedSummary,
 			),
 			Detail:      "The worker can drain lifecycle notifications only when the live provider transport is configured.",
-			Action:      "Set NOTIFICATION_HTTP_URL and NOTIFICATION_HTTP_AUTH_VALUE for the worker runtime.",
+			Action:      notificationAction,
 			Target:      "notifications",
 			TargetLabel: "Open notifications",
 		},
