@@ -27,6 +27,8 @@ type AvailabilityWindow struct {
 	StartMinute int
 	EndMinute   int
 	SlotMinutes int
+	Recurrence  string
+	DayOfMonth  int // 0 = unset; only meaningful for 'monthly'
 }
 
 // BookingRepository holds and releases home-visit slots, tenant-scoped.

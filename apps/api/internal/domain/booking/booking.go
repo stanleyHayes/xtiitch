@@ -32,14 +32,43 @@ const (
 	HoldTTLMinutes     = 30
 )
 
-// Window is a business's recurring weekly availability: on Weekday, from
-// StartMinute to EndMinute (minutes from midnight, business-local), split into
-// SlotMinutes-long slots.
+// Recurrence controls which calendar days a Window repeats on. 'weekly' is the
+// original (and default) behaviour; 'daily' and 'ongoing' match every day (the
+// 'ongoing' label just means "no planned end" for the owner); 'monthly' matches
+// a single day-of-month.
+const (
+	RecurrenceDaily   = "daily"
+	RecurrenceWeekly  = "weekly"
+	RecurrenceMonthly = "monthly"
+	RecurrenceOngoing = "ongoing"
+)
+
+// Window is a business's recurring home-visit availability: from StartMinute to
+// EndMinute (minutes from midnight, business-local), split into SlotMinutes-long
+// slots, repeating on the days selected by Recurrence. For 'weekly' the day is
+// Weekday (0-6); for 'monthly' it is DayOfMonth (1-31); 'daily'/'ongoing' repeat
+// every day and ignore both. An empty Recurrence is treated as 'weekly' so rows
+// predating recurrence support keep their original behaviour.
 type Window struct {
 	Weekday     int
 	StartMinute int
 	EndMinute   int
 	SlotMinutes int
+	Recurrence  string
+	DayOfMonth  int // 0 = unset; only meaningful for 'monthly'
+}
+
+// matchesDay reports whether the window is active on the given business-local
+// day, per its recurrence.
+func (w Window) matchesDay(day time.Time) bool {
+	switch w.Recurrence {
+	case RecurrenceDaily, RecurrenceOngoing:
+		return true
+	case RecurrenceMonthly:
+		return day.Day() == w.DayOfMonth
+	default: // weekly (and empty, for backward compatibility)
+		return int(day.Weekday()) == w.Weekday
+	}
 }
 
 // Slot is one bookable appointment range, in UTC.
@@ -65,9 +94,8 @@ func EnumerateSlots(windows []Window, from, to, now time.Time, leadMinutes int, 
 
 	var slots []Slot
 	for ; day.Before(to); day = day.AddDate(0, 0, 1) {
-		weekday := int(day.Weekday())
 		for _, window := range windows {
-			if window.Weekday != weekday || window.SlotMinutes <= 0 {
+			if window.SlotMinutes <= 0 || !window.matchesDay(day) {
 				continue
 			}
 			for minute := window.StartMinute; minute+window.SlotMinutes <= window.EndMinute; minute += window.SlotMinutes {

@@ -15,8 +15,11 @@ import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
 import Alert from "@mui/material/Alert";
 import MenuItem from "@mui/material/MenuItem";
+import IconButton from "@mui/material/IconButton";
 import { alpha } from "@mui/material/styles";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import ChevronLeftRounded from "@mui/icons-material/ChevronLeftRounded";
+import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import HomeWorkRounded from "@mui/icons-material/HomeWorkRounded";
 import PointOfSaleRounded from "@mui/icons-material/PointOfSaleRounded";
@@ -1462,11 +1465,103 @@ function groupVisitSlots(slots: AvailabilitySlot[]): VisitSlotGroup[] {
   return [...groups.values()];
 }
 
+const VISIT_WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function padDatePart(value: number): string {
+  return String(value).padStart(2, "0");
+}
+
+// Splits an "Africa/Accra" day key ("YYYY-MM-DD") into civil-date parts.
+// Month is 0-based to line up with Date's month indexing.
+function visitDayKeyParts(key: string): {
+  year: number;
+  month: number;
+  day: number;
+} {
+  const parts = key.split("-");
+  const year = Number(parts[0]);
+  const month = Number(parts[1]);
+  const day = Number(parts[2]);
+  return { year, month: month - 1, day };
+}
+
+function makeVisitDayKey(year: number, month: number, day: number): string {
+  return `${year}-${padDatePart(month + 1)}-${padDatePart(day)}`;
+}
+
+// A month index that flattens {year, month} into a single sortable number so
+// prev/next paging is a simple increment.
+function visitMonthIndex(year: number, month: number): number {
+  return year * 12 + month;
+}
+
+function visitMonthLabel(year: number, month: number): string {
+  return new Intl.DateTimeFormat("en-GH", {
+    month: "long",
+    year: "numeric",
+    timeZone: "Africa/Accra",
+  }).format(new Date(Date.UTC(year, month, 1, 12)));
+}
+
+// Builds the Sun-Sat week rows for a month using plain Date math. Ghana runs at
+// UTC+0 with no DST, so noon-UTC anchors line up with the Accra day keys the
+// loader slots are bucketed by. Padding cells are null.
+function buildVisitMonthWeeks(
+  year: number,
+  month: number,
+): (string | null)[][] {
+  const firstWeekday = new Date(Date.UTC(year, month, 1, 12)).getUTCDay();
+  const daysInMonth = new Date(Date.UTC(year, month + 1, 0, 12)).getUTCDate();
+  const cells: (string | null)[] = [];
+  for (let pad = 0; pad < firstWeekday; pad += 1) {
+    cells.push(null);
+  }
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(makeVisitDayKey(year, month, day));
+  }
+  while (cells.length % 7 !== 0) {
+    cells.push(null);
+  }
+  const weeks: (string | null)[][] = [];
+  for (let index = 0; index < cells.length; index += 7) {
+    weeks.push(cells.slice(index, index + 7));
+  }
+  return weeks;
+}
+
 function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
   const groups = useMemo(() => groupVisitSlots(slots), [slots]);
+  const groupsByKey = useMemo(() => {
+    const map = new Map<string, VisitSlotGroup>();
+    groups.forEach((group) => map.set(group.key, group));
+    return map;
+  }, [groups]);
+  // A day is available iff it has at least one open slot in the loader data.
+  const availableDayKeys = useMemo(
+    () => new Set(groups.map((group) => group.key)),
+    [groups],
+  );
+  const todayKey = useMemo(() => visitDayKey(new Date()), []);
+  // The visible month spans from the earliest to the latest month that holds an
+  // open slot; paging is clamped to that window.
+  const monthBounds = useMemo(() => {
+    if (groups.length === 0) {
+      return null;
+    }
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    groups.forEach((group) => {
+      const { year, month } = visitDayKeyParts(group.key);
+      const index = visitMonthIndex(year, month);
+      min = Math.min(min, index);
+      max = Math.max(max, index);
+    });
+    return { min, max };
+  }, [groups]);
+
   const [selectedDay, setSelectedDay] = useState(groups[0]?.key ?? "");
-  const currentGroup =
-    groups.find((group) => group.key === selectedDay) ?? groups[0];
+  const [viewMonthIndex, setViewMonthIndex] = useState(monthBounds?.min ?? 0);
+  const currentGroup = groupsByKey.get(selectedDay) ?? groups[0];
   const [selectedSlot, setSelectedSlot] = useState(
     currentGroup?.slots[0]?.slot_start ?? "",
   );
@@ -1474,7 +1569,7 @@ function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
     currentGroup?.slots.find((slot) => slot.slot_start === selectedSlot) ??
     currentGroup?.slots[0];
 
-  if (groups.length === 0 || !currentGroup || !activeSlot) {
+  if (groups.length === 0 || !currentGroup || !activeSlot || !monthBounds) {
     return (
       <Alert severity="info">
         No home-visit slots are open right now. Try self-measure or come to the
@@ -1482,6 +1577,12 @@ function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
       </Alert>
     );
   }
+
+  const viewYear = Math.floor(viewMonthIndex / 12);
+  const viewMonth = viewMonthIndex % 12;
+  const weeks = buildVisitMonthWeeks(viewYear, viewMonth);
+  const canGoPrev = viewMonthIndex > monthBounds.min;
+  const canGoNext = viewMonthIndex < monthBounds.max;
 
   return (
     <>
@@ -1495,52 +1596,232 @@ function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
           bgcolor: alpha(tokens.burgundy, 0.045),
         }}
       >
-        <Typography sx={{ fontWeight: 900, mb: 1 }}>
-          Choose visit day
-        </Typography>
-        <Box
+        <Stack
+          direction="row"
           sx={{
-            display: "grid",
-            gridTemplateColumns: {
-              xs: "repeat(2, minmax(0, 1fr))",
-              sm: "repeat(4, minmax(0, 1fr))",
-            },
-            gap: 0.75,
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 1,
+            mb: 1,
           }}
         >
-          {groups.map((group) => {
-            const selected = group.key === currentGroup.key;
-            return (
-              <Button
-                key={group.key}
-                type="button"
-                variant={selected ? "contained" : "outlined"}
-                onClick={() => {
-                  setSelectedDay(group.key);
-                  setSelectedSlot(group.slots[0]?.slot_start ?? "");
-                }}
+          <Typography sx={{ fontWeight: 900 }}>Choose visit day</Typography>
+          <Stack
+            direction="row"
+            spacing={0.25}
+            sx={{ alignItems: "center", flexShrink: 0 }}
+          >
+            <IconButton
+              type="button"
+              size="small"
+              aria-label="Previous month"
+              disabled={!canGoPrev}
+              onClick={() =>
+                setViewMonthIndex((index) =>
+                  Math.max(monthBounds.min, index - 1),
+                )
+              }
+              sx={{ color: tokens.burgundy }}
+            >
+              <ChevronLeftRounded fontSize="small" />
+            </IconButton>
+            <Typography
+              sx={{
+                fontWeight: 800,
+                minWidth: 116,
+                textAlign: "center",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {visitMonthLabel(viewYear, viewMonth)}
+            </Typography>
+            <IconButton
+              type="button"
+              size="small"
+              aria-label="Next month"
+              disabled={!canGoNext}
+              onClick={() =>
+                setViewMonthIndex((index) =>
+                  Math.min(monthBounds.max, index + 1),
+                )
+              }
+              sx={{ color: tokens.burgundy }}
+            >
+              <ChevronRightRounded fontSize="small" />
+            </IconButton>
+          </Stack>
+        </Stack>
+
+        <Box sx={{ overflowX: "auto" }}>
+          <Box sx={{ minWidth: 280 }}>
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                gap: 0.5,
+                mb: 0.5,
+              }}
+            >
+              {VISIT_WEEKDAY_LABELS.map((label) => (
+                <Typography
+                  key={label}
+                  variant="caption"
+                  sx={{
+                    textAlign: "center",
+                    fontWeight: 800,
+                    color: "text.secondary",
+                    textTransform: "uppercase",
+                    letterSpacing: 0.4,
+                  }}
+                >
+                  {label}
+                </Typography>
+              ))}
+            </Box>
+            {weeks.map((week, weekIndex) => (
+              <Box
+                key={weekIndex}
                 sx={{
-                  minHeight: 66,
-                  flexDirection: "column",
-                  alignItems: "flex-start",
-                  justifyContent: "center",
-                  textTransform: "none",
-                  px: 1.25,
+                  display: "grid",
+                  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
+                  gap: 0.5,
+                  mb: 0.5,
                 }}
               >
-                <Typography sx={{ fontWeight: 900, lineHeight: 1.1 }}>
-                  {group.label}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ opacity: selected ? 0.82 : 0.72, fontWeight: 800 }}
-                >
-                  {group.slots.length} slot{group.slots.length === 1 ? "" : "s"}
-                </Typography>
-              </Button>
-            );
-          })}
+                {week.map((dayKey, dayIndex) => {
+                  if (!dayKey) {
+                    return <Box key={`pad-${weekIndex}-${dayIndex}`} />;
+                  }
+                  const { day } = visitDayKeyParts(dayKey);
+                  const isAvailable = availableDayKeys.has(dayKey);
+                  const isPast = dayKey < todayKey;
+                  const isSelected = dayKey === currentGroup.key;
+                  const isDisabled = isPast || !isAvailable;
+                  const group = groupsByKey.get(dayKey);
+                  const slotCount = group?.slots.length ?? 0;
+                  return (
+                    <Button
+                      key={dayKey}
+                      type="button"
+                      disableElevation
+                      disabled={isDisabled}
+                      onClick={() => {
+                        setSelectedDay(dayKey);
+                        setSelectedSlot(group?.slots[0]?.slot_start ?? "");
+                      }}
+                      aria-label={`${visitMonthLabel(viewYear, viewMonth)} ${day}${
+                        isAvailable
+                          ? `, ${slotCount} slot${slotCount === 1 ? "" : "s"} open`
+                          : ", unavailable"
+                      }`}
+                      aria-pressed={isSelected}
+                      sx={{
+                        minWidth: 0,
+                        p: 0,
+                        height: 44,
+                        borderRadius: "8px",
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "3px",
+                        textTransform: "none",
+                        border: "1px solid",
+                        color: isSelected
+                          ? tokens.white
+                          : isAvailable
+                            ? tokens.burgundy
+                            : "text.disabled",
+                        bgcolor: isSelected
+                          ? tokens.burgundy
+                          : isAvailable
+                            ? alpha(tokens.burgundy, 0.08)
+                            : "transparent",
+                        borderColor: isSelected
+                          ? tokens.burgundy
+                          : isAvailable
+                            ? alpha(tokens.burgundy, 0.28)
+                            : "transparent",
+                        "&:hover": {
+                          bgcolor: isSelected
+                            ? tokens.burgundy
+                            : alpha(tokens.burgundy, 0.16),
+                          borderColor: alpha(tokens.burgundy, 0.4),
+                        },
+                        "&.Mui-disabled": {
+                          color: alpha(tokens.ink, 0.3),
+                          bgcolor: alpha(tokens.ink, 0.03),
+                          borderColor: "transparent",
+                          textDecoration: isPast ? "line-through" : "none",
+                        },
+                      }}
+                    >
+                      <Typography
+                        component="span"
+                        sx={{
+                          fontWeight: 800,
+                          lineHeight: 1,
+                          fontSize: "0.85rem",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
+                        {day}
+                      </Typography>
+                      <Box
+                        sx={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: "50%",
+                          bgcolor:
+                            isAvailable && !isSelected
+                              ? tokens.burgundy
+                              : isSelected
+                                ? tokens.white
+                                : "transparent",
+                        }}
+                      />
+                    </Button>
+                  );
+                })}
+              </Box>
+            ))}
+          </Box>
         </Box>
+
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ mt: 1, flexWrap: "wrap", rowGap: 0.5 }}
+        >
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: "4px",
+                border: "1px solid",
+                borderColor: alpha(tokens.burgundy, 0.28),
+                bgcolor: alpha(tokens.burgundy, 0.08),
+              }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+              Available
+            </Typography>
+          </Stack>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+            <Box
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: "4px",
+                bgcolor: alpha(tokens.ink, 0.08),
+              }}
+            />
+            <Typography variant="caption" sx={{ fontWeight: 700 }}>
+              Unavailable / fully booked
+            </Typography>
+          </Stack>
+        </Stack>
 
         <Typography sx={{ fontWeight: 900, mt: 1.5, mb: 1 }}>
           {currentGroup.caption} times

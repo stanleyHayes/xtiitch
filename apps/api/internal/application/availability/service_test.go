@@ -113,6 +113,50 @@ func TestDefineAvailabilityRejectsOverlap(t *testing.T) {
 	}
 }
 
+func TestDefineAvailabilityRecurrenceValidation(t *testing.T) {
+	t.Parallel()
+
+	svc := NewService(Dependencies{Availability: fakeAvailRepo{}, IDs: fakeIDs{}})
+	scope := common.TenantScope{BusinessID: "b1"}
+
+	define := func(w WindowInput) error {
+		return svc.DefineAvailability(context.Background(), DefineAvailabilityCommand{
+			Scope:     scope,
+			ActorRole: business.UserRoleOwner,
+			Windows:   []WindowInput{w},
+		})
+	}
+
+	// 'daily' and 'ongoing' ignore weekday/day_of_month and are accepted.
+	if err := define(WindowInput{Recurrence: "daily", StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); err != nil {
+		t.Fatalf("daily window should be accepted, got %v", err)
+	}
+	if err := define(WindowInput{Recurrence: "ongoing", StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); err != nil {
+		t.Fatalf("ongoing window should be accepted, got %v", err)
+	}
+
+	// Empty recurrence defaults to weekly and still validates the weekday.
+	if err := define(WindowInput{Weekday: 3, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); err != nil {
+		t.Fatalf("empty recurrence should default to weekly and be accepted, got %v", err)
+	}
+
+	// 'monthly' requires day_of_month 1-31.
+	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 17, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); err != nil {
+		t.Fatalf("monthly window with valid day_of_month should be accepted, got %v", err)
+	}
+	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 0, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("monthly window without day_of_month should be rejected, got %v", err)
+	}
+	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 32, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("monthly window with out-of-range day_of_month should be rejected, got %v", err)
+	}
+
+	// An unknown recurrence value is rejected.
+	if err := define(WindowInput{Recurrence: "yearly", StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("unknown recurrence should be rejected, got %v", err)
+	}
+}
+
 func TestDefineAvailabilityRequiresOwnerOrAdmin(t *testing.T) {
 	t.Parallel()
 

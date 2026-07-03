@@ -308,6 +308,11 @@ type AvailabilityWindow = {
   start_minute: number;
   end_minute: number;
   slot_minutes: number;
+  // How the window repeats: daily / weekly (uses weekday) / monthly (uses
+  // day_of_month) / ongoing (every day, no planned end). Older windows default
+  // to "weekly".
+  recurrence: string;
+  day_of_month?: number | null;
 };
 
 type RevenueBucket = {
@@ -2952,13 +2957,19 @@ function parseTimeToMinutes(value: string): number | null {
   return hours * 60 + minutes;
 }
 
+const AVAILABILITY_RECURRENCES = ["daily", "weekly", "monthly", "ongoing"];
+
 function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
+  const recurrences = form.getAll("recurrence");
   const weekdays = form.getAll("weekday");
+  const daysOfMonth = form.getAll("day_of_month");
   const starts = form.getAll("start");
   const ends = form.getAll("end");
   const slots = form.getAll("slot_minutes");
   const rows = Math.max(
+    recurrences.length,
     weekdays.length,
+    daysOfMonth.length,
     starts.length,
     ends.length,
     slots.length,
@@ -2966,21 +2977,24 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
   const windows: AvailabilityWindow[] = [];
 
   for (let index = 0; index < rows; index += 1) {
-    const weekdayValue = String(weekdays[index] ?? "").trim();
     const startValue = String(starts[index] ?? "").trim();
     const endValue = String(ends[index] ?? "").trim();
     const slotValue = String(slots[index] ?? "").trim();
     if (!startValue && !endValue) {
       continue;
     }
-    const weekday = Number.parseInt(weekdayValue, 10);
+    const recurrence =
+      String(recurrences[index] ?? "weekly").trim() || "weekly";
+    const weekday = Number.parseInt(String(weekdays[index] ?? "").trim(), 10);
+    const dayOfMonth = Number.parseInt(
+      String(daysOfMonth[index] ?? "").trim(),
+      10,
+    );
     const startMinute = parseTimeToMinutes(startValue);
     const endMinute = parseTimeToMinutes(endValue);
     const slotMinutes = Number.parseInt(slotValue, 10);
     if (
-      !Number.isInteger(weekday) ||
-      weekday < 0 ||
-      weekday > 6 ||
+      !AVAILABILITY_RECURRENCES.includes(recurrence) ||
       startMinute === null ||
       endMinute === null ||
       endMinute <= startMinute ||
@@ -2990,11 +3004,29 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
     ) {
       return null;
     }
+    // Weekly needs a valid weekday; monthly needs a day-of-month. Daily/ongoing
+    // ignore both.
+    if (
+      recurrence === "weekly" &&
+      (!Number.isInteger(weekday) || weekday < 0 || weekday > 6)
+    ) {
+      return null;
+    }
+    if (
+      recurrence === "monthly" &&
+      (!Number.isInteger(dayOfMonth) || dayOfMonth < 1 || dayOfMonth > 31)
+    ) {
+      return null;
+    }
+    const safeWeekday =
+      Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? weekday : 0;
     windows.push({
-      weekday,
+      weekday: safeWeekday,
       start_minute: startMinute,
       end_minute: endMinute,
       slot_minutes: slotMinutes,
+      recurrence,
+      day_of_month: recurrence === "monthly" ? dayOfMonth : null,
     });
   }
 
@@ -14914,6 +14946,7 @@ function AvailabilityPanel({
 }
 
 function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
+  const [recurrence, setRecurrence] = useState(window?.recurrence ?? "weekly");
   return (
     <Box
       sx={{
@@ -14945,15 +14978,34 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
           display: "grid",
           gap: 1.25,
           alignItems: "start",
-          gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 136px" },
+          gridTemplateColumns: {
+            xs: "1fr",
+            sm: "minmax(0, 1fr) minmax(0, 1fr) 136px",
+          },
         }}
       >
         <TextField
+          name="recurrence"
+          label="Repeats"
+          select
+          size="small"
+          value={recurrence}
+          onChange={(event) => setRecurrence(event.target.value)}
+        >
+          <MenuItem value="daily">Every day</MenuItem>
+          <MenuItem value="weekly">Weekly</MenuItem>
+          <MenuItem value="monthly">Monthly</MenuItem>
+          <MenuItem value="ongoing">Ongoing</MenuItem>
+        </TextField>
+        {/* Weekday (weekly) and day-of-month (monthly) stay mounted but hidden
+            when not in use, so the submitted field arrays stay aligned by row. */}
+        <TextField
           name="weekday"
-          label="Day"
+          label="Day of week"
           select
           size="small"
           defaultValue={window?.weekday ?? 1}
+          sx={{ display: recurrence === "weekly" ? "block" : "none" }}
         >
           {weekdays.map((weekday) => (
             <MenuItem key={weekday.value} value={weekday.value}>
@@ -14961,6 +15013,15 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
             </MenuItem>
           ))}
         </TextField>
+        <TextField
+          name="day_of_month"
+          label="Day of month"
+          type="number"
+          size="small"
+          defaultValue={window?.day_of_month ?? 1}
+          slotProps={{ htmlInput: { min: 1, max: 31 } }}
+          sx={{ display: recurrence === "monthly" ? "block" : "none" }}
+        />
         <TextField
           name="slot_minutes"
           label="Slot (min)"

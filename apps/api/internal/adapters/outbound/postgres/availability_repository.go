@@ -33,10 +33,14 @@ func (repo AvailabilityRepository) ReplaceWindows(ctx context.Context, scope com
 		return err
 	}
 	for _, window := range windows {
+		var dayOfMonth any
+		if window.DayOfMonth > 0 {
+			dayOfMonth = window.DayOfMonth
+		}
 		if _, err := tx.Exec(ctx, `
-			insert into availability_windows (window_id, business_id, weekday, start_minute, end_minute, slot_minutes)
-			values ($1, $2, $3, $4, $5, $6)
-		`, window.WindowID.String(), scope.BusinessID.String(), window.Weekday, window.StartMinute, window.EndMinute, window.SlotMinutes); err != nil {
+			insert into availability_windows (window_id, business_id, weekday, start_minute, end_minute, slot_minutes, recurrence, day_of_month)
+			values ($1, $2, $3, $4, $5, $6, $7, $8)
+		`, window.WindowID.String(), scope.BusinessID.String(), window.Weekday, window.StartMinute, window.EndMinute, window.SlotMinutes, window.Recurrence, dayOfMonth); err != nil {
 			return err
 		}
 	}
@@ -62,7 +66,7 @@ func (repo AvailabilityRepository) ListWindows(ctx context.Context, scope common
 	}
 
 	rows, err := tx.Query(ctx, `
-		select weekday, start_minute, end_minute, slot_minutes
+		select weekday, start_minute, end_minute, slot_minutes, recurrence, day_of_month
 		from availability_windows where business_id = $1
 		order by weekday, start_minute
 	`, scope.BusinessID.String())
@@ -74,8 +78,12 @@ func (repo AvailabilityRepository) ListWindows(ctx context.Context, scope common
 	var windows []booking.Window
 	for rows.Next() {
 		var window booking.Window
-		if err := rows.Scan(&window.Weekday, &window.StartMinute, &window.EndMinute, &window.SlotMinutes); err != nil {
+		var dayOfMonth *int
+		if err := rows.Scan(&window.Weekday, &window.StartMinute, &window.EndMinute, &window.SlotMinutes, &window.Recurrence, &dayOfMonth); err != nil {
 			return nil, "", err
+		}
+		if dayOfMonth != nil {
+			window.DayOfMonth = *dayOfMonth
 		}
 		windows = append(windows, window)
 	}

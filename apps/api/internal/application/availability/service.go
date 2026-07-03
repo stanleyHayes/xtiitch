@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -48,6 +49,8 @@ type WindowInput struct {
 	StartMinute int
 	EndMinute   int
 	SlotMinutes int
+	Recurrence  string
+	DayOfMonth  int
 }
 
 type DefineAvailabilityCommand struct {
@@ -64,11 +67,33 @@ func (s Service) DefineAvailability(ctx context.Context, command DefineAvailabil
 		return err
 	}
 
-	windows := command.Windows
+	// Normalise recurrence up front (empty -> 'weekly') so validation, overlap
+	// detection, and persistence all see the same canonical value.
+	windows := make([]WindowInput, len(command.Windows))
+	copy(windows, command.Windows)
+	for i := range windows {
+		if windows[i].Recurrence == "" {
+			windows[i].Recurrence = booking.RecurrenceWeekly
+		}
+	}
+
 	for _, w := range windows {
-		if w.Weekday < 0 || w.Weekday > 6 ||
-			w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
+		if w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
 			w.SlotMinutes < 15 || w.SlotMinutes > 480 {
+			return ErrInvalidInput
+		}
+		switch w.Recurrence {
+		case booking.RecurrenceWeekly:
+			if w.Weekday < 0 || w.Weekday > 6 {
+				return ErrInvalidInput
+			}
+		case booking.RecurrenceMonthly:
+			if w.DayOfMonth < 1 || w.DayOfMonth > 31 {
+				return ErrInvalidInput
+			}
+		case booking.RecurrenceDaily, booking.RecurrenceOngoing:
+			// Every day: weekday/day_of_month are ignored.
+		default:
 			return ErrInvalidInput
 		}
 	}
@@ -84,6 +109,8 @@ func (s Service) DefineAvailability(ctx context.Context, command DefineAvailabil
 			StartMinute: w.StartMinute,
 			EndMinute:   w.EndMinute,
 			SlotMinutes: w.SlotMinutes,
+			Recurrence:  w.Recurrence,
+			DayOfMonth:  w.DayOfMonth,
 		})
 	}
 	return s.availability.ReplaceWindows(ctx, command.Scope, out)
@@ -99,17 +126,33 @@ func authorizeAvailabilityManagement(role business.UserRole) error {
 func windowsOverlap(windows []WindowInput) bool {
 	sorted := append([]WindowInput(nil), windows...)
 	sort.Slice(sorted, func(i, j int) bool {
-		if sorted[i].Weekday != sorted[j].Weekday {
-			return sorted[i].Weekday < sorted[j].Weekday
+		ki, kj := windowDayKey(sorted[i]), windowDayKey(sorted[j])
+		if ki != kj {
+			return ki < kj
 		}
 		return sorted[i].StartMinute < sorted[j].StartMinute
 	})
 	for i := 1; i < len(sorted); i++ {
-		if sorted[i].Weekday == sorted[i-1].Weekday && sorted[i].StartMinute < sorted[i-1].EndMinute {
+		if windowDayKey(sorted[i]) == windowDayKey(sorted[i-1]) && sorted[i].StartMinute < sorted[i-1].EndMinute {
 			return true
 		}
 	}
 	return false
+}
+
+// windowDayKey buckets windows by the set of calendar days they occupy, so
+// overlap is only checked between windows that can actually collide: weekly
+// windows share a bucket per weekday, monthly windows per day-of-month, and
+// daily/ongoing windows share one "every day" bucket.
+func windowDayKey(w WindowInput) string {
+	switch w.Recurrence {
+	case booking.RecurrenceMonthly:
+		return "m" + strconv.Itoa(w.DayOfMonth)
+	case booking.RecurrenceDaily, booking.RecurrenceOngoing:
+		return "every"
+	default: // weekly (and empty)
+		return "w" + strconv.Itoa(w.Weekday)
+	}
 }
 
 // ListWindows returns the business's configured windows for its own dashboard.

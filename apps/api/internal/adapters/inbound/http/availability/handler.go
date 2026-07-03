@@ -75,10 +75,12 @@ func (handler Handler) publicAvailability(w http.ResponseWriter, r *http.Request
 }
 
 type windowBody struct {
-	Weekday     int `json:"weekday"`
-	StartMinute int `json:"start_minute"`
-	EndMinute   int `json:"end_minute"`
-	SlotMinutes int `json:"slot_minutes"`
+	Weekday     int    `json:"weekday"`
+	StartMinute int    `json:"start_minute"`
+	EndMinute   int    `json:"end_minute"`
+	SlotMinutes int    `json:"slot_minutes"`
+	Recurrence  string `json:"recurrence"`
+	DayOfMonth  int    `json:"day_of_month"`
 }
 
 type defineWindowsBody struct {
@@ -104,6 +106,8 @@ func (handler Handler) defineWindows(w http.ResponseWriter, r *http.Request) {
 			StartMinute: win.StartMinute,
 			EndMinute:   win.EndMinute,
 			SlotMinutes: win.SlotMinutes,
+			Recurrence:  win.Recurrence,
+			DayOfMonth:  win.DayOfMonth,
 		})
 	}
 	if err := handler.service.DefineAvailability(r.Context(), availabilityapp.DefineAvailabilityCommand{
@@ -135,6 +139,8 @@ func (handler Handler) listWindows(w http.ResponseWriter, r *http.Request) {
 			"start_minute": win.StartMinute,
 			"end_minute":   win.EndMinute,
 			"slot_minutes": win.SlotMinutes,
+			"recurrence":   win.Recurrence,
+			"day_of_month": win.DayOfMonth,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"windows": out})
