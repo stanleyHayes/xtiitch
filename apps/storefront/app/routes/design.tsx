@@ -4,7 +4,7 @@ import {
   redirect,
   useNavigation,
 } from "react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -489,8 +489,10 @@ function newAffiliateVisitorID(): string {
 }
 
 function Gallery({ design }: { design: Design }) {
-  const cover = design.images[0] ?? "/images/storefront-atelier-review.webp";
-  const hasUploadedCover = Boolean(design.images[0]);
+  const fallback = "/images/storefront-atelier-review.webp";
+  const images = design.images.length > 0 ? design.images : [fallback];
+  const [cover, setCover] = useState(images[0] ?? fallback);
+  const hasUploadedCover = design.images.includes(cover);
   return (
     <Box sx={{ position: { lg: "sticky" }, top: { lg: 24 } }}>
       <Box
@@ -567,20 +569,44 @@ function Gallery({ design }: { design: Design }) {
       </Box>
       {design.images.length > 1 ? (
         <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, flexWrap: "wrap" }}>
-          {design.images.slice(1, 5).map((src) => (
-            <Box
-              key={src}
-              component="img"
-              src={src}
-              alt=""
-              sx={{
-                width: 72,
-                height: 90,
-                objectFit: "cover",
-                borderRadius: 1.5,
-              }}
-            />
-          ))}
+          {design.images.slice(0, 5).map((src, index) => {
+            const selected = src === cover;
+            return (
+              <Box
+                key={src}
+                component="button"
+                type="button"
+                onClick={() => setCover(src)}
+                aria-label={`Show ${design.title} image ${index + 1}`}
+                sx={{
+                  width: 72,
+                  height: 90,
+                  p: 0,
+                  border: "2px solid",
+                  borderColor: selected ? tokens.burgundy : "transparent",
+                  bgcolor: "transparent",
+                  cursor: "pointer",
+                  borderRadius: 1.5,
+                  overflow: "hidden",
+                  boxShadow: selected
+                    ? `0 0 0 3px ${alpha(tokens.burgundy, 0.14)}`
+                    : "none",
+                }}
+              >
+                <Box
+                  component="img"
+                  src={src}
+                  alt=""
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    objectFit: "cover",
+                  }}
+                />
+              </Box>
+            );
+          })}
         </Stack>
       ) : null}
     </Box>

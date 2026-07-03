@@ -79,11 +79,16 @@ export async function action({ request }: Route.ActionArgs) {
   const fulfilment = String(form.get("fulfilment") ?? "pickup");
   const deliveryZoneID = String(form.get("delivery_zone_id") ?? "").trim();
   const deliveryAddress = String(form.get("delivery_address") ?? "").trim();
+  const gpsLocation = String(form.get("gps_location") ?? "").trim();
   if (fulfilment === "delivery" && (!deliveryZoneID || !deliveryAddress)) {
     return {
       error: "Choose a delivery area and enter the delivery address.",
     };
   }
+  const deliveryDestination =
+    fulfilment === "delivery" && gpsLocation
+      ? `${deliveryAddress}\nGPS: ${gpsLocation}`
+      : deliveryAddress;
 
   const startedHeaders = { "Set-Cookie": await clearCart(request) };
   const failed = {
@@ -128,7 +133,10 @@ export async function action({ request }: Route.ActionArgs) {
     customer_email: customerEmail,
     method: "momo",
     ...(fulfilment === "delivery"
-      ? { delivery_zone_id: deliveryZoneID, delivery_address: deliveryAddress }
+      ? {
+          delivery_zone_id: deliveryZoneID,
+          delivery_address: deliveryDestination,
+        }
       : {}),
   });
   if (!response.ok) {
@@ -304,6 +312,12 @@ export default function Checkout({
                       fullWidth
                       multiline
                       minRows={2}
+                    />
+                    <TextField
+                      name="gps_location"
+                      label="GPS location (optional)"
+                      placeholder="GA-123-4567 or Google Maps link"
+                      fullWidth
                     />
                   </Stack>
                 ) : null}

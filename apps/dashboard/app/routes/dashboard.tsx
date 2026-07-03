@@ -2193,19 +2193,43 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "create") {
     const sequence = parseSequence(form.get("sequence"));
     const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    const requestedImageLimit = Number.parseInt(
+      String(form.get("image_limit") ?? ""),
+      10,
+    );
+    const imageLimit =
+      Number.isFinite(requestedImageLimit) && requestedImageLimit > 0
+        ? requestedImageLimit
+        : 5;
 
-    // The first catalogue image is uploaded from the user's device to Cloudinary
-    // (no link pasting); only the resulting URL is stored.
-    const file = form.get("image_file");
-    let images: string[] = [];
-    if (file instanceof File && file.size > 0) {
+    // Catalogue images are uploaded from the user's device to Cloudinary (no
+    // link pasting); only the resulting URLs are stored. The API still enforces
+    // the authoritative plan cap, but checking here avoids wasteful uploads.
+    const legacyFile = form.get("image_file");
+    const imageFiles = form
+      .getAll("image_files")
+      .filter((file): file is File => file instanceof File && file.size > 0);
+    if (
+      legacyFile instanceof File &&
+      legacyFile.size > 0 &&
+      imageFiles.length === 0
+    ) {
+      imageFiles.push(legacyFile);
+    }
+    if (imageFiles.length > imageLimit) {
+      return {
+        designError: `You can upload up to ${imageLimit} images on your plan.`,
+      };
+    }
+    const images: string[] = [];
+    for (const file of imageFiles) {
       if (!file.type.startsWith("image/")) {
         return {
-          designError: "Upload an image file such as JPG, PNG, or WebP.",
+          designError: "Upload image files such as JPG, PNG, or WebP.",
         };
       }
       if (file.size > 10 * 1024 * 1024) {
-        return { designError: "Keep design images under 10 MB." };
+        return { designError: "Keep each design image under 10 MB." };
       }
       const imageUrl = await uploadDesignImage(request, file);
       if (!imageUrl) {
@@ -2214,8 +2238,9 @@ export async function action({ request }: Route.ActionArgs) {
             "Could not upload that image. Check Cloudinary setup or try another file.",
         };
       }
-      images = [imageUrl];
+      images.push(imageUrl);
     }
+    const customisationAllowed = form.get("customisation") === "on";
 
     const response = await apiFetch(request, "/designs", {
       method: "POST",
@@ -2224,7 +2249,7 @@ export async function action({ request }: Route.ActionArgs) {
         collection_id: String(form.get("collection_id") ?? "").trim() || null,
         title: String(form.get("title") ?? "").trim(),
         description: String(form.get("description") ?? "").trim(),
-        customisation_allowed: form.get("customisation") === "on",
+        customisation_allowed: customisationAllowed,
         deposit_override_minor: depositOverrideMinor,
         sequence: sequence ?? 0,
         images,
@@ -2232,8 +2257,31 @@ export async function action({ request }: Route.ActionArgs) {
     });
     if (!response.ok) {
       return {
-        designError: "Could not create the design. A title is required.",
+        designError: await designWriteErrorMessage(response),
       };
+    }
+    const created = (await response.json()) as { design_id?: string };
+    const designID = created.design_id ?? "";
+    if (designID && !customisationAllowed) {
+      for (const [key, value] of form.entries()) {
+        if (!key.startsWith("price_ghs_")) {
+          continue;
+        }
+        const priceMinor = parseMoneyMinor(value);
+        const sizeBandID = key.slice("price_ghs_".length);
+        if (!sizeBandID || priceMinor === null) {
+          continue;
+        }
+        await apiFetch(
+          request,
+          `/designs/${encodeURIComponent(designID)}/prices/${encodeURIComponent(sizeBandID)}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ price_minor: priceMinor }),
+          },
+        );
+      }
     }
     return redirect("/dashboard/catalogue");
   }
@@ -3381,13 +3429,6 @@ function orderBalanceDueMinor(order: OrderSummary): number {
   return Math.max(0, target - order.settled_minor);
 }
 
-function findBandPrice(
-  design: Design,
-  sizeBandID: string,
-): BandPrice | undefined {
-  return design.prices.find((price) => price.size_band_id === sizeBandID);
-}
-
 function enabledStoreSettings(settings: StoreSettings): number {
   return [
     settings.bespoke_enabled,
@@ -4283,14 +4324,16 @@ function MetricCard({
   value,
   helper,
   tone = tokens.burgundy,
+  href,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   helper: string;
   tone?: string;
+  href?: string;
 }) {
-  return (
+  const card = (
     <Panel
       sx={{
         p: 2.25,
@@ -4322,6 +4365,7 @@ function MetricCard({
           transform: "translateY(-2px)",
           boxShadow: `0 22px 64px ${alpha(tokens.ink, 0.09)}`,
         },
+        cursor: href ? "pointer" : "default",
         transition:
           "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
       }}
@@ -4387,6 +4431,24 @@ function MetricCard({
         </Box>
       </Stack>
     </Panel>
+  );
+  if (!href) {
+    return card;
+  }
+  return (
+    <Box
+      component={RouterLink}
+      to={href}
+      aria-label={`${label}: ${value}. Open details.`}
+      sx={{
+        display: "block",
+        minWidth: 0,
+        color: "inherit",
+        textDecoration: "none",
+      }}
+    >
+      {card}
+    </Box>
   );
 }
 
@@ -8556,7 +8618,7 @@ function DesignRow({
                 >
                   {customisation
                     ? "Bespoke: the customer pays a deposit (set below). Size-band prices don't apply."
-                    : "Made-to-wear: the customer pays the size-band price (set in the price board). Deposit is N/A."}
+                    : "Made-to-wear: the customer pays the selected size-band price. Deposit is N/A."}
                 </Typography>
                 <Box
                   sx={{
@@ -8806,12 +8868,14 @@ function MiniStat({
   value,
   helper,
   tone = tokens.burgundy,
+  action,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   helper?: string;
   tone?: string;
+  action?: ReactNode;
 }) {
   return (
     <Box
@@ -8891,6 +8955,9 @@ function MiniStat({
         >
           {helper}
         </Typography>
+      ) : null}
+      {action ? (
+        <Box sx={{ mt: 1.25, position: "relative", zIndex: 1 }}>{action}</Box>
       ) : null}
     </Box>
   );
@@ -10505,14 +10572,18 @@ function ImageDropzone({
   helper,
   required = false,
   disabled = false,
+  multiple = false,
+  maxFiles,
 }: {
   name: string;
   helper?: string;
   required?: boolean;
   disabled?: boolean;
+  multiple?: boolean;
+  maxFiles?: number;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
-  const [fileName, setFileName] = useState<string | null>(null);
+  const [fileNames, setFileNames] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -10525,16 +10596,30 @@ function ImageDropzone({
     [previewUrl],
   );
 
-  const applyFile = (file: File | null | undefined) => {
-    const isImage =
-      file !== null && file !== undefined && file.type.startsWith("image/");
+  const applyFiles = (selected: FileList | File[] | null | undefined) => {
+    const files = Array.from(selected ?? [])
+      .filter((file) => file.type.startsWith("image/"))
+      .slice(0, maxFiles ?? undefined);
+    const first = files[0] ?? null;
     setPreviewUrl((current) => {
       if (current) {
         URL.revokeObjectURL(current);
       }
-      return isImage && file ? URL.createObjectURL(file) : null;
+      return first ? URL.createObjectURL(first) : null;
     });
-    setFileName(isImage && file ? file.name : null);
+    setFileNames(files.map((file) => file.name));
+  };
+  const capInputFiles = (input: HTMLInputElement) => {
+    if (!multiple || !maxFiles || !input.files || input.files.length <= maxFiles) {
+      return;
+    }
+    const transfer = new DataTransfer();
+    Array.from(input.files)
+      .slice(0, maxFiles)
+      .forEach((file) => {
+        transfer.items.add(file);
+      });
+    input.files = transfer.files;
   };
 
   return (
@@ -10553,13 +10638,19 @@ function ImageDropzone({
         if (disabled) {
           return;
         }
-        const file = event.dataTransfer.files?.[0];
-        if (file && inputRef.current) {
+        const dropped = multiple
+          ? Array.from(event.dataTransfer.files ?? [])
+          : [event.dataTransfer.files?.[0]].filter(
+              (file): file is File => Boolean(file),
+            );
+        if (dropped.length > 0 && inputRef.current) {
           const transfer = new DataTransfer();
-          transfer.items.add(file);
+          dropped.slice(0, maxFiles ?? undefined).forEach((file) => {
+            transfer.items.add(file);
+          });
           inputRef.current.files = transfer.files;
         }
-        applyFile(file);
+        applyFiles(dropped);
       }}
       sx={{
         display: "block",
@@ -10586,9 +10677,13 @@ function ImageDropzone({
         type="file"
         name={name}
         accept="image/*"
+        multiple={multiple}
         required={required}
         disabled={disabled}
-        onChange={(event) => applyFile(event.currentTarget.files?.[0])}
+        onChange={(event) => {
+          capInputFiles(event.currentTarget);
+          applyFiles(event.currentTarget.files);
+        }}
         style={{
           position: "absolute",
           width: 1,
@@ -10619,13 +10714,16 @@ function ImageDropzone({
           />
           <Box sx={{ minWidth: 0 }}>
             <Typography sx={{ fontWeight: 800 }} noWrap>
-              {fileName}
+              {fileNames.length === 1
+                ? fileNames[0]
+                : `${fileNames.length} images selected`}
             </Typography>
             <Typography
               variant="caption"
               sx={{ color: tokens.burgundy, fontWeight: 700 }}
             >
               Click or drop to replace
+              {multiple && maxFiles ? ` · up to ${maxFiles}` : ""}
             </Typography>
           </Box>
         </Stack>
@@ -10649,8 +10747,12 @@ function ImageDropzone({
           </Box>
           <Typography sx={{ fontWeight: 800 }}>
             {dragging
-              ? "Drop image to upload"
-              : "Drag & drop, or click to choose"}
+              ? multiple
+                ? "Drop images to upload"
+                : "Drop image to upload"
+              : multiple
+                ? "Drag & drop, or click to choose images"
+                : "Drag & drop, or click to choose"}
           </Typography>
           {helper ? (
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
@@ -12289,204 +12391,6 @@ function CatalogueSetupPanel({
         )}
       </Panel>
     </Box>
-  );
-}
-
-function PriceBoardPanel({
-  designs,
-  sizeBands,
-  error,
-}: {
-  designs: Design[];
-  sizeBands: SizeBand[];
-  error?: string;
-}) {
-  const {
-    page: pricePage,
-    pageCount: pricePageCount,
-    pagedItems: pagedDesigns,
-    setPage: setPricePage,
-  } = usePagedItems(designs, 6, designs.length);
-
-  return (
-    <Panel>
-      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2}
-          sx={{
-            justifyContent: "space-between",
-            alignItems: { xs: "stretch", md: "flex-start" },
-          }}
-        >
-          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-            <Box sx={{ color: "primary.main" }}>
-              <PriceCheckRounded />
-            </Box>
-            <Box>
-              <Typography sx={{ fontWeight: 900 }}>Price board</Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Set standard checkout prices for every design and size band.
-              </Typography>
-            </Box>
-          </Stack>
-          <ToneChip
-            label={`${designs.reduce((total, design) => total + design.prices.length, 0)} prices`}
-            tone={tokens.success}
-          />
-        </Stack>
-        {error ? (
-          <Alert severity="warning" sx={{ mt: 1.5 }}>
-            {error}
-          </Alert>
-        ) : null}
-      </Box>
-
-      {designs.length === 0 || sizeBands.length === 0 ? (
-        <Box sx={{ px: 2.5, pb: 2.5 }}>
-          <InlineEmptyState
-            icon={<PriceCheckRounded sx={{ fontSize: 38 }} />}
-            title="Prices need designs and sizes"
-            helper="Add at least one design and one size band, then set public checkout prices here."
-          />
-        </Box>
-      ) : (
-        <Stack
-          spacing={0}
-          sx={{ borderTop: "1px solid", borderColor: "divider" }}
-        >
-          {pagedDesigns.map((design) => (
-            <Box
-              key={design.design_id}
-              sx={{
-                px: { xs: 2, md: 2.5 },
-                py: 1.6,
-                borderBottom: "1px solid",
-                borderColor: "divider",
-              }}
-            >
-              <Stack spacing={1.25}>
-                <Stack
-                  direction={{ xs: "column", sm: "row" }}
-                  spacing={1}
-                  sx={{
-                    justifyContent: "space-between",
-                    alignItems: { xs: "flex-start", sm: "center" },
-                  }}
-                >
-                  <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 900 }} noWrap>
-                      {design.title}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      {design.status} · {design.prices.length} prices set
-                    </Typography>
-                  </Box>
-                  <ToneChip
-                    label={design.status === "active" ? "Public" : "Hidden"}
-                    tone={
-                      design.status === "active"
-                        ? tokens.success
-                        : tokens.warning
-                    }
-                  />
-                </Stack>
-                <Box
-                  sx={{
-                    display: "grid",
-                    gap: 1,
-                    gridTemplateColumns: {
-                      xs: "1fr",
-                      md: "repeat(2, minmax(0, 1fr))",
-                      xl: "repeat(3, minmax(0, 1fr))",
-                    },
-                  }}
-                >
-                  {sizeBands.map((band) => {
-                    const price = findBandPrice(design, band.size_band_id);
-                    return (
-                      <Form method="post" key={band.size_band_id}>
-                        <input
-                          type="hidden"
-                          name="intent"
-                          value="set_design_price"
-                        />
-                        <input
-                          type="hidden"
-                          name="design_id"
-                          value={design.design_id}
-                        />
-                        <input
-                          type="hidden"
-                          name="size_band_id"
-                          value={band.size_band_id}
-                        />
-                        <Stack
-                          direction="row"
-                          spacing={0.85}
-                          sx={{
-                            p: 1,
-                            border: "1px solid",
-                            borderColor: price
-                              ? alpha(tokens.success, 0.22)
-                              : "divider",
-                            borderRadius: 2,
-                            bgcolor: price
-                              ? alpha(tokens.success, 0.045)
-                              : "rgba(var(--surface-rgb), 0.72)",
-                            alignItems: "center",
-                          }}
-                        >
-                          <TextField
-                            name="price_ghs"
-                            label={band.label}
-                            size="small"
-                            defaultValue={moneyInputValue(price?.price_minor)}
-                            fullWidth
-                            slotProps={{
-                              input: {
-                                startAdornment: (
-                                  <InputAdornment position="start">
-                                    GHS
-                                  </InputAdornment>
-                                ),
-                              },
-                              htmlInput: { inputMode: "decimal" },
-                            }}
-                          />
-                          <Tooltip title="Save price">
-                            <IconButton
-                              type="submit"
-                              color="primary"
-                              aria-label={`Save ${band.label} price for ${design.title}`}
-                            >
-                              <SaveRounded />
-                            </IconButton>
-                          </Tooltip>
-                        </Stack>
-                      </Form>
-                    );
-                  })}
-                </Box>
-              </Stack>
-            </Box>
-          ))}
-          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-            <PaginationFooter
-              count={pricePageCount}
-              label="designs"
-              page={pricePage}
-              pageSize={6}
-              total={designs.length}
-              onChange={setPricePage}
-            />
-          </Box>
-        </Stack>
-      )}
-    </Panel>
   );
 }
 
@@ -14992,6 +14896,9 @@ export default function Dashboard({
   );
   const { isDark: darkChrome, toggleMode } = useThemeMode();
   const [catalogueView, setCatalogueView] = useState<"all" | "add">("all");
+  const [catalogueToolsOpen, setCatalogueToolsOpen] = useState<
+    "collections" | "sizeBands" | null
+  >(null);
   // Add-design pricing mode: Bespoke shows a deposit field, Made-to-Wear hides it
   // (prices are set per size band). Mirrors the edit modal's dynamic label.
   const [addCustomisation, setAddCustomisation] = useState(false);
@@ -15409,6 +15316,53 @@ export default function Dashboard({
           </Stack>
         </DialogContent>
       </Dialog>
+      <Dialog
+        open={catalogueToolsOpen !== null}
+        onClose={() => setCatalogueToolsOpen(null)}
+        fullWidth
+        maxWidth="lg"
+      >
+        <DialogTitle sx={{ pb: 0.5 }}>
+          <Stack
+            direction="row"
+            spacing={1.25}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                component="span"
+                sx={{ display: "block", fontWeight: 950 }}
+              >
+                {catalogueToolsOpen === "sizeBands"
+                  ? "Manage size bands"
+                  : "Manage collections"}
+              </Typography>
+              <Typography
+                component="span"
+                variant="body2"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                Add, edit, retire, delete, and keep catalogue ordering clean.
+              </Typography>
+            </Box>
+            <IconButton
+              aria-label="Close catalogue tools"
+              onClick={() => setCatalogueToolsOpen(null)}
+            >
+              <CloseRounded />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers>
+          <CatalogueSetupPanel
+            collections={collections}
+            sizeBands={sizeBands}
+            storeHandle={profile.handle}
+            collectionError={action.collectionError}
+            sizeBandError={action.sizeBandError}
+          />
+        </DialogContent>
+      </Dialog>
       <ProductTour
         open={tourOpen}
         onClose={() => {
@@ -15537,6 +15491,7 @@ export default function Dashboard({
                   icon={<ReceiptLongRounded />}
                   label="Live orders"
                   value={String(liveOrders.length)}
+                  href="/dashboard/orders"
                   helper={
                     canManage
                       ? `${pendingPayments} awaiting payment`
@@ -15550,6 +15505,7 @@ export default function Dashboard({
                     value={formatGHS(moneySummary.net_income_minor)}
                     helper="Platform and manual takings"
                     tone={tokens.success}
+                    href="/dashboard/money"
                   />
                 ) : (
                   <MetricCard
@@ -15558,6 +15514,7 @@ export default function Dashboard({
                     value={String(needsMeasurements)}
                     helper="Visit or shop captures waiting"
                     tone={tokens.burgundy}
+                    href="/dashboard/orders"
                   />
                 )}
                 <MetricCard
@@ -15566,6 +15523,7 @@ export default function Dashboard({
                   value={String(activeBookings)}
                   helper="Held or booked home visits"
                   tone={tokens.info}
+                  href="/dashboard/visits"
                 />
                 <MetricCard
                   icon={<LocalShippingRounded />}
@@ -15573,6 +15531,7 @@ export default function Dashboard({
                   value={String(openHandovers)}
                   helper={`${readyForHandover} fulfilled orders ready`}
                   tone={tokens.warning}
+                  href="/dashboard/handovers"
                 />
               </Box>
             ) : null}
@@ -15986,6 +15945,11 @@ export default function Dashboard({
                                 name="intent"
                                 value="create"
                               />
+                              <input
+                                type="hidden"
+                                name="image_limit"
+                                value={imageLimit}
+                              />
                               <Stack spacing={1.75}>
                                 {action.designError ? (
                                   <Alert severity="error">
@@ -16038,11 +16002,13 @@ export default function Dashboard({
                                       mb: 0.5,
                                     }}
                                   >
-                                    Design image
+                                    Design images
                                   </Typography>
                                   <ImageDropzone
-                                    name="image_file"
-                                    helper="JPG, PNG, or WebP up to 10 MB — uploaded to your gallery as the first catalogue image."
+                                    name="image_files"
+                                    multiple
+                                    maxFiles={imageLimit}
+                                    helper={`JPG, PNG, or WebP up to 10 MB each — up to ${imageLimit} images on your plan.`}
                                   />
                                 </Box>
                                 <FormControlLabel
@@ -16068,8 +16034,71 @@ export default function Dashboard({
                                 >
                                   {addCustomisation
                                     ? "Bespoke: the customer pays a deposit (set below); size-band prices don't apply."
-                                    : "Made-to-wear: the customer pays the size-band price (set in the price board). Deposit is N/A."}
+                                    : "Made-to-wear: the customer pays the selected size-band price. Deposit is N/A."}
                                 </Typography>
+                                {!addCustomisation ? (
+                                  <Box>
+                                    <Typography
+                                      sx={{ mb: 1, fontWeight: 900 }}
+                                    >
+                                      Size band prices
+                                    </Typography>
+                                    {sizeBands.length === 0 ? (
+                                      <Alert severity="info">
+                                        Add size bands from the Size bands card
+                                        before setting made-to-wear prices.
+                                      </Alert>
+                                    ) : (
+                                      <Stack spacing={1}>
+                                        {sizeBands.map((band) => (
+                                          <Stack
+                                            key={band.size_band_id}
+                                            direction={{
+                                              xs: "column",
+                                              sm: "row",
+                                            }}
+                                            spacing={1}
+                                            sx={{ alignItems: "center" }}
+                                          >
+                                            <Typography
+                                              sx={{
+                                                flex: 1,
+                                                minWidth: 0,
+                                                fontWeight: 800,
+                                              }}
+                                              noWrap
+                                            >
+                                              {band.label}
+                                            </Typography>
+                                            <TextField
+                                              name={`price_ghs_${band.size_band_id}`}
+                                              label="Price"
+                                              size="small"
+                                              slotProps={{
+                                                input: {
+                                                  startAdornment: (
+                                                    <InputAdornment position="start">
+                                                      GHS
+                                                    </InputAdornment>
+                                                  ),
+                                                },
+                                                htmlInput: {
+                                                  inputMode: "decimal",
+                                                },
+                                              }}
+                                              sx={{
+                                                width: {
+                                                  xs: "100%",
+                                                  sm: 180,
+                                                },
+                                              }}
+                                            />
+                                          </Stack>
+                                        ))}
+                                      </Stack>
+                                    )}
+                                  </Box>
+                                ) : null}
                                 <Box
                                   sx={{
                                     display: "grid",
@@ -16149,6 +16178,33 @@ export default function Dashboard({
                               value={String(publishedCollections)}
                               helper={`${collections.length} total collections`}
                               tone={tokens.info}
+                              action={
+                                <Stack
+                                  direction="row"
+                                  spacing={0.75}
+                                  sx={{ flexWrap: "wrap", gap: 0.75 }}
+                                >
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() =>
+                                      setCatalogueToolsOpen("collections")
+                                    }
+                                  >
+                                    All collections
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    startIcon={<AddRounded />}
+                                    onClick={() =>
+                                      setCatalogueToolsOpen("collections")
+                                    }
+                                  >
+                                    Add collection
+                                  </Button>
+                                </Stack>
+                              }
                             />
                             <MiniStat
                               icon={<ContentCutRounded fontSize="small" />}
@@ -16167,6 +16223,33 @@ export default function Dashboard({
                               value={String(sizeBands.length)}
                               helper={`${cataloguePriceCount} prices set`}
                               tone={tokens.warning}
+                              action={
+                                <Stack
+                                  direction="row"
+                                  spacing={0.75}
+                                  sx={{ flexWrap: "wrap", gap: 0.75 }}
+                                >
+                                  <Button
+                                    size="small"
+                                    variant="outlined"
+                                    onClick={() =>
+                                      setCatalogueToolsOpen("sizeBands")
+                                    }
+                                  >
+                                    All size bands
+                                  </Button>
+                                  <Button
+                                    size="small"
+                                    variant="contained"
+                                    startIcon={<AddRounded />}
+                                    onClick={() =>
+                                      setCatalogueToolsOpen("sizeBands")
+                                    }
+                                  >
+                                    Add size band
+                                  </Button>
+                                </Stack>
+                              }
                             />
                           </Box>
                           {designs.length === 0 ? (
@@ -16324,22 +16407,6 @@ export default function Dashboard({
                               )}
                             </>
                           )}
-                          <Box sx={{ mt: 2 }}>
-                            <CatalogueSetupPanel
-                              collections={collections}
-                              sizeBands={sizeBands}
-                              storeHandle={profile.handle}
-                              collectionError={action.collectionError}
-                              sizeBandError={action.sizeBandError}
-                            />
-                          </Box>
-                          <Box sx={{ mt: 2 }}>
-                            <PriceBoardPanel
-                              designs={designs}
-                              sizeBands={sizeBands}
-                              error={action.priceError}
-                            />
-                          </Box>
                         </Box>
                       )}
                     </Box>

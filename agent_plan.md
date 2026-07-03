@@ -68,6 +68,23 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 > accounting-record retention; consent capture needs storefront UX + a consent
 > log. Both are specced as the next compliance slice.
 
+### Review follow-up — 2026-07-03
+- ✅ Rechecked `Version_one_system_review_business.xtiitch.com, store.xtiitch.com.pdf`
+  against the dashboard/storefront implementation.
+- ✅ Dashboard catalogue review gaps closed: add-design now supports multiple
+  image uploads up to the plan cap, made-to-wear prices can be entered in the
+  add/edit design flows, collection and size-band management moved into
+  card-triggered dialogs, and the old standalone price board was removed from
+  the Design Studio surface.
+- ✅ Storefront review gaps closed: design thumbnails now update the main product
+  image, delivery checkout accepts an optional GPS code/link, and overview stat
+  cards route to their detail pages when clicked.
+- 🟡 Remaining product gap: mixed bespoke + made-to-wear cart checkout is not
+  complete. The cart data model has a `bespoke` item kind, but checkout still
+  accepts only made-to-wear lines for combined Paystack settlement. Completing
+  this requires an API/order-flow slice to carry bespoke size mode/measurement
+  data in cart lines and create mixed standard/custom order groups in one charge.
+
 ### Closed this session (2026-06-19/20)
 - ✅ Route loading: replaced the flashing full-page skeleton with a thin top
   progress bar across all four web apps (`79e217e`).
