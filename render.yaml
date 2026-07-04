@@ -3,10 +3,11 @@
 # Deploys the BACKEND on Render: Go API, Postgres, and Redis.
 # - The four SSR web apps (marketing, storefront, dashboard, admin) deploy
 #   SEPARATELY on Vercel — intentionally NOT in this blueprint.
-# - The BullMQ worker is currently DISABLED (commented out at the bottom): it
-#   needs WhatsApp Cloud credentials to deliver in production. Re-enable it when
-#   you have WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN. Until then the API
-#   still enqueues notifications to the DB outbox; they just aren't sent yet.
+# - The BullMQ worker is ENABLED (WhatsApp Cloud credentials are now provisioned):
+#   it drains the DB outbox and delivers queued notifications (order
+#   confirmations, etc.) over WhatsApp Cloud. Set the WHATSAPP_* values in the
+#   Render dashboard so it can deliver; it runs on a paid Starter plan (Render
+#   has no free worker tier).
 #
 # Cost (chosen): Postgres = Basic (persistent). The API + Redis are FREE — free
 # web services SLEEP after ~15 min idle and cold-start (~30s) on the next
@@ -126,40 +127,40 @@ services:
         sync: false
 
   # ──────────────────────────────────────────────────────────────────────────
-  # BullMQ worker — DISABLED for now (no WhatsApp Cloud credentials yet).
-  # It sends queued notifications (order confirmations, etc.) and fails fast in
-  # production without a real delivery transport, so it would restart-loop until
-  # WHATSAPP_PHONE_NUMBER_ID + WHATSAPP_ACCESS_TOKEN are set. To enable: add those
-  # creds and uncomment this block (Render has no free worker tier — it's Starter).
+  # BullMQ worker — ENABLED now that WhatsApp Cloud credentials are provisioned.
+  # It drains the DB outbox and delivers queued notifications (order
+  # confirmations, etc.) over WhatsApp Cloud. Set WHATSAPP_PHONE_NUMBER_ID +
+  # WHATSAPP_ACCESS_TOKEN in the Render dashboard so it can deliver. Runs on a
+  # paid Starter plan (Render has no free worker tier).
   # ──────────────────────────────────────────────────────────────────────────
-  # - type: worker
-  #   name: xtiitch-worker
-  #   runtime: node
-  #   plan: starter
-  #   region: oregon
-  #   buildCommand: corepack enable && pnpm install --frozen-lockfile
-  #   startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
-  #   envVars:
-  #     - key: NODE_ENV
-  #       value: production
-  #     - key: NODE_VERSION
-  #       value: "22"
-  #     - key: DATABASE_URL
-  #       fromDatabase:
-  #         name: xtiitch-db
-  #         property: connectionString
-  #     - key: REDIS_URL
-  #       fromService:
-  #         type: redis
-  #         name: xtiitch-redis
-  #         property: connectionString
-  #     - key: WORKER_QUEUE_NAME
-  #       value: xtiitch.outbox
-  #     - key: NOTIFICATION_TRANSPORT
-  #       value: whatsapp_cloud # must deliver in prod; use 'http' if you have a relay
-  #     - key: WHATSAPP_PHONE_NUMBER_ID
-  #       sync: false
-  #     - key: WHATSAPP_ACCESS_TOKEN
-  #       sync: false
-  #     - key: WHATSAPP_API_VERSION
-  #       value: v21.0
+  - type: worker
+    name: xtiitch-worker
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: corepack enable && pnpm install --frozen-lockfile
+    startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xtiitch-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: xtiitch-redis
+          property: connectionString
+      - key: WORKER_QUEUE_NAME
+        value: xtiitch.outbox
+      - key: NOTIFICATION_TRANSPORT
+        value: whatsapp_cloud # must deliver in prod; use 'http' if you have a relay
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: v21.0
