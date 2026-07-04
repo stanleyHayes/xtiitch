@@ -15,6 +15,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 const (
@@ -22,6 +23,14 @@ const (
 	maxPasswordLength = 72
 	accessTokenTTL    = 15 * time.Minute
 	refreshTokenTTL   = 30 * 24 * time.Hour
+
+	// renewalReminderLeadDays is how many days before next_billing_at the
+	// recurring sweep enqueues the "your plan renews soon — tap to pay" reminder.
+	renewalReminderLeadDays = 3
+	// defaultRenewalRepayURL is the existing business billing/onboarding flow the
+	// one-tap re-pay call to action links to. It already authorizes and charges,
+	// so the reminder never builds a new charge endpoint — it only points here.
+	defaultRenewalRepayURL = "https://business.xtiitch.com/onboarding/billing"
 )
 
 type Service struct {
@@ -42,6 +51,24 @@ type Service struct {
 	// When false, the storefront disables the WhatsApp sign-in tab because the OTP
 	// is logged, never delivered.
 	whatsAppEnabled bool
+	// renewalRepayURL is the business billing/onboarding flow that the one-tap
+	// re-pay reminder links to. It already authorizes and charges, so reminders
+	// only point here rather than building a new charge endpoint.
+	renewalRepayURL string
+	// planChanges applies subscription downgrades that were scheduled for the end
+	// of the paid period (see auth.ChangeSubscriptionPlan). The recurring sweep
+	// runs it before charging so a downgraded subscription renews at the new plan.
+	// Optional; nil disables the step.
+	planChanges PlanChangeApplier
+}
+
+// PlanChangeApplier applies subscription plan changes scheduled to take effect at
+// the end of the paid period — deferred downgrades recorded by
+// auth.ChangeSubscriptionPlan. It is satisfied by the business identity repository
+// and invoked from the recurring sweep so downgrades land exactly when the paid
+// period ends, right before the renewal charge.
+type PlanChangeApplier interface {
+	ApplyDuePlanChanges(ctx context.Context) (int, error)
 }
 
 type Dependencies struct {
@@ -60,9 +87,21 @@ type Dependencies struct {
 	// WhatsAppEnabled reflects whether WhatsApp Cloud credentials are configured
 	// to actually send customer OTPs (see buildCustomerOTPDelivery).
 	WhatsAppEnabled bool
+	// RenewalRepayURL overrides the business billing/onboarding URL the renewal
+	// reminder's one-tap re-pay call to action links to. Empty uses the canonical
+	// defaultRenewalRepayURL.
+	RenewalRepayURL string
+	// PlanChanges applies subscription downgrades scheduled for period end. The
+	// recurring sweep invokes it before charging renewals so a downgraded
+	// subscription bills the new plan. Optional; nil disables the step.
+	PlanChanges PlanChangeApplier
 }
 
 func NewService(deps Dependencies) Service {
+	renewalRepayURL := strings.TrimSpace(deps.RenewalRepayURL)
+	if renewalRepayURL == "" {
+		renewalRepayURL = defaultRenewalRepayURL
+	}
 	return Service{
 		users:           deps.Users,
 		sessions:        deps.Sessions,
@@ -77,6 +116,8 @@ func NewService(deps Dependencies) Service {
 		clock:           deps.Clock,
 		readiness:       deps.Readiness,
 		whatsAppEnabled: deps.WhatsAppEnabled,
+		renewalRepayURL: renewalRepayURL,
+		planChanges:     deps.PlanChanges,
 	}
 }
 
@@ -2183,8 +2224,12 @@ func (s Service) VerifySubscriptionAuthorization(
 		BillingMode:             "recurring",
 		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
 		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
-		Reason:                  reason,
-		ActorAdminUser:          cmd.ActorUserID,
+		// Persist the authorization channel so the recurring sweep knows whether it
+		// can silently auto-charge (card) or must fall back to a re-pay reminder
+		// (mobile money, which cannot be silently debited).
+		ProviderChannel: normalizeAuthorizationChannel(result.Channel),
+		Reason:          reason,
+		ActorAdminUser:  cmd.ActorUserID,
 	})
 	if err != nil {
 		return ports.AdminSubscriptionRecord{}, err
@@ -2232,6 +2277,16 @@ func (s Service) RunSubscriptionRecurringSweep(
 		return ports.AdminSubscriptionRecurringSweepRecord{}, authdomain.ErrForbidden
 	}
 
+	// Apply any downgrades scheduled to take effect at the end of the paid period
+	// before charging renewals, so a downgraded subscription bills the new (lower)
+	// plan this cycle and its entitlements move at the period boundary. Idempotent;
+	// safe to run every sweep.
+	if s.planChanges != nil {
+		if _, err := s.planChanges.ApplyDuePlanChanges(ctx); err != nil {
+			return ports.AdminSubscriptionRecurringSweepRecord{}, err
+		}
+	}
+
 	reason := normalizeOperatorNote(cmd.Reason)
 	if reason == "" {
 		reason = "Operator recurring charge sweep."
@@ -2245,10 +2300,33 @@ func (s Service) RunSubscriptionRecurringSweep(
 	}
 
 	for _, subscription := range subscriptions {
+		// (a) Upcoming-renewal reminder: renewalReminderLeadDays before
+		// next_billing_at, before it is due. Card and MoMo subscriptions both get
+		// it — a card still auto-charges below, but the heads-up "tap to pay" nudge
+		// is harmless and de-duplicated per billing period.
+		if subscriptionUpcomingReminderDue(subscription, now, renewalReminderLeadDays) {
+			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalUpcoming, nil, &record); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
+		}
+
 		if !subscriptionDueForRecurringCharge(subscription, now) {
 			continue
 		}
 		record.DueSubscriptions++
+
+		// MoMo authorizations usually cannot be silently auto-debited, so a due
+		// MoMo subscription is reminder-driven: enqueue a re-pay reminder instead
+		// of attempting a silent charge that would only fail and spam. The business
+		// re-pays via the billing/onboarding flow, which advances the period.
+		if subscriptionUsesMoMo(subscription) {
+			record.ChargesSkipped++
+			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
+			continue
+		}
+
 		if !subscriptionRecurringChargeReady(subscription) {
 			record.ChargesSkipped++
 			continue
@@ -2293,14 +2371,20 @@ func (s Service) RunSubscriptionRecurringSweep(
 			Reference:         invoiceRef,
 		})
 		if err != nil {
-			if _, markErr := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
+			failed, markErr := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
 				InvoiceID:      invoiceID,
 				ActorAdminUser: cmd.ActorUserID,
 				Reason:         recurringChargeFailureReason(err.Error()),
-			}); markErr != nil {
+			})
+			if markErr != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, markErr
 			}
 			record.ChargesFailed++
+			// (b) The card charge failed and the subscription is now past due / in
+			// grace: remind the business to re-pay before the grace window ends.
+			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
 			continue
 		}
 
@@ -2317,14 +2401,20 @@ func (s Service) RunSubscriptionRecurringSweep(
 		case "pending":
 			record.ChargesPending++
 		default:
-			if _, err := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
+			failed, err := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
 				InvoiceID:      invoiceID,
 				ActorAdminUser: cmd.ActorUserID,
 				Reason:         "Paystack recurring charge returned " + normalizeProviderChargeStatus(charge.Status) + ".",
-			}); err != nil {
+			})
+			if err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
 			record.ChargesFailed++
+			// (b) A non-success provider status is also a failed renewal: remind the
+			// business to re-pay before the grace window ends.
+			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
 		}
 	}
 
@@ -2343,16 +2433,18 @@ func (s Service) RunSubscriptionRecurringSweep(
 			" charges, paid " + strconv.Itoa(record.ChargesPaid) +
 			", left " + strconv.Itoa(record.ChargesPending) +
 			" pending, failed " + strconv.Itoa(record.ChargesFailed) +
-			", and skipped " + strconv.Itoa(record.ChargesSkipped) + ".",
+			", skipped " + strconv.Itoa(record.ChargesSkipped) +
+			", and enqueued " + strconv.Itoa(record.RemindersEnqueued) + " renewal reminders.",
 		Severity: severity,
 		Metadata: map[string]string{
-			"due_subscriptions": strconv.Itoa(record.DueSubscriptions),
-			"charges_attempted": strconv.Itoa(record.ChargesAttempted),
-			"charges_paid":      strconv.Itoa(record.ChargesPaid),
-			"charges_pending":   strconv.Itoa(record.ChargesPending),
-			"charges_failed":    strconv.Itoa(record.ChargesFailed),
-			"charges_skipped":   strconv.Itoa(record.ChargesSkipped),
-			"reason":            reason,
+			"due_subscriptions":  strconv.Itoa(record.DueSubscriptions),
+			"charges_attempted":  strconv.Itoa(record.ChargesAttempted),
+			"charges_paid":       strconv.Itoa(record.ChargesPaid),
+			"charges_pending":    strconv.Itoa(record.ChargesPending),
+			"charges_failed":     strconv.Itoa(record.ChargesFailed),
+			"charges_skipped":    strconv.Itoa(record.ChargesSkipped),
+			"reminders_enqueued": strconv.Itoa(record.RemindersEnqueued),
+			"reason":             reason,
 		},
 		IPAddress: cmd.IPAddress,
 		UserAgent: cmd.UserAgent,
@@ -5045,6 +5137,116 @@ func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecor
 func subscriptionRecurringChargeReady(subscription ports.AdminSubscriptionRecord) bool {
 	return strings.TrimSpace(subscription.OwnerEmail) != "" &&
 		strings.TrimSpace(subscription.ProviderSubscriptionRef) != ""
+}
+
+// normalizeAuthorizationChannel lower-cases and trims a Paystack authorization
+// channel ('card', 'mobile_money', 'bank', …) for stable comparison.
+func normalizeAuthorizationChannel(channel string) string {
+	return strings.ToLower(strings.TrimSpace(channel))
+}
+
+// subscriptionUsesMoMo reports whether the stored authorization is a mobile-money
+// authorization, which cannot be silently auto-debited and so is reminder-driven
+// rather than charged by the sweep. An empty/unknown channel is treated as
+// card-like, preserving the existing silent auto-charge behaviour.
+func subscriptionUsesMoMo(subscription ports.AdminSubscriptionRecord) bool {
+	return normalizeAuthorizationChannel(subscription.ProviderChannel) == "mobile_money"
+}
+
+// renewalReminderRecipient is the business owner's WhatsApp number (falling back
+// to their phone) — the destination for a subscription renewal reminder. Empty
+// means there is no reachable owner contact, so no reminder is enqueued.
+func renewalReminderRecipient(subscription ports.AdminSubscriptionRecord) string {
+	if whatsApp := strings.TrimSpace(subscription.OwnerWhatsApp); whatsApp != "" {
+		return whatsApp
+	}
+	return strings.TrimSpace(subscription.OwnerPhone)
+}
+
+// subscriptionUpcomingReminderDue reports whether an active recurring, paid
+// subscription is within leadDays of its next_billing_at but not yet due — the
+// window for the proactive "your plan renews soon — tap to pay" reminder.
+func subscriptionUpcomingReminderDue(subscription ports.AdminSubscriptionRecord, now time.Time, leadDays int) bool {
+	if subscription.BillingMode != "recurring" ||
+		cadenceRenewalMinor(subscription) <= 0 ||
+		subscription.NextBillingAt == nil {
+		return false
+	}
+	switch subscription.Status {
+	case "active", "trialing":
+	default:
+		return false
+	}
+	next := *subscription.NextBillingAt
+	if !next.After(now) {
+		// Already due or past: handled by the charge / re-pay path, not "upcoming".
+		return false
+	}
+	windowStart := next.Add(-time.Duration(leadDays) * 24 * time.Hour)
+	return !now.Before(windowStart)
+}
+
+// emitRenewalReminder enqueues a renewal reminder (idempotently) and, when a new
+// reminder was actually enqueued, bumps the sweep's RemindersEnqueued counter.
+func (s Service) emitRenewalReminder(
+	ctx context.Context,
+	subscription ports.AdminSubscriptionRecord,
+	kind notification.Kind,
+	graceEndsAt *time.Time,
+	record *ports.AdminSubscriptionRecurringSweepRecord,
+) error {
+	enqueued, err := s.enqueueRenewalReminder(ctx, subscription, kind, graceEndsAt)
+	if err != nil {
+		return err
+	}
+	if enqueued {
+		record.RemindersEnqueued++
+	}
+	return nil
+}
+
+// enqueueRenewalReminder builds the idempotency key for one (subscription,
+// period, kind) reminder and enqueues it to the notification outbox via the
+// repository. The period is pinned to the renewal timestamp (upcoming) or the
+// grace-window end (past due) so repeated sweeps within a cycle dedupe. It
+// returns whether a new reminder was enqueued; a missing owner contact or
+// billing date is a silent no-op.
+func (s Service) enqueueRenewalReminder(
+	ctx context.Context,
+	subscription ports.AdminSubscriptionRecord,
+	kind notification.Kind,
+	graceEndsAt *time.Time,
+) (bool, error) {
+	recipient := renewalReminderRecipient(subscription)
+	if recipient == "" || subscription.SubscriptionID.IsZero() || subscription.NextBillingAt == nil {
+		return false, nil
+	}
+
+	periodTime := *subscription.NextBillingAt
+	if kind == notification.KindSubscriptionRenewalPastDue && graceEndsAt != nil {
+		periodTime = *graceEndsAt
+	}
+	periodKey := strconv.FormatInt(periodTime.UTC().Unix(), 10)
+	reference := notification.SubscriptionReminderReference(subscription.SubscriptionID.String(), periodKey)
+
+	result, err := s.businesses.EnqueueSubscriptionRenewalReminder(ctx, ports.EnqueueSubscriptionRenewalReminderInput{
+		SubscriptionID:     subscription.SubscriptionID,
+		BusinessID:         subscription.BusinessID,
+		Kind:               string(kind),
+		PeriodKey:          periodKey,
+		DedupKey:           notification.DedupKey(kind, reference),
+		Channel:            string(notification.ChannelWhatsApp),
+		Recipient:          recipient,
+		PlanName:           subscription.PlanName,
+		RenewalAmountMinor: cadenceRenewalMinor(subscription),
+		RenewalAt:          *subscription.NextBillingAt,
+		GraceEndsAt:        graceEndsAt,
+		RepayURL:           s.renewalRepayURL,
+	})
+	if err != nil {
+		return false, err
+	}
+	return result.Enqueued, nil
 }
 
 func adminPermissionSet(permissions []admindomain.Permission) map[admindomain.Permission]bool {

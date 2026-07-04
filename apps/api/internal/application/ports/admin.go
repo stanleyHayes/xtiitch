@@ -53,6 +53,11 @@ type AdminBusinessRepository interface {
 	MarkAdminSubscriptionInvoicePaid(ctx context.Context, input MarkAdminSubscriptionInvoicePaidInput) (AdminSubscriptionRecord, error)
 	MarkAdminSubscriptionInvoiceFailed(ctx context.Context, input MarkAdminSubscriptionInvoiceFailedInput) (AdminSubscriptionRecord, error)
 	RunAdminSubscriptionBillingSweep(ctx context.Context, input RunAdminSubscriptionBillingSweepInput) (AdminSubscriptionBillingSweepRecord, error)
+	// EnqueueSubscriptionRenewalReminder writes a renewal-reminder intent to the
+	// notification outbox (WhatsApp) alongside a dedup log row in one transaction,
+	// so each (subscription, period, kind) reminder is enqueued at most once. The
+	// result reports whether a new reminder was enqueued (false = already sent).
+	EnqueueSubscriptionRenewalReminder(ctx context.Context, input EnqueueSubscriptionRenewalReminderInput) (SubscriptionRenewalReminderResult, error)
 	ListAdminPlans(ctx context.Context) ([]AdminPlanRecord, error)
 	CreateAdminPlan(ctx context.Context, input CreateAdminPlanInput) (AdminPlanRecord, error)
 	UpdateAdminPlan(ctx context.Context, input UpdateAdminPlanInput) (AdminPlanRecord, error)
@@ -438,28 +443,33 @@ type AdminSubscriptionRecord struct {
 	Provider                string
 	ProviderCustomerRef     string
 	ProviderSubscriptionRef string
-	CurrentPeriodStart      time.Time
-	CurrentPeriodEnd        time.Time
-	TrialEndsAt             *time.Time
-	GraceEndsAt             *time.Time
-	CancelAtPeriodEnd       bool
-	CanceledAt              *time.Time
-	FailedPaymentCount      int
-	LastInvoiceRef          string
-	LastPaymentAt           *time.Time
-	NextBillingAt           *time.Time
-	SignupAt                time.Time
-	RenewalAt               *time.Time
-	StoreLink               string
-	DiscountCode            string
-	DiscountInstitution     string
-	LastActiveAt            time.Time
-	OrdersCount             int
-	GMVMinor                int64
-	CommissionMinor         int64
-	UpdatedAt               time.Time
-	Events                  []AdminSubscriptionEventRecord
-	Invoices                []AdminSubscriptionInvoiceRecord
+	// ProviderChannel is the stored Paystack authorization channel ('card',
+	// 'mobile_money', 'bank', …). '' means unknown/legacy and is treated as
+	// card-like: the recurring sweep still attempts a silent auto-charge.
+	// 'mobile_money' flips the subscription to reminder-driven (no silent charge).
+	ProviderChannel     string
+	CurrentPeriodStart  time.Time
+	CurrentPeriodEnd    time.Time
+	TrialEndsAt         *time.Time
+	GraceEndsAt         *time.Time
+	CancelAtPeriodEnd   bool
+	CanceledAt          *time.Time
+	FailedPaymentCount  int
+	LastInvoiceRef      string
+	LastPaymentAt       *time.Time
+	NextBillingAt       *time.Time
+	SignupAt            time.Time
+	RenewalAt           *time.Time
+	StoreLink           string
+	DiscountCode        string
+	DiscountInstitution string
+	LastActiveAt        time.Time
+	OrdersCount         int
+	GMVMinor            int64
+	CommissionMinor     int64
+	UpdatedAt           time.Time
+	Events              []AdminSubscriptionEventRecord
+	Invoices            []AdminSubscriptionInvoiceRecord
 }
 
 type AdminSubscriptionEventRecord struct {
@@ -477,8 +487,12 @@ type UpdateAdminSubscriptionInput struct {
 	BillingMode             string
 	ProviderCustomerRef     string
 	ProviderSubscriptionRef string
-	Reason                  string
-	ActorAdminUser          common.ID
+	// ProviderChannel is the Paystack authorization channel to persist ('card',
+	// 'mobile_money', …). Empty leaves the stored channel untouched, so manual
+	// status edits do not erase a previously verified channel.
+	ProviderChannel string
+	Reason          string
+	ActorAdminUser  common.ID
 }
 
 type AdminSubscriptionInvoiceRecord struct {
@@ -547,13 +561,40 @@ type AdminSubscriptionBillingSweepRecord struct {
 }
 
 type AdminSubscriptionRecurringSweepRecord struct {
-	DueSubscriptions int
-	ChargesAttempted int
-	ChargesPaid      int
-	ChargesPending   int
-	ChargesFailed    int
-	ChargesSkipped   int
-	RanAt            time.Time
+	DueSubscriptions  int
+	ChargesAttempted  int
+	ChargesPaid       int
+	ChargesPending    int
+	ChargesFailed     int
+	ChargesSkipped    int
+	RemindersEnqueued int
+	RanAt             time.Time
+}
+
+// EnqueueSubscriptionRenewalReminderInput carries everything the outbox row and
+// the idempotency log need for one renewal reminder. DedupKey and PeriodKey are
+// derived by the caller from the reminder Kind, the subscription, and the
+// billing period so the same reminder is never enqueued twice.
+type EnqueueSubscriptionRenewalReminderInput struct {
+	SubscriptionID     common.ID
+	BusinessID         common.ID
+	Kind               string
+	PeriodKey          string
+	DedupKey           string
+	Channel            string
+	Recipient          string
+	PlanName           string
+	RenewalAmountMinor int64
+	RenewalAt          time.Time
+	GraceEndsAt        *time.Time
+	RepayURL           string
+}
+
+// SubscriptionRenewalReminderResult reports whether a new reminder was enqueued.
+// Enqueued is false when the (subscription, period, kind) reminder was already
+// recorded — the enqueue is a no-op in that case.
+type SubscriptionRenewalReminderResult struct {
+	Enqueued bool
 }
 
 type AdminPlanRecord struct {

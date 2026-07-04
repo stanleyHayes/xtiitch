@@ -11,6 +11,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 func TestBootstrapAdminNormalizesAndHashesUser(t *testing.T) {
@@ -1314,6 +1315,208 @@ func TestRunSubscriptionRecurringSweepBillsCadenceRenewalFigure(t *testing.T) {
 		businesses.issuedSubscriptionInvoice.PeriodMonths != 3 {
 		t.Fatalf("expected quarterly renewal invoice (29700, 3 months), got %+v",
 			businesses.issuedSubscriptionInvoice)
+	}
+}
+
+func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	// Renewal is two days out — inside the three-day lead window but not yet due,
+	// so the sweep enqueues an "upcoming renewal" reminder and attempts no charge.
+	upcoming := now.Add(2 * 24 * time.Hour)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Ama Stitches",
+				PlanName:                "Growth",
+				OwnerEmail:              "owner@example.com",
+				OwnerWhatsApp:           "233555000111",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_123",
+				ProviderChannel:         "card",
+				NextBillingAt:           &upcoming,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-1", "audit-2", "audit-3", "audit-4"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	first, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep (first): %v", err)
+	}
+	// Not due yet: no charge attempted, exactly one reminder enqueued.
+	if first.DueSubscriptions != 0 || first.ChargesAttempted != 0 || first.RemindersEnqueued != 1 {
+		t.Fatalf("unexpected first sweep record: %+v", first)
+	}
+	if len(provider.charged) != 0 {
+		t.Fatalf("expected no charge for an upcoming (not-yet-due) renewal, got %+v", provider.charged)
+	}
+	if len(businesses.renewalReminders) != 1 {
+		t.Fatalf("expected one reminder enqueue attempt, got %d", len(businesses.renewalReminders))
+	}
+	reminder := businesses.renewalReminders[0]
+	if reminder.Kind != string(notification.KindSubscriptionRenewalUpcoming) ||
+		reminder.Channel != string(notification.ChannelWhatsApp) ||
+		reminder.Recipient != "233555000111" ||
+		reminder.RenewalAmountMinor != 12000 ||
+		reminder.RepayURL != defaultRenewalRepayURL ||
+		!reminder.RenewalAt.Equal(upcoming) {
+		t.Fatalf("unexpected upcoming reminder input: %+v", reminder)
+	}
+
+	second, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep (second): %v", err)
+	}
+	// The same (subscription, period, kind) reminder must not be enqueued twice.
+	if second.RemindersEnqueued != 0 {
+		t.Fatalf("expected the reminder to be de-duplicated on the second sweep, got %+v", second)
+	}
+	if len(businesses.renewalReminders) != 2 ||
+		businesses.renewalReminders[1].DedupKey != reminder.DedupKey {
+		t.Fatalf("expected the second attempt to reuse the same dedup key, got %+v", businesses.renewalReminders)
+	}
+}
+
+func TestRunSubscriptionRecurringSweepEnqueuesRepayReminderOnCardFailure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Ama Stitches",
+				PlanName:                "Growth",
+				OwnerEmail:              "owner@example.com",
+				OwnerWhatsApp:           "233555000222",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_123",
+				ProviderChannel:         "card",
+				NextBillingAt:           &dueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"invoice-1", "audit-1", "audit-2"},
+	)
+	provider := &fakePaymentProvider{
+		chargeResult: ports.ChargeAuthorizationResult{Status: "failed"},
+	}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	// A card is still auto-charged; on failure a re-pay reminder is enqueued.
+	if record.ChargesAttempted != 1 || record.ChargesFailed != 1 || record.RemindersEnqueued != 1 {
+		t.Fatalf("unexpected card-failure sweep record: %+v", record)
+	}
+	if len(provider.charged) != 1 {
+		t.Fatalf("expected the card to be charged once, got %+v", provider.charged)
+	}
+	if len(businesses.renewalReminders) != 1 {
+		t.Fatalf("expected one re-pay reminder, got %d", len(businesses.renewalReminders))
+	}
+	reminder := businesses.renewalReminders[0]
+	if reminder.Kind != string(notification.KindSubscriptionRenewalPastDue) ||
+		reminder.Recipient != "233555000222" ||
+		reminder.RenewalAmountMinor != 12000 ||
+		reminder.RepayURL != defaultRenewalRepayURL {
+		t.Fatalf("unexpected re-pay reminder input: %+v", reminder)
+	}
+}
+
+func TestRunSubscriptionRecurringSweepMoMoIsReminderDrivenNotCharged(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Kofi Kente",
+				PlanName:                "Growth",
+				OwnerEmail:              "owner@example.com",
+				OwnerWhatsApp:           "233555000333",
+				MonthlyFeeMinor:         12000,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_MOMO",
+				ProviderChannel:         "mobile_money",
+				NextBillingAt:           &dueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-1", "audit-2"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	// MoMo cannot be silently auto-debited: it is due and skipped for charging,
+	// but a re-pay reminder is enqueued instead — never a failed-charge.
+	if record.DueSubscriptions != 1 ||
+		record.ChargesAttempted != 0 ||
+		record.ChargesFailed != 0 ||
+		record.ChargesSkipped != 1 ||
+		record.RemindersEnqueued != 1 {
+		t.Fatalf("unexpected MoMo sweep record: %+v", record)
+	}
+	if len(provider.charged) != 0 {
+		t.Fatalf("MoMo must not be silently charged, got %+v", provider.charged)
+	}
+	if businesses.issuedSubscriptionInvoice.BusinessID != "" {
+		t.Fatalf("MoMo must not issue a charge invoice, got %+v", businesses.issuedSubscriptionInvoice)
+	}
+	if len(businesses.renewalReminders) != 1 ||
+		businesses.renewalReminders[0].Kind != string(notification.KindSubscriptionRenewalPastDue) ||
+		businesses.renewalReminders[0].Recipient != "233555000333" {
+		t.Fatalf("unexpected MoMo re-pay reminder: %+v", businesses.renewalReminders)
 	}
 }
 
@@ -3409,6 +3612,8 @@ type fakeAdminBusinesses struct {
 	issuedSubscriptionInvoice  ports.IssueAdminSubscriptionInvoiceInput
 	paidSubscriptionInvoice    ports.MarkAdminSubscriptionInvoicePaidInput
 	failedSubscriptionInvoice  ports.MarkAdminSubscriptionInvoiceFailedInput
+	renewalReminders           []ports.EnqueueSubscriptionRenewalReminderInput
+	renewalReminderSeen        map[string]bool
 	sweepInput                 ports.RunAdminSubscriptionBillingSweepInput
 	sweepResult                ports.AdminSubscriptionBillingSweepRecord
 	plans                      []ports.AdminPlanRecord
@@ -3688,6 +3893,24 @@ func (repo *fakeAdminBusinesses) RunAdminSubscriptionBillingSweep(
 	return ports.AdminSubscriptionBillingSweepRecord{
 		RanAt: time.Now(),
 	}, nil
+}
+
+// EnqueueSubscriptionRenewalReminder records the reminder input and dedupes on
+// the caller-supplied dedup key, mirroring the outbox unique index so tests can
+// assert a reminder is enqueued at most once per (subscription, period, kind).
+func (repo *fakeAdminBusinesses) EnqueueSubscriptionRenewalReminder(
+	_ context.Context,
+	input ports.EnqueueSubscriptionRenewalReminderInput,
+) (ports.SubscriptionRenewalReminderResult, error) {
+	repo.renewalReminders = append(repo.renewalReminders, input)
+	if repo.renewalReminderSeen == nil {
+		repo.renewalReminderSeen = map[string]bool{}
+	}
+	if repo.renewalReminderSeen[input.DedupKey] {
+		return ports.SubscriptionRenewalReminderResult{Enqueued: false}, nil
+	}
+	repo.renewalReminderSeen[input.DedupKey] = true
+	return ports.SubscriptionRenewalReminderResult{Enqueued: true}, nil
 }
 
 func (repo *fakeAdminBusinesses) ListAdminPlans(context.Context) ([]ports.AdminPlanRecord, error) {

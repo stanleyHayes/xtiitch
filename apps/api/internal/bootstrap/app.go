@@ -173,6 +173,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// OTPs (same condition as buildCustomerOTPDelivery). The public branding
 		// endpoint surfaces this so storefronts can gate the WhatsApp sign-in tab.
 		WhatsAppEnabled: cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "",
+		// Applies subscription downgrades scheduled for period end (from the
+		// self-serve plan-change flow) at the top of each recurring sweep, so a
+		// downgraded subscription renews on the new plan.
+		PlanChanges: businessIdentityRepo,
 	})
 	for _, command := range adminBootstrapUsers {
 		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)

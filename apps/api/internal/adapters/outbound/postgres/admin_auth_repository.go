@@ -1793,6 +1793,7 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			records[index].BillingCadence = cadence.billingCadence
 			records[index].QuarterlyRenewalMinor = cadence.quarterlyRenewalMinor
 			records[index].YearlyRenewalMinor = cadence.yearlyRenewalMinor
+			records[index].ProviderChannel = cadence.providerChannel
 		}
 	}
 
@@ -1867,6 +1868,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 				provider = case when $3 = 'manual' then 'manual' else 'paystack' end,
 				provider_customer_ref = $4,
 				provider_subscription_ref = $5,
+				provider_channel = case when $6 <> '' then $6 else s.provider_channel end,
 				grace_ends_at = case
 					when $2 = 'grace_period' then coalesce(s.grace_ends_at, now() + interval '7 days')
 					else null
@@ -1998,6 +2000,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		input.BillingMode,
 		input.ProviderCustomerRef,
 		input.ProviderSubscriptionRef,
+		input.ProviderChannel,
 	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -2503,6 +2506,88 @@ func (repo AdminAuthRepository) RunAdminSubscriptionBillingSweep(
 	}
 
 	return record, nil
+}
+
+// EnqueueSubscriptionRenewalReminder records a renewal-reminder intent in the
+// notification outbox together with an idempotency log row, in one transaction
+// under the cross-tenant bypass (the platform recurring sweep runs across all
+// tenants). The subscription_reminders unique index on (subscription, kind,
+// period) is the gate: the outbox insert only runs when a new log row was
+// written, so each (subscription, period, kind) reminder is enqueued at most
+// once. Enqueued is false when the reminder was already recorded for that period.
+func (repo AdminAuthRepository) EnqueueSubscriptionRenewalReminder(
+	ctx context.Context,
+	input ports.EnqueueSubscriptionRenewalReminderInput,
+) (ports.SubscriptionRenewalReminderResult, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.SubscriptionRenewalReminderResult{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.SubscriptionRenewalReminderResult{}, err
+	}
+
+	var messageID string
+	err = tx.QueryRow(ctx, `
+		with logged as (
+			insert into subscription_reminders (subscription_id, business_id, kind, period_key)
+			values ($1::uuid, $2::uuid, $3, $4)
+			on conflict (subscription_id, kind, period_key) do nothing
+			returning subscription_id
+		)
+		insert into outbound_messages (message_id, business_id, channel, kind, recipient, payload, dedup_key)
+		select
+			gen_random_uuid(),
+			$2::uuid,
+			$5,
+			$3,
+			$6,
+			jsonb_build_object(
+				'subscription_id', $1::text,
+				'plan', $7,
+				'currency', 'GHS',
+				'renewal_amount_minor', $8::bigint,
+				'renewal_at', $9::timestamptz,
+				'grace_ends_at', $10::timestamptz,
+				'repay_url', $11
+			),
+			$12
+		from logged
+		on conflict (business_id, dedup_key) do nothing
+		returning message_id::text
+	`,
+		input.SubscriptionID.String(),
+		input.BusinessID.String(),
+		input.Kind,
+		input.PeriodKey,
+		input.Channel,
+		input.Recipient,
+		input.PlanName,
+		input.RenewalAmountMinor,
+		input.RenewalAt,
+		input.GraceEndsAt,
+		input.RepayURL,
+		input.DedupKey,
+	).Scan(&messageID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Either the reminder was already logged for this (subscription, period,
+		// kind) or the outbox row already exists: an idempotent no-op.
+		if err := tx.Commit(ctx); err != nil {
+			return ports.SubscriptionRenewalReminderResult{}, err
+		}
+		return ports.SubscriptionRenewalReminderResult{Enqueued: false}, nil
+	}
+	if err != nil {
+		return ports.SubscriptionRenewalReminderResult{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.SubscriptionRenewalReminderResult{}, err
+	}
+
+	return ports.SubscriptionRenewalReminderResult{Enqueued: true}, nil
 }
 
 func (repo AdminAuthRepository) ListAdminPlans(ctx context.Context) ([]ports.AdminPlanRecord, error) {
@@ -6748,6 +6833,7 @@ type adminSubscriptionCadence struct {
 	billingCadence        string
 	quarterlyRenewalMinor int64
 	yearlyRenewalMinor    int64
+	providerChannel       string
 }
 
 func listAdminSubscriptionCadences(
@@ -6759,7 +6845,8 @@ func listAdminSubscriptionCadences(
 			s.business_id::text,
 			s.billing_cadence,
 			coalesce(p.quarterly_renewal_minor, 0)::bigint,
-			coalesce(p.yearly_renewal_minor, 0)::bigint
+			coalesce(p.yearly_renewal_minor, 0)::bigint,
+			s.provider_channel
 		from business_subscriptions s
 		join plans p on p.plan_id = s.plan_id
 	`)
@@ -6777,6 +6864,7 @@ func listAdminSubscriptionCadences(
 			&cadence.billingCadence,
 			&cadence.quarterlyRenewalMinor,
 			&cadence.yearlyRenewalMinor,
+			&cadence.providerChannel,
 		); err != nil {
 			return nil, err
 		}
