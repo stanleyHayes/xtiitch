@@ -46,3 +46,7 @@ data/
 # Confidential source documents (Strictly Confidential — Internal Use Only)
 Xtiitch-Product-Definition.pdf
 Xtiitch-Technical-Specification.pdf
+
+# Generated documentation PDFs (rebuild from architecture.md / user-guide.md)
+/architecture.pdf
+/user-guide.pdf
