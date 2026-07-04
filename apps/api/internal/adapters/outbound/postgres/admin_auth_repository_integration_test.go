@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -13,8 +14,9 @@ import (
 )
 
 const (
-	itAdminSubBiz   = "66666666-6666-6666-6666-666666666661"
-	itAdminSubAdmin = "77777777-7777-7777-7777-777777777771"
+	itAdminSubBiz              = "66666666-6666-6666-6666-666666666661"
+	itAdminSubAdmin            = "77777777-7777-7777-7777-777777777771"
+	itAdminSubQuarterlyInvoice = "66666666-6666-6666-6666-6666666666a1"
 
 	itAdminPromoBiz   = "66666666-6666-6666-6666-666666666662"
 	itAdminPromo      = "88888888-8888-8888-8888-888888888881"
@@ -112,6 +114,62 @@ func TestUpdateAdminSubscriptionStoresProviderReferences(t *testing.T) {
 		record.ProviderCustomerRef != "" ||
 		record.ProviderSubscriptionRef != "" {
 		t.Fatalf("manual billing should clear Paystack refs, got %+v", record)
+	}
+}
+
+func TestIssueAdminSubscriptionInvoiceAdvancesPeriodByCadenceMonths(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedAdminSubscriptionFixture(t, pool)
+	defer cleanupAdminSubscriptionFixture(t, pool)
+
+	repo := NewAdminAuthRepository(pool)
+	ctx := context.Background()
+
+	// The recurring sweep passes the cadence renewal figure and cadence length;
+	// the invoice must bill that exact amount and advance the period by that
+	// many months (here a quarterly renewal: 29700 GHS minor, 3 months).
+	record, err := repo.IssueAdminSubscriptionInvoice(ctx, ports.IssueAdminSubscriptionInvoiceInput{
+		InvoiceID:      common.ID(itAdminSubQuarterlyInvoice),
+		BusinessID:     common.ID(itAdminSubBiz),
+		InvoiceRef:     "XTSUB-ITQUARTER",
+		DueAt:          time.Now().Add(72 * time.Hour),
+		ActorAdminUser: common.ID(itAdminSubAdmin),
+		Reason:         "Integration quarterly renewal.",
+		AmountMinor:    29700,
+		PeriodMonths:   3,
+	})
+	if err != nil {
+		t.Fatalf("issue quarterly invoice: %v", err)
+	}
+
+	var invoice ports.AdminSubscriptionInvoiceRecord
+	for _, candidate := range record.Invoices {
+		if candidate.InvoiceRef == "XTSUB-ITQUARTER" {
+			invoice = candidate
+			break
+		}
+	}
+	if invoice.AmountMinor != 29700 {
+		t.Fatalf("expected invoice to bill the renewal figure 29700, got %d", invoice.AmountMinor)
+	}
+
+	// Verify the three-month advance in the database so Postgres month
+	// arithmetic (which clamps month-ends) is the arbiter rather than Go's
+	// AddDate (which overflows past a month boundary).
+	var threeMonths bool
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(context.Background(), `
+			select period_end = period_start + interval '3 months'
+			from business_subscription_invoices
+			where invoice_id = $1
+		`, itAdminSubQuarterlyInvoice).Scan(&threeMonths); err != nil {
+			t.Fatalf("read invoice period: %v", err)
+		}
+	})
+	if !threeMonths {
+		t.Fatalf("expected quarterly invoice period to span three months, got start=%s end=%s",
+			invoice.PeriodStart, invoice.PeriodEnd)
 	}
 }
 

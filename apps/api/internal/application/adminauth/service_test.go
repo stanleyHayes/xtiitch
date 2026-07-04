@@ -1167,8 +1167,12 @@ func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testin
 		provider.charged[0].Reference != businesses.issuedSubscriptionInvoice.InvoiceRef {
 		t.Fatalf("unexpected recurring charge input: %+v", provider.charged)
 	}
+	// A monthly (default cadence) subscription stays on the monthly fee and a
+	// one-month period.
 	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
 		!businesses.issuedSubscriptionInvoice.DueAt.Equal(now.Add(72*time.Hour)) ||
+		businesses.issuedSubscriptionInvoice.AmountMinor != 12000 ||
+		businesses.issuedSubscriptionInvoice.PeriodMonths != 1 ||
 		businesses.paidSubscriptionInvoice.InvoiceID != "invoice-recurring" {
 		t.Fatalf("expected issued and paid invoice inputs, got issue=%+v paid=%+v",
 			businesses.issuedSubscriptionInvoice, businesses.paidSubscriptionInvoice)
@@ -1233,6 +1237,113 @@ func TestRunSubscriptionRecurringSweepMarksProviderFailure(t *testing.T) {
 	if businesses.failedSubscriptionInvoice.InvoiceID != "invoice-recurring" ||
 		businesses.failedSubscriptionInvoice.Reason != "Paystack recurring charge returned failed." {
 		t.Fatalf("expected failed invoice input, got %+v", businesses.failedSubscriptionInvoice)
+	}
+}
+
+func TestRunSubscriptionRecurringSweepBillsCadenceRenewalFigure(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Quarterly Threads",
+				OwnerEmail:              "owner@example.com",
+				MonthlyFeeMinor:         9900, // display basis only; must not be charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   29700,
+				YearlyRenewalMinor:      118800,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_Q",
+				NextBillingAt:           &dueAt,
+			},
+			{
+				// Quarterly with a zero renewal figure (e.g. a free plan): the
+				// cadence renewal guard must skip it entirely, just like the
+				// legacy monthly_fee<=0 skip.
+				SubscriptionID:          "subscription-2",
+				BusinessID:              "business-2",
+				BusinessName:            "Free Cadence",
+				OwnerEmail:              "free@example.com",
+				MonthlyFeeMinor:         9900,
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   0,
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_FREE",
+				NextBillingAt:           &dueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"invoice-recurring", "audit-recurring"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	// Only the funded quarterly subscription is due; the zero-renewal one is
+	// skipped by the guard before it counts as due.
+	if record.DueSubscriptions != 1 || record.ChargesAttempted != 1 || record.ChargesPaid != 1 {
+		t.Fatalf("unexpected quarterly sweep record: %+v", record)
+	}
+	// The charge bills the quarterly RENEWAL figure, not the monthly fee.
+	if len(provider.charged) != 1 ||
+		provider.charged[0].AuthorizationCode != "AUTH_Q" ||
+		provider.charged[0].AmountMinor != 29700 {
+		t.Fatalf("expected a single 29700 quarterly charge, got %+v", provider.charged)
+	}
+	// The invoice records the same renewal amount and advances the period by 3
+	// months (the cadence length), not 1.
+	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
+		businesses.issuedSubscriptionInvoice.AmountMinor != 29700 ||
+		businesses.issuedSubscriptionInvoice.PeriodMonths != 3 {
+		t.Fatalf("expected quarterly renewal invoice (29700, 3 months), got %+v",
+			businesses.issuedSubscriptionInvoice)
+	}
+}
+
+func TestCadenceRenewalMinorAndCadenceMonths(t *testing.T) {
+	t.Parallel()
+
+	base := ports.AdminSubscriptionRecord{
+		MonthlyFeeMinor:       9900,
+		QuarterlyRenewalMinor: 29700,
+		YearlyRenewalMinor:    118800,
+	}
+	cases := []struct {
+		cadence    string
+		wantAmount int64
+		wantMonths int
+	}{
+		{"monthly", 9900, 1},
+		{"", 9900, 1}, // legacy rows default to the monthly fee and one month
+		{"quarterly", 29700, 3},
+		{"yearly", 118800, 12},
+	}
+	for _, tc := range cases {
+		sub := base
+		sub.BillingCadence = tc.cadence
+		if got := cadenceRenewalMinor(sub); got != tc.wantAmount {
+			t.Errorf("cadenceRenewalMinor(%q) = %d, want %d", tc.cadence, got, tc.wantAmount)
+		}
+		if got := cadenceMonths(tc.cadence); got != tc.wantMonths {
+			t.Errorf("cadenceMonths(%q) = %d, want %d", tc.cadence, got, tc.wantMonths)
+		}
 	}
 }
 

@@ -1782,9 +1782,18 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 	if err != nil {
 		return nil, err
 	}
+	cadencesByBusiness, err := listAdminSubscriptionCadences(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
 	for index := range records {
 		records[index].Events = eventsByBusiness[records[index].BusinessID]
 		records[index].Invoices = invoicesByBusiness[records[index].BusinessID]
+		if cadence, ok := cadencesByBusiness[records[index].BusinessID]; ok {
+			records[index].BillingCadence = cadence.billingCadence
+			records[index].QuarterlyRenewalMinor = cadence.quarterlyRenewalMinor
+			records[index].YearlyRenewalMinor = cadence.yearlyRenewalMinor
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -2092,10 +2101,11 @@ func (repo AdminAuthRepository) IssueAdminSubscriptionInvoice(
 				case when c.billing_mode = 'manual' then 'manual' else 'paystack' end,
 				$4,
 				$5,
-				c.monthly_fee_minor,
+				case when $8::bigint > 0 then $8::bigint else c.monthly_fee_minor end,
 				'GHS',
 				greatest(c.current_period_end, now()),
-				greatest(c.current_period_end, now()) + interval '1 month',
+				greatest(c.current_period_end, now())
+					+ (case when $9::int > 0 then $9::int else 1 end) * interval '1 month',
 				$6,
 				$7::uuid
 			from candidate c
@@ -2120,6 +2130,8 @@ func (repo AdminAuthRepository) IssueAdminSubscriptionInvoice(
 		input.PaymentURL,
 		input.DueAt,
 		input.ActorAdminUser.String(),
+		input.AmountMinor,
+		input.PeriodMonths,
 	).Scan(&businessID, &subscriptionID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.AdminSubscriptionRecord{}, ports.ErrSubscriptionBillingUnavailable
@@ -6703,6 +6715,54 @@ func listAdminSubscriptionInvoices(
 	}
 
 	return invoices, nil
+}
+
+// adminSubscriptionCadence carries the cadence-driven billing figures the
+// recurring sweep needs to decide the charge amount and period length, keyed by
+// business id and merged into AdminSubscriptionRecord after the main list scan.
+type adminSubscriptionCadence struct {
+	billingCadence        string
+	quarterlyRenewalMinor int64
+	yearlyRenewalMinor    int64
+}
+
+func listAdminSubscriptionCadences(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID]adminSubscriptionCadence, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			s.business_id::text,
+			s.billing_cadence,
+			coalesce(p.quarterly_renewal_minor, 0)::bigint,
+			coalesce(p.yearly_renewal_minor, 0)::bigint
+		from business_subscriptions s
+		join plans p on p.plan_id = s.plan_id
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cadences := map[common.ID]adminSubscriptionCadence{}
+	for rows.Next() {
+		var businessID common.ID
+		var cadence adminSubscriptionCadence
+		if err := rows.Scan(
+			&businessID,
+			&cadence.billingCadence,
+			&cadence.quarterlyRenewalMinor,
+			&cadence.yearlyRenewalMinor,
+		); err != nil {
+			return nil, err
+		}
+		cadences[businessID] = cadence
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return cadences, nil
 }
 
 func ensureAdminSubscription(ctx context.Context, tx pgx.Tx, businessID common.ID) error {

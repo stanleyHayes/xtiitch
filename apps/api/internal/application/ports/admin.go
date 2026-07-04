@@ -413,17 +413,23 @@ type AdminMoneyPayoutReviewRecord struct {
 }
 
 type AdminSubscriptionRecord struct {
-	SubscriptionID          common.ID
-	BusinessID              common.ID
-	BusinessName            string
-	Handle                  string
-	OwnerName               string
-	OwnerPhone              string
-	OwnerEmail              string
-	OwnerWhatsApp           string
-	PlanCode                string
-	PlanName                string
-	MonthlyFeeMinor         int64
+	SubscriptionID  common.ID
+	BusinessID      common.ID
+	BusinessName    string
+	Handle          string
+	OwnerName       string
+	OwnerPhone      string
+	OwnerEmail      string
+	OwnerWhatsApp   string
+	PlanCode        string
+	PlanName        string
+	MonthlyFeeMinor int64
+	// BillingCadence is how often this subscription renews: 'monthly'
+	// (legacy/back-compat), 'quarterly', or 'yearly'. Quarterly/yearly bill the
+	// fixed Pricing-Book renewal figures below instead of the monthly fee.
+	BillingCadence          string
+	QuarterlyRenewalMinor   int64
+	YearlyRenewalMinor      int64
 	CommissionBPS           int
 	DesignLimit             *int
 	DesignCount             int
@@ -506,6 +512,14 @@ type IssueAdminSubscriptionInvoiceInput struct {
 	DueAt              time.Time
 	ActorAdminUser     common.ID
 	Reason             string
+	// AmountMinor is the exact figure to bill for this invoice's period. When
+	// zero the repository falls back to the plan's monthly fee (manual/legacy
+	// path). The recurring sweep sets it to the cadence renewal figure.
+	AmountMinor int64
+	// PeriodMonths is how many months this invoice's period covers. When zero
+	// the repository defaults to 1 month (manual/legacy path). The recurring
+	// sweep sets it to the cadence length (quarterly 3, yearly 12, monthly 1).
+	PeriodMonths int
 }
 
 type MarkAdminSubscriptionInvoicePaidInput struct {

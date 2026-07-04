@@ -2254,6 +2254,13 @@ func (s Service) RunSubscriptionRecurringSweep(
 			continue
 		}
 
+		// Both the amount charged and the period the invoice covers are chosen
+		// by the subscription's cadence in one place (cadenceRenewalMinor /
+		// cadenceMonths) so the ChargeAuthorization amount and the SUCCESS-path
+		// period advance always agree.
+		amountMinor := cadenceRenewalMinor(subscription)
+		periodMonths := cadenceMonths(subscription.BillingCadence)
+
 		invoiceID := s.ids.NewID()
 		invoiceRef := subscriptionInvoiceRef(invoiceID)
 		_, err := s.businesses.IssueAdminSubscriptionInvoice(ctx, ports.IssueAdminSubscriptionInvoiceInput{
@@ -2264,6 +2271,8 @@ func (s Service) RunSubscriptionRecurringSweep(
 			DueAt:              now.Add(72 * time.Hour),
 			ActorAdminUser:     cmd.ActorUserID,
 			Reason:             reason,
+			AmountMinor:        amountMinor,
+			PeriodMonths:       periodMonths,
 		})
 		if errors.Is(err, ports.ErrSubscriptionInvoiceOpen) ||
 			errors.Is(err, ports.ErrSubscriptionBillingUnavailable) {
@@ -2279,7 +2288,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 			BusinessID:        subscription.BusinessID,
 			AuthorizationCode: subscription.ProviderSubscriptionRef,
 			CustomerEmail:     subscription.OwnerEmail,
-			AmountMinor:       subscription.MonthlyFeeMinor,
+			AmountMinor:       amountMinor,
 			Currency:          "GHS",
 			Reference:         invoiceRef,
 		})
@@ -4986,8 +4995,38 @@ func subscriptionInvoiceRef(invoiceID common.ID) string {
 	return "XTSUB-" + strings.ToUpper(compact)
 }
 
+// cadenceRenewalMinor is the single source of truth for the amount (GHS minor
+// units) a recurring charge must bill for one billing cycle, chosen by the
+// subscription's cadence. Quarterly and yearly bill their fixed Pricing-Book
+// renewal figures; monthly (legacy/back-compat) bills the monthly fee. It also
+// backs the free-plan skip guard: a zero renewal figure means "do not charge".
+func cadenceRenewalMinor(subscription ports.AdminSubscriptionRecord) int64 {
+	switch subscription.BillingCadence {
+	case "quarterly":
+		return subscription.QuarterlyRenewalMinor
+	case "yearly":
+		return subscription.YearlyRenewalMinor
+	default:
+		return subscription.MonthlyFeeMinor
+	}
+}
+
+// cadenceMonths is the single source of truth for how many months one billing
+// cycle covers, so the SUCCESS-path period advance moves by the right length
+// (quarterly 3, yearly 12, monthly/legacy 1).
+func cadenceMonths(cadence string) int {
+	switch cadence {
+	case "quarterly":
+		return 3
+	case "yearly":
+		return 12
+	default:
+		return 1
+	}
+}
+
 func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecord, now time.Time) bool {
-	if subscription.MonthlyFeeMinor <= 0 ||
+	if cadenceRenewalMinor(subscription) <= 0 ||
 		subscription.BillingMode != "recurring" ||
 		subscription.Status == "canceled" ||
 		subscription.Status == "cancel_at_period_end" ||
