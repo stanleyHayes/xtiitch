@@ -99,6 +99,16 @@ services:
         value: Xtiitch Owner
       - key: ADMIN_BOOTSTRAP_ROLE
         value: owner
+      # ── Subscription VAT (Pricing Book tax decision flag) ──
+      # OFF by default (rate 0 = no VAT, behaviour unchanged). Once Xtiitch
+      # confirms its subscriptions are VAT-able, set the rate to 2000 for Ghana's
+      # 20% effective rate (15% VAT + 2.5% NHIL + 2.5% GETFund; COVID levy
+      # abolished 1 Jan 2026) in the Render dashboard. INCLUSIVE=false adds VAT at
+      # checkout on top of listed prices; true treats listed prices as inclusive.
+      - key: XTIITCH_SUBSCRIPTION_VAT_RATE_BPS
+        value: "0"
+      - key: XTIITCH_SUBSCRIPTION_VAT_INCLUSIVE
+        value: "false"
       # ── Secrets (set in the Render dashboard) ──
       - key: ADMIN_BOOTSTRAP_PASSWORD
         sync: false
