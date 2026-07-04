@@ -45,6 +45,12 @@ type BillingCadence = "quarterly" | "yearly";
 
 type BusinessProfile = {
   verification_status?: string;
+  plan?: string;
+};
+
+type Profile = {
+  verificationStatus: string;
+  planCode: string;
 };
 
 // The Ghana Card is considered "on file" once it has been submitted (pending
@@ -53,23 +59,28 @@ function isIdentityOnFile(status: string): boolean {
   return status === "verified" || status === "pending";
 }
 
-// Read the owner's current verification status. Used by both the loader (to
-// decide whether to render the Ghana Card section) and the action (to re-check
-// server-side so a stale form cannot bypass identity capture).
-async function fetchVerificationStatus(request: Request): Promise<string> {
+// Read the owner's business profile: verification status (to decide whether the
+// Ghana Card section is still needed) and the plan they are currently on (to render
+// the plan-change control for an already-subscribed business). Used by the loader
+// and re-checked in the action so a stale form cannot bypass identity capture.
+async function fetchProfile(request: Request): Promise<Profile> {
   try {
     const response = await apiFetch(request, "/businesses/me", {
       method: "GET",
     });
     if (!response.ok) {
-      return "";
+      return { verificationStatus: "", planCode: "" };
     }
     const body = (await response.json()) as BusinessProfile;
-    return typeof body.verification_status === "string"
-      ? body.verification_status
-      : "";
+    return {
+      verificationStatus:
+        typeof body.verification_status === "string"
+          ? body.verification_status
+          : "",
+      planCode: typeof body.plan === "string" ? body.plan : "",
+    };
   } catch {
-    return "";
+    return { verificationStatus: "", planCode: "" };
   }
 }
 
@@ -137,6 +148,65 @@ async function startPaystackBilling(
   return redirect(body.redirect_url);
 }
 
+// Friendly copy for the plan-change rejection codes the API returns, so a refused
+// change is explained precisely rather than as a generic failure.
+const PLAN_CHANGE_ERROR_MESSAGES: Record<string, string> = {
+  plan_change_same_plan: "You're already on that plan.",
+  billing_not_active:
+    "Set up billing first — activate your subscription, then you can upgrade.",
+  upgrade_charge_failed:
+    "We couldn't take the prorated upgrade payment. Check your payment method and try again.",
+  not_found: "That plan is no longer available.",
+  invalid_input: "That plan change isn't available for your subscription.",
+  forbidden: "Only the business owner or an admin can change the plan.",
+};
+
+type PlanChangeResult = {
+  plan_code: string;
+  // true = upgrade applied now; false = downgrade scheduled at the next renewal.
+  immediate: boolean;
+  // amount charged now for the remainder of the current period (upgrade), pesewas.
+  prorated_charge_minor: number;
+  // RFC3339 timestamp the new plan takes effect.
+  effective_at: string;
+};
+
+// Ask the API to change the plan. The API classifies upgrade vs downgrade and
+// prorates server-side; we surface whether it applied immediately (upgrade) or was
+// scheduled for the next renewal (downgrade).
+async function submitPlanChange(
+  request: Request,
+  planCode: string,
+): Promise<{ error: string } | { changeResult: PlanChangeResult }> {
+  if (!planCode) {
+    return { error: "Choose a plan to switch to." };
+  }
+  const response = await apiFetch(
+    request,
+    "/auth/business/subscription/change-plan",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ plan_code: planCode }),
+    },
+  );
+  if (!response.ok) {
+    let code = "";
+    try {
+      const body = (await response.json()) as { error?: string };
+      code = body.error ?? "";
+    } catch {
+      code = "";
+    }
+    return {
+      error:
+        PLAN_CHANGE_ERROR_MESSAGES[code] ??
+        "We couldn't change your plan right now. Please try again later.",
+    };
+  }
+  return { changeResult: (await response.json()) as PlanChangeResult };
+}
+
 export function meta(): Route.MetaDescriptors {
   return [
     { title: "Set up billing · Xtiitch" },
@@ -146,26 +216,33 @@ export function meta(): Route.MetaDescriptors {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const planCode = new URL(request.url).searchParams.get("plan") ?? "";
-  let plan: PublicPlan | null = null;
-  if (planCode) {
-    try {
-      const response = await fetchApi("/plans", { method: "GET" });
-      if (response.ok) {
-        const plans = (await response.json()) as PublicPlan[];
-        plan = plans.find((item) => item.code === planCode) ?? null;
-      }
-    } catch {
-      plan = null;
+  // Fetch the catalogue once: it drives both the activation target (?plan=) and the
+  // plan-change control (comparing each plan to the one the business is on).
+  let plans: PublicPlan[] = [];
+  try {
+    const response = await fetchApi("/plans", { method: "GET" });
+    if (response.ok) {
+      plans = (await response.json()) as PublicPlan[];
     }
+  } catch {
+    plans = [];
   }
+  const plan = planCode
+    ? (plans.find((item) => item.code === planCode) ?? null)
+    : null;
   // Owner is authenticated by the time they reach /onboarding/billing (register
-  // sets the session; upgrades come from inside the dashboard), so we can read
-  // the verification status to decide whether the Ghana Card is still needed.
-  const verificationStatus = await fetchVerificationStatus(request);
+  // sets the session; plan changes come from inside the dashboard), so we can read
+  // the profile to decide whether the Ghana Card is still needed and which plan
+  // they are currently on.
+  const profile = await fetchProfile(request);
+  const currentPlan =
+    plans.find((item) => item.code === profile.planCode) ?? null;
   return {
     plan,
-    verificationStatus,
-    identityOnFile: isIdentityOnFile(verificationStatus),
+    plans,
+    currentPlan,
+    verificationStatus: profile.verificationStatus,
+    identityOnFile: isIdentityOnFile(profile.verificationStatus),
   };
 }
 
@@ -177,8 +254,19 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Read the multipart form once (request.formData can only be consumed once):
   // it carries the chosen billing cadence and, when identity is not yet on file,
-  // the Ghana Card fields.
+  // the Ghana Card fields — or, for an already-subscribed business, a plan change.
   const form = await request.formData();
+
+  // Plan change (upgrade now / downgrade at renewal) for an already-subscribed
+  // business. Distinct from the activation flow below; no Ghana Card or cadence
+  // step — the API classifies and prorates server-side.
+  if (String(form.get("intent") ?? "") === "change-plan") {
+    return submitPlanChange(
+      request,
+      String(form.get("plan_code") ?? "").trim(),
+    );
+  }
+
   const cadence: BillingCadence =
     String(form.get("billing_cadence") ?? "") === "quarterly"
       ? "quarterly"
@@ -188,7 +276,7 @@ export async function action({ request }: Route.ActionArgs) {
 
   // Re-check server-side rather than trusting the rendered form: if the Ghana
   // Card is not yet on file we must capture it before starting billing.
-  const status = await fetchVerificationStatus(request);
+  const status = (await fetchProfile(request)).verificationStatus;
   if (!isIdentityOnFile(status)) {
     const cardNumber = String(form.get("card_number") ?? "").trim();
     if (!cardNumber) {
@@ -248,6 +336,19 @@ function formatPrice(minor: number): string {
   }).format(minor / 100);
 }
 
+// Human date for a plan change's effective moment (RFC3339 → e.g. "1 September 2026").
+function formatDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "your next renewal";
+  }
+  return new Intl.DateTimeFormat("en-GH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
 // The Pricing Book bills the FIRST figure on the first paid cycle and the
 // RENEWAL figure on every renewal — surfaced verbatim so the owner sees exactly
 // what they will be charged now vs later.
@@ -286,12 +387,35 @@ export default function BillingOnboarding({
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const plan = loaderData?.plan ?? null;
+  const currentPlan = loaderData?.currentPlan ?? null;
+  const plans = loaderData?.plans ?? [];
   const identityOnFile = loaderData?.identityOnFile ?? false;
   const verified = loaderData?.verificationStatus === "verified";
-  const result = (actionData ?? {}) as { error?: string };
+  const result = (actionData ?? {}) as {
+    error?: string;
+    changeResult?: PlanChangeResult;
+  };
   const [photoName, setPhotoName] = useState("");
   const isPaidPlan = !!plan && plan.monthly_fee_minor > 0;
   const [cadence, setCadence] = useState<BillingCadence>("yearly");
+
+  // Management mode: no activation target in the URL and the business is already on
+  // a paid plan → show the self-serve plan-change control instead of the activation
+  // flow. Activation (with the ?plan= target, Ghana Card, cadence and discount UI)
+  // is left untouched below.
+  const managementMode =
+    !plan && !!currentPlan && currentPlan.monthly_fee_minor > 0;
+  if (managementMode) {
+    return (
+      <ChangePlanView
+        currentPlan={currentPlan}
+        plans={plans}
+        result={result}
+        isSubmitting={isSubmitting}
+      />
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -530,6 +654,182 @@ export default function BillingOnboarding({
               </Link>
             </Stack>
           </Form>
+        </Paper>
+      </Container>
+    </Box>
+  );
+}
+
+// Short, plain-language summary of a completed plan change, driven entirely by the
+// API's response (immediate upgrade vs scheduled downgrade + any prorated charge).
+function changeSummary(change: PlanChangeResult): string {
+  if (change.immediate) {
+    if (change.prorated_charge_minor > 0) {
+      return `You're now on ${change.plan_code}. We charged ${formatPrice(
+        change.prorated_charge_minor,
+      )} for the rest of your current billing period; future renewals bill the full ${change.plan_code} rate.`;
+    }
+    return `You're now on ${change.plan_code}, effective immediately. There's no extra charge for the rest of this period.`;
+  }
+  return `Your switch to ${change.plan_code} is scheduled for ${formatDate(
+    change.effective_at,
+  )}. You keep your current plan until then — no charge or refund now.`;
+}
+
+// ChangePlanView is the self-serve plan-change control shown to an already-subscribed
+// business: an upgrade takes effect now with a prorated charge, a downgrade is parked
+// until the next renewal. It reuses the API's classification (upgrade vs downgrade),
+// labelling each plan by its monthly fee relative to the current one.
+function ChangePlanView({
+  currentPlan,
+  plans,
+  result,
+  isSubmitting,
+}: {
+  currentPlan: PublicPlan;
+  plans: PublicPlan[];
+  result: { error?: string; changeResult?: PlanChangeResult };
+  isSubmitting: boolean;
+}) {
+  const others = plans.filter((item) => item.code !== currentPlan.code);
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        display: "grid",
+        placeItems: "center",
+        p: 2,
+      }}
+    >
+      <Container maxWidth="sm">
+        <Paper
+          elevation={0}
+          sx={{
+            p: { xs: 3, md: 4 },
+            border: "1px solid",
+            borderColor: alpha(tokens.ink, 0.12),
+            borderRadius: 3,
+            bgcolor: alpha(tokens.white, 0.98),
+            color: tokens.ink,
+          }}
+        >
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{ alignItems: "center", mb: 1 }}
+          >
+            <Box
+              sx={{
+                width: 44,
+                height: 44,
+                borderRadius: 2,
+                display: "grid",
+                placeItems: "center",
+                bgcolor: alpha(tokens.burgundy, 0.1),
+                color: tokens.burgundy,
+              }}
+            >
+              <PaymentsRounded />
+            </Box>
+            <Typography variant="h5" component="h1">
+              Change your plan
+            </Typography>
+          </Stack>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", mb: 2 }}
+          >
+            <Typography variant="body2" sx={{ color: alpha(tokens.ink, 0.68) }}>
+              You're currently on
+            </Typography>
+            <Chip label={currentPlan.name} color="primary" size="small" />
+          </Stack>
+
+          {result.changeResult ? (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              {changeSummary(result.changeResult)}
+            </Alert>
+          ) : null}
+          {result.error ? (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              {result.error}
+            </Alert>
+          ) : null}
+
+          <Alert severity="info" icon={false} sx={{ mb: 2 }}>
+            Upgrades take effect immediately — you pay a prorated amount for the
+            rest of your current billing period, and future renewals bill the
+            new plan. Downgrades take effect at your next renewal, with no
+            charge or refund now.
+          </Alert>
+
+          <Stack spacing={1.5}>
+            {others.map((item) => {
+              const upgrade =
+                item.monthly_fee_minor > currentPlan.monthly_fee_minor;
+              return (
+                <Paper
+                  key={item.code}
+                  variant="outlined"
+                  sx={{
+                    p: 1.5,
+                    borderRadius: 2,
+                    borderColor: alpha(tokens.ink, 0.16),
+                  }}
+                >
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    sx={{
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Box>
+                      <Typography sx={{ fontWeight: 700 }}>
+                        {item.name}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: alpha(tokens.ink, 0.6) }}
+                      >
+                        {item.monthly_fee_minor > 0
+                          ? `${formatPrice(
+                              item.quarterly_renewal_minor,
+                            )}/quarter · ${formatPrice(
+                              item.yearly_renewal_minor,
+                            )}/year`
+                          : "Free"}
+                      </Typography>
+                    </Box>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="change-plan" />
+                      <input type="hidden" name="plan_code" value={item.code} />
+                      <Button
+                        type="submit"
+                        variant={upgrade ? "contained" : "outlined"}
+                        size="small"
+                        disabled={isSubmitting}
+                      >
+                        {upgrade ? "Upgrade now" : "Downgrade at renewal"}
+                      </Button>
+                    </Form>
+                  </Stack>
+                </Paper>
+              );
+            })}
+          </Stack>
+
+          <Divider sx={{ my: 2 }} />
+          <Link
+            component={RouterLink}
+            to="/dashboard"
+            sx={{ color: alpha(tokens.ink, 0.6) }}
+          >
+            Back to dashboard
+          </Link>
         </Paper>
       </Container>
     </Box>

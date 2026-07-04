@@ -353,6 +353,30 @@ func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]p
 	return plans, nil
 }
 
+// GetPlanByCode resolves an active plan's identity + pricing by its code, for
+// classifying and prorating a self-serve plan change. plans is a global, non-tenant
+// table (no RLS), so a plain query applies. ErrNotFound when no active plan matches.
+func (repo BusinessIdentityRepository) GetPlanByCode(ctx context.Context, code string) (ports.PlanPricingRecord, error) {
+	var record ports.PlanPricingRecord
+	if err := repo.pool.QueryRow(ctx, `
+		select plan_id::text, code, monthly_fee_minor, quarterly_renewal_minor, yearly_renewal_minor
+		from plans
+		where code = $1 and is_active = true
+	`, code).Scan(
+		&record.PlanID,
+		&record.Code,
+		&record.MonthlyFeeMinor,
+		&record.QuarterlyRenewalMinor,
+		&record.YearlyRenewalMinor,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.PlanPricingRecord{}, ErrNotFound
+		}
+		return ports.PlanPricingRecord{}, err
+	}
+	return record, nil
+}
+
 // GetBusinessSubscription returns the tenant's subscription joined with its plan
 // and owner email, powering the self-serve billing flow.
 func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Context, businessID common.ID) (ports.BusinessSubscriptionRecord, error) {
@@ -391,7 +415,9 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Conte
 			p.quarterly_first_minor,
 			p.quarterly_renewal_minor,
 			p.yearly_first_minor,
-			p.yearly_renewal_minor
+			p.yearly_renewal_minor,
+			s.current_period_start,
+			s.current_period_end
 		from business_subscriptions s
 		join businesses b on b.business_id = s.business_id
 		join plans p on p.plan_id = s.plan_id
@@ -413,6 +439,8 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Conte
 		&record.QuarterlyRenewalMinor,
 		&record.YearlyFirstMinor,
 		&record.YearlyRenewalMinor,
+		&record.CurrentPeriodStart,
+		&record.CurrentPeriodEnd,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -620,6 +648,176 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(ctx c
 		return ports.SubscriptionActivationCharge{}, err
 	}
 	return ports.SubscriptionActivationCharge{Ref: ref, ShouldCharge: !alreadyPaid}, nil
+}
+
+// ApplyImmediatePlanUpgrade switches the tenant to a higher plan at once and, when
+// a prorated difference is due, books it as a paid invoice. Everything runs in one
+// tenant-scoped transaction so the switch and the invoice commit together.
+//
+// Idempotency mirrors the activation charge: the invoice insert is ON CONFLICT
+// (invoice_ref) DO NOTHING keyed on the deterministic upgrade ref, and the plan
+// switch is gated on that insert being fresh. A replayed upgrade therefore no-ops —
+// the original committed transaction already switched the plan — so the card is
+// never charged twice (Paystack also dedupes the same reference) and the plan is
+// never re-switched. Switching also clears any parked pending downgrade, so an
+// upgrade supersedes an earlier scheduled downgrade.
+func (repo BusinessIdentityRepository) ApplyImmediatePlanUpgrade(ctx context.Context, input ports.ApplyImmediatePlanUpgradeInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// business_subscriptions + business_subscription_invoices are tenant-isolated
+	// (forced RLS); the businesses row update is allowed under the same scope.
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	if input.AmountMinor > 0 {
+		var subscriptionID string
+		var periodStart, periodEnd time.Time
+		if err := tx.QueryRow(ctx, `
+			select subscription_id::text, current_period_start, current_period_end
+			from business_subscriptions where business_id = $1
+		`, input.BusinessID.String()).Scan(&subscriptionID, &periodStart, &periodEnd); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrNotFound
+			}
+			return err
+		}
+
+		// Book the prorated charge as a paid invoice for the remainder of the current
+		// period, on the NEW plan. Idempotent on the deterministic upgrade ref.
+		tag, err := tx.Exec(ctx, `
+			insert into business_subscription_invoices (
+				invoice_id, subscription_id, business_id, plan_id,
+				invoice_ref, provider_invoice_ref, status, billing_mode, provider,
+				amount_minor, currency, period_start, period_end, due_at, paid_at
+			)
+			values (
+				gen_random_uuid(), $1, $2, $3,
+				$4, $4, 'paid', 'recurring', 'paystack',
+				$5, $6, $7, $8, now(), now()
+			)
+			on conflict (invoice_ref) do nothing
+		`, subscriptionID, input.BusinessID.String(), input.NewPlanID.String(),
+			input.ChargeRef, input.AmountMinor, input.Currency, periodStart, periodEnd)
+		if err != nil {
+			return err
+		}
+		if tag.RowsAffected() == 0 {
+			// Replay: the original transaction already booked this invoice and
+			// switched the plan. Nothing more to do.
+			return tx.Commit(ctx)
+		}
+	}
+
+	// Switch the subscription to the new plan and clear any parked pending downgrade
+	// (an upgrade supersedes it), then sync the business plan so entitlements move
+	// immediately.
+	if _, err := tx.Exec(ctx, `
+		update business_subscriptions
+		set plan_id = $2,
+			pending_plan_id = null,
+			pending_plan_effective_at = null,
+			updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String(), input.NewPlanID.String()); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update businesses
+		set plan_id = $2, updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String(), input.NewPlanID.String()); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// SchedulePlanDowngrade parks a pending plan change on the subscription to apply at
+// EffectiveAt (the current period end). It does not refund, charge, or touch
+// entitlements now — the tenant keeps their current plan until the renewal sweep
+// applies the change via ApplyDuePlanChanges. Tenant-scoped.
+func (repo BusinessIdentityRepository) SchedulePlanDowngrade(ctx context.Context, input ports.SchedulePlanDowngradeInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
+		return err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		update business_subscriptions
+		set pending_plan_id = $2,
+			pending_plan_effective_at = $3,
+			updated_at = now()
+		where business_id = $1
+	`, input.BusinessID.String(), input.NewPlanID.String(), input.EffectiveAt)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return tx.Commit(ctx)
+}
+
+// ApplyDuePlanChanges applies every scheduled plan change whose effective time has
+// arrived: it switches the subscription to the pending plan, clears the pending
+// fields, and syncs the business plan (entitlements). It is cross-tenant (the
+// recurring renewal sweep runs system-wide), so it runs under the RLS bypass, and
+// idempotent (once applied, pending_plan_id is null so a re-run is a no-op). It
+// returns the number of subscriptions changed.
+//
+// HANDOFF: this is the method the recurring renewal sweep (adminauth) must call so
+// that scheduled downgrades take effect when a paid period ends. It is intentionally
+// standalone and not wired into any auth flow — see the plan-change handoff note.
+func (repo BusinessIdentityRepository) ApplyDuePlanChanges(ctx context.Context) (int, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return 0, err
+	}
+
+	var changed int
+	if err := tx.QueryRow(ctx, `
+		with due as (
+			update business_subscriptions s
+			set plan_id = s.pending_plan_id,
+				pending_plan_id = null,
+				pending_plan_effective_at = null,
+				updated_at = now()
+			where s.pending_plan_id is not null
+				and s.pending_plan_effective_at is not null
+				and s.pending_plan_effective_at <= now()
+			returning s.business_id, s.plan_id
+		),
+		synced as (
+			update businesses b
+			set plan_id = d.plan_id, updated_at = now()
+			from due d
+			where b.business_id = d.business_id
+			returning 1
+		)
+		select count(*)::int from due
+	`).Scan(&changed); err != nil {
+		return 0, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return changed, nil
 }
 
 // SubmitIdentityDocument upserts a business's Ghana Card number + ID photo and

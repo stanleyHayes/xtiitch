@@ -20,7 +20,24 @@ type BusinessIdentityRepository interface {
 	// availability check.
 	HandleExists(ctx context.Context, handle string) (bool, error)
 	ListActivePlans(ctx context.Context) ([]PublicPlanRecord, error)
+	// GetPlanByCode resolves an active plan's identity + pricing by its (lower-cased)
+	// code, so a self-serve plan change can classify upgrade/downgrade and prorate.
+	// ErrNotFound when no active plan has the code.
+	GetPlanByCode(ctx context.Context, code string) (PlanPricingRecord, error)
 	GetBusinessSubscription(ctx context.Context, businessID common.ID) (BusinessSubscriptionRecord, error)
+	// ApplyImmediatePlanUpgrade switches the tenant to a higher plan now — on the
+	// subscription AND the business (so entitlements take effect immediately) — and,
+	// when AmountMinor > 0, books the prorated difference as a paid invoice on the
+	// deterministic ChargeRef. It is idempotent: the invoice insert is ON CONFLICT
+	// (invoice_ref) DO NOTHING and the plan switch shares that transaction, so a
+	// replayed upgrade (double submit / retry after a partial failure) neither
+	// double-charges nor re-switches. Any parked pending downgrade is cleared.
+	ApplyImmediatePlanUpgrade(ctx context.Context, input ApplyImmediatePlanUpgradeInput) error
+	// SchedulePlanDowngrade parks a pending plan change on the subscription to apply
+	// at EffectiveAt (the current period end). It does NOT refund, charge, or change
+	// entitlements now; the recurring renewal sweep applies it at period end via
+	// ApplyDuePlanChanges.
+	SchedulePlanDowngrade(ctx context.Context, input SchedulePlanDowngradeInput) error
 	ActivateRecurringBilling(ctx context.Context, input ActivateRecurringBillingInput) error
 	// PrepareSubscriptionActivationCharge returns a DETERMINISTIC charge reference
 	// for the subscription's current period and whether a first charge is still
@@ -156,6 +173,44 @@ type BusinessSubscriptionRecord struct {
 	QuarterlyRenewalMinor int
 	YearlyFirstMinor      int
 	YearlyRenewalMinor    int
+	// Current billed period bounds, so a self-serve plan change can prorate the
+	// remainder of the period (upgrade) and pin a downgrade's effective date.
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+}
+
+// PlanPricingRecord is a plan's identity + pricing needed to classify and prorate a
+// self-serve plan change. It comes from the global (non-tenant) plans table.
+type PlanPricingRecord struct {
+	PlanID          common.ID
+	Code            string
+	MonthlyFeeMinor int
+	// Cadence renewal figures (minor units); the proration is computed against
+	// these, matching how the recurring sweep bills each renewal.
+	QuarterlyRenewalMinor int
+	YearlyRenewalMinor    int
+}
+
+// ApplyImmediatePlanUpgradeInput switches a tenant to a higher plan at once. When
+// AmountMinor > 0 it also books the prorated charge as a paid invoice keyed on
+// ChargeRef (idempotent); a zero amount just switches the plan (no invoice).
+type ApplyImmediatePlanUpgradeInput struct {
+	BusinessID  common.ID
+	NewPlanID   common.ID
+	AmountMinor int64
+	Currency    string
+	// ChargeRef is the deterministic Paystack charge reference; it becomes the
+	// invoice ref so the charge webhook reconciles to this already-paid invoice and
+	// a replayed upgrade no-ops instead of switching/charging twice.
+	ChargeRef string
+}
+
+// SchedulePlanDowngradeInput parks a pending downgrade to apply at period end. It
+// does NOT change entitlements or move money now.
+type SchedulePlanDowngradeInput struct {
+	BusinessID  common.ID
+	NewPlanID   common.ID
+	EffectiveAt time.Time
 }
 
 // ActivateRecurringBillingInput stores the verified Paystack references on a

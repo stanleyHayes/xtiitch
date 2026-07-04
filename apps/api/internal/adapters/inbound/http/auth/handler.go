@@ -24,6 +24,7 @@ type Service interface {
 	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
 	InitializeSubscriptionAuthorization(ctx context.Context, command authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error)
 	VerifySubscriptionAuthorization(ctx context.Context, command authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error)
+	ChangeSubscriptionPlan(ctx context.Context, command authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult, error)
 	SubmitIdentityVerification(ctx context.Context, command authapp.SubmitIdentityVerificationCommand) error
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
 	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
@@ -82,6 +83,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/auth/business/me", handler.me)
 		protected.Post("/auth/business/subscription/authorization-link", handler.initializeSubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/authorization-verifications", handler.verifySubscriptionAuthorization)
+		protected.Post("/auth/business/subscription/change-plan", handler.changeSubscriptionPlan)
 		protected.Post("/auth/business/identity-verification", handler.submitIdentityVerification)
 		protected.Get("/auth/business/users", handler.listBusinessUsers)
 		protected.Post("/auth/business/users", handler.createBusinessUser)
@@ -410,6 +412,52 @@ func (handler Handler) verifySubscriptionAuthorization(w http.ResponseWriter, r 
 		BillingMode:             result.BillingMode,
 		ProviderCustomerRef:     result.ProviderCustomerRef,
 		ProviderSubscriptionRef: result.ProviderSubscriptionRef,
+	})
+}
+
+type changeSubscriptionPlanRequest struct {
+	PlanCode string `json:"plan_code"`
+}
+
+type changeSubscriptionPlanResponse struct {
+	PlanCode string `json:"plan_code"`
+	// Immediate is true for an applied upgrade, false for a downgrade scheduled at
+	// the next renewal.
+	Immediate bool `json:"immediate"`
+	// ProratedChargeMinor is what was charged now for the remainder of the current
+	// period (upgrade); 0 for a downgrade or a zero-difference upgrade.
+	ProratedChargeMinor int64 `json:"prorated_charge_minor"`
+	// EffectiveAt is when the new plan takes effect (now for an upgrade, the period
+	// end for a scheduled downgrade), RFC3339.
+	EffectiveAt string `json:"effective_at"`
+}
+
+func (handler Handler) changeSubscriptionPlan(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	var request changeSubscriptionPlanRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.ChangeSubscriptionPlan(r.Context(), authapp.ChangeSubscriptionPlanCommand{
+		Scope:     principal.TenantScope(),
+		ActorRole: principal.Role,
+		PlanCode:  request.PlanCode,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, changeSubscriptionPlanResponse{
+		PlanCode:            result.PlanCode,
+		Immediate:           result.Immediate,
+		ProratedChargeMinor: result.ProratedChargeMinor,
+		EffectiveAt:         result.EffectiveAt.Format(time.RFC3339),
 	})
 }
 
@@ -965,6 +1013,12 @@ func authError(err error) (int, string) {
 		return http.StatusBadRequest, "discount_code_ineligible"
 	case errors.Is(err, authapp.ErrDiscountCodeExhausted):
 		return http.StatusConflict, "discount_code_exhausted"
+	case errors.Is(err, authapp.ErrPlanChangeSamePlan):
+		return http.StatusConflict, "plan_change_same_plan"
+	case errors.Is(err, authapp.ErrPlanChangeBillingInactive):
+		return http.StatusConflict, "billing_not_active"
+	case errors.Is(err, authapp.ErrPlanChangeChargeFailed):
+		return http.StatusPaymentRequired, "upgrade_charge_failed"
 	case errors.Is(err, authdomain.ErrMFAAlreadyEnabled):
 		return http.StatusConflict, "mfa_already_enabled"
 	case errors.Is(err, authdomain.ErrMFANotEnrolled):
