@@ -214,7 +214,13 @@ function formatPrice(minor: number): string {
 function cadenceCopy(
   plan: PublicPlan,
   cadence: BillingCadence,
-): { label: string; per: string; firstLabel: string; first: number; renewal: number } {
+): {
+  label: string;
+  per: string;
+  firstLabel: string;
+  first: number;
+  renewal: number;
+} {
   if (cadence === "quarterly") {
     return {
       label: "Quarterly",
@@ -351,7 +357,8 @@ export default function BillingOnboarding({
                                       variant="body2"
                                       sx={{ color: alpha(tokens.ink, 0.68) }}
                                     >
-                                      then {formatPrice(copy.renewal)}/{copy.per}
+                                      then {formatPrice(copy.renewal)}/
+                                      {copy.per}
                                     </Typography>
                                   </Box>
                                 }
