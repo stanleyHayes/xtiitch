@@ -445,8 +445,13 @@ func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool
 // sign-in is exercisable locally with no creds.
 func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerOTPDelivery {
 	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
+		if cfg.WhatsAppOTPTemplateName == "" {
+			logger.Warn("WHATSAPP_OTP_TEMPLATE_NAME not set; OTPs send as free-form text, which WhatsApp only delivers inside a 24h session — set an approved AUTHENTICATION template for cold sign-ups")
+		}
 		return authadapter.NewWhatsAppOTPDelivery(
 			whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion),
+			cfg.WhatsAppOTPTemplateName,
+			cfg.WhatsAppOTPTemplateLang,
 		)
 	}
 	logger.Warn("whatsapp credentials not set; customer OTPs will be logged, not sent")

@@ -135,6 +135,14 @@ services:
         sync: false
       - key: WHATSAPP_ACCESS_TOKEN
         sync: false
+      # Approved WhatsApp AUTHENTICATION template for OTP delivery. WhatsApp only
+      # delivers business-initiated (cold) codes via a template — free-form text
+      # is dropped outside a 24h session. Set this to the approved template's name
+      # (lang defaults to en_US) so sign-in/verification codes reach new users.
+      - key: WHATSAPP_OTP_TEMPLATE_NAME
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE_LANG
+        value: en_US
 
   # ──────────────────────────────────────────────────────────────────────────
   # BullMQ worker — ENABLED now that WhatsApp Cloud credentials are provisioned.

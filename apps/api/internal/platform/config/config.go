@@ -81,7 +81,15 @@ type Config struct {
 	WhatsAppPhoneNumberID string
 	WhatsAppAccessToken   string
 	WhatsAppGraphVersion  string
-	WorkerQueueName       string
+	// WhatsAppOTPTemplateName is the approved WhatsApp AUTHENTICATION template used
+	// to deliver sign-in/verification codes. WhatsApp blocks business-initiated
+	// free-form text outside the 24h customer-service window, so a cold OTP only
+	// delivers via an approved template. When empty, delivery falls back to a
+	// free-form text message (works only inside an open 24h session — dev/testing).
+	// WhatsAppOTPTemplateLang is that template's language code (e.g. en_US).
+	WhatsAppOTPTemplateName string
+	WhatsAppOTPTemplateLang string
+	WorkerQueueName         string
 }
 
 func Load() Config {
@@ -142,6 +150,8 @@ func Load() Config {
 		WhatsAppPhoneNumberID:    getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
 		WhatsAppAccessToken:      getenv("WHATSAPP_ACCESS_TOKEN", ""),
 		WhatsAppGraphVersion:     getenv("WHATSAPP_GRAPH_VERSION", "v21.0"),
+		WhatsAppOTPTemplateName:  getenv("WHATSAPP_OTP_TEMPLATE_NAME", ""),
+		WhatsAppOTPTemplateLang:  getenv("WHATSAPP_OTP_TEMPLATE_LANG", "en_US"),
 		WorkerQueueName:          getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
 	}
 }

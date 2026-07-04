@@ -36,13 +36,48 @@ func NewCloudSender(phoneNumberID, accessToken, graphVersion string) CloudSender
 }
 
 func (s CloudSender) SendText(ctx context.Context, toWaID, body string) error {
-	payload, err := json.Marshal(map[string]any{
+	return s.postMessage(ctx, toWaID, map[string]any{
 		"messaging_product": "whatsapp",
 		"recipient_type":    "individual",
 		"to":                toWaID,
 		"type":              "text",
 		"text":              map[string]any{"preview_url": false, "body": body},
 	})
+}
+
+// SendAuthTemplate delivers a one-time code via an approved WhatsApp
+// AUTHENTICATION template. Unlike free-form text, a template can be sent
+// business-initiated (outside the 24h customer-service window), which is required
+// for cold sign-up/verification codes. The code is passed as the single body
+// parameter; for a COPY_CODE template Meta populates the copy-code button from it.
+func (s CloudSender) SendAuthTemplate(ctx context.Context, toWaID, templateName, languageCode, code string) error {
+	if strings.TrimSpace(languageCode) == "" {
+		languageCode = "en_US"
+	}
+	return s.postMessage(ctx, toWaID, map[string]any{
+		"messaging_product": "whatsapp",
+		"recipient_type":    "individual",
+		"to":                toWaID,
+		"type":              "template",
+		"template": map[string]any{
+			"name":     templateName,
+			"language": map[string]any{"code": languageCode},
+			"components": []any{
+				map[string]any{
+					"type":       "body",
+					"parameters": []any{map[string]any{"type": "text", "text": code}},
+				},
+			},
+		},
+	})
+}
+
+// postMessage marshals and POSTs a Cloud API message payload, returning an error
+// that includes Meta's response body on a non-2xx so the real reason (e.g. 133010
+// unregistered, 131047 re-engagement, 132xxx template issue, 190 bad token) is
+// visible in logs instead of a bare status code.
+func (s CloudSender) postMessage(ctx context.Context, toWaID string, message map[string]any) error {
+	payload, err := json.Marshal(message)
 	if err != nil {
 		return err
 	}
@@ -60,9 +95,6 @@ func (s CloudSender) SendText(ctx context.Context, toWaID, body string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// Include Meta's response body — it carries the real reason (e.g. error
-		// 131047 re-engagement / 132000 template mismatch / 190 bad token) that a
-		// bare status code hides. Capped so a huge body can't bloat the log.
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf(
 			"whatsapp cloud send to %s returned %d: %s",

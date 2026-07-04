@@ -47,19 +47,41 @@ func (d LoggingOTPDelivery) SendOTP(_ context.Context, phone string, code string
 	return nil
 }
 
+// authTemplateSender is the optional capability to deliver a code via an approved
+// WhatsApp AUTHENTICATION template (CloudSender implements it). Free-form text is
+// dropped by Meta for business-initiated messages outside the 24h window, so a
+// cold OTP only delivers via a template.
+type authTemplateSender interface {
+	SendAuthTemplate(ctx context.Context, toWaID, templateName, languageCode, code string) error
+}
+
 // WhatsAppOTPDelivery sends the one-time code over the WhatsApp Cloud API. Used
 // in production when WhatsApp credentials are configured; bootstrap falls back to
 // LoggingOTPDelivery otherwise. The phone is already normalised to the WhatsApp
-// id form (233XXXXXXXXX) by the customer-auth service.
+// id form (233XXXXXXXXX) by the customer-auth service. When a template name is
+// configured and the sender supports templates, the code is delivered via the
+// approved AUTHENTICATION template (required for cold, business-initiated OTPs);
+// otherwise it falls back to a free-form text (only delivered inside a 24h session).
 type WhatsAppOTPDelivery struct {
-	sender ports.WhatsAppSender
+	sender       ports.WhatsAppSender
+	templateName string
+	languageCode string
 }
 
-func NewWhatsAppOTPDelivery(sender ports.WhatsAppSender) WhatsAppOTPDelivery {
-	return WhatsAppOTPDelivery{sender: sender}
+func NewWhatsAppOTPDelivery(sender ports.WhatsAppSender, templateName, languageCode string) WhatsAppOTPDelivery {
+	return WhatsAppOTPDelivery{
+		sender:       sender,
+		templateName: strings.TrimSpace(templateName),
+		languageCode: strings.TrimSpace(languageCode),
+	}
 }
 
 func (d WhatsAppOTPDelivery) SendOTP(ctx context.Context, phone string, code string) error {
+	if d.templateName != "" {
+		if ts, ok := d.sender.(authTemplateSender); ok {
+			return ts.SendAuthTemplate(ctx, phone, d.templateName, d.languageCode, code)
+		}
+	}
 	body := fmt.Sprintf(
 		"Your Xtiitch code is %s. It expires in 5 minutes — don't share it with anyone.",
 		code,
