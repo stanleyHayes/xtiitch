@@ -57,6 +57,12 @@ type AdminBusinessRepository interface {
 	CreateAdminPlan(ctx context.Context, input CreateAdminPlanInput) (AdminPlanRecord, error)
 	UpdateAdminPlan(ctx context.Context, input UpdateAdminPlanInput) (AdminPlanRecord, error)
 	ArchiveAdminPlan(ctx context.Context, input ArchiveAdminPlanInput) (AdminPlanRecord, error)
+	ListAdminPlanEntitlements(ctx context.Context) ([]AdminPlanEntitlementFeatureRecord, error)
+	UpdateAdminPlanEntitlements(ctx context.Context, input UpdateAdminPlanEntitlementsInput) ([]AdminPlanEntitlementFeatureRecord, error)
+	ListAdminSubscriptionDiscountCodes(ctx context.Context) ([]AdminSubscriptionDiscountCodeRecord, error)
+	CreateAdminSubscriptionDiscountCode(ctx context.Context, input CreateAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
+	UpdateAdminSubscriptionDiscountCode(ctx context.Context, input UpdateAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
+	ArchiveAdminSubscriptionDiscountCode(ctx context.Context, input ArchiveAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
 	ListAdminPromotions(ctx context.Context) ([]AdminPromotionRecord, error)
 	CreateAdminPromotion(ctx context.Context, input CreateAdminPromotionInput) (AdminPromotionRecord, error)
 	UpdateAdminPromotion(ctx context.Context, input UpdateAdminPromotionInput) (AdminPromotionRecord, error)
@@ -411,7 +417,10 @@ type AdminSubscriptionRecord struct {
 	BusinessID              common.ID
 	BusinessName            string
 	Handle                  string
+	OwnerName               string
+	OwnerPhone              string
 	OwnerEmail              string
+	OwnerWhatsApp           string
 	PlanCode                string
 	PlanName                string
 	MonthlyFeeMinor         int64
@@ -433,6 +442,12 @@ type AdminSubscriptionRecord struct {
 	LastInvoiceRef          string
 	LastPaymentAt           *time.Time
 	NextBillingAt           *time.Time
+	SignupAt                time.Time
+	RenewalAt               *time.Time
+	StoreLink               string
+	DiscountCode            string
+	DiscountInstitution     string
+	LastActiveAt            time.Time
 	OrdersCount             int
 	GMVMinor                int64
 	CommissionMinor         int64
@@ -567,6 +582,121 @@ type UpdateAdminPlanInput struct {
 
 type ArchiveAdminPlanInput struct {
 	PlanID common.ID
+}
+
+type AdminPlanEntitlementFeatureRecord struct {
+	FeatureKey  string
+	Label       string
+	Description string
+	Category    string
+	ValueType   string
+	Unit        string
+	SortOrder   int
+	IsActive    bool
+	Values      []AdminPlanEntitlementValueRecord
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+}
+
+type AdminPlanEntitlementValueRecord struct {
+	PlanID     common.ID
+	PlanCode   string
+	Enabled    bool
+	LimitValue *int
+	UpdatedAt  time.Time
+}
+
+type AdminPlanEntitlementValueInput struct {
+	PlanID     common.ID
+	FeatureKey string
+	Enabled    bool
+	LimitValue *int
+}
+
+type UpdateAdminPlanEntitlementsInput struct {
+	ActorAdminUser common.ID
+	Values         []AdminPlanEntitlementValueInput
+}
+
+type AdminSubscriptionDiscountCodeRecord struct {
+	DiscountCodeID      common.ID
+	Code                string
+	DiscountType        string
+	DiscountValue       int
+	EligiblePlans       []string
+	EligibleCadences    []string
+	FirstPurchaseOnly   bool
+	MaxRedemptionsTotal *int
+	MaxPerAccount       int
+	ValidFrom           *time.Time
+	ValidUntil          *time.Time
+	Active              bool
+	OwnerName           string
+	BatchLabel          string
+	Stackable           bool
+	ArchivedAt          *time.Time
+	RedemptionCount     int
+	AppliedCount        int
+	DiscountMinor       int64
+	RecentRedemptions   []AdminSubscriptionDiscountRedemptionRecord
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+}
+
+type AdminSubscriptionDiscountRedemptionRecord struct {
+	RedemptionID  common.ID
+	BusinessID    common.ID
+	BusinessName  string
+	PlanCode      string
+	Cadence       string
+	AccountKey    string
+	Status        string
+	DiscountMinor int64
+	CreatedAt     time.Time
+	AppliedAt     *time.Time
+}
+
+type CreateAdminSubscriptionDiscountCodeInput struct {
+	DiscountCodeID      common.ID
+	Code                string
+	DiscountType        string
+	DiscountValue       int
+	EligiblePlans       []string
+	EligibleCadences    []string
+	FirstPurchaseOnly   bool
+	MaxRedemptionsTotal *int
+	MaxPerAccount       int
+	ValidFrom           *time.Time
+	ValidUntil          *time.Time
+	Active              bool
+	OwnerName           string
+	BatchLabel          string
+	Stackable           bool
+	ActorAdminUser      common.ID
+}
+
+type UpdateAdminSubscriptionDiscountCodeInput struct {
+	DiscountCodeID      common.ID
+	Code                string
+	DiscountType        string
+	DiscountValue       int
+	EligiblePlans       []string
+	EligibleCadences    []string
+	FirstPurchaseOnly   bool
+	MaxRedemptionsTotal *int
+	MaxPerAccount       int
+	ValidFrom           *time.Time
+	ValidUntil          *time.Time
+	Active              bool
+	OwnerName           string
+	BatchLabel          string
+	Stackable           bool
+	ActorAdminUser      common.ID
+}
+
+type ArchiveAdminSubscriptionDiscountCodeInput struct {
+	DiscountCodeID common.ID
+	ActorAdminUser common.ID
 }
 
 type AdminPromotionRecord struct {

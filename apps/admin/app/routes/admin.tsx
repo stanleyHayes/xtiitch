@@ -67,6 +67,7 @@ import ChevronRightRounded from "@mui/icons-material/ChevronRightRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
 import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
+import EmailRounded from "@mui/icons-material/EmailRounded";
 import FileDownloadRounded from "@mui/icons-material/FileDownloadRounded";
 import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
@@ -81,8 +82,10 @@ import NotificationsActiveRounded from "@mui/icons-material/NotificationsActiveR
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
+import PhoneRounded from "@mui/icons-material/PhoneRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import SmsRounded from "@mui/icons-material/SmsRounded";
 import ViewListRounded from "@mui/icons-material/ViewListRounded";
 import GridViewRounded from "@mui/icons-material/GridViewRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
@@ -93,6 +96,7 @@ import SyncRounded from "@mui/icons-material/SyncRounded";
 import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import WorkspacePremiumRounded from "@mui/icons-material/WorkspacePremiumRounded";
 import type { Route } from "./+types/admin";
 import {
@@ -120,6 +124,7 @@ import {
   type AdminMoneyRails,
   type AdminOperationsHealth,
   type AdminPlan,
+  type AdminPlanEntitlementFeature,
   PLAN_BENEFITS,
   type AdminMoneyWebhookStatus,
   type AdminPlatformMetrics,
@@ -144,6 +149,8 @@ import {
   type AdminRiskReviewStatus,
   type AdminSubscription,
   type AdminSubscriptionBillingMode,
+  type AdminSubscriptionDiscountCode,
+  type AdminSubscriptionDiscountType,
   type AdminSubscriptionStatus,
   type AdminSupportAssignment,
   type AdminSupportTicket,
@@ -294,6 +301,12 @@ type AdminExportDataset = {
   sourceLabel: string;
   rows: (string | number)[][];
   tone: AdminReportStatus;
+};
+
+type EntitlementFormRow = {
+  planId: string;
+  featureKey: string;
+  valueType: "boolean" | "limit";
 };
 
 type AdminNavItem = {
@@ -776,6 +789,18 @@ export async function loader({ request }: Route.LoaderArgs) {
     "Your role cannot manage plan packages.",
     "Plan packages could not be loaded right now.",
   );
+  const planEntitlementsResult = await loadAdminResource(
+    () => adminApi.planEntitlements(accessToken),
+    [] as AdminPlanEntitlementFeature[],
+    "Your role cannot manage plan entitlements.",
+    "Plan entitlements could not be loaded right now.",
+  );
+  const subscriptionDiscountCodesResult = await loadAdminResource(
+    () => adminApi.subscriptionDiscountCodes(accessToken),
+    [] as AdminSubscriptionDiscountCode[],
+    "Your role cannot manage subscription discount codes.",
+    "Subscription discount codes could not be loaded right now.",
+  );
   const promotionsResult = await loadAdminResource(
     () => adminApi.promotions(accessToken),
     [] as AdminPromotion[],
@@ -865,6 +890,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     subscriptionsError: subscriptionsResult.error,
     plans: plansResult.data,
     plansError: plansResult.error,
+    planEntitlements: planEntitlementsResult.data,
+    planEntitlementsError: planEntitlementsResult.error,
+    subscriptionDiscountCodes: subscriptionDiscountCodesResult.data,
+    subscriptionDiscountCodesError: subscriptionDiscountCodesResult.error,
     promotions: promotionsResult.data,
     promotionsError: promotionsResult.error,
     adCampaigns: adCampaignsResult.data,
@@ -1484,6 +1513,116 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
+  if (intent === "admin-plan-entitlements:update") {
+    const { accessToken } = await requireAdminContext(request);
+    const values = form
+      .getAll("entitlement_row")
+      .map((value) => readEntitlementRow(value))
+      .filter((row): row is EntitlementFormRow => Boolean(row))
+      .map((row) => {
+        const inputId = `${row.planId}:${row.featureKey}`;
+        const enabled = form.get(`enabled:${inputId}`) === "on";
+        return {
+          planId: row.planId,
+          featureKey: row.featureKey,
+          enabled,
+          limitValue:
+            row.valueType === "limit" && enabled
+              ? readOptionalInteger(form.get(`limit:${inputId}`))
+              : undefined,
+        };
+      });
+
+    try {
+      await adminApi.updatePlanEntitlements(accessToken, { values });
+      return {
+        section: "subscriptions",
+        severity: "success",
+        message: "Plan entitlement matrix updated.",
+      };
+    } catch (error) {
+      return {
+        section: "subscriptions",
+        severity: "error",
+        message: adminPlanActionError(error),
+      };
+    }
+  }
+
+  if (
+    intent === "admin-subscription-discount:create" ||
+    intent === "admin-subscription-discount:update" ||
+    intent === "admin-subscription-discount:archive"
+  ) {
+    const { accessToken } = await requireAdminContext(request);
+
+    try {
+      if (intent === "admin-subscription-discount:archive") {
+        await adminApi.archiveSubscriptionDiscountCode(
+          accessToken,
+          String(form.get("discount_code_id") ?? ""),
+          String(form.get("reason") ?? ""),
+        );
+        return {
+          section: "subscriptions",
+          severity: "success",
+          message: "Subscription discount code archived.",
+        };
+      }
+
+      const payload = {
+        code: String(form.get("code") ?? ""),
+        discountType: readSubscriptionDiscountType(form.get("discount_type")),
+        discountValue: readSubscriptionDiscountValue(
+          form.get("discount_type"),
+          form.get("discount_value"),
+        ),
+        eligiblePlans: form
+          .getAll("eligible_plans")
+          .map((value) => String(value)),
+        eligibleCadences: form
+          .getAll("eligible_cadences")
+          .map((value) => String(value)),
+        firstPurchaseOnly: form.get("first_purchase_only") === "on",
+        maxRedemptionsTotal: readOptionalInteger(
+          form.get("max_redemptions_total"),
+        ),
+        maxPerAccount: Math.trunc(readNumber(form.get("max_per_account"), 1)),
+        validFrom: readOptionalDateTime(form.get("valid_from")),
+        validUntil: readOptionalDateTime(form.get("valid_until")),
+        active: form.get("active") === "on",
+        ownerName: String(form.get("owner_name") ?? ""),
+        batchLabel: String(form.get("batch_label") ?? ""),
+      };
+
+      if (intent === "admin-subscription-discount:create") {
+        await adminApi.createSubscriptionDiscountCode(accessToken, payload);
+        return {
+          section: "subscriptions",
+          severity: "success",
+          message: "Subscription discount code created.",
+        };
+      }
+
+      await adminApi.updateSubscriptionDiscountCode(
+        accessToken,
+        String(form.get("discount_code_id") ?? ""),
+        payload,
+      );
+      return {
+        section: "subscriptions",
+        severity: "success",
+        message: "Subscription discount code updated.",
+      };
+    } catch (error) {
+      return {
+        section: "subscriptions",
+        severity: "error",
+        message: adminSubscriptionActionError(error),
+      };
+    }
+  }
+
   if (
     intent === "admin-promotion:create" ||
     intent === "admin-promotion:update" ||
@@ -2054,6 +2193,16 @@ function readSubscriptionBillingMode(
   return "manual";
 }
 
+function readSubscriptionDiscountType(
+  value: FormDataEntryValue | null,
+): AdminSubscriptionDiscountType {
+  const discountType = String(value ?? "");
+  if (discountType === "free_period" || discountType === "fixed") {
+    return discountType;
+  }
+  return "percentage";
+}
+
 function readPromotionDiscountType(
   value: FormDataEntryValue | null,
 ): AdminPromotionDiscountType {
@@ -2244,6 +2393,42 @@ function readPromotionDiscountValue(
     return Math.round(readNumber(value, 0) * 100);
   }
   return readGhsPesewas(value);
+}
+
+function readSubscriptionDiscountValue(
+  discountTypeValue: FormDataEntryValue | null,
+  value: FormDataEntryValue | null,
+): number {
+  const discountType = readSubscriptionDiscountType(discountTypeValue);
+  if (discountType === "percentage") {
+    return Math.round(readNumber(value, 0) * 100);
+  }
+  if (discountType === "fixed") {
+    return readGhsPesewas(value);
+  }
+  return readInt(value, 1);
+}
+
+function readEntitlementRow(
+  value: FormDataEntryValue,
+): EntitlementFormRow | null {
+  try {
+    const parsed = JSON.parse(String(value)) as Partial<EntitlementFormRow>;
+    if (
+      typeof parsed.planId !== "string" ||
+      typeof parsed.featureKey !== "string" ||
+      (parsed.valueType !== "boolean" && parsed.valueType !== "limit")
+    ) {
+      return null;
+    }
+    return {
+      planId: parsed.planId,
+      featureKey: parsed.featureKey,
+      valueType: parsed.valueType,
+    };
+  } catch {
+    return null;
+  }
 }
 
 function readRiskReviewStatus(
@@ -2778,6 +2963,17 @@ function shortTime(value: string): string {
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
+}
+
+function shortTimeOrFallback(value?: string, fallback = "Not set"): string {
+  if (!value) {
+    return fallback;
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return fallback;
+  }
+  return shortTime(value);
 }
 
 function shortID(value: string): string {
@@ -7625,6 +7821,21 @@ const subscriptionBillingModeOptions: {
   { value: "recurring", label: "Recurring" },
 ];
 
+const subscriptionDiscountTypeOptions: {
+  value: AdminSubscriptionDiscountType;
+  label: string;
+}[] = [
+  { value: "percentage", label: "Percentage" },
+  { value: "fixed", label: "Fixed amount" },
+  { value: "free_period", label: "Free period" },
+];
+
+const subscriptionDiscountCadenceOptions: { value: string; label: string }[] = [
+  { value: "monthly", label: "Monthly" },
+  { value: "quarterly", label: "Quarterly" },
+  { value: "yearly", label: "Yearly" },
+];
+
 const promotionDiscountTypeOptions: {
   value: AdminPromotionDiscountType;
   label: string;
@@ -7779,6 +7990,121 @@ function billingModeLabel(mode: AdminSubscriptionBillingMode): string {
     subscriptionBillingModeOptions.find((option) => option.value === mode)
       ?.label ?? mode
   );
+}
+
+function subscriptionDiscountTypeLabel(
+  value: AdminSubscriptionDiscountType,
+): string {
+  return (
+    subscriptionDiscountTypeOptions.find((option) => option.value === value)
+      ?.label ?? value
+  );
+}
+
+function subscriptionDiscountValueLabel(
+  discount: Pick<
+    AdminSubscriptionDiscountCode,
+    "discountType" | "discountValue"
+  >,
+): string {
+  if (discount.discountType === "percentage") {
+    return `${(discount.discountValue / 100).toFixed(1)}%`;
+  }
+  if (discount.discountType === "fixed") {
+    return formatGHS(discount.discountValue);
+  }
+  return `${discount.discountValue} month${discount.discountValue === 1 ? "" : "s"}`;
+}
+
+function subscriptionDiscountValueDefault(
+  discount: Pick<
+    AdminSubscriptionDiscountCode,
+    "discountType" | "discountValue"
+  >,
+): string {
+  if (discount.discountType === "percentage") {
+    return (discount.discountValue / 100).toString();
+  }
+  if (discount.discountType === "fixed") {
+    return (discount.discountValue / 100).toFixed(2);
+  }
+  return String(discount.discountValue);
+}
+
+function subscriptionDiscountStatus(
+  discount: Pick<
+    AdminSubscriptionDiscountCode,
+    "active" | "archivedAt" | "validFrom" | "validUntil"
+  >,
+): { label: string; color: string } {
+  const now = Date.now();
+  if (discount.archivedAt) {
+    return { label: "Archived", color: tokens.mutedText };
+  }
+  if (!discount.active) {
+    return { label: "Paused", color: tokens.warning };
+  }
+  if (discount.validUntil && new Date(discount.validUntil).getTime() < now) {
+    return { label: "Expired", color: tokens.danger };
+  }
+  if (discount.validFrom && new Date(discount.validFrom).getTime() > now) {
+    return { label: "Scheduled", color: tokens.info };
+  }
+  return { label: "Active", color: tokens.success };
+}
+
+function subscriptionContactNumber(subscription: AdminSubscription): string {
+  return subscription.ownerWhatsApp || subscription.ownerPhone;
+}
+
+function digitsOnly(value: string): string {
+  return value.replace(/\D/g, "");
+}
+
+function ghanaPhoneDigits(value: string): string {
+  const digits = digitsOnly(value);
+  if (digits.length === 10 && digits.startsWith("0")) {
+    return `233${digits.slice(1)}`;
+  }
+  if (digits.length === 9) {
+    return `233${digits}`;
+  }
+  return digits;
+}
+
+function whatsappHref(value: string): string | undefined {
+  const digits = ghanaPhoneDigits(value);
+  return digits ? `https://wa.me/${digits}` : undefined;
+}
+
+function smsHref(value: string): string | undefined {
+  const digits = ghanaPhoneDigits(value);
+  return digits ? `sms:${digits}` : undefined;
+}
+
+function planEntitlementValue(
+  feature: AdminPlanEntitlementFeature,
+  plan: AdminPlan,
+) {
+  return feature.values.find(
+    (value) => value.planId === plan.planId || value.planCode === plan.code,
+  );
+}
+
+function entitlementValueLabel(
+  feature: AdminPlanEntitlementFeature,
+  plan: AdminPlan,
+): string {
+  const value = planEntitlementValue(feature, plan);
+  if (!value?.enabled) {
+    return "Locked";
+  }
+  if (feature.valueType === "limit") {
+    return typeof value.limitValue === "number"
+      ? `${value.limitValue} ${feature.unit || ""}`.trim()
+      : "Unlimited";
+  }
+  return "Included";
 }
 
 function invoiceStatusLabel(status: string): string {
@@ -8376,6 +8702,10 @@ function SubscriptionsSection({
   subscriptionsError,
   plans,
   plansError,
+  planEntitlements,
+  planEntitlementsError,
+  subscriptionDiscountCodes,
+  subscriptionDiscountCodesError,
   platformMetrics,
   actionData,
   onSelect,
@@ -8384,6 +8714,10 @@ function SubscriptionsSection({
   subscriptionsError: string | null;
   plans: AdminPlan[];
   plansError: string | null;
+  planEntitlements: AdminPlanEntitlementFeature[];
+  planEntitlementsError: string | null;
+  subscriptionDiscountCodes: AdminSubscriptionDiscountCode[];
+  subscriptionDiscountCodesError: string | null;
   platformMetrics: AdminPlatformMetrics | null;
   actionData?: AdminActionFeedback;
   onSelect: (section: Section) => void;
@@ -8391,6 +8725,14 @@ function SubscriptionsSection({
   const [manageBusinessId, setManageBusinessId] = useState<string | null>(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [planDialogId, setPlanDialogId] = useState<string | null>(null);
+  const [createDiscountOpen, setCreateDiscountOpen] = useState(false);
+  const [discountDialogId, setDiscountDialogId] = useState<string | null>(null);
+  const [subscriberQuery, setSubscriberQuery] = useState("");
+  const [subscriberPlanFilter, setSubscriberPlanFilter] = useState("all");
+  const [subscriberStatusFilter, setSubscriberStatusFilter] = useState("all");
+  const [subscriberInstitutionFilter, setSubscriberInstitutionFilter] =
+    useState("all");
+  const [subscriberCadenceFilter, setSubscriberCadenceFilter] = useState("all");
   const billableSubscriptions = subscriptions.filter(
     (subscription) =>
       subscription.monthlyFeeMinor > 0 && subscription.status !== "canceled",
@@ -8548,6 +8890,60 @@ function SubscriptionsSection({
   );
   const recurringBlockedCount =
     recurringDueRows.length - recurringReadyRows.length;
+  const subscriberInstitutionOptions = Array.from(
+    new Set(
+      subscriptions
+        .map((subscription) => subscription.discountInstitution.trim())
+        .filter(Boolean),
+    ),
+  );
+  const filteredSubscriberRows = subscriptions.filter((subscription) => {
+    const query = subscriberQuery.trim().toLowerCase();
+    const matchesQuery =
+      !query ||
+      [
+        subscription.businessName,
+        subscription.ownerName,
+        subscription.ownerEmail,
+        subscription.ownerPhone,
+        subscription.ownerWhatsApp,
+        subscription.handle,
+        subscription.discountCode,
+        subscription.discountInstitution,
+      ]
+        .join(" ")
+        .toLowerCase()
+        .includes(query);
+    const matchesPlan =
+      subscriberPlanFilter === "all" ||
+      subscription.planCode === subscriberPlanFilter;
+    const matchesStatus =
+      subscriberStatusFilter === "all" ||
+      subscription.status === subscriberStatusFilter;
+    const matchesInstitution =
+      subscriberInstitutionFilter === "all" ||
+      subscription.discountInstitution === subscriberInstitutionFilter;
+    const matchesCadence =
+      subscriberCadenceFilter === "all" ||
+      subscription.billingMode === subscriberCadenceFilter;
+    return (
+      matchesQuery &&
+      matchesPlan &&
+      matchesStatus &&
+      matchesInstitution &&
+      matchesCadence
+    );
+  });
+  const {
+    page: subscriberPage,
+    pageCount: subscriberPageCount,
+    pagedItems: pagedSubscriberRows,
+    setPage: setSubscriberPage,
+  } = usePagedItems(
+    filteredSubscriberRows,
+    8,
+    `${subscriberQuery}:${subscriberPlanFilter}:${subscriberStatusFilter}:${subscriberInstitutionFilter}:${subscriberCadenceFilter}`,
+  );
 
   return (
     <Stack spacing={2.5}>
@@ -8735,6 +9131,16 @@ function SubscriptionsSection({
           </Box>
         </Stack>
       </Panel>
+
+      <SubscriptionDiscountCodesPanel
+        discountCodes={subscriptionDiscountCodes}
+        discountCodesError={subscriptionDiscountCodesError}
+        plans={visiblePlans}
+        createOpen={createDiscountOpen}
+        selectedDiscountId={discountDialogId}
+        onCreateOpenChange={setCreateDiscountOpen}
+        onSelectDiscount={setDiscountDialogId}
+      />
 
       <Stack spacing={1}>
         <Typography variant="h6">Package controls</Typography>
@@ -9412,6 +9818,33 @@ function SubscriptionsSection({
         pageSize={8}
         total={planRows.length}
         onChange={setPlanRowPage}
+      />
+
+      <PlanEntitlementMatrixPanel
+        features={planEntitlements}
+        featuresError={planEntitlementsError}
+        plans={plans}
+      />
+
+      <SubscriberCrmPanel
+        subscriptions={subscriptions}
+        filteredSubscriptions={filteredSubscriberRows}
+        pagedSubscriptions={pagedSubscriberRows}
+        query={subscriberQuery}
+        planFilter={subscriberPlanFilter}
+        statusFilter={subscriberStatusFilter}
+        institutionFilter={subscriberInstitutionFilter}
+        billingModeFilter={subscriberCadenceFilter}
+        plans={visiblePlans}
+        institutionOptions={subscriberInstitutionOptions}
+        page={subscriberPage}
+        pageCount={subscriberPageCount}
+        onQueryChange={setSubscriberQuery}
+        onPlanFilterChange={setSubscriberPlanFilter}
+        onStatusFilterChange={setSubscriberStatusFilter}
+        onInstitutionFilterChange={setSubscriberInstitutionFilter}
+        onBillingModeFilterChange={setSubscriberCadenceFilter}
+        onPageChange={setSubscriberPage}
       />
 
       <Box
@@ -10170,6 +10603,1260 @@ function PlanStatTile({
         </Typography>
       ) : null}
     </Box>
+  );
+}
+
+function SubscriptionDiscountCodesPanel({
+  discountCodes,
+  discountCodesError,
+  plans,
+  createOpen,
+  selectedDiscountId,
+  onCreateOpenChange,
+  onSelectDiscount,
+}: {
+  discountCodes: AdminSubscriptionDiscountCode[];
+  discountCodesError: string | null;
+  plans: AdminPlan[];
+  createOpen: boolean;
+  selectedDiscountId: string | null;
+  onCreateOpenChange: (open: boolean) => void;
+  onSelectDiscount: (discountCodeId: string | null) => void;
+}) {
+  const activeDiscounts = discountCodes.filter(
+    (discount) => subscriptionDiscountStatus(discount).label === "Active",
+  );
+  const appliedCount = discountCodes.reduce(
+    (total, discount) => total + discount.appliedCount,
+    0,
+  );
+  const discountMinor = discountCodes.reduce(
+    (total, discount) => total + discount.discountMinor,
+    0,
+  );
+  const selectedDiscount =
+    discountCodes.find(
+      (discount) => discount.discountCodeId === selectedDiscountId,
+    ) ?? null;
+
+  return (
+    <Panel
+      sx={{
+        p: { xs: 2, md: 2.5 },
+        borderColor: alpha(tokens.burgundy, 0.16),
+        backgroundImage: `
+          radial-gradient(circle at 96% 0%, ${alpha(tokens.burgundy, 0.1)}, transparent 34%),
+          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
+        `,
+      }}
+    >
+      <Stack spacing={2}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.5}
+          sx={{ alignItems: { xs: "stretch", md: "flex-start" } }}
+        >
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <LocalOfferRounded sx={{ color: tokens.burgundy }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6">
+                  Subscription discount codes
+                </Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  First-purchase subscription incentives, institution batches,
+                  and redemption caps.
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+          <Button
+            type="button"
+            variant="contained"
+            startIcon={<LocalOfferRounded />}
+            onClick={() => onCreateOpenChange(true)}
+            sx={{ alignSelf: { xs: "stretch", md: "flex-start" } }}
+          >
+            New code
+          </Button>
+        </Stack>
+
+        {discountCodesError ? (
+          <Alert severity="warning">{discountCodesError}</Alert>
+        ) : null}
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(3, minmax(0, 1fr))",
+            },
+          }}
+        >
+          <PlanStatTile
+            label="Active codes"
+            value={String(activeDiscounts.length)}
+            helper={`${discountCodes.length} total`}
+          />
+          <PlanStatTile
+            label="Applied redemptions"
+            value={String(appliedCount)}
+            helper="Subscription discounts"
+          />
+          <PlanStatTile
+            label="Discount value"
+            value={formatGHS(discountMinor)}
+            helper="Recorded applied value"
+          />
+        </Box>
+
+        {!discountCodesError && discountCodes.length === 0 ? (
+          <Alert severity="info">
+            No subscription discount codes have been created yet.
+          </Alert>
+        ) : null}
+
+        {!discountCodesError && discountCodes.length > 0 ? (
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table sx={{ minWidth: 980 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Code</TableCell>
+                  <TableCell>Discount</TableCell>
+                  <TableCell>Eligibility</TableCell>
+                  <TableCell align="right">Usage</TableCell>
+                  <TableCell>Window</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {discountCodes.map((discount) => {
+                  const status = subscriptionDiscountStatus(discount);
+                  return (
+                    <TableRow key={discount.discountCodeId} hover>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <Typography sx={{ fontWeight: 950 }}>
+                          {discount.code}
+                        </Typography>
+                        <Stack
+                          direction="row"
+                          spacing={0.75}
+                          sx={{ mt: 0.65, flexWrap: "wrap" }}
+                        >
+                          <Chip
+                            size="small"
+                            label={status.label}
+                            sx={{
+                              bgcolor: alpha(status.color, 0.1),
+                              color: status.color,
+                              fontWeight: 900,
+                            }}
+                          />
+                          {discount.firstPurchaseOnly ? (
+                            <Chip
+                              size="small"
+                              label="First purchase"
+                              variant="outlined"
+                            />
+                          ) : null}
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {subscriptionDiscountValueLabel(discount)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {subscriptionDiscountTypeLabel(discount.discountType)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 220 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 800 }}>
+                          {discount.eligiblePlans.length > 0
+                            ? discount.eligiblePlans.join(", ")
+                            : "All packages"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {discount.eligibleCadences.length > 0
+                            ? discount.eligibleCadences.join(", ")
+                            : "All cadences"}
+                          {discount.ownerName ? ` · ${discount.ownerName}` : ""}
+                          {discount.batchLabel
+                            ? ` · ${discount.batchLabel}`
+                            : ""}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {discount.appliedCount}/{discount.redemptionCount}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {typeof discount.maxRedemptionsTotal === "number"
+                            ? `cap ${discount.maxRedemptionsTotal}`
+                            : "uncapped"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 170 }}>
+                        <Typography variant="body2">
+                          {discount.validFrom
+                            ? shortTime(discount.validFrom)
+                            : "Now"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          to{" "}
+                          {discount.validUntil
+                            ? shortTime(discount.validUntil)
+                            : "open"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Button
+                          type="button"
+                          variant="outlined"
+                          size="small"
+                          startIcon={<SettingsRounded />}
+                          onClick={() =>
+                            onSelectDiscount(discount.discountCodeId)
+                          }
+                          sx={{ whiteSpace: "nowrap" }}
+                        >
+                          Manage
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        ) : null}
+
+        <Dialog
+          open={createOpen}
+          onClose={() => onCreateOpenChange(false)}
+          fullWidth
+          maxWidth="md"
+        >
+          <DialogTitle sx={{ pb: 0.5 }}>
+            <DialogHeading
+              title="Create subscription code"
+              helper="Issue a billing-side discount rule for subscription checkout."
+              onClose={() => onCreateOpenChange(false)}
+            />
+          </DialogTitle>
+          <DialogContent dividers>
+            <Form method="post">
+              <input
+                type="hidden"
+                name="intent"
+                value="admin-subscription-discount:create"
+              />
+              <Stack spacing={2}>
+                <SubscriptionDiscountCodeFormFields plans={plans} />
+                <DialogActionsRow
+                  cancelLabel="Cancel"
+                  submitLabel="Create code"
+                  submitIcon={<LocalOfferRounded />}
+                  onCancel={() => onCreateOpenChange(false)}
+                />
+              </Stack>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog
+          open={Boolean(selectedDiscount)}
+          onClose={() => onSelectDiscount(null)}
+          fullWidth
+          maxWidth="md"
+        >
+          <DialogTitle sx={{ pb: 0.5 }}>
+            <DialogHeading
+              title={
+                selectedDiscount
+                  ? `Manage ${selectedDiscount.code}`
+                  : "Manage code"
+              }
+              helper="Update eligibility, lifecycle, and redemption controls."
+              onClose={() => onSelectDiscount(null)}
+            />
+          </DialogTitle>
+          <DialogContent dividers>
+            {selectedDiscount ? (
+              <Stack spacing={2.25}>
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="admin-subscription-discount:update"
+                  />
+                  <input
+                    type="hidden"
+                    name="discount_code_id"
+                    value={selectedDiscount.discountCodeId}
+                  />
+                  <Stack spacing={2}>
+                    <SubscriptionDiscountCodeFormFields
+                      discountCode={selectedDiscount}
+                      plans={plans}
+                    />
+                    <DialogActionsRow
+                      cancelLabel="Cancel"
+                      submitLabel="Save code"
+                      onCancel={() => onSelectDiscount(null)}
+                    />
+                  </Stack>
+                </Form>
+                <Divider />
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value="admin-subscription-discount:archive"
+                  />
+                  <input
+                    type="hidden"
+                    name="discount_code_id"
+                    value={selectedDiscount.discountCodeId}
+                  />
+                  <Stack spacing={1.25}>
+                    <FormGroupLabel>Archive code</FormGroupLabel>
+                    <TextField
+                      label="Archive reason"
+                      name="reason"
+                      size="small"
+                      placeholder="Discount campaign ended"
+                      fullWidth
+                      disabled={Boolean(selectedDiscount.archivedAt)}
+                    />
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1}
+                      sx={{ justifyContent: "flex-end" }}
+                    >
+                      <Button
+                        type="submit"
+                        variant="outlined"
+                        color="warning"
+                        disabled={Boolean(selectedDiscount.archivedAt)}
+                      >
+                        Archive code
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Form>
+              </Stack>
+            ) : null}
+          </DialogContent>
+        </Dialog>
+      </Stack>
+    </Panel>
+  );
+}
+
+function SubscriptionDiscountCodeFormFields({
+  discountCode,
+  plans,
+}: {
+  discountCode?: AdminSubscriptionDiscountCode;
+  plans: AdminPlan[];
+}) {
+  const selectedPlanCodes = new Set(
+    discountCode && discountCode.eligiblePlans.length > 0
+      ? discountCode.eligiblePlans
+      : plans.map((plan) => plan.code),
+  );
+  const selectedCadences = new Set(
+    discountCode && discountCode.eligibleCadences.length > 0
+      ? discountCode.eligibleCadences
+      : subscriptionDiscountCadenceOptions.map((option) => option.value),
+  );
+  const discountType = discountCode?.discountType ?? "percentage";
+
+  return (
+    <Stack spacing={1.5}>
+      <Box>
+        <FormGroupLabel>Code details</FormGroupLabel>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              md: "1.2fr 1fr 1fr",
+            },
+          }}
+        >
+          <TextField
+            label="Code"
+            name="code"
+            size="small"
+            defaultValue={discountCode?.code ?? ""}
+            placeholder="STUDENT50"
+            required
+          />
+          <TextField
+            select
+            label="Discount type"
+            name="discount_type"
+            size="small"
+            defaultValue={discountType}
+          >
+            {subscriptionDiscountTypeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            label="Value"
+            name="discount_value"
+            type="number"
+            size="small"
+            defaultValue={
+              discountCode
+                ? subscriptionDiscountValueDefault(discountCode)
+                : discountType === "free_period"
+                  ? "1"
+                  : "0"
+            }
+            helperText="Percent, GHS, or months"
+            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+            required
+          />
+        </Box>
+      </Box>
+
+      <Box>
+        <FormGroupLabel>Eligibility</FormGroupLabel>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1.5,
+              bgcolor: "rgba(var(--surface-rgb), 0.62)",
+            }}
+          >
+            <Typography sx={{ fontWeight: 850, mb: 0.75 }}>Packages</Typography>
+            <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.5 }}>
+              {plans.map((plan) => (
+                <FormControlLabel
+                  key={plan.code}
+                  sx={{ mr: 1 }}
+                  control={
+                    <Checkbox
+                      name="eligible_plans"
+                      value={plan.code}
+                      size="small"
+                      defaultChecked={selectedPlanCodes.has(plan.code)}
+                    />
+                  }
+                  label={plan.name}
+                />
+              ))}
+            </Stack>
+          </Box>
+          <Box
+            sx={{
+              p: 1.25,
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1.5,
+              bgcolor: "rgba(var(--surface-rgb), 0.62)",
+            }}
+          >
+            <Typography sx={{ fontWeight: 850, mb: 0.75 }}>Cadences</Typography>
+            <Stack direction="row" sx={{ flexWrap: "wrap", gap: 0.5 }}>
+              {subscriptionDiscountCadenceOptions.map((option) => (
+                <FormControlLabel
+                  key={option.value}
+                  sx={{ mr: 1 }}
+                  control={
+                    <Checkbox
+                      name="eligible_cadences"
+                      value={option.value}
+                      size="small"
+                      defaultChecked={selectedCadences.has(option.value)}
+                    />
+                  }
+                  label={option.label}
+                />
+              ))}
+            </Stack>
+          </Box>
+        </Box>
+      </Box>
+
+      <Box>
+        <FormGroupLabel>Controls</FormGroupLabel>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(2, minmax(0, 1fr))",
+              md: "repeat(4, minmax(0, 1fr))",
+            },
+          }}
+        >
+          <TextField
+            label="Total cap"
+            name="max_redemptions_total"
+            type="number"
+            size="small"
+            defaultValue={discountCode?.maxRedemptionsTotal ?? ""}
+            placeholder="Unlimited"
+            slotProps={{ htmlInput: { min: 1, step: 1 } }}
+          />
+          <TextField
+            label="Per account"
+            name="max_per_account"
+            type="number"
+            size="small"
+            defaultValue={discountCode?.maxPerAccount ?? 1}
+            slotProps={{ htmlInput: { min: 1, step: 1 } }}
+            required
+          />
+          <TextField
+            label="Owner / institution"
+            name="owner_name"
+            size="small"
+            defaultValue={discountCode?.ownerName ?? ""}
+            placeholder="University of Ghana"
+          />
+          <TextField
+            label="Batch"
+            name="batch_label"
+            size="small"
+            defaultValue={discountCode?.batchLabel ?? ""}
+            placeholder="2026 intake"
+          />
+        </Box>
+      </Box>
+
+      <Box>
+        <FormGroupLabel>Lifecycle</FormGroupLabel>
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" },
+          }}
+        >
+          <StyledDateTimeField
+            name="valid_from"
+            label="Valid from"
+            defaultValue={discountCode?.validFrom ?? ""}
+          />
+          <StyledDateTimeField
+            name="valid_until"
+            label="Valid until"
+            defaultValue={discountCode?.validUntil ?? ""}
+          />
+        </Box>
+        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mt: 1 }}>
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="first_purchase_only"
+                size="small"
+                defaultChecked={discountCode?.firstPurchaseOnly ?? true}
+              />
+            }
+            label="First purchase only"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                name="active"
+                size="small"
+                defaultChecked={discountCode?.active ?? true}
+              />
+            }
+            label="Active"
+          />
+        </Stack>
+      </Box>
+    </Stack>
+  );
+}
+
+function PlanEntitlementMatrixPanel({
+  features,
+  featuresError,
+  plans,
+}: {
+  features: AdminPlanEntitlementFeature[];
+  featuresError: string | null;
+  plans: AdminPlan[];
+}) {
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack spacing={2}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.5}
+          sx={{ alignItems: { xs: "stretch", md: "flex-start" } }}
+        >
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <ShieldRounded sx={{ color: tokens.info }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6">Entitlement matrix</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Package-by-package feature access, usage limits, and
+                  storefront unlocks.
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+          <Chip
+            label={`${features.length} features`}
+            variant="outlined"
+            sx={{ alignSelf: { xs: "flex-start", md: "center" } }}
+          />
+        </Stack>
+
+        {featuresError ? (
+          <Alert severity="warning">{featuresError}</Alert>
+        ) : null}
+        {!featuresError && plans.length === 0 ? (
+          <Alert severity="info">
+            Create or load plan packages before editing entitlements.
+          </Alert>
+        ) : null}
+        {!featuresError && features.length === 0 ? (
+          <Alert severity="info">
+            No entitlement features have been configured yet.
+          </Alert>
+        ) : null}
+
+        {!featuresError && features.length > 0 && plans.length > 0 ? (
+          <Form method="post">
+            <input
+              type="hidden"
+              name="intent"
+              value="admin-plan-entitlements:update"
+            />
+            <Stack spacing={1.5}>
+              <TableContainer sx={{ overflowX: "auto" }}>
+                <Table
+                  sx={{ minWidth: Math.max(840, 260 + plans.length * 210) }}
+                >
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ minWidth: 260 }}>Feature</TableCell>
+                      {plans.map((plan) => (
+                        <TableCell key={plan.planId} sx={{ minWidth: 210 }}>
+                          <Typography sx={{ fontWeight: 900 }}>
+                            {plan.name}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            {plan.code}
+                          </Typography>
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {features.map((feature) => (
+                      <TableRow key={feature.featureKey} hover>
+                        <TableCell sx={{ verticalAlign: "top" }}>
+                          <Typography sx={{ fontWeight: 900 }}>
+                            {feature.label}
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            {feature.description}
+                          </Typography>
+                          <Stack
+                            direction="row"
+                            spacing={0.75}
+                            sx={{ mt: 0.75, flexWrap: "wrap" }}
+                          >
+                            <Chip
+                              size="small"
+                              label={feature.category}
+                              variant="outlined"
+                            />
+                            <Chip
+                              size="small"
+                              label={
+                                feature.valueType === "limit"
+                                  ? "Limit"
+                                  : "Boolean"
+                              }
+                              variant="outlined"
+                            />
+                          </Stack>
+                        </TableCell>
+                        {plans.map((plan) => {
+                          const value = planEntitlementValue(feature, plan);
+                          const inputId = `${plan.planId}:${feature.featureKey}`;
+                          return (
+                            <TableCell
+                              key={`${plan.planId}:${feature.featureKey}`}
+                              sx={{ verticalAlign: "top" }}
+                            >
+                              <input
+                                type="hidden"
+                                name="entitlement_row"
+                                value={JSON.stringify({
+                                  planId: plan.planId,
+                                  featureKey: feature.featureKey,
+                                  valueType: feature.valueType,
+                                })}
+                              />
+                              <Stack spacing={0.75}>
+                                <FormControlLabel
+                                  sx={{ m: 0 }}
+                                  control={
+                                    <Checkbox
+                                      name={`enabled:${inputId}`}
+                                      size="small"
+                                      defaultChecked={Boolean(value?.enabled)}
+                                    />
+                                  }
+                                  label={entitlementValueLabel(feature, plan)}
+                                />
+                                {feature.valueType === "limit" ? (
+                                  <TextField
+                                    name={`limit:${inputId}`}
+                                    type="number"
+                                    size="small"
+                                    label={feature.unit || "Limit"}
+                                    defaultValue={value?.limitValue ?? ""}
+                                    placeholder="Unlimited"
+                                    slotProps={{
+                                      htmlInput: { min: 0, step: 1 },
+                                    }}
+                                  />
+                                ) : null}
+                              </Stack>
+                            </TableCell>
+                          );
+                        })}
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                sx={{ justifyContent: "flex-end" }}
+              >
+                <Button
+                  type="submit"
+                  variant="contained"
+                  startIcon={<CheckCircleRounded />}
+                >
+                  Save matrix
+                </Button>
+              </Stack>
+            </Stack>
+          </Form>
+        ) : null}
+      </Stack>
+    </Panel>
+  );
+}
+
+function SubscriberCrmPanel({
+  subscriptions,
+  filteredSubscriptions,
+  pagedSubscriptions,
+  query,
+  planFilter,
+  statusFilter,
+  institutionFilter,
+  billingModeFilter,
+  plans,
+  institutionOptions,
+  page,
+  pageCount,
+  onQueryChange,
+  onPlanFilterChange,
+  onStatusFilterChange,
+  onInstitutionFilterChange,
+  onBillingModeFilterChange,
+  onPageChange,
+}: {
+  subscriptions: AdminSubscription[];
+  filteredSubscriptions: AdminSubscription[];
+  pagedSubscriptions: AdminSubscription[];
+  query: string;
+  planFilter: string;
+  statusFilter: string;
+  institutionFilter: string;
+  billingModeFilter: string;
+  plans: AdminPlan[];
+  institutionOptions: string[];
+  page: number;
+  pageCount: number;
+  onQueryChange: (value: string) => void;
+  onPlanFilterChange: (value: string) => void;
+  onStatusFilterChange: (value: string) => void;
+  onInstitutionFilterChange: (value: string) => void;
+  onBillingModeFilterChange: (value: string) => void;
+  onPageChange: (page: number) => void;
+}) {
+  const withDiscount = filteredSubscriptions.filter((subscription) =>
+    subscription.discountCode.trim(),
+  ).length;
+  const withContact = filteredSubscriptions.filter((subscription) =>
+    subscriptionContactNumber(subscription).trim(),
+  ).length;
+
+  return (
+    <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+      <Stack spacing={2}>
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1.5}
+          sx={{ alignItems: { xs: "stretch", md: "flex-start" } }}
+        >
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <PersonSearchRounded sx={{ color: tokens.success }} />
+              <Box sx={{ minWidth: 0 }}>
+                <Typography variant="h6">Subscriber CRM</Typography>
+                <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                  Owner contact, signup, renewal, discount attribution, and
+                  store links.
+                </Typography>
+              </Box>
+            </Stack>
+          </Box>
+          <Form method="post">
+            <input type="hidden" name="intent" value="admin-export:download" />
+            <input type="hidden" name="dataset" value="subscriptions" />
+            <Button
+              type="submit"
+              variant="outlined"
+              startIcon={<FileDownloadRounded />}
+              sx={{ alignSelf: { xs: "stretch", md: "flex-start" } }}
+            >
+              Export CSV
+            </Button>
+          </Form>
+        </Stack>
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              sm: "repeat(3, minmax(0, 1fr))",
+            },
+          }}
+        >
+          <PlanStatTile
+            label="CRM rows"
+            value={String(filteredSubscriptions.length)}
+            helper={`${subscriptions.length} subscription records`}
+          />
+          <PlanStatTile
+            label="Reachable owners"
+            value={String(withContact)}
+            helper="Phone or WhatsApp present"
+          />
+          <PlanStatTile
+            label="Discount attributed"
+            value={String(withDiscount)}
+            helper="Latest subscription code"
+          />
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gap: 1.25,
+            gridTemplateColumns: {
+              xs: "1fr",
+              md: "minmax(220px, 1.4fr) repeat(4, minmax(140px, 0.8fr))",
+            },
+            alignItems: "center",
+          }}
+        >
+          <TextField
+            label="Search subscribers"
+            value={query}
+            onChange={(event) => onQueryChange(event.target.value)}
+            size="small"
+            fullWidth
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <SearchRounded fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
+            }}
+          />
+          <TextField
+            select
+            label="Plan"
+            value={planFilter}
+            onChange={(event) => onPlanFilterChange(event.target.value)}
+            size="small"
+          >
+            <MenuItem value="all">All plans</MenuItem>
+            {plans.map((plan) => (
+              <MenuItem key={plan.planId} value={plan.code}>
+                {plan.name}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Status"
+            value={statusFilter}
+            onChange={(event) => onStatusFilterChange(event.target.value)}
+            size="small"
+          >
+            <MenuItem value="all">All statuses</MenuItem>
+            {subscriptionStatusOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Institution"
+            value={institutionFilter}
+            onChange={(event) => onInstitutionFilterChange(event.target.value)}
+            size="small"
+          >
+            <MenuItem value="all">All institutions</MenuItem>
+            {institutionOptions.map((institution) => (
+              <MenuItem key={institution} value={institution}>
+                {institution}
+              </MenuItem>
+            ))}
+          </TextField>
+          <TextField
+            select
+            label="Billing mode"
+            value={billingModeFilter}
+            onChange={(event) => onBillingModeFilterChange(event.target.value)}
+            size="small"
+          >
+            <MenuItem value="all">All modes</MenuItem>
+            {subscriptionBillingModeOptions.map((option) => (
+              <MenuItem key={option.value} value={option.value}>
+                {option.label}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Box>
+
+        {filteredSubscriptions.length === 0 ? (
+          <Alert severity="info">
+            No subscribers match the selected CRM filters.
+          </Alert>
+        ) : (
+          <TableContainer sx={{ overflowX: "auto" }}>
+            <Table sx={{ minWidth: 1120 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell>Business</TableCell>
+                  <TableCell>Owner</TableCell>
+                  <TableCell>Plan</TableCell>
+                  <TableCell>Dates</TableCell>
+                  <TableCell align="right">Sales</TableCell>
+                  <TableCell>Discount</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {pagedSubscriptions.map((subscription) => {
+                  const contactNumber = subscriptionContactNumber(subscription);
+                  const emailHref = subscription.ownerEmail
+                    ? `mailto:${subscription.ownerEmail}`
+                    : undefined;
+                  const whatsAppLink = whatsappHref(contactNumber);
+                  const smsLink = smsHref(contactNumber);
+                  const statusColor = subscriptionStatusColor(
+                    subscription.status,
+                  );
+                  return (
+                    <TableRow key={subscription.businessId} hover>
+                      <TableCell sx={{ minWidth: 190 }}>
+                        <Typography sx={{ fontWeight: 950 }}>
+                          {subscription.businessName}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          @{subscription.handle || "store"} ·{" "}
+                          {subscription.storeLink || "No store link"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 220 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {subscription.ownerName || "Owner not set"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {subscription.ownerEmail || "No email"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ display: "block", color: "text.secondary" }}
+                        >
+                          {contactNumber || "No phone"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 170 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {subscription.planName}
+                        </Typography>
+                        <Stack
+                          direction="row"
+                          sx={{ gap: 0.5, flexWrap: "wrap" }}
+                        >
+                          <Chip
+                            size="small"
+                            label={subscriptionStatusLabel(subscription.status)}
+                            sx={{
+                              bgcolor: alpha(statusColor, 0.1),
+                              color: statusColor,
+                              fontWeight: 850,
+                            }}
+                          />
+                          <Chip
+                            size="small"
+                            label={billingModeLabel(subscription.billingMode)}
+                            variant="outlined"
+                          />
+                        </Stack>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 180 }}>
+                        <Typography variant="body2">
+                          Signup {shortTimeOrFallback(subscription.signupAt)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          Renewal{" "}
+                          {shortTimeOrFallback(
+                            subscription.renewalAt,
+                            "not set",
+                          )}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {formatGHS(subscription.gmvMinor)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {subscription.orders} orders · last{" "}
+                          {shortTimeOrFallback(subscription.lastActiveAt)}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ minWidth: 170 }}>
+                        <Typography sx={{ fontWeight: 900 }}>
+                          {subscription.discountCode || "None"}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {subscription.discountInstitution || "No institution"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell align="right">
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          sx={{ justifyContent: "flex-end" }}
+                        >
+                          <ContactActionButton
+                            label="Email owner"
+                            href={emailHref}
+                            icon={<EmailRounded fontSize="small" />}
+                          />
+                          <ContactActionButton
+                            label="WhatsApp owner"
+                            href={whatsAppLink}
+                            icon={<WhatsAppIcon fontSize="small" />}
+                            external
+                          />
+                          <ContactActionButton
+                            label="Text owner"
+                            href={smsLink}
+                            icon={<SmsRounded fontSize="small" />}
+                          />
+                          <ContactActionButton
+                            label="Call owner"
+                            href={
+                              contactNumber
+                                ? `tel:${ghanaPhoneDigits(contactNumber)}`
+                                : undefined
+                            }
+                            icon={<PhoneRounded fontSize="small" />}
+                          />
+                          <ContactActionButton
+                            label="Open store"
+                            href={subscription.storeLink || undefined}
+                            icon={<StorefrontRounded fontSize="small" />}
+                            external
+                          />
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+
+        <PaginationFooter
+          count={pageCount}
+          label="subscriber CRM rows"
+          page={page}
+          pageSize={8}
+          total={filteredSubscriptions.length}
+          onChange={onPageChange}
+        />
+      </Stack>
+    </Panel>
+  );
+}
+
+function ContactActionButton({
+  label,
+  href,
+  icon,
+  external = false,
+}: {
+  label: string;
+  href?: string;
+  icon: ReactNode;
+  external?: boolean;
+}) {
+  return (
+    <Tooltip title={label}>
+      <span>
+        {href ? (
+          <IconButton
+            component="a"
+            href={href}
+            target={external ? "_blank" : undefined}
+            rel={external ? "noreferrer" : undefined}
+            aria-label={label}
+            size="small"
+          >
+            {icon}
+          </IconButton>
+        ) : (
+          <IconButton aria-label={label} size="small" disabled>
+            {icon}
+          </IconButton>
+        )}
+      </span>
+    </Tooltip>
+  );
+}
+
+function DialogHeading({
+  title,
+  helper,
+  onClose,
+}: {
+  title: string;
+  helper: string;
+  onClose: () => void;
+}) {
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      sx={{ alignItems: "center", justifyContent: "space-between" }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography component="span" sx={{ display: "block", fontWeight: 950 }}>
+          {title}
+        </Typography>
+        <Typography
+          component="span"
+          variant="body2"
+          sx={{ display: "block", color: "text.secondary" }}
+        >
+          {helper}
+        </Typography>
+      </Box>
+      <IconButton aria-label="Close" onClick={onClose}>
+        <CloseRounded />
+      </IconButton>
+    </Stack>
+  );
+}
+
+function DialogActionsRow({
+  cancelLabel,
+  submitLabel,
+  submitIcon,
+  onCancel,
+}: {
+  cancelLabel: string;
+  submitLabel: string;
+  submitIcon?: ReactNode;
+  onCancel: () => void;
+}) {
+  return (
+    <Stack
+      direction={{ xs: "column", sm: "row" }}
+      spacing={1}
+      sx={{ justifyContent: "flex-end" }}
+    >
+      <Button type="button" variant="outlined" onClick={onCancel}>
+        {cancelLabel}
+      </Button>
+      <Button type="submit" variant="contained" startIcon={submitIcon}>
+        {submitLabel}
+      </Button>
+    </Stack>
   );
 }
 
@@ -18307,6 +19994,10 @@ export default function AdminDashboard({
     subscriptionsError,
     plans,
     plansError,
+    planEntitlements,
+    planEntitlementsError,
+    subscriptionDiscountCodes,
+    subscriptionDiscountCodesError,
     promotions,
     promotionsError,
     adCampaigns,
@@ -18819,6 +20510,12 @@ export default function AdminDashboard({
                   subscriptionsError={subscriptionsError}
                   plans={plans}
                   plansError={plansError}
+                  planEntitlements={planEntitlements}
+                  planEntitlementsError={planEntitlementsError}
+                  subscriptionDiscountCodes={subscriptionDiscountCodes}
+                  subscriptionDiscountCodesError={
+                    subscriptionDiscountCodesError
+                  }
                   platformMetrics={platformMetrics}
                   actionData={actionFeedback}
                   onSelect={setSection}

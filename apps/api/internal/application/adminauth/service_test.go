@@ -3304,6 +3304,11 @@ type fakeAdminBusinesses struct {
 	createdPlan                ports.CreateAdminPlanInput
 	updatedPlan                ports.UpdateAdminPlanInput
 	archivedPlan               ports.ArchiveAdminPlanInput
+	updatedPlanEntitlements    ports.UpdateAdminPlanEntitlementsInput
+	subscriptionDiscountCodes  []ports.AdminSubscriptionDiscountCodeRecord
+	createdDiscountCode        ports.CreateAdminSubscriptionDiscountCodeInput
+	updatedDiscountCode        ports.UpdateAdminSubscriptionDiscountCodeInput
+	archivedDiscountCode       ports.ArchiveAdminSubscriptionDiscountCodeInput
 	promotions                 []ports.AdminPromotionRecord
 	createdPromotion           ports.CreateAdminPromotionInput
 	updatedPromotion           ports.UpdateAdminPromotionInput
@@ -3639,6 +3644,113 @@ func (repo *fakeAdminBusinesses) ArchiveAdminPlan(
 		nil,
 		false,
 	), nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminPlanEntitlements(context.Context) ([]ports.AdminPlanEntitlementFeatureRecord, error) {
+	return []ports.AdminPlanEntitlementFeatureRecord{
+		{
+			FeatureKey:  "online_ordering",
+			Label:       "Online ordering",
+			Description: "Checkout entitlement",
+			Category:    "Storefront",
+			ValueType:   "boolean",
+			SortOrder:   1,
+			IsActive:    true,
+			Values: []ports.AdminPlanEntitlementValueRecord{
+				{
+					PlanID:    "plan-growth",
+					PlanCode:  "growth",
+					Enabled:   true,
+					UpdatedAt: time.Now(),
+				},
+			},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminPlanEntitlements(
+	_ context.Context,
+	input ports.UpdateAdminPlanEntitlementsInput,
+) ([]ports.AdminPlanEntitlementFeatureRecord, error) {
+	repo.updatedPlanEntitlements = input
+	return repo.ListAdminPlanEntitlements(context.Background())
+}
+
+func (repo *fakeAdminBusinesses) ListAdminSubscriptionDiscountCodes(context.Context) ([]ports.AdminSubscriptionDiscountCodeRecord, error) {
+	if repo.subscriptionDiscountCodes != nil {
+		return repo.subscriptionDiscountCodes, nil
+	}
+	return []ports.AdminSubscriptionDiscountCodeRecord{
+		fakeSubscriptionDiscountCodeRecord("discount-code-1", "WELCOME100", "percentage", 10000, true),
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminSubscriptionDiscountCode(
+	_ context.Context,
+	input ports.CreateAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	repo.createdDiscountCode = input
+	return fakeSubscriptionDiscountCodeRecord(
+		input.DiscountCodeID,
+		input.Code,
+		input.DiscountType,
+		input.DiscountValue,
+		input.Active,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminSubscriptionDiscountCode(
+	_ context.Context,
+	input ports.UpdateAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	repo.updatedDiscountCode = input
+	return fakeSubscriptionDiscountCodeRecord(
+		input.DiscountCodeID,
+		input.Code,
+		input.DiscountType,
+		input.DiscountValue,
+		input.Active,
+	), nil
+}
+
+func (repo *fakeAdminBusinesses) ArchiveAdminSubscriptionDiscountCode(
+	_ context.Context,
+	input ports.ArchiveAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	repo.archivedDiscountCode = input
+	return fakeSubscriptionDiscountCodeRecord(
+		input.DiscountCodeID,
+		"WELCOME100",
+		"percentage",
+		10000,
+		false,
+	), nil
+}
+
+func fakeSubscriptionDiscountCodeRecord(
+	discountCodeID common.ID,
+	code string,
+	discountType string,
+	discountValue int,
+	active bool,
+) ports.AdminSubscriptionDiscountCodeRecord {
+	return ports.AdminSubscriptionDiscountCodeRecord{
+		DiscountCodeID:    discountCodeID,
+		Code:              code,
+		DiscountType:      discountType,
+		DiscountValue:     discountValue,
+		EligiblePlans:     []string{"starter", "growth"},
+		EligibleCadences:  []string{"monthly", "yearly"},
+		FirstPurchaseOnly: true,
+		MaxPerAccount:     1,
+		Active:            active,
+		OwnerName:         "Test institution",
+		BatchLabel:        "Launch",
+		CreatedAt:         time.Now(),
+		UpdatedAt:         time.Now(),
+	}
 }
 
 func fakeAdminPlanRecord(

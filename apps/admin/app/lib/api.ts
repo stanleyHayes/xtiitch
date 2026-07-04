@@ -296,7 +296,10 @@ export type AdminSubscription = {
   businessId: string;
   businessName: string;
   handle: string;
+  ownerName: string;
+  ownerPhone: string;
   ownerEmail: string;
+  ownerWhatsApp: string;
   planCode: string;
   planName: string;
   monthlyFeeMinor: number;
@@ -318,6 +321,12 @@ export type AdminSubscription = {
   lastInvoiceRef: string;
   lastPaymentAt?: string;
   nextBillingAt?: string;
+  signupAt: string;
+  renewalAt?: string;
+  storeLink: string;
+  discountCode: string;
+  discountInstitution: string;
+  lastActiveAt: string;
   orders: number;
   gmvMinor: number;
   commissionMinor: number;
@@ -362,27 +371,32 @@ export const PLAN_BENEFITS: readonly {
   {
     key: "custom_brand_color",
     label: "Storefront accent colour",
-    description: "Set the storefront's accent colour instead of the Xtiitch wine default.",
+    description:
+      "Set the storefront's accent colour instead of the Xtiitch wine default.",
   },
   {
     key: "custom_logo",
     label: "Custom storefront logo",
-    description: "Show the business logo on the storefront in place of the Xtiitch mark.",
+    description:
+      "Show the business logo on the storefront in place of the Xtiitch mark.",
   },
   {
     key: "custom_banner",
     label: "Custom hero banner image",
-    description: "Replace the default storefront hero with the business's own banner image.",
+    description:
+      "Replace the default storefront hero with the business's own banner image.",
   },
   {
     key: "custom_layout",
     label: "Storefront layout variants",
-    description: "Choose a storefront hero layout (standard, spotlight or minimal).",
+    description:
+      "Choose a storefront hero layout (standard, spotlight or minimal).",
   },
   {
     key: "design_waitlist",
     label: "Design waiting lists",
-    description: "Open a waiting list on a design so customers can register interest.",
+    description:
+      "Open a waiting list on a design so customers can register interest.",
   },
   {
     key: "online_ordering",
@@ -407,6 +421,71 @@ export type AdminPlan = {
   businessCount: number;
   activeSubscriptionCount: number;
   estimatedMrrMinor: number;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminPlanEntitlementValue = {
+  planId: string;
+  planCode: string;
+  enabled: boolean;
+  limitValue?: number;
+  updatedAt: string;
+};
+
+export type AdminPlanEntitlementFeature = {
+  featureKey: string;
+  label: string;
+  description: string;
+  category: string;
+  valueType: "boolean" | "limit";
+  unit: string;
+  sortOrder: number;
+  isActive: boolean;
+  values: AdminPlanEntitlementValue[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AdminSubscriptionDiscountType =
+  | "free_period"
+  | "percentage"
+  | "fixed";
+
+export type AdminSubscriptionDiscountRedemption = {
+  redemptionId: string;
+  businessId: string;
+  businessName: string;
+  planCode: string;
+  cadence: string;
+  accountKey: string;
+  status: "pending" | "applied" | "void" | "expired";
+  discountMinor: number;
+  createdAt: string;
+  appliedAt?: string;
+};
+
+export type AdminSubscriptionDiscountCode = {
+  discountCodeId: string;
+  code: string;
+  discountType: AdminSubscriptionDiscountType;
+  discountValue: number;
+  eligiblePlans: string[];
+  eligibleCadences: string[];
+  firstPurchaseOnly: boolean;
+  maxRedemptionsTotal?: number;
+  maxPerAccount: number;
+  validFrom?: string;
+  validUntil?: string;
+  active: boolean;
+  ownerName: string;
+  batchLabel: string;
+  stackable: boolean;
+  archivedAt?: string;
+  redemptionCount: number;
+  appliedCount: number;
+  discountMinor: number;
+  recentRedemptions: AdminSubscriptionDiscountRedemption[];
   createdAt: string;
   updatedAt: string;
 };
@@ -1031,7 +1110,10 @@ type AdminSubscriptionPayload = {
   business_id: string;
   business_name: string;
   handle: string;
+  owner_name: string;
+  owner_phone: string;
   owner_email: string;
+  owner_whatsapp: string;
   plan_code: string;
   plan_name: string;
   monthly_fee_minor: number;
@@ -1053,6 +1135,12 @@ type AdminSubscriptionPayload = {
   last_invoice_ref: string;
   last_payment_at?: string;
   next_billing_at?: string;
+  signup_at: string;
+  renewal_at?: string;
+  store_link: string;
+  discount_code: string;
+  discount_institution: string;
+  last_active_at: string;
   orders: number;
   gmv_minor: number;
   commission_minor: number;
@@ -1100,6 +1188,66 @@ type AdminPlanPayload = {
   business_count: number;
   active_subscription_count: number;
   estimated_mrr_minor: number;
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminPlanEntitlementValuePayload = {
+  plan_id: string;
+  plan_code: string;
+  enabled: boolean;
+  limit_value?: number;
+  updated_at: string;
+};
+
+type AdminPlanEntitlementFeaturePayload = {
+  feature_key: string;
+  label: string;
+  description: string;
+  category: string;
+  value_type: "boolean" | "limit";
+  unit: string;
+  sort_order: number;
+  is_active: boolean;
+  values: AdminPlanEntitlementValuePayload[];
+  created_at: string;
+  updated_at: string;
+};
+
+type AdminSubscriptionDiscountRedemptionPayload = {
+  redemption_id: string;
+  business_id: string;
+  business_name: string;
+  plan_code: string;
+  cadence: string;
+  account_key: string;
+  status: "pending" | "applied" | "void" | "expired";
+  discount_minor: number;
+  created_at: string;
+  applied_at?: string;
+};
+
+type AdminSubscriptionDiscountCodePayload = {
+  discount_code_id: string;
+  code: string;
+  discount_type: AdminSubscriptionDiscountType;
+  discount_value: number;
+  eligible_plans: string[];
+  eligible_cadences: string[];
+  first_purchase_only: boolean;
+  max_redemptions_total?: number;
+  max_per_account: number;
+  valid_from?: string;
+  valid_until?: string;
+  active: boolean;
+  owner_name: string;
+  batch_label: string;
+  stackable: boolean;
+  archived_at?: string;
+  redemption_count: number;
+  applied_count: number;
+  discount_minor: number;
+  recent_redemptions: AdminSubscriptionDiscountRedemptionPayload[];
   created_at: string;
   updated_at: string;
 };
@@ -1713,7 +1861,10 @@ function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
     businessId: payload.business_id,
     businessName: payload.business_name,
     handle: payload.handle,
+    ownerName: payload.owner_name,
+    ownerPhone: payload.owner_phone,
     ownerEmail: payload.owner_email,
+    ownerWhatsApp: payload.owner_whatsapp,
     planCode: payload.plan_code,
     planName: payload.plan_name,
     monthlyFeeMinor: payload.monthly_fee_minor,
@@ -1735,6 +1886,12 @@ function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscription {
     lastInvoiceRef: payload.last_invoice_ref,
     lastPaymentAt: payload.last_payment_at,
     nextBillingAt: payload.next_billing_at,
+    signupAt: payload.signup_at,
+    renewalAt: payload.renewal_at,
+    storeLink: payload.store_link,
+    discountCode: payload.discount_code,
+    discountInstitution: payload.discount_institution,
+    lastActiveAt: payload.last_active_at,
     orders: payload.orders,
     gmvMinor: payload.gmv_minor,
     commissionMinor: payload.commission_minor,
@@ -1826,6 +1983,70 @@ function mapPlan(payload: AdminPlanPayload): AdminPlan {
   };
 }
 
+function mapPlanEntitlementFeature(
+  payload: AdminPlanEntitlementFeaturePayload,
+): AdminPlanEntitlementFeature {
+  return {
+    featureKey: payload.feature_key,
+    label: payload.label,
+    description: payload.description,
+    category: payload.category,
+    valueType: payload.value_type,
+    unit: payload.unit,
+    sortOrder: payload.sort_order,
+    isActive: payload.is_active,
+    values: payload.values.map((value) => ({
+      planId: value.plan_id,
+      planCode: value.plan_code,
+      enabled: value.enabled,
+      limitValue: value.limit_value,
+      updatedAt: value.updated_at,
+    })),
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
+function mapSubscriptionDiscountCode(
+  payload: AdminSubscriptionDiscountCodePayload,
+): AdminSubscriptionDiscountCode {
+  return {
+    discountCodeId: payload.discount_code_id,
+    code: payload.code,
+    discountType: payload.discount_type,
+    discountValue: payload.discount_value,
+    eligiblePlans: payload.eligible_plans ?? [],
+    eligibleCadences: payload.eligible_cadences ?? [],
+    firstPurchaseOnly: payload.first_purchase_only,
+    maxRedemptionsTotal: payload.max_redemptions_total,
+    maxPerAccount: payload.max_per_account,
+    validFrom: payload.valid_from,
+    validUntil: payload.valid_until,
+    active: payload.active,
+    ownerName: payload.owner_name,
+    batchLabel: payload.batch_label,
+    stackable: payload.stackable,
+    archivedAt: payload.archived_at,
+    redemptionCount: payload.redemption_count,
+    appliedCount: payload.applied_count,
+    discountMinor: payload.discount_minor,
+    recentRedemptions: payload.recent_redemptions.map((redemption) => ({
+      redemptionId: redemption.redemption_id,
+      businessId: redemption.business_id,
+      businessName: redemption.business_name,
+      planCode: redemption.plan_code,
+      cadence: redemption.cadence,
+      accountKey: redemption.account_key,
+      status: redemption.status,
+      discountMinor: redemption.discount_minor,
+      createdAt: redemption.created_at,
+      appliedAt: redemption.applied_at,
+    })),
+    createdAt: payload.created_at,
+    updatedAt: payload.updated_at,
+  };
+}
+
 function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
   return {
     promotionId: payload.promotion_id,
@@ -1865,6 +2086,39 @@ function mapPromotion(payload: AdminPromotionPayload): AdminPromotion {
     })),
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
+  };
+}
+
+function subscriptionDiscountPayload(input: {
+  code: string;
+  discountType: AdminSubscriptionDiscountType;
+  discountValue: number;
+  eligiblePlans: string[];
+  eligibleCadences: string[];
+  firstPurchaseOnly: boolean;
+  maxRedemptionsTotal?: number;
+  maxPerAccount: number;
+  validFrom?: string;
+  validUntil?: string;
+  active: boolean;
+  ownerName: string;
+  batchLabel: string;
+}) {
+  return {
+    code: input.code,
+    discount_type: input.discountType,
+    discount_value: input.discountValue,
+    eligible_plans: input.eligiblePlans,
+    eligible_cadences: input.eligibleCadences,
+    first_purchase_only: input.firstPurchaseOnly,
+    max_redemptions_total: input.maxRedemptionsTotal,
+    max_per_account: input.maxPerAccount,
+    valid_from: input.validFrom,
+    valid_until: input.validUntil,
+    active: input.active,
+    owner_name: input.ownerName,
+    batch_label: input.batchLabel,
+    stackable: false,
   };
 }
 
@@ -2587,6 +2841,116 @@ export const adminApi = {
         body: JSON.stringify({ reason }),
       },
     ).then(mapPlan),
+  planEntitlements: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      features: AdminPlanEntitlementFeaturePayload[];
+    }>("/admin/plan-entitlements", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.features.map(mapPlanEntitlementFeature);
+  },
+  updatePlanEntitlements: (
+    accessToken: string,
+    input: {
+      values: {
+        planId: string;
+        featureKey: string;
+        enabled: boolean;
+        limitValue?: number;
+      }[];
+    },
+  ) =>
+    requestJSON<{ features: AdminPlanEntitlementFeaturePayload[] }>(
+      "/admin/plan-entitlements",
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({
+          values: input.values.map((value) => ({
+            plan_id: value.planId,
+            feature_key: value.featureKey,
+            enabled: value.enabled,
+            limit_value: value.limitValue,
+          })),
+        }),
+      },
+    ).then((payload) => payload.features.map(mapPlanEntitlementFeature)),
+  subscriptionDiscountCodes: async (accessToken: string) => {
+    const payload = await requestJSON<{
+      discount_codes: AdminSubscriptionDiscountCodePayload[];
+    }>("/admin/subscription-discounts", {
+      method: "GET",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return payload.discount_codes.map(mapSubscriptionDiscountCode);
+  },
+  createSubscriptionDiscountCode: (
+    accessToken: string,
+    input: {
+      code: string;
+      discountType: AdminSubscriptionDiscountType;
+      discountValue: number;
+      eligiblePlans: string[];
+      eligibleCadences: string[];
+      firstPurchaseOnly: boolean;
+      maxRedemptionsTotal?: number;
+      maxPerAccount: number;
+      validFrom?: string;
+      validUntil?: string;
+      active: boolean;
+      ownerName: string;
+      batchLabel: string;
+    },
+  ) =>
+    requestJSON<AdminSubscriptionDiscountCodePayload>(
+      "/admin/subscription-discounts",
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(subscriptionDiscountPayload(input)),
+      },
+    ).then(mapSubscriptionDiscountCode),
+  updateSubscriptionDiscountCode: (
+    accessToken: string,
+    discountCodeId: string,
+    input: {
+      code: string;
+      discountType: AdminSubscriptionDiscountType;
+      discountValue: number;
+      eligiblePlans: string[];
+      eligibleCadences: string[];
+      firstPurchaseOnly: boolean;
+      maxRedemptionsTotal?: number;
+      maxPerAccount: number;
+      validFrom?: string;
+      validUntil?: string;
+      active: boolean;
+      ownerName: string;
+      batchLabel: string;
+    },
+  ) =>
+    requestJSON<AdminSubscriptionDiscountCodePayload>(
+      `/admin/subscription-discounts/${encodeURIComponent(discountCodeId)}`,
+      {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify(subscriptionDiscountPayload(input)),
+      },
+    ).then(mapSubscriptionDiscountCode),
+  archiveSubscriptionDiscountCode: (
+    accessToken: string,
+    discountCodeId: string,
+    reason: string,
+  ) =>
+    requestJSON<AdminSubscriptionDiscountCodePayload>(
+      `/admin/subscription-discounts/${encodeURIComponent(discountCodeId)}/archive`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: JSON.stringify({ reason }),
+      },
+    ).then(mapSubscriptionDiscountCode),
   promotions: async (accessToken: string) => {
     const payload = await requestJSON<{ promotions: AdminPromotionPayload[] }>(
       "/admin/promotions",
@@ -3270,7 +3634,11 @@ export const adminApi = {
     );
     return payload.customers.map(mapCustomer);
   },
-  eraseCustomer: (accessToken: string, customerId: string, confirmation: string) =>
+  eraseCustomer: (
+    accessToken: string,
+    customerId: string,
+    confirmation: string,
+  ) =>
     requestJSON<{
       customer_id: string;
       erased: boolean;

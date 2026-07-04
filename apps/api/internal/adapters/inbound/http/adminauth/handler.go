@@ -62,6 +62,12 @@ type Service interface {
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
 	ArchivePlan(ctx context.Context, command adminauthapp.ArchivePlanCommand) (ports.AdminPlanRecord, error)
+	ListPlanEntitlements(ctx context.Context, command adminauthapp.ListPlanEntitlementsCommand) ([]ports.AdminPlanEntitlementFeatureRecord, error)
+	UpdatePlanEntitlements(ctx context.Context, command adminauthapp.UpdatePlanEntitlementsCommand) ([]ports.AdminPlanEntitlementFeatureRecord, error)
+	ListSubscriptionDiscountCodes(ctx context.Context, command adminauthapp.ListSubscriptionDiscountCodesCommand) ([]ports.AdminSubscriptionDiscountCodeRecord, error)
+	CreateSubscriptionDiscountCode(ctx context.Context, command adminauthapp.CreateSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
+	UpdateSubscriptionDiscountCode(ctx context.Context, command adminauthapp.UpdateSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
+	ArchiveSubscriptionDiscountCode(ctx context.Context, command adminauthapp.ArchiveSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
 	ListPromotions(ctx context.Context, command adminauthapp.ListPromotionsCommand) ([]ports.AdminPromotionRecord, error)
 	CreatePromotion(ctx context.Context, command adminauthapp.CreatePromotionCommand) (ports.AdminPromotionRecord, error)
 	UpdatePromotion(ctx context.Context, command adminauthapp.UpdatePromotionCommand) (ports.AdminPromotionRecord, error)
@@ -142,10 +148,16 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/subscriptions/businesses/{id}/invoices", handler.issueSubscriptionInvoice)
 		protected.Post("/admin/subscriptions/invoices/{id}/paid", handler.markSubscriptionInvoicePaid)
 		protected.Post("/admin/subscriptions/invoices/{id}/failed", handler.markSubscriptionInvoiceFailed)
+		protected.Get("/admin/subscription-discounts", handler.subscriptionDiscountCodes)
+		protected.Post("/admin/subscription-discounts", handler.createSubscriptionDiscountCode)
+		protected.Patch("/admin/subscription-discounts/{id}", handler.updateSubscriptionDiscountCode)
+		protected.Post("/admin/subscription-discounts/{id}/archive", handler.archiveSubscriptionDiscountCode)
 		protected.Get("/admin/plans", handler.plans)
 		protected.Post("/admin/plans", handler.createPlan)
 		protected.Patch("/admin/plans/{id}", handler.updatePlan)
 		protected.Post("/admin/plans/{id}/archive", handler.archivePlan)
+		protected.Get("/admin/plan-entitlements", handler.planEntitlements)
+		protected.Patch("/admin/plan-entitlements", handler.updatePlanEntitlements)
 		protected.Get("/admin/promotions", handler.promotions)
 		protected.Post("/admin/promotions", handler.createPromotion)
 		protected.Patch("/admin/promotions/{id}", handler.updatePromotion)
@@ -327,6 +339,38 @@ type planUpdateRequest struct {
 }
 
 type planArchiveRequest struct {
+	Reason string `json:"reason"`
+}
+
+type planEntitlementValueRequest struct {
+	PlanID     string `json:"plan_id"`
+	FeatureKey string `json:"feature_key"`
+	Enabled    bool   `json:"enabled"`
+	LimitValue *int   `json:"limit_value"`
+}
+
+type planEntitlementUpdateRequest struct {
+	Values []planEntitlementValueRequest `json:"values"`
+}
+
+type subscriptionDiscountCodeUpsertRequest struct {
+	Code                string     `json:"code"`
+	DiscountType        string     `json:"discount_type"`
+	DiscountValue       int        `json:"discount_value"`
+	EligiblePlans       []string   `json:"eligible_plans"`
+	EligibleCadences    []string   `json:"eligible_cadences"`
+	FirstPurchaseOnly   bool       `json:"first_purchase_only"`
+	MaxRedemptionsTotal *int       `json:"max_redemptions_total"`
+	MaxPerAccount       int        `json:"max_per_account"`
+	ValidFrom           *time.Time `json:"valid_from"`
+	ValidUntil          *time.Time `json:"valid_until"`
+	Active              bool       `json:"active"`
+	OwnerName           string     `json:"owner_name"`
+	BatchLabel          string     `json:"batch_label"`
+	Stackable           bool       `json:"stackable"`
+}
+
+type subscriptionDiscountCodeArchiveRequest struct {
 	Reason string `json:"reason"`
 }
 
@@ -762,7 +806,10 @@ type subscriptionResponse struct {
 	BusinessID              string                        `json:"business_id"`
 	BusinessName            string                        `json:"business_name"`
 	Handle                  string                        `json:"handle"`
+	OwnerName               string                        `json:"owner_name"`
+	OwnerPhone              string                        `json:"owner_phone"`
 	OwnerEmail              string                        `json:"owner_email"`
+	OwnerWhatsApp           string                        `json:"owner_whatsapp"`
 	PlanCode                string                        `json:"plan_code"`
 	PlanName                string                        `json:"plan_name"`
 	MonthlyFeeMinor         int64                         `json:"monthly_fee_minor"`
@@ -784,6 +831,12 @@ type subscriptionResponse struct {
 	LastInvoiceRef          string                        `json:"last_invoice_ref"`
 	LastPaymentAt           string                        `json:"last_payment_at,omitempty"`
 	NextBillingAt           string                        `json:"next_billing_at,omitempty"`
+	SignupAt                string                        `json:"signup_at"`
+	RenewalAt               string                        `json:"renewal_at,omitempty"`
+	StoreLink               string                        `json:"store_link"`
+	DiscountCode            string                        `json:"discount_code"`
+	DiscountInstitution     string                        `json:"discount_institution"`
+	LastActiveAt            string                        `json:"last_active_at"`
 	Orders                  int                           `json:"orders"`
 	GMVMinor                int64                         `json:"gmv_minor"`
 	CommissionMinor         int64                         `json:"commission_minor"`
@@ -854,6 +907,66 @@ type planResponse struct {
 	EstimatedMRRMinor       int64           `json:"estimated_mrr_minor"`
 	CreatedAt               string          `json:"created_at"`
 	UpdatedAt               string          `json:"updated_at"`
+}
+
+type planEntitlementFeatureResponse struct {
+	FeatureKey  string                         `json:"feature_key"`
+	Label       string                         `json:"label"`
+	Description string                         `json:"description"`
+	Category    string                         `json:"category"`
+	ValueType   string                         `json:"value_type"`
+	Unit        string                         `json:"unit"`
+	SortOrder   int                            `json:"sort_order"`
+	IsActive    bool                           `json:"is_active"`
+	Values      []planEntitlementValueResponse `json:"values"`
+	CreatedAt   string                         `json:"created_at"`
+	UpdatedAt   string                         `json:"updated_at"`
+}
+
+type planEntitlementValueResponse struct {
+	PlanID     string `json:"plan_id"`
+	PlanCode   string `json:"plan_code"`
+	Enabled    bool   `json:"enabled"`
+	LimitValue *int   `json:"limit_value,omitempty"`
+	UpdatedAt  string `json:"updated_at"`
+}
+
+type subscriptionDiscountCodeResponse struct {
+	DiscountCodeID      string                                   `json:"discount_code_id"`
+	Code                string                                   `json:"code"`
+	DiscountType        string                                   `json:"discount_type"`
+	DiscountValue       int                                      `json:"discount_value"`
+	EligiblePlans       []string                                 `json:"eligible_plans"`
+	EligibleCadences    []string                                 `json:"eligible_cadences"`
+	FirstPurchaseOnly   bool                                     `json:"first_purchase_only"`
+	MaxRedemptionsTotal *int                                     `json:"max_redemptions_total,omitempty"`
+	MaxPerAccount       int                                      `json:"max_per_account"`
+	ValidFrom           string                                   `json:"valid_from,omitempty"`
+	ValidUntil          string                                   `json:"valid_until,omitempty"`
+	Active              bool                                     `json:"active"`
+	OwnerName           string                                   `json:"owner_name"`
+	BatchLabel          string                                   `json:"batch_label"`
+	Stackable           bool                                     `json:"stackable"`
+	ArchivedAt          string                                   `json:"archived_at,omitempty"`
+	RedemptionCount     int                                      `json:"redemption_count"`
+	AppliedCount        int                                      `json:"applied_count"`
+	DiscountMinor       int64                                    `json:"discount_minor"`
+	RecentRedemptions   []subscriptionDiscountRedemptionResponse `json:"recent_redemptions"`
+	CreatedAt           string                                   `json:"created_at"`
+	UpdatedAt           string                                   `json:"updated_at"`
+}
+
+type subscriptionDiscountRedemptionResponse struct {
+	RedemptionID  string `json:"redemption_id"`
+	BusinessID    string `json:"business_id"`
+	BusinessName  string `json:"business_name"`
+	PlanCode      string `json:"plan_code"`
+	Cadence       string `json:"cadence"`
+	AccountKey    string `json:"account_key"`
+	Status        string `json:"status"`
+	DiscountMinor int64  `json:"discount_minor"`
+	CreatedAt     string `json:"created_at"`
+	AppliedAt     string `json:"applied_at,omitempty"`
 }
 
 type promotionResponse struct {
@@ -1973,6 +2086,201 @@ func (handler Handler) archivePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, newPlanResponse(record))
+}
+
+func (handler Handler) planEntitlements(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListPlanEntitlements(r.Context(), adminauthapp.ListPlanEntitlementsCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string][]planEntitlementFeatureResponse{
+		"features": newPlanEntitlementFeatureResponses(records),
+	})
+}
+
+func (handler Handler) updatePlanEntitlements(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request planEntitlementUpdateRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	values := make([]ports.AdminPlanEntitlementValueInput, 0, len(request.Values))
+	for _, value := range request.Values {
+		values = append(values, ports.AdminPlanEntitlementValueInput{
+			PlanID:     common.ID(value.PlanID),
+			FeatureKey: value.FeatureKey,
+			Enabled:    value.Enabled,
+			LimitValue: value.LimitValue,
+		})
+	}
+	records, err := handler.service.UpdatePlanEntitlements(r.Context(), adminauthapp.UpdatePlanEntitlementsCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Values:      values,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string][]planEntitlementFeatureResponse{
+		"features": newPlanEntitlementFeatureResponses(records),
+	})
+}
+
+func (handler Handler) subscriptionDiscountCodes(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListSubscriptionDiscountCodes(r.Context(), adminauthapp.ListSubscriptionDiscountCodesCommand{
+		ActorRole: principal.Role,
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	out := make([]subscriptionDiscountCodeResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newSubscriptionDiscountCodeResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]subscriptionDiscountCodeResponse{"discount_codes": out})
+}
+
+func (handler Handler) createSubscriptionDiscountCode(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionDiscountCodeUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	record, err := handler.service.CreateSubscriptionDiscountCode(r.Context(), adminauthapp.CreateSubscriptionDiscountCodeCommand{
+		ActorUserID:         principal.AdminUserID,
+		ActorRole:           principal.Role,
+		Code:                request.Code,
+		DiscountType:        request.DiscountType,
+		DiscountValue:       request.DiscountValue,
+		EligiblePlans:       request.EligiblePlans,
+		EligibleCadences:    request.EligibleCadences,
+		FirstPurchaseOnly:   request.FirstPurchaseOnly,
+		MaxRedemptionsTotal: request.MaxRedemptionsTotal,
+		MaxPerAccount:       request.MaxPerAccount,
+		ValidFrom:           request.ValidFrom,
+		ValidUntil:          request.ValidUntil,
+		Active:              request.Active,
+		OwnerName:           request.OwnerName,
+		BatchLabel:          request.BatchLabel,
+		Stackable:           request.Stackable,
+		UserAgent:           r.UserAgent(),
+		IPAddress:           requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, newSubscriptionDiscountCodeResponse(record))
+}
+
+func (handler Handler) updateSubscriptionDiscountCode(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionDiscountCodeUpsertRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	record, err := handler.service.UpdateSubscriptionDiscountCode(r.Context(), adminauthapp.UpdateSubscriptionDiscountCodeCommand{
+		ActorUserID:         principal.AdminUserID,
+		ActorRole:           principal.Role,
+		DiscountCodeID:      common.ID(chi.URLParam(r, "id")),
+		Code:                request.Code,
+		DiscountType:        request.DiscountType,
+		DiscountValue:       request.DiscountValue,
+		EligiblePlans:       request.EligiblePlans,
+		EligibleCadences:    request.EligibleCadences,
+		FirstPurchaseOnly:   request.FirstPurchaseOnly,
+		MaxRedemptionsTotal: request.MaxRedemptionsTotal,
+		MaxPerAccount:       request.MaxPerAccount,
+		ValidFrom:           request.ValidFrom,
+		ValidUntil:          request.ValidUntil,
+		Active:              request.Active,
+		OwnerName:           request.OwnerName,
+		BatchLabel:          request.BatchLabel,
+		Stackable:           request.Stackable,
+		UserAgent:           r.UserAgent(),
+		IPAddress:           requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionDiscountCodeResponse(record))
+}
+
+func (handler Handler) archiveSubscriptionDiscountCode(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionDiscountCodeArchiveRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+	record, err := handler.service.ArchiveSubscriptionDiscountCode(r.Context(), adminauthapp.ArchiveSubscriptionDiscountCodeCommand{
+		ActorUserID:    principal.AdminUserID,
+		ActorRole:      principal.Role,
+		DiscountCodeID: common.ID(chi.URLParam(r, "id")),
+		Reason:         request.Reason,
+		UserAgent:      r.UserAgent(),
+		IPAddress:      requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionDiscountCodeResponse(record))
 }
 
 func (handler Handler) promotions(w http.ResponseWriter, r *http.Request) {
@@ -3441,9 +3749,49 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Business", "Handle", "Plan", "Status", "Billing mode", "Monthly fee", "Last invoice", "Last payment", "Next billing"}}
+		rows := [][]string{{
+			"Business",
+			"Owner",
+			"Phone",
+			"Email",
+			"WhatsApp",
+			"Plan",
+			"Billing cadence",
+			"Status",
+			"Signup date",
+			"Renewal date",
+			"Store link",
+			"Discount code",
+			"Institution",
+			"Total sales",
+			"Last active",
+			"Monthly fee",
+			"Last invoice",
+			"Last payment",
+			"Next billing",
+		}}
 		for _, record := range records {
-			rows = append(rows, []string{record.BusinessName, record.Handle, record.PlanName, record.Status, record.BillingMode, moneyCSV(record.MonthlyFeeMinor), record.LastInvoiceRef, optionalTimeCSV(record.LastPaymentAt), optionalTimeCSV(record.NextBillingAt)})
+			rows = append(rows, []string{
+				record.BusinessName,
+				record.OwnerName,
+				record.OwnerPhone,
+				record.OwnerEmail,
+				record.OwnerWhatsApp,
+				record.PlanName,
+				record.BillingMode,
+				record.Status,
+				timeCSV(record.SignupAt),
+				optionalTimeCSV(record.RenewalAt),
+				record.StoreLink,
+				record.DiscountCode,
+				record.DiscountInstitution,
+				moneyCSV(record.GMVMinor),
+				timeCSV(record.LastActiveAt),
+				moneyCSV(record.MonthlyFeeMinor),
+				record.LastInvoiceRef,
+				optionalTimeCSV(record.LastPaymentAt),
+				optionalTimeCSV(record.NextBillingAt),
+			})
 		}
 		return rows, nil
 	case "plans":
@@ -4170,7 +4518,10 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		BusinessID:              record.BusinessID.String(),
 		BusinessName:            record.BusinessName,
 		Handle:                  record.Handle,
+		OwnerName:               record.OwnerName,
+		OwnerPhone:              record.OwnerPhone,
 		OwnerEmail:              record.OwnerEmail,
+		OwnerWhatsApp:           record.OwnerWhatsApp,
 		PlanCode:                record.PlanCode,
 		PlanName:                record.PlanName,
 		MonthlyFeeMinor:         record.MonthlyFeeMinor,
@@ -4192,6 +4543,12 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		LastInvoiceRef:          record.LastInvoiceRef,
 		LastPaymentAt:           optionalTimeString(record.LastPaymentAt),
 		NextBillingAt:           optionalTimeString(record.NextBillingAt),
+		SignupAt:                record.SignupAt.Format(time.RFC3339),
+		RenewalAt:               optionalTimeString(record.RenewalAt),
+		StoreLink:               record.StoreLink,
+		DiscountCode:            record.DiscountCode,
+		DiscountInstitution:     record.DiscountInstitution,
+		LastActiveAt:            record.LastActiveAt.Format(time.RFC3339),
 		Orders:                  record.OrdersCount,
 		GMVMinor:                record.GMVMinor,
 		CommissionMinor:         record.CommissionMinor,
@@ -4255,6 +4612,82 @@ func newPlanResponse(record ports.AdminPlanRecord) planResponse {
 		EstimatedMRRMinor:       record.EstimatedMRRMinor,
 		CreatedAt:               record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:               record.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+func newPlanEntitlementFeatureResponses(
+	records []ports.AdminPlanEntitlementFeatureRecord,
+) []planEntitlementFeatureResponse {
+	out := make([]planEntitlementFeatureResponse, 0, len(records))
+	for _, record := range records {
+		values := make([]planEntitlementValueResponse, 0, len(record.Values))
+		for _, value := range record.Values {
+			values = append(values, planEntitlementValueResponse{
+				PlanID:     value.PlanID.String(),
+				PlanCode:   value.PlanCode,
+				Enabled:    value.Enabled,
+				LimitValue: value.LimitValue,
+				UpdatedAt:  value.UpdatedAt.Format(time.RFC3339),
+			})
+		}
+		out = append(out, planEntitlementFeatureResponse{
+			FeatureKey:  record.FeatureKey,
+			Label:       record.Label,
+			Description: record.Description,
+			Category:    record.Category,
+			ValueType:   record.ValueType,
+			Unit:        record.Unit,
+			SortOrder:   record.SortOrder,
+			IsActive:    record.IsActive,
+			Values:      values,
+			CreatedAt:   record.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:   record.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+	return out
+}
+
+func newSubscriptionDiscountCodeResponse(
+	record ports.AdminSubscriptionDiscountCodeRecord,
+) subscriptionDiscountCodeResponse {
+	redemptions := make([]subscriptionDiscountRedemptionResponse, 0, len(record.RecentRedemptions))
+	for _, redemption := range record.RecentRedemptions {
+		redemptions = append(redemptions, subscriptionDiscountRedemptionResponse{
+			RedemptionID:  redemption.RedemptionID.String(),
+			BusinessID:    redemption.BusinessID.String(),
+			BusinessName:  redemption.BusinessName,
+			PlanCode:      redemption.PlanCode,
+			Cadence:       redemption.Cadence,
+			AccountKey:    redemption.AccountKey,
+			Status:        redemption.Status,
+			DiscountMinor: redemption.DiscountMinor,
+			CreatedAt:     redemption.CreatedAt.Format(time.RFC3339),
+			AppliedAt:     optionalTimeString(redemption.AppliedAt),
+		})
+	}
+	return subscriptionDiscountCodeResponse{
+		DiscountCodeID:      record.DiscountCodeID.String(),
+		Code:                record.Code,
+		DiscountType:        record.DiscountType,
+		DiscountValue:       record.DiscountValue,
+		EligiblePlans:       record.EligiblePlans,
+		EligibleCadences:    record.EligibleCadences,
+		FirstPurchaseOnly:   record.FirstPurchaseOnly,
+		MaxRedemptionsTotal: record.MaxRedemptionsTotal,
+		MaxPerAccount:       record.MaxPerAccount,
+		ValidFrom:           optionalTimeString(record.ValidFrom),
+		ValidUntil:          optionalTimeString(record.ValidUntil),
+		Active:              record.Active,
+		OwnerName:           record.OwnerName,
+		BatchLabel:          record.BatchLabel,
+		Stackable:           record.Stackable,
+		ArchivedAt:          optionalTimeString(record.ArchivedAt),
+		RedemptionCount:     record.RedemptionCount,
+		AppliedCount:        record.AppliedCount,
+		DiscountMinor:       record.DiscountMinor,
+		RecentRedemptions:   redemptions,
+		CreatedAt:           record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:           record.UpdatedAt.Format(time.RFC3339),
 	}
 }
 

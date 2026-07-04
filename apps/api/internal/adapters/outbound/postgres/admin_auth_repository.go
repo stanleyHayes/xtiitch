@@ -17,6 +17,11 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+const (
+	pgForeignKeyViolation = "23503"
+	pgCheckViolation      = "23514"
+)
+
 type AdminAuthRepository struct {
 	pool *pgxpool.Pool
 }
@@ -1641,7 +1646,8 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 		with order_stats as (
 			select
 				business_id,
-				count(*)::int as orders_count
+				count(*)::int as orders_count,
+				max(updated_at) as last_order_at
 			from orders
 			group by business_id
 		),
@@ -1657,7 +1663,8 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			select
 				business_id,
 				coalesce(sum(amount_minor) filter (where status = 'succeeded'), 0)::bigint as gmv_minor,
-				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor
+				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor,
+				max(updated_at) filter (where status = 'succeeded') as last_payment_at
 			from payments
 			group by business_id
 		)
@@ -1666,7 +1673,10 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			b.business_id::text,
 			b.name,
 			b.handle,
+			coalesce(owner.display_name, ''),
+			coalesce(owner.whatsapp_number, ''),
 			coalesce(owner.email, ''),
+			coalesce(owner.whatsapp_number, ''),
 			coalesce(sp.code, p.code),
 			coalesce(sp.name, p.name),
 			coalesce(sp.monthly_fee_minor, p.monthly_fee_minor)::bigint,
@@ -1693,6 +1703,20 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			coalesce(s.last_invoice_ref, ''),
 			s.last_payment_at,
 			s.next_billing_at,
+			b.created_at,
+			coalesce(
+				s.next_billing_at,
+				s.current_period_end,
+				greatest(b.created_at + interval '1 month', now() + interval '1 day')
+			),
+			case when b.handle <> '' then 'https://' || b.handle || '.xtiitch.com' else '' end,
+			coalesce(discount.code, ''),
+			coalesce(nullif(discount.owner_name, ''), discount.batch_label, ''),
+			greatest(
+				b.updated_at,
+				coalesce(os.last_order_at, b.updated_at),
+				coalesce(ms.last_payment_at, b.updated_at)
+			),
 			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
@@ -1706,12 +1730,21 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.email
+			select u.display_name, u.email, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
 			limit 1
 		) owner on true
+		left join lateral (
+			select c.code, c.owner_name, c.batch_label
+			from subscription_discount_redemptions r
+			join subscription_discount_codes c on c.discount_code_id = r.discount_code_id
+			where r.business_id = b.business_id
+			  and r.status in ('pending', 'applied')
+			order by coalesce(r.applied_at, r.created_at) desc, r.created_at desc
+			limit 1
+		) discount on true
 		order by
 			case
 				when coalesce(s.status, '') in ('past_due', 'grace_period') then 1
@@ -2613,6 +2646,303 @@ func (repo AdminAuthRepository) ArchiveAdminPlan(
 		return ports.AdminPlanRecord{}, err
 	}
 
+	return record, nil
+}
+
+func (repo AdminAuthRepository) ListAdminPlanEntitlements(
+	ctx context.Context,
+) ([]ports.AdminPlanEntitlementFeatureRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	records, err := listAdminPlanEntitlements(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (repo AdminAuthRepository) UpdateAdminPlanEntitlements(
+	ctx context.Context,
+	input ports.UpdateAdminPlanEntitlementsInput,
+) ([]ports.AdminPlanEntitlementFeatureRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	affectedPlans := map[common.ID]struct{}{}
+	for _, value := range input.Values {
+		if _, err := tx.Exec(ctx, `
+			insert into plan_entitlement_values (
+				plan_id,
+				feature_key,
+				enabled,
+				limit_value
+			)
+			values ($1::uuid, $2, $3, $4)
+			on conflict (plan_id, feature_key) do update set
+				enabled = excluded.enabled,
+				limit_value = excluded.limit_value,
+				updated_at = now()
+		`, value.PlanID.String(),
+			value.FeatureKey,
+			value.Enabled,
+			nullableIntArg(value.LimitValue),
+		); err != nil {
+			if adminEntitlementInvalid(err) {
+				return nil, authdomain.ErrInvalidInput
+			}
+			return nil, err
+		}
+		affectedPlans[value.PlanID] = struct{}{}
+	}
+
+	for planID := range affectedPlans {
+		if err := mirrorAdminPlanRuntimeEntitlements(ctx, tx, planID); err != nil {
+			return nil, err
+		}
+	}
+
+	records, err := listAdminPlanEntitlements(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (repo AdminAuthRepository) ListAdminSubscriptionDiscountCodes(
+	ctx context.Context,
+) ([]ports.AdminSubscriptionDiscountCodeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return nil, err
+	}
+
+	records, err := listAdminSubscriptionDiscountCodes(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+func (repo AdminAuthRepository) CreateAdminSubscriptionDiscountCode(
+	ctx context.Context,
+	input ports.CreateAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	record, err := scanAdminSubscriptionDiscountCodeRecord(tx.QueryRow(ctx, `
+		with inserted as (
+			insert into subscription_discount_codes (
+				discount_code_id,
+				code,
+				discount_type,
+				discount_value,
+				eligible_plans,
+				eligible_cadences,
+				first_purchase_only,
+				max_redemptions_total,
+				max_per_account,
+				valid_from,
+				valid_until,
+				active,
+				owner_name,
+				batch_label,
+				stackable,
+				created_by_admin_user_id,
+				updated_by_admin_user_id
+			)
+			values (
+				$1::uuid, $2, $3, $4, $5::text[], $6::text[], $7, $8, $9,
+				$10, $11, $12, $13, $14, $15, $16::uuid, $16::uuid
+			)
+			returning *
+		)
+		`+adminSubscriptionDiscountCodeSelect("inserted")+`
+	`, input.DiscountCodeID.String(),
+		input.Code,
+		input.DiscountType,
+		input.DiscountValue,
+		input.EligiblePlans,
+		input.EligibleCadences,
+		input.FirstPurchaseOnly,
+		nullableIntArg(input.MaxRedemptionsTotal),
+		input.MaxPerAccount,
+		nullableTimeArg(input.ValidFrom),
+		nullableTimeArg(input.ValidUntil),
+		input.Active,
+		input.OwnerName,
+		input.BatchLabel,
+		input.Stackable,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if subscriptionDiscountCodeTaken(err) || adminEntitlementInvalid(err) {
+			return ports.AdminSubscriptionDiscountCodeRecord{}, authdomain.ErrInvalidInput
+		}
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	return record, nil
+}
+
+func (repo AdminAuthRepository) UpdateAdminSubscriptionDiscountCode(
+	ctx context.Context,
+	input ports.UpdateAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	record, err := scanAdminSubscriptionDiscountCodeRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update subscription_discount_codes
+			set code = $2,
+				discount_type = $3,
+				discount_value = $4,
+				eligible_plans = $5::text[],
+				eligible_cadences = $6::text[],
+				first_purchase_only = $7,
+				max_redemptions_total = $8,
+				max_per_account = $9,
+				valid_from = $10,
+				valid_until = $11,
+				active = $12,
+				owner_name = $13,
+				batch_label = $14,
+				stackable = $15,
+				updated_by_admin_user_id = $16::uuid,
+				archived_at = case when $12 then null else coalesce(archived_at, now()) end,
+				updated_at = now()
+			where discount_code_id = $1::uuid
+			returning *
+		)
+		`+adminSubscriptionDiscountCodeSelect("updated")+`
+	`, input.DiscountCodeID.String(),
+		input.Code,
+		input.DiscountType,
+		input.DiscountValue,
+		input.EligiblePlans,
+		input.EligibleCadences,
+		input.FirstPurchaseOnly,
+		nullableIntArg(input.MaxRedemptionsTotal),
+		input.MaxPerAccount,
+		nullableTimeArg(input.ValidFrom),
+		nullableTimeArg(input.ValidUntil),
+		input.Active,
+		input.OwnerName,
+		input.BatchLabel,
+		input.Stackable,
+		input.ActorAdminUser.String(),
+	))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionDiscountCodeRecord{}, ErrNotFound
+		}
+		if subscriptionDiscountCodeTaken(err) || adminEntitlementInvalid(err) {
+			return ports.AdminSubscriptionDiscountCodeRecord{}, authdomain.ErrInvalidInput
+		}
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	redemptionsByCode, err := listAdminSubscriptionDiscountRedemptions(ctx, tx)
+	if err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	record.RecentRedemptions = redemptionsByCode[record.DiscountCodeID]
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	return record, nil
+}
+
+func (repo AdminAuthRepository) ArchiveAdminSubscriptionDiscountCode(
+	ctx context.Context,
+	input ports.ArchiveAdminSubscriptionDiscountCodeInput,
+) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	record, err := scanAdminSubscriptionDiscountCodeRecord(tx.QueryRow(ctx, `
+		with updated as (
+			update subscription_discount_codes
+			set active = false,
+				archived_at = coalesce(archived_at, now()),
+				updated_by_admin_user_id = $2::uuid,
+				updated_at = now()
+			where discount_code_id = $1::uuid
+			returning *
+		)
+		`+adminSubscriptionDiscountCodeSelect("updated")+`
+	`, input.DiscountCodeID.String(), input.ActorAdminUser.String()))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AdminSubscriptionDiscountCodeRecord{}, ErrNotFound
+		}
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+
+	redemptionsByCode, err := listAdminSubscriptionDiscountRedemptions(ctx, tx)
+	if err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	record.RecentRedemptions = redemptionsByCode[record.DiscountCodeID]
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
 	return record, nil
 }
 
@@ -5256,12 +5586,16 @@ func scanAdminSubscriptionRecord(row pgx.Row) (ports.AdminSubscriptionRecord, er
 	var canceledAt pgtype.Timestamptz
 	var lastPaymentAt pgtype.Timestamptz
 	var nextBillingAt pgtype.Timestamptz
+	var renewalAt pgtype.Timestamptz
 	if err := row.Scan(
 		&record.SubscriptionID,
 		&record.BusinessID,
 		&record.BusinessName,
 		&record.Handle,
+		&record.OwnerName,
+		&record.OwnerPhone,
 		&record.OwnerEmail,
+		&record.OwnerWhatsApp,
 		&record.PlanCode,
 		&record.PlanName,
 		&record.MonthlyFeeMinor,
@@ -5282,6 +5616,12 @@ func scanAdminSubscriptionRecord(row pgx.Row) (ports.AdminSubscriptionRecord, er
 		&record.LastInvoiceRef,
 		&lastPaymentAt,
 		&nextBillingAt,
+		&record.SignupAt,
+		&renewalAt,
+		&record.StoreLink,
+		&record.DiscountCode,
+		&record.DiscountInstitution,
+		&record.LastActiveAt,
 		&record.DesignCount,
 		&record.OrdersCount,
 		&record.GMVMinor,
@@ -5296,6 +5636,7 @@ func scanAdminSubscriptionRecord(row pgx.Row) (ports.AdminSubscriptionRecord, er
 	record.CanceledAt = timestamptzPtr(canceledAt)
 	record.LastPaymentAt = timestamptzPtr(lastPaymentAt)
 	record.NextBillingAt = timestamptzPtr(nextBillingAt)
+	record.RenewalAt = timestamptzPtr(renewalAt)
 	record.Events = []ports.AdminSubscriptionEventRecord{}
 	record.Invoices = []ports.AdminSubscriptionInvoiceRecord{}
 
@@ -5376,6 +5717,299 @@ func planFeaturesArg(features map[string]bool) string {
 		return "{}"
 	}
 	return string(raw)
+}
+
+func listAdminPlanEntitlements(
+	ctx context.Context,
+	tx pgx.Tx,
+) ([]ports.AdminPlanEntitlementFeatureRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			f.feature_key,
+			f.label,
+			f.description,
+			f.category,
+			f.value_type,
+			f.unit,
+			f.sort_order,
+			f.is_active,
+			f.created_at,
+			f.updated_at,
+			p.plan_id::text,
+			p.code,
+			coalesce(v.enabled, false),
+			v.limit_value,
+			coalesce(v.updated_at, f.updated_at)
+		from plan_entitlement_features f
+		cross join plans p
+		left join plan_entitlement_values v
+			on v.plan_id = p.plan_id
+		   and v.feature_key = f.feature_key
+		where f.is_active = true
+		order by f.sort_order, f.label, p.is_active desc, p.monthly_fee_minor, p.code
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminPlanEntitlementFeatureRecord{}
+	indexByKey := map[string]int{}
+	for rows.Next() {
+		var feature ports.AdminPlanEntitlementFeatureRecord
+		var value ports.AdminPlanEntitlementValueRecord
+		var limitValue pgtype.Int4
+		if err := rows.Scan(
+			&feature.FeatureKey,
+			&feature.Label,
+			&feature.Description,
+			&feature.Category,
+			&feature.ValueType,
+			&feature.Unit,
+			&feature.SortOrder,
+			&feature.IsActive,
+			&feature.CreatedAt,
+			&feature.UpdatedAt,
+			&value.PlanID,
+			&value.PlanCode,
+			&value.Enabled,
+			&limitValue,
+			&value.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		value.LimitValue = int4Ptr(limitValue)
+		index, ok := indexByKey[feature.FeatureKey]
+		if !ok {
+			feature.Values = []ports.AdminPlanEntitlementValueRecord{}
+			records = append(records, feature)
+			index = len(records) - 1
+			indexByKey[feature.FeatureKey] = index
+		}
+		records[index].Values = append(records[index].Values, value)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return records, nil
+}
+
+func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID common.ID) error {
+	_, err := tx.Exec(ctx, `
+		with runtime as (
+			select
+				v.plan_id,
+				coalesce(
+					jsonb_object_agg(v.feature_key, true) filter (
+						where v.enabled
+						  and v.feature_key in (
+							  'custom_brand_color',
+							  'custom_logo',
+							  'custom_banner',
+							  'custom_layout',
+							  'design_waitlist',
+							  'online_ordering'
+						  )
+					),
+					'{}'::jsonb
+				) as features
+			from plan_entitlement_values v
+			where v.plan_id = $1::uuid
+			group by v.plan_id
+		),
+		designs as (
+			select limit_value
+			from plan_entitlement_values
+			where plan_id = $1::uuid and feature_key = 'designs' and enabled = true
+		)
+		update plans p
+		set features = coalesce(runtime.features, '{}'::jsonb),
+			design_limit = (select limit_value from designs),
+			updated_at = now()
+		from runtime
+		where p.plan_id = runtime.plan_id
+	`, planID.String())
+	return err
+}
+
+func listAdminSubscriptionDiscountCodes(
+	ctx context.Context,
+	tx pgx.Tx,
+) ([]ports.AdminSubscriptionDiscountCodeRecord, error) {
+	rows, err := tx.Query(ctx, adminSubscriptionDiscountCodesQuery()+`
+		order by c.active desc, c.updated_at desc, c.created_at desc
+		limit 200
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	records := []ports.AdminSubscriptionDiscountCodeRecord{}
+	for rows.Next() {
+		record, err := scanAdminSubscriptionDiscountCodeRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+
+	redemptionsByCode, err := listAdminSubscriptionDiscountRedemptions(ctx, tx)
+	if err != nil {
+		return nil, err
+	}
+	for index := range records {
+		records[index].RecentRedemptions = redemptionsByCode[records[index].DiscountCodeID]
+	}
+	return records, nil
+}
+
+func adminSubscriptionDiscountCodesQuery() string {
+	return adminSubscriptionDiscountCodeSelect("subscription_discount_codes")
+}
+
+func adminSubscriptionDiscountCodeSelect(source string) string {
+	return `
+		select
+			c.discount_code_id::text,
+			c.code,
+			c.discount_type,
+			c.discount_value::int,
+			c.eligible_plans,
+			c.eligible_cadences,
+			c.first_purchase_only,
+			c.max_redemptions_total,
+			c.max_per_account::int,
+			c.valid_from,
+			c.valid_until,
+			c.active,
+			c.owner_name,
+			c.batch_label,
+			c.stackable,
+			c.archived_at,
+			coalesce(r.redemption_count, 0)::int,
+			coalesce(r.applied_count, 0)::int,
+			coalesce(r.discount_minor, 0)::bigint,
+			c.created_at,
+			c.updated_at
+		from ` + source + ` c
+		left join lateral (
+			select
+				count(*)::int as redemption_count,
+				count(*) filter (where status = 'applied')::int as applied_count,
+				coalesce(sum(discount_minor) filter (where status = 'applied'), 0)::bigint as discount_minor
+			from subscription_discount_redemptions r
+			where r.discount_code_id = c.discount_code_id
+		) r on true
+	`
+}
+
+func scanAdminSubscriptionDiscountCodeRecord(row pgx.Row) (ports.AdminSubscriptionDiscountCodeRecord, error) {
+	var record ports.AdminSubscriptionDiscountCodeRecord
+	var maxRedemptionsTotal pgtype.Int4
+	var validFrom pgtype.Timestamptz
+	var validUntil pgtype.Timestamptz
+	var archivedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&record.DiscountCodeID,
+		&record.Code,
+		&record.DiscountType,
+		&record.DiscountValue,
+		&record.EligiblePlans,
+		&record.EligibleCadences,
+		&record.FirstPurchaseOnly,
+		&maxRedemptionsTotal,
+		&record.MaxPerAccount,
+		&validFrom,
+		&validUntil,
+		&record.Active,
+		&record.OwnerName,
+		&record.BatchLabel,
+		&record.Stackable,
+		&archivedAt,
+		&record.RedemptionCount,
+		&record.AppliedCount,
+		&record.DiscountMinor,
+		&record.CreatedAt,
+		&record.UpdatedAt,
+	); err != nil {
+		return ports.AdminSubscriptionDiscountCodeRecord{}, err
+	}
+	record.MaxRedemptionsTotal = int4Ptr(maxRedemptionsTotal)
+	record.ValidFrom = timestamptzPtr(validFrom)
+	record.ValidUntil = timestamptzPtr(validUntil)
+	record.ArchivedAt = timestamptzPtr(archivedAt)
+	if record.EligiblePlans == nil {
+		record.EligiblePlans = []string{}
+	}
+	if record.EligibleCadences == nil {
+		record.EligibleCadences = []string{}
+	}
+	record.RecentRedemptions = []ports.AdminSubscriptionDiscountRedemptionRecord{}
+	return record, nil
+}
+
+func listAdminSubscriptionDiscountRedemptions(
+	ctx context.Context,
+	tx pgx.Tx,
+) (map[common.ID][]ports.AdminSubscriptionDiscountRedemptionRecord, error) {
+	rows, err := tx.Query(ctx, `
+		select
+			r.discount_code_id::text,
+			r.redemption_id::text,
+			r.business_id::text,
+			coalesce(b.name, ''),
+			r.plan_code,
+			r.cadence,
+			r.account_key,
+			r.status,
+			r.discount_minor,
+			r.created_at,
+			r.applied_at
+		from subscription_discount_redemptions r
+		left join businesses b on b.business_id = r.business_id
+		order by r.discount_code_id, r.created_at desc
+		limit 500
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	redemptions := map[common.ID][]ports.AdminSubscriptionDiscountRedemptionRecord{}
+	for rows.Next() {
+		var discountCodeID common.ID
+		var record ports.AdminSubscriptionDiscountRedemptionRecord
+		var appliedAt pgtype.Timestamptz
+		if err := rows.Scan(
+			&discountCodeID,
+			&record.RedemptionID,
+			&record.BusinessID,
+			&record.BusinessName,
+			&record.PlanCode,
+			&record.Cadence,
+			&record.AccountKey,
+			&record.Status,
+			&record.DiscountMinor,
+			&record.CreatedAt,
+			&appliedAt,
+		); err != nil {
+			return nil, err
+		}
+		record.AppliedAt = timestamptzPtr(appliedAt)
+		if len(redemptions[discountCodeID]) < 5 {
+			redemptions[discountCodeID] = append(redemptions[discountCodeID], record)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return redemptions, nil
 }
 
 func scanAdminPromotionRecord(row pgx.Row) (ports.AdminPromotionRecord, error) {
@@ -6111,7 +6745,8 @@ func getAdminSubscriptionRecordByBusiness(
 		with order_stats as (
 			select
 				business_id,
-				count(*)::int as orders_count
+				count(*)::int as orders_count,
+				max(updated_at) as last_order_at
 			from orders
 			where business_id = $1::uuid
 			group by business_id
@@ -6128,7 +6763,8 @@ func getAdminSubscriptionRecordByBusiness(
 			select
 				business_id,
 				coalesce(sum(amount_minor) filter (where status = 'succeeded'), 0)::bigint as gmv_minor,
-				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor
+				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor,
+				max(updated_at) filter (where status = 'succeeded') as last_payment_at
 			from payments
 			where business_id = $1::uuid
 			group by business_id
@@ -6138,7 +6774,10 @@ func getAdminSubscriptionRecordByBusiness(
 			b.business_id::text,
 			b.name,
 			b.handle,
+			coalesce(owner.display_name, ''),
+			coalesce(owner.whatsapp_number, ''),
 			coalesce(owner.email, ''),
+			coalesce(owner.whatsapp_number, ''),
 			p.code,
 			p.name,
 			p.monthly_fee_minor::bigint,
@@ -6159,6 +6798,16 @@ func getAdminSubscriptionRecordByBusiness(
 			s.last_invoice_ref,
 			s.last_payment_at,
 			s.next_billing_at,
+			b.created_at,
+			coalesce(s.next_billing_at, s.current_period_end),
+			case when b.handle <> '' then 'https://' || b.handle || '.xtiitch.com' else '' end,
+			coalesce(discount.code, ''),
+			coalesce(nullif(discount.owner_name, ''), discount.batch_label, ''),
+			greatest(
+				b.updated_at,
+				coalesce(os.last_order_at, b.updated_at),
+				coalesce(ms.last_payment_at, b.updated_at)
+			),
 			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
@@ -6171,12 +6820,21 @@ func getAdminSubscriptionRecordByBusiness(
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.email
+			select u.display_name, u.email, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
 			limit 1
 		) owner on true
+		left join lateral (
+			select c.code, c.owner_name, c.batch_label
+			from subscription_discount_redemptions r
+			join subscription_discount_codes c on c.discount_code_id = r.discount_code_id
+			where r.business_id = b.business_id
+			  and r.status in ('pending', 'applied')
+			order by coalesce(r.applied_at, r.created_at) desc, r.created_at desc
+			limit 1
+		) discount on true
 		where s.business_id = $1::uuid
 	`, businessID.String()))
 	if err != nil {
@@ -7080,6 +7738,17 @@ func subscriptionInvoiceOpen(err error) bool {
 		pgErr.ConstraintName == "business_subscription_invoices_one_open_idx"
 }
 
+func adminEntitlementInvalid(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		(pgErr.Code == pgForeignKeyViolation || pgErr.Code == pgCheckViolation)
+}
+
+func subscriptionDiscountCodeTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "subscription_discount_codes_code_key"
+}
+
 func promotionCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "promotions_active_code_unique_idx"
@@ -7110,4 +7779,11 @@ func nullableTextArg(value string) any {
 		return nil
 	}
 	return value
+}
+
+func nullableTimeArg(value *time.Time) any {
+	if value == nil {
+		return nil
+	}
+	return *value
 }
