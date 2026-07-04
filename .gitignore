@@ -18,6 +18,7 @@ build/
 .turbo/
 .cache/
 coverage/
+.scannerwork/
 
 # Frontend platforms
 .vercel/

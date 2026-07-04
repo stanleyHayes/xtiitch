@@ -32,6 +32,18 @@ SONAR_TOKEN=<token> \
 pnpm sonar
 ```
 
+When SonarCloud is not available yet, use the local Docker fallback:
+
+```sh
+pnpm sonar:local
+pnpm sonar
+```
+
+The local fallback creates `.env.sonar.local` with a masked local analysis
+token and selects the `Xtiitch Local Launch` gate. This local gate blocks on
+new reliability, security, and maintainability ratings; CI should add coverage,
+duplication, and hotspot-review conditions once the matching evidence exists.
+
 Pass evidence:
 
 - Scanner exits zero.

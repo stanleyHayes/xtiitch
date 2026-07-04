@@ -13,18 +13,34 @@ pnpm sonar
 `pnpm check` includes strict linting with zero warnings. Inline lint rule disabling is disabled in the root ESLint config; fix the code or document an architectural exception instead of hiding a rule violation.
 
 `pnpm sonar` requires a configured SonarQube or SonarCloud host and token. For
-SonarCloud, set the organization as well:
+local Docker SonarQube, run:
 
 ```sh
-SONAR_HOST_URL=http://localhost:9000
+pnpm sonar:local
+pnpm sonar
+```
+
+`pnpm sonar:local` starts `sonarqube` from `docker-compose.yml`, changes the
+default local admin password, generates an analysis token, and stores it in
+`.env.sonar.local` (ignored by git). It also creates and selects the
+`Xtiitch Local Launch` quality gate for the local project. That local gate
+enforces A ratings for new reliability, security, and maintainability issues.
+Coverage, duplication, and hotspot-review gates should be re-enabled in CI once
+the matching coverage reports and security review workflow are available.
+
+For SonarCloud, set the organization as well:
+
+```sh
+SONAR_HOST_URL=https://sonarcloud.io
 SONAR_ORGANIZATION=your-sonarcloud-organization
 SONAR_TOKEN=your-token
 pnpm sonar
 ```
 
 The `pnpm sonar` wrapper passes `SONAR_ORGANIZATION` to the scanner as
-`sonar.organization` when it is present. Keep `sonar-project.properties`
-project-specific and put the real organization in local env or CI secrets.
+`sonar.organization` for SonarCloud. Self-hosted/local SonarQube does not need
+an organization. Keep `sonar-project.properties` project-specific and put real
+host/token values in local env or CI secrets.
 
 ## Required Coverage Inputs
 
