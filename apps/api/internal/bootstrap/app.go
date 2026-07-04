@@ -135,6 +135,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		WhatsAppAuth: businessIdentityRepo,
 		OTPGen:       authadapter.NewCustomerOTPGenerator(),
 		WhatsAppOTP:  buildCustomerOTPDelivery(cfg, logger),
+		// Optional subscription discount-code redemption at checkout (admins CRUD the
+		// codes; this validates + applies one at authorization/verify).
+		Discounts: postgres.NewSubscriptionDiscountRepository(db),
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)

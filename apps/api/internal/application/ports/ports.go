@@ -194,6 +194,100 @@ type SubmitIdentityDocumentInput struct {
 	IDPhotoURL string
 }
 
+// SubscriptionDiscountRepository backs discount-code redemption at subscription
+// checkout. Discount codes are global/admin objects (no tenant RLS), so the code
+// lookup and the cross-tenant redemption counts run under the RLS bypass; the
+// redemption rows are tenant-isolated (forced RLS) and are read/written under the
+// business's scope. A code REPLACES the first-purchase intro (it does not stack).
+type SubscriptionDiscountRepository interface {
+	// FindActiveDiscountCodeByCode resolves an active, non-archived code by its
+	// (normalized, upper-cased) code string. Bypass. ErrNotFound when none matches.
+	FindActiveDiscountCodeByCode(ctx context.Context, code string) (SubscriptionDiscountCode, error)
+	// CountAppliedRedemptions returns the total APPLIED redemptions for a code
+	// across all tenants (for the max_redemptions_total cap). Bypass.
+	CountAppliedRedemptions(ctx context.Context, discountCodeID common.ID) (int, error)
+	// CountAppliedRedemptionsForAccount returns the APPLIED redemptions a single
+	// business made against a code (for the max_per_account cap). Bypass.
+	CountAppliedRedemptionsForAccount(ctx context.Context, discountCodeID common.ID, businessID common.ID) (int, error)
+	// CreateRedemption inserts a tenant-scoped redemption row (written 'pending' at
+	// checkout) and returns its id.
+	CreateRedemption(ctx context.Context, scope common.TenantScope, input CreateDiscountRedemptionInput) (common.ID, error)
+	// FindPendingRedemption returns the latest still-'pending' redemption for a
+	// subscription (the discount captured at checkout), joined with its code so the
+	// verify step can apply it. ErrNotFound when the subscription has no pending
+	// discount. Tenant-scoped.
+	FindPendingRedemption(ctx context.Context, scope common.TenantScope, subscriptionID common.ID) (PendingDiscountRedemption, error)
+	// MarkRedemptionApplied transitions a pending redemption to 'applied' with the
+	// final discount amount + applied_at. Idempotent: it only touches a row still
+	// in 'pending'. Tenant-scoped.
+	MarkRedemptionApplied(ctx context.Context, scope common.TenantScope, input MarkDiscountRedemptionAppliedInput) error
+	// ActivateFreePeriodBilling activates a subscription on a free-period code
+	// without charging the card: it books a zero, already-'paid' invoice on the
+	// deterministic activation ref (idempotent) and sets next_billing_at to now +
+	// freeMonths. Tenant-scoped.
+	ActivateFreePeriodBilling(ctx context.Context, scope common.TenantScope, input ActivateFreePeriodInput) error
+}
+
+// SubscriptionDiscountCode is a discount code as needed at checkout validation.
+type SubscriptionDiscountCode struct {
+	DiscountCodeID common.ID
+	Code           string
+	// DiscountType is 'free_period', 'percentage', or 'fixed'.
+	DiscountType string
+	// DiscountValue is >0: percent (percentage), pesewas off (fixed), or free
+	// months (free_period).
+	DiscountValue     int
+	EligiblePlans     []string
+	EligibleCadences  []string
+	FirstPurchaseOnly bool
+	// MaxRedemptionsTotal is the global applied-redemption cap; nil means unlimited.
+	MaxRedemptionsTotal *int
+	MaxPerAccount       int
+	ValidFrom           *time.Time
+	ValidUntil          *time.Time
+}
+
+// CreateDiscountRedemptionInput records a redemption for attribution. At checkout
+// Status is 'pending'; the verify step flips it to 'applied'.
+type CreateDiscountRedemptionInput struct {
+	DiscountCodeID common.ID
+	BusinessID     common.ID
+	SubscriptionID common.ID
+	AccountKey     string
+	PlanCode       string
+	Cadence        string
+	DiscountMinor  int64
+	Status         string
+}
+
+// PendingDiscountRedemption is a captured-but-not-yet-applied redemption joined
+// with the discount type/value needed to compute the activation charge.
+type PendingDiscountRedemption struct {
+	RedemptionID   common.ID
+	DiscountCodeID common.ID
+	DiscountType   string
+	DiscountValue  int
+	PlanCode       string
+	Cadence        string
+	DiscountMinor  int64
+}
+
+// MarkDiscountRedemptionAppliedInput flips a pending redemption to applied.
+type MarkDiscountRedemptionAppliedInput struct {
+	RedemptionID  common.ID
+	DiscountMinor int64
+}
+
+// ActivateFreePeriodInput activates a subscription on a free-period code.
+type ActivateFreePeriodInput struct {
+	BusinessID common.ID
+	// ChargeRef is the deterministic activation ref (the invoice ref), so the zero
+	// invoice is idempotent against re-verify and the charge webhook.
+	ChargeRef  string
+	Currency   string
+	FreeMonths int
+}
+
 type BusinessOwnerIdentity struct {
 	BusinessID     common.ID
 	BusinessUserID common.ID

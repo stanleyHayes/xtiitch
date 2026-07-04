@@ -325,6 +325,8 @@ type subscriptionAuthorizationLinkRequest struct {
 	CallbackURL string `json:"callback_url"`
 	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
 	BillingCadence string `json:"billing_cadence"`
+	// Code is an optional subscription discount code applied at checkout.
+	Code string `json:"code"`
 }
 
 type subscriptionAuthorizationLinkResponse struct {
@@ -351,6 +353,7 @@ func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter
 		Scope:          principal.TenantScope(),
 		CallbackURL:    request.CallbackURL,
 		BillingCadence: request.BillingCadence,
+		Code:           request.Code,
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -954,6 +957,14 @@ func authError(err error) (int, string) {
 		return http.StatusUnauthorized, "code_expired"
 	case errors.Is(err, authapp.ErrTooManyAttempts):
 		return http.StatusTooManyRequests, "too_many_attempts"
+	case errors.Is(err, authapp.ErrDiscountCodeInvalid):
+		return http.StatusBadRequest, "invalid_discount_code"
+	case errors.Is(err, authapp.ErrDiscountCodeExpired):
+		return http.StatusBadRequest, "discount_code_expired"
+	case errors.Is(err, authapp.ErrDiscountCodeIneligible):
+		return http.StatusBadRequest, "discount_code_ineligible"
+	case errors.Is(err, authapp.ErrDiscountCodeExhausted):
+		return http.StatusConflict, "discount_code_exhausted"
 	case errors.Is(err, authdomain.ErrMFAAlreadyEnabled):
 		return http.StatusConflict, "mfa_already_enabled"
 	case errors.Is(err, authdomain.ErrMFANotEnrolled):

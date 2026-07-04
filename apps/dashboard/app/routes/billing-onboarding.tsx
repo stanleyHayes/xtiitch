@@ -73,10 +73,24 @@ async function fetchVerificationStatus(request: Request): Promise<string> {
   }
 }
 
+// Friendly copy for the discount-code rejection codes the API returns, so a bad
+// code is surfaced clearly (never silently ignored) rather than shown as a generic
+// billing failure.
+const DISCOUNT_ERROR_MESSAGES: Record<string, string> = {
+  invalid_discount_code:
+    "That discount code isn't valid. Check it and try again, or continue without one.",
+  discount_code_expired: "That discount code has expired or isn't active yet.",
+  discount_code_ineligible:
+    "That discount code doesn't apply to this plan or billing cycle.",
+  discount_code_exhausted:
+    "That discount code has already been fully redeemed.",
+};
+
 async function startPaystackBilling(
   request: Request,
   origin: string,
   cadence: BillingCadence,
+  code: string,
 ): Promise<Response | { error: string }> {
   const response = await apiFetch(
     request,
@@ -87,10 +101,28 @@ async function startPaystackBilling(
       body: JSON.stringify({
         callback_url: `${origin}/onboarding/billing/callback`,
         billing_cadence: cadence,
+        // Only send a code when the owner entered one; the API treats it as
+        // optional and applies the discount at checkout when valid.
+        ...(code ? { code } : {}),
       }),
     },
   );
   if (!response.ok) {
+    // Surface a precise discount-code message when the owner supplied a code and
+    // the API rejected it; otherwise a generic retry-later message.
+    if (code) {
+      try {
+        const body = (await response.json()) as { error?: string };
+        const message = body.error
+          ? DISCOUNT_ERROR_MESSAGES[body.error]
+          : undefined;
+        if (message) {
+          return { error: message };
+        }
+      } catch {
+        // fall through to the generic message below
+      }
+    }
     return {
       error:
         "We couldn't start billing setup right now. You can finish this later from your dashboard.",
@@ -151,6 +183,8 @@ export async function action({ request }: Route.ActionArgs) {
     String(form.get("billing_cadence") ?? "") === "quarterly"
       ? "quarterly"
       : "yearly";
+  // Optional discount code entered by the owner; validated + applied by the API.
+  const discountCode = String(form.get("discount_code") ?? "").trim();
 
   // Re-check server-side rather than trusting the rendered form: if the Ghana
   // Card is not yet on file we must capture it before starting billing.
@@ -195,8 +229,14 @@ export async function action({ request }: Route.ActionArgs) {
     }
   }
 
-  // Identity is on file (already or just submitted) — start Paystack billing.
-  const result = await startPaystackBilling(request, origin, cadence);
+  // Identity is on file (already or just submitted) — start Paystack billing,
+  // carrying any discount code so the API can apply it at checkout.
+  const result = await startPaystackBilling(
+    request,
+    origin,
+    cadence,
+    discountCode,
+  );
   return result;
 }
 
@@ -370,6 +410,27 @@ export default function BillingOnboarding({
                     </Stack>
                   </RadioGroup>
                   <Divider sx={{ mt: 2 }} />
+                </Box>
+              ) : null}
+              {isPaidPlan ? (
+                <Box sx={{ textAlign: "left" }}>
+                  <TextField
+                    name="discount_code"
+                    label="Discount code (optional)"
+                    placeholder="e.g. WELCOME20"
+                    fullWidth
+                    autoComplete="off"
+                  />
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      display: "block",
+                      color: alpha(tokens.ink, 0.6),
+                      mt: 0.5,
+                    }}
+                  >
+                    Have a code? Enter it to apply your discount at checkout.
+                  </Typography>
                 </Box>
               ) : null}
               {identityOnFile ? (

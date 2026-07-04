@@ -1355,6 +1355,353 @@ func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner(_ context.Cont
 	}, nil
 }
 
+// fakeDiscountRepository is a configurable SubscriptionDiscountRepository for the
+// discount-code checkout tests. FindPendingRedemption returns ErrNotFound unless a
+// pending redemption is explicitly configured, so the plain (non-discount) flow is
+// the default.
+type fakeDiscountRepository struct {
+	code              ports.SubscriptionDiscountCode
+	findErr           error
+	lookupCode        string
+	appliedTotal      int
+	appliedForAccount int
+	hasPending        bool
+	pending           ports.PendingDiscountRedemption
+	created           []ports.CreateDiscountRedemptionInput
+	marked            []ports.MarkDiscountRedemptionAppliedInput
+	freePeriods       []ports.ActivateFreePeriodInput
+}
+
+func (r *fakeDiscountRepository) FindActiveDiscountCodeByCode(_ context.Context, code string) (ports.SubscriptionDiscountCode, error) {
+	r.lookupCode = code
+	if r.findErr != nil {
+		return ports.SubscriptionDiscountCode{}, r.findErr
+	}
+	return r.code, nil
+}
+
+func (r *fakeDiscountRepository) CountAppliedRedemptions(_ context.Context, _ common.ID) (int, error) {
+	return r.appliedTotal, nil
+}
+
+func (r *fakeDiscountRepository) CountAppliedRedemptionsForAccount(_ context.Context, _ common.ID, _ common.ID) (int, error) {
+	return r.appliedForAccount, nil
+}
+
+func (r *fakeDiscountRepository) CreateRedemption(_ context.Context, _ common.TenantScope, input ports.CreateDiscountRedemptionInput) (common.ID, error) {
+	r.created = append(r.created, input)
+	return "redemption-1", nil
+}
+
+func (r *fakeDiscountRepository) FindPendingRedemption(_ context.Context, _ common.TenantScope, _ common.ID) (ports.PendingDiscountRedemption, error) {
+	if !r.hasPending {
+		return ports.PendingDiscountRedemption{}, ports.ErrNotFound
+	}
+	return r.pending, nil
+}
+
+func (r *fakeDiscountRepository) MarkRedemptionApplied(_ context.Context, _ common.TenantScope, input ports.MarkDiscountRedemptionAppliedInput) error {
+	r.marked = append(r.marked, input)
+	return nil
+}
+
+func (r *fakeDiscountRepository) ActivateFreePeriodBilling(_ context.Context, _ common.TenantScope, input ports.ActivateFreePeriodInput) error {
+	r.freePeriods = append(r.freePeriods, input)
+	return nil
+}
+
+func newDiscountTestService(businesses *fakeBusinessIdentityRepository, payments ports.PaymentProvider, discounts ports.SubscriptionDiscountRepository) Service {
+	return NewService(Dependencies{
+		Businesses:    businesses,
+		Sessions:      &fakeSessionRepository{},
+		Passwords:     fakePasswordHasher{},
+		AccessTokens:  fakeTokenIssuer{},
+		RefreshTokens: fakeRefreshTokens{},
+		Payments:      payments,
+		Discounts:     discounts,
+		IDs:           &sequenceIDs{ids: []common.ID{"charge-1"}},
+		Clock:         fixedClock{now: time.Date(2026, 6, 14, 20, 0, 0, 0, time.UTC)},
+	})
+}
+
+// A percentage code applies against the plan's FULL renewal figure (NOT the intro)
+// and reduces the activation charge accordingly, then flips the captured
+// redemption to applied with the money-given-away amount.
+func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			PlanCode:              "growth",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			BillingCadence:        "quarterly",
+			FirstPurchaseConsumed: false,
+			QuarterlyFirstMinor:   11800, // intro (must NOT be charged)
+			QuarterlyRenewalMinor: 14700, // renewal (discount base)
+		},
+	}
+	discounts := &fakeDiscountRepository{
+		hasPending: true,
+		pending: ports.PendingDiscountRedemption{
+			RedemptionID:  "redemption-1",
+			DiscountType:  "percentage",
+			DiscountValue: 20,
+			PlanCode:      "growth",
+			Cadence:       "quarterly",
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newDiscountTestService(businesses, payments, discounts)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "active" {
+		t.Fatalf("expected active subscription, got %q", result.Status)
+	}
+	// 20% off the 14700 renewal = 2940 discount → charge 11760 (NOT the 11800 intro).
+	if payments.chargeInput.AmountMinor != 11760 {
+		t.Fatalf("expected discounted charge 11760 off the renewal figure, got %d", payments.chargeInput.AmountMinor)
+	}
+	if businesses.activationPayment.AmountMinor != 11760 {
+		t.Fatalf("expected the activation payment booked at the discounted amount, got %d", businesses.activationPayment.AmountMinor)
+	}
+	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 2940 {
+		t.Fatalf("expected the redemption marked applied with a 2940 discount, got %+v", discounts.marked)
+	}
+	if discounts.marked[0].RedemptionID != "redemption-1" {
+		t.Fatalf("expected the captured redemption flipped to applied, got %q", discounts.marked[0].RedemptionID)
+	}
+}
+
+// A free-period code charges nothing at activation and starts a free window
+// (next billing = now + value months), recording the full renewal as the discount.
+func TestVerifySubscriptionAuthorizationAppliesFreePeriodDiscount(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			PlanCode:              "growth",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			BillingCadence:        "yearly",
+			FirstPurchaseConsumed: false,
+			YearlyFirstMinor:      89100,
+			YearlyRenewalMinor:    118800,
+		},
+	}
+	discounts := &fakeDiscountRepository{
+		hasPending: true,
+		pending: ports.PendingDiscountRedemption{
+			RedemptionID:  "redemption-1",
+			DiscountType:  "free_period",
+			DiscountValue: 3,
+			PlanCode:      "growth",
+			Cadence:       "yearly",
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newDiscountTestService(businesses, payments, discounts)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "active" {
+		t.Fatalf("expected active subscription, got %q", result.Status)
+	}
+	if payments.chargeInput.AuthorizationCode != "" {
+		t.Fatalf("a free-period code must not charge the card, but charged %+v", payments.chargeInput)
+	}
+	if len(discounts.freePeriods) != 1 || discounts.freePeriods[0].FreeMonths != 3 {
+		t.Fatalf("expected a 3-month free-period activation, got %+v", discounts.freePeriods)
+	}
+	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 118800 {
+		t.Fatalf("expected the redemption marked applied with the full renewal as discount, got %+v", discounts.marked)
+	}
+}
+
+// A valid code at checkout is captured as a PENDING redemption (not applied yet),
+// so an abandoned checkout never consumes a redemption slot.
+func TestInitializeSubscriptionAuthorizationCapturesValidDiscountAsPending(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			PlanCode:              "growth",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			QuarterlyRenewalMinor: 14700,
+		},
+	}
+	discounts := &fakeDiscountRepository{
+		code: ports.SubscriptionDiscountCode{
+			DiscountCodeID:    "code-1",
+			Code:              "WELCOME20",
+			DiscountType:      "percentage",
+			DiscountValue:     20,
+			FirstPurchaseOnly: true,
+			MaxPerAccount:     1,
+		},
+	}
+	service := newDiscountTestService(businesses, &fakeSubscriptionPayments{}, discounts)
+
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		BillingCadence: "quarterly",
+		Code:           " welcome20 ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if link.RedirectURL == "" {
+		t.Fatalf("expected a redirect link, got %+v", link)
+	}
+	if discounts.lookupCode != "WELCOME20" {
+		t.Fatalf("expected the code normalized to upper-case, got %q", discounts.lookupCode)
+	}
+	if businesses.cadenceSet != "quarterly" {
+		t.Fatalf("expected the cadence persisted, got %q", businesses.cadenceSet)
+	}
+	if len(discounts.created) != 1 {
+		t.Fatalf("expected exactly one redemption captured, got %d", len(discounts.created))
+	}
+	captured := discounts.created[0]
+	if captured.Status != "pending" {
+		t.Fatalf("expected a pending capture, got %q", captured.Status)
+	}
+	// 20% off 14700 renewal = 2940 discount recorded for attribution.
+	if captured.DiscountMinor != 2940 || captured.Cadence != "quarterly" || captured.PlanCode != "growth" {
+		t.Fatalf("unexpected captured redemption: %+v", captured)
+	}
+	if captured.SubscriptionID != "sub-1" || captured.DiscountCodeID != "code-1" {
+		t.Fatalf("expected the capture keyed to the subscription + code, got %+v", captured)
+	}
+}
+
+// An ineligible (wrong plan) or expired code is rejected at checkout — never
+// silently ignored — and nothing is captured or persisted.
+func TestInitializeSubscriptionAuthorizationRejectsIneligibleAndExpiredCodes(t *testing.T) {
+	t.Parallel()
+
+	baseSubscription := ports.BusinessSubscriptionRecord{
+		SubscriptionID:        "sub-1",
+		BusinessID:            "business-1",
+		OwnerEmail:            "owner@adwoa.test",
+		PlanCode:              "growth",
+		MonthlyFeeMinor:       4900,
+		Status:                "trialing",
+		QuarterlyRenewalMinor: 14700,
+	}
+	past := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC) // before the fixed clock
+
+	cases := []struct {
+		name string
+		code ports.SubscriptionDiscountCode
+		want error
+	}{
+		{
+			name: "wrong plan",
+			code: ports.SubscriptionDiscountCode{
+				DiscountCodeID: "code-1",
+				DiscountType:   "percentage",
+				DiscountValue:  20,
+				EligiblePlans:  []string{"studio"},
+				MaxPerAccount:  1,
+			},
+			want: ErrDiscountCodeIneligible,
+		},
+		{
+			name: "expired",
+			code: ports.SubscriptionDiscountCode{
+				DiscountCodeID: "code-1",
+				DiscountType:   "percentage",
+				DiscountValue:  20,
+				MaxPerAccount:  1,
+				ValidUntil:     &past,
+			},
+			want: ErrDiscountCodeExpired,
+		},
+	}
+	for _, tc := range cases {
+		businesses := &fakeBusinessIdentityRepository{subscription: baseSubscription}
+		discounts := &fakeDiscountRepository{code: tc.code}
+		service := newDiscountTestService(businesses, &fakeSubscriptionPayments{}, discounts)
+
+		_, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+			Scope:          common.TenantScope{BusinessID: "business-1"},
+			BillingCadence: "quarterly",
+			Code:           "SOMECODE",
+		})
+		if !errors.Is(err, tc.want) {
+			t.Fatalf("%s: expected %v, got %v", tc.name, tc.want, err)
+		}
+		if len(discounts.created) != 0 {
+			t.Fatalf("%s: a rejected code must capture nothing, got %+v", tc.name, discounts.created)
+		}
+		if businesses.cadenceSet != "" {
+			t.Fatalf("%s: a rejected code must not persist the cadence or start billing", tc.name)
+		}
+	}
+}
+
+// The per-account cap is enforced at checkout: once a business has applied the
+// code max_per_account times, a further checkout is refused.
+func TestInitializeSubscriptionAuthorizationEnforcesPerAccountLimit(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			PlanCode:              "growth",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			QuarterlyRenewalMinor: 14700,
+		},
+	}
+	discounts := &fakeDiscountRepository{
+		appliedForAccount: 1,
+		code: ports.SubscriptionDiscountCode{
+			DiscountCodeID: "code-1",
+			DiscountType:   "percentage",
+			DiscountValue:  20,
+			MaxPerAccount:  1,
+		},
+	}
+	service := newDiscountTestService(businesses, &fakeSubscriptionPayments{}, discounts)
+
+	_, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		BillingCadence: "quarterly",
+		Code:           "WELCOME20",
+	})
+	if !errors.Is(err, ErrDiscountCodeExhausted) {
+		t.Fatalf("expected the per-account cap to reject the code, got %v", err)
+	}
+	if len(discounts.created) != 0 {
+		t.Fatalf("an exhausted code must capture nothing, got %+v", discounts.created)
+	}
+}
+
 type countingPasswordHasher struct {
 	hashCalls int
 }

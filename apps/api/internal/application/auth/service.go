@@ -79,6 +79,10 @@ type Service struct {
 	whatsAppAuth ports.BusinessWhatsAppAuthRepository
 	otpGen       ports.OTPGenerator
 	whatsAppOTP  ports.CustomerOTPDelivery
+	// discounts backs optional subscription discount-code redemption at checkout.
+	// When nil, no code is accepted (a supplied code is rejected, never silently
+	// ignored) and the plain intro/renewal charge path is unaffected.
+	discounts ports.SubscriptionDiscountRepository
 }
 
 type Dependencies struct {
@@ -103,6 +107,9 @@ type Dependencies struct {
 	WhatsAppAuth ports.BusinessWhatsAppAuthRepository
 	OTPGen       ports.OTPGenerator
 	WhatsAppOTP  ports.CustomerOTPDelivery
+	// Optional subscription discount-code redemption at checkout. When nil, codes
+	// are unavailable and a supplied code is rejected.
+	Discounts ports.SubscriptionDiscountRepository
 }
 
 func NewService(deps Dependencies) Service {
@@ -125,8 +132,24 @@ func NewService(deps Dependencies) Service {
 		whatsAppAuth:  deps.WhatsAppAuth,
 		otpGen:        deps.OTPGen,
 		whatsAppOTP:   deps.WhatsAppOTP,
+		discounts:     deps.Discounts,
 	}
 }
+
+// Subscription discount-code checkout errors. They are distinct sentinels so the
+// dashboard can show a precise, non-silent message for an invalid/ineligible code
+// (a bad code must never be quietly ignored — the Pricing Book §4).
+var (
+	// ErrDiscountCodeInvalid: unknown, inactive, archived, or discounts unavailable.
+	ErrDiscountCodeInvalid = errors.New("discount code is invalid")
+	// ErrDiscountCodeExpired: outside the code's [valid_from, valid_until] window.
+	ErrDiscountCodeExpired = errors.New("discount code is expired or not yet valid")
+	// ErrDiscountCodeIneligible: plan/cadence not eligible, or first-purchase-only
+	// on an account that already consumed its first purchase.
+	ErrDiscountCodeIneligible = errors.New("discount code is not eligible for this plan")
+	// ErrDiscountCodeExhausted: total or per-account redemption cap reached.
+	ErrDiscountCodeExhausted = errors.New("discount code has reached its redemption limit")
+)
 
 // mfaEnabled reports whether the optional MFA dependency set is fully wired.
 func (s Service) mfaEnabled() bool {
@@ -279,6 +302,10 @@ type InitializeSubscriptionAuthorizationCommand struct {
 	// Monthly billing is not offered under the Pricing Book, so an empty or
 	// 'monthly' value is rejected for a paid plan.
 	BillingCadence string
+	// Code is an optional subscription discount code. When present it is validated
+	// at checkout and, if valid, captured as a pending redemption that the later
+	// verify step applies to the first charge (a code REPLACES the intro figure).
+	Code string
 }
 
 type SubscriptionAuthorizationLink struct {
@@ -325,6 +352,15 @@ func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd In
 	}
 	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
 		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	// Validate and capture an optional discount code BEFORE persisting the cadence
+	// or minting the Paystack link, so an invalid/ineligible code fails the checkout
+	// outright (never silently ignored) and never leaves a half-started billing
+	// setup. A valid code is recorded as a PENDING redemption keyed to this
+	// subscription; the verify step reads it back and applies it to the first
+	// charge, because the Paystack callback carries only the payment reference.
+	if err := s.captureSubscriptionDiscount(ctx, cmd.Scope, subscription, cadence, cmd.Code); err != nil {
+		return SubscriptionAuthorizationLink{}, err
 	}
 	// Persist the chosen cadence now, before the redirect: the Paystack callback
 	// that drives verify/first-charge carries only the payment reference, so the
@@ -428,28 +464,14 @@ func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd Verify
 		// Already paid for this period (e.g. a prior verify call succeeded).
 		status = "active"
 	} else {
-		email := strings.TrimSpace(subscription.OwnerEmail)
-		if email == "" {
-			email = strings.TrimSpace(result.CustomerEmail)
+		// A discount code captured at checkout REPLACES the intro figure; otherwise
+		// charge the plain intro/renewal figure. Either way the charge reuses the
+		// deterministic ref so it stays idempotent against retries/callback replays.
+		charged, err := s.chargeFirstPeriod(ctx, cmd.Scope, subscription, cadence, amountMinor, activation.Ref, result)
+		if err != nil {
+			return SubscriptionAuthorizationResult{}, err
 		}
-		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
-			BusinessID:        subscription.BusinessID,
-			AuthorizationCode: strings.TrimSpace(result.AuthorizationCode),
-			CustomerEmail:     email,
-			AmountMinor:       amountMinor,
-			Currency:          "GHS",
-			Reference:         activation.Ref,
-		})
-		if chargeErr == nil && strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
-			if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
-				BusinessID:     subscription.BusinessID,
-				AmountMinor:    amountMinor,
-				Currency:       "GHS",
-				ChargeRef:      activation.Ref,
-				BillingCadence: cadence,
-			}); err != nil {
-				return SubscriptionAuthorizationResult{}, err
-			}
+		if charged {
 			status = "active"
 		} else if status == "active" {
 			// The plan was seeded 'active' at signup but the first charge has not
@@ -498,6 +520,249 @@ func activationChargeMinor(sub ports.BusinessSubscriptionRecord, cadence string)
 			return int64(sub.YearlyRenewalMinor)
 		}
 		return int64(sub.YearlyFirstMinor)
+	default:
+		return 0
+	}
+}
+
+// captureSubscriptionDiscount validates an optional discount code at checkout and,
+// when valid, records a PENDING redemption keyed to the subscription. The verify
+// step reads it back and applies it to the first charge. A blank code is a no-op;
+// any non-blank but invalid/ineligible code is rejected (never silently ignored).
+func (s Service) captureSubscriptionDiscount(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, rawCode string) error {
+	code := normalizeDiscountCode(rawCode)
+	if code == "" {
+		return nil
+	}
+	if s.discounts == nil {
+		return ErrDiscountCodeInvalid
+	}
+	record, err := s.discounts.FindActiveDiscountCodeByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			return ErrDiscountCodeInvalid
+		}
+		return err
+	}
+	now := s.clock.Now()
+	if record.ValidFrom != nil && now.Before(*record.ValidFrom) {
+		return ErrDiscountCodeExpired
+	}
+	// valid_until is exclusive: at or after it the code is expired.
+	if record.ValidUntil != nil && !now.Before(*record.ValidUntil) {
+		return ErrDiscountCodeExpired
+	}
+	// Empty eligible_plans/eligible_cadences mean "all".
+	if len(record.EligiblePlans) > 0 && !containsFold(record.EligiblePlans, sub.PlanCode) {
+		return ErrDiscountCodeIneligible
+	}
+	if len(record.EligibleCadences) > 0 && !containsFold(record.EligibleCadences, cadence) {
+		return ErrDiscountCodeIneligible
+	}
+	if record.FirstPurchaseOnly && sub.FirstPurchaseConsumed {
+		return ErrDiscountCodeIneligible
+	}
+	// A code is computed against the plan's FULL renewal figure; refuse when unset.
+	renewal := renewalFigureMinor(sub, cadence)
+	if renewal <= 0 {
+		return ErrDiscountCodeIneligible
+	}
+	// Caps count only APPLIED redemptions, so pending captures from abandoned
+	// checkouts never exhaust a code.
+	perAccount, err := s.discounts.CountAppliedRedemptionsForAccount(ctx, record.DiscountCodeID, sub.BusinessID)
+	if err != nil {
+		return err
+	}
+	if perAccount >= record.MaxPerAccount {
+		return ErrDiscountCodeExhausted
+	}
+	if record.MaxRedemptionsTotal != nil {
+		total, err := s.discounts.CountAppliedRedemptions(ctx, record.DiscountCodeID)
+		if err != nil {
+			return err
+		}
+		if total >= *record.MaxRedemptionsTotal {
+			return ErrDiscountCodeExhausted
+		}
+	}
+	outcome := computeDiscountOutcome(record.DiscountType, record.DiscountValue, renewal)
+	_, err = s.discounts.CreateRedemption(ctx, scope, ports.CreateDiscountRedemptionInput{
+		DiscountCodeID: record.DiscountCodeID,
+		BusinessID:     sub.BusinessID,
+		SubscriptionID: sub.SubscriptionID,
+		AccountKey:     sub.BusinessID.String(),
+		PlanCode:       sub.PlanCode,
+		Cadence:        cadence,
+		DiscountMinor:  outcome.DiscountMinor,
+		Status:         "pending",
+	})
+	return err
+}
+
+// chargeFirstPeriod bills (and books) the first period. When a discount code was
+// captured at checkout it applies that discount off the renewal figure; otherwise
+// it charges the plain intro/renewal figure. It returns whether the period is now
+// paid (charged/booked). A non-success provider charge returns (false, nil) so the
+// subscription stays authorized for the recurring sweep to retry.
+func (s Service) chargeFirstPeriod(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, amountMinor int64, ref string, auth ports.VerifyAuthorizationResult) (bool, error) {
+	if s.discounts != nil {
+		pending, err := s.discounts.FindPendingRedemption(ctx, scope, sub.SubscriptionID)
+		if err == nil {
+			return s.applyDiscountedActivation(ctx, scope, sub, cadence, ref, auth, pending)
+		}
+		if !errors.Is(err, ports.ErrNotFound) {
+			return false, err
+		}
+	}
+	return s.chargeAndRecord(ctx, sub, cadence, amountMinor, ref, auth)
+}
+
+// applyDiscountedActivation activates the subscription under a captured discount
+// (which REPLACES the intro), then flips the redemption to 'applied'. Free-period
+// charges nothing and starts a free window; a full discount books a zero paid
+// invoice on the normal cadence; otherwise it charges the discounted amount.
+func (s Service) applyDiscountedActivation(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, ref string, auth ports.VerifyAuthorizationResult, pending ports.PendingDiscountRedemption) (bool, error) {
+	renewal := renewalFigureMinor(sub, cadence)
+	if renewal <= 0 {
+		return false, authdomain.ErrInvalidInput
+	}
+	outcome := computeDiscountOutcome(pending.DiscountType, pending.DiscountValue, renewal)
+
+	switch {
+	case outcome.FreePeriod:
+		if err := s.discounts.ActivateFreePeriodBilling(ctx, scope, ports.ActivateFreePeriodInput{
+			BusinessID: sub.BusinessID,
+			ChargeRef:  ref,
+			Currency:   "GHS",
+			FreeMonths: outcome.FreeMonths,
+		}); err != nil {
+			return false, err
+		}
+	case outcome.ChargeMinor <= 0:
+		// Full discount (100% / fixed >= renewal): book a zero paid invoice and
+		// advance next_billing_at by the normal cadence.
+		if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
+			BusinessID:     sub.BusinessID,
+			AmountMinor:    0,
+			Currency:       "GHS",
+			ChargeRef:      ref,
+			BillingCadence: cadence,
+		}); err != nil {
+			return false, err
+		}
+	default:
+		charged, err := s.chargeAndRecord(ctx, sub, cadence, outcome.ChargeMinor, ref, auth)
+		if err != nil {
+			return false, err
+		}
+		if !charged {
+			// Leave the pending redemption intact so a retry can still apply it.
+			return false, nil
+		}
+	}
+
+	if err := s.discounts.MarkRedemptionApplied(ctx, scope, ports.MarkDiscountRedemptionAppliedInput{
+		RedemptionID:  pending.RedemptionID,
+		DiscountMinor: outcome.DiscountMinor,
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// chargeAndRecord charges amountMinor on the verified authorization and, on a
+// success, books the paid activation invoice for the cadence. It returns whether
+// the charge succeeded; a non-success is (false, nil) so the caller can report
+// past_due and let the recurring sweep retry.
+func (s Service) chargeAndRecord(ctx context.Context, sub ports.BusinessSubscriptionRecord, cadence string, amountMinor int64, ref string, auth ports.VerifyAuthorizationResult) (bool, error) {
+	email := strings.TrimSpace(sub.OwnerEmail)
+	if email == "" {
+		email = strings.TrimSpace(auth.CustomerEmail)
+	}
+	charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
+		BusinessID:        sub.BusinessID,
+		AuthorizationCode: strings.TrimSpace(auth.AuthorizationCode),
+		CustomerEmail:     email,
+		AmountMinor:       amountMinor,
+		Currency:          "GHS",
+		Reference:         ref,
+	})
+	if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
+		return false, nil
+	}
+	if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
+		BusinessID:     sub.BusinessID,
+		AmountMinor:    amountMinor,
+		Currency:       "GHS",
+		ChargeRef:      ref,
+		BillingCadence: cadence,
+	}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// normalizeDiscountCode upper-cases and trims a discount code to match the stored
+// canonical form (the DB constraint requires codes be upper-case).
+func normalizeDiscountCode(raw string) string {
+	return strings.ToUpper(strings.TrimSpace(raw))
+}
+
+// containsFold reports whether target matches any value case-insensitively.
+func containsFold(values []string, target string) bool {
+	trimmedTarget := strings.TrimSpace(target)
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), trimmedTarget) {
+			return true
+		}
+	}
+	return false
+}
+
+// discountOutcome is the applied result of a discount code at activation.
+type discountOutcome struct {
+	// ChargeMinor is the amount to charge the card now (0 for free_period / a full
+	// discount).
+	ChargeMinor int64
+	// DiscountMinor is the money given away (renewal - charge), for attribution.
+	DiscountMinor int64
+	FreePeriod    bool
+	FreeMonths    int
+}
+
+// computeDiscountOutcome applies a discount code against the plan's FULL renewal
+// figure for the cadence (a code REPLACES the intro figure). Amounts are pesewas.
+func computeDiscountOutcome(discountType string, value int, renewalMinor int64) discountOutcome {
+	switch discountType {
+	case "percentage":
+		reduction := renewalMinor * int64(value) / 100 // floor
+		if reduction > renewalMinor {
+			reduction = renewalMinor
+		}
+		charge := renewalMinor - reduction
+		return discountOutcome{ChargeMinor: charge, DiscountMinor: renewalMinor - charge}
+	case "fixed":
+		charge := renewalMinor - int64(value)
+		if charge < 0 {
+			charge = 0
+		}
+		return discountOutcome{ChargeMinor: charge, DiscountMinor: renewalMinor - charge}
+	case "free_period":
+		return discountOutcome{ChargeMinor: 0, DiscountMinor: renewalMinor, FreePeriod: true, FreeMonths: value}
+	default:
+		// Unknown type (guarded by the DB CHECK): apply no discount.
+		return discountOutcome{ChargeMinor: renewalMinor, DiscountMinor: 0}
+	}
+}
+
+// renewalFigureMinor returns the plan's FULL renewal figure for the cadence
+// (minor units) — the base a discount is computed against. Zero when unset.
+func renewalFigureMinor(sub ports.BusinessSubscriptionRecord, cadence string) int64 {
+	switch cadence {
+	case "quarterly":
+		return int64(sub.QuarterlyRenewalMinor)
+	case "yearly":
+		return int64(sub.YearlyRenewalMinor)
 	default:
 		return 0
 	}
