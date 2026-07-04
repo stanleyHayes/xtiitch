@@ -138,6 +138,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// Optional subscription discount-code redemption at checkout (admins CRUD the
 		// codes; this validates + applies one at authorization/verify).
 		Discounts: postgres.NewSubscriptionDiscountRepository(db),
+		// VAT on subscription charges (Pricing Book tax decision flag). Default
+		// rate 0 = disabled; set XTIITCH_SUBSCRIPTION_VAT_RATE_BPS=2000 for Ghana 20%.
+		VATRateBps:   cfg.SubscriptionVATRateBps,
+		VATInclusive: cfg.SubscriptionVATInclusive,
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
@@ -177,6 +181,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// self-serve plan-change flow) at the top of each recurring sweep, so a
 		// downgraded subscription renews on the new plan.
 		PlanChanges: businessIdentityRepo,
+		// Same VAT policy as the activation path, so renewal charges match.
+		VATRateBps:   cfg.SubscriptionVATRateBps,
+		VATInclusive: cfg.SubscriptionVATInclusive,
 	})
 	for _, command := range adminBootstrapUsers {
 		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)

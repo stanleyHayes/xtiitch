@@ -63,6 +63,15 @@ type Config struct {
 	SonarHostURL         string
 	SonarOrganization    string
 	SonarToken           string
+	// SubscriptionVATRateBps is the VAT rate (basis points) applied to Xtiitch
+	// subscription charges — activation, renewal, and upgrade proration (Pricing
+	// Book tax decision flag). 0 (the default) DISABLES VAT so behaviour is
+	// unchanged until the business confirms its subscriptions are VAT-able; set it
+	// to 2000 for Ghana's standard 20% (money.GhanaStandardVATRateBps).
+	// SubscriptionVATInclusive selects the treatment: false (default) adds VAT at
+	// checkout on top of the listed price; true treats listed prices as VAT-inclusive.
+	SubscriptionVATRateBps   int
+	SubscriptionVATInclusive bool
 	// WhatsApp inbound bot. WhatsAppVerifyToken answers Meta's GET subscription
 	// challenge; WhatsAppAppSecret verifies the X-Hub-Signature-256 on inbound
 	// POSTs. The phone-number id + access token send replies via the Cloud API;
@@ -125,12 +134,15 @@ func Load() Config {
 		SonarHostURL:          getenv("SONAR_HOST_URL", ""),
 		SonarOrganization:     getenv("SONAR_ORGANIZATION", ""),
 		SonarToken:            getenv("SONAR_TOKEN", ""),
-		WhatsAppVerifyToken:   getenv("WHATSAPP_VERIFY_TOKEN", ""),
-		WhatsAppAppSecret:     getenv("WHATSAPP_APP_SECRET", ""),
-		WhatsAppPhoneNumberID: getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
-		WhatsAppAccessToken:   getenv("WHATSAPP_ACCESS_TOKEN", ""),
-		WhatsAppGraphVersion:  getenv("WHATSAPP_GRAPH_VERSION", "v21.0"),
-		WorkerQueueName:       getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
+		// Default 0 = VAT disabled (behaviour unchanged); set 2000 for Ghana 20%.
+		SubscriptionVATRateBps:   getenvInt("XTIITCH_SUBSCRIPTION_VAT_RATE_BPS", 0),
+		SubscriptionVATInclusive: getenvBool("XTIITCH_SUBSCRIPTION_VAT_INCLUSIVE"),
+		WhatsAppVerifyToken:      getenv("WHATSAPP_VERIFY_TOKEN", ""),
+		WhatsAppAppSecret:        getenv("WHATSAPP_APP_SECRET", ""),
+		WhatsAppPhoneNumberID:    getenv("WHATSAPP_PHONE_NUMBER_ID", ""),
+		WhatsAppAccessToken:      getenv("WHATSAPP_ACCESS_TOKEN", ""),
+		WhatsAppGraphVersion:     getenv("WHATSAPP_GRAPH_VERSION", "v21.0"),
+		WorkerQueueName:          getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
 	}
 }
 

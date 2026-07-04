@@ -15,6 +15,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
@@ -60,6 +61,10 @@ type Service struct {
 	// runs it before charging so a downgraded subscription renews at the new plan.
 	// Optional; nil disables the step.
 	planChanges PlanChangeApplier
+	// vatRateBps / vatInclusive apply VAT to the recurring renewal charge, mirroring
+	// the activation path in auth.Service. 0 disables VAT (behaviour unchanged).
+	vatRateBps   int
+	vatInclusive bool
 }
 
 // PlanChangeApplier applies subscription plan changes scheduled to take effect at
@@ -95,6 +100,10 @@ type Dependencies struct {
 	// recurring sweep invokes it before charging renewals so a downgraded
 	// subscription bills the new plan. Optional; nil disables the step.
 	PlanChanges PlanChangeApplier
+	// VAT applied to the recurring renewal charge, matching the activation path.
+	// VATRateBps 0 (default) disables it; VATInclusive=false adds it at checkout.
+	VATRateBps   int
+	VATInclusive bool
 }
 
 func NewService(deps Dependencies) Service {
@@ -118,6 +127,8 @@ func NewService(deps Dependencies) Service {
 		whatsAppEnabled: deps.WhatsAppEnabled,
 		renewalRepayURL: renewalRepayURL,
 		planChanges:     deps.PlanChanges,
+		vatRateBps:      deps.VATRateBps,
+		vatInclusive:    deps.VATInclusive,
 	}
 }
 
@@ -2335,8 +2346,10 @@ func (s Service) RunSubscriptionRecurringSweep(
 		// Both the amount charged and the period the invoice covers are chosen
 		// by the subscription's cadence in one place (cadenceRenewalMinor /
 		// cadenceMonths) so the ChargeAuthorization amount and the SUCCESS-path
-		// period advance always agree.
-		amountMinor := cadenceRenewalMinor(subscription)
+		// period advance always agree. VAT is applied once here (rate 0 / inclusive
+		// leaves it unchanged) so the issued invoice and the charge match, mirroring
+		// the activation path in auth.Service.
+		amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
 		periodMonths := cadenceMonths(subscription.BillingCadence)
 
 		invoiceID := s.ids.NewID()
@@ -5230,15 +5243,17 @@ func (s Service) enqueueRenewalReminder(
 	reference := notification.SubscriptionReminderReference(subscription.SubscriptionID.String(), periodKey)
 
 	result, err := s.businesses.EnqueueSubscriptionRenewalReminder(ctx, ports.EnqueueSubscriptionRenewalReminderInput{
-		SubscriptionID:     subscription.SubscriptionID,
-		BusinessID:         subscription.BusinessID,
-		Kind:               string(kind),
-		PeriodKey:          periodKey,
-		DedupKey:           notification.DedupKey(kind, reference),
-		Channel:            string(notification.ChannelWhatsApp),
-		Recipient:          recipient,
-		PlanName:           subscription.PlanName,
-		RenewalAmountMinor: cadenceRenewalMinor(subscription),
+		SubscriptionID: subscription.SubscriptionID,
+		BusinessID:     subscription.BusinessID,
+		Kind:           string(kind),
+		PeriodKey:      periodKey,
+		DedupKey:       notification.DedupKey(kind, reference),
+		Channel:        string(notification.ChannelWhatsApp),
+		Recipient:      recipient,
+		PlanName:       subscription.PlanName,
+		// Show the gross (VAT-inclusive) figure the sweep will actually charge, so
+		// the "tap to pay" amount matches the charge. Rate 0 leaves it unchanged.
+		RenewalAmountMinor: money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor,
 		RenewalAt:          *subscription.NextBillingAt,
 		GraceEndsAt:        graceEndsAt,
 		RepayURL:           s.renewalRepayURL,

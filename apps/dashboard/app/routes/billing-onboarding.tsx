@@ -39,6 +39,11 @@ type PublicPlan = {
   quarterly_renewal_minor: number;
   yearly_first_minor: number;
   yearly_renewal_minor: number;
+  // VAT applied to subscription charges (Pricing Book tax decision flag). Same
+  // policy for every plan/cadence: 0 = no VAT; vat_inclusive=false means VAT is
+  // added on top of the figures above at checkout, true means they include it.
+  vat_rate_bps: number;
+  vat_inclusive: boolean;
 };
 
 type BillingCadence = "quarterly" | "yearly";
@@ -336,6 +341,31 @@ function formatPrice(minor: number): string {
   }).format(minor / 100);
 }
 
+type VATPolicy = { vat_rate_bps: number; vat_inclusive: boolean };
+
+// Mirror of the API's money.ApplyVAT so displayed charges match what the API
+// bills. rate 0 (default) or inclusive pricing returns the figure unchanged;
+// added-at-checkout grosses it up by the VAT rate, rounded to the nearest pesewa.
+function vatGross(minor: number, vat: VATPolicy): number {
+  if (vat.vat_rate_bps <= 0 || minor <= 0 || vat.vat_inclusive) {
+    return minor;
+  }
+  return minor + Math.round((minor * vat.vat_rate_bps) / 10000);
+}
+
+// One-line VAT disclosure for the billing screen, or "" when VAT is disabled.
+function vatNote(vat: VATPolicy): string {
+  if (vat.vat_rate_bps <= 0) {
+    return "";
+  }
+  const pct = (vat.vat_rate_bps / 100).toLocaleString("en-GH", {
+    maximumFractionDigits: 2,
+  });
+  return vat.vat_inclusive
+    ? `Prices include ${pct}% VAT.`
+    : `${pct}% VAT is added to each charge at checkout.`;
+}
+
 // Human date for a plan change's effective moment (RFC3339 → e.g. "1 September 2026").
 function formatDate(iso: string): string {
   const date = new Date(iso);
@@ -514,15 +544,19 @@ export default function BillingOnboarding({
                                 label={
                                   <Box>
                                     <Typography sx={{ fontWeight: 700 }}>
-                                      {copy.label} — {formatPrice(copy.first)}{" "}
+                                      {copy.label} —{" "}
+                                      {formatPrice(vatGross(copy.first, plan))}{" "}
                                       {copy.firstLabel}
                                     </Typography>
                                     <Typography
                                       variant="body2"
                                       sx={{ color: alpha(tokens.ink, 0.68) }}
                                     >
-                                      then {formatPrice(copy.renewal)}/
-                                      {copy.per}
+                                      then{" "}
+                                      {formatPrice(
+                                        vatGross(copy.renewal, plan),
+                                      )}
+                                      /{copy.per}
                                     </Typography>
                                   </Box>
                                 }
@@ -533,6 +567,18 @@ export default function BillingOnboarding({
                       )}
                     </Stack>
                   </RadioGroup>
+                  {vatNote(plan) ? (
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        display: "block",
+                        mt: 1,
+                        color: alpha(tokens.ink, 0.6),
+                      }}
+                    >
+                      {vatNote(plan)}
+                    </Typography>
+                  ) : null}
                   <Divider sx={{ mt: 2 }} />
                 </Box>
               ) : null}
@@ -763,6 +809,7 @@ function ChangePlanView({
             rest of your current billing period, and future renewals bill the
             new plan. Downgrades take effect at your next renewal, with no
             charge or refund now.
+            {vatNote(currentPlan) ? ` ${vatNote(currentPlan)}` : ""}
           </Alert>
 
           <Stack spacing={1.5}>
@@ -797,9 +844,9 @@ function ChangePlanView({
                       >
                         {item.monthly_fee_minor > 0
                           ? `${formatPrice(
-                              item.quarterly_renewal_minor,
+                              vatGross(item.quarterly_renewal_minor, item),
                             )}/quarter · ${formatPrice(
-                              item.yearly_renewal_minor,
+                              vatGross(item.yearly_renewal_minor, item),
                             )}/year`
                           : "Free"}
                       </Typography>

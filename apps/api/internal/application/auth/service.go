@@ -18,6 +18,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
 const (
@@ -84,6 +85,11 @@ type Service struct {
 	// When nil, no code is accepted (a supplied code is rejected, never silently
 	// ignored) and the plain intro/renewal charge path is unaffected.
 	discounts ports.SubscriptionDiscountRepository
+	// vatRateBps / vatInclusive apply VAT to subscription charges (activation,
+	// renewal, upgrade proration). 0 disables VAT (behaviour unchanged); see
+	// money.ApplyVAT. inclusive=false adds VAT on top of the listed price.
+	vatRateBps   int
+	vatInclusive bool
 }
 
 type Dependencies struct {
@@ -111,6 +117,10 @@ type Dependencies struct {
 	// Optional subscription discount-code redemption at checkout. When nil, codes
 	// are unavailable and a supplied code is rejected.
 	Discounts ports.SubscriptionDiscountRepository
+	// VAT applied to subscription charges. VATRateBps 0 (default) disables it;
+	// VATInclusive=false adds it at checkout, true treats listed prices as inclusive.
+	VATRateBps   int
+	VATInclusive bool
 }
 
 func NewService(deps Dependencies) Service {
@@ -134,7 +144,25 @@ func NewService(deps Dependencies) Service {
 		otpGen:        deps.OTPGen,
 		whatsAppOTP:   deps.WhatsAppOTP,
 		discounts:     deps.Discounts,
+		vatRateBps:    deps.VATRateBps,
+		vatInclusive:  deps.VATInclusive,
 	}
+}
+
+// SubscriptionVATPolicy reports the configured VAT rate (basis points) and
+// treatment applied to subscription charges, so the public /plans endpoint can
+// disclose it. A zero rate means VAT is disabled.
+func (s Service) SubscriptionVATPolicy() (rateBps int, inclusive bool) {
+	return s.vatRateBps, s.vatInclusive
+}
+
+// grossSubscriptionCharge applies the configured subscription VAT to a base
+// (net or listed) charge and returns the gross amount to charge and record. With
+// VAT disabled (rate 0) or inclusive pricing the base is returned unchanged; with
+// added-at-checkout pricing VAT is added on top. It is the single place the
+// subscription money path grosses a charge for VAT.
+func (s Service) grossSubscriptionCharge(baseMinor int64) int64 {
+	return money.ApplyVAT(baseMinor, s.vatRateBps, s.vatInclusive).GrossMinor
 }
 
 // Subscription discount-code checkout errors. They are distinct sentinels so the
@@ -696,11 +724,14 @@ func (s Service) chargeAndRecord(ctx context.Context, sub ports.BusinessSubscrip
 	if email == "" {
 		email = strings.TrimSpace(auth.CustomerEmail)
 	}
+	// Gross the base up for VAT once, so the amount charged and the amount booked
+	// on the paid invoice always agree. VAT-disabled/inclusive leaves it unchanged.
+	gross := s.grossSubscriptionCharge(amountMinor)
 	charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
 		BusinessID:        sub.BusinessID,
 		AuthorizationCode: strings.TrimSpace(auth.AuthorizationCode),
 		CustomerEmail:     email,
-		AmountMinor:       amountMinor,
+		AmountMinor:       gross,
 		Currency:          "GHS",
 		Reference:         ref,
 	})
@@ -709,7 +740,7 @@ func (s Service) chargeAndRecord(ctx context.Context, sub ports.BusinessSubscrip
 	}
 	if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
 		BusinessID:     sub.BusinessID,
-		AmountMinor:    amountMinor,
+		AmountMinor:    gross,
 		Currency:       "GHS",
 		ChargeRef:      ref,
 		BillingCadence: cadence,
@@ -891,6 +922,10 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
 	}
 
+	// VAT applies to the prorated top-up too. Gross the net proration once so the
+	// charge, the booked invoice, and the reported amount agree.
+	grossProration := s.grossSubscriptionCharge(proration)
+
 	// Deterministic ref keyed on the subscription + target plan + period start, so a
 	// double submit / retry reuses it: Paystack dedupes the charge and the invoice
 	// insert no-ops — mirroring the activation charge's idempotency.
@@ -900,7 +935,7 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 		BusinessID:        sub.BusinessID,
 		AuthorizationCode: strings.TrimSpace(sub.ProviderSubscriptionRef),
 		CustomerEmail:     strings.TrimSpace(sub.OwnerEmail),
-		AmountMinor:       proration,
+		AmountMinor:       grossProration,
 		Currency:          "GHS",
 		Reference:         ref,
 	})
@@ -913,14 +948,14 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 	if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
 		BusinessID:  sub.BusinessID,
 		NewPlanID:   target.PlanID,
-		AmountMinor: proration,
+		AmountMinor: grossProration,
 		Currency:    "GHS",
 		ChargeRef:   ref,
 	}); err != nil {
 		return ChangeSubscriptionPlanResult{}, err
 	}
 
-	return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: true, ProratedChargeMinor: proration, EffectiveAt: now}, nil
+	return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: true, ProratedChargeMinor: grossProration, EffectiveAt: now}, nil
 }
 
 // downgradeSubscriptionPlan parks the change to apply at the next renewal. It never

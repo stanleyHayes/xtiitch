@@ -563,6 +563,10 @@ func (service *fakeAuthService) ListPublicPlans(_ context.Context) ([]ports.Publ
 	return nil, nil
 }
 
+func (service *fakeAuthService) SubscriptionVATPolicy() (int, bool) {
+	return 0, false
+}
+
 func (service *fakeAuthService) InitializeSubscriptionAuthorization(_ context.Context, _ authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error) {
 	return authapp.SubscriptionAuthorizationLink{}, nil
 }

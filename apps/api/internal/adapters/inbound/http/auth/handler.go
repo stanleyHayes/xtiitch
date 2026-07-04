@@ -22,6 +22,7 @@ type Service interface {
 	RegisterBusiness(ctx context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error)
 	CheckHandleAvailability(ctx context.Context, raw string) (authapp.HandleAvailability, error)
 	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
+	SubscriptionVATPolicy() (rateBps int, inclusive bool)
 	InitializeSubscriptionAuthorization(ctx context.Context, command authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error)
 	VerifySubscriptionAuthorization(ctx context.Context, command authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error)
 	ChangeSubscriptionPlan(ctx context.Context, command authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult, error)
@@ -284,6 +285,12 @@ type publicPlanResponse struct {
 	QuarterlyRenewalMinor int `json:"quarterly_renewal_minor"`
 	YearlyFirstMinor      int `json:"yearly_first_minor"`
 	YearlyRenewalMinor    int `json:"yearly_renewal_minor"`
+	// VAT applied to subscription charges (Pricing Book tax decision flag). The
+	// same policy applies to every plan and cadence: vat_rate_bps 0 means no VAT;
+	// vat_inclusive=false means VAT is added on top of the figures above at
+	// checkout, true means the figures already include it.
+	VATRateBps   int  `json:"vat_rate_bps"`
+	VATInclusive bool `json:"vat_inclusive"`
 }
 
 func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
@@ -292,6 +299,7 @@ func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
+	vatRateBps, vatInclusive := handler.service.SubscriptionVATPolicy()
 	response := make([]publicPlanResponse, 0, len(plans))
 	for _, plan := range plans {
 		response = append(response, publicPlanResponse{
@@ -305,6 +313,8 @@ func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 			QuarterlyRenewalMinor: plan.QuarterlyRenewalMinor,
 			YearlyFirstMinor:      plan.YearlyFirstMinor,
 			YearlyRenewalMinor:    plan.YearlyRenewalMinor,
+			VATRateBps:            vatRateBps,
+			VATInclusive:          vatInclusive,
 		})
 	}
 	writeJSON(w, http.StatusOK, response)
