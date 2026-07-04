@@ -129,13 +129,21 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		}
 		commission = *cmd.CommissionMinorOverride
 	}
+	// Pass-to-buyer (Pricing Book §3): when the merchant opts to pass the fee to
+	// the buyer, the customer is charged the order total PLUS the commission; the
+	// commission still routes to the platform via the split, so the merchant nets
+	// the full order total. Default: merchant absorbs (chargeAmount == AmountMinor).
+	chargeAmount := cmd.AmountMinor
+	if info.FeePassToBuyer {
+		chargeAmount += commission
+	}
 	reference := "xt_" + s.ids.NewID().String()
 
 	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{
 		BusinessID:      info.BusinessID,
 		SubaccountRef:   info.SubaccountRef,
 		CustomerEmail:   cmd.CustomerEmail,
-		AmountMinor:     cmd.AmountMinor,
+		AmountMinor:     chargeAmount,
 		CommissionMinor: commission,
 		Currency:        common.CurrencyGHS,
 		Reference:       reference,
@@ -155,7 +163,7 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		OrderID:           cmd.OrderID,
 		BookingID:         cmd.BookingID,
 		Purpose:           string(cmd.Purpose),
-		AmountMinor:       cmd.AmountMinor,
+		AmountMinor:       chargeAmount,
 		Currency:          common.CurrencyGHS,
 		Method:            string(cmd.Method),
 		ProviderReference: providerReference,

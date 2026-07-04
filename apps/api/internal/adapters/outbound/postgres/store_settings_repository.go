@@ -35,7 +35,8 @@ func (repo StoreSettingsRepository) Get(ctx context.Context, scope common.Tenant
 	if err := tx.QueryRow(ctx, `
 		select bespoke_enabled, measurements_enabled, customisation_enabled,
 			collections_enabled, delivery_enabled, dispatch_enabled, brand_color,
-			coalesce(logo_url, ''), coalesce(banner_url, ''), layout_variant
+			coalesce(logo_url, ''), coalesce(banner_url, ''), layout_variant,
+			fee_pass_to_buyer
 		from store_settings
 		where business_id = $1
 	`, scope.BusinessID.String()).Scan(
@@ -49,6 +50,7 @@ func (repo StoreSettingsRepository) Get(ctx context.Context, scope common.Tenant
 		&settings.LogoURL,
 		&settings.BannerURL,
 		&settings.LayoutVariant,
+		&settings.FeePassToBuyer,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.StoreSettings{}, ErrNotFound
@@ -119,12 +121,13 @@ func (repo StoreSettingsRepository) Update(ctx context.Context, scope common.Ten
 		set bespoke_enabled = $2, measurements_enabled = $3, customisation_enabled = $4,
 			collections_enabled = $5, delivery_enabled = $6, dispatch_enabled = $7,
 			brand_color = $8, logo_url = nullif($9, ''), banner_url = nullif($10, ''),
-			layout_variant = $11, updated_at = now()
+			layout_variant = $11, fee_pass_to_buyer = $12, updated_at = now()
 		where business_id = $1
 	`, scope.BusinessID.String(),
 		settings.BespokeEnabled, settings.MeasurementsEnabled, settings.CustomisationEnabled,
 		settings.CollectionsEnabled, settings.DeliveryEnabled, settings.DispatchEnabled,
 		settings.BrandColor, settings.LogoURL, settings.BannerURL, settings.LayoutVariant,
+		settings.FeePassToBuyer,
 	); err != nil {
 		return err
 	}

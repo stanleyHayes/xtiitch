@@ -140,6 +140,7 @@ type StoreSettings = {
   collections_enabled: boolean;
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
+  fee_pass_to_buyer: boolean;
   brand_color: string;
   logo_url: string;
   banner_url: string;
@@ -471,6 +472,7 @@ const defaultStoreSettings: StoreSettings = {
   collections_enabled: false,
   delivery_enabled: false,
   dispatch_enabled: false,
+  fee_pass_to_buyer: false,
   brand_color: tokens.burgundy,
   logo_url: "",
   banner_url: "",
@@ -1643,6 +1645,7 @@ export async function action({ request }: Route.ActionArgs) {
         collections_enabled: form.get("collections_enabled") === "on",
         delivery_enabled: form.get("delivery_enabled") === "on",
         dispatch_enabled: form.get("dispatch_enabled") === "on",
+        fee_pass_to_buyer: form.get("fee_pass_to_buyer") === "on",
         brand_color: brandColor || tokens.burgundy,
         logo_url: logoURL,
         banner_url: bannerURL,
@@ -11501,6 +11504,13 @@ function StoreSettingsPanel({
       label: "Dispatch desk",
       helper: "Let the team manage pickup and delivery handovers.",
       checked: settings.dispatch_enabled,
+    },
+    {
+      name: "fee_pass_to_buyer",
+      label: "Pass platform fee to buyer",
+      helper:
+        "Add the Xtiitch sales fee to the customer's total at checkout instead of absorbing it. Off = you absorb the fee.",
+      checked: settings.fee_pass_to_buyer,
     },
   ];
 

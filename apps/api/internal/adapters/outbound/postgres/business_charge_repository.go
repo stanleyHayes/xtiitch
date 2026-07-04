@@ -36,9 +36,11 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 			b.name,
 			b.verification_status = 'verified',
 			coalesce(b.settlement_provider_subaccount, ''),
-			p.commission_bps
+			p.commission_bps,
+			coalesce(s.fee_pass_to_buyer, false)
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
+		left join store_settings s on s.business_id = b.business_id
 		where b.business_id = $1
 	`, scope.BusinessID.String()).Scan(
 		&context.BusinessID,
@@ -46,6 +48,7 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 		&context.Verified,
 		&context.SubaccountRef,
 		&context.CommissionBps,
+		&context.FeePassToBuyer,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessChargeContext{}, ErrNotFound

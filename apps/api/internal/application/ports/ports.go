@@ -601,6 +601,9 @@ type BusinessChargeContext struct {
 	Verified      bool
 	SubaccountRef string
 	CommissionBps int
+	// FeePassToBuyer: when true the buyer pays the platform fee on top of the
+	// order total and the merchant nets the full total (Pricing Book §3).
+	FeePassToBuyer bool
 }
 
 // MediaStore signs a direct, browser-to-provider image upload. The client

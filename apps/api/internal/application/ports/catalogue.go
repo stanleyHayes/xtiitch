@@ -24,6 +24,9 @@ type StoreSettings struct {
 	LogoURL       string
 	BannerURL     string
 	LayoutVariant string
+	// FeePassToBuyer passes the platform sales fee to the buyer at checkout
+	// instead of the merchant absorbing it. Default false (merchant absorbs).
+	FeePassToBuyer bool
 }
 
 type StoreSettingsRepository interface {

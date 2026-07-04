@@ -15,6 +15,8 @@ func TestCommission(t *testing.T) {
 		{"standard plan 1 percent of GHS 200", 20000, 100, 200},
 		{"growth plan half percent of GHS 200", 20000, 50, 100},
 		{"floors fractional pesewa down", 10133, 300, 303},
+		{"caps the platform fee at GHS 50", 2000000, 300, 5000},
+		{"just under the GHS 50 cap is uncapped", 166000, 300, 4980},
 		{"zero amount", 0, 300, 0},
 		{"zero rate", 20000, 0, 0},
 		{"negative rate treated as zero", 20000, -5, 0},

@@ -91,6 +91,7 @@ type settingsBody struct {
 	LogoURL              string `json:"logo_url"`
 	BannerURL            string `json:"banner_url"`
 	LayoutVariant        string `json:"layout_variant"`
+	FeePassToBuyer       bool   `json:"fee_pass_to_buyer"`
 }
 
 func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
@@ -153,6 +154,7 @@ func (handler Handler) updateSettings(w http.ResponseWriter, r *http.Request) {
 			LogoURL:              body.LogoURL,
 			BannerURL:            body.BannerURL,
 			LayoutVariant:        body.LayoutVariant,
+			FeePassToBuyer:       body.FeePassToBuyer,
 		},
 	}); err != nil {
 		writeServiceError(w, err)
@@ -827,6 +829,7 @@ func toSettingsBody(s ports.StoreSettings) settingsBody {
 		LogoURL:              s.LogoURL,
 		BannerURL:            s.BannerURL,
 		LayoutVariant:        s.LayoutVariant,
+		FeePassToBuyer:       s.FeePassToBuyer,
 	}
 }
 
