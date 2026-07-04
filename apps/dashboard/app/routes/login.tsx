@@ -213,6 +213,34 @@ export async function action({ request }: Route.ActionArgs) {
   });
 }
 
+// methodChipSx styles the Password/WhatsApp sign-in toggle. The card dims generic
+// icons and the default outlined chip renders its label too faint to read, so we
+// force explicit high-contrast colors: burgundy fill + white text when active,
+// dark ink text + a visible border when inactive. `&&` bumps specificity so the
+// icon colour beats the card's blanket `.MuiSvgIcon-root` dim.
+function methodChipSx(active: boolean) {
+  if (active) {
+    return {
+      fontWeight: 600,
+      bgcolor: tokens.burgundy,
+      color: tokens.white,
+      borderColor: tokens.burgundy,
+      "&& .MuiChip-icon": { color: tokens.white },
+      "&:hover": { bgcolor: tokens.burgundy },
+    };
+  }
+  return {
+    fontWeight: 600,
+    color: tokens.ink,
+    borderColor: alpha(tokens.ink, 0.32),
+    "&& .MuiChip-icon": { color: alpha(tokens.ink, 0.75) },
+    "&:hover": {
+      borderColor: alpha(tokens.ink, 0.5),
+      bgcolor: alpha(tokens.ink, 0.04),
+    },
+  };
+}
+
 function LoadingButtonLabel({ label }: { label: string }) {
   return (
     <Box
@@ -613,6 +641,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     variant={method === "password" ? "filled" : "outlined"}
                     onClick={() => setMethod("password")}
                     aria-pressed={method === "password"}
+                    sx={methodChipSx(method === "password")}
                   />
                   <Chip
                     label="WhatsApp"
@@ -622,6 +651,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     variant={method === "whatsapp" ? "filled" : "outlined"}
                     onClick={() => setMethod("whatsapp")}
                     aria-pressed={method === "whatsapp"}
+                    sx={methodChipSx(method === "whatsapp")}
                   />
                 </Stack>
                 {method === "password" ? (
