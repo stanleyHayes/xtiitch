@@ -3,6 +3,7 @@ package authapp
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -39,7 +40,13 @@ func (s Service) RequestSignInOTP(ctx context.Context, handle string, rawWhatsAp
 	}
 	credentials, err := s.whatsAppAuth.FindBusinessUserByHandleAndWhatsApp(ctx, normalizeHandle(handle), number)
 	if err != nil || !credentials.IsActive {
-		// Stay opaque: report success without sending when no active owner matches.
+		// Stay opaque to the caller: report success without sending when no active
+		// owner matches. Log it (masked) so an operator can tell an intentional
+		// no-op apart from a real delivery failure.
+		s.logger.Info("business sign-in OTP: no active owner matched, not sending",
+			slog.String("handle", normalizeHandle(handle)),
+			slog.String("whatsapp", maskWhatsApp(number)),
+			slog.Bool("lookup_error", err != nil))
 		return nil
 	}
 	return s.deliverBusinessOTP(ctx, number)
@@ -140,9 +147,25 @@ func (s Service) deliverBusinessOTP(ctx context.Context, number string) error {
 		CodeHash:       s.otpGen.HashCode(code),
 		ExpiresAt:      now.Add(businessOTPTTL),
 	}); err != nil {
+		s.logger.Error("business OTP challenge persist failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
 		return err
 	}
-	return s.whatsAppOTP.SendOTP(ctx, number, code)
+	s.logger.Info("business OTP requested over WhatsApp", slog.String("whatsapp", maskWhatsApp(number)))
+	if err := s.whatsAppOTP.SendOTP(ctx, number, code); err != nil {
+		s.logger.Error("business OTP WhatsApp delivery failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
+		return err
+	}
+	s.logger.Info("business OTP WhatsApp delivery accepted", slog.String("whatsapp", maskWhatsApp(number)))
+	return nil
+}
+
+// maskWhatsApp redacts the middle of a WhatsApp number for logs (e.g. 233****789)
+// so an operator can correlate a request without logging full PII.
+func maskWhatsApp(number string) string {
+	if len(number) <= 6 {
+		return "***"
+	}
+	return number[:3] + "****" + number[len(number)-3:]
 }
 
 // verifyBusinessOTP resolves the active challenge for a number, enforces the
@@ -160,7 +183,9 @@ func (s Service) verifyBusinessOTP(ctx context.Context, number string, code stri
 		return ErrTooManyAttempts
 	}
 	if s.otpGen.HashCode(strings.TrimSpace(code)) != challenge.CodeHash {
-		_ = s.whatsAppAuth.IncrementSignInOTPAttempts(ctx, challenge.ChallengeID)
+		if incErr := s.whatsAppAuth.IncrementSignInOTPAttempts(ctx, challenge.ChallengeID); incErr != nil {
+			s.logger.Error("failed to increment business sign-in OTP attempts", slog.String("error", incErr.Error()))
+		}
 		return ErrInvalidCode
 	}
 	if err := s.whatsAppAuth.ConsumeSignInOTPChallenge(ctx, challenge.ChallengeID); err != nil {

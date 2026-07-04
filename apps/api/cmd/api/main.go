@@ -21,6 +21,10 @@ func main() {
 
 	cfg := config.Load()
 	logger := loggerpkg.New(cfg.Environment)
+	// Make the JSON logger the process default too, so any code path that reaches
+	// for slog.Default() (rather than an injected logger) still emits structured
+	// JSON to stdout instead of the unstructured text default.
+	slog.SetDefault(logger)
 
 	app, err := bootstrap.New(ctx, cfg, logger)
 	if err != nil {

@@ -3,6 +3,7 @@ package customerauth
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/mail"
 	"regexp"
 	"strings"
@@ -34,6 +35,7 @@ type Service struct {
 	emailDelivery ports.CustomerEmailOTPDelivery
 	ids           ports.IDGenerator
 	clock         ports.Clock
+	logger        *slog.Logger
 }
 
 type Dependencies struct {
@@ -44,9 +46,14 @@ type Dependencies struct {
 	EmailDelivery ports.CustomerEmailOTPDelivery
 	IDs           ports.IDGenerator
 	Clock         ports.Clock
+	Logger        *slog.Logger
 }
 
 func NewService(deps Dependencies) Service {
+	logger := deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return Service{
 		repo:          deps.Repo,
 		tokens:        deps.Tokens,
@@ -55,6 +62,7 @@ func NewService(deps Dependencies) Service {
 		emailDelivery: deps.EmailDelivery,
 		ids:           deps.IDs,
 		clock:         deps.Clock,
+		logger:        logger,
 	}
 }
 
@@ -64,10 +72,12 @@ func NewService(deps Dependencies) Service {
 func (s Service) RequestOTP(ctx context.Context, rawPhone string) error {
 	phone, err := normalizeGhanaPhone(rawPhone)
 	if err != nil {
+		s.logger.Warn("customer OTP request rejected: invalid phone", slog.String("error", err.Error()))
 		return err
 	}
 	code, err := s.otp.NewCode()
 	if err != nil {
+		s.logger.Error("customer OTP code generation failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
 		return err
 	}
 	now := s.clock.Now()
@@ -78,9 +88,16 @@ func (s Service) RequestOTP(ctx context.Context, rawPhone string) error {
 		CodeHash:    s.otp.HashCode(code),
 		ExpiresAt:   now.Add(otpTTL),
 	}); err != nil {
+		s.logger.Error("customer OTP challenge persist failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
 		return err
 	}
-	return s.delivery.SendOTP(ctx, phone, code)
+	s.logger.Info("customer OTP requested over WhatsApp", slog.String("phone", maskPhone(phone)))
+	if err := s.delivery.SendOTP(ctx, phone, code); err != nil {
+		s.logger.Error("customer OTP WhatsApp delivery failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
+		return err
+	}
+	s.logger.Info("customer OTP WhatsApp delivery accepted", slog.String("phone", maskPhone(phone)))
+	return nil
 }
 
 // RequestEmailOTP issues a one-time code to an email address. Like RequestOTP it
@@ -88,15 +105,19 @@ func (s Service) RequestOTP(ctx context.Context, rawPhone string) error {
 func (s Service) RequestEmailOTP(ctx context.Context, rawEmail string) error {
 	email, err := normalizeEmail(rawEmail)
 	if err != nil {
+		s.logger.Warn("customer email OTP request rejected: invalid email", slog.String("error", err.Error()))
 		return err
 	}
 	if s.emailDelivery == nil {
-		// Email channel not configured. Stay opaque (like a non-registered
-		// identifier) rather than surfacing a config error to the caller.
+		// Email channel not configured. Stay opaque to the caller (like a
+		// non-registered identifier), but log it so an operator can see why no
+		// email is going out rather than it failing silently.
+		s.logger.Warn("customer email OTP requested but email delivery is not configured", slog.String("email", maskEmail(email)))
 		return nil
 	}
 	code, err := s.otp.NewCode()
 	if err != nil {
+		s.logger.Error("customer email OTP code generation failed", slog.String("email", maskEmail(email)), slog.String("error", err.Error()))
 		return err
 	}
 	now := s.clock.Now()
@@ -107,9 +128,16 @@ func (s Service) RequestEmailOTP(ctx context.Context, rawEmail string) error {
 		CodeHash:    s.otp.HashCode(code),
 		ExpiresAt:   now.Add(otpTTL),
 	}); err != nil {
+		s.logger.Error("customer email OTP challenge persist failed", slog.String("email", maskEmail(email)), slog.String("error", err.Error()))
 		return err
 	}
-	return s.emailDelivery.SendEmailOTP(ctx, email, code)
+	s.logger.Info("customer OTP requested over email", slog.String("email", maskEmail(email)))
+	if err := s.emailDelivery.SendEmailOTP(ctx, email, code); err != nil {
+		s.logger.Error("customer email OTP delivery failed", slog.String("email", maskEmail(email)), slog.String("error", err.Error()))
+		return err
+	}
+	s.logger.Info("customer email OTP delivery accepted", slog.String("email", maskEmail(email)))
+	return nil
 }
 
 type CustomerAuthResult struct {
@@ -174,7 +202,9 @@ func (s Service) verifyChallenge(ctx context.Context, channel ports.CustomerOTPC
 		return ports.OTPChallengeRecord{}, ErrTooManyAttempts
 	}
 	if s.otp.HashCode(code) != challenge.CodeHash {
-		_ = s.repo.IncrementOTPAttempts(ctx, challenge.ChallengeID)
+		if incErr := s.repo.IncrementOTPAttempts(ctx, challenge.ChallengeID); incErr != nil {
+			s.logger.Error("failed to increment customer OTP attempts", slog.String("error", incErr.Error()))
+		}
 		return ports.OTPChallengeRecord{}, ErrInvalidCode
 	}
 	if err := s.repo.ConsumeOTPChallenge(ctx, challenge.ChallengeID); err != nil {
@@ -258,4 +288,27 @@ func normalizeGhanaPhone(raw string) (string, error) {
 		return "", ErrInvalidPhone
 	}
 	return digits, nil
+}
+
+// maskPhone redacts the middle of a phone number for logs — enough to correlate
+// a request without writing a full PII number to log storage (e.g. 233****789).
+func maskPhone(phone string) string {
+	if len(phone) <= 6 {
+		return "***"
+	}
+	return phone[:3] + "****" + phone[len(phone)-3:]
+}
+
+// maskEmail keeps the domain and the first character of the local part for logs
+// (e.g. a***@example.com) so an operator can correlate without logging full PII.
+func maskEmail(email string) string {
+	at := strings.LastIndex(email, "@")
+	if at <= 0 {
+		return "***"
+	}
+	local := email[:at]
+	if len(local) <= 1 {
+		return "*" + email[at:]
+	}
+	return local[:1] + "***" + email[at:]
 }

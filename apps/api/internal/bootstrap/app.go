@@ -142,6 +142,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// rate 0 = disabled; set XTIITCH_SUBSCRIPTION_VAT_RATE_BPS=2000 for Ghana 20%.
 		VATRateBps:   cfg.SubscriptionVATRateBps,
 		VATInclusive: cfg.SubscriptionVATInclusive,
+		Logger:       logger,
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
@@ -280,6 +281,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		EmailDelivery: buildCustomerEmailOTPDelivery(cfg, logger),
 		IDs:           ids.UUIDGenerator{},
 		Clock:         clock.SystemClock{},
+		Logger:        logger,
 	})
 
 	// Marketing waitlist: store every public lead, and email the team when Resend

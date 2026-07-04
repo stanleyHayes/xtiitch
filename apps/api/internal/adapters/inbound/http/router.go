@@ -24,6 +24,10 @@ func NewRouter(logger *slog.Logger, ready func(context.Context) error, security 
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.RealIP)
+	// Structured access log for every request (after RealIP/RequestID so it has
+	// the real client IP + request id). This is the baseline visibility the
+	// backend was missing — every sign-up, OTP, and checkout call now logs.
+	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
 	// Hardening: conservative response headers, a request timeout, a body-size
 	// cap, CORS allow-list, and a generous per-IP rate limit (see SecurityOptions).

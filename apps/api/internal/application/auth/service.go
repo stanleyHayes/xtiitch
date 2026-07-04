@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/mail"
 	"regexp"
@@ -90,6 +91,9 @@ type Service struct {
 	// money.ApplyVAT. inclusive=false adds VAT on top of the listed price.
 	vatRateBps   int
 	vatInclusive bool
+	// logger records auth-flow events (OTP send/verify, best-effort side effects)
+	// so failures are visible instead of silently swallowed.
+	logger *slog.Logger
 }
 
 type Dependencies struct {
@@ -121,9 +125,15 @@ type Dependencies struct {
 	// VATInclusive=false adds it at checkout, true treats listed prices as inclusive.
 	VATRateBps   int
 	VATInclusive bool
+	// Logger records auth-flow events; when nil, slog.Default() is used.
+	Logger *slog.Logger
 }
 
 func NewService(deps Dependencies) Service {
+	logger := deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
 	return Service{
 		businesses:    deps.Businesses,
 		payments:      deps.Payments,
@@ -146,6 +156,7 @@ func NewService(deps Dependencies) Service {
 		discounts:     deps.Discounts,
 		vatRateBps:    deps.VATRateBps,
 		vatInclusive:  deps.VATInclusive,
+		logger:        logger,
 	}
 }
 
@@ -1209,7 +1220,13 @@ func (s Service) CreateBusinessUser(ctx context.Context, cmd CreateBusinessUserC
 	if err != nil {
 		return ports.BusinessUserRecord{}, err
 	}
-	_ = s.sendBusinessUserInvite(ctx, user)
+	// Best-effort invite email: never fail user creation on a delivery hiccup, but
+	// log it so a missing invite is visible rather than silently dropped.
+	if inviteErr := s.sendBusinessUserInvite(ctx, user); inviteErr != nil {
+		s.logger.Warn("business user invite email failed",
+			slog.String("business_id", cmd.Scope.BusinessID.String()),
+			slog.String("error", inviteErr.Error()))
+	}
 	return user, nil
 }
 
@@ -1386,7 +1403,9 @@ func (s Service) ConfirmPasswordReset(ctx context.Context, rawEmail string, code
 		return authdomain.ErrResetCodeInvalid
 	}
 	if hashResetCode(code) != challenge.CodeHash {
-		_ = s.resets.IncrementPasswordResetAttempts(ctx, challenge.ChallengeID)
+		if incErr := s.resets.IncrementPasswordResetAttempts(ctx, challenge.ChallengeID); incErr != nil {
+			s.logger.Error("failed to increment password reset attempts", slog.String("error", incErr.Error()))
+		}
 		return authdomain.ErrResetCodeInvalid
 	}
 

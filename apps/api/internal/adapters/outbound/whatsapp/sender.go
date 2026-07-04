@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -59,7 +60,16 @@ func (s CloudSender) SendText(ctx context.Context, toWaID, body string) error {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("whatsapp cloud send returned %d", resp.StatusCode)
+		// Include Meta's response body — it carries the real reason (e.g. error
+		// 131047 re-engagement / 132000 template mismatch / 190 bad token) that a
+		// bare status code hides. Capped so a huge body can't bloat the log.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return fmt.Errorf(
+			"whatsapp cloud send to %s returned %d: %s",
+			toWaID,
+			resp.StatusCode,
+			strings.TrimSpace(string(body)),
+		)
 	}
 	return nil
 }
