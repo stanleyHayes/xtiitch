@@ -15,6 +15,9 @@ import Paper from "@mui/material/Paper";
 import Chip from "@mui/material/Chip";
 import Link from "@mui/material/Link";
 import Divider from "@mui/material/Divider";
+import RadioGroup from "@mui/material/RadioGroup";
+import Radio from "@mui/material/Radio";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import { alpha } from "@mui/material/styles";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
@@ -31,7 +34,14 @@ type PublicPlan = {
   code: string;
   name: string;
   monthly_fee_minor: number;
+  // Pricing Book cadence figures (minor units): first cycle vs renewal.
+  quarterly_first_minor: number;
+  quarterly_renewal_minor: number;
+  yearly_first_minor: number;
+  yearly_renewal_minor: number;
 };
+
+type BillingCadence = "quarterly" | "yearly";
 
 type BusinessProfile = {
   verification_status?: string;
@@ -66,6 +76,7 @@ async function fetchVerificationStatus(request: Request): Promise<string> {
 async function startPaystackBilling(
   request: Request,
   origin: string,
+  cadence: BillingCadence,
 ): Promise<Response | { error: string }> {
   const response = await apiFetch(
     request,
@@ -75,6 +86,7 @@ async function startPaystackBilling(
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         callback_url: `${origin}/onboarding/billing/callback`,
+        billing_cadence: cadence,
       }),
     },
   );
@@ -131,11 +143,19 @@ export async function loader({ request }: Route.LoaderArgs) {
 export async function action({ request }: Route.ActionArgs) {
   const origin = new URL(request.url).origin;
 
+  // Read the multipart form once (request.formData can only be consumed once):
+  // it carries the chosen billing cadence and, when identity is not yet on file,
+  // the Ghana Card fields.
+  const form = await request.formData();
+  const cadence: BillingCadence =
+    String(form.get("billing_cadence") ?? "") === "quarterly"
+      ? "quarterly"
+      : "yearly";
+
   // Re-check server-side rather than trusting the rendered form: if the Ghana
   // Card is not yet on file we must capture it before starting billing.
   const status = await fetchVerificationStatus(request);
   if (!isIdentityOnFile(status)) {
-    const form = await request.formData();
     const cardNumber = String(form.get("card_number") ?? "").trim();
     if (!cardNumber) {
       return {
@@ -176,7 +196,7 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   // Identity is on file (already or just submitted) — start Paystack billing.
-  const result = await startPaystackBilling(request, origin);
+  const result = await startPaystackBilling(request, origin, cadence);
   return result;
 }
 
@@ -186,6 +206,31 @@ function formatPrice(minor: number): string {
     currency: "GHS",
     maximumFractionDigits: minor % 100 === 0 ? 0 : 2,
   }).format(minor / 100);
+}
+
+// The Pricing Book bills the FIRST figure on the first paid cycle and the
+// RENEWAL figure on every renewal — surfaced verbatim so the owner sees exactly
+// what they will be charged now vs later.
+function cadenceCopy(
+  plan: PublicPlan,
+  cadence: BillingCadence,
+): { label: string; per: string; firstLabel: string; first: number; renewal: number } {
+  if (cadence === "quarterly") {
+    return {
+      label: "Quarterly",
+      per: "quarter",
+      firstLabel: "first 3 months",
+      first: plan.quarterly_first_minor,
+      renewal: plan.quarterly_renewal_minor,
+    };
+  }
+  return {
+    label: "Yearly",
+    per: "year",
+    firstLabel: "first year",
+    first: plan.yearly_first_minor,
+    renewal: plan.yearly_renewal_minor,
+  };
 }
 
 export default function BillingOnboarding({
@@ -199,6 +244,8 @@ export default function BillingOnboarding({
   const verified = loaderData?.verificationStatus === "verified";
   const result = (actionData ?? {}) as { error?: string };
   const [photoName, setPhotoName] = useState("");
+  const isPaidPlan = !!plan && plan.monthly_fee_minor > 0;
+  const [cadence, setCadence] = useState<BillingCadence>("yearly");
   return (
     <Box
       sx={{
@@ -242,8 +289,8 @@ export default function BillingOnboarding({
             Set up billing{plan ? ` for ${plan.name}` : ""}
           </Typography>
           <Typography sx={{ color: alpha(tokens.ink, 0.68), mb: 3 }}>
-            {plan && plan.monthly_fee_minor > 0
-              ? `Authorize ${formatPrice(plan.monthly_fee_minor)}/month with Paystack to activate your plan. You can manage or cancel anytime.`
+            {isPaidPlan
+              ? "Choose a billing cycle and authorize it with Paystack to activate your plan. You can manage or cancel anytime."
               : "Authorize recurring billing with Paystack to activate your plan."}
           </Typography>
           {result.error ? (
@@ -253,6 +300,71 @@ export default function BillingOnboarding({
           ) : null}
           <Form method="post" encType="multipart/form-data">
             <Stack spacing={2}>
+              {isPaidPlan && plan ? (
+                <Box sx={{ textAlign: "left" }}>
+                  <Typography sx={{ fontWeight: 800, mb: 1 }}>
+                    Choose your billing cycle
+                  </Typography>
+                  <RadioGroup
+                    name="billing_cadence"
+                    value={cadence}
+                    onChange={(event) =>
+                      setCadence(event.target.value as BillingCadence)
+                    }
+                  >
+                    <Stack spacing={1.5}>
+                      {(["yearly", "quarterly"] as BillingCadence[]).map(
+                        (option) => {
+                          const copy = cadenceCopy(plan, option);
+                          const selected = cadence === option;
+                          return (
+                            <Paper
+                              key={option}
+                              variant="outlined"
+                              sx={{
+                                p: 1.5,
+                                borderRadius: 2,
+                                borderColor: selected
+                                  ? tokens.burgundy
+                                  : alpha(tokens.ink, 0.16),
+                                borderWidth: selected ? 2 : 1,
+                                bgcolor: selected
+                                  ? alpha(tokens.burgundy, 0.04)
+                                  : "transparent",
+                              }}
+                            >
+                              <FormControlLabel
+                                value={option}
+                                control={<Radio />}
+                                sx={{
+                                  m: 0,
+                                  width: "100%",
+                                  alignItems: "flex-start",
+                                }}
+                                label={
+                                  <Box>
+                                    <Typography sx={{ fontWeight: 700 }}>
+                                      {copy.label} — {formatPrice(copy.first)}{" "}
+                                      {copy.firstLabel}
+                                    </Typography>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{ color: alpha(tokens.ink, 0.68) }}
+                                    >
+                                      then {formatPrice(copy.renewal)}/{copy.per}
+                                    </Typography>
+                                  </Box>
+                                }
+                              />
+                            </Paper>
+                          );
+                        },
+                      )}
+                    </Stack>
+                  </RadioGroup>
+                  <Divider sx={{ mt: 2 }} />
+                </Box>
+              ) : null}
               {identityOnFile ? (
                 <Alert
                   severity={verified ? "success" : "info"}

@@ -34,6 +34,13 @@ type BusinessIdentityRepository interface {
 	// subscription flipped to active with next_billing_at at the period end. It is
 	// idempotent on the charge ref (re-recording the same ref is a no-op).
 	RecordSubscriptionActivationPayment(ctx context.Context, input RecordSubscriptionActivationPaymentInput) error
+	// SetSubscriptionBillingCadence records the tenant's chosen billing cadence
+	// ('quarterly' or 'yearly') on their subscription. It is called when the
+	// authorization link is created, so that the later verify/first-charge step
+	// (driven by the Paystack callback, which only carries the payment reference)
+	// can read back the cadence to pick the intro/renewal amount and the next
+	// billing date. It does NOT consume the first purchase or charge anything.
+	SetSubscriptionBillingCadence(ctx context.Context, businessID common.ID, cadence string) error
 	// SubmitIdentityDocument stores (or replaces) a business's Ghana Card number and
 	// ID photo and moves it into verification 'pending' for operator review. An
 	// already-verified business keeps its status (resubmission only updates the
@@ -107,7 +114,9 @@ type CreateBusinessWithOwnerInput struct {
 }
 
 // PublicPlanRecord is the subset of plan data safe to expose unauthenticated for
-// the signup plan picker.
+// the signup plan picker. The quarterly/yearly first+renewal figures are the
+// exact stored Pricing Book amounts (minor units): the first paid subscription
+// bills the *first* figure, every renewal bills the *renewal* figure.
 type PublicPlanRecord struct {
 	Code            string
 	Name            string
@@ -115,6 +124,11 @@ type PublicPlanRecord struct {
 	YearlyFeeMinor  int
 	CommissionBps   int
 	DesignLimit     *int
+	// Cadence pricing (minor units). Zero for the free plan.
+	QuarterlyFirstMinor   int
+	QuarterlyRenewalMinor int
+	YearlyFirstMinor      int
+	YearlyRenewalMinor    int
 }
 
 // BusinessSubscriptionRecord is the tenant's own subscription view for the
@@ -130,6 +144,18 @@ type BusinessSubscriptionRecord struct {
 	BillingMode             string
 	ProviderCustomerRef     string
 	ProviderSubscriptionRef string
+	// BillingCadence is the tenant's chosen cadence ('monthly' is the legacy
+	// default; the Pricing Book activation path requires 'quarterly' or 'yearly').
+	BillingCadence string
+	// FirstPurchaseConsumed is true once the account has been charged at least
+	// once; the one-time intro figure is only billed while it is false.
+	FirstPurchaseConsumed bool
+	// Cadence pricing carried from the joined plan (minor units), so the
+	// activation charge can pick the intro/renewal figure without a second query.
+	QuarterlyFirstMinor   int
+	QuarterlyRenewalMinor int
+	YearlyFirstMinor      int
+	YearlyRenewalMinor    int
 }
 
 // ActivateRecurringBillingInput stores the verified Paystack references on a
@@ -148,6 +174,10 @@ type RecordSubscriptionActivationPaymentInput struct {
 	// ChargeRef is the Paystack charge reference; it becomes the invoice ref so the
 	// charge webhook reconciles to this already-paid invoice (a no-op).
 	ChargeRef string
+	// BillingCadence ('quarterly' or 'yearly') drives the paid period length: on a
+	// fresh (first) charge the period end and next_billing_at advance by 3 or 12
+	// months, and first_purchase_consumed is set so the intro is never re-granted.
+	BillingCadence string
 }
 
 // SubscriptionActivationCharge is the deterministic reference for a

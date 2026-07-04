@@ -837,6 +837,8 @@ type fakeBusinessIdentityRepository struct {
 	subscription          ports.BusinessSubscriptionRecord
 	activationPayment     ports.RecordSubscriptionActivationPaymentInput
 	activationAlreadyPaid bool
+	cadenceSet            string
+	setCadenceErr         error
 	identityDocument      ports.SubmitIdentityDocumentInput
 }
 
@@ -870,6 +872,14 @@ func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling(_ context.C
 
 func (repo *fakeBusinessIdentityRepository) RecordSubscriptionActivationPayment(_ context.Context, input ports.RecordSubscriptionActivationPaymentInput) error {
 	repo.activationPayment = input
+	return nil
+}
+
+func (repo *fakeBusinessIdentityRepository) SetSubscriptionBillingCadence(_ context.Context, _ common.ID, cadence string) error {
+	if repo.setCadenceErr != nil {
+		return repo.setCadenceErr
+	}
+	repo.cadenceSet = cadence
 	return nil
 }
 
@@ -945,11 +955,13 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 
 	businesses := &fakeBusinessIdentityRepository{
 		subscription: ports.BusinessSubscriptionRecord{
-			SubscriptionID:  "sub-1",
-			BusinessID:      "business-1",
-			OwnerEmail:      "owner@adwoa.test",
-			MonthlyFeeMinor: 9900,
-			Status:          "trialing",
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@adwoa.test",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
 		},
 	}
 	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
@@ -965,11 +977,15 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	if result.Status != "active" || result.BillingMode != "recurring" {
 		t.Fatalf("expected active recurring subscription, got %+v", result)
 	}
-	if payments.chargeInput.AmountMinor != 9900 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
-		t.Fatalf("expected first charge of the plan fee on the stored authorization, got %+v", payments.chargeInput)
+	// First purchase on a yearly cadence bills the INTRO figure, not the monthly fee.
+	if payments.chargeInput.AmountMinor != 89100 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
+		t.Fatalf("expected first charge of the yearly intro figure on the stored authorization, got %+v", payments.chargeInput)
 	}
-	if businesses.activationPayment.AmountMinor != 9900 || businesses.activationPayment.ChargeRef == "" {
+	if businesses.activationPayment.AmountMinor != 89100 || businesses.activationPayment.ChargeRef == "" {
 		t.Fatalf("expected the activation payment to be booked, got %+v", businesses.activationPayment)
+	}
+	if businesses.activationPayment.BillingCadence != "yearly" {
+		t.Fatalf("expected the activation payment to carry the yearly cadence, got %q", businesses.activationPayment.BillingCadence)
 	}
 	if businesses.activationPayment.ChargeRef != payments.chargeInput.Reference {
 		t.Fatalf("invoice ref must equal the charge reference for webhook idempotency: %q vs %q",
@@ -984,11 +1000,13 @@ func TestVerifySubscriptionAuthorizationLeavesAuthorizedWhenChargeNotSuccessful(
 
 	businesses := &fakeBusinessIdentityRepository{
 		subscription: ports.BusinessSubscriptionRecord{
-			SubscriptionID:  "sub-1",
-			BusinessID:      "business-1",
-			OwnerEmail:      "owner@adwoa.test",
-			MonthlyFeeMinor: 9900,
-			Status:          "trialing",
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@adwoa.test",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
 		},
 	}
 	payments := &fakeSubscriptionPayments{chargeStatus: "failed"}
@@ -1017,11 +1035,14 @@ func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testin
 	businesses := &fakeBusinessIdentityRepository{
 		activationAlreadyPaid: true,
 		subscription: ports.BusinessSubscriptionRecord{
-			SubscriptionID:  "sub-1",
-			BusinessID:      "business-1",
-			OwnerEmail:      "owner@adwoa.test",
-			MonthlyFeeMinor: 9900,
-			Status:          "active",
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			MonthlyFeeMinor:       9900,
+			Status:                "active",
+			BillingCadence:        "yearly",
+			FirstPurchaseConsumed: true,
+			YearlyRenewalMinor:    118800,
 		},
 	}
 	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
@@ -1042,6 +1063,163 @@ func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testin
 	}
 	if result.Status != "active" {
 		t.Fatalf("an already-paid subscription should still report active, got %q", result.Status)
+	}
+}
+
+// A first purchase (intro not yet consumed) on a QUARTERLY cadence bills the
+// quarterly INTRO figure and books the activation payment with that cadence, so
+// the repository can mark the first purchase consumed and set a 3-month period.
+func TestVerifySubscriptionAuthorizationFirstPurchaseChargesQuarterlyIntro(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			BillingCadence:        "quarterly",
+			FirstPurchaseConsumed: false,
+			QuarterlyFirstMinor:   11800,
+			QuarterlyRenewalMinor: 14700,
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Status != "active" {
+		t.Fatalf("expected active subscription after successful first charge, got %q", result.Status)
+	}
+	if payments.chargeInput.AmountMinor != 11800 {
+		t.Fatalf("first purchase must charge the quarterly INTRO figure (11800), got %d", payments.chargeInput.AmountMinor)
+	}
+	if businesses.activationPayment.AmountMinor != 11800 || businesses.activationPayment.BillingCadence != "quarterly" {
+		t.Fatalf("expected the intro payment booked with the quarterly cadence, got %+v", businesses.activationPayment)
+	}
+}
+
+// An account that has already consumed its first purchase bills the FULL renewal
+// figure for its cadence, never the intro again (cancel+resubscribe safety).
+func TestVerifySubscriptionAuthorizationConsumedAccountChargesRenewal(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			BillingCadence:        "quarterly",
+			FirstPurchaseConsumed: true,
+			QuarterlyFirstMinor:   11800,
+			QuarterlyRenewalMinor: 14700,
+		},
+	}
+	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	service := newSubscriptionTestService(businesses, payments)
+
+	if _, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "paystack-ref",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if payments.chargeInput.AmountMinor != 14700 {
+		t.Fatalf("a consumed account must charge the quarterly RENEWAL figure (14700), got %d", payments.chargeInput.AmountMinor)
+	}
+	if businesses.activationPayment.AmountMinor != 14700 {
+		t.Fatalf("expected the renewal figure booked, got %d", businesses.activationPayment.AmountMinor)
+	}
+}
+
+// A paid plan cannot be activated with a non-billable cadence: monthly/empty are
+// rejected and no charge is attempted.
+func TestVerifySubscriptionAuthorizationRejectsNonBillableCadence(t *testing.T) {
+	t.Parallel()
+
+	for _, cadence := range []string{"monthly", ""} {
+		businesses := &fakeBusinessIdentityRepository{
+			subscription: ports.BusinessSubscriptionRecord{
+				SubscriptionID:      "sub-1",
+				BusinessID:          "business-1",
+				OwnerEmail:          "owner@adwoa.test",
+				MonthlyFeeMinor:     4900,
+				Status:              "trialing",
+				BillingCadence:      cadence,
+				QuarterlyFirstMinor: 11800,
+			},
+		}
+		payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+		service := newSubscriptionTestService(businesses, payments)
+
+		_, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+			Scope:     common.TenantScope{BusinessID: "business-1"},
+			Reference: "paystack-ref",
+		})
+		if !errors.Is(err, authdomain.ErrInvalidInput) {
+			t.Fatalf("cadence %q: expected ErrInvalidInput, got %v", cadence, err)
+		}
+		if payments.chargeInput.AuthorizationCode != "" {
+			t.Fatalf("cadence %q: must not charge when the cadence is not billable", cadence)
+		}
+	}
+}
+
+// The authorization-link step rejects a monthly/empty cadence for a paid plan and
+// persists a valid quarterly/yearly cadence before redirecting to Paystack.
+func TestInitializeSubscriptionAuthorizationValidatesAndPersistsCadence(t *testing.T) {
+	t.Parallel()
+
+	newRepo := func() *fakeBusinessIdentityRepository {
+		return &fakeBusinessIdentityRepository{
+			subscription: ports.BusinessSubscriptionRecord{
+				SubscriptionID:  "sub-1",
+				BusinessID:      "business-1",
+				OwnerEmail:      "owner@adwoa.test",
+				MonthlyFeeMinor: 4900,
+				Status:          "trialing",
+			},
+		}
+	}
+
+	for _, cadence := range []string{"monthly", ""} {
+		businesses := newRepo()
+		service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{})
+		_, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+			Scope:          common.TenantScope{BusinessID: "business-1"},
+			BillingCadence: cadence,
+		})
+		if !errors.Is(err, authdomain.ErrInvalidInput) {
+			t.Fatalf("cadence %q: expected ErrInvalidInput, got %v", cadence, err)
+		}
+		if businesses.cadenceSet != "" {
+			t.Fatalf("cadence %q: must not persist an invalid cadence, got %q", cadence, businesses.cadenceSet)
+		}
+	}
+
+	businesses := newRepo()
+	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{})
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		BillingCadence: "quarterly",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if businesses.cadenceSet != "quarterly" {
+		t.Fatalf("expected the quarterly cadence to be persisted, got %q", businesses.cadenceSet)
+	}
+	if link.RedirectURL == "" {
+		t.Fatalf("expected a redirect link, got %+v", link)
 	}
 }
 

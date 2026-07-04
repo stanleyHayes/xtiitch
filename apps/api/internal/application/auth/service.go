@@ -275,6 +275,10 @@ func (s Service) ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord,
 type InitializeSubscriptionAuthorizationCommand struct {
 	Scope       common.TenantScope
 	CallbackURL string
+	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
+	// Monthly billing is not offered under the Pricing Book, so an empty or
+	// 'monthly' value is rejected for a paid plan.
+	BillingCadence string
 }
 
 type SubscriptionAuthorizationLink struct {
@@ -310,12 +314,24 @@ func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd In
 	if s.payments == nil {
 		return SubscriptionAuthorizationLink{}, authdomain.ErrForbidden
 	}
+	// A paid plan must be billed quarterly or yearly — reject monthly/empty.
+	cadence, err := normalizeBillingCadence(cmd.BillingCadence)
+	if err != nil {
+		return SubscriptionAuthorizationLink{}, err
+	}
 	subscription, err := s.businesses.GetBusinessSubscription(ctx, cmd.Scope.BusinessID)
 	if err != nil {
 		return SubscriptionAuthorizationLink{}, err
 	}
 	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
 		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	// Persist the chosen cadence now, before the redirect: the Paystack callback
+	// that drives verify/first-charge carries only the payment reference, so the
+	// cadence must already be on the subscription to bill the right figure and set
+	// the right next billing date.
+	if err := s.businesses.SetSubscriptionBillingCadence(ctx, subscription.BusinessID, cadence); err != nil {
+		return SubscriptionAuthorizationLink{}, err
 	}
 	ownerEmail, err := normalizeEmail(subscription.OwnerEmail)
 	if err != nil {
@@ -363,6 +379,19 @@ func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd Verify
 	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
+	// The cadence was persisted when the authorization link was created; a paid
+	// plan cannot be activated without a billable (quarterly/yearly) cadence.
+	cadence, err := normalizeBillingCadence(subscription.BillingCadence)
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	// Charge the exact stored figure: the one-time INTRO while the account has not
+	// consumed its first purchase, otherwise the FULL renewal figure. Never
+	// computed live. A zero here means the plan's cadence figures are unset.
+	amountMinor := activationChargeMinor(subscription, cadence)
+	if amountMinor <= 0 {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
 	result, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, err
@@ -407,16 +436,17 @@ func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd Verify
 			BusinessID:        subscription.BusinessID,
 			AuthorizationCode: strings.TrimSpace(result.AuthorizationCode),
 			CustomerEmail:     email,
-			AmountMinor:       int64(subscription.MonthlyFeeMinor),
+			AmountMinor:       amountMinor,
 			Currency:          "GHS",
 			Reference:         activation.Ref,
 		})
 		if chargeErr == nil && strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
 			if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
-				BusinessID:  subscription.BusinessID,
-				AmountMinor: int64(subscription.MonthlyFeeMinor),
-				Currency:    "GHS",
-				ChargeRef:   activation.Ref,
+				BusinessID:     subscription.BusinessID,
+				AmountMinor:    amountMinor,
+				Currency:       "GHS",
+				ChargeRef:      activation.Ref,
+				BillingCadence: cadence,
 			}); err != nil {
 				return SubscriptionAuthorizationResult{}, err
 			}
@@ -436,6 +466,41 @@ func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd Verify
 		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
 		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
 	}, nil
+}
+
+// normalizeBillingCadence validates a paid-plan billing cadence. Under the
+// Pricing Book only quarterly and yearly are billable; monthly or an empty value
+// is rejected as invalid input.
+func normalizeBillingCadence(raw string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "quarterly":
+		return "quarterly", nil
+	case "yearly":
+		return "yearly", nil
+	default:
+		return "", authdomain.ErrInvalidInput
+	}
+}
+
+// activationChargeMinor returns the exact stored figure to charge for the given
+// cadence: the one-time INTRO figure while the account has not consumed its first
+// purchase, otherwise the FULL renewal figure. Amounts are the verbatim Pricing
+// Book figures carried on the subscription record — never computed live.
+func activationChargeMinor(sub ports.BusinessSubscriptionRecord, cadence string) int64 {
+	switch cadence {
+	case "quarterly":
+		if sub.FirstPurchaseConsumed {
+			return int64(sub.QuarterlyRenewalMinor)
+		}
+		return int64(sub.QuarterlyFirstMinor)
+	case "yearly":
+		if sub.FirstPurchaseConsumed {
+			return int64(sub.YearlyRenewalMinor)
+		}
+		return int64(sub.YearlyFirstMinor)
+	default:
+		return 0
+	}
 }
 
 // SubmitIdentityVerificationCommand is a business's Ghana Card submission.

@@ -276,6 +276,12 @@ type publicPlanResponse struct {
 	YearlyFeeMinor  int    `json:"yearly_fee_minor"`
 	CommissionBps   int    `json:"commission_bps"`
 	DesignLimit     *int   `json:"design_limit,omitempty"`
+	// Pricing Book cadence figures (minor units): the first paid subscription
+	// bills the *first* figure, every renewal bills the *renewal* figure.
+	QuarterlyFirstMinor   int `json:"quarterly_first_minor"`
+	QuarterlyRenewalMinor int `json:"quarterly_renewal_minor"`
+	YearlyFirstMinor      int `json:"yearly_first_minor"`
+	YearlyRenewalMinor    int `json:"yearly_renewal_minor"`
 }
 
 func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
@@ -287,12 +293,16 @@ func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 	response := make([]publicPlanResponse, 0, len(plans))
 	for _, plan := range plans {
 		response = append(response, publicPlanResponse{
-			Code:            plan.Code,
-			Name:            plan.Name,
-			MonthlyFeeMinor: plan.MonthlyFeeMinor,
-			YearlyFeeMinor:  plan.YearlyFeeMinor,
-			CommissionBps:   plan.CommissionBps,
-			DesignLimit:     plan.DesignLimit,
+			Code:                  plan.Code,
+			Name:                  plan.Name,
+			MonthlyFeeMinor:       plan.MonthlyFeeMinor,
+			YearlyFeeMinor:        plan.YearlyFeeMinor,
+			CommissionBps:         plan.CommissionBps,
+			DesignLimit:           plan.DesignLimit,
+			QuarterlyFirstMinor:   plan.QuarterlyFirstMinor,
+			QuarterlyRenewalMinor: plan.QuarterlyRenewalMinor,
+			YearlyFirstMinor:      plan.YearlyFirstMinor,
+			YearlyRenewalMinor:    plan.YearlyRenewalMinor,
 		})
 	}
 	writeJSON(w, http.StatusOK, response)
@@ -313,6 +323,8 @@ func (handler Handler) checkHandleAvailability(w http.ResponseWriter, r *http.Re
 
 type subscriptionAuthorizationLinkRequest struct {
 	CallbackURL string `json:"callback_url"`
+	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
+	BillingCadence string `json:"billing_cadence"`
 }
 
 type subscriptionAuthorizationLinkResponse struct {
@@ -336,8 +348,9 @@ func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter
 		return
 	}
 	result, err := handler.service.InitializeSubscriptionAuthorization(r.Context(), authapp.InitializeSubscriptionAuthorizationCommand{
-		Scope:       principal.TenantScope(),
-		CallbackURL: request.CallbackURL,
+		Scope:          principal.TenantScope(),
+		CallbackURL:    request.CallbackURL,
+		BillingCadence: request.BillingCadence,
 	})
 	if err != nil {
 		status, code := authError(err)

@@ -317,7 +317,8 @@ func (repo BusinessIdentityRepository) HandleExists(ctx context.Context, handle 
 // ListActivePlans returns the public-safe plan catalogue for the signup picker.
 func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]ports.PublicPlanRecord, error) {
 	rows, err := repo.pool.Query(ctx, `
-		select code, name, monthly_fee_minor, yearly_fee_minor, commission_bps, design_limit
+		select code, name, monthly_fee_minor, yearly_fee_minor, commission_bps, design_limit,
+			quarterly_first_minor, quarterly_renewal_minor, yearly_first_minor, yearly_renewal_minor
 		from plans
 		where is_active = true
 		order by monthly_fee_minor asc, name asc
@@ -337,6 +338,10 @@ func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]p
 			&plan.YearlyFeeMinor,
 			&plan.CommissionBps,
 			&plan.DesignLimit,
+			&plan.QuarterlyFirstMinor,
+			&plan.QuarterlyRenewalMinor,
+			&plan.YearlyFirstMinor,
+			&plan.YearlyRenewalMinor,
 		); err != nil {
 			return nil, err
 		}
@@ -380,7 +385,13 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Conte
 			s.status,
 			s.billing_mode,
 			s.provider_customer_ref,
-			s.provider_subscription_ref
+			s.provider_subscription_ref,
+			s.billing_cadence,
+			s.first_purchase_consumed,
+			p.quarterly_first_minor,
+			p.quarterly_renewal_minor,
+			p.yearly_first_minor,
+			p.yearly_renewal_minor
 		from business_subscriptions s
 		join businesses b on b.business_id = s.business_id
 		join plans p on p.plan_id = s.plan_id
@@ -396,6 +407,12 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Conte
 		&record.BillingMode,
 		&record.ProviderCustomerRef,
 		&record.ProviderSubscriptionRef,
+		&record.BillingCadence,
+		&record.FirstPurchaseConsumed,
+		&record.QuarterlyFirstMinor,
+		&record.QuarterlyRenewalMinor,
+		&record.YearlyFirstMinor,
+		&record.YearlyRenewalMinor,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -438,6 +455,35 @@ func (repo BusinessIdentityRepository) ActivateRecurringBilling(ctx context.Cont
 	return tx.Commit(ctx)
 }
 
+// SetSubscriptionBillingCadence records the tenant's chosen billing cadence on
+// their subscription when the authorization link is created, so the later verify
+// step (driven by the Paystack callback, which carries only the payment
+// reference) can read it back. It does not consume the first purchase or charge.
+func (repo BusinessIdentityRepository) SetSubscriptionBillingCadence(ctx context.Context, businessID common.ID, cadence string) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	// business_subscriptions is tenant-isolated (forced RLS); scope to the business
+	// so the update matches its row. The CHECK on billing_cadence rejects anything
+	// other than 'monthly'/'quarterly'/'yearly' at the database level.
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, businessID.String()); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update business_subscriptions
+		set billing_cadence = $2,
+			updated_at = now()
+		where business_id = $1
+	`, businessID.String(), cadence); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 // RecordSubscriptionActivationPayment books the first recurring charge a tenant
 // just paid at authorization time: it writes a paid invoice for the current
 // period and flips the subscription to active with the next billing date set to
@@ -467,6 +513,17 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx c
 		return err
 	}
 
+	// Advance the paid period by the chosen cadence: quarterly = 3 months,
+	// yearly = 12 months. This path is only reached with a cadence the service
+	// already validated; for any other value keep the stored period end so we
+	// never silently shorten a paid period (the DB CHECK is the final backstop).
+	switch input.BillingCadence {
+	case "quarterly":
+		periodEnd = periodStart.AddDate(0, 3, 0)
+	case "yearly":
+		periodEnd = periodStart.AddDate(0, 12, 0)
+	}
+
 	// Idempotent on the charge ref: the activation ref is deterministic per period
 	// (see PrepareSubscriptionActivationCharge), so a repeated verify re-uses it and
 	// this insert no-ops rather than booking a second paid invoice. Gate the
@@ -493,18 +550,24 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx c
 		return tx.Commit(ctx)
 	}
 
+	// Flip to active and record the first purchase: consume the one-time intro
+	// (so cancel+resubscribe bills the full renewal figure next time), store the
+	// chosen cadence, and advance the period + next_billing_at by that cadence.
 	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set status = 'active',
 			failed_payment_count = 0,
 			grace_ends_at = null,
 			cancel_at_period_end = false,
+			billing_cadence = $4,
+			first_purchase_consumed = true,
 			last_invoice_ref = $2,
 			last_payment_at = now(),
-			next_billing_at = current_period_end,
+			current_period_end = $3,
+			next_billing_at = $3,
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.ChargeRef); err != nil {
+	`, input.BusinessID.String(), input.ChargeRef, periodEnd, input.BillingCadence); err != nil {
 		return err
 	}
 
@@ -514,8 +577,10 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx c
 // PrepareSubscriptionActivationCharge returns the deterministic charge reference
 // for the subscription's current period and whether a first charge is still due
 // (no paid invoice already recorded for that period). Keying the ref on the
-// subscription + period makes the first-period charge idempotent against retries
-// and the verify-callback being hit twice.
+// subscription + cadence + period makes the first-period charge idempotent
+// against retries and the verify-callback being hit twice: a repeated verify at
+// the same cadence reuses the same ref, so Paystack dedupes the charge and the
+// paid-invoice insert no-ops.
 func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(ctx context.Context, businessID common.ID) (ports.SubscriptionActivationCharge, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -527,19 +592,19 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(ctx c
 		return ports.SubscriptionActivationCharge{}, err
 	}
 
-	var subscriptionID string
+	var subscriptionID, billingCadence string
 	var periodStart time.Time
 	if err := tx.QueryRow(ctx, `
-		select subscription_id::text, current_period_start
+		select subscription_id::text, current_period_start, billing_cadence
 		from business_subscriptions where business_id = $1
-	`, businessID.String()).Scan(&subscriptionID, &periodStart); err != nil {
+	`, businessID.String()).Scan(&subscriptionID, &periodStart, &billingCadence); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.SubscriptionActivationCharge{}, ErrNotFound
 		}
 		return ports.SubscriptionActivationCharge{}, err
 	}
 
-	ref := "xtsub_act_" + subscriptionID + "_" + strconv.FormatInt(periodStart.Unix(), 10)
+	ref := "xtsub_act_" + subscriptionID + "_" + billingCadence + "_" + strconv.FormatInt(periodStart.Unix(), 10)
 
 	var alreadyPaid bool
 	if err := tx.QueryRow(ctx, `
