@@ -1903,7 +1903,8 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		order_stats as (
 			select
 				business_id,
-				count(*)::int as orders_count
+				count(*)::int as orders_count,
+				max(updated_at) as last_order_at
 			from orders
 			where business_id = $1::uuid
 			group by business_id
@@ -1920,7 +1921,8 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			select
 				business_id,
 				coalesce(sum(amount_minor) filter (where status = 'succeeded'), 0)::bigint as gmv_minor,
-				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor
+				coalesce(sum(commission_minor) filter (where status = 'succeeded'), 0)::bigint as commission_minor,
+				max(updated_at) filter (where status = 'succeeded') as last_payment_at
 			from payments
 			where business_id = $1::uuid
 			group by business_id
@@ -1930,7 +1932,10 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			b.business_id::text,
 			b.name,
 			b.handle,
+			coalesce(owner.display_name, ''),
+			coalesce(owner.whatsapp_number, ''),
 			coalesce(owner.email, ''),
+			coalesce(owner.whatsapp_number, ''),
 			p.code,
 			p.name,
 			p.monthly_fee_minor::bigint,
@@ -1951,6 +1956,16 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			s.last_invoice_ref,
 			s.last_payment_at,
 			s.next_billing_at,
+			b.created_at,
+			coalesce(s.next_billing_at, s.current_period_end),
+			case when b.handle <> '' then 'https://' || b.handle || '.xtiitch.com' else '' end,
+			coalesce(discount.code, ''),
+			coalesce(nullif(discount.owner_name, ''), discount.batch_label, ''),
+			greatest(
+				b.updated_at,
+				coalesce(os.last_order_at, b.updated_at),
+				coalesce(ms.last_payment_at, b.updated_at)
+			),
 			coalesce(ds.design_count, 0),
 			coalesce(os.orders_count, 0),
 			coalesce(ms.gmv_minor, 0),
@@ -1963,12 +1978,21 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.email
+			select u.display_name, u.email, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
 			limit 1
 		) owner on true
+		left join lateral (
+			select c.code, c.owner_name, c.batch_label
+			from subscription_discount_redemptions r
+			join subscription_discount_codes c on c.discount_code_id = r.discount_code_id
+			where r.business_id = b.business_id
+			  and r.status in ('pending', 'applied')
+			order by coalesce(r.applied_at, r.created_at) desc, r.created_at desc
+			limit 1
+		) discount on true
 	`, input.BusinessID.String(),
 		input.Status,
 		input.BillingMode,
