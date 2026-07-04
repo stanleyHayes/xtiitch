@@ -129,6 +129,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		MFASecrets:    totpManager,
 		MFAChallenges: jwtIssuer,
 		MFAVerifier:   jwtIssuer,
+		// WhatsApp one-time-code sign-in: the same business identity repo backs
+		// the challenge store + handle/number lookup, reusing the customer OTP
+		// generator and WhatsApp delivery (Cloud when creds are set, else logged).
+		WhatsAppAuth: businessIdentityRepo,
+		OTPGen:       authadapter.NewCustomerOTPGenerator(),
+		WhatsAppOTP:  buildCustomerOTPDelivery(cfg, logger),
 	})
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)

@@ -41,6 +41,9 @@ type Service interface {
 	ActivateMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) ([]string, error)
 	DisableMFA(ctx context.Context, scope common.TenantScope, userID common.ID, code string) error
 	VerifyMFALogin(ctx context.Context, command authapp.VerifyMFALoginCommand) (authapp.AuthResult, error)
+	RequestSignInOTP(ctx context.Context, handle string, whatsAppNumber string) error
+	RequestRegistrationOTP(ctx context.Context, whatsAppNumber string) error
+	VerifySignInOTP(ctx context.Context, command authapp.VerifySignInOTPCommand) (authapp.AuthResult, error)
 }
 
 type Handler struct {
@@ -64,6 +67,11 @@ func (handler Handler) Register(router chi.Router) {
 	// Completing a login challenge needs only the short-lived challenge token, so
 	// it sits outside the bearer-protected group.
 	router.Post("/auth/business/mfa/verify", handler.verifyMFALogin)
+	// WhatsApp one-time-code sign-in (an alternative first factor to the password)
+	// and registration number verification. Public, like login + mfa/verify.
+	router.Post("/auth/business/otp/request", handler.requestSignInOTP)
+	router.Post("/auth/business/otp/verify", handler.verifySignInOTP)
+	router.Post("/auth/business/register/otp/request", handler.requestRegistrationOTP)
 	// Public plan catalogue powering the signup plan picker.
 	router.Get("/plans", handler.listPlans)
 	// Real-time store-handle availability for the signup form (Instagram-style).
@@ -97,6 +105,25 @@ type registerBusinessRequest struct {
 	OwnerEmail       string `json:"owner_email"`
 	OwnerPassword    string `json:"owner_password"`
 	PlanCode         string `json:"plan_code"`
+	// Optional WhatsApp identity: when a number is supplied, the code proving it
+	// must accompany the request.
+	WhatsAppNumber string `json:"whatsapp_number"`
+	WhatsAppCode   string `json:"whatsapp_code"`
+}
+
+type signInOTPRequest struct {
+	BusinessHandle string `json:"business_handle"`
+	WhatsAppNumber string `json:"whatsapp_number"`
+}
+
+type verifySignInOTPRequest struct {
+	BusinessHandle string `json:"business_handle"`
+	WhatsAppNumber string `json:"whatsapp_number"`
+	Code           string `json:"code"`
+}
+
+type registrationOTPRequest struct {
+	WhatsAppNumber string `json:"whatsapp_number"`
 }
 
 type loginBusinessRequest struct {
@@ -189,6 +216,8 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 		OwnerEmail:       request.OwnerEmail,
 		OwnerPassword:    request.OwnerPassword,
 		PlanCode:         request.PlanCode,
+		WhatsAppNumber:   request.WhatsAppNumber,
+		WhatsAppCode:     request.WhatsAppCode,
 		UserAgent:        r.UserAgent(),
 		IPAddress:        requestIP(r),
 	})
@@ -425,6 +454,69 @@ func (handler Handler) loginBusiness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	writeJSON(w, http.StatusOK, newAuthResponse(result))
+}
+
+// requestSignInOTP sends a WhatsApp sign-in code. Always 202 (opaque about
+// whether the handle+number is registered) unless the number is malformed or
+// the feature is unavailable.
+func (handler Handler) requestSignInOTP(w http.ResponseWriter, r *http.Request) {
+	var request signInOTPRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.RequestSignInOTP(r.Context(), request.BusinessHandle, request.WhatsAppNumber); err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// requestRegistrationOTP sends a verification code to a number a signup form
+// collected (before the account exists).
+func (handler Handler) requestRegistrationOTP(w http.ResponseWriter, r *http.Request) {
+	var request registrationOTPRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.RequestRegistrationOTP(r.Context(), request.WhatsAppNumber); err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
+}
+
+// verifySignInOTP verifies a WhatsApp code and issues a session, or returns an
+// MFA challenge when the account has a second factor enabled.
+func (handler Handler) verifySignInOTP(w http.ResponseWriter, r *http.Request) {
+	var request verifySignInOTPRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.VerifySignInOTP(r.Context(), authapp.VerifySignInOTPCommand{
+		BusinessHandle: request.BusinessHandle,
+		WhatsAppNumber: request.WhatsAppNumber,
+		Code:           request.Code,
+		UserAgent:      r.UserAgent(),
+		IPAddress:      requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	if result.MFARequired {
+		writeJSON(w, http.StatusOK, mfaChallengeResponse{
+			MFARequired:       true,
+			MFAChallengeToken: result.MFAChallengeToken,
+		})
+		return
+	}
 	writeJSON(w, http.StatusOK, newAuthResponse(result))
 }
 
@@ -839,6 +931,16 @@ func authError(err error) (int, string) {
 		return http.StatusForbidden, "forbidden"
 	case errors.Is(err, authdomain.ErrInvalidMFACode):
 		return http.StatusUnauthorized, "invalid_mfa_code"
+	case errors.Is(err, authapp.ErrWhatsAppOTPUnavailable):
+		return http.StatusServiceUnavailable, "whatsapp_unavailable"
+	case errors.Is(err, authapp.ErrInvalidPhone):
+		return http.StatusBadRequest, "invalid_phone"
+	case errors.Is(err, authapp.ErrInvalidCode):
+		return http.StatusUnauthorized, "invalid_code"
+	case errors.Is(err, authapp.ErrCodeExpired):
+		return http.StatusUnauthorized, "code_expired"
+	case errors.Is(err, authapp.ErrTooManyAttempts):
+		return http.StatusTooManyRequests, "too_many_attempts"
 	case errors.Is(err, authdomain.ErrMFAAlreadyEnabled):
 		return http.StatusConflict, "mfa_already_enabled"
 	case errors.Is(err, authdomain.ErrMFANotEnrolled):

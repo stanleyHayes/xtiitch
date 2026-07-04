@@ -10,6 +10,9 @@ export default [
   // Resource route: same-origin proxy for the signup form's real-time store
   // handle availability check (the API base isn't reachable from the browser).
   route("handle-check", "routes/handle-check.ts"),
+  // Resource route: same-origin proxy for the WhatsApp one-time-code "Send code"
+  // buttons on sign-in / sign-up (forwards to the opaque OTP-request endpoints).
+  route("business-otp", "routes/business-otp.ts"),
   route("onboarding/billing", "routes/billing-onboarding.tsx"),
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
   route("addons/ai-assistant", "routes/addons.ai-assistant.tsx"),

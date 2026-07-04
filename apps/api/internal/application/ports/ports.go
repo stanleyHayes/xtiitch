@@ -99,6 +99,11 @@ type CreateBusinessWithOwnerInput struct {
 	// PlanCode is the plan the owner chose at signup. Empty or unknown codes
 	// fall back to the free plan in the repository.
 	PlanCode string
+	// WhatsApp identity is optional and additive to email + password: when
+	// WhatsAppNumber is set the owner can also sign in with a WhatsApp code, and
+	// WhatsAppVerified records that the number was proven (via OTP) at signup.
+	WhatsAppNumber   string
+	WhatsAppVerified bool
 }
 
 // PublicPlanRecord is the subset of plan data safe to expose unauthenticated for
@@ -171,6 +176,37 @@ type BusinessUserCredentials struct {
 	PasswordHash string
 	Role         business.UserRole
 	IsActive     bool
+}
+
+// BusinessWhatsAppAuthRepository backs WhatsApp one-time-code auth for the
+// business dashboard: resolving an owner by store handle + WhatsApp number, and
+// a global (bypass-gated) sign-in OTP challenge store keyed on the number (also
+// reused for pre-registration number verification). Kept separate from
+// BusinessIdentityRepository so it doesn't disturb that interface's many
+// implementers.
+type BusinessWhatsAppAuthRepository interface {
+	FindBusinessUserByHandleAndWhatsApp(ctx context.Context, handle string, whatsAppNumber string) (BusinessUserCredentials, error)
+	CreateSignInOTPChallenge(ctx context.Context, input CreateSignInOTPChallengeInput) error
+	LatestActiveSignInOTPChallenge(ctx context.Context, whatsAppNumber string, now time.Time) (BusinessOTPChallengeRecord, error)
+	IncrementSignInOTPAttempts(ctx context.Context, challengeID common.ID) error
+	ConsumeSignInOTPChallenge(ctx context.Context, challengeID common.ID) error
+}
+
+// CreateSignInOTPChallengeInput stores a hashed business sign-in code.
+type CreateSignInOTPChallengeInput struct {
+	ChallengeID    common.ID
+	WhatsAppNumber string
+	CodeHash       string
+	ExpiresAt      time.Time
+}
+
+// BusinessOTPChallengeRecord is an active business sign-in OTP challenge.
+type BusinessOTPChallengeRecord struct {
+	ChallengeID    common.ID
+	WhatsAppNumber string
+	CodeHash       string
+	Attempts       int
+	ExpiresAt      time.Time
 }
 
 type BusinessUserRecord struct {

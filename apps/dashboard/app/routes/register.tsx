@@ -26,6 +26,7 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
+import WhatsApp from "@mui/icons-material/WhatsApp";
 import type { Route } from "./+types/register";
 import { fetchApi } from "../lib/api-base";
 import TextField from "../components/form-text-field";
@@ -74,6 +75,8 @@ export async function action({ request }: Route.ActionArgs) {
     owner_display_name: String(form.get("owner_display_name") ?? "").trim(),
     owner_email: String(form.get("owner_email") ?? "").trim(),
     owner_password: String(form.get("owner_password") ?? ""),
+    whatsapp_number: String(form.get("whatsapp_number") ?? "").trim(),
+    whatsapp_code: String(form.get("whatsapp_code") ?? "").trim(),
     plan_code: String(form.get("plan_code") ?? "free"),
   };
 
@@ -172,6 +175,13 @@ export default function Register({
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  // WhatsApp verification for the owner number: request a one-time code, then
+  // enter it. The final "Create store" submit is gated on a code being present.
+  const [whatsappNumber, setWhatsappNumber] = useState("");
+  const [whatsappCode, setWhatsappCode] = useState("");
+  const [otpRequested, setOtpRequested] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpError, setOtpError] = useState("");
   // Plan selection is controlled so a paid-plan choice always registers and is
   // submitted (the previous uncontrolled radios could fall back to "free").
   const [selectedPlan, setSelectedPlan] = useState(defaultPlan);
@@ -180,6 +190,33 @@ export default function Register({
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const passwordOk = password.length >= 8;
   const passwordsMatch = password === confirmPassword;
+  // Loose client check — the API is the source of truth on number format.
+  const whatsappOk = whatsappNumber.replace(/[^0-9]/g, "").length >= 9;
+
+  // Ask the API to WhatsApp a one-time code to the owner number, then reveal the
+  // code field. The request endpoint is opaque (always 202), so any reachable
+  // response advances the flow; only a network fault surfaces an error.
+  const sendWhatsappCode = () => {
+    if (!whatsappOk || otpSending) {
+      return;
+    }
+    setOtpSending(true);
+    setOtpError("");
+    fetch("/business-otp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        intent: "register",
+        whatsapp_number: whatsappNumber.trim(),
+      }),
+    })
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
+      .then(() => setOtpRequested(true))
+      .catch(() =>
+        setOtpError("We couldn't send a code. Check the number and try again."),
+      )
+      .finally(() => setOtpSending(false));
+  };
 
   // Real-time store-handle availability (Instagram/TikTok-style): once the
   // format is valid we debounce a check against the API and surface the result
@@ -231,7 +268,10 @@ export default function Register({
     emailOk &&
     passwordOk &&
     confirmPassword.length > 0 &&
-    passwordsMatch;
+    passwordsMatch &&
+    whatsappOk &&
+    otpRequested &&
+    whatsappCode.trim().length > 0;
 
   const goNext = () => setStep((s) => Math.min(s + 1, 2));
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
@@ -494,6 +534,96 @@ export default function Register({
                     },
                   }}
                 />
+                <Box>
+                  <TextField
+                    name="whatsapp_number"
+                    label="WhatsApp number"
+                    required={step === 1}
+                    autoComplete="tel"
+                    inputMode="tel"
+                    fullWidth
+                    placeholder="0244 000 111 or +233…"
+                    value={whatsappNumber}
+                    onChange={(e) => {
+                      setWhatsappNumber(e.target.value);
+                      // Any edit invalidates a code already sent to the old number.
+                      setOtpRequested(false);
+                      setWhatsappCode("");
+                    }}
+                    error={whatsappNumber.length > 0 && !whatsappOk}
+                    helperText={
+                      whatsappNumber.length > 0 && !whatsappOk
+                        ? "Enter a valid WhatsApp number."
+                        : "We'll send a one-time code to confirm this number."
+                    }
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <WhatsApp fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                  <Stack
+                    direction="row"
+                    spacing={1.5}
+                    sx={{ mt: 1, alignItems: "center", flexWrap: "wrap" }}
+                  >
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      size="small"
+                      onClick={sendWhatsappCode}
+                      disabled={!whatsappOk || otpSending}
+                    >
+                      {otpSending
+                        ? "Sending…"
+                        : otpRequested
+                          ? "Resend code"
+                          : "Send code"}
+                    </Button>
+                    {otpRequested ? (
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "success.main", fontWeight: 700 }}
+                      >
+                        ✓ Code sent to your WhatsApp
+                      </Typography>
+                    ) : null}
+                  </Stack>
+                  {otpError ? (
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", mt: 0.75, color: "error.main" }}
+                    >
+                      {otpError}
+                    </Typography>
+                  ) : null}
+                </Box>
+                {otpRequested ? (
+                  <TextField
+                    name="whatsapp_code"
+                    label="WhatsApp code"
+                    required={step === 1}
+                    autoComplete="one-time-code"
+                    inputMode="numeric"
+                    fullWidth
+                    placeholder="123456"
+                    value={whatsappCode}
+                    onChange={(e) => setWhatsappCode(e.target.value)}
+                    slotProps={{
+                      input: {
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <WhatsApp fontSize="small" />
+                          </InputAdornment>
+                        ),
+                      },
+                    }}
+                  />
+                ) : null}
                 <TextField
                   name="owner_password"
                   label="Password"

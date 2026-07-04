@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Form,
   data,
@@ -24,6 +25,7 @@ import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
+import WhatsApp from "@mui/icons-material/WhatsApp";
 import type { Route } from "./+types/login";
 import { fetchApi } from "../lib/api-base";
 import TextField from "../components/form-text-field";
@@ -81,6 +83,80 @@ export async function action({ request }: Route.ActionArgs) {
     session.set("access", verified.access_token);
     session.set("refresh", verified.refresh_token);
     session.unset("mfaChallenge");
+    return redirect("/dashboard", {
+      headers: { "Set-Cookie": await commitSession(session) },
+    });
+  }
+
+  // WhatsApp sign-in, step one: ask the API to send a one-time code. The request
+  // endpoint is opaque (always 202) so we never reveal whether the account/number
+  // exists — we always advance to the code step, even on a network fault.
+  if (intent === "otp-request") {
+    const businessHandle = String(form.get("business_handle") ?? "").trim();
+    const whatsappNumber = String(form.get("whatsapp_number") ?? "").trim();
+    try {
+      await fetchApi("/auth/business/otp/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_handle: businessHandle,
+          whatsapp_number: whatsappNumber,
+        }),
+      });
+    } catch {
+      // Swallow: the opaque contract means we advance regardless; the user can
+      // retry the code step (which resends) if nothing arrives.
+    }
+    return { otpSent: true };
+  }
+
+  // WhatsApp sign-in, step two: redeem the code for a session. Mirrors the
+  // password path — on an MFA-enabled account we stash the challenge and hand
+  // off to the shared second-factor form; otherwise we set the session tokens.
+  if (intent === "otp-verify") {
+    const businessHandle = String(form.get("business_handle") ?? "").trim();
+    const whatsappNumber = String(form.get("whatsapp_number") ?? "").trim();
+    const code = String(form.get("code") ?? "").trim();
+    let response: Response;
+    try {
+      response = await fetchApi("/auth/business/otp/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          business_handle: businessHandle,
+          whatsapp_number: whatsappNumber,
+          code,
+        }),
+      });
+    } catch {
+      return {
+        error: "Dashboard API is unavailable. Try again after a moment.",
+        otpSent: true,
+      };
+    }
+    if (!response.ok) {
+      return {
+        error: "That code didn't match. Request a new code and try again.",
+        otpSent: true,
+      };
+    }
+    const body = (await response.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+      mfa_required?: boolean;
+      mfa_challenge_token?: string;
+    };
+    // MFA-enabled account: stash the challenge and prompt for the second factor,
+    // identical to the password path above.
+    if (body.mfa_required && body.mfa_challenge_token) {
+      session.set("mfaChallenge", body.mfa_challenge_token);
+      return data(
+        { mfaRequired: true },
+        { headers: { "Set-Cookie": await commitSession(session) } },
+      );
+    }
+    session.set("access", body.access_token ?? "");
+    session.set("refresh", body.refresh_token ?? "");
     return redirect("/dashboard", {
       headers: { "Set-Cookie": await commitSession(session) },
     });
@@ -182,8 +258,18 @@ export default function Login({ actionData }: Route.ComponentProps) {
   const result = (actionData ?? {}) as {
     error?: string;
     mfaRequired?: boolean;
+    otpSent?: boolean;
   };
   const mfaRequired = Boolean(result.mfaRequired);
+  const otpSent = Boolean(result.otpSent);
+  // Sign-in method toggle. WhatsApp is a two-step flow (request a code, then
+  // verify it); the handle + number are controlled so they persist across the
+  // opaque otp-request round-trip and submit again with the verify step.
+  const [method, setMethod] = useState<"password" | "whatsapp">(
+    otpSent ? "whatsapp" : "password",
+  );
+  const [waHandle, setWaHandle] = useState("");
+  const [waNumber, setWaNumber] = useState("");
   // Owner-managed platform logo from the public branding endpoint (loaded by the
   // root loader). Falls back to the built-in Xtiitch mark + wordmark when unset.
   const branding = useRouteLoaderData("root") as
@@ -461,7 +547,9 @@ export default function Login({ actionData }: Route.ComponentProps) {
               <Typography sx={{ color: alpha(tokens.ink, 0.68) }}>
                 {mfaRequired
                   ? "Open your authenticator app and enter the 6-digit code, or use a backup code."
-                  : "Use your store handle and owner account."}
+                  : method === "whatsapp"
+                    ? "We'll send a one-time code to your store's WhatsApp number."
+                    : "Use your store handle and owner account."}
               </Typography>
             </Stack>
             {mfaRequired ? (
@@ -513,101 +601,262 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 </Stack>
               </Form>
             ) : (
-              <Form method="post" key="login">
-                <input type="hidden" name="intent" value="login" />
-                <Stack spacing={2.5}>
-                  {result.error ? (
-                    <Alert severity="error">{result.error}</Alert>
-                  ) : null}
-                  <TextField
-                    name="handle"
-                    label="Store handle"
-                    required
-                    autoComplete="username"
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <StorefrontRounded fontSize="small" />
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                  />
-                  <TextField
-                    name="email"
-                    label="Email"
-                    type="email"
-                    required
-                    autoComplete="email"
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <AlternateEmailRounded fontSize="small" />
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
-                  />
-                  <TextField
-                    name="password"
+              <>
+                {/* Sign-in method toggle: keep the password form untouched and
+                    add a WhatsApp one-time-code path alongside it. */}
+                <Stack direction="row" spacing={1} sx={{ mb: 2.5 }}>
+                  <Chip
                     label="Password"
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    fullWidth
-                    slotProps={{
-                      input: {
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockRounded fontSize="small" />
-                          </InputAdornment>
-                        ),
-                      },
-                    }}
+                    icon={<LockRounded />}
+                    clickable
+                    color={method === "password" ? "primary" : "default"}
+                    variant={method === "password" ? "filled" : "outlined"}
+                    onClick={() => setMethod("password")}
+                    aria-pressed={method === "password"}
                   />
-                  <Typography sx={{ textAlign: "right", mt: -1 }}>
-                    <Link
-                      href="/forgot-password"
-                      sx={{ fontWeight: 700, fontSize: 14 }}
-                    >
-                      Forgot password?
-                    </Link>
-                  </Typography>
-                  <Button
-                    type="submit"
-                    variant="contained"
-                    size="large"
-                    disabled={isSubmitting}
-                    endIcon={isSubmitting ? undefined : <LoginRounded />}
-                    sx={{
-                      "&.Mui-disabled": {
-                        bgcolor: tokens.burgundy,
-                        color: tokens.white,
-                        opacity: 0.72,
-                      },
-                    }}
-                  >
-                    {isSubmitting ? (
-                      <LoadingButtonLabel label="Signing in" />
-                    ) : (
-                      "Sign in"
-                    )}
-                  </Button>
-                  <Typography
-                    variant="body2"
-                    sx={{ textAlign: "center", color: alpha(tokens.ink, 0.68) }}
-                  >
-                    New to Xtiitch?{" "}
-                    <Link href="/register" sx={{ fontWeight: 700 }}>
-                      Create your store
-                    </Link>
-                  </Typography>
+                  <Chip
+                    label="WhatsApp"
+                    icon={<WhatsApp />}
+                    clickable
+                    color={method === "whatsapp" ? "primary" : "default"}
+                    variant={method === "whatsapp" ? "filled" : "outlined"}
+                    onClick={() => setMethod("whatsapp")}
+                    aria-pressed={method === "whatsapp"}
+                  />
                 </Stack>
-              </Form>
+                {method === "password" ? (
+                  <Form method="post" key="login">
+                    <input type="hidden" name="intent" value="login" />
+                    <Stack spacing={2.5}>
+                      {result.error ? (
+                        <Alert severity="error">{result.error}</Alert>
+                      ) : null}
+                      <TextField
+                        name="handle"
+                        label="Store handle"
+                        required
+                        autoComplete="username"
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <StorefrontRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      <TextField
+                        name="email"
+                        label="Email"
+                        type="email"
+                        required
+                        autoComplete="email"
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <AlternateEmailRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      <TextField
+                        name="password"
+                        label="Password"
+                        type="password"
+                        required
+                        autoComplete="current-password"
+                        fullWidth
+                        slotProps={{
+                          input: {
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <LockRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      <Typography sx={{ textAlign: "right", mt: -1 }}>
+                        <Link
+                          href="/forgot-password"
+                          sx={{ fontWeight: 700, fontSize: 14 }}
+                        >
+                          Forgot password?
+                        </Link>
+                      </Typography>
+                      <Button
+                        type="submit"
+                        variant="contained"
+                        size="large"
+                        disabled={isSubmitting}
+                        endIcon={isSubmitting ? undefined : <LoginRounded />}
+                        sx={{
+                          "&.Mui-disabled": {
+                            bgcolor: tokens.burgundy,
+                            color: tokens.white,
+                            opacity: 0.72,
+                          },
+                        }}
+                      >
+                        {isSubmitting ? (
+                          <LoadingButtonLabel label="Signing in" />
+                        ) : (
+                          "Sign in"
+                        )}
+                      </Button>
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          textAlign: "center",
+                          color: alpha(tokens.ink, 0.68),
+                        }}
+                      >
+                        New to Xtiitch?{" "}
+                        <Link href="/register" sx={{ fontWeight: 700 }}>
+                          Create your store
+                        </Link>
+                      </Typography>
+                    </Stack>
+                  </Form>
+                ) : (
+                  <Form method="post" key="whatsapp">
+                    <Stack spacing={2.5}>
+                      {result.error ? (
+                        <Alert severity="error">{result.error}</Alert>
+                      ) : null}
+                      {otpSent ? (
+                        <Alert severity="success">
+                          If that store and number match, a one-time code is on
+                          its way to your WhatsApp. Enter it below.
+                        </Alert>
+                      ) : null}
+                      <TextField
+                        name="business_handle"
+                        label="Store handle"
+                        required
+                        autoComplete="username"
+                        fullWidth
+                        value={waHandle}
+                        onChange={(e) => setWaHandle(e.target.value)}
+                        slotProps={{
+                          input: {
+                            readOnly: otpSent,
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <StorefrontRounded fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      <TextField
+                        name="whatsapp_number"
+                        label="WhatsApp number"
+                        required
+                        autoComplete="tel"
+                        inputMode="tel"
+                        fullWidth
+                        placeholder="0244 000 111 or +233…"
+                        value={waNumber}
+                        onChange={(e) => setWaNumber(e.target.value)}
+                        slotProps={{
+                          input: {
+                            readOnly: otpSent,
+                            startAdornment: (
+                              <InputAdornment position="start">
+                                <WhatsApp fontSize="small" />
+                              </InputAdornment>
+                            ),
+                          },
+                        }}
+                      />
+                      {otpSent ? (
+                        <TextField
+                          name="code"
+                          label="WhatsApp code"
+                          required
+                          autoFocus
+                          autoComplete="one-time-code"
+                          inputMode="numeric"
+                          fullWidth
+                          placeholder="123456"
+                          slotProps={{
+                            input: {
+                              startAdornment: (
+                                <InputAdornment position="start">
+                                  <ShieldRounded fontSize="small" />
+                                </InputAdornment>
+                              ),
+                            },
+                          }}
+                        />
+                      ) : null}
+                      <Button
+                        type="submit"
+                        name="intent"
+                        value={otpSent ? "otp-verify" : "otp-request"}
+                        variant="contained"
+                        size="large"
+                        disabled={isSubmitting}
+                        endIcon={
+                          isSubmitting ? undefined : otpSent ? (
+                            <LoginRounded />
+                          ) : (
+                            <WhatsApp />
+                          )
+                        }
+                        sx={{
+                          "&.Mui-disabled": {
+                            bgcolor: tokens.burgundy,
+                            color: tokens.white,
+                            opacity: 0.72,
+                          },
+                        }}
+                      >
+                        {isSubmitting ? (
+                          <LoadingButtonLabel
+                            label={otpSent ? "Verifying" : "Sending code"}
+                          />
+                        ) : otpSent ? (
+                          "Verify and continue"
+                        ) : (
+                          "Send code"
+                        )}
+                      </Button>
+                      {otpSent ? (
+                        <Button
+                          type="submit"
+                          name="intent"
+                          value="otp-request"
+                          variant="text"
+                          size="small"
+                          disabled={isSubmitting}
+                          sx={{ alignSelf: "center" }}
+                        >
+                          Resend code
+                        </Button>
+                      ) : null}
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          textAlign: "center",
+                          color: alpha(tokens.ink, 0.68),
+                        }}
+                      >
+                        New to Xtiitch?{" "}
+                        <Link href="/register" sx={{ fontWeight: 700 }}>
+                          Create your store
+                        </Link>
+                      </Typography>
+                    </Stack>
+                  </Form>
+                )}
+              </>
             )}
           </Paper>
         </Box>

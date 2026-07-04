@@ -74,6 +74,11 @@ type Service struct {
 	mfaSecrets    ports.MFASecrets
 	mfaChallenges ports.MFAChallengeIssuer
 	mfaVerifier   ports.MFAChallengeVerifier
+	// WhatsApp one-time-code sign-in is optional (like MFA): when any is nil the
+	// WhatsApp auth endpoints are disabled and password login is unaffected.
+	whatsAppAuth ports.BusinessWhatsAppAuthRepository
+	otpGen       ports.OTPGenerator
+	whatsAppOTP  ports.CustomerOTPDelivery
 }
 
 type Dependencies struct {
@@ -94,6 +99,10 @@ type Dependencies struct {
 	MFASecrets    ports.MFASecrets
 	MFAChallenges ports.MFAChallengeIssuer
 	MFAVerifier   ports.MFAChallengeVerifier
+	// Optional WhatsApp one-time-code sign-in dependencies.
+	WhatsAppAuth ports.BusinessWhatsAppAuthRepository
+	OTPGen       ports.OTPGenerator
+	WhatsAppOTP  ports.CustomerOTPDelivery
 }
 
 func NewService(deps Dependencies) Service {
@@ -113,12 +122,21 @@ func NewService(deps Dependencies) Service {
 		mfaSecrets:    deps.MFASecrets,
 		mfaChallenges: deps.MFAChallenges,
 		mfaVerifier:   deps.MFAVerifier,
+		whatsAppAuth:  deps.WhatsAppAuth,
+		otpGen:        deps.OTPGen,
+		whatsAppOTP:   deps.WhatsAppOTP,
 	}
 }
 
 // mfaEnabled reports whether the optional MFA dependency set is fully wired.
 func (s Service) mfaEnabled() bool {
 	return s.mfa != nil && s.mfaSecrets != nil && s.mfaChallenges != nil && s.mfaVerifier != nil
+}
+
+// whatsAppOTPEnabled reports whether the optional WhatsApp one-time-code
+// dependency set is fully wired.
+func (s Service) whatsAppOTPEnabled() bool {
+	return s.whatsAppAuth != nil && s.otpGen != nil && s.whatsAppOTP != nil
 }
 
 type RegisterBusinessCommand struct {
@@ -130,6 +148,11 @@ type RegisterBusinessCommand struct {
 	PlanCode         string
 	UserAgent        string
 	IPAddress        string
+	// Optional WhatsApp identity captured at signup. When WhatsAppNumber is set,
+	// WhatsAppCode must be a valid one-time code (proving control of the number);
+	// the number is then stored as a verified alternative sign-in identity.
+	WhatsAppNumber string
+	WhatsAppCode   string
 }
 
 type LoginBusinessCommand struct {
@@ -165,6 +188,27 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		return AuthResult{}, err
 	}
 
+	// Optional WhatsApp identity: when the signup supplied a number, it must be
+	// proven with a valid one-time code before the account is created, and it is
+	// then stored as verified. No number → register with email + password only
+	// (fully backward compatible).
+	var whatsAppNumber string
+	var whatsAppVerified bool
+	if strings.TrimSpace(cmd.WhatsAppNumber) != "" {
+		if !s.whatsAppOTPEnabled() {
+			return AuthResult{}, ErrWhatsAppOTPUnavailable
+		}
+		number, err := normalizeGhanaPhone(cmd.WhatsAppNumber)
+		if err != nil {
+			return AuthResult{}, err
+		}
+		if err := s.verifyBusinessOTP(ctx, number, cmd.WhatsAppCode); err != nil {
+			return AuthResult{}, err
+		}
+		whatsAppNumber = number
+		whatsAppVerified = true
+	}
+
 	identity, err := s.businesses.CreateBusinessWithOwner(ctx, ports.CreateBusinessWithOwnerInput{
 		BusinessID:       s.ids.NewID(),
 		BusinessName:     normalized.BusinessName,
@@ -174,6 +218,8 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		OwnerEmail:       normalized.OwnerEmail,
 		OwnerPassword:    passwordHash,
 		PlanCode:         normalized.PlanCode,
+		WhatsAppNumber:   whatsAppNumber,
+		WhatsAppVerified: whatsAppVerified,
 	})
 	if err != nil {
 		return AuthResult{}, err

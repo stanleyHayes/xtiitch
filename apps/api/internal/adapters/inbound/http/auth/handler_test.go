@@ -680,3 +680,15 @@ func (service *fakeAuthService) DisableMFA(_ context.Context, _ common.TenantSco
 func (service *fakeAuthService) VerifyMFALogin(_ context.Context, _ authapp.VerifyMFALoginCommand) (authapp.AuthResult, error) {
 	return authapp.AuthResult{}, nil
 }
+
+func (service *fakeAuthService) RequestSignInOTP(_ context.Context, _ string, _ string) error {
+	return nil
+}
+
+func (service *fakeAuthService) RequestRegistrationOTP(_ context.Context, _ string) error {
+	return nil
+}
+
+func (service *fakeAuthService) VerifySignInOTP(_ context.Context, _ authapp.VerifySignInOTPCommand) (authapp.AuthResult, error) {
+	return authapp.AuthResult{}, nil
+}
