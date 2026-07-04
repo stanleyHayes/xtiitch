@@ -138,8 +138,12 @@ services:
     runtime: node
     plan: starter
     region: oregon
-    buildCommand: corepack enable && pnpm install --frozen-lockfile
-    startCommand: pnpm --filter @xtiitch/worker exec tsx src/index.ts
+    # Node 26's image already ships a pnpm corepack shim, and `corepack enable`
+    # can't rewrite it on the read-only /usr/bin — so skip it and call pnpm
+    # directly (the shim honours the pinned packageManager). The env var keeps
+    # the version fetch non-interactive in CI.
+    buildCommand: COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile
+    startCommand: COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --filter @xtiitch/worker exec tsx src/index.ts
     envVars:
       - key: NODE_ENV
         value: production
