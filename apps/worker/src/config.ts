@@ -54,12 +54,21 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     } satisfies RedisOptions,
     queueName: env.WORKER_QUEUE_NAME ?? "xtiitch.outbox",
     outboxDrainEnabled: parseBoolean(env.OUTBOX_DRAIN_ENABLED, true),
-    outboxPollIntervalMs: parsePositiveInteger(env.OUTBOX_POLL_INTERVAL_MS, 15_000),
+    outboxPollIntervalMs: parsePositiveInteger(
+      env.OUTBOX_POLL_INTERVAL_MS,
+      15_000,
+    ),
     outboxBatchSize: parsePositiveInteger(env.OUTBOX_BATCH_SIZE, 25),
     outboxLeaseSeconds: parsePositiveInteger(env.OUTBOX_LEASE_SECONDS, 300),
     outboxMaxAttempts: parsePositiveInteger(env.OUTBOX_MAX_ATTEMPTS, 5),
-    outboxRetryBaseDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_BASE_DELAY_MS, 60_000),
-    outboxRetryMaxDelayMs: parsePositiveInteger(env.OUTBOX_RETRY_MAX_DELAY_MS, 3_600_000),
+    outboxRetryBaseDelayMs: parsePositiveInteger(
+      env.OUTBOX_RETRY_BASE_DELAY_MS,
+      60_000,
+    ),
+    outboxRetryMaxDelayMs: parsePositiveInteger(
+      env.OUTBOX_RETRY_MAX_DELAY_MS,
+      3_600_000,
+    ),
     subscriptionBillingSweepEnabled: parseBoolean(
       env.SUBSCRIPTION_BILLING_SWEEP_ENABLED,
       true,
@@ -106,7 +115,10 @@ function validateProductionWorkerConfig(
   }
 }
 
-function parsePositiveInteger(value: string | undefined, fallback: number): number {
+function parsePositiveInteger(
+  value: string | undefined,
+  fallback: number,
+): number {
   if (value === undefined || value.trim() === "") {
     return fallback;
   }
@@ -184,12 +196,17 @@ function parseNotificationHttpConfig(
     return undefined;
   }
 
-  const url = requiredString(env.NOTIFICATION_HTTP_URL, "NOTIFICATION_HTTP_URL");
+  const url = requiredString(
+    env.NOTIFICATION_HTTP_URL,
+    "NOTIFICATION_HTTP_URL",
+  );
   const authValue = requiredString(
     env.NOTIFICATION_HTTP_AUTH_VALUE,
     "NOTIFICATION_HTTP_AUTH_VALUE",
   );
-  const authHeader = (env.NOTIFICATION_HTTP_AUTH_HEADER ?? "Authorization").trim();
+  const authHeader = (
+    env.NOTIFICATION_HTTP_AUTH_HEADER ?? "Authorization"
+  ).trim();
   if (authHeader === "") {
     throw new Error("NOTIFICATION_HTTP_AUTH_HEADER cannot be blank");
   }
@@ -207,7 +224,11 @@ function parseNotificationHttpConfig(
 
 function requiredString(value: string | undefined, name: string): string {
   if (value === undefined || value.trim() === "") {
-    throw new Error(`${name} is required when NOTIFICATION_TRANSPORT=http`);
+    // Shared by the whatsapp_cloud and http transports, so the message names the
+    // missing variable rather than assuming a specific transport.
+    throw new Error(
+      `${name} is required for the configured NOTIFICATION_TRANSPORT`,
+    );
   }
   return value.trim();
 }
@@ -217,7 +238,9 @@ function validateHttpUrl(value: string): void {
   try {
     parsed = new URL(value);
   } catch {
-    throw new Error(`Expected NOTIFICATION_HTTP_URL to be a valid URL, got ${value}`);
+    throw new Error(
+      `Expected NOTIFICATION_HTTP_URL to be a valid URL, got ${value}`,
+    );
   }
   if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
     throw new Error("NOTIFICATION_HTTP_URL must use http or https");
