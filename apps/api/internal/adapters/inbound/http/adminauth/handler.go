@@ -33,6 +33,8 @@ type Service interface {
 	UpdatePreferences(ctx context.Context, command adminauthapp.UpdatePreferencesCommand) (ports.AdminPreferencesRecord, error)
 	GetPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error)
 	WhatsAppEnabled() bool
+	SMSEnabled() bool
+	PhoneOTPEnabled() bool
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
 	UpdateMarketingFlags(ctx context.Context, command adminauthapp.UpdateMarketingFlagsCommand) (ports.AdminPlatformSettingsRecord, error)
 	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
@@ -577,8 +579,14 @@ type publicBrandingResponse struct {
 	PlatformName string `json:"platform_name"`
 	LogoURL      string `json:"logo_url"`
 	// WhatsAppEnabled is true only when WhatsApp Cloud credentials are configured to
-	// actually send customer OTPs. Storefronts gate the WhatsApp sign-in tab on it.
+	// actually send customer OTPs.
 	WhatsAppEnabled bool `json:"whatsapp_enabled"`
+	// SMSEnabled is true when SMS (Arkesel) is configured to send OTPs.
+	SMSEnabled bool `json:"sms_enabled"`
+	// PhoneOTPEnabled is true when a code can be delivered to a phone at all — over
+	// SMS OR WhatsApp. Storefronts/dashboards gate the phone sign-in on THIS so it
+	// shows whenever it works (SMS is the default channel now), not only for WhatsApp.
+	PhoneOTPEnabled bool `json:"phone_otp_enabled"`
 	// MarketingFlags tell the marketing site which not-yet-launched surfaces to show.
 	MarketingFlags marketingFlagsResponse `json:"marketing_flags"`
 }
@@ -1516,6 +1524,8 @@ func (handler Handler) branding(w http.ResponseWriter, r *http.Request) {
 		PlatformName:    settings.PlatformName,
 		LogoURL:         settings.BrandLogoURL,
 		WhatsAppEnabled: handler.service.WhatsAppEnabled(),
+		SMSEnabled:      handler.service.SMSEnabled(),
+		PhoneOTPEnabled: handler.service.PhoneOTPEnabled(),
 		MarketingFlags:  newMarketingFlagsResponse(settings.MarketingFlags),
 	})
 }

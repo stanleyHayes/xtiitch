@@ -33,18 +33,26 @@ export async function loader() {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) {
-      return { brandLogoUrl: "", whatsappEnabled: false };
+      return {
+        brandLogoUrl: "",
+        whatsappEnabled: false,
+        phoneOtpEnabled: false,
+      };
     }
     const data = (await response.json()) as {
       logo_url?: string;
       whatsapp_enabled?: boolean;
+      phone_otp_enabled?: boolean;
     };
     return {
       brandLogoUrl: data.logo_url ?? "",
       whatsappEnabled: data.whatsapp_enabled ?? false,
+      // A code can reach a phone over SMS OR WhatsApp — the storefront gates its
+      // phone sign-in on this, not on WhatsApp alone (SMS is the default channel).
+      phoneOtpEnabled: data.phone_otp_enabled ?? false,
     };
   } catch {
-    return { brandLogoUrl: "", whatsappEnabled: false };
+    return { brandLogoUrl: "", whatsappEnabled: false, phoneOtpEnabled: false };
   }
 }
 

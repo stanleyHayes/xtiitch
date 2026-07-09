@@ -611,7 +611,7 @@ export default function Register({
                         variant="caption"
                         sx={{ color: "success.main", fontWeight: 700 }}
                       >
-                        ✓ Code sent to your WhatsApp
+                        ✓ Code sent by SMS
                       </Typography>
                     ) : null}
                   </Stack>
@@ -627,7 +627,7 @@ export default function Register({
                 {otpRequested ? (
                   <TextField
                     name="whatsapp_code"
-                    label="WhatsApp code"
+                    label="SMS code"
                     required={step === 1}
                     autoComplete="one-time-code"
                     inputMode="numeric"

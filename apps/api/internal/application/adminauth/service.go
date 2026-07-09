@@ -49,9 +49,11 @@ type Service struct {
 	readiness     AdminLaunchReadinessConfig
 	// whatsAppEnabled is true only when the WhatsApp Cloud credentials required to
 	// actually SEND customer OTPs are configured (mirrors buildCustomerOTPDelivery).
-	// When false, the storefront disables the WhatsApp sign-in tab because the OTP
-	// is logged, never delivered.
 	whatsAppEnabled bool
+	// smsEnabled is true when SMS (Arkesel) is configured to send OTPs. Phone-based
+	// sign-in works when EITHER SMS or WhatsApp is enabled (see PhoneOTPEnabled),
+	// so a storefront gates its phone sign-in on that, not on WhatsApp alone.
+	smsEnabled bool
 	// renewalRepayURL is the business billing/onboarding flow that the one-tap
 	// re-pay reminder links to. It already authorizes and charges, so reminders
 	// only point here rather than building a new charge endpoint.
@@ -92,6 +94,8 @@ type Dependencies struct {
 	// WhatsAppEnabled reflects whether WhatsApp Cloud credentials are configured
 	// to actually send customer OTPs (see buildCustomerOTPDelivery).
 	WhatsAppEnabled bool
+	// SMSEnabled reflects whether SMS (Arkesel) is configured to send OTPs.
+	SMSEnabled bool
 	// RenewalRepayURL overrides the business billing/onboarding URL the renewal
 	// reminder's one-tap re-pay call to action links to. Empty uses the canonical
 	// defaultRenewalRepayURL.
@@ -125,6 +129,7 @@ func NewService(deps Dependencies) Service {
 		clock:           deps.Clock,
 		readiness:       deps.Readiness,
 		whatsAppEnabled: deps.WhatsAppEnabled,
+		smsEnabled:      deps.SMSEnabled,
 		renewalRepayURL: renewalRepayURL,
 		planChanges:     deps.PlanChanges,
 		vatRateBps:      deps.VATRateBps,
@@ -137,6 +142,18 @@ func NewService(deps Dependencies) Service {
 // so storefronts can gate the WhatsApp sign-in tab.
 func (s Service) WhatsAppEnabled() bool {
 	return s.whatsAppEnabled
+}
+
+// SMSEnabled reports whether SMS (Arkesel) is configured to send OTPs.
+func (s Service) SMSEnabled() bool {
+	return s.smsEnabled
+}
+
+// PhoneOTPEnabled reports whether a code can be delivered to a phone at all — over
+// SMS OR WhatsApp. A storefront/dashboard gates its phone sign-in on this so the
+// option is shown whenever it works, not only when WhatsApp is configured.
+func (s Service) PhoneOTPEnabled() bool {
+	return s.smsEnabled || s.whatsAppEnabled
 }
 
 type BootstrapAdminCommand struct {

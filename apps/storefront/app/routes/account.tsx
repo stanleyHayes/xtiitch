@@ -36,7 +36,7 @@ import {
   fetchCustomerOrders,
   fetchCustomerProfile,
   updateCustomerProfile,
-  whatsAppOtpEnabled,
+  phoneOtpEnabled,
   type CustomerOrder,
   type CustomerProfile,
 } from "../lib/discovery";
@@ -146,12 +146,13 @@ export async function action({ request }: Route.ActionArgs) {
 
   if (intent === "request") {
     let channel = normalizeChannel(form.get("channel"));
-    // Server-side backstop: the WhatsApp tab is disabled in the UI when the flag
-    // is false, but a stale render or a bfcache/back-forward-restored document
-    // can still POST channel=whatsapp. Re-check the live flag and fall back to
-    // email so we never mint a WhatsApp code that would never be delivered. This
-    // matches the API's buildCustomerOTPDelivery condition.
-    if (channel === "whatsapp" && !(await whatsAppOtpEnabled())) {
+    // Server-side backstop: the phone (SMS) tab is disabled in the UI when no
+    // phone-OTP channel is configured, but a stale render or a bfcache/back-
+    // forward-restored document can still POST channel=whatsapp. Re-check the live
+    // flag and fall back to email so we never mint a phone code that would never
+    // be delivered. Matches the API's buildCustomerOTPDelivery condition (SMS or
+    // WhatsApp).
+    if (channel === "whatsapp" && !(await phoneOtpEnabled())) {
       channel = "email";
     }
     const identifier = String(form.get("identifier") ?? "").trim();
@@ -544,16 +545,16 @@ export default function Account({ loaderData }: Route.ComponentProps) {
       ? String(navigation.formData?.get("intent") ?? "")
       : null;
   const { signedInPhone, redirectTo, orders, profile } = loaderData;
-  // WhatsApp Cloud creds may not be configured (then the OTP is logged, never
-  // delivered). The root loader surfaces this from GET /v1/branding so SSR and
-  // client agree; default false on fetch failure.
+  // Whether a code can reach a phone at all — over SMS (default) or WhatsApp. The
+  // root loader surfaces this from GET /v1/branding (phone_otp_enabled) so SSR and
+  // client agree; default false on fetch failure, then only email shows.
   const rootData = useRouteLoaderData("root") as
-    | { whatsappEnabled?: boolean }
+    | { phoneOtpEnabled?: boolean }
     | undefined;
-  const whatsappEnabled = rootData?.whatsappEnabled ?? false;
+  const phoneEnabled = rootData?.phoneOtpEnabled ?? false;
   const step: Step = action?.step ?? "identify";
   const channel: OtpChannel =
-    action?.channel ?? (whatsappEnabled ? "whatsapp" : "email");
+    action?.channel ?? (phoneEnabled ? "whatsapp" : "email");
 
   if (signedInPhone) {
     return (
@@ -723,8 +724,7 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                 <Typography sx={{ color: "text.secondary" }}>
                   We sent a 6-digit code to{" "}
                   <strong>{action?.identifier}</strong>{" "}
-                  {channel === "email" ? "by email" : "on WhatsApp"}. Enter it
-                  below.
+                  {channel === "email" ? "by email" : "by SMS"}. Enter it below.
                 </Typography>
                 <Form method="post">
                   <input type="hidden" name="intent" value="verify" />
@@ -790,7 +790,7 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     : "Sign in with your phone"}
                 </Typography>
 
-                {/* Channel switch: WhatsApp | Email. Each tab re-renders this
+                {/* Channel switch: SMS | Email. Each tab re-renders this
                     form pre-selected on that channel (no client JS). */}
                 <Stack
                   direction="row"
@@ -808,18 +808,17 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                     [
                       {
                         value: "whatsapp",
-                        label: "WhatsApp",
+                        label: "SMS",
                         Icon: PhoneIphoneRounded,
                       },
                       { value: "email", label: "Email", Icon: EmailRounded },
                     ] as const
                   ).map((tab) => {
                     const selected = channel === tab.value;
-                    // WhatsApp creds aren't configured in prod, so the OTP only
-                    // logs (never delivers). Disable the tab + annotate "Soon" so
-                    // it re-enables automatically when the flag flips true.
-                    const disabled =
-                      tab.value === "whatsapp" && !whatsappEnabled;
+                    // No phone-OTP channel configured (neither SMS nor WhatsApp) →
+                    // the code would never deliver. Disable the tab + annotate
+                    // "Soon"; it re-enables automatically when the flag flips true.
+                    const disabled = tab.value === "whatsapp" && !phoneEnabled;
                     return (
                       <Form method="post" key={tab.value}>
                         <input type="hidden" name="intent" value="switch" />
@@ -874,7 +873,7 @@ export default function Account({ loaderData }: Route.ComponentProps) {
                 <Typography sx={{ color: "text.secondary" }}>
                   {channel === "email"
                     ? "We'll email you a one-time code. No password needed."
-                    : "We'll send a one-time code to your WhatsApp. No password needed."}
+                    : "We'll text you a one-time code by SMS. No password needed."}
                 </Typography>
                 <Form method="post">
                   <input type="hidden" name="intent" value="request" />

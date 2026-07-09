@@ -3,34 +3,35 @@
 // browser. The access token is attached server-side from the session cookie.
 const API_BASE = process.env.XTIITCH_API_URL ?? "http://localhost:8080";
 
-// ── Customer OTP auth (WhatsApp phone or email) ────────────────────────────
+// ── Customer OTP auth (SMS/WhatsApp phone or email) ─────────────────────────
 
-// whatsAppOtpEnabled reports whether the server has WhatsApp Cloud creds wired
-// up to actually deliver sign-in codes. The public branding endpoint surfaces
-// this (same condition as the API's buildCustomerOTPDelivery). Used as a
+// phoneOtpEnabled reports whether the server can deliver a sign-in code to a
+// phone at all — over SMS (Arkesel) OR WhatsApp. The public branding endpoint
+// surfaces this (same condition as the API's buildCustomerOTPDelivery). Used as a
 // server-side backstop in the account action so a stale/bfcache-restored form
-// can't request a WhatsApp code that would never be delivered. Defaults false on
-// any failure (fail closed — prefer the email channel, which always delivers).
-export async function whatsAppOtpEnabled(): Promise<boolean> {
+// can't request a phone code that would never be delivered. Defaults false on any
+// failure (fail closed — prefer the email channel, which always delivers).
+export async function phoneOtpEnabled(): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/v1/branding`, {
       headers: { Accept: "application/json" },
     });
     if (!response.ok) return false;
-    const data = (await response.json()) as { whatsapp_enabled?: boolean };
-    return data.whatsapp_enabled ?? false;
+    const data = (await response.json()) as { phone_otp_enabled?: boolean };
+    return data.phone_otp_enabled ?? false;
   } catch {
     return false;
   }
 }
 
-// A customer signs in over one of two channels. WhatsApp uses the phone number;
-// email uses the email address. The API defaults to "whatsapp" when omitted.
+// A customer signs in over one of two channels. The "phone" channel delivers the
+// code by SMS (or WhatsApp) to the phone number; "email" uses the email address.
+// The wire value stays "whatsapp" (the API's phone-OTP channel) for compatibility.
 export type OtpChannel = "whatsapp" | "email";
 
 // requestCustomerOtp always reports success (the API returns 202 regardless, to
 // avoid leaking which identifiers exist). Pass channel "email" with an email to
-// send the code by email instead of WhatsApp.
+// send the code by email instead of by SMS to the phone.
 export async function requestCustomerOtp(
   identifier: string,
   channel: OtpChannel = "whatsapp",

@@ -25,7 +25,7 @@ import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
-import WhatsApp from "@mui/icons-material/WhatsApp";
+import SmsRounded from "@mui/icons-material/SmsRounded";
 import type { Route } from "./+types/login";
 import { fetchApi } from "../lib/api-base";
 import TextField from "../components/form-text-field";
@@ -576,7 +576,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                 {mfaRequired
                   ? "Open your authenticator app and enter the 6-digit code, or use a backup code."
                   : method === "whatsapp"
-                    ? "We'll send a one-time code to your store's WhatsApp number."
+                    ? "We'll text a one-time code by SMS to your registered number."
                     : "Use your store handle and owner account."}
               </Typography>
             </Stack>
@@ -644,8 +644,8 @@ export default function Login({ actionData }: Route.ComponentProps) {
                     sx={methodChipSx(method === "password")}
                   />
                   <Chip
-                    label="WhatsApp"
-                    icon={<WhatsApp />}
+                    label="SMS"
+                    icon={<SmsRounded />}
                     clickable
                     color={method === "whatsapp" ? "primary" : "default"}
                     variant={method === "whatsapp" ? "filled" : "outlined"}
@@ -762,7 +762,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                       {otpSent ? (
                         <Alert severity="success">
                           If that store and number match, a one-time code is on
-                          its way to your WhatsApp. Enter it below.
+                          its way to you by SMS. Enter it below.
                         </Alert>
                       ) : null}
                       <TextField
@@ -786,7 +786,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                       />
                       <TextField
                         name="whatsapp_number"
-                        label="WhatsApp number"
+                        label="Phone / WhatsApp number"
                         required
                         autoComplete="tel"
                         inputMode="tel"
@@ -799,7 +799,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                             readOnly: otpSent,
                             startAdornment: (
                               <InputAdornment position="start">
-                                <WhatsApp fontSize="small" />
+                                <SmsRounded fontSize="small" />
                               </InputAdornment>
                             ),
                           },
@@ -808,7 +808,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                       {otpSent ? (
                         <TextField
                           name="code"
-                          label="WhatsApp code"
+                          label="SMS code"
                           required
                           autoFocus
                           autoComplete="one-time-code"
@@ -837,7 +837,7 @@ export default function Login({ actionData }: Route.ComponentProps) {
                           isSubmitting ? undefined : otpSent ? (
                             <LoginRounded />
                           ) : (
-                            <WhatsApp />
+                            <SmsRounded />
                           )
                         }
                         sx={{
