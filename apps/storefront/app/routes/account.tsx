@@ -166,7 +166,19 @@ export async function action({ request }: Route.ActionArgs) {
             : "Enter your phone number.",
       } as ActionResult;
     }
-    await requestCustomerOtp(identifier, channel);
+    // The API returns 202 for any identifier (registered or not) to avoid
+    // enumeration, so a false here means the code genuinely failed to send
+    // (provider error) — not "unknown identifier". Surface it instead of sending
+    // the user to a code screen where nothing will ever arrive.
+    const sent = await requestCustomerOtp(identifier, channel);
+    if (!sent) {
+      return {
+        step: "identify",
+        channel,
+        error:
+          "We couldn't send your code right now. Please try again in a moment.",
+      } as ActionResult;
+    }
     return { step: "verify", channel, identifier } as ActionResult;
   }
 

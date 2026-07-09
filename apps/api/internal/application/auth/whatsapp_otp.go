@@ -25,6 +25,10 @@ var (
 	ErrInvalidCode            = errors.New("invalid verification code")
 	ErrCodeExpired            = errors.New("verification code expired or not requested")
 	ErrTooManyAttempts        = errors.New("too many attempts; request a new code")
+	// ErrOTPDeliveryFailed means the code was stored but the SMS/WhatsApp provider
+	// rejected the send. Surfaced as a clear delivery_failed rather than an opaque
+	// internal_error; the underlying provider error is logged.
+	ErrOTPDeliveryFailed = errors.New("could not deliver the verification code")
 )
 
 // RequestSignInOTP sends a sign-in code to the WhatsApp number of the owner of a
@@ -150,12 +154,12 @@ func (s Service) deliverBusinessOTP(ctx context.Context, number string) error {
 		s.logger.Error("business OTP challenge persist failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
 		return err
 	}
-	s.logger.Info("business OTP requested over WhatsApp", slog.String("whatsapp", maskWhatsApp(number)))
+	s.logger.Info("business OTP requested (phone)", slog.String("whatsapp", maskWhatsApp(number)))
 	if err := s.whatsAppOTP.SendOTP(ctx, number, code); err != nil {
-		s.logger.Error("business OTP WhatsApp delivery failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
-		return err
+		s.logger.Error("business OTP delivery failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
+		return ErrOTPDeliveryFailed
 	}
-	s.logger.Info("business OTP WhatsApp delivery accepted", slog.String("whatsapp", maskWhatsApp(number)))
+	s.logger.Info("business OTP delivery accepted", slog.String("whatsapp", maskWhatsApp(number)))
 	return nil
 }
 

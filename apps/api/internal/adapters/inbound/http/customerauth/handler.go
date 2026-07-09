@@ -236,6 +236,8 @@ func customerAuthError(err error) (int, string) {
 		return http.StatusUnauthorized, "code_expired"
 	case errors.Is(err, customerauthapp.ErrTooManyAttempts):
 		return http.StatusTooManyRequests, "too_many_attempts"
+	case errors.Is(err, customerauthapp.ErrOTPDeliveryFailed):
+		return http.StatusBadGateway, "delivery_failed"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

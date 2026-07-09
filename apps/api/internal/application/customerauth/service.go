@@ -25,6 +25,11 @@ var (
 	ErrInvalidCode     = errors.New("invalid verification code")
 	ErrCodeExpired     = errors.New("verification code expired or not requested")
 	ErrTooManyAttempts = errors.New("too many attempts; request a new code")
+	// ErrOTPDeliveryFailed means the code was minted + stored but the SMS/email
+	// provider rejected the send, so the caller never got it. Surfaced as a clear
+	// delivery_failed (not an opaque internal_error) so the UI can say "couldn't
+	// send the code, try again"; the underlying provider error is logged.
+	ErrOTPDeliveryFailed = errors.New("could not deliver the verification code")
 )
 
 type Service struct {
@@ -91,12 +96,12 @@ func (s Service) RequestOTP(ctx context.Context, rawPhone string) error {
 		s.logger.Error("customer OTP challenge persist failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
 		return err
 	}
-	s.logger.Info("customer OTP requested over WhatsApp", slog.String("phone", maskPhone(phone)))
+	s.logger.Info("customer OTP requested (phone)", slog.String("phone", maskPhone(phone)))
 	if err := s.delivery.SendOTP(ctx, phone, code); err != nil {
-		s.logger.Error("customer OTP WhatsApp delivery failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
-		return err
+		s.logger.Error("customer OTP delivery failed", slog.String("phone", maskPhone(phone)), slog.String("error", err.Error()))
+		return ErrOTPDeliveryFailed
 	}
-	s.logger.Info("customer OTP WhatsApp delivery accepted", slog.String("phone", maskPhone(phone)))
+	s.logger.Info("customer OTP delivery accepted", slog.String("phone", maskPhone(phone)))
 	return nil
 }
 
@@ -134,7 +139,7 @@ func (s Service) RequestEmailOTP(ctx context.Context, rawEmail string) error {
 	s.logger.Info("customer OTP requested over email", slog.String("email", maskEmail(email)))
 	if err := s.emailDelivery.SendEmailOTP(ctx, email, code); err != nil {
 		s.logger.Error("customer email OTP delivery failed", slog.String("email", maskEmail(email)), slog.String("error", err.Error()))
-		return err
+		return ErrOTPDeliveryFailed
 	}
 	s.logger.Info("customer email OTP delivery accepted", slog.String("email", maskEmail(email)))
 	return nil
