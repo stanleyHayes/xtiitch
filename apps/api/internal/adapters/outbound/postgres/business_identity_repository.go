@@ -1101,6 +1101,7 @@ func (repo BusinessIdentityRepository) ListBusinessUsers(ctx context.Context, sc
 			business_id::text,
 			email,
 			display_name,
+			coalesce(phone, ''),
 			role,
 			is_active,
 			created_at,
@@ -1156,21 +1157,23 @@ func (repo BusinessIdentityRepository) CreateBusinessUser(ctx context.Context, s
 			business_id,
 			email,
 			display_name,
+			phone,
 			password_hash,
 			role,
 			is_active
 		)
-		values ($1, $2, $3, $4, $5, $6, true)
+		values ($1, $2, $3, $4, $5, $6, $7, true)
 		returning
 			business_user_id::text,
 			business_id::text,
 			email,
 			display_name,
+			coalesce(phone, ''),
 			role,
 			is_active,
 			created_at,
 			updated_at
-	`, input.UserID.String(), input.BusinessID.String(), input.Email, input.DisplayName, input.PasswordHash, string(input.Role)))
+	`, input.UserID.String(), input.BusinessID.String(), input.Email, input.DisplayName, nullIfEmpty(input.Phone), input.PasswordHash, string(input.Role)))
 	if err != nil {
 		if businessUserEmailTaken(err) {
 			return ports.BusinessUserRecord{}, business.ErrUserEmailTaken
@@ -1199,6 +1202,7 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, s
 	user, err := scanBusinessUserRecord(tx.QueryRow(ctx, `
 		update business_users
 		set display_name = $3,
+			phone = $6,
 			role = $4,
 			is_active = $5,
 			updated_at = now()
@@ -1210,11 +1214,12 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, s
 			business_id::text,
 			email,
 			display_name,
+			coalesce(phone, ''),
 			role,
 			is_active,
 			created_at,
 			updated_at
-	`, input.UserID.String(), scope.BusinessID.String(), input.DisplayName, string(input.Role), input.IsActive))
+	`, input.UserID.String(), scope.BusinessID.String(), input.DisplayName, string(input.Role), input.IsActive, nullIfEmpty(input.Phone)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessUserRecord{}, ports.ErrNotFound
@@ -1415,6 +1420,7 @@ func scanBusinessUserRecord(row pgx.Row) (ports.BusinessUserRecord, error) {
 		&user.BusinessID,
 		&user.Email,
 		&user.DisplayName,
+		&user.Phone,
 		&role,
 		&user.IsActive,
 		&user.CreatedAt,

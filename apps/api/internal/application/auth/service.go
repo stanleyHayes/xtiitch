@@ -1194,6 +1194,7 @@ type CreateBusinessUserCommand struct {
 	Scope       common.TenantScope
 	ActorRole   business.UserRole
 	DisplayName string
+	Phone       string
 	Email       string
 	Password    string
 	Role        business.UserRole
@@ -1219,6 +1220,7 @@ func (s Service) CreateBusinessUser(ctx context.Context, cmd CreateBusinessUserC
 		BusinessID:   cmd.Scope.BusinessID,
 		Email:        normalized.Email,
 		DisplayName:  normalized.DisplayName,
+		Phone:        strings.TrimSpace(cmd.Phone),
 		PasswordHash: passwordHash,
 		Role:         normalized.Role,
 	})
@@ -1240,6 +1242,7 @@ type UpdateBusinessUserCommand struct {
 	ActorRole   business.UserRole
 	UserID      common.ID
 	DisplayName string
+	Phone       string
 	Role        business.UserRole
 	IsActive    bool
 }
@@ -1260,6 +1263,7 @@ func (s Service) UpdateBusinessUser(ctx context.Context, cmd UpdateBusinessUserC
 	return s.businesses.UpdateBusinessUser(ctx, cmd.Scope, ports.UpdateBusinessUserInput{
 		UserID:      cmd.UserID,
 		DisplayName: displayName,
+		Phone:       strings.TrimSpace(cmd.Phone),
 		Role:        cmd.Role,
 		IsActive:    cmd.IsActive,
 	})

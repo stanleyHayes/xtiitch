@@ -128,6 +128,7 @@ type BusinessUser = {
   business_id: string;
   email: string;
   display_name: string;
+  phone: string;
   role: UserRole | string;
   is_active: boolean;
   created_at: string;
@@ -1801,6 +1802,7 @@ export async function action({ request }: Route.ActionArgs) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         display_name: String(form.get("display_name") ?? "").trim(),
+        phone: String(form.get("phone") ?? "").trim(),
         email: String(form.get("email") ?? "").trim(),
         password: String(form.get("password") ?? ""),
         role: String(form.get("role") ?? "staff").trim(),
@@ -1825,6 +1827,7 @@ export async function action({ request }: Route.ActionArgs) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           display_name: String(form.get("display_name") ?? "").trim(),
+          phone: String(form.get("phone") ?? "").trim(),
           role: String(form.get("role") ?? "staff").trim(),
           is_active: String(form.get("is_active") ?? "false") === "true",
         }),
@@ -14001,6 +14004,13 @@ function BusinessUserCreateForm({ error }: { error?: string }) {
           fullWidth
         />
         <TextField
+          name="phone"
+          label="Phone (for SMS alerts)"
+          helperText="Used for order + account SMS notifications."
+          size="small"
+          fullWidth
+        />
+        <TextField
           name="email"
           label="Email"
           type="email"
@@ -14208,6 +14218,18 @@ function BusinessUserRow({
         >
           {user.email}
         </Typography>
+        {user.phone ? (
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+              overflowWrap: "anywhere",
+              mt: 0.25,
+            }}
+          >
+            {user.phone}
+          </Typography>
+        ) : null}
       </Box>
       <Stack
         direction={{ xs: "column", md: "row" }}
@@ -14332,6 +14354,13 @@ function BusinessUserDetailForm({
                 required
               />
               <TextField
+                name="phone"
+                label="Phone (for SMS alerts)"
+                helperText="Used for order + account SMS notifications."
+                size="small"
+                defaultValue={user.phone}
+              />
+              <TextField
                 name="role"
                 label="Role"
                 select
@@ -14365,6 +14394,7 @@ function BusinessUserDetailForm({
               name="display_name"
               value={user.display_name}
             />
+            <input type="hidden" name="phone" value={user.phone} />
             <input
               type="hidden"
               name="role"

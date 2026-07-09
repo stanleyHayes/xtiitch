@@ -396,6 +396,7 @@ type BusinessUserRecord struct {
 	BusinessID  common.ID
 	Email       string
 	DisplayName string
+	Phone       string
 	Role        business.UserRole
 	IsActive    bool
 	CreatedAt   time.Time
@@ -407,6 +408,7 @@ type CreateBusinessUserInput struct {
 	BusinessID   common.ID
 	Email        string
 	DisplayName  string
+	Phone        string
 	PasswordHash string
 	Role         business.UserRole
 }
@@ -414,6 +416,7 @@ type CreateBusinessUserInput struct {
 type UpdateBusinessUserInput struct {
 	UserID      common.ID
 	DisplayName string
+	Phone       string
 	Role        business.UserRole
 	IsActive    bool
 }

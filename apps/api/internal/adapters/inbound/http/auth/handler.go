@@ -148,6 +148,7 @@ type logoutRequest struct {
 
 type createBusinessUserRequest struct {
 	DisplayName string `json:"display_name"`
+	Phone       string `json:"phone"`
 	Email       string `json:"email"`
 	Password    string `json:"password"`
 	Role        string `json:"role"`
@@ -155,6 +156,7 @@ type createBusinessUserRequest struct {
 
 type updateBusinessUserRequest struct {
 	DisplayName string `json:"display_name"`
+	Phone       string `json:"phone"`
 	Role        string `json:"role"`
 	IsActive    bool   `json:"is_active"`
 }
@@ -184,6 +186,7 @@ type businessUserResponse struct {
 	BusinessID  string `json:"business_id"`
 	Email       string `json:"email"`
 	DisplayName string `json:"display_name"`
+	Phone       string `json:"phone"`
 	Role        string `json:"role"`
 	IsActive    bool   `json:"is_active"`
 	CreatedAt   string `json:"created_at"`
@@ -689,6 +692,7 @@ func (handler Handler) createBusinessUser(w http.ResponseWriter, r *http.Request
 		Scope:       principal.TenantScope(),
 		ActorRole:   principal.Role,
 		DisplayName: request.DisplayName,
+		Phone:       request.Phone,
 		Email:       request.Email,
 		Password:    request.Password,
 		Role:        business.UserRole(request.Role),
@@ -720,6 +724,7 @@ func (handler Handler) updateBusinessUser(w http.ResponseWriter, r *http.Request
 		ActorRole:   principal.Role,
 		UserID:      common.ID(chi.URLParam(r, "id")),
 		DisplayName: request.DisplayName,
+		Phone:       request.Phone,
 		Role:        business.UserRole(request.Role),
 		IsActive:    request.IsActive,
 	})
@@ -990,6 +995,7 @@ func newBusinessUserResponse(user ports.BusinessUserRecord) businessUserResponse
 		BusinessID:  user.BusinessID.String(),
 		Email:       user.Email,
 		DisplayName: user.DisplayName,
+		Phone:       user.Phone,
 		Role:        string(user.Role),
 		IsActive:    user.IsActive,
 		CreatedAt:   user.CreatedAt.Format(time.RFC3339),
