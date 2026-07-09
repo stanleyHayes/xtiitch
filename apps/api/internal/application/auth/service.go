@@ -227,6 +227,10 @@ type RegisterBusinessCommand struct {
 	PlanCode         string
 	UserAgent        string
 	IPAddress        string
+	// OwnerPhone is the store owner's contact phone number captured at signup.
+	// Unlike WhatsAppNumber it is not a sign-in identity and needs no verification;
+	// it is stored for order and account notifications. Optional.
+	OwnerPhone string
 	// Optional WhatsApp identity captured at signup. When WhatsAppNumber is set,
 	// WhatsAppCode must be a valid one-time code (proving control of the number);
 	// the number is then stored as a verified alternative sign-in identity.
@@ -297,6 +301,7 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		OwnerEmail:       normalized.OwnerEmail,
 		OwnerPassword:    passwordHash,
 		PlanCode:         normalized.PlanCode,
+		Phone:            strings.TrimSpace(cmd.OwnerPhone),
 		WhatsAppNumber:   whatsAppNumber,
 		WhatsAppVerified: whatsAppVerified,
 	})

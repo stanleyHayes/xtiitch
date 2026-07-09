@@ -123,6 +123,9 @@ type CreateBusinessWithOwnerInput struct {
 	// PlanCode is the plan the owner chose at signup. Empty or unknown codes
 	// fall back to the free plan in the repository.
 	PlanCode string
+	// Phone is the store owner's contact phone number captured at signup, stored
+	// for order and account notifications. Optional; not a sign-in identity.
+	Phone string
 	// WhatsApp identity is optional and additive to email + password: when
 	// WhatsAppNumber is set the owner can also sign in with a WhatsApp code, and
 	// WhatsAppVerified records that the number was proven (via OTP) at signup.

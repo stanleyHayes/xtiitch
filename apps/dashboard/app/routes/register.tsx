@@ -21,6 +21,7 @@ import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
+import PhoneRounded from "@mui/icons-material/PhoneRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
@@ -75,6 +76,7 @@ export async function action({ request }: Route.ActionArgs) {
     owner_display_name: String(form.get("owner_display_name") ?? "").trim(),
     owner_email: String(form.get("owner_email") ?? "").trim(),
     owner_password: String(form.get("owner_password") ?? ""),
+    owner_phone: String(form.get("owner_phone") ?? "").trim(),
     whatsapp_number: String(form.get("whatsapp_number") ?? "").trim(),
     whatsapp_code: String(form.get("whatsapp_code") ?? "").trim(),
     plan_code: String(form.get("plan_code") ?? "free"),
@@ -172,6 +174,7 @@ export default function Register({
   const [handle, setHandle] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
+  const [ownerPhone, setOwnerPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -529,6 +532,25 @@ export default function Register({
                       startAdornment: (
                         <InputAdornment position="start">
                           <AlternateEmailRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="owner_phone"
+                  label="Phone number"
+                  autoComplete="tel"
+                  inputMode="tel"
+                  fullWidth
+                  value={ownerPhone}
+                  onChange={(e) => setOwnerPhone(e.target.value)}
+                  helperText="For SMS order and account notifications."
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PhoneRounded fontSize="small" />
                         </InputAdornment>
                       ),
                     },

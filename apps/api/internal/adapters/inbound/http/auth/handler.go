@@ -108,6 +108,9 @@ type registerBusinessRequest struct {
 	OwnerEmail       string `json:"owner_email"`
 	OwnerPassword    string `json:"owner_password"`
 	PlanCode         string `json:"plan_code"`
+	// OwnerPhone is the store owner's contact phone number for order and account
+	// notifications. Optional; not a sign-in identity.
+	OwnerPhone string `json:"owner_phone"`
 	// Optional WhatsApp identity: when a number is supplied, the code proving it
 	// must accompany the request.
 	WhatsAppNumber string `json:"whatsapp_number"`
@@ -219,6 +222,7 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 		OwnerEmail:       request.OwnerEmail,
 		OwnerPassword:    request.OwnerPassword,
 		PlanCode:         request.PlanCode,
+		OwnerPhone:       request.OwnerPhone,
 		WhatsAppNumber:   request.WhatsAppNumber,
 		WhatsAppCode:     request.WhatsAppCode,
 		UserAgent:        r.UserAgent(),

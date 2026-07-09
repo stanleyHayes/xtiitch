@@ -235,11 +235,12 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 			password_hash,
 			role,
 			is_active,
+			phone,
 			whatsapp_number,
 			whatsapp_verified_at
 		)
-		values ($1, $2, $3, $4, $5, 'owner', true, $6, case when $7 then now() else null end)
-	`, input.OwnerUserID.String(), input.BusinessID.String(), input.OwnerEmail, input.OwnerDisplayName, input.OwnerPassword, nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified); err != nil {
+		values ($1, $2, $3, $4, $5, 'owner', true, $6, $7, case when $8 then now() else null end)
+	`, input.OwnerUserID.String(), input.BusinessID.String(), input.OwnerEmail, input.OwnerDisplayName, input.OwnerPassword, nullIfEmpty(input.Phone), nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
