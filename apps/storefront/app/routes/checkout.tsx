@@ -63,6 +63,7 @@ export async function action({ request }: Route.ActionArgs) {
   const customerName = String(form.get("customer_name") ?? "").trim();
   const customerEmail = String(form.get("customer_email") ?? "").trim();
   const customerPhone = String(form.get("customer_phone") ?? "").trim();
+  const customerWhatsApp = String(form.get("customer_whatsapp") ?? "").trim();
   if (!customerName || !customerEmail) {
     return { error: "Add your name and email to check out." };
   }
@@ -108,6 +109,7 @@ export async function action({ request }: Route.ActionArgs) {
       size_band_id: only.size_band_id,
       customer_name: customerName,
       customer_phone: customerPhone,
+      customer_whatsapp: customerWhatsApp,
       customer_email: customerEmail,
       method: "momo",
     });
@@ -138,6 +140,7 @@ export async function action({ request }: Route.ActionArgs) {
     })),
     customer_name: customerName,
     customer_phone: customerPhone,
+    customer_whatsapp: customerWhatsApp,
     customer_email: customerEmail,
     method: "momo",
     ...(fulfilment === "delivery"
@@ -337,7 +340,19 @@ export default function Checkout({
               required
               fullWidth
             />
-            <TextField name="customer_phone" label="Phone" fullWidth />
+            <TextField
+              name="customer_phone"
+              label="Phone"
+              helperText="For calls and SMS order updates."
+              fullWidth
+            />
+            <TextField
+              name="customer_whatsapp"
+              label="WhatsApp number"
+              placeholder="e.g. 024 123 4567"
+              helperText="The store owner uses this to chat with you about your order (incl. bespoke pricing)."
+              fullWidth
+            />
             <Button
               type="submit"
               variant="contained"

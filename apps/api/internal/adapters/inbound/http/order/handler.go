@@ -151,6 +151,7 @@ func (handler Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 			"design_title":         o.DesignTitle,
 			"customer_name":        o.CustomerName,
 			"customer_phone":       o.CustomerPhone,
+			"customer_whatsapp":    o.CustomerWhatsApp,
 			"customer_email":       o.CustomerEmail,
 			"status":               o.Status,
 			"order_type":           o.OrderType,

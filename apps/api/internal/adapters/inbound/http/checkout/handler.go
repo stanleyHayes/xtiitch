@@ -64,6 +64,7 @@ type placeOrderBody struct {
 	SizeBandID         string `json:"size_band_id"`
 	CustomerName       string `json:"customer_name"`
 	CustomerPhone      string `json:"customer_phone"`
+	CustomerWhatsApp   string `json:"customer_whatsapp"`
 	CustomerEmail      string `json:"customer_email"`
 	Method             string `json:"method"`
 	PromoCode          string `json:"promo_code"`
@@ -86,6 +87,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		SizeBandID:         common.ID(body.SizeBandID),
 		CustomerName:       body.CustomerName,
 		CustomerPhone:      body.CustomerPhone,
+		CustomerWhatsApp:   body.CustomerWhatsApp,
 		CustomerEmail:      body.CustomerEmail,
 		Method:             money.PaymentMethod(body.Method),
 		PromoCode:          body.PromoCode,
@@ -112,13 +114,14 @@ type cartLineBody struct {
 }
 
 type placeCartOrderBody struct {
-	Items           []cartLineBody `json:"items"`
-	CustomerName    string         `json:"customer_name"`
-	CustomerPhone   string         `json:"customer_phone"`
-	CustomerEmail   string         `json:"customer_email"`
-	Method          string         `json:"method"`
-	DeliveryZoneID  string         `json:"delivery_zone_id"`
-	DeliveryAddress string         `json:"delivery_address"`
+	Items            []cartLineBody `json:"items"`
+	CustomerName     string         `json:"customer_name"`
+	CustomerPhone    string         `json:"customer_phone"`
+	CustomerWhatsApp string         `json:"customer_whatsapp"`
+	CustomerEmail    string         `json:"customer_email"`
+	Method           string         `json:"method"`
+	DeliveryZoneID   string         `json:"delivery_zone_id"`
+	DeliveryAddress  string         `json:"delivery_address"`
 }
 
 func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
@@ -140,14 +143,15 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.PlaceCartOrder(r.Context(), checkoutapp.PlaceCartOrderCommand{
-		StoreHandle:     chi.URLParam(r, "handle"),
-		Lines:           lines,
-		CustomerName:    body.CustomerName,
-		CustomerPhone:   body.CustomerPhone,
-		CustomerEmail:   body.CustomerEmail,
-		Method:          money.PaymentMethod(body.Method),
-		DeliveryZoneID:  common.ID(body.DeliveryZoneID),
-		DeliveryAddress: body.DeliveryAddress,
+		StoreHandle:      chi.URLParam(r, "handle"),
+		Lines:            lines,
+		CustomerName:     body.CustomerName,
+		CustomerPhone:    body.CustomerPhone,
+		CustomerWhatsApp: body.CustomerWhatsApp,
+		CustomerEmail:    body.CustomerEmail,
+		Method:           money.PaymentMethod(body.Method),
+		DeliveryZoneID:   common.ID(body.DeliveryZoneID),
+		DeliveryAddress:  body.DeliveryAddress,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -163,6 +167,7 @@ type placeCustomOrderBody struct {
 	SizeMode           string            `json:"size_mode"`
 	CustomerName       string            `json:"customer_name"`
 	CustomerPhone      string            `json:"customer_phone"`
+	CustomerWhatsApp   string            `json:"customer_whatsapp"`
 	CustomerEmail      string            `json:"customer_email"`
 	Method             string            `json:"method"`
 	PromoCode          string            `json:"promo_code"`
@@ -186,6 +191,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		SizeMode:           body.SizeMode,
 		CustomerName:       body.CustomerName,
 		CustomerPhone:      body.CustomerPhone,
+		CustomerWhatsApp:   body.CustomerWhatsApp,
 		CustomerEmail:      body.CustomerEmail,
 		Method:             money.PaymentMethod(body.Method),
 		PromoCode:          body.PromoCode,
@@ -208,6 +214,7 @@ type placeBookingBody struct {
 	DesignHandle       string `json:"design_handle"`
 	CustomerName       string `json:"customer_name"`
 	CustomerPhone      string `json:"customer_phone"`
+	CustomerWhatsApp   string `json:"customer_whatsapp"`
 	CustomerEmail      string `json:"customer_email"`
 	Method             string `json:"method"`
 	AffiliateCode      string `json:"affiliate_code"`
@@ -235,6 +242,7 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		DesignHandle:       body.DesignHandle,
 		CustomerName:       body.CustomerName,
 		CustomerPhone:      body.CustomerPhone,
+		CustomerWhatsApp:   body.CustomerWhatsApp,
 		CustomerEmail:      body.CustomerEmail,
 		Method:             money.PaymentMethod(body.Method),
 		AffiliateCode:      body.AffiliateCode,

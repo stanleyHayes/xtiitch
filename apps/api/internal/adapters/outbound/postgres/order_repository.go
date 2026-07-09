@@ -60,13 +60,14 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 	}
 
 	if _, err := tx.Exec(ctx, `
-		insert into customers (customer_id, display_name, phone, email)
-		values ($1, $2, $3, $4)
+		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
+		values ($1, $2, $3, $4, $5)
 		on conflict (customer_id) do update
 		set display_name = excluded.display_name,
+			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -116,13 +117,14 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 	}
 
 	if _, err := tx.Exec(ctx, `
-		insert into customers (customer_id, display_name, phone, email)
-		values ($1, $2, $3, $4)
+		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
+		values ($1, $2, $3, $4, $5)
 		on conflict (customer_id) do update
 		set display_name = excluded.display_name,
+			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -167,13 +169,14 @@ func (repo OrderRepository) CreateOnlineOrderGroup(ctx context.Context, scope co
 	// One shared customer across the group: upsert from the first order.
 	first := inputs[0]
 	if _, err := tx.Exec(ctx, `
-		insert into customers (customer_id, display_name, phone, email)
-		values ($1, $2, $3, $4)
+		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
+		values ($1, $2, $3, $4, $5)
 		on conflict (customer_id) do update
 		set display_name = excluded.display_name,
+			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, first.CustomerID.String(), first.CustomerName, first.CustomerPhone, first.CustomerEmail); err != nil {
+	`, first.CustomerID.String(), first.CustomerName, first.CustomerPhone, first.CustomerWhatsApp, first.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -314,13 +317,14 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 	}
 
 	if _, err := tx.Exec(ctx, `
-		insert into customers (customer_id, display_name, phone, email)
-		values ($1, $2, $3, $4)
+		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
+		values ($1, $2, $3, $4, $5)
 		on conflict (customer_id) do update
 		set display_name = excluded.display_name,
+			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -454,13 +458,14 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scop
 	}
 
 	if _, err := tx.Exec(ctx, `
-		insert into customers (customer_id, display_name, phone, email)
-		values ($1, $2, $3, $4)
+		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
+		values ($1, $2, $3, $4, $5)
 		on conflict (customer_id) do update
 		set display_name = excluded.display_name,
+			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -639,7 +644,7 @@ func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantS
 
 	rows, err := tx.Query(ctx, `
 		select o.order_id, d.title, coalesce(c.display_name, ''),
-			coalesce(c.phone, ''), coalesce(c.email, ''), o.status, o.order_type,
+			coalesce(c.phone, ''), coalesce(c.whatsapp_number, ''), coalesce(c.email, ''), o.status, o.order_type,
 			o.size_mode, o.channel, coalesce(st.name, ''), coalesce(st.colour, 'red'),
 			o.agreed_total_minor, o.settled_minor, coalesce(p.status, 'none'),
 			coalesce(p.purpose, ''), p.amount_minor, o.created_at
@@ -667,7 +672,7 @@ func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantS
 		var summary ports.OrderSummary
 		var total, paymentAmount sql.NullInt64
 		if err := rows.Scan(&summary.OrderID, &summary.DesignTitle, &summary.CustomerName,
-			&summary.CustomerPhone, &summary.CustomerEmail, &summary.Status, &summary.OrderType,
+			&summary.CustomerPhone, &summary.CustomerWhatsApp, &summary.CustomerEmail, &summary.Status, &summary.OrderType,
 			&summary.SizeMode, &summary.Channel, &summary.StageName, &summary.Colour, &total,
 			&summary.SettledMinor, &summary.PaymentStatus, &summary.PaymentPurpose, &paymentAmount,
 			&summary.CreatedAt); err != nil {

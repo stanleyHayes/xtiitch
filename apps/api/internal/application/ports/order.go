@@ -87,6 +87,7 @@ type CreateWalkInOrderInput struct {
 	SizeBandID       *common.ID
 	CustomerName     string
 	CustomerPhone    string
+	CustomerWhatsApp string
 	CustomerEmail    string
 	AgreedTotalMinor *int64
 }
@@ -99,6 +100,7 @@ type CreateOnlineOrderInput struct {
 	SizeBandID       *common.ID
 	CustomerName     string
 	CustomerPhone    string
+	CustomerWhatsApp string
 	CustomerEmail    string
 	AgreedTotalMinor int64
 	// CheckoutGroupID links this order to the other orders paid by one combined
@@ -114,14 +116,15 @@ type CreateOnlineOrderInput struct {
 }
 
 type CreateCustomOrderInput struct {
-	OrderID       common.ID
-	BusinessID    common.ID
-	CustomerID    common.ID
-	DesignID      common.ID
-	SizeMode      string
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
+	OrderID          common.ID
+	BusinessID       common.ID
+	CustomerID       common.ID
+	DesignID         common.ID
+	SizeMode         string
+	CustomerName     string
+	CustomerPhone    string
+	CustomerWhatsApp string
+	CustomerEmail    string
 	// AgreedTotalMinor is normally nil for standalone bespoke deposit flows
 	// because the final total is negotiated later. Cart checkout sets it to the
 	// deposit paid by this line so the checkout-group webhook can settle the
@@ -137,14 +140,15 @@ type CreateCustomOrderInput struct {
 }
 
 type CreateCustomOrderConfirmedInput struct {
-	OrderID       common.ID
-	BusinessID    common.ID
-	CustomerID    common.ID
-	DesignID      common.ID
-	SizeMode      string
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
+	OrderID          common.ID
+	BusinessID       common.ID
+	CustomerID       common.ID
+	DesignID         common.ID
+	SizeMode         string
+	CustomerName     string
+	CustomerPhone    string
+	CustomerWhatsApp string
+	CustomerEmail    string
 	// Channel records where the order came from: "online" (customer chose
 	// come-to-shop at online checkout) or "walk_in" (staff logged it in person).
 	// Empty defaults to "online" for back-compatibility.
@@ -161,6 +165,7 @@ type OrderSummary struct {
 	DesignTitle      string
 	CustomerName     string
 	CustomerPhone    string
+	CustomerWhatsApp string
 	CustomerEmail    string
 	Status           string
 	OrderType        string

@@ -167,6 +167,7 @@ export type PlaceOrderInput = {
   size_band_id: string;
   customer_name: string;
   customer_phone: string;
+  customer_whatsapp?: string;
   customer_email: string;
   method: "momo" | "card";
   promo_code?: string;
@@ -188,6 +189,7 @@ export type PlaceCartOrderInput = {
   items: CartOrderLine[];
   customer_name: string;
   customer_phone: string;
+  customer_whatsapp?: string;
   customer_email: string;
   method: "momo" | "card";
   delivery_zone_id?: string;
@@ -211,6 +213,7 @@ export type PlaceCustomOrderInput = {
   size_mode: CustomSizeMode;
   customer_name: string;
   customer_phone: string;
+  customer_whatsapp?: string;
   customer_email: string;
   method?: "momo" | "card";
   promo_code?: string;
@@ -225,6 +228,7 @@ export type PlaceBookingInput = {
   design_handle: string;
   customer_name: string;
   customer_phone: string;
+  customer_whatsapp?: string;
   customer_email: string;
   method: "momo" | "card";
   affiliate_code?: string;

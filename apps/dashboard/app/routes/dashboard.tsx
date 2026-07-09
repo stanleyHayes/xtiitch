@@ -78,6 +78,7 @@ import PaletteRounded from "@mui/icons-material/PaletteRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PhoneRounded from "@mui/icons-material/PhoneRounded";
+import WhatsApp from "@mui/icons-material/WhatsApp";
 import PriceCheckRounded from "@mui/icons-material/PriceCheckRounded";
 import QueryStatsRounded from "@mui/icons-material/QueryStatsRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
@@ -222,6 +223,7 @@ type OrderSummary = {
   design_title: string;
   customer_name: string;
   customer_phone: string;
+  customer_whatsapp: string;
   customer_email: string;
   status: string;
   order_type: string;
@@ -7468,6 +7470,29 @@ function OrderActionMenuItem({
   );
 }
 
+// whatsappHref builds a wa.me deep link that opens a chat with the customer from
+// the owner's own WhatsApp (no Cloud API). It normalises a Ghana number to E.164
+// digits (233…): local 0XXXXXXXXX → 233XXXXXXXXX, 9-digit → 233…, already-233 as
+// is, and any other all-digit intl number is used verbatim. Returns null when
+// there's no usable number. Falls back to the plain phone when no WhatsApp number
+// was captured (many customers' phone IS their WhatsApp).
+function whatsappHref(whatsapp: string, phone: string): string | null {
+  const raw = (whatsapp || phone || "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+  let intl = digits;
+  if (digits.startsWith("233") && digits.length === 12) {
+    intl = digits;
+  } else if (digits.startsWith("0") && digits.length === 10) {
+    intl = "233" + digits.slice(1);
+  } else if (digits.length === 9) {
+    intl = "233" + digits;
+  }
+  return `https://wa.me/${intl}`;
+}
+
 function OrderCard({
   order,
   returnTo,
@@ -7627,6 +7652,30 @@ function OrderCard({
             title={order.customer_phone || "No phone captured"}
             helper={order.customer_email || "No email captured"}
           />
+          {whatsappHref(order.customer_whatsapp, order.customer_phone) ? (
+            <Button
+              component="a"
+              href={
+                whatsappHref(order.customer_whatsapp, order.customer_phone)!
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="contained"
+              size="small"
+              fullWidth
+              startIcon={<WhatsApp />}
+              sx={{
+                mt: 1,
+                bgcolor: "#25D366",
+                color: "#0a3d20",
+                fontWeight: 700,
+                "&:hover": { bgcolor: "#1EBE57" },
+              }}
+            >
+              Chat on WhatsApp
+              {order.customer_whatsapp ? ` · ${order.customer_whatsapp}` : ""}
+            </Button>
+          ) : null}
         </Box>
 
         {showMoneyDetails ? (

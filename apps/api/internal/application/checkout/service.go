@@ -144,6 +144,7 @@ type PlaceStandardOrderCommand struct {
 	SizeBandID         common.ID
 	CustomerName       string
 	CustomerPhone      string
+	CustomerWhatsApp   string
 	CustomerEmail      string
 	Method             money.PaymentMethod
 	PromoCode          string
@@ -215,6 +216,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		SizeBandID:       &sizeBandID,
 		CustomerName:     name,
 		CustomerPhone:    strings.TrimSpace(cmd.CustomerPhone),
+		CustomerWhatsApp: strings.TrimSpace(cmd.CustomerWhatsApp),
 		CustomerEmail:    email,
 		AgreedTotalMinor: price,
 	}); err != nil {
@@ -324,12 +326,13 @@ type CartLineCommand struct {
 }
 
 type PlaceCartOrderCommand struct {
-	StoreHandle   string
-	Lines         []CartLineCommand
-	CustomerName  string
-	CustomerPhone string
-	CustomerEmail string
-	Method        money.PaymentMethod
+	StoreHandle      string
+	Lines            []CartLineCommand
+	CustomerName     string
+	CustomerPhone    string
+	CustomerWhatsApp string
+	CustomerEmail    string
+	Method           money.PaymentMethod
 	// DeliveryZoneID + DeliveryAddress are set when the customer chose delivery.
 	// An empty zone id means pickup (no fee).
 	DeliveryZoneID  common.ID
@@ -420,6 +423,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 		cleanupCustomerID = customerID
 	}
 	phone := strings.TrimSpace(cmd.CustomerPhone)
+	whatsapp := strings.TrimSpace(cmd.CustomerWhatsApp)
 
 	standardInputs := make([]ports.CreateOnlineOrderInput, 0, len(cmd.Lines))
 	customInputs := make([]ports.CreateCustomOrderInput, 0, len(cmd.Lines))
@@ -444,6 +448,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 				SizeBandID:       &bandID,
 				CustomerName:     name,
 				CustomerPhone:    phone,
+				CustomerWhatsApp: whatsapp,
 				CustomerEmail:    email,
 				AgreedTotalMinor: price,
 				CheckoutGroupID:  &groupID,
@@ -483,6 +488,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 				SizeMode:         string(line.SizeMode),
 				CustomerName:     name,
 				CustomerPhone:    phone,
+				CustomerWhatsApp: whatsapp,
 				CustomerEmail:    email,
 				AgreedTotalMinor: &deposit,
 				CheckoutGroupID:  &groupID,
@@ -628,6 +634,7 @@ type PlaceHomeVisitBookingCommand struct {
 	DesignHandle       string
 	CustomerName       string
 	CustomerPhone      string
+	CustomerWhatsApp   string
 	CustomerEmail      string
 	Method             money.PaymentMethod
 	PromoCode          string
@@ -655,9 +662,10 @@ type PlaceHomeVisitBookingResult struct {
 // existing custom-order endpoint is untouched.
 func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBookingCommand) (PlaceHomeVisitBookingResult, error) {
 	customer := customerDetails{
-		name:  strings.TrimSpace(cmd.CustomerName),
-		phone: strings.TrimSpace(cmd.CustomerPhone),
-		email: strings.TrimSpace(cmd.CustomerEmail),
+		name:     strings.TrimSpace(cmd.CustomerName),
+		phone:    strings.TrimSpace(cmd.CustomerPhone),
+		whatsapp: strings.TrimSpace(cmd.CustomerWhatsApp),
+		email:    strings.TrimSpace(cmd.CustomerEmail),
 	}
 	if customer.name == "" || customer.email == "" || cmd.SlotStart.IsZero() {
 		return PlaceHomeVisitBookingResult{}, ErrInvalidInput
@@ -711,14 +719,15 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 	bookingID := s.ids.NewID()
 
 	if err := s.orders.CreateCustomOrder(ctx, scope, ports.CreateCustomOrderInput{
-		OrderID:       orderID,
-		BusinessID:    store.BusinessID,
-		CustomerID:    customerID,
-		DesignID:      design.ID,
-		SizeMode:      string(order.SizeModeHomeVisit),
-		CustomerName:  customer.name,
-		CustomerPhone: customer.phone,
-		CustomerEmail: customer.email,
+		OrderID:          orderID,
+		BusinessID:       store.BusinessID,
+		CustomerID:       customerID,
+		DesignID:         design.ID,
+		SizeMode:         string(order.SizeModeHomeVisit),
+		CustomerName:     customer.name,
+		CustomerPhone:    customer.phone,
+		CustomerWhatsApp: customer.whatsapp,
+		CustomerEmail:    customer.email,
 	}); err != nil {
 		return PlaceHomeVisitBookingResult{}, err
 	}
@@ -791,6 +800,7 @@ type PlaceCustomOrderCommand struct {
 	SizeMode           string
 	CustomerName       string
 	CustomerPhone      string
+	CustomerWhatsApp   string
 	CustomerEmail      string
 	Method             money.PaymentMethod
 	PromoCode          string
@@ -812,9 +822,10 @@ type PlaceCustomOrderResult struct {
 }
 
 type customerDetails struct {
-	name  string
-	phone string
-	email string
+	name     string
+	phone    string
+	whatsapp string
+	email    string
 }
 
 // PlaceCustomOrder records a custom (bespoke) order through one of the three
@@ -824,9 +835,10 @@ type customerDetails struct {
 // with no online payment. The account-free customer tracks it by the returned id.
 func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderCommand) (PlaceCustomOrderResult, error) {
 	customer := customerDetails{
-		name:  strings.TrimSpace(cmd.CustomerName),
-		phone: strings.TrimSpace(cmd.CustomerPhone),
-		email: strings.TrimSpace(cmd.CustomerEmail),
+		name:     strings.TrimSpace(cmd.CustomerName),
+		phone:    strings.TrimSpace(cmd.CustomerPhone),
+		whatsapp: strings.TrimSpace(cmd.CustomerWhatsApp),
+		email:    strings.TrimSpace(cmd.CustomerEmail),
 	}
 	if customer.name == "" || customer.email == "" {
 		return PlaceCustomOrderResult{}, ErrInvalidInput
@@ -892,14 +904,15 @@ func (s Service) placeComeToShop(ctx context.Context, scope common.TenantScope, 
 	orderID := s.ids.NewID()
 	customerID, _ := s.resolveCustomerByPhone(ctx, customer.phone)
 	if err := s.orders.CreateCustomOrderConfirmed(ctx, scope, ports.CreateCustomOrderConfirmedInput{
-		OrderID:       orderID,
-		BusinessID:    businessID,
-		CustomerID:    customerID,
-		DesignID:      designID,
-		SizeMode:      string(order.SizeModeComeToShop),
-		CustomerName:  customer.name,
-		CustomerPhone: customer.phone,
-		CustomerEmail: customer.email,
+		OrderID:          orderID,
+		BusinessID:       businessID,
+		CustomerID:       customerID,
+		DesignID:         designID,
+		SizeMode:         string(order.SizeModeComeToShop),
+		CustomerName:     customer.name,
+		CustomerPhone:    customer.phone,
+		CustomerWhatsApp: customer.whatsapp,
+		CustomerEmail:    customer.email,
 	}); err != nil {
 		return PlaceCustomOrderResult{}, err
 	}
@@ -933,14 +946,15 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		cleanupCustomerID = customerID
 	}
 	input := ports.CreateCustomOrderInput{
-		OrderID:       orderID,
-		BusinessID:    store.BusinessID,
-		CustomerID:    customerID,
-		DesignID:      design.ID,
-		SizeMode:      string(mode),
-		CustomerName:  customer.name,
-		CustomerPhone: customer.phone,
-		CustomerEmail: customer.email,
+		OrderID:          orderID,
+		BusinessID:       store.BusinessID,
+		CustomerID:       customerID,
+		DesignID:         design.ID,
+		SizeMode:         string(mode),
+		CustomerName:     customer.name,
+		CustomerPhone:    customer.phone,
+		CustomerWhatsApp: customer.whatsapp,
+		CustomerEmail:    customer.email,
 	}
 	if mode == order.SizeModeSelfMeasure {
 		input.MeasurementID = s.ids.NewID()
