@@ -143,6 +143,15 @@ services:
         sync: false
       - key: WHATSAPP_OTP_TEMPLATE_LANG
         value: en_US
+      # SMS (Arkesel) for auth OTPs + order notifications. OTP_CHANNEL=sms (default)
+      # sends codes over SMS once ARKESEL_API_KEY is set; falls back to WhatsApp,
+      # then logging. SMS_SENDER_ID is the alphanumeric sender name (<=11 chars).
+      - key: OTP_CHANNEL
+        value: sms
+      - key: SMS_SENDER_ID
+        value: Xtiitch
+      - key: ARKESEL_API_KEY
+        sync: false
 
   # ──────────────────────────────────────────────────────────────────────────
   # BullMQ worker — ENABLED now that WhatsApp Cloud credentials are provisioned.

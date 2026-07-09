@@ -35,6 +35,7 @@ import (
 	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
+	smsadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/sms"
 	whatsappadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/whatsapp"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
 	aiassistapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aiassist"
@@ -440,21 +441,38 @@ func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool
 	})
 }
 
-// buildCustomerOTPDelivery sends customer sign-in codes over WhatsApp when
-// Cloud-API credentials are set; otherwise it logs the code (dev), so phone
-// sign-in is exercisable locally with no creds.
+// buildCustomerOTPDelivery selects the auth-OTP channel for BOTH customers and
+// store owners. The platform standard is SMS (OTP_CHANNEL=sms, the default):
+// codes go over SMS (Arkesel) when a key is set. If SMS is unavailable or
+// OTP_CHANNEL=whatsapp, it falls back to WhatsApp (Cloud API); with neither
+// configured it logs the code (dev), so sign-in stays exercisable locally.
 func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerOTPDelivery {
-	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
+	smsConfigured := cfg.SMSArkeselAPIKey != ""
+	whatsAppConfigured := cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != ""
+	preferSMS := !strings.EqualFold(strings.TrimSpace(cfg.OTPChannel), "whatsapp")
+
+	if preferSMS && smsConfigured {
+		logger.Info("customer/owner OTP channel: SMS (Arkesel)", slog.String("sender_id", cfg.SMSSenderID))
+		return authadapter.NewSMSOTPDelivery(
+			smsadapter.NewArkeselSender(cfg.SMSArkeselAPIKey, cfg.SMSSenderID, cfg.SMSArkeselEndpoint),
+		)
+	}
+	if whatsAppConfigured {
 		if cfg.WhatsAppOTPTemplateName == "" {
 			logger.Warn("WHATSAPP_OTP_TEMPLATE_NAME not set; OTPs send as free-form text, which WhatsApp only delivers inside a 24h session — set an approved AUTHENTICATION template for cold sign-ups")
 		}
+		logger.Info("customer/owner OTP channel: WhatsApp (Cloud API)")
 		return authadapter.NewWhatsAppOTPDelivery(
 			whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion),
 			cfg.WhatsAppOTPTemplateName,
 			cfg.WhatsAppOTPTemplateLang,
 		)
 	}
-	logger.Warn("whatsapp credentials not set; customer OTPs will be logged, not sent")
+	if preferSMS && !smsConfigured {
+		logger.Warn("OTP_CHANNEL=sms but ARKESEL_API_KEY not set and no WhatsApp creds; OTPs will be logged, not sent")
+	} else {
+		logger.Warn("no OTP delivery configured (SMS/WhatsApp); OTPs will be logged, not sent")
+	}
 	return authadapter.NewLoggingOTPDelivery(logger)
 }
 

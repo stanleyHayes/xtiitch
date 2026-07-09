@@ -89,7 +89,16 @@ type Config struct {
 	// WhatsAppOTPTemplateLang is that template's language code (e.g. en_US).
 	WhatsAppOTPTemplateName string
 	WhatsAppOTPTemplateLang string
-	WorkerQueueName         string
+	// SMS (Arkesel) delivery for auth OTPs and order notifications. OTPChannel
+	// selects the preferred OTP channel: "sms" (default) delivers codes over SMS
+	// when SMSArkeselAPIKey is set, else falls back to WhatsApp, else logs.
+	// SMSSenderID is the alphanumeric sender name; SMSArkeselEndpoint overrides the
+	// default v2 endpoint (blank uses it).
+	SMSArkeselAPIKey   string
+	SMSSenderID        string
+	SMSArkeselEndpoint string
+	OTPChannel         string
+	WorkerQueueName    string
 }
 
 func Load() Config {
@@ -152,6 +161,10 @@ func Load() Config {
 		WhatsAppGraphVersion:     getenv("WHATSAPP_GRAPH_VERSION", "v21.0"),
 		WhatsAppOTPTemplateName:  getenv("WHATSAPP_OTP_TEMPLATE_NAME", ""),
 		WhatsAppOTPTemplateLang:  getenv("WHATSAPP_OTP_TEMPLATE_LANG", "en_US"),
+		SMSArkeselAPIKey:         getenv("ARKESEL_API_KEY", ""),
+		SMSSenderID:              getenv("SMS_SENDER_ID", "Xtiitch"),
+		SMSArkeselEndpoint:       getenv("ARKESEL_SMS_ENDPOINT", ""),
+		OTPChannel:               getenv("OTP_CHANNEL", "sms"),
 		WorkerQueueName:          getenv("WORKER_QUEUE_NAME", "xtiitch.default"),
 	}
 }
