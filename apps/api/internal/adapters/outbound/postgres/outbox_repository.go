@@ -78,6 +78,37 @@ func enqueueOrderNotification(ctx context.Context, tx pgx.Tx, businessID, orderI
 	return err
 }
 
+// enqueueOwnerNewOrderNotification alerts the store owner (by SMS) that a new
+// order arrived, so they can action it — recipient is the owner's phone. The
+// LATERAL join only yields a row when an owner phone is on file, so no message is
+// enqueued (and nothing fails downstream) when the owner has not set a phone.
+func enqueueOwnerNewOrderNotification(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {
+	kind := notification.KindNewOrderOwner
+	_, err := tx.Exec(ctx, `
+		insert into outbound_messages (message_id, business_id, channel, kind, recipient, payload, dedup_key)
+		select gen_random_uuid(), o.business_id, $3, $4, bu.phone,
+			jsonb_build_object(
+				'order_id', o.order_id::text,
+				'design', coalesce(d.title, ''),
+				'customer', coalesce(c.display_name, ''),
+				'amount_minor', o.agreed_total_minor
+			), $5
+		from orders o
+		join customers c on c.customer_id = o.customer_id
+		left join designs d on d.design_id = o.design_id
+		join lateral (
+			select phone from business_users
+			where business_id = o.business_id and role = 'owner'
+				and phone is not null and phone <> ''
+			order by created_at asc
+			limit 1
+		) bu on true
+		where o.order_id = $1 and o.business_id = $2
+		on conflict (business_id, dedup_key) do nothing
+	`, orderID, businessID, string(notification.ChannelSMS), string(kind), notification.DedupKey(kind, orderID))
+	return err
+}
+
 func enqueueBookingNotification(ctx context.Context, tx pgx.Tx, businessID, bookingID string, kind notification.Kind) error {
 	_, err := tx.Exec(ctx, `
 		insert into outbound_messages (message_id, business_id, channel, kind, recipient, payload, dedup_key)

@@ -860,7 +860,13 @@ func confirmOrderOnPayment(ctx context.Context, tx pgx.Tx, businessID, orderID s
 
 	// The order is now confirmed; in the same transaction, record the intent to
 	// tell the customer. The dedup key makes a redelivered webhook a no-op.
-	return enqueueOrderNotification(ctx, tx, businessID, orderID, notification.KindOrderConfirmed)
+	if err := enqueueOrderNotification(ctx, tx, businessID, orderID, notification.KindOrderConfirmed); err != nil {
+		return err
+	}
+	// Also alert the store owner that a new order landed (by SMS), so they can
+	// action it — especially a bespoke order needing a direct price negotiation.
+	// No-op when the owner has no phone on file.
+	return enqueueOwnerNewOrderNotification(ctx, tx, businessID, orderID)
 }
 
 func applyPendingPromotionRedemptionsForOrder(ctx context.Context, tx pgx.Tx, businessID, orderID string) error {

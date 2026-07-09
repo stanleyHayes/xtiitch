@@ -32,6 +32,11 @@ const (
 	KindHandoverDispatched Kind = "handover_dispatched"
 	KindHandoverCompleted  Kind = "handover_completed"
 
+	// KindNewOrderOwner alerts the STORE OWNER (not the customer) that a new order
+	// came in, so they can action it — especially a bespoke order needing a direct
+	// price negotiation. Recipient is the owner's phone (business_users.phone).
+	KindNewOrderOwner Kind = "new_order_owner"
+
 	// KindSubscriptionRenewalUpcoming reminds a business that its subscription is
 	// about to renew (a few days ahead) with a one-tap re-pay call to action. It
 	// is the MoMo-aware nudge: a mobile-money authorization cannot be silently
@@ -48,7 +53,7 @@ const (
 func (k Kind) Valid() bool {
 	switch k {
 	case KindOrderConfirmed, KindOrderFulfilled, KindBookingConfirmed, KindBalancePaid,
-		KindHandoverDispatched, KindHandoverCompleted,
+		KindHandoverDispatched, KindHandoverCompleted, KindNewOrderOwner,
 		KindSubscriptionRenewalUpcoming, KindSubscriptionRenewalPastDue:
 		return true
 	default:

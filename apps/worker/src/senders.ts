@@ -396,6 +396,21 @@ export function renderNotificationText(message: OutboundMessage): string {
       )}`;
     case "handover_completed":
       return withDesign("Your order handover is complete. Thank you.", design);
+    case "new_order_owner": {
+      const customer = stringPayload(message.payload.customer);
+      const who = customer ? ` from ${customer}` : "";
+      const item = design ? ` (${design})` : "";
+      const amount = message.payload.amount_minor;
+      // Bespoke orders have no fixed price yet (amount 0), so omit the price.
+      const price =
+        typeof amount === "number" && Number.isFinite(amount) && amount > 0
+          ? ` — ${new Intl.NumberFormat("en-GH", {
+              style: "currency",
+              currency: "GHS",
+            }).format(amount / 100)}`
+          : "";
+      return `New Xtiitch order${item}${who}${price}. Open your dashboard to manage it.`;
+    }
     default:
       return withDesign("Your Xtiitch order has an update.", design);
   }
