@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { NotificationHttpConfig, WhatsAppCloudConfig } from "./config";
+import type {
+  ArkeselSmsConfig,
+  NotificationHttpConfig,
+  WhatsAppCloudConfig,
+} from "./config";
 import type { OutboundMessage } from "./outbox";
 import {
+  ArkeselSmsSender,
+  ChannelRoutedSender,
   HttpNotificationSender,
   WhatsAppCloudSender,
+  createNotificationSender,
   normalizeGhanaMsisdn,
   renderNotificationText,
 } from "./senders";
@@ -22,6 +29,12 @@ const whatsappConfig: WhatsAppCloudConfig = {
   phoneNumberId: "1234567890",
   accessToken: "wa-token",
   apiVersion: "v21.0",
+  timeoutMs: 1_000,
+};
+
+const arkeselConfig: ArkeselSmsConfig = {
+  apiKey: "arkesel-key",
+  senderId: "Xtiitch",
   timeoutMs: 1_000,
 };
 
@@ -55,7 +68,10 @@ test("WhatsAppCloudSender posts a WhatsApp Cloud text message", async () => {
   );
   const headers = capturedInit?.headers as Record<string, string>;
   assert.equal(headers.Authorization, "Bearer wa-token");
-  const body = JSON.parse(String(capturedInit?.body)) as Record<string, unknown>;
+  const body = JSON.parse(String(capturedInit?.body)) as Record<
+    string,
+    unknown
+  >;
   assert.equal(body.messaging_product, "whatsapp");
   assert.equal(body.to, "233241234567");
   assert.equal(body.type, "text");
@@ -67,8 +83,9 @@ test("WhatsAppCloudSender posts a WhatsApp Cloud text message", async () => {
 });
 
 test("WhatsAppCloudSender rejects non-whatsapp channels", async () => {
-  const sender = new WhatsAppCloudSender(whatsappConfig, async () =>
-    new Response("{}", { status: 200 }),
+  const sender = new WhatsAppCloudSender(
+    whatsappConfig,
+    async () => new Response("{}", { status: 200 }),
   );
   await assert.rejects(
     sender.send(makeMessage({ channel: "sms" })),
@@ -77,12 +94,178 @@ test("WhatsAppCloudSender rejects non-whatsapp channels", async () => {
 });
 
 test("WhatsAppCloudSender surfaces API errors", async () => {
-  const sender = new WhatsAppCloudSender(whatsappConfig, async () =>
-    new Response('{"error":{"message":"bad"}}', { status: 400 }),
+  const sender = new WhatsAppCloudSender(
+    whatsappConfig,
+    async () => new Response('{"error":{"message":"bad"}}', { status: 400 }),
   );
   await assert.rejects(
     sender.send(makeMessage()),
     /whatsapp cloud api returned 400/,
+  );
+});
+
+test("ArkeselSmsSender posts an Arkesel v2 SMS", async () => {
+  let capturedUrl = "";
+  let capturedInit: RequestInit | undefined;
+  const fetcher: typeof fetch = async (url, init) => {
+    capturedUrl = String(url);
+    capturedInit = init;
+    return new Response(
+      JSON.stringify({
+        status: "success",
+        data: { recipients: [{ recipient: "233241234567", id: "sms-abc" }] },
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } },
+    );
+  };
+  const sender = new ArkeselSmsSender(arkeselConfig, fetcher);
+  const result = await sender.send(
+    makeMessage({
+      messageId: "msg-sms-1",
+      channel: "sms",
+      kind: "order_confirmed",
+      recipient: "0241234567",
+    }),
+  );
+
+  assert.equal(capturedUrl, "https://sms.arkesel.com/api/v2/sms/send");
+  assert.equal(capturedInit?.method, "POST");
+  const headers = capturedInit?.headers as Record<string, string>;
+  assert.equal(headers["api-key"], "arkesel-key");
+  assert.equal(headers["Content-Type"], "application/json");
+  const body = JSON.parse(String(capturedInit?.body)) as Record<
+    string,
+    unknown
+  >;
+  assert.equal(body.sender, "Xtiitch");
+  assert.equal(
+    body.message,
+    "Your order is confirmed. We will update you when production moves forward.",
+  );
+  assert.deepEqual(body.recipients, ["233241234567"]);
+  assert.equal(result.providerMessageId, "sms-abc");
+});
+
+test("ArkeselSmsSender rejects non-sms channels", async () => {
+  const sender = new ArkeselSmsSender(
+    arkeselConfig,
+    async () => new Response('{"status":"success"}', { status: 200 }),
+  );
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "whatsapp" })),
+    /cannot send a whatsapp message/,
+  );
+});
+
+test("ArkeselSmsSender fails when the body status is not success", async () => {
+  const sender = new ArkeselSmsSender(
+    arkeselConfig,
+    async () =>
+      new Response('{"status":"error","message":"insufficient balance"}', {
+        status: 200,
+      }),
+  );
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "sms" })),
+    /arkesel sms api returned 200/,
+  );
+});
+
+test("ArkeselSmsSender fails on non-2xx responses", async () => {
+  const sender = new ArkeselSmsSender(
+    arkeselConfig,
+    async () => new Response('{"status":"success"}', { status: 401 }),
+  );
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "sms" })),
+    /arkesel sms api returned 401/,
+  );
+});
+
+test("ChannelRoutedSender dispatches by channel", async () => {
+  const calls: string[] = [];
+  const smsSender = {
+    send: async (message: OutboundMessage) => {
+      calls.push(`sms:${message.messageId}`);
+      return { providerMessageId: "sms-1" };
+    },
+  };
+  const whatsappSender = {
+    send: async (message: OutboundMessage) => {
+      calls.push(`whatsapp:${message.messageId}`);
+      return { providerMessageId: "wa-1" };
+    },
+  };
+  const sender = new ChannelRoutedSender({
+    sms: smsSender,
+    whatsapp: whatsappSender,
+  });
+
+  const smsResult = await sender.send(
+    makeMessage({ messageId: "m-sms", channel: "sms" }),
+  );
+  const waResult = await sender.send(
+    makeMessage({ messageId: "m-wa", channel: "whatsapp" }),
+  );
+
+  assert.deepEqual(calls, ["sms:m-sms", "whatsapp:m-wa"]);
+  assert.equal(smsResult?.providerMessageId, "sms-1");
+  assert.equal(waResult?.providerMessageId, "wa-1");
+});
+
+test("ChannelRoutedSender fails loudly for an unrouted channel", async () => {
+  const sender = new ChannelRoutedSender({
+    whatsapp: {
+      send: async () => ({ providerMessageId: "wa" }),
+    },
+  });
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "sms" })),
+    /no notification sender configured for channel sms/,
+  );
+});
+
+test("createNotificationSender routes sms to Arkesel and whatsapp to Cloud", async () => {
+  const requests: string[] = [];
+  const fetcher: typeof fetch = async (url) => {
+    const target = String(url);
+    requests.push(target);
+    if (target.includes("arkesel")) {
+      return new Response(
+        JSON.stringify({ status: "success", data: { recipients: [] } }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ messages: [{ id: "wamid.1" }] }), {
+      status: 200,
+    });
+  };
+  const sender = createNotificationSender({
+    transport: "whatsapp_cloud",
+    whatsappCloud: whatsappConfig,
+    arkesel: arkeselConfig,
+    fetcher,
+  });
+
+  await sender.send(makeMessage({ channel: "sms", recipient: "0241234567" }));
+  await sender.send(
+    makeMessage({ channel: "whatsapp", recipient: "0241234567" }),
+  );
+
+  assert.equal(requests.length, 2);
+  assert.ok(requests[0]?.includes("sms.arkesel.com/api/v2/sms/send"));
+  assert.ok(requests[1]?.includes("graph.facebook.com"));
+});
+
+test("createNotificationSender without Arkesel creds fails sms loudly", async () => {
+  const sender = createNotificationSender({
+    transport: "whatsapp_cloud",
+    whatsappCloud: whatsappConfig,
+    fetcher: async () => new Response("{}", { status: 200 }),
+  });
+  await assert.rejects(
+    sender.send(makeMessage({ channel: "sms" })),
+    /no notification sender configured for channel sms/,
   );
 });
 
@@ -137,12 +320,18 @@ test("HttpNotificationSender posts provider payload with auth and idempotency he
   assert.equal(headers["X-API-Key"], "secret-token");
   assert.equal(headers["Idempotency-Key"], "message-123");
 
-  const body = JSON.parse(String(capturedInit?.body)) as Record<string, unknown>;
+  const body = JSON.parse(String(capturedInit?.body)) as Record<
+    string,
+    unknown
+  >;
   assert.equal(body.message_id, "message-123");
   assert.equal(body.channel, "sms");
   assert.equal(body.recipient, "0241234567");
   assert.equal(body.from, "Xtiitch");
-  assert.equal(body.text, "Your order has been dispatched. Courier: Rider One.");
+  assert.equal(
+    body.text,
+    "Your order has been dispatched. Courier: Rider One.",
+  );
   assert.equal(result.providerMessageId, "provider-message-1");
   assert.deepEqual(result.providerResponse, {
     provider_message_id: "provider-message-1",
@@ -160,7 +349,9 @@ test("HttpNotificationSender fails on non-success provider responses", async () 
   );
 });
 
-function makeMessage(overrides: Partial<OutboundMessage> = {}): OutboundMessage {
+function makeMessage(
+  overrides: Partial<OutboundMessage> = {},
+): OutboundMessage {
   return {
     messageId: "11111111-1111-1111-1111-111111111111",
     businessId: "22222222-2222-2222-2222-222222222222",

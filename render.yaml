@@ -195,3 +195,9 @@ services:
         sync: false
       - key: WHATSAPP_API_VERSION
         value: v21.0
+      # SMS (Arkesel) for order notifications drained from the outbox. Paste the
+      # key in the Render dashboard. SMS_SENDER_ID is the approved sender name.
+      - key: SMS_SENDER_ID
+        value: Xtiitch
+      - key: ARKESEL_API_KEY
+        sync: false

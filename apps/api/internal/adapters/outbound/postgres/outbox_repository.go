@@ -74,7 +74,7 @@ func enqueueOrderNotification(ctx context.Context, tx pgx.Tx, businessID, orderI
 		left join designs d on d.design_id = o.design_id
 		where o.order_id = $1 and o.business_id = $2
 		on conflict (business_id, dedup_key) do nothing
-	`, orderID, businessID, string(notification.ChannelWhatsApp), string(kind), notification.DedupKey(kind, orderID))
+	`, orderID, businessID, string(notification.ChannelSMS), string(kind), notification.DedupKey(kind, orderID))
 	return err
 }
 
@@ -96,7 +96,7 @@ func enqueueBookingNotification(ctx context.Context, tx pgx.Tx, businessID, book
 		left join designs d on d.design_id = o.design_id and d.business_id = o.business_id
 		where b.booking_id = $1 and b.business_id = $2
 		on conflict (business_id, dedup_key) do nothing
-	`, bookingID, businessID, string(notification.ChannelWhatsApp), string(kind), notification.DedupKey(kind, bookingID))
+	`, bookingID, businessID, string(notification.ChannelSMS), string(kind), notification.DedupKey(kind, bookingID))
 	return err
 }
 
@@ -116,7 +116,7 @@ func enqueueBalancePaymentNotification(ctx context.Context, tx pgx.Tx, businessI
 		left join designs d on d.design_id = o.design_id and d.business_id = o.business_id
 		where o.order_id = $1 and o.business_id = $2
 		on conflict (business_id, dedup_key) do nothing
-	`, orderID, businessID, paymentID, string(notification.ChannelWhatsApp), string(kind), amountMinor, notification.DedupKey(kind, paymentID))
+	`, orderID, businessID, paymentID, string(notification.ChannelSMS), string(kind), amountMinor, notification.DedupKey(kind, paymentID))
 	return err
 }
 
@@ -138,6 +138,6 @@ func enqueueHandoverNotification(ctx context.Context, tx pgx.Tx, businessID, han
 		left join designs d on d.design_id = o.design_id and d.business_id = o.business_id
 		where h.handover_id = $1 and h.business_id = $2
 		on conflict (business_id, dedup_key) do nothing
-	`, handoverID, businessID, string(notification.ChannelWhatsApp), string(kind), notification.DedupKey(kind, handoverID))
+	`, handoverID, businessID, string(notification.ChannelSMS), string(kind), notification.DedupKey(kind, handoverID))
 	return err
 }

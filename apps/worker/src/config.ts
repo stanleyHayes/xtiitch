@@ -15,11 +15,20 @@ export type NotificationHttpConfig = {
 };
 
 // WhatsApp Business Cloud API (Meta Graph API). Ghana runs on WhatsApp, so this
-// is the primary delivery channel for customer order updates.
+// is the delivery channel for business-facing messages (subscription reminders).
 export type WhatsAppCloudConfig = {
   phoneNumberId: string;
   accessToken: string;
   apiVersion: string;
+  timeoutMs: number;
+};
+
+// Arkesel SMS API (https://sms.arkesel.com). Order-lifecycle notifications go by
+// SMS because business-initiated WhatsApp messages do not reliably deliver
+// outside the 24h session window / approved-template constraints.
+export type ArkeselSmsConfig = {
+  apiKey: string;
+  senderId: string;
   timeoutMs: number;
 };
 
@@ -39,6 +48,7 @@ export type WorkerConfig = {
   notificationTransport: NotificationTransportName;
   notificationHttp?: NotificationHttpConfig;
   whatsappCloud?: WhatsAppCloudConfig;
+  arkesel?: ArkeselSmsConfig;
 };
 
 const defaultDatabaseUrl =
@@ -80,6 +90,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     notificationTransport,
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
     whatsappCloud: parseWhatsAppCloudConfig(notificationTransport, env),
+    arkesel: parseArkeselSmsConfig(notificationTransport, env),
   };
 
   validateProductionWorkerConfig(config, env);
@@ -185,6 +196,32 @@ function parseWhatsAppCloudConfig(
     accessToken,
     apiVersion,
     timeoutMs: parsePositiveInteger(env.WHATSAPP_TIMEOUT_MS, 10_000),
+  };
+}
+
+// Arkesel is the SMS provider for order-lifecycle notifications and rides
+// alongside the whatsapp_cloud transport (which still carries WhatsApp-channel
+// messages). Credentials are optional: if they are absent the composite sender
+// has no SMS route and an SMS message fails loudly at send time rather than
+// being silently dropped.
+function parseArkeselSmsConfig(
+  transport: NotificationTransportName,
+  env: NodeJS.ProcessEnv,
+): ArkeselSmsConfig | undefined {
+  if (transport !== "whatsapp_cloud") {
+    return undefined;
+  }
+
+  const apiKey = (env.ARKESEL_API_KEY ?? "").trim();
+  const senderId = (env.SMS_SENDER_ID ?? "").trim();
+  if (apiKey === "" || senderId === "") {
+    return undefined;
+  }
+
+  return {
+    apiKey,
+    senderId,
+    timeoutMs: parsePositiveInteger(env.ARKESEL_TIMEOUT_MS, 10_000),
   };
 }
 

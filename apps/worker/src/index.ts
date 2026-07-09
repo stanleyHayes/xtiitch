@@ -2,7 +2,10 @@ import "dotenv/config";
 
 import { Queue, QueueEvents, Worker } from "bullmq";
 
-import { PostgresSubscriptionBillingSweepStore, runSubscriptionBillingSweep } from "./billing";
+import {
+  PostgresSubscriptionBillingSweepStore,
+  runSubscriptionBillingSweep,
+} from "./billing";
 import { loadConfig } from "./config";
 import { drainOutbox, PostgresOutboxStore } from "./outbox";
 import { createNotificationSender } from "./senders";
@@ -14,13 +17,18 @@ const billingSweepJobId = "subscription-billing-sweep";
 
 const config = loadConfig();
 const store = new PostgresOutboxStore(config.databaseUrl);
-const billingStore = new PostgresSubscriptionBillingSweepStore(config.databaseUrl);
+const billingStore = new PostgresSubscriptionBillingSweepStore(
+  config.databaseUrl,
+);
 const sender = createNotificationSender({
   transport: config.notificationTransport,
   http: config.notificationHttp,
   whatsappCloud: config.whatsappCloud,
+  arkesel: config.arkesel,
 });
-const queue = new Queue(config.queueName, { connection: config.redisConnection });
+const queue = new Queue(config.queueName, {
+  connection: config.redisConnection,
+});
 
 const worker = new Worker(
   config.queueName,
@@ -38,7 +46,10 @@ const worker = new Worker(
             maxDelayMs: config.outboxRetryMaxDelayMs,
           },
         });
-        console.log({ jobId: job.id, ...summary }, "notification outbox drained");
+        console.log(
+          { jobId: job.id, ...summary },
+          "notification outbox drained",
+        );
         return;
       }
       case billingSweepJobName: {
@@ -59,13 +70,18 @@ const worker = new Worker(
         return;
       }
       default:
-        console.log({ jobId: job.id, jobName: job.name }, "ignored unsupported worker job");
+        console.log(
+          { jobId: job.id, jobName: job.name },
+          "ignored unsupported worker job",
+        );
     }
   },
   { connection: config.redisConnection, concurrency: 1 },
 );
 
-const events = new QueueEvents(config.queueName, { connection: config.redisConnection });
+const events = new QueueEvents(config.queueName, {
+  connection: config.redisConnection,
+});
 
 events.on("failed", ({ jobId, failedReason }) => {
   console.error({ jobId, failedReason }, "job failed");
@@ -82,7 +98,15 @@ if (config.outboxDrainEnabled) {
       removeOnFail: 50,
     },
   );
-  await queue.add(drainJobName, {}, { jobId: `${drainJobId}-startup`, removeOnComplete: true, removeOnFail: 50 });
+  await queue.add(
+    drainJobName,
+    {},
+    {
+      jobId: `${drainJobId}-startup`,
+      removeOnComplete: true,
+      removeOnFail: 50,
+    },
+  );
   console.log(
     {
       queueName: config.queueName,
