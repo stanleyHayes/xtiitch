@@ -1483,6 +1483,24 @@ Diff vs the version above:
 - **§12 login session:** "3× longer" = specifically **~3 hours** — set the session TTL accordingly.
 - **§4 bug:** generalized ("one shop has 10 designs, only 4 show") — not tied to a named shop.
 
+### Session progress (2026-07-10, this build session)
+Shipped & pushed to main this session (backend-first; dashboard UI in flight):
+- `3a132f0` signup: require explicit plan choice before "Create store" (no auto-forward).
+- `dd75f96` marketplace: show ALL stores/designs (LEFT join + no LIMIT 4); session TTLs (access 3h, refresh 90d, customer 90d) [§12].
+- `ad0a4d9` §5/§10 catalogue tidy + measurements page.
+- `9d5e27a` P0.6a per-design fee+cap in cart.
+- `1446894` §1b colour-variations BACKEND.
+- `0ad9eb3` §1a/6 size-band overrides + §1c bespoke-display BACKEND.
+- `64816a5` §2 customise view + §1b storefront swatches + §3a remove contact fields (cart-first).
+- `7c3cd5d` §11 per-day availability BACKEND (date windows + blackout days).
+- `44da992` §9 per-stage-change customer notification + per-stage SMS wording (worker).
+- `3be39ea` migrations renumbered 000072-74 → 000076-78 (were BELOW applied 000075 → would be skipped by golang-migrate); made idempotent. See [[migration-numbering-golang-migrate]].
+- `9c35bff` `GET /stages` (business stage templates) for the §9 four-stage board.
+
+IN FLIGHT (background agents): dashboard.tsx Wave-3 UI (§9 board, §11 per-day, §1b editor, §1c field, §1a/6 override, §8 forms reset, P0.5 payout setup UI); storefront §7 share-link 404 fix.
+
+DECISION — P0.5 marketplace gate NOT applied: `ListPublicShops` deliberately lists ALL active stores regardless of payout verification (documented §4 / v1-review decision: "newly created stores must appear automatically"). Gating the LISTING on a provisioned subaccount would reverse that. Reconciliation: keep the directory open; the money path is already gated server-side (online_ordering benefit + Paystack init fails without a subaccount). Only the payout SETUP UI + onboarding banner is built (dashboard). Revisit only if the user wants unverified stores hidden.
+
 ### Cross-check audit → BUILD QUEUE (2026-07-10, verified vs code)
 DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3 AI addon (also removed from v2), 3d CRM, single-store Paystack direct split, §3b delivery. Remaining gaps, priority order:
 
