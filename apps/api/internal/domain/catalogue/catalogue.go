@@ -24,6 +24,11 @@ type Design struct {
 	Handle               string
 	Status               Status
 	Sequence             int
+	// BespokeDisplayMinor is the indicative/shown price for a bespoke (custom)
+	// order, in GHS pesewas, distinct from the deposit that is actually collected
+	// (DepositOverrideMinor). 0 means unset / not shown. Only meaningful on a
+	// customisation design; coerced to 0 otherwise.
+	BespokeDisplayMinor int64
 	// Variations are the design's stored colour variations (each a colour name +
 	// an ordered image set). The design itself is the implicit default variation,
 	// so this holds only the ADDITIONAL colour-labelled sets. Empty on list reads;
@@ -111,4 +116,48 @@ type BandPrice struct {
 	// storefront alongside the price. Empty when the band has no chart, or when
 	// loaded from a context that does not need it (e.g. the dashboard price board).
 	Chart []SizeChartItem
+}
+
+// DesignSizeBandOverride is a single design's override of one master size band's
+// label and/or chart (Xtiitch-Updates §1a/§6). It is scoped to exactly one
+// (design, size band): it never affects the master band or any other design. A
+// nil Label inherits the master band's label; ChartSet==false inherits the master
+// band's chart (ChartSet==true overrides it, even with an empty Chart).
+type DesignSizeBandOverride struct {
+	OverrideID common.ID
+	DesignID   common.ID
+	BusinessID common.ID
+	SizeBandID common.ID
+	Label      *string
+	Chart      []SizeChartItem
+	ChartSet   bool
+}
+
+// ApplyBandOverrides resolves the EFFECTIVE label/chart for a design's priced size
+// bands by layering the design's overrides on top of the master band values:
+// override wins per field, master otherwise. It returns a new slice and never
+// mutates the input prices. Overrides that match no priced band are ignored.
+func ApplyBandOverrides(prices []BandPrice, overrides []DesignSizeBandOverride) []BandPrice {
+	if len(prices) == 0 || len(overrides) == 0 {
+		return prices
+	}
+	byBand := make(map[common.ID]DesignSizeBandOverride, len(overrides))
+	for _, override := range overrides {
+		byBand[override.SizeBandID] = override
+	}
+	resolved := make([]BandPrice, len(prices))
+	copy(resolved, prices)
+	for i := range resolved {
+		override, ok := byBand[resolved[i].SizeBandID]
+		if !ok {
+			continue
+		}
+		if override.Label != nil {
+			resolved[i].Label = *override.Label
+		}
+		if override.ChartSet {
+			resolved[i].Chart = override.Chart
+		}
+	}
+	return resolved
 }

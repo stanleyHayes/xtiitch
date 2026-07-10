@@ -72,6 +72,12 @@ type CatalogueRepository interface {
 
 	SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error
 	ListDesignPrices(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.BandPrice, error)
+
+	// Per-design size-band overrides: a design may override a master band's label
+	// and/or chart without affecting the master or other designs.
+	SetDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, input DesignSizeBandOverrideInput) error
+	DeleteDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID) error
+	ListDesignSizeBandOverrides(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignSizeBandOverride, error)
 }
 
 type CollectionInput struct {
@@ -103,8 +109,23 @@ type DesignInput struct {
 	Images               []string
 	CustomisationAllowed bool
 	DepositOverrideMinor *int64
+	BespokeDisplayMinor  int64
 	Handle               string
 	Sequence             int
+}
+
+// DesignSizeBandOverrideInput upserts one design's override of a master size
+// band's label and/or chart. A nil Label leaves the master band's label in place;
+// ChartSet==false leaves the master band's chart in place (ChartSet==true
+// overrides it, even with an empty Chart).
+type DesignSizeBandOverrideInput struct {
+	OverrideID common.ID
+	DesignID   common.ID
+	BusinessID common.ID
+	SizeBandID common.ID
+	Label      *string
+	Chart      []catalogue.SizeChartItem
+	ChartSet   bool
 }
 
 // DesignVariationInput creates one stored colour variation for a design. A

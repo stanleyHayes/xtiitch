@@ -418,6 +418,249 @@ func TestCreateDesignVariationRejectsEmptyName(t *testing.T) {
 	}
 }
 
+// --- Bespoke display amount (Xtiitch-Updates §1c) ---
+
+func TestCustomisationDesignKeepsBespokeDisplayAmount(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
+		Title:                "Bespoke gown",
+		CustomisationAllowed: true,
+		BespokeDisplayMinor:  45000,
+	})
+	if err != nil {
+		t.Fatalf("create design: %v", err)
+	}
+	if repo.design.BespokeDisplayMinor != 45000 {
+		t.Fatalf("bespoke display amount not persisted, got %d", repo.design.BespokeDisplayMinor)
+	}
+}
+
+func TestMadeToWearDesignDropsBespokeDisplayAmount(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
+		Title:                "Listed dress",
+		CustomisationAllowed: false,
+		BespokeDisplayMinor:  45000,
+	})
+	if err != nil {
+		t.Fatalf("create design: %v", err)
+	}
+	if repo.design.BespokeDisplayMinor != 0 {
+		t.Fatalf("made-to-wear design must not carry a bespoke display amount, got %d", repo.design.BespokeDisplayMinor)
+	}
+}
+
+func TestUpdateDesignRoundTripsBespokeDisplayAmount(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	err := service.UpdateDesign(context.Background(), DesignCommand{
+		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
+		DesignID:             "design-1",
+		Title:                "Bespoke gown",
+		CustomisationAllowed: true,
+		BespokeDisplayMinor:  60000,
+	})
+	if err != nil {
+		t.Fatalf("update design: %v", err)
+	}
+	if repo.design.BespokeDisplayMinor != 60000 {
+		t.Fatalf("bespoke display amount not round-tripped, got %d", repo.design.BespokeDisplayMinor)
+	}
+}
+
+func TestDesignRejectsNegativeBespokeDisplayAmount(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
+		Title:                "Bad",
+		CustomisationAllowed: true,
+		BespokeDisplayMinor:  -1,
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input, got %v", err)
+	}
+	if repo.created {
+		t.Fatal("must not create a design with a negative bespoke display amount")
+	}
+}
+
+// --- Per-design size-band overrides (Xtiitch-Updates §1a/§6) ---
+
+func TestApplyBandOverridesResolvesEffectiveLabelAndChart(t *testing.T) {
+	t.Parallel()
+	label := "Petite"
+	master := []catalogue.BandPrice{
+		{SizeBandID: "band-1", Label: "Small", PriceMinor: 10000, Chart: []catalogue.SizeChartItem{{Name: "Bust", Value: "34", Unit: "in"}}},
+		{SizeBandID: "band-2", Label: "Medium", PriceMinor: 12000},
+	}
+	overrides := []catalogue.DesignSizeBandOverride{
+		{SizeBandID: "band-1", Label: &label, ChartSet: true, Chart: []catalogue.SizeChartItem{{Name: "Bust", Value: "30", Unit: "in"}}},
+	}
+
+	got := catalogue.ApplyBandOverrides(master, overrides)
+	if got[0].Label != "Petite" || len(got[0].Chart) != 1 || got[0].Chart[0].Value != "30" {
+		t.Fatalf("override band should win, got %+v", got[0])
+	}
+	if got[1].Label != "Medium" {
+		t.Fatalf("unmatched band must keep master label, got %+v", got[1])
+	}
+	// The input must not be mutated.
+	if master[0].Label != "Small" || master[0].Chart[0].Value != "34" {
+		t.Fatalf("master prices were mutated: %+v", master[0])
+	}
+}
+
+func TestApplyBandOverridesInheritsUnsetFields(t *testing.T) {
+	t.Parallel()
+	label := "Tiny"
+	master := []catalogue.BandPrice{
+		{SizeBandID: "band-1", Label: "Small", Chart: []catalogue.SizeChartItem{{Name: "Bust", Value: "34", Unit: "in"}}},
+	}
+	// Label-only override: ChartSet false must leave the master chart in place.
+	overrides := []catalogue.DesignSizeBandOverride{{SizeBandID: "band-1", Label: &label}}
+
+	got := catalogue.ApplyBandOverrides(master, overrides)
+	if got[0].Label != "Tiny" {
+		t.Fatalf("label override should win, got %q", got[0].Label)
+	}
+	if len(got[0].Chart) != 1 || got[0].Chart[0].Value != "34" {
+		t.Fatalf("unset chart override must inherit master chart, got %+v", got[0].Chart)
+	}
+}
+
+func TestListDesignPricesAppliesSizeBandOverride(t *testing.T) {
+	t.Parallel()
+	label := "Petite"
+	repo := &fakeCatalogueRepo{
+		listDesignPricesFunc: func() []catalogue.BandPrice {
+			return []catalogue.BandPrice{
+				{SizeBandID: "band-1", Label: "Small", PriceMinor: 10000},
+			}
+		},
+		overrides: []catalogue.DesignSizeBandOverride{
+			{SizeBandID: "band-1", Label: &label, ChartSet: true, Chart: []catalogue.SizeChartItem{{Name: "Waist", Value: "28", Unit: "in"}}},
+		},
+	}
+	service := newService(repo)
+
+	prices, err := service.ListDesignPrices(context.Background(), common.TenantScope{BusinessID: "business-1"}, "design-1")
+	if err != nil {
+		t.Fatalf("list design prices: %v", err)
+	}
+	if len(prices) != 1 || prices[0].Label != "Petite" || prices[0].Chart[0].Value != "28" {
+		t.Fatalf("dashboard price read should show effective override, got %+v", prices)
+	}
+}
+
+func TestSetDesignSizeBandOverrideNormalizesAndRecords(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+	label := "  Petite  "
+
+	err := service.SetDesignSizeBandOverride(context.Background(), SetDesignSizeBandOverrideCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleOwner,
+		DesignID:   "design-1",
+		SizeBandID: "band-1",
+		Label:      &label,
+		ChartSet:   true,
+		Chart:      []catalogue.SizeChartItem{{Name: " Bust ", Value: "30", Unit: "IN"}},
+	})
+	if err != nil {
+		t.Fatalf("set override: %v", err)
+	}
+	if !repo.overrideWasSet {
+		t.Fatal("expected the override to be written")
+	}
+	if repo.overrideSet.Label == nil || *repo.overrideSet.Label != "Petite" {
+		t.Fatalf("label should be trimmed, got %v", repo.overrideSet.Label)
+	}
+	if !repo.overrideSet.ChartSet || len(repo.overrideSet.Chart) != 1 || repo.overrideSet.Chart[0].Unit != "in" || repo.overrideSet.Chart[0].Name != "Bust" {
+		t.Fatalf("chart should be normalized, got %+v", repo.overrideSet.Chart)
+	}
+	if repo.overrideSet.BusinessID != "business-1" {
+		t.Fatalf("override must be scoped to the tenant, got %q", repo.overrideSet.BusinessID)
+	}
+}
+
+func TestSetDesignSizeBandOverrideRejectsEmpty(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	// Neither a label nor a chart is an empty (no-op) override.
+	err := service.SetDesignSizeBandOverride(context.Background(), SetDesignSizeBandOverrideCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleOwner,
+		DesignID:   "design-1",
+		SizeBandID: "band-1",
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input, got %v", err)
+	}
+	if repo.overrideWasSet {
+		t.Fatal("must not write an empty override")
+	}
+}
+
+func TestSetDesignSizeBandOverrideRequiresOwnerOrAdmin(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+	label := "Petite"
+
+	err := service.SetDesignSizeBandOverride(context.Background(), SetDesignSizeBandOverrideCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleStaff,
+		DesignID:   "design-1",
+		SizeBandID: "band-1",
+		Label:      &label,
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected forbidden for staff, got %v", err)
+	}
+	if repo.overrideWasSet {
+		t.Fatal("staff must not be able to set an override")
+	}
+}
+
+func TestDeleteDesignSizeBandOverride(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	err := service.DeleteDesignSizeBandOverride(context.Background(), DeleteDesignSizeBandOverrideCommand{
+		Scope:      common.TenantScope{BusinessID: "business-1"},
+		ActorRole:  business.UserRoleAdmin,
+		DesignID:   "design-1",
+		SizeBandID: "band-1",
+	})
+	if err != nil {
+		t.Fatalf("delete override: %v", err)
+	}
+	if !repo.overrideWasDeleted || repo.overrideDeletedBand != "band-1" {
+		t.Fatalf("expected the band override to be cleared, got deleted=%v band=%q", repo.overrideWasDeleted, repo.overrideDeletedBand)
+	}
+}
+
 type fakeCatalogueRepo struct {
 	created            bool
 	design             ports.DesignInput
@@ -437,6 +680,13 @@ type fakeCatalogueRepo struct {
 	deletedVariation   common.ID
 	reorderedDesign    common.ID
 	reorderedIDs       []common.ID
+
+	overrides            []catalogue.DesignSizeBandOverride
+	overrideSet          ports.DesignSizeBandOverrideInput
+	overrideWasSet       bool
+	overrideDeletedBand  common.ID
+	overrideWasDeleted   bool
+	listDesignPricesFunc func() []catalogue.BandPrice
 }
 
 func (r *fakeCatalogueRepo) CreateDesign(_ context.Context, _ common.TenantScope, input ports.DesignInput) error {
@@ -496,7 +746,23 @@ func (r *fakeCatalogueRepo) SetDesignPrice(_ context.Context, _ common.TenantSco
 	return nil
 }
 func (r *fakeCatalogueRepo) ListDesignPrices(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.BandPrice, error) {
+	if r.listDesignPricesFunc != nil {
+		return r.listDesignPricesFunc(), nil
+	}
 	return nil, nil
+}
+func (r *fakeCatalogueRepo) SetDesignSizeBandOverride(_ context.Context, _ common.TenantScope, input ports.DesignSizeBandOverrideInput) error {
+	r.overrideWasSet = true
+	r.overrideSet = input
+	return nil
+}
+func (r *fakeCatalogueRepo) DeleteDesignSizeBandOverride(_ context.Context, _ common.TenantScope, _ common.ID, sizeBandID common.ID) error {
+	r.overrideWasDeleted = true
+	r.overrideDeletedBand = sizeBandID
+	return nil
+}
+func (r *fakeCatalogueRepo) ListDesignSizeBandOverrides(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.DesignSizeBandOverride, error) {
+	return r.overrides, nil
 }
 func (r *fakeCatalogueRepo) ListDesignVariations(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.DesignVariation, error) {
 	return r.variations, nil

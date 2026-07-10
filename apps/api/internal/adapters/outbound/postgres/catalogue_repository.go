@@ -148,12 +148,14 @@ func (repo CatalogueRepository) CreateDesign(ctx context.Context, scope common.T
 		_, err := tx.Exec(ctx, `
 			insert into designs (
 				design_id, business_id, collection_id, title, description, images,
-				customisation_allowed, deposit_override_minor, handle, status, sequence
+				customisation_allowed, deposit_override_minor, bespoke_display_minor,
+				handle, status, sequence
 			)
-			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active', $10)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', $11)
 		`, input.DesignID.String(), input.BusinessID.String(), nullableIDArg(input.CollectionID),
 			input.Title, input.Description, images, input.CustomisationAllowed,
-			nullableInt64Arg(input.DepositOverrideMinor), input.Handle, input.Sequence)
+			nullableInt64Arg(input.DepositOverrideMinor), input.BespokeDisplayMinor,
+			input.Handle, input.Sequence)
 		return err
 	})
 }
@@ -165,7 +167,7 @@ func scanDesign(rows pgx.Rows) (catalogue.Design, error) {
 	var status string
 	if err := rows.Scan(
 		&d.ID, &d.BusinessID, &collectionID, &d.Title, &d.Description, &d.Images,
-		&d.CustomisationAllowed, &depositOverride, &d.Handle, &status, &d.Sequence,
+		&d.CustomisationAllowed, &depositOverride, &d.BespokeDisplayMinor, &d.Handle, &status, &d.Sequence,
 	); err != nil {
 		return catalogue.Design{}, err
 	}
@@ -182,7 +184,7 @@ func scanDesign(rows pgx.Rows) (catalogue.Design, error) {
 }
 
 const designColumns = `design_id, business_id, collection_id, title, description, images,
-	customisation_allowed, deposit_override_minor, handle, status, sequence`
+	customisation_allowed, deposit_override_minor, bespoke_display_minor, handle, status, sequence`
 
 func (repo CatalogueRepository) ListDesigns(ctx context.Context, scope common.TenantScope) ([]catalogue.Design, error) {
 	var designs []catalogue.Design
@@ -242,12 +244,13 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 		tag, err := tx.Exec(ctx, `
 			update designs
 			set collection_id = $3, title = $4, description = $5, images = $6,
-				customisation_allowed = $7, deposit_override_minor = $8, sequence = $9,
+				customisation_allowed = $7, deposit_override_minor = $8,
+				bespoke_display_minor = $9, sequence = $10,
 				updated_at = now()
 			where design_id = $1 and business_id = $2 and status <> 'deleted'
 		`, input.DesignID.String(), scope.BusinessID.String(), nullableIDArg(input.CollectionID),
 			input.Title, input.Description, images, input.CustomisationAllowed,
-			nullableInt64Arg(input.DepositOverrideMinor), input.Sequence)
+			nullableInt64Arg(input.DepositOverrideMinor), input.BespokeDisplayMinor, input.Sequence)
 		if err != nil {
 			return err
 		}
@@ -438,7 +441,7 @@ func (repo CatalogueRepository) ListDesignPrices(ctx context.Context, scope comm
 	var prices []catalogue.BandPrice
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
-			select dp.size_band_id, sb.label, dp.price_minor
+			select dp.size_band_id, sb.label, dp.price_minor, sb.chart
 			from design_prices dp
 			join size_bands sb on sb.size_band_id = dp.size_band_id
 			where dp.design_id = $1 and dp.business_id = $2
@@ -451,14 +454,118 @@ func (repo CatalogueRepository) ListDesignPrices(ctx context.Context, scope comm
 
 		for rows.Next() {
 			var p catalogue.BandPrice
-			if err := rows.Scan(&p.SizeBandID, &p.Label, &p.PriceMinor); err != nil {
+			var chartRaw []byte
+			if err := rows.Scan(&p.SizeBandID, &p.Label, &p.PriceMinor, &chartRaw); err != nil {
 				return err
 			}
+			p.Chart = unmarshalSizeChart(chartRaw)
 			prices = append(prices, p)
 		}
 		return rows.Err()
 	})
 	return prices, err
+}
+
+// --- Per-design size-band overrides ---
+
+func (repo CatalogueRepository) SetDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, input ports.DesignSizeBandOverrideInput) error {
+	var labelArg any
+	if input.Label != nil {
+		labelArg = *input.Label
+	}
+	// chartArg stays nil (SQL NULL, "inherit master chart") unless ChartSet; when
+	// set it is the {"items":[...]} document ('{}' when the chart is blanked).
+	var chartArg any
+	if input.ChartSet {
+		chartJSON, err := marshalSizeChart(input.Chart)
+		if err != nil {
+			return err
+		}
+		chartArg = chartJSON
+	}
+	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		// The design and band FKs are validated by Postgres cross-tenant (FK checks
+		// bypass RLS), so confirm both belong to this business before writing —
+		// mirrors the colour-variation ownership guard.
+		if err := ensureDesignExists(ctx, tx, input.DesignID, input.BusinessID); err != nil {
+			return err
+		}
+		if err := ensureSizeBandExists(ctx, tx, input.SizeBandID, input.BusinessID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `
+			insert into design_size_band_overrides (
+				override_id, design_id, business_id, size_band_id, label, chart
+			)
+			values ($1, $2, $3, $4, $5, $6)
+			on conflict (design_id, size_band_id)
+			do update set label = excluded.label, chart = excluded.chart, updated_at = now()
+		`, input.OverrideID.String(), input.DesignID.String(), input.BusinessID.String(),
+			input.SizeBandID.String(), labelArg, chartArg)
+		return err
+	})
+}
+
+func (repo CatalogueRepository) DeleteDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID) error {
+	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		// Idempotent clear: reverting a band with no override in place is a no-op.
+		_, err := tx.Exec(ctx, `
+			delete from design_size_band_overrides
+			where design_id = $1 and size_band_id = $2 and business_id = $3
+		`, designID.String(), sizeBandID.String(), scope.BusinessID.String())
+		return err
+	})
+}
+
+func (repo CatalogueRepository) ListDesignSizeBandOverrides(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignSizeBandOverride, error) {
+	var overrides []catalogue.DesignSizeBandOverride
+	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			select override_id, design_id, business_id, size_band_id, label, chart
+			from design_size_band_overrides
+			where design_id = $1 and business_id = $2
+		`, designID.String(), scope.BusinessID.String())
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var o catalogue.DesignSizeBandOverride
+			var label sql.NullString
+			var chartRaw []byte
+			if err := rows.Scan(&o.OverrideID, &o.DesignID, &o.BusinessID, &o.SizeBandID, &label, &chartRaw); err != nil {
+				return err
+			}
+			if label.Valid {
+				value := label.String
+				o.Label = &value
+			}
+			// A non-NULL chart column (even '{}') is an explicit chart override;
+			// NULL inherits the master band's chart.
+			if chartRaw != nil {
+				o.ChartSet = true
+				o.Chart = unmarshalSizeChart(chartRaw)
+			}
+			overrides = append(overrides, o)
+		}
+		return rows.Err()
+	})
+	return overrides, err
+}
+
+// ensureSizeBandExists verifies that a size band belongs to the business. Like
+// ensureDesignExists, this guards FK targets that Postgres validates cross-tenant.
+func ensureSizeBandExists(ctx context.Context, tx pgx.Tx, sizeBandID common.ID, businessID common.ID) error {
+	var exists bool
+	err := tx.QueryRow(ctx, `
+		select true from size_bands
+		where size_band_id = $1 and business_id = $2
+	`, sizeBandID.String(), businessID.String()).Scan(&exists)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	return err
 }
 
 // --- Design colour variations ---

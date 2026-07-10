@@ -66,6 +66,10 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Put("/designs/{id}/prices/{bandId}", handler.setPrice)
 		protected.Get("/designs/{id}/prices", handler.listPrices)
 
+		protected.Get("/designs/{id}/size-band-overrides", handler.listSizeBandOverrides)
+		protected.Put("/designs/{id}/size-bands/{bandId}/override", handler.setSizeBandOverride)
+		protected.Delete("/designs/{id}/size-bands/{bandId}/override", handler.clearSizeBandOverride)
+
 		protected.Get("/designs/{id}/variations", handler.listVariations)
 		protected.Post("/designs/{id}/variations", handler.createVariation)
 		protected.Post("/designs/{id}/variations/reorder", handler.reorderVariations)
@@ -373,6 +377,7 @@ type designBody struct {
 	Images               []string `json:"images"`
 	CustomisationAllowed bool     `json:"customisation_allowed"`
 	DepositOverrideMinor *int64   `json:"deposit_override_minor"`
+	BespokeDisplayMinor  int64    `json:"bespoke_display_minor"`
 	Sequence             int      `json:"sequence"`
 }
 
@@ -404,6 +409,7 @@ func (body designBody) toCommand(scope common.TenantScope, role business.UserRol
 		Images:               body.Images,
 		CustomisationAllowed: body.CustomisationAllowed,
 		DepositOverrideMinor: body.DepositOverrideMinor,
+		BespokeDisplayMinor:  body.BespokeDisplayMinor,
 		Sequence:             body.Sequence,
 	}
 	if body.CollectionID != nil && *body.CollectionID != "" {
@@ -658,6 +664,90 @@ func (handler Handler) listPrices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"prices": toPrices(prices)})
 }
 
+// --- per-design size-band overrides ---
+
+// sizeBandOverrideBody is the PUT payload. Both fields are optional pointers so an
+// absent key means "leave the master value in place": a nil label keeps the master
+// label; a nil chart keeps the master chart (a present chart, even [], overrides).
+type sizeBandOverrideBody struct {
+	Label *string              `json:"label"`
+	Chart *[]sizeChartItemBody `json:"chart"`
+}
+
+type sizeBandOverrideResponse struct {
+	SizeBandID string              `json:"size_band_id"`
+	Label      *string             `json:"label"`
+	Chart      []sizeChartItemBody `json:"chart"`
+	ChartSet   bool                `json:"chart_set"`
+}
+
+func (handler Handler) listSizeBandOverrides(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	overrides, err := handler.service.ListDesignSizeBandOverrides(r.Context(), scope, common.ID(chi.URLParam(r, "id")))
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	out := make([]sizeBandOverrideResponse, 0, len(overrides))
+	for _, o := range overrides {
+		out = append(out, sizeBandOverrideResponse{
+			SizeBandID: o.SizeBandID.String(),
+			Label:      o.Label,
+			Chart:      toSizeChartBody(o.Chart),
+			ChartSet:   o.ChartSet,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"overrides": out})
+}
+
+func (handler Handler) setSizeBandOverride(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body sizeBandOverrideBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	cmd := catalogueapp.SetDesignSizeBandOverrideCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		DesignID:   common.ID(chi.URLParam(r, "id")),
+		SizeBandID: common.ID(chi.URLParam(r, "bandId")),
+		Label:      body.Label,
+	}
+	if body.Chart != nil {
+		cmd.ChartSet = true
+		cmd.Chart = toSizeChartItems(*body.Chart)
+	}
+	if err := handler.service.SetDesignSizeBandOverride(r.Context(), cmd); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) clearSizeBandOverride(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteDesignSizeBandOverride(r.Context(), catalogueapp.DeleteDesignSizeBandOverrideCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		DesignID:   common.ID(chi.URLParam(r, "id")),
+		SizeBandID: common.ID(chi.URLParam(r, "bandId")),
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // --- design colour variations ---
 
 type variationBody struct {
@@ -904,6 +994,7 @@ type designResponse struct {
 	Images               []string            `json:"images"`
 	CustomisationAllowed bool                `json:"customisation_allowed"`
 	DepositOverrideMinor *int64              `json:"deposit_override_minor"`
+	BespokeDisplayMinor  int64               `json:"bespoke_display_minor"`
 	Handle               string              `json:"handle"`
 	Status               string              `json:"status"`
 	Sequence             int                 `json:"sequence"`
@@ -982,8 +1073,8 @@ func toDesignResponse(d catalogue.Design, prices []catalogue.BandPrice) designRe
 	resp := designResponse{
 		DesignID: d.ID.String(), Title: d.Title, Description: d.Description,
 		Images: images, CustomisationAllowed: d.CustomisationAllowed,
-		DepositOverrideMinor: d.DepositOverrideMinor, Handle: d.Handle,
-		Status: string(d.Status), Sequence: d.Sequence, Prices: toPrices(prices),
+		DepositOverrideMinor: d.DepositOverrideMinor, BespokeDisplayMinor: d.BespokeDisplayMinor,
+		Handle: d.Handle, Status: string(d.Status), Sequence: d.Sequence, Prices: toPrices(prices),
 		Variations: toVariationResponses(d.Variations),
 	}
 	if d.CollectionID != nil {
