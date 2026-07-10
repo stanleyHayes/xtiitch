@@ -28,11 +28,12 @@ create table if not exists design_size_band_overrides (
     unique (design_id, size_band_id)
 );
 
-create index design_size_band_overrides_design_idx
+create index if not exists design_size_band_overrides_design_idx
     on design_size_band_overrides (design_id);
 
 -- Tenant isolation under the project's hardened RLS shape (bypass-clause +
--- FORCE), mirroring migration 000070's subscription_reminders block.
+-- FORCE), mirroring migration 000070's subscription_reminders block. The policy
+-- creation is guarded so this migration is idempotent (safe to re-run).
 do $$
 declare
     tenant_table text;
@@ -42,10 +43,15 @@ begin
     foreach tenant_table in array array['design_size_band_overrides'] loop
         execute format('alter table %I enable row level security', tenant_table);
         execute format('alter table %I force row level security', tenant_table);
-        execute format(
-            'create policy %I on %I using %s with check %s',
-            tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using
-        );
+        if not exists (
+            select 1 from pg_policies
+            where tablename = tenant_table and policyname = tenant_table || '_tenant_isolation'
+        ) then
+            execute format(
+                'create policy %I on %I using %s with check %s',
+                tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using
+            );
+        end if;
     end loop;
 end $$;
 

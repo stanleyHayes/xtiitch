@@ -42,7 +42,8 @@ CREATE TABLE IF NOT EXISTS availability_blackouts (
 );
 
 -- Tenant isolation under the project's hardened RLS shape (bypass-clause +
--- FORCE), mirroring migration 000075's design_variations block.
+-- FORCE), mirroring migration 000075's design_variations block. The policy
+-- creation is guarded so this migration is idempotent (safe to re-run).
 DO $$
 DECLARE
     tenant_table text;
@@ -52,10 +53,15 @@ BEGIN
     FOREACH tenant_table IN ARRAY ARRAY['availability_blackouts'] LOOP
         EXECUTE format('alter table %I enable row level security', tenant_table);
         EXECUTE format('alter table %I force row level security', tenant_table);
-        EXECUTE format(
-            'create policy %I on %I using %s with check %s',
-            tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using
-        );
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_policies
+            WHERE tablename = tenant_table AND policyname = tenant_table || '_tenant_isolation'
+        ) THEN
+            EXECUTE format(
+                'create policy %I on %I using %s with check %s',
+                tenant_table || '_tenant_isolation', tenant_table, policy_using, policy_using
+            );
+        END IF;
     END LOOP;
 END $$;
 
