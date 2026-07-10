@@ -64,7 +64,9 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 				(select count(*) from designs d
 					where d.business_id = b.business_id and d.status = 'active')
 			from businesses b
-			join store_settings ss on ss.business_id = b.business_id
+			-- LEFT so a brand-new active store with no store_settings row still
+			-- appears in the directory (Updates §4: show ALL stores, none left out).
+			left join store_settings ss on ss.business_id = b.business_id
 			-- Every active (non-suspended) store is listed in the public directory
 			-- and "Discover other studios" as soon as it is created — payment
 			-- verification is not required to be discoverable (Version-one review:
@@ -109,8 +111,10 @@ func loadShopSamples(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]po
 		from designs d
 		where d.business_id = $1 and d.status = 'active'
 		order by d.sequence, d.title
-		limit 4
 	`, businessID.String())
+	// Updates §4 bug: return ALL active designs of the shop (was limited to 4, so
+	// the marketplace Designs tab only ever showed 4/shop). The shop card still
+	// slices to a few thumbnails client-side; the true count is design_count.
 	if err != nil {
 		return nil, err
 	}

@@ -30,10 +30,11 @@ const (
 	maxPasswordLength = 72
 	// accessTokenTTL bounds how long the dashboard can act on one access token
 	// before re-auth. The dashboard logs out on a 401, so this is effectively the
-	// inactivity timeout — kept at 60 min so switching tabs briefly does not drop
-	// the session (Version-one review: "30–60 minutes of inactivity").
-	accessTokenTTL  = 60 * time.Minute
-	refreshTokenTTL = 30 * 24 * time.Hour
+	// inactivity timeout. Updates spec §12: keep users signed in ~3× longer — a
+	// 3-hour access window so brief inactivity never drops the session.
+	accessTokenTTL = 3 * time.Hour
+	// refreshTokenTTL is the long-lived login window (Updates §12: 3× longer).
+	refreshTokenTTL = 90 * 24 * time.Hour
 	// mfaChallengeTTL bounds how long a password-verified caller has to present
 	// their second factor before the challenge token expires.
 	mfaChallengeTTL = 5 * time.Minute

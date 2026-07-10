@@ -1493,7 +1493,7 @@ DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3
 - `[ ]` **P0.4 marketplace multi-store split:** Paystack dynamic `split` (N subaccounts/shares) in the client + `ports.InitializeTransactionInput`; + 1.95% allocation across stores. Depends on item 4 + P0.5. Effort L.
 
 **Tier 1 — marketplace**
-- `[ ]` **4-bug:** marketplace shows 4/10 designs — `loadShopSamples` `LIMIT 4` (`storefront_repository.go:112`); Designs tab built from samples. Show ALL active designs; also make the `store_settings` join LEFT so no active store drops. Effort S. *(quick win)*
+- `[x]` **4-bug (done):** marketplace shows 4/10 designs — `loadShopSamples` `LIMIT 4` (`storefront_repository.go:112`); Designs tab built from samples. Show ALL active designs; also make the `store_settings` join LEFT so no active store drops. Effort S. *(quick win)*
 - `[ ]` **item 4 unified marketplace basket:** multi-store cart grouped by store_handle (stop cross-store wipe `cart.ts:72`); two separate cart contexts (subdomain single-shop vs apex unified, don't merge); per-store totals at checkout + per-store account grouping; marketplace design click stays on marketplace. Effort L.
 
 **Tier 2 — design + buying**
@@ -1508,7 +1508,7 @@ DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3
 **Tier 3 — fixes**
 - `[ ]` **5 catalogue tidy:** remove "Add collection" + "Add size band" buttons + cross-sections in their popups. Effort S. *(quick win)*
 - `[ ]` **10 measurements page:** remove SizeBandLibraryPanel, keep Measurement setup. Effort S. *(quick win)*
-- `[ ]` **12 session length:** triple session TTL (owner+customer refresh 30d→90d; consider access token → ~3h per v2 "3 hours"). Effort S. *(quick win)*
+- `[x]` **12 session length (done):** triple session TTL (owner+customer refresh 30d→90d; consider access token → ~3h per v2 "3 hours"). Effort S. *(quick win)*
 - `[ ]` **9 orders 4-stage board:** render all 4 stage columns from stage_templates (not just live orders); per-stage-change notification Kind + SMS wording per stage; customer account shows shop contact name+phone. Effort L.
 - `[ ]` **7 share links 404:** fix design/collection share URLs (→ /d/ /c/ or add redirect routes); deleted → "no longer available". Effort M.
 - `[ ]` **8 forms reset:** clear inline add-forms on success + close remaining modals lacking useCloseOnSuccess. Effort M.

@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	otpTTL           = 5 * time.Minute
-	maxOTPAttempts   = 5
-	customerTokenTTL = 30 * 24 * time.Hour
+	otpTTL         = 5 * time.Minute
+	maxOTPAttempts = 5
+	// Updates §12: keep customers signed in 3× longer (30d → 90d).
+	customerTokenTTL = 90 * 24 * time.Hour
 )
 
 var (
