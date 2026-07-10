@@ -36,6 +36,7 @@ import {
   type AvailabilitySlot,
   type CustomSizeMode,
   type Design,
+  type DesignVariation,
   type ReferralCode,
   type StoreSummary,
 } from "../lib/api";
@@ -136,10 +137,11 @@ export async function action({ request, params }: Route.ActionArgs) {
     String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
   const rewardCodes = rewardCodesFromForm(form);
 
-  if (intent === "add_to_cart") {
+  if (intent === "add_to_cart" || intent === "buy_now") {
     const designHandle = params.handle ?? "";
     const title = String(form.get("title") ?? "").trim();
     const image = String(form.get("image") ?? "").trim();
+    const note = String(form.get("note") ?? "").trim();
     const kind =
       String(form.get("kind") ?? "made_to_wear") === "bespoke"
         ? "bespoke"
@@ -214,8 +216,12 @@ export async function action({ request, params }: Route.ActionArgs) {
       amount_minor: amountMinor,
       size_mode: sizeMode,
       measurements,
+      note: note || undefined,
     });
-    return redirect("/cart", { headers: { "Set-Cookie": cookie } });
+    // Pay Now takes the shopper straight to checkout (where personal details are
+    // collected); Add to Cart lands on the cart. Neither collects contact here.
+    const destination = intent === "buy_now" ? "/checkout" : "/cart";
+    return redirect(destination, { headers: { "Set-Cookie": cookie } });
   }
 
   if (intent === "waitlist") {
@@ -258,6 +264,7 @@ export async function action({ request, params }: Route.ActionArgs) {
 
   if (intent === "custom") {
     const sizeMode = toCustomSizeMode(String(form.get("size_mode") ?? ""));
+    const note = String(form.get("note") ?? "").trim();
     if (!storeHandle || !sizeMode || !customerName || !customerEmail) {
       return actionFailure(
         rewardCodes,
@@ -286,6 +293,7 @@ export async function action({ request, params }: Route.ActionArgs) {
         ...attributionPayload(rewardCodes),
         slot_start: slotStart,
         address,
+        note: note || undefined,
       });
 
       if (!response.ok) {
@@ -320,6 +328,7 @@ export async function action({ request, params }: Route.ActionArgs) {
       method: sizeMode === "come_to_shop" ? undefined : method,
       ...rewardPayload(rewardCodes),
       measurements: sizeMode === "self_measure" ? measurements : undefined,
+      note: note || undefined,
     });
 
     if (!response.ok) {
@@ -336,33 +345,13 @@ export async function action({ request, params }: Route.ActionArgs) {
     return redirect(`/track/${response.result.order_id}`);
   }
 
-  const sizeBandId = String(form.get("size_band_id") ?? "").trim();
-  if (!storeHandle || !sizeBandId || !customerName || !customerEmail) {
-    return actionFailure(
-      rewardCodes,
-      "Add your name, email, and size before checkout.",
-      null,
-    );
-  }
-
-  const response = await api.placeOrder(storeHandle, {
-    design_handle: params.handle,
-    size_band_id: sizeBandId,
-    customer_name: customerName,
-    customer_phone: customerPhone,
-    customer_email: customerEmail,
-    method,
-    ...rewardPayload(rewardCodes),
-  });
-
-  if (!response.ok) {
-    return actionFailure(rewardCodes, checkoutMessage(response.error), null);
-  }
-
-  if (response.result.authorization_url) {
-    return redirect(response.result.authorization_url);
-  }
-  return redirect(`/track/${response.result.order_id}`);
+  // Made-to-wear and self-measure bespoke buys now flow through the cart (the
+  // add_to_cart / buy_now branch above); nothing else should reach here.
+  return actionFailure(
+    rewardCodes,
+    "Something went wrong. Please try again.",
+    null,
+  );
 }
 
 function actionFailure(
@@ -481,21 +470,6 @@ function attributionPayload(codes: RewardCodes) {
   };
 }
 
-function checkoutMessage(code: string): string {
-  switch (code) {
-    case "store_not_verified":
-      return "This store needs to finish payment verification before it can take online orders.";
-    case "promotion_unavailable":
-      return "That promo code is not available for this order. Check the code, remove it, or try a different reward.";
-    case "invalid_order":
-      return "Check the selected size and contact details, then try again.";
-    case "not_found":
-      return "This design is not available for ordering right now.";
-    default:
-      return "Checkout could not start. Please try again shortly.";
-  }
-}
-
 function customOrderMessage(code: string): string {
   switch (code) {
     case "store_not_verified":
@@ -523,11 +497,17 @@ function newAffiliateVisitorID(): string {
   return `xtv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 }
 
-function Gallery({ design }: { design: Design }) {
+function Gallery({
+  design,
+  images: variationImages,
+}: {
+  design: Design;
+  images: string[];
+}) {
   const fallback = "/images/storefront-atelier-review.webp";
-  const images = design.images.length > 0 ? design.images : [fallback];
+  const images = variationImages.length > 0 ? variationImages : [fallback];
   const [cover, setCover] = useState(images[0] ?? fallback);
-  const hasUploadedCover = design.images.includes(cover);
+  const hasUploadedCover = variationImages.includes(cover);
   return (
     <Box sx={{ position: { lg: "sticky" }, top: { lg: 24 } }}>
       <Box
@@ -602,9 +582,9 @@ function Gallery({ design }: { design: Design }) {
           ) : null}
         </Stack>
       </Box>
-      {design.images.length > 1 ? (
+      {images.length > 1 ? (
         <Stack direction="row" spacing={1.5} sx={{ mt: 1.5, flexWrap: "wrap" }}>
-          {design.images.slice(0, 5).map((src, index) => {
+          {images.slice(0, 5).map((src, index) => {
             const selected = src === cover;
             return (
               <Box
@@ -648,6 +628,124 @@ function Gallery({ design }: { design: Design }) {
   );
 }
 
+const DEFAULT_SWATCH_ID = "__default__";
+const GALLERY_FALLBACK = "/images/storefront-atelier-review.webp";
+
+type ColourSwatch = {
+  id: string;
+  label: string;
+  thumb: string;
+  images: string[];
+};
+
+// Builds the colour-swatch list: the design's own photos as the first ("default")
+// swatch, then each non-default variation ordered by sequence. Variations share
+// the design's price and order flow; only the gallery images differ.
+function buildSwatches(design: Design): ColourSwatch[] {
+  const base: ColourSwatch = {
+    id: DEFAULT_SWATCH_ID,
+    label: "Original",
+    thumb: design.images[0] ?? GALLERY_FALLBACK,
+    images: design.images,
+  };
+  const variations = (design.variations ?? [])
+    .filter((variation) => !variation.is_default)
+    .slice()
+    .sort((a, b) => a.sequence - b.sequence)
+    .map((variation: DesignVariation) => ({
+      id: variation.variation_id,
+      label: variation.name,
+      thumb: variation.images[0] ?? design.images[0] ?? GALLERY_FALLBACK,
+      images: variation.images.length > 0 ? variation.images : design.images,
+    }));
+  return [base, ...variations];
+}
+
+function ColourVariations({
+  swatches,
+  activeId,
+  onSelect,
+  brand,
+}: {
+  swatches: ColourSwatch[];
+  activeId: string;
+  onSelect: (id: string) => void;
+  brand: string;
+}) {
+  // Nothing to switch between when the design only has its default images.
+  if (swatches.length <= 1) {
+    return null;
+  }
+  return (
+    <Box sx={{ mt: 2.5 }}>
+      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 900 }}>
+        Colour variations
+      </Typography>
+      <Stack
+        direction="row"
+        spacing={1.25}
+        sx={{ flexWrap: "wrap", rowGap: 1.25 }}
+      >
+        {swatches.map((swatch) => {
+          const selected = swatch.id === activeId;
+          return (
+            <Stack
+              key={swatch.id}
+              spacing={0.5}
+              sx={{ alignItems: "center", width: 72 }}
+            >
+              <Box
+                component="button"
+                type="button"
+                onClick={() => onSelect(swatch.id)}
+                aria-label={`Show ${swatch.label} images`}
+                aria-pressed={selected}
+                sx={{
+                  width: 72,
+                  height: 90,
+                  p: 0,
+                  border: "2px solid",
+                  borderColor: selected ? brand : alpha(tokens.ink, 0.12),
+                  bgcolor: "transparent",
+                  cursor: "pointer",
+                  borderRadius: 1.5,
+                  overflow: "hidden",
+                  boxShadow: selected
+                    ? `0 0 0 3px ${alpha(brand, 0.16)}`
+                    : "none",
+                }}
+              >
+                <Box
+                  component="img"
+                  src={swatch.thumb}
+                  alt=""
+                  sx={{
+                    width: "100%",
+                    height: "100%",
+                    display: "block",
+                    objectFit: "cover",
+                  }}
+                />
+              </Box>
+              <Typography
+                variant="caption"
+                noWrap
+                sx={{
+                  maxWidth: 72,
+                  fontWeight: selected ? 900 : 600,
+                  color: selected ? "text.primary" : "text.secondary",
+                }}
+              >
+                {swatch.label}
+              </Typography>
+            </Stack>
+          );
+        })}
+      </Stack>
+    </Box>
+  );
+}
+
 function resolveDepositMinor(design: Design, store: StoreSummary): number {
   return design.deposit_override_minor ?? store.default_deposit_minor;
 }
@@ -680,19 +778,18 @@ function ContactFields() {
   );
 }
 
-function PaymentMethodField() {
+// A free-text note the shopper can leave for the store. Present on the made-to-
+// wear order and on all three bespoke options.
+function NoteField() {
   return (
     <TextField
-      select
-      name="method"
-      label="Payment method"
-      defaultValue="momo"
-      required
+      name="note"
+      label="Note for the store (optional)"
+      placeholder="Colour, fabric, timing, or any special request…"
       fullWidth
-    >
-      <MenuItem value="momo">Mobile money</MenuItem>
-      <MenuItem value="card">Card</MenuItem>
-    </TextField>
+      multiline
+      minRows={2}
+    />
   );
 }
 
@@ -1114,6 +1211,7 @@ function StandardOrderPanel({
   error,
   rewardCodes,
   referralPreview,
+  coverImage,
 }: {
   design: Design;
   store?: StoreSummary;
@@ -1121,6 +1219,7 @@ function StandardOrderPanel({
   error?: string | null;
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
+  coverImage: string;
 }) {
   const onlineOrderingEnabled = store?.online_ordering_enabled !== false;
   const canOrder =
@@ -1176,7 +1275,7 @@ function StandardOrderPanel({
             value={store?.handle ?? ""}
           />
           <input type="hidden" name="title" value={design.title} />
-          <input type="hidden" name="image" value={design.images[0] ?? ""} />
+          <input type="hidden" name="image" value={coverImage} />
           <input type="hidden" name="kind" value="made_to_wear" />
           <input
             type="hidden"
@@ -1204,12 +1303,11 @@ function StandardOrderPanel({
                 </MenuItem>
               ))}
             </TextField>
-            <ContactFields />
+            <NoteField />
             <RewardFields
               codes={rewardCodes}
               referralPreview={referralPreview}
             />
-            <PaymentMethodField />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
               <Button
                 type="submit"
@@ -1226,7 +1324,7 @@ function StandardOrderPanel({
               <Button
                 type="submit"
                 name="intent"
-                value="standard"
+                value="buy_now"
                 variant="contained"
                 size="large"
                 disabled={isSubmitting}
@@ -1869,6 +1967,90 @@ function VisitSlotFields({ slots }: { slots: AvailabilitySlot[] }) {
   );
 }
 
+// Self-measure bespoke: fill the size chart, leave a note, then Add to Cart or
+// Pay Now. Like the made-to-wear form, it carries no contact fields — personal
+// details are collected at checkout.
+function SelfMeasureForm({
+  design,
+  store,
+  isSubmitting,
+  rewardCodes,
+  referralPreview,
+  coverImage,
+}: {
+  design: Design;
+  store: StoreSummary;
+  isSubmitting: boolean;
+  rewardCodes: RewardCodes;
+  referralPreview?: ReferralCode | null;
+  coverImage: string;
+}) {
+  return (
+    <Form method="post">
+      <input type="hidden" name="store_handle" value={store.handle} />
+      <input type="hidden" name="size_mode" value="self_measure" />
+      <input type="hidden" name="title" value={design.title} />
+      <input type="hidden" name="image" value={coverImage} />
+      <input type="hidden" name="kind" value="bespoke" />
+      <input
+        type="hidden"
+        name="deposit_minor"
+        value={resolveDepositMinor(design, store)}
+      />
+      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+        <MeasurementInputs store={store} />
+        <NoteField />
+        <RewardFields codes={rewardCodes} referralPreview={referralPreview} />
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ alignItems: "stretch" }}
+        >
+          <Button
+            type="submit"
+            name="intent"
+            value="add_to_cart"
+            formNoValidate
+            variant="outlined"
+            size="large"
+            startIcon={<ShoppingBagRounded />}
+            disabled={isSubmitting}
+            sx={{ flex: 1 }}
+          >
+            Add deposit to cart
+          </Button>
+          <Button
+            type="submit"
+            name="intent"
+            value="buy_now"
+            variant="contained"
+            size="large"
+            disabled={isSubmitting}
+            sx={{
+              flex: 1,
+              "&.Mui-disabled": {
+                bgcolor: tokens.burgundy,
+                color: tokens.white,
+                opacity: 0.72,
+              },
+            }}
+          >
+            {isSubmitting ? (
+              <LoadingButtonLabel label="Opening checkout" />
+            ) : (
+              "Pay now"
+            )}
+          </Button>
+        </Stack>
+      </Stack>
+    </Form>
+  );
+}
+
+// Home-visit and come-to-shop keep their existing one-shot submit actions
+// (booking / reservation). These API routes require the shopper's contact
+// details up front and have no checkout step, so they still collect name and
+// email here (payment method now defaults to mobile money server-side).
 function CustomRouteForm({
   route,
   design,
@@ -1877,6 +2059,7 @@ function CustomRouteForm({
   rewardCodes,
   referralPreview,
   visitSlots,
+  coverImage,
 }: {
   route: CustomRoute;
   design: Design;
@@ -1885,154 +2068,82 @@ function CustomRouteForm({
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
   visitSlots: AvailabilitySlot[];
+  coverImage: string;
 }) {
+  if (!route.enabled) {
+    return (
+      <Alert severity="info" sx={{ mt: 1.5 }}>
+        {route.disabledReason}
+      </Alert>
+    );
+  }
   return (
-    <Box
-      sx={{
-        p: 1.5,
-        border: "1px solid",
-        borderColor: route.enabled
-          ? alpha(tokens.ink, 0.09)
-          : alpha(tokens.ink, 0.06),
-        borderRadius: "8px",
-        bgcolor: route.enabled
-          ? "rgba(var(--surface-rgb), 0.86)"
-          : alpha(tokens.ink, 0.025),
-      }}
-    >
-      <Stack direction="row" spacing={1.1} sx={{ alignItems: "flex-start" }}>
-        <Box
+    <Form method="post">
+      <input type="hidden" name="intent" value="custom" />
+      <input type="hidden" name="store_handle" value={store.handle} />
+      <input type="hidden" name="size_mode" value={route.mode} />
+      <input type="hidden" name="title" value={design.title} />
+      <input type="hidden" name="image" value={coverImage} />
+      <input type="hidden" name="kind" value="bespoke" />
+      <input
+        type="hidden"
+        name="deposit_minor"
+        value={resolveDepositMinor(design, store)}
+      />
+      <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+        {route.mode === "home_visit" ? (
+          <VisitSlotFields slots={visitSlots} />
+        ) : null}
+        {route.mode === "come_to_shop" ? (
+          <Alert severity="info">
+            Reserve now, then visit {store.name} to have your measurements taken
+            and settle payment in person.
+          </Alert>
+        ) : null}
+        <NoteField />
+        <ContactFields />
+        {route.takesPayment ? (
+          <RewardFields
+            codes={rewardCodes}
+            referralPreview={referralPreview}
+            includePromo={route.mode !== "home_visit"}
+          />
+        ) : null}
+        <Button
+          type="submit"
+          variant={route.takesPayment ? "contained" : "outlined"}
+          size="large"
+          disabled={isSubmitting}
           sx={{
-            width: 38,
-            height: 38,
-            borderRadius: "8px",
-            display: "grid",
-            placeItems: "center",
-            color: route.enabled ? tokens.burgundy : "text.disabled",
-            bgcolor: route.enabled
-              ? alpha(tokens.burgundy, 0.08)
-              : alpha(tokens.ink, 0.04),
-            flexShrink: 0,
+            "&.Mui-disabled": route.takesPayment
+              ? {
+                  bgcolor: tokens.burgundy,
+                  color: tokens.white,
+                  opacity: 0.72,
+                }
+              : {
+                  borderColor: alpha(tokens.burgundy, 0.42),
+                  color: tokens.burgundy,
+                  opacity: 0.72,
+                },
           }}
         >
-          {route.icon}
-        </Box>
-        <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: "center", flexWrap: "wrap" }}
-          >
-            <Typography sx={{ fontWeight: 950 }}>{route.title}</Typography>
-            <Chip
-              size="small"
-              label={route.takesPayment ? "Deposit" : "No online payment"}
-              sx={{
-                height: 24,
-                bgcolor: route.takesPayment
-                  ? alpha(tokens.burgundy, 0.08)
-                  : alpha(tokens.success, 0.1),
-                color: route.takesPayment ? tokens.burgundy : tokens.success,
-                fontWeight: 900,
-              }}
-            />
-          </Stack>
-          <Typography variant="body2" sx={{ mt: 0.5, color: "text.secondary" }}>
-            {route.helper}
-          </Typography>
-        </Box>
+          {isSubmitting ? (
+            <LoadingButtonLabel label="Submitting request" />
+          ) : (
+            route.buttonLabel
+          )}
+        </Button>
       </Stack>
-
-      {!route.enabled ? (
-        <Alert severity="info" sx={{ mt: 1.5 }}>
-          {route.disabledReason}
-        </Alert>
-      ) : (
-        <Form method="post">
-          <input type="hidden" name="intent" value="custom" />
-          <input type="hidden" name="store_handle" value={store.handle} />
-          <input type="hidden" name="size_mode" value={route.mode} />
-          <input type="hidden" name="title" value={design.title} />
-          <input type="hidden" name="image" value={design.images[0] ?? ""} />
-          <input type="hidden" name="kind" value="bespoke" />
-          <input
-            type="hidden"
-            name="deposit_minor"
-            value={resolveDepositMinor(design, store)}
-          />
-          <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-            {route.showMeasurements ? (
-              <MeasurementInputs store={store} />
-            ) : null}
-            {route.mode === "home_visit" ? (
-              <VisitSlotFields slots={visitSlots} />
-            ) : null}
-            <ContactFields />
-            {route.takesPayment ? (
-              <>
-                <RewardFields
-                  codes={rewardCodes}
-                  referralPreview={referralPreview}
-                  includePromo={route.mode !== "home_visit"}
-                />
-                <PaymentMethodField />
-              </>
-            ) : null}
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={1}
-              sx={{ alignItems: "stretch" }}
-            >
-              {route.mode === "self_measure" ? (
-                <Button
-                  type="submit"
-                  name="intent"
-                  value="add_to_cart"
-                  formNoValidate
-                  variant="outlined"
-                  size="large"
-                  startIcon={<ShoppingBagRounded />}
-                  disabled={isSubmitting}
-                  sx={{ flex: 1 }}
-                >
-                  Add deposit to cart
-                </Button>
-              ) : null}
-              <Button
-                type="submit"
-                variant={route.takesPayment ? "contained" : "outlined"}
-                size="large"
-                disabled={isSubmitting}
-                sx={{
-                  flex: 1,
-                  "&.Mui-disabled": route.takesPayment
-                    ? {
-                        bgcolor: tokens.burgundy,
-                        color: tokens.white,
-                        opacity: 0.72,
-                      }
-                    : {
-                        borderColor: alpha(tokens.burgundy, 0.42),
-                        color: tokens.burgundy,
-                        opacity: 0.72,
-                      },
-                }}
-              >
-                {isSubmitting ? (
-                  <LoadingButtonLabel label="Submitting request" />
-                ) : (
-                  route.buttonLabel
-                )}
-              </Button>
-            </Stack>
-          </Stack>
-        </Form>
-      )}
-    </Box>
+    </Form>
   );
 }
 
-function BespokeOrderPanel({
+// The customise view: replaces the made-to-wear sizes/prices when the shopper
+// taps "Customise". Shows the bespoke deposit (only here, to avoid a price clash
+// with the listed prices), the three measurement routes, and reveals only the
+// chosen route's form.
+function BespokeCustomise({
   design,
   store,
   isSubmitting,
@@ -2040,6 +2151,7 @@ function BespokeOrderPanel({
   rewardCodes,
   referralPreview,
   visitSlots,
+  coverImage,
 }: {
   design: Design;
   store?: StoreSummary;
@@ -2048,7 +2160,10 @@ function BespokeOrderPanel({
   rewardCodes: RewardCodes;
   referralPreview?: ReferralCode | null;
   visitSlots: AvailabilitySlot[];
+  coverImage: string;
 }) {
+  const [selectedMode, setSelectedMode] = useState<CustomSizeMode | null>(null);
+
   const unavailableMessage = !store?.handle
     ? "This design needs a store connection before it can take bespoke requests."
     : !design.customisation_allowed
@@ -2061,15 +2176,18 @@ function BespokeOrderPanel({
     ? formatGHS(resolveDepositMinor(design, store))
     : "the deposit";
   const routes = store ? customRoutes(store, depositLabel, visitSlots) : [];
+  const activeRoute =
+    routes.find((route) => route.mode === selectedMode) ?? null;
 
   return (
     <Box
       sx={{
         p: { xs: 2, sm: 2.5 },
         border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.1),
+        borderColor: alpha(tokens.burgundy, 0.16),
         borderRadius: "8px",
-        bgcolor: "rgba(var(--surface-rgb), 0.92)",
+        bgcolor: "background.paper",
+        boxShadow: `0 18px 48px ${alpha(tokens.ink, 0.08)}`,
       }}
     >
       <Stack direction="row" spacing={1.2} sx={{ alignItems: "flex-start" }}>
@@ -2080,15 +2198,19 @@ function BespokeOrderPanel({
             borderRadius: "8px",
             display: "grid",
             placeItems: "center",
-            color: tokens.burgundy,
-            bgcolor: alpha(tokens.burgundy, 0.08),
+            color: tokens.white,
+            bgcolor: tokens.burgundy,
             flexShrink: 0,
           }}
         >
           <PointOfSaleRounded />
         </Box>
         <Box>
-          <Typography variant="h6">Request a bespoke fit</Typography>
+          <Typography variant="h6">Customise this piece</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Choose how you&apos;d like to be measured. The bespoke deposit is
+            the same for every option.
+          </Typography>
         </Box>
       </Stack>
 
@@ -2097,25 +2219,109 @@ function BespokeOrderPanel({
           {error}
         </Alert>
       ) : null}
+
       {unavailableMessage || !store ? (
         <Alert severity="info" sx={{ mt: 2 }}>
           {unavailableMessage}
         </Alert>
       ) : (
-        <Stack spacing={1.5} sx={{ mt: 2 }}>
-          {routes.map((route) => (
-            <CustomRouteForm
-              key={route.mode}
-              route={route}
-              design={design}
-              store={store}
-              isSubmitting={isSubmitting}
-              rewardCodes={rewardCodes}
-              referralPreview={referralPreview}
-              visitSlots={visitSlots}
-            />
-          ))}
-        </Stack>
+        <>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              mt: 2,
+              alignItems: "center",
+              justifyContent: "space-between",
+              p: 1.5,
+              borderRadius: "8px",
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.14),
+              bgcolor: alpha(tokens.burgundy, 0.05),
+            }}
+          >
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+              <PointOfSaleRounded sx={{ color: tokens.burgundy }} />
+              <Typography sx={{ fontWeight: 900 }}>Bespoke deposit</Typography>
+            </Stack>
+            <Typography sx={{ fontWeight: 950, color: "primary.main" }}>
+              {depositLabel}
+            </Typography>
+          </Stack>
+
+          <Typography sx={{ fontWeight: 900, mt: 2, mb: 1 }}>
+            How would you like to be measured?
+          </Typography>
+          <Box
+            sx={{
+              display: "grid",
+              gap: 1,
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(3, minmax(0, 1fr))",
+              },
+            }}
+          >
+            {routes.map((route) => {
+              const selected = route.mode === selectedMode;
+              return (
+                <Button
+                  key={route.mode}
+                  type="button"
+                  onClick={() => setSelectedMode(route.mode)}
+                  variant={selected ? "contained" : "outlined"}
+                  startIcon={route.icon}
+                  aria-pressed={selected}
+                  sx={{
+                    justifyContent: "flex-start",
+                    textTransform: "none",
+                    fontWeight: 900,
+                    px: 1.5,
+                    py: 1.25,
+                  }}
+                >
+                  {route.title}
+                </Button>
+              );
+            })}
+          </Box>
+
+          {activeRoute ? (
+            <Box sx={{ mt: 2 }}>
+              <Typography
+                variant="body2"
+                sx={{ color: "text.secondary", mb: 0.5 }}
+              >
+                {activeRoute.helper}
+              </Typography>
+              {activeRoute.mode === "self_measure" ? (
+                <SelfMeasureForm
+                  design={design}
+                  store={store}
+                  isSubmitting={isSubmitting}
+                  rewardCodes={rewardCodes}
+                  referralPreview={referralPreview}
+                  coverImage={coverImage}
+                />
+              ) : (
+                <CustomRouteForm
+                  route={activeRoute}
+                  design={design}
+                  store={store}
+                  isSubmitting={isSubmitting}
+                  rewardCodes={rewardCodes}
+                  referralPreview={referralPreview}
+                  visitSlots={visitSlots}
+                  coverImage={coverImage}
+                />
+              )}
+            </Box>
+          ) : (
+            <Alert severity="info" sx={{ mt: 2 }}>
+              Select an option above to continue.
+            </Alert>
+          )}
+        </>
       )}
     </Box>
   );
@@ -2321,6 +2527,35 @@ export default function DesignPage({
     ? "Listed size or bespoke"
     : "Listed sizes";
 
+  // Colour variations: the selected swatch drives which image set the gallery
+  // shows. Price and order flow are unchanged across variations.
+  const swatches = useMemo(() => buildSwatches(design), [design]);
+  const [activeSwatchId, setActiveSwatchId] = useState(
+    swatches[0]?.id ?? DEFAULT_SWATCH_ID,
+  );
+  const activeSwatch =
+    swatches.find((swatch) => swatch.id === activeSwatchId) ?? swatches[0];
+  const activeImages =
+    activeSwatch && activeSwatch.images.length > 0
+      ? activeSwatch.images
+      : design.images;
+  const coverImage = activeImages[0] ?? design.images[0] ?? GALLERY_FALLBACK;
+
+  // Made-to-wear is the default view; "Customise" swaps to the bespoke view when
+  // the store offers it. A bespoke-only design (no listed sizes) opens straight
+  // into the customise view, and a failed bespoke submit reopens it so the error
+  // is visible.
+  const canCustomise = Boolean(
+    store?.handle &&
+    design.customisation_allowed &&
+    store.settings.bespoke_enabled,
+  );
+  const [customising, setCustomising] = useState(
+    Boolean(actionData?.customError) ||
+      (canCustomise && design.prices.length === 0),
+  );
+  const priceHeadline = customising ? depositLabel : priceLabel(design.prices);
+
   return (
     <Box
       sx={{
@@ -2365,7 +2600,7 @@ export default function DesignPage({
             alignItems: "start",
           }}
         >
-          <Gallery design={design} />
+          <Gallery key={activeSwatchId} design={design} images={activeImages} />
 
           <Box sx={{ minWidth: 0 }}>
             <Box
@@ -2414,9 +2649,7 @@ export default function DesignPage({
                 variant="h5"
                 sx={{ mt: 1, color: "primary.main", fontWeight: 900 }}
               >
-                {design.customisation_allowed
-                  ? depositLabel
-                  : priceLabel(design.prices)}
+                {priceHeadline}
               </Typography>
 
               {design.description ? (
@@ -2432,9 +2665,9 @@ export default function DesignPage({
                 </Typography>
               ) : null}
 
-              {/* Only one price type is ever shown: the listed price for
-                  made-to-wear pieces, or the deposit for customisation pieces —
-                  never both. */}
+              {/* Only one price type is ever shown: the listed price on the
+                  default made-to-wear view, or the bespoke deposit once the
+                  customise view is open — never both. */}
               <Box
                 sx={{
                   mt: 2.5,
@@ -2446,7 +2679,7 @@ export default function DesignPage({
                   },
                 }}
               >
-                {design.customisation_allowed ? (
+                {customising ? (
                   <DetailSignal
                     icon={<PointOfSaleRounded />}
                     label="Deposit"
@@ -2466,39 +2699,67 @@ export default function DesignPage({
                 />
               </Box>
 
-              {!design.customisation_allowed ? (
+              <ColourVariations
+                swatches={swatches}
+                activeId={activeSwatchId}
+                onSelect={setActiveSwatchId}
+                brand={brand}
+              />
+
+              {customising ? (
+                <Box sx={{ mt: 2.5 }}>
+                  <Button
+                    type="button"
+                    variant="text"
+                    startIcon={<ArrowBackRounded />}
+                    onClick={() => setCustomising(false)}
+                    sx={{ px: 0, fontWeight: 800, color: "text.secondary" }}
+                  >
+                    Back to standard sizes
+                  </Button>
+                </Box>
+              ) : (
                 <Box sx={{ mt: 2.5 }}>
                   <SizePriceList design={design} />
+                  {canCustomise ? (
+                    <Button
+                      type="button"
+                      variant="outlined"
+                      fullWidth
+                      startIcon={<StraightenRounded />}
+                      onClick={() => setCustomising(true)}
+                      sx={{ mt: 2, fontWeight: 900 }}
+                    >
+                      Customise this piece
+                    </Button>
+                  ) : null}
                 </Box>
-              ) : null}
+              )}
             </Box>
 
-            <Box
-              sx={{
-                mt: 2,
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: { xs: "1fr", xl: "0.95fr 1.05fr" },
-                alignItems: "start",
-              }}
-            >
-              <StandardOrderPanel
-                design={design}
-                store={store}
-                isSubmitting={isSubmitting}
-                error={actionData?.standardError}
-                rewardCodes={rewardCodes}
-                referralPreview={referralPreview}
-              />
-              <BespokeOrderPanel
-                design={design}
-                store={store}
-                isSubmitting={isSubmitting}
-                error={actionData?.customError}
-                rewardCodes={rewardCodes}
-                referralPreview={referralPreview}
-                visitSlots={visitSlots}
-              />
+            <Box sx={{ mt: 2 }}>
+              {customising ? (
+                <BespokeCustomise
+                  design={design}
+                  store={store}
+                  isSubmitting={isSubmitting}
+                  error={actionData?.customError}
+                  rewardCodes={rewardCodes}
+                  referralPreview={referralPreview}
+                  visitSlots={visitSlots}
+                  coverImage={coverImage}
+                />
+              ) : (
+                <StandardOrderPanel
+                  design={design}
+                  store={store}
+                  isSubmitting={isSubmitting}
+                  error={actionData?.standardError}
+                  rewardCodes={rewardCodes}
+                  referralPreview={referralPreview}
+                  coverImage={coverImage}
+                />
+              )}
             </Box>
             <WaitlistPanel
               store={store}

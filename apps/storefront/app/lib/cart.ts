@@ -24,6 +24,9 @@ export type CartItem = {
   // carry the customer's measurements until checkout creates the draft order.
   size_mode?: "self_measure" | "home_visit" | "come_to_shop";
   measurements?: Record<string, string>;
+  // Optional free-text note the shopper attaches on the design page; carried to
+  // checkout so it reaches the store with the order.
+  note?: string;
 };
 
 type CartData = {

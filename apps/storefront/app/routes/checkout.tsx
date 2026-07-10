@@ -112,6 +112,7 @@ export async function action({ request }: Route.ActionArgs) {
       customer_whatsapp: customerWhatsApp,
       customer_email: customerEmail,
       method: "momo",
+      note: only.note || undefined,
     });
     if (!response.ok) {
       return failed;
@@ -137,6 +138,7 @@ export async function action({ request }: Route.ActionArgs) {
       kind: item.kind,
       size_mode: item.size_mode,
       measurements: item.measurements,
+      note: item.note || undefined,
     })),
     customer_name: customerName,
     customer_phone: customerPhone,

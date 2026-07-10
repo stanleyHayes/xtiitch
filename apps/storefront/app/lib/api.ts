@@ -55,6 +55,17 @@ export type BandPrice = {
   chart?: SizeChartItem[];
 };
 
+// A colour (or fabric) variation of a design. Shares the design's price and
+// order flow; only the images shown in the gallery differ. The default design's
+// own photos are the first swatch, so `variations` holds the alternates.
+export type DesignVariation = {
+  variation_id: string;
+  name: string;
+  images: string[];
+  is_default: boolean;
+  sequence: number;
+};
+
 export type Design = {
   design_id: string;
   collection_id: string | null;
@@ -67,6 +78,9 @@ export type Design = {
   status: string;
   sequence: number;
   prices: BandPrice[];
+  // Colour variations for the swatch picker. Absent/empty means the design has
+  // only its default images.
+  variations?: DesignVariation[];
   store?: StoreSummary;
 };
 
@@ -175,6 +189,7 @@ export type PlaceOrderInput = {
   affiliate_click_id?: string;
   affiliate_visitor_id?: string;
   referral_code?: string;
+  note?: string;
 };
 
 export type CartOrderLine = {
@@ -183,6 +198,7 @@ export type CartOrderLine = {
   kind?: "made_to_wear" | "bespoke";
   size_mode?: CustomSizeMode;
   measurements?: Record<string, string>;
+  note?: string;
 };
 
 export type PlaceCartOrderInput = {
@@ -222,6 +238,7 @@ export type PlaceCustomOrderInput = {
   affiliate_visitor_id?: string;
   referral_code?: string;
   measurements?: Record<string, string>;
+  note?: string;
 };
 
 export type PlaceBookingInput = {
@@ -237,6 +254,7 @@ export type PlaceBookingInput = {
   referral_code?: string;
   slot_start: string;
   address: string;
+  note?: string;
 };
 
 export type PlaceOrderResult = {
