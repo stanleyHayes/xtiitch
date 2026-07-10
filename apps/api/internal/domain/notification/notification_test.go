@@ -20,6 +20,7 @@ func TestKindValid(t *testing.T) {
 
 	for _, k := range []Kind{
 		KindOrderConfirmed,
+		KindOrderStageAdvanced,
 		KindOrderFulfilled,
 		KindBookingConfirmed,
 		KindBalancePaid,
@@ -32,6 +33,24 @@ func TestKindValid(t *testing.T) {
 	}
 	if Kind("order_vibes").Valid() {
 		t.Fatal("an unknown kind must be invalid")
+	}
+}
+
+func TestStageAdvanceReferenceDedupesPerStage(t *testing.T) {
+	t.Parallel()
+
+	// Each stage an order reaches fires its own message; re-advancing to the same
+	// stage dedupes, but different stages of the same order do not collide.
+	stageA := DedupKey(KindOrderStageAdvanced, StageAdvanceReference("order-1", "stage-a"))
+	stageB := DedupKey(KindOrderStageAdvanced, StageAdvanceReference("order-1", "stage-b"))
+	if stageA == stageB {
+		t.Fatal("different stages of the same order must not collide")
+	}
+	if stageA != DedupKey(KindOrderStageAdvanced, StageAdvanceReference("order-1", "stage-a")) {
+		t.Fatal("the same order+stage must produce a stable dedup key")
+	}
+	if stageA == DedupKey(KindOrderStageAdvanced, StageAdvanceReference("order-2", "stage-a")) {
+		t.Fatal("the same stage for different orders must not collide")
 	}
 }
 

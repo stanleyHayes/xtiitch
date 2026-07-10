@@ -78,6 +78,34 @@ func enqueueOrderNotification(ctx context.Context, tx pgx.Tx, businessID, orderI
 	return err
 }
 
+// enqueueStageAdvanceNotification records, in the caller's transaction, the
+// intent to tell an order's customer it moved to a new production stage. The
+// stage name/colour come from the stage template the order just entered so the
+// transport can compose per-stage wording. Deduped per (order, stage), so each
+// transition fires once. Recipient is the order's customer phone.
+func enqueueStageAdvanceNotification(ctx context.Context, tx pgx.Tx, businessID, orderID, stageID string) error {
+	kind := notification.KindOrderStageAdvanced
+	_, err := tx.Exec(ctx, `
+		insert into outbound_messages (message_id, business_id, channel, kind, recipient, payload, dedup_key)
+		select gen_random_uuid(), o.business_id, $4, $5, coalesce(c.phone, ''),
+			jsonb_build_object(
+				'order_id', o.order_id::text,
+				'stage', coalesce(st.name, ''),
+				'stage_colour', coalesce(st.colour, ''),
+				'stage_sequence', st.sequence,
+				'design', coalesce(d.title, '')
+			), $6
+		from orders o
+		join customers c on c.customer_id = o.customer_id
+		join stage_templates st on st.stage_id = $3 and st.business_id = o.business_id
+		left join designs d on d.design_id = o.design_id and d.business_id = o.business_id
+		where o.order_id = $1 and o.business_id = $2
+		on conflict (business_id, dedup_key) do nothing
+	`, orderID, businessID, stageID, string(notification.ChannelSMS), string(kind),
+		notification.DedupKey(kind, notification.StageAdvanceReference(orderID, stageID)))
+	return err
+}
+
 // enqueueOwnerNewOrderNotification alerts the store owner (by SMS) that a new
 // order arrived, so they can action it — recipient is the owner's phone. The
 // LATERAL join only yields a row when an owner phone is on file, so no message is

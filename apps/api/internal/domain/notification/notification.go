@@ -25,7 +25,13 @@ func (c Channel) Valid() bool {
 type Kind string
 
 const (
-	KindOrderConfirmed     Kind = "order_confirmed"
+	KindOrderConfirmed Kind = "order_confirmed"
+	// KindOrderStageAdvanced tells the customer their order moved to a new
+	// production stage. Stages are business-defined (stage_templates), so one kind
+	// carries the stage name and the transport composes the per-stage wording. It
+	// dedupes per (order, stage) — see StageAdvanceReference — so each transition
+	// fires exactly once while every stage still gets its own message.
+	KindOrderStageAdvanced Kind = "order_stage_advanced"
 	KindOrderFulfilled     Kind = "order_fulfilled"
 	KindBookingConfirmed   Kind = "booking_confirmed"
 	KindBalancePaid        Kind = "balance_paid"
@@ -52,8 +58,8 @@ const (
 // Valid reports whether the kind is one the system knows.
 func (k Kind) Valid() bool {
 	switch k {
-	case KindOrderConfirmed, KindOrderFulfilled, KindBookingConfirmed, KindBalancePaid,
-		KindHandoverDispatched, KindHandoverCompleted, KindNewOrderOwner,
+	case KindOrderConfirmed, KindOrderStageAdvanced, KindOrderFulfilled, KindBookingConfirmed,
+		KindBalancePaid, KindHandoverDispatched, KindHandoverCompleted, KindNewOrderOwner,
 		KindSubscriptionRenewalUpcoming, KindSubscriptionRenewalPastDue:
 		return true
 	default:
@@ -67,6 +73,15 @@ func (k Kind) Valid() bool {
 // from a redelivered webhook or a retried transaction — a no-op.
 func DedupKey(kind Kind, reference string) string {
 	return string(kind) + ":" + reference
+}
+
+// StageAdvanceReference builds the reference for a stage-advance message: a
+// given order fires at most one message per stage it reaches. Pinning the
+// reference to the stage (not just the order) lets every stage transition
+// notify while a redelivered/retried advance to the same stage dedupes. Pair it
+// with DedupKey to derive the outbox idempotency key.
+func StageAdvanceReference(orderID, stageID string) string {
+	return orderID + "@" + stageID
 }
 
 // SubscriptionReminderReference builds the reference for a renewal reminder: a

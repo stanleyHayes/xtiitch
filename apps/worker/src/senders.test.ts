@@ -289,6 +289,24 @@ test("renderNotificationText renders lifecycle templates", () => {
     ),
     "GH₵125.00 balance payment received. Thank you; your order record is up to date.",
   );
+
+  assert.equal(
+    renderNotificationText(
+      makeMessage({
+        kind: "order_stage_advanced",
+        payload: { stage: "Cutting", design: "Linen Kaftan" },
+      }),
+    ),
+    'Update: your order has moved to the "Cutting" stage. Design: Linen Kaftan.',
+  );
+
+  // Missing stage name falls back to a generic line.
+  assert.equal(
+    renderNotificationText(
+      makeMessage({ kind: "order_stage_advanced", payload: {} }),
+    ),
+    "Update: your order has moved to the next production stage.",
+  );
 });
 
 test("HttpNotificationSender posts provider payload with auth and idempotency headers", async () => {

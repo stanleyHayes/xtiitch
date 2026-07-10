@@ -757,11 +757,15 @@ func advanceOrFulfil(ctx context.Context, tx pgx.Tx, businessID, flow string, or
 		`, orderID.String(), nextStageID); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			insert into stage_events (event_id, business_id, order_id, stage_id)
 			values (gen_random_uuid(), $1, $2, $3)
-		`, businessID, orderID.String(), nextStageID)
-		return err
+		`, businessID, orderID.String(), nextStageID); err != nil {
+			return err
+		}
+		// Tell the customer the order reached this stage (per-stage wording,
+		// deduped per stage so re-advancing to the same stage is a no-op).
+		return enqueueStageAdvanceNotification(ctx, tx, businessID, orderID.String(), nextStageID)
 	case errors.Is(nextErr, pgx.ErrNoRows):
 		if _, err := tx.Exec(ctx, `
 			update orders set status = 'fulfilled', updated_at = now() where order_id = $1

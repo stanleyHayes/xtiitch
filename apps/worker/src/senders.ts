@@ -374,6 +374,15 @@ export function renderNotificationText(message: OutboundMessage): string {
         "Your order is confirmed. We will update you when production moves forward.",
         design,
       );
+    case "order_stage_advanced": {
+      // Stages are business-defined, so the message names the stage the order
+      // just reached; fall back to a generic line when the name is missing.
+      const stage = stringPayload(message.payload.stage);
+      const text = stage
+        ? `Update: your order has moved to the "${stage}" stage.`
+        : "Update: your order has moved to the next production stage.";
+      return withDesign(text, design);
+    }
     case "order_fulfilled":
       return withDesign(
         "Your order is ready. Please contact the business to arrange pickup or delivery.",
