@@ -45,12 +45,13 @@ func NewService(deps Dependencies) Service {
 }
 
 type WindowInput struct {
-	Weekday     int
-	StartMinute int
-	EndMinute   int
-	SlotMinutes int
-	Recurrence  string
-	DayOfMonth  int
+	Weekday      int
+	StartMinute  int
+	EndMinute    int
+	SlotMinutes  int
+	Recurrence   string
+	DayOfMonth   int
+	SpecificDate time.Time // required for the 'date' recurrence; zero otherwise
 }
 
 type DefineAvailabilityCommand struct {
@@ -78,23 +79,8 @@ func (s Service) DefineAvailability(ctx context.Context, command DefineAvailabil
 	}
 
 	for _, w := range windows {
-		if w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
-			w.SlotMinutes < 15 || w.SlotMinutes > 480 {
-			return ErrInvalidInput
-		}
-		switch w.Recurrence {
-		case booking.RecurrenceWeekly:
-			if w.Weekday < 0 || w.Weekday > 6 {
-				return ErrInvalidInput
-			}
-		case booking.RecurrenceMonthly:
-			if w.DayOfMonth < 1 || w.DayOfMonth > 31 {
-				return ErrInvalidInput
-			}
-		case booking.RecurrenceDaily, booking.RecurrenceOngoing:
-			// Every day: weekday/day_of_month are ignored.
-		default:
-			return ErrInvalidInput
+		if err := validateWindow(w); err != nil {
+			return err
 		}
 	}
 	if windowsOverlap(windows) {
@@ -104,16 +90,44 @@ func (s Service) DefineAvailability(ctx context.Context, command DefineAvailabil
 	out := make([]ports.AvailabilityWindow, 0, len(windows))
 	for _, w := range windows {
 		out = append(out, ports.AvailabilityWindow{
-			WindowID:    s.ids.NewID(),
-			Weekday:     w.Weekday,
-			StartMinute: w.StartMinute,
-			EndMinute:   w.EndMinute,
-			SlotMinutes: w.SlotMinutes,
-			Recurrence:  w.Recurrence,
-			DayOfMonth:  w.DayOfMonth,
+			WindowID:     s.ids.NewID(),
+			Weekday:      w.Weekday,
+			StartMinute:  w.StartMinute,
+			EndMinute:    w.EndMinute,
+			SlotMinutes:  w.SlotMinutes,
+			Recurrence:   w.Recurrence,
+			DayOfMonth:   w.DayOfMonth,
+			SpecificDate: w.SpecificDate,
 		})
 	}
 	return s.availability.ReplaceWindows(ctx, command.Scope, out)
+}
+
+// validateWindow checks a single window's hours and recurrence-specific day.
+func validateWindow(w WindowInput) error {
+	if w.StartMinute < 0 || w.EndMinute <= w.StartMinute || w.EndMinute > 1440 ||
+		w.SlotMinutes < 15 || w.SlotMinutes > 480 {
+		return ErrInvalidInput
+	}
+	switch w.Recurrence {
+	case booking.RecurrenceWeekly:
+		if w.Weekday < 0 || w.Weekday > 6 {
+			return ErrInvalidInput
+		}
+	case booking.RecurrenceMonthly:
+		if w.DayOfMonth < 1 || w.DayOfMonth > 31 {
+			return ErrInvalidInput
+		}
+	case booking.RecurrenceDate:
+		if w.SpecificDate.IsZero() {
+			return ErrInvalidInput
+		}
+	case booking.RecurrenceDaily, booking.RecurrenceOngoing:
+		// Every day: weekday/day_of_month are ignored.
+	default:
+		return ErrInvalidInput
+	}
+	return nil
 }
 
 func authorizeAvailabilityManagement(role business.UserRole) error {
@@ -150,6 +164,8 @@ func windowDayKey(w WindowInput) string {
 		return "m" + strconv.Itoa(w.DayOfMonth)
 	case booking.RecurrenceDaily, booking.RecurrenceOngoing:
 		return "every"
+	case booking.RecurrenceDate:
+		return "d" + w.SpecificDate.Format("2006-01-02")
 	default: // weekly (and empty)
 		return "w" + strconv.Itoa(w.Weekday)
 	}
@@ -216,11 +232,63 @@ func (s Service) openSlots(ctx context.Context, scope common.TenantScope, from, 
 		takenAt[slot.UTC().Unix()] = true
 	}
 
+	// Days the owner marked unavailable subtract the whole calendar day, even
+	// when a recurring window would otherwise generate slots for it. The blackout
+	// date is compared in the business timezone the slots were enumerated in.
+	blackouts, err := s.availability.ListBlackouts(ctx, scope, from, to)
+	if err != nil {
+		return nil, err
+	}
+	blacked := make(map[string]bool, len(blackouts))
+	for _, day := range blackouts {
+		blacked[day.UTC().Format("2006-01-02")] = true
+	}
+
 	open := make([]booking.Slot, 0, len(candidate))
 	for _, slot := range candidate {
-		if !takenAt[slot.Start.Unix()] {
-			open = append(open, slot)
+		if takenAt[slot.Start.Unix()] {
+			continue
 		}
+		if blacked[slot.Start.In(loc).Format("2006-01-02")] {
+			continue
+		}
+		open = append(open, slot)
 	}
 	return open, nil
+}
+
+// MarkDayCommand marks or clears a single day as unavailable for home visits.
+type MarkDayCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	Date      time.Time
+}
+
+// MarkDayUnavailable blocks a calendar day so no slots are offered on it. Owner
+// and admin only, mirroring window management.
+func (s Service) MarkDayUnavailable(ctx context.Context, command MarkDayCommand) error {
+	if err := authorizeAvailabilityManagement(command.ActorRole); err != nil {
+		return err
+	}
+	if command.Date.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.availability.AddBlackout(ctx, command.Scope, command.Date)
+}
+
+// ClearUnavailableDay restores a previously blocked day.
+func (s Service) ClearUnavailableDay(ctx context.Context, command MarkDayCommand) error {
+	if err := authorizeAvailabilityManagement(command.ActorRole); err != nil {
+		return err
+	}
+	if command.Date.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.availability.RemoveBlackout(ctx, command.Scope, command.Date)
+}
+
+// ListBlackouts returns the business's marked-unavailable days in [from, to) for
+// its own dashboard.
+func (s Service) ListBlackouts(ctx context.Context, scope common.TenantScope, from, to time.Time) ([]time.Time, error) {
+	return s.availability.ListBlackouts(ctx, scope, from, to)
 }

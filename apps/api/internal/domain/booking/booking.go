@@ -35,27 +35,31 @@ const (
 // Recurrence controls which calendar days a Window repeats on. 'weekly' is the
 // original (and default) behaviour; 'daily' and 'ongoing' match every day (the
 // 'ongoing' label just means "no planned end" for the owner); 'monthly' matches
-// a single day-of-month.
+// a single day-of-month; 'date' matches exactly one calendar date (SpecificDate)
+// so an owner can open hours for a single day.
 const (
 	RecurrenceDaily   = "daily"
 	RecurrenceWeekly  = "weekly"
 	RecurrenceMonthly = "monthly"
 	RecurrenceOngoing = "ongoing"
+	RecurrenceDate    = "date"
 )
 
 // Window is a business's recurring home-visit availability: from StartMinute to
 // EndMinute (minutes from midnight, business-local), split into SlotMinutes-long
 // slots, repeating on the days selected by Recurrence. For 'weekly' the day is
 // Weekday (0-6); for 'monthly' it is DayOfMonth (1-31); 'daily'/'ongoing' repeat
-// every day and ignore both. An empty Recurrence is treated as 'weekly' so rows
-// predating recurrence support keep their original behaviour.
+// every day and ignore both; 'date' matches only SpecificDate. An empty
+// Recurrence is treated as 'weekly' so rows predating recurrence support keep
+// their original behaviour.
 type Window struct {
-	Weekday     int
-	StartMinute int
-	EndMinute   int
-	SlotMinutes int
-	Recurrence  string
-	DayOfMonth  int // 0 = unset; only meaningful for 'monthly'
+	Weekday      int
+	StartMinute  int
+	EndMinute    int
+	SlotMinutes  int
+	Recurrence   string
+	DayOfMonth   int       // 0 = unset; only meaningful for 'monthly'
+	SpecificDate time.Time // zero = unset; only meaningful for 'date'
 }
 
 // matchesDay reports whether the window is active on the given business-local
@@ -66,9 +70,18 @@ func (w Window) matchesDay(day time.Time) bool {
 		return true
 	case RecurrenceMonthly:
 		return day.Day() == w.DayOfMonth
+	case RecurrenceDate:
+		return sameCalendarDay(day, w.SpecificDate)
 	default: // weekly (and empty, for backward compatibility)
 		return int(day.Weekday()) == w.Weekday
 	}
+}
+
+// sameCalendarDay compares two times by their calendar date only, ignoring the
+// clock time and location. SpecificDate comes from a DATE column (UTC midnight)
+// while day is business-local midnight, so a component-wise compare is correct.
+func sameCalendarDay(a, b time.Time) bool {
+	return a.Year() == b.Year() && a.Month() == b.Month() && a.Day() == b.Day()
 }
 
 // Slot is one bookable appointment range, in UTC.

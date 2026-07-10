@@ -19,16 +19,25 @@ type AvailabilityRepository interface {
 	// ListTakenSlots returns the slot start times already held or booked in the
 	// range, so open slots can be derived by subtraction.
 	ListTakenSlots(ctx context.Context, scope common.TenantScope, from, to time.Time) ([]time.Time, error)
+	// ListBlackouts returns the business's marked-unavailable dates whose day
+	// falls in [from, to), so those days can be subtracted from availability.
+	ListBlackouts(ctx context.Context, scope common.TenantScope, from, to time.Time) ([]time.Time, error)
+	// AddBlackout marks a single date unavailable (idempotent per date).
+	AddBlackout(ctx context.Context, scope common.TenantScope, date time.Time) error
+	// RemoveBlackout clears a previously marked-unavailable date. Clearing a date
+	// that was never blacked out is a no-op.
+	RemoveBlackout(ctx context.Context, scope common.TenantScope, date time.Time) error
 }
 
 type AvailabilityWindow struct {
-	WindowID    common.ID
-	Weekday     int
-	StartMinute int
-	EndMinute   int
-	SlotMinutes int
-	Recurrence  string
-	DayOfMonth  int // 0 = unset; only meaningful for 'monthly'
+	WindowID     common.ID
+	Weekday      int
+	StartMinute  int
+	EndMinute    int
+	SlotMinutes  int
+	Recurrence   string
+	DayOfMonth   int       // 0 = unset; only meaningful for 'monthly'
+	SpecificDate time.Time // zero = unset; only meaningful for 'date'
 }
 
 // BookingRepository holds and releases home-visit slots, tenant-scoped.

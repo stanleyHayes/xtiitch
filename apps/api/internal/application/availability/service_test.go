@@ -15,8 +15,9 @@ import (
 )
 
 type fakeAvailRepo struct {
-	windows []booking.Window
-	taken   []time.Time
+	windows   []booking.Window
+	taken     []time.Time
+	blackouts []time.Time
 }
 
 func (r fakeAvailRepo) ReplaceWindows(context.Context, common.TenantScope, []ports.AvailabilityWindow) error {
@@ -30,6 +31,13 @@ func (r fakeAvailRepo) ListWindows(context.Context, common.TenantScope) ([]booki
 func (r fakeAvailRepo) ListTakenSlots(context.Context, common.TenantScope, time.Time, time.Time) ([]time.Time, error) {
 	return r.taken, nil
 }
+
+func (r fakeAvailRepo) ListBlackouts(context.Context, common.TenantScope, time.Time, time.Time) ([]time.Time, error) {
+	return r.blackouts, nil
+}
+
+func (fakeAvailRepo) AddBlackout(context.Context, common.TenantScope, time.Time) error    { return nil }
+func (fakeAvailRepo) RemoveBlackout(context.Context, common.TenantScope, time.Time) error { return nil }
 
 type fakeIDs struct{}
 
@@ -154,6 +162,103 @@ func TestDefineAvailabilityRecurrenceValidation(t *testing.T) {
 	// An unknown recurrence value is rejected.
 	if err := define(WindowInput{Recurrence: "yearly", StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("unknown recurrence should be rejected, got %v", err)
+	}
+
+	// 'date' requires a specific date; without one it is rejected.
+	if err := define(WindowInput{Recurrence: "date", StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("date window without specific_date should be rejected, got %v", err)
+	}
+	if err := define(WindowInput{
+		Recurrence:   "date",
+		SpecificDate: time.Date(2026, 8, 3, 0, 0, 0, 0, time.UTC),
+		StartMinute:  540, EndMinute: 660, SlotMinutes: 60,
+	}); err != nil {
+		t.Fatalf("date window with specific_date should be accepted, got %v", err)
+	}
+}
+
+func TestListStoreAvailabilityDateWindowOnlyOnItsDate(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scope := common.TenantScope{BusinessID: "b1"}
+	now := time.Date(2026, 7, 1, 6, 0, 0, 0, time.UTC)
+	target := time.Date(2026, 7, 3, 0, 0, 0, 0, time.UTC)
+	windows := []booking.Window{{
+		Recurrence:   booking.RecurrenceDate,
+		SpecificDate: target,
+		StartMinute:  9 * 60,
+		EndMinute:    11 * 60,
+		SlotMinutes:  60,
+	}}
+	svc := NewService(Dependencies{
+		Availability: fakeAvailRepo{windows: windows},
+		Storefront:   fakeStorefrontRepo{store: ports.Storefront{BusinessID: scope.BusinessID}},
+		Now:          func() time.Time { return now },
+	})
+
+	slots, err := svc.ListStoreAvailability(ctx, "shop", now, now.AddDate(0, 0, 15))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(slots) != 2 {
+		t.Fatalf("expected two slots on the single target date, got %d: %+v", len(slots), slots)
+	}
+	for _, slot := range slots {
+		if slot.Start.Year() != 2026 || slot.Start.Month() != 7 || slot.Start.Day() != 3 {
+			t.Fatalf("date window produced a slot off its date: %s", slot.Start)
+		}
+	}
+}
+
+func TestListStoreAvailabilityBlackoutRemovesADay(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	scope := common.TenantScope{BusinessID: "b1"}
+	now := time.Date(2026, 7, 1, 6, 0, 0, 0, time.UTC)
+	firstWednesday := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
+	windows := []booking.Window{{
+		Weekday:     int(firstWednesday.Weekday()),
+		StartMinute: 9 * 60,
+		EndMinute:   11 * 60,
+		SlotMinutes: 60,
+	}}
+
+	// Without a blackout: three Wednesdays in the 15-day window (Jul 1, 8, 15),
+	// two slots each.
+	open := NewService(Dependencies{
+		Availability: fakeAvailRepo{windows: windows},
+		Storefront:   fakeStorefrontRepo{store: ports.Storefront{BusinessID: scope.BusinessID}},
+		Now:          func() time.Time { return now },
+	})
+	base, err := open.ListStoreAvailability(ctx, "shop", now, now.AddDate(0, 0, 15))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(base) != 6 {
+		t.Fatalf("expected six recurring slots across three Wednesdays, got %d", len(base))
+	}
+
+	// Blacking out the first Wednesday removes both of its slots.
+	blocked := NewService(Dependencies{
+		Availability: fakeAvailRepo{windows: windows, blackouts: []time.Time{
+			time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC),
+		}},
+		Storefront: fakeStorefrontRepo{store: ports.Storefront{BusinessID: scope.BusinessID}},
+		Now:        func() time.Time { return now },
+	})
+	slots, err := blocked.ListStoreAvailability(ctx, "shop", now, now.AddDate(0, 0, 15))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(slots) != 4 {
+		t.Fatalf("expected four slots after blacking out one Wednesday, got %d: %+v", len(slots), slots)
+	}
+	for _, slot := range slots {
+		if slot.Start.Day() == 1 {
+			t.Fatalf("blacked-out day still produced a slot: %s", slot.Start)
+		}
 	}
 }
 
