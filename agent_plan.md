@@ -1418,3 +1418,98 @@ Do not skip the plan update. This file is the handoff surface for the next agent
   touched: keep list surfaces scannable, place create forms in dedicated dialogs
   or pages, and move deep edit/archive/payment/configuration controls into
   focused detail dialogs or routes.
+
+---
+
+# Xtiitch Updates Refined — 2026-07-10 (new spec)
+
+Source: `Xtiitch-Updates-Refined.md`. **Cross-check each item against current code before building — much is already implemented; do NOT re-do done work.** Status set by the cross-check audit: `[ ]` TODO · `[~]` PARTIAL · `[x]` DONE. Colour-variation UI = Amazon-style swatch boxes above sizes (per reference screenshots).
+
+## PRIORITY 0 — Payments (Paystack): the blocker
+Full checkout→payment end-to-end for three payment kinds; test each until a real payment settles.
+- **P0.1 Subscriptions/upgrades** — owners pay Starter/Growth/Studio + renewals; upgrade+pay must succeed. `[~]`
+- **P0.2 Store sales** — MTW (full) + bespoke (deposit now / balance later); customer checkout+pay must succeed. `[~]`
+- **P0.3 AI assistant add-on** — owners pay for the AI-writing add-on. `[ ]`
+- **P0.4 Direct split settlement** — at payment: store share → store subaccount; Xtiitch fee → Xtiitch; Paystack fee off top; one txn; never pool/mix; use Paystack transaction split (not collect-then-payout). `[~]` (single-store split exists; marketplace multi-store split TODO)
+- **P0.5 Payout account setup** — each store sets a Paystack subaccount linked to its MoMo (number + details) in the dashboard BEFORE it can sell / appear in marketplace. Add a payments-setup section (Money/Settings) + onboarding pop-up/top banner. No payout account = cannot receive money / not sellable. `[ ]`
+- **P0.6 Fees (implement exactly):** Xtiitch fee = PER DESIGN at source plan rate (Free 3% / Starter 1.5% / Growth 1% / Studio 0.5%), capped **GHS 50/design**; bulk = each design charged+capped separately; bespoke = fee on the Paystack deposit only, manual/offline = free. Paystack fee = **1.95% per total transaction** (once per charge, even multi-store), allocated across stores in the split. `[x]` commission+cap; `[~]` per-design-in-bulk + marketplace allocation.
+
+## 1. Design setup — Catalogue (dashboard)
+- **1a/§6. Per-design size-band override** — adjust chart values + rename a band for THAT design only (overrides master; no effect on others); storefront shows effective chart. `[ ]`
+- **1b. Colour variations — NEW.** name + images per variation; default = first variation; caps incl. default Free 2 / Starter 3 / Growth 5 / Studio 10; images/variation follow plan per-design limit (Free 2); over-limit → upgrade pop-up; variations share SAME price + order flow (only add colour-labelled clickable images). Storefront: "Colour variations" swatches ABOVE "Sizes and prices"; click swaps main gallery. Flows into cart/checkout/order/tracking (§13). `[ ]`
+- **1c. Bespoke "Allow customise" checkbox** → deposit + display amount fields; unchecked = no bespoke order. `[~]`
+
+## 2. Buying flow — single design page
+- MTW default (bands + prices, "Starting from [lowest]"); browse variations. `[x]` (verify variations)
+- Allow-customise on → "Customise" button → view that REPLACES MTW prices/sizes with: fillable size chart + note area + deposit (here only) + variations visible. Three options (reveal chosen one's form): Self-measure (chart) / Home visit (booking time + address) / Come to shop (select+continue); deposit same for all; **note area on all three + MTW**. `[~]`
+
+## 3. Basket & checkout
+- **Remove name/email/phone from design/customise forms** → only Add-to-Cart + Pay-Now; collect details at checkout. `[~]`
+- No account → create/login before pay; account → add freely, login before pay; account shows current + past orders. `[~]`
+- **Two phones at account creation:** WhatsApp (owner chat / button) + Phone (SMS, OTP-verified). `[~]`
+- **Super Admin CRM** of all buyers (searchable). `[~]`
+
+## 4. Marketplace (store.xtiitch.com) — one basket across shops
+- Unified marketplace basket; many shops → one basket, one account, pay once. `[ ]`
+- Per-store totals at checkout + per-store distinction in account. `[ ]`
+- Per-store tracking (store contact, track each bespoke, per-store notify). `[~]`
+- Each item remembers its shop; split to correct shop; isolated; per-design fee per design. `[~]`
+- **Marketplace design click → single design page to buy straight** (not the shop storefront) + shows other products from that shop; recorded for correct shop. `[~]`
+- **Two cart contexts (do not merge):** `<handle>.xtiitch.com` direct link = single-shop cart; general marketplace = unified cart. `[ ]`
+- **BUG:** KD Designs LTD 10 designs, only 4 show → show ALL designs + ALL stores, leave none out. `[ ]`
+
+## 5. Catalogue tidy (dashboard)
+- Collections card: remove "Add collection" (keep "All collections"); remove "Size bands" section in its pop-up. `[ ]`
+- Size Bands card: remove "Add size band" (keep "All size bands"); remove "Collections" section in its pop-up. `[ ]`
+
+## 7. Share links (404) → open correct design/collection; deleted → "no longer available" (never 404, never leak). `[ ]`
+## 8. Forms reset after successful submit (whole-app: modals close, inline forms clear+refresh). `[~]`
+## 9. Orders — SMS matches stage; customer account shows shop contact name+phone; order board **all 4 stages** (Order received → Being made → Ready for fitting → Ready/Delivered) with drag + Advance; each change → notification. `[~]`
+## 10. Measurements page — remove "Size band library", keep "Measurement setup". `[ ]`
+## 11. Availability — add per-day availability (day-by-day hours / mark day unavailable) alongside every-day/weekly/monthly. `[ ]`
+## 12. Login session — make session duration **3× longer**. `[ ]`
+## 13. System-wide sweep — variations→cart/checkout/order/tracking; per-design fee+split single AND marketplace + bespoke deposit/balance; OTP into signup+checkout; 4-stage model in dashboard+notifications+tracking; Paystack every money path. Flag inconsistencies.
+
+**Build order:** P0 → §1–2 → §3–4 → §5–12 → §13 continuous.
+**Cross-check audit results appended below once run.**
+
+### Updated-spec delta (Xtiitch-Updates-Refined v2, 2026-07-10 22:29) — apply these
+Diff vs the version above:
+- **P0: AI assistant add-on payment REMOVED.** Now only TWO payment kinds — subscriptions/upgrades + store sales. **Drop P0.3.** Paystack paths to make work = subscription upgrades, single-store checkout, marketplace multi-store checkout, bespoke **deposits AND balances**.
+- **P0.6 bespoke fee CHANGED (supersedes deposit-only):** Xtiitch's per-design fee now applies to **BOTH the bespoke deposit AND the balance** — each is its own Paystack transaction. Manual/offline logged money stays **free** (not a Paystack transaction). See [[offline-takings-fee-free]] — still true for manual; the change is that the balance, when paid via Paystack, is now feed.
+- **P0.5:** payout subaccount linked to store MoMo **or bank**.
+- **NEW §3b — Delivery & pickup at checkout** (spec says "currently missing, build it" — **VERIFY: appears already implemented** per the V1 review audit: dashboard delivery toggle + zones/rates, checkout Delivery selection + zone + optional GPS + fee folded into one charge, off→pickup only). Requirements: owner dashboard **delivery activation toggle** + configurable **delivery zones, each with a rate**; storefront checkout shows Delivery only when on → pick a zone + optional GPS → fee **auto-added to the single charge**; delivery OFF → **Pickup only** (delivery option must not appear). **Guardrail:** toggling delivery must ONLY change fulfilment options, never touch/duplicate catalogue or design data. Delivery fee settles to the store in the split; Xtiitch per-design fee applies to design sales, NOT the delivery charge. `[x?]` verify
+- **§4 marketplace click:** clicking a design **stays on the marketplace** (does NOT enter the shop's separate storefront) and opens its single design page to buy; still shows other products from that shop; sale recorded for the correct shop.
+- **§12 login session:** "3× longer" = specifically **~3 hours** — set the session TTL accordingly.
+- **§4 bug:** generalized ("one shop has 10 designs, only 4 show") — not tied to a named shop.
+
+### Cross-check audit → BUILD QUEUE (2026-07-10, verified vs code)
+DONE (skip): P0.1 subs pay, P0.2 store sales (MTW+bespoke deposit/balance), P0.3 AI addon (also removed from v2), 3d CRM, single-store Paystack direct split, §3b delivery. Remaining gaps, priority order:
+
+**Tier 0 — P0 payments**
+- `[ ]` **P0.6a per-design cap in CART (BUG):** bulk cart caps Xtiitch commission ONCE on the whole total, not per design — `payments/service.go:125` computes one commission+GHS50 cap on the cart total. Fix: commission+cap PER LINE. Effort S. *(isolated, do now)*
+- `[ ]` **P0.6b bespoke BALANCE fee (v2):** add Xtiitch per-design commission to the bespoke balance charge (`order/service.go` CollectBalance) — v2 charges deposit AND balance. Effort S.
+- `[ ]` **P0.5 payout setup UI:** dashboard Money/Settings payout section (collect MoMo/settlement → `POST /businesses/me/verify`, endpoint exists) + onboarding banner; gate marketplace appearance on a provisioned subaccount (`ListPublicShops` currently lists unverified). Effort M.
+- `[ ]` **P0.4 marketplace multi-store split:** Paystack dynamic `split` (N subaccounts/shares) in the client + `ports.InitializeTransactionInput`; + 1.95% allocation across stores. Depends on item 4 + P0.5. Effort L.
+
+**Tier 1 — marketplace**
+- `[ ]` **4-bug:** marketplace shows 4/10 designs — `loadShopSamples` `LIMIT 4` (`storefront_repository.go:112`); Designs tab built from samples. Show ALL active designs; also make the `store_settings` join LEFT so no active store drops. Effort S. *(quick win)*
+- `[ ]` **item 4 unified marketplace basket:** multi-store cart grouped by store_handle (stop cross-store wipe `cart.ts:72`); two separate cart contexts (subdomain single-shop vs apex unified, don't merge); per-store totals at checkout + per-store account grouping; marketplace design click stays on marketplace. Effort L.
+
+**Tier 2 — design + buying**
+- `[ ]` **1b colour variations:** migration `design_variations` (name, ordered images, default) + plan caps (Free2/Starter3/Growth5/Studio10) + Free 2 img/variation + upgrade popup; dashboard editor; storefront swatches above sizes, click swaps gallery; flow into cart/checkout/order/tracking. Effort L.
+- `[ ]` **1a/6 per-design size-band override:** per-design band label + chart values override master; storage + catalogue read/write + dashboard UI + storefront effective chart. Effort L.
+- `[ ]` **1c bespoke display amount:** add per-design bespoke "display amount" alongside deposit (edit+create modals + column). Effort M.
+- `[ ]` **2 Customise view:** MTW-default + "Customise" button → view REPLACING MTW prices with size chart + note + deposit (here only) + variations; 3 options reveal chosen form; note area on all + MTW. Effort L.
+- `[ ]` **3a remove contact fields:** strip name/email/phone from design/customise forms → Add-to-Cart + Pay-Now only; Pay-Now adds to cart → /checkout. Effort M.
+- `[ ]` **3b account-gate before pay:** require verified customer session before checkout submit (redirect to /account) + enforce server-side. Effort M.
+- `[ ]` **3c two phones:** add separate WhatsApp phone to customer identity (schema + domain + capture at signup), distinct from OTP-verified SMS phone. Effort L.
+
+**Tier 3 — fixes**
+- `[ ]` **5 catalogue tidy:** remove "Add collection" + "Add size band" buttons + cross-sections in their popups. Effort S. *(quick win)*
+- `[ ]` **10 measurements page:** remove SizeBandLibraryPanel, keep Measurement setup. Effort S. *(quick win)*
+- `[ ]` **12 session length:** triple session TTL (owner+customer refresh 30d→90d; consider access token → ~3h per v2 "3 hours"). Effort S. *(quick win)*
+- `[ ]` **9 orders 4-stage board:** render all 4 stage columns from stage_templates (not just live orders); per-stage-change notification Kind + SMS wording per stage; customer account shows shop contact name+phone. Effort L.
+- `[ ]` **7 share links 404:** fix design/collection share URLs (→ /d/ /c/ or add redirect routes); deleted → "no longer available". Effort M.
+- `[ ]` **8 forms reset:** clear inline add-forms on success + close remaining modals lacking useCloseOnSuccess. Effort M.
+- `[ ]` **11 per-day availability:** day-by-day hours + mark-day-unavailable, alongside every-day/weekly/monthly. Effort L.
