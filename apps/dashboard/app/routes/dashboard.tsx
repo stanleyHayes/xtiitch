@@ -12216,105 +12216,15 @@ function SizeBandDeleteButton({ band }: { band: SizeBand }) {
   );
 }
 
-// Read-only mirror of the catalogue size-band library, shown on the Measurements
-// page so the same size bands + charts back both surfaces (review: the
-// measurement section should reflect the master size-band library).
-function SizeBandLibraryPanel({ sizeBands }: { sizeBands: SizeBand[] }) {
-  return (
-    <Panel sx={{ mt: 2 }}>
-      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-        <Stack
-          direction="row"
-          spacing={1.25}
-          sx={{ alignItems: "center", flexWrap: "wrap", gap: 1 }}
-        >
-          <Box sx={{ color: "primary.main" }}>
-            <StraightenRounded />
-          </Box>
-          <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 900 }}>Size band library</Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Your size bands and their charts. Customers see these measurements
-              when choosing a size. Edit them under Catalogue.
-            </Typography>
-          </Box>
-          <Button
-            component={RouterLink}
-            to="/dashboard/catalogue"
-            size="small"
-            variant="outlined"
-          >
-            Manage size bands
-          </Button>
-        </Stack>
-        {sizeBands.length === 0 ? (
-          <Box sx={{ mt: 2 }}>
-            <InlineEmptyState
-              icon={<StraightenRounded sx={{ fontSize: 34 }} />}
-              title="No size bands yet"
-              helper="Add size bands and their charts under Catalogue to reuse them here."
-            />
-          </Box>
-        ) : (
-          <Stack spacing={1.25} sx={{ mt: 2 }}>
-            {sizeBands.map((band) => {
-              const chart = band.chart ?? [];
-              return (
-                <Box
-                  key={band.size_band_id}
-                  sx={{
-                    p: 1.5,
-                    border: "1px solid",
-                    borderColor: "divider",
-                    borderRadius: 2,
-                    bgcolor: "rgba(var(--surface-rgb), 0.72)",
-                  }}
-                >
-                  <Typography sx={{ fontWeight: 800 }}>
-                    {band.label} · #{band.sequence}
-                  </Typography>
-                  {chart.length === 0 ? (
-                    <Typography
-                      variant="caption"
-                      sx={{ color: "text.secondary" }}
-                    >
-                      No size chart yet.
-                    </Typography>
-                  ) : (
-                    <Box
-                      sx={{
-                        mt: 0.75,
-                        display: "flex",
-                        flexWrap: "wrap",
-                        gap: 0.75,
-                      }}
-                    >
-                      {chart.map((item, index) => (
-                        <ToneChip
-                          key={index}
-                          tone={tokens.info}
-                          label={`${item.name}: ${item.value} ${item.unit}`}
-                        />
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              );
-            })}
-          </Stack>
-        )}
-      </Box>
-    </Panel>
-  );
-}
-
 function CatalogueSetupPanel({
+  mode,
   collections,
   sizeBands,
   storeHandle,
   collectionError,
   sizeBandError,
 }: {
+  mode: "collections" | "sizeBands" | null;
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
   storeHandle: string;
@@ -12347,252 +12257,87 @@ function CatalogueSetupPanel({
       sx={{
         display: "grid",
         gap: 2,
-        gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" },
+        gridTemplateColumns: "1fr",
       }}
     >
-      <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-          <Box sx={{ color: "primary.main" }}>
-            <StorefrontRounded />
-          </Box>
-          <Box>
-            <Typography sx={{ fontWeight: 900 }}>Collections</Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Group pieces for the public store.
-            </Typography>
-          </Box>
-        </Stack>
-        {collectionError ? (
-          <Alert severity="warning" sx={{ mt: 1.5 }}>
-            {collectionError}
-          </Alert>
-        ) : null}
-        <Form method="post">
-          <input type="hidden" name="intent" value="create_collection" />
-          <Box
-            sx={{
-              mt: 1.5,
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
-            }}
-          >
+      {mode === "collections" ? (
+        <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <StorefrontRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Collections</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Group pieces for the public store.
+              </Typography>
+            </Box>
+          </Stack>
+          {collectionError ? (
+            <Alert severity="warning" sx={{ mt: 1.5 }}>
+              {collectionError}
+            </Alert>
+          ) : null}
+          <Form method="post">
+            <input type="hidden" name="intent" value="create_collection" />
+            <Box
+              sx={{
+                mt: 1.5,
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
+              }}
+            >
+              <TextField
+                name="name"
+                label="Collection name"
+                size="small"
+                required
+              />
+              <TextField
+                name="sequence"
+                label="Order"
+                type="number"
+                size="small"
+                defaultValue={nextCollectionSequence}
+                slotProps={{ htmlInput: { min: 0 } }}
+                required
+              />
+            </Box>
             <TextField
-              name="name"
-              label="Collection name"
+              name="theme"
+              label="Theme"
               size="small"
-              required
+              fullWidth
+              sx={{ mt: 1 }}
+              placeholder="Wedding, Friday wear, Ready now"
             />
-            <TextField
-              name="sequence"
-              label="Order"
-              type="number"
-              size="small"
-              defaultValue={nextCollectionSequence}
-              slotProps={{ htmlInput: { min: 0 } }}
-              required
-            />
-          </Box>
-          <TextField
-            name="theme"
-            label="Theme"
-            size="small"
-            fullWidth
-            sx={{ mt: 1 }}
-            placeholder="Wedding, Friday wear, Ready now"
-          />
-          <Button
-            type="submit"
-            variant="outlined"
-            startIcon={<AddRounded />}
-            sx={{ mt: 1.25 }}
-          >
-            Add collection
-          </Button>
-        </Form>
-        <Divider sx={{ my: 1.75 }} />
-        <Stack spacing={1}>
-          {collections.length === 0 ? (
-            <InlineEmptyState
-              icon={<StorefrontRounded sx={{ fontSize: 34 }} />}
-              title="No collections yet"
-              helper="Collections help customers browse by occasion or drop."
-            />
-          ) : (
-            pagedCollections.map((collection) => (
-              <Stack
-                key={collection.collection_id}
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                sx={{
-                  p: 1.25,
-                  alignItems: { xs: "stretch", sm: "center" },
-                  justifyContent: "space-between",
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 2,
-                  bgcolor: "rgba(var(--surface-rgb), 0.72)",
-                }}
-              >
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 900 }} noWrap>
-                    {collection.name}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {collection.theme || collection.handle} · #
-                    {collection.sequence}
-                  </Typography>
-                </Box>
-                <Stack
-                  direction="row"
-                  spacing={0.75}
-                  sx={{ alignItems: "center" }}
-                >
-                  <CopyLinkButton
-                    url={`https://${storeHandle}.xtiitch.com/collection/${collection.handle}`}
-                    label="Copy collection link"
-                  />
-                  <CollectionEditButton
-                    collection={collection}
-                    error={collectionError}
-                  />
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value={
-                        collection.status === "active"
-                          ? "retire_collection"
-                          : "restore_collection"
-                      }
-                    />
-                    <input
-                      type="hidden"
-                      name="collection_id"
-                      value={collection.collection_id}
-                    />
-                    <Button type="submit" size="small" variant="outlined">
-                      {collection.status === "active" ? "Retire" : "Restore"}
-                    </Button>
-                  </Form>
-                  {collection.status !== "active" ? (
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="intent"
-                        value="delete_collection"
-                      />
-                      <input
-                        type="hidden"
-                        name="collection_id"
-                        value={collection.collection_id}
-                      />
-                      <Tooltip title="Remove collection">
-                        <IconButton
-                          type="submit"
-                          color="error"
-                          aria-label={`Remove ${collection.name}`}
-                        >
-                          <DeleteOutlineRounded />
-                        </IconButton>
-                      </Tooltip>
-                    </Form>
-                  ) : null}
-                </Stack>
-              </Stack>
-            ))
-          )}
-          <PaginationFooter
-            count={collectionPageCount}
-            label="collections"
-            page={collectionPage}
-            pageSize={6}
-            total={collections.length}
-            onChange={setCollectionPage}
-          />
-        </Stack>
-      </Panel>
-
-      <Panel
-        sx={{
-          p: { xs: 2, md: 2.5 },
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
-          <Box sx={{ color: "primary.main" }}>
-            <StraightenRounded />
-          </Box>
-          <Box>
-            <Typography sx={{ fontWeight: 900 }}>Size bands</Typography>
-            <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Sizes become price rows for standard checkout.
-            </Typography>
-          </Box>
-        </Stack>
-        {sizeBandError ? (
-          <Alert severity="warning" sx={{ mt: 1.5 }}>
-            {sizeBandError}
-          </Alert>
-        ) : null}
-        <Form method="post">
-          <input type="hidden" name="intent" value="create_size_band" />
-          <Box
-            sx={{
-              mt: 1.5,
-              display: "grid",
-              gap: 1,
-              gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
-            }}
-          >
-            <TextField
-              name="label"
-              label="Size label"
-              size="small"
-              placeholder="M, L, XL, Custom"
-              required
-            />
-            <TextField
-              name="sequence"
-              label="Order"
-              type="number"
-              size="small"
-              defaultValue={nextSizeBandSequence}
-              slotProps={{ htmlInput: { min: 0 } }}
-              required
-            />
-          </Box>
-          <Button
-            type="submit"
-            variant="outlined"
-            startIcon={<AddRounded />}
-            sx={{ mt: 1.25 }}
-          >
-            Add size band
-          </Button>
-        </Form>
-        <Divider
-          sx={{ mt: sizeBands.length === 0 ? "auto" : 1.75, mb: 1.75 }}
-        />
-        {sizeBands.length === 0 ? (
-          <InlineEmptyState
-            icon={<StraightenRounded sx={{ fontSize: 34 }} />}
-            title="No size bands yet"
-            helper="Add sizes before setting per-design prices."
-          />
-        ) : (
+            <Button
+              type="submit"
+              variant="outlined"
+              startIcon={<AddRounded />}
+              sx={{ mt: 1.25 }}
+            >
+              Add collection
+            </Button>
+          </Form>
+          <Divider sx={{ my: 1.75 }} />
           <Stack spacing={1}>
-            {pagedSizeBands.map((band) => {
-              const chartCount = band.chart?.length ?? 0;
-              return (
+            {collections.length === 0 ? (
+              <InlineEmptyState
+                icon={<StorefrontRounded sx={{ fontSize: 34 }} />}
+                title="No collections yet"
+                helper="Collections help customers browse by occasion or drop."
+              />
+            ) : (
+              pagedCollections.map((collection) => (
                 <Stack
-                  key={band.size_band_id}
-                  direction="row"
+                  key={collection.collection_id}
+                  direction={{ xs: "column", sm: "row" }}
                   spacing={1}
                   sx={{
-                    p: 1,
-                    alignItems: "center",
+                    p: 1.25,
+                    alignItems: { xs: "stretch", sm: "center" },
                     justifyContent: "space-between",
                     border: "1px solid",
                     borderColor: "divider",
@@ -12601,16 +12346,15 @@ function CatalogueSetupPanel({
                   }}
                 >
                   <Box sx={{ minWidth: 0 }}>
-                    <Typography sx={{ fontWeight: 800 }} noWrap>
-                      {band.label} · #{band.sequence}
+                    <Typography sx={{ fontWeight: 900 }} noWrap>
+                      {collection.name}
                     </Typography>
                     <Typography
-                      variant="caption"
+                      variant="body2"
                       sx={{ color: "text.secondary" }}
                     >
-                      {chartCount === 0
-                        ? "No size chart"
-                        : `${chartCount} measurement${chartCount === 1 ? "" : "s"}`}
+                      {collection.theme || collection.handle} · #
+                      {collection.sequence}
                     </Typography>
                   </Box>
                   <Stack
@@ -12618,23 +12362,196 @@ function CatalogueSetupPanel({
                     spacing={0.75}
                     sx={{ alignItems: "center" }}
                   >
-                    <SizeBandEditButton band={band} error={sizeBandError} />
-                    <SizeBandDeleteButton band={band} />
+                    <CopyLinkButton
+                      url={`https://${storeHandle}.xtiitch.com/collection/${collection.handle}`}
+                      label="Copy collection link"
+                    />
+                    <CollectionEditButton
+                      collection={collection}
+                      error={collectionError}
+                    />
+                    <Form method="post">
+                      <input
+                        type="hidden"
+                        name="intent"
+                        value={
+                          collection.status === "active"
+                            ? "retire_collection"
+                            : "restore_collection"
+                        }
+                      />
+                      <input
+                        type="hidden"
+                        name="collection_id"
+                        value={collection.collection_id}
+                      />
+                      <Button type="submit" size="small" variant="outlined">
+                        {collection.status === "active" ? "Retire" : "Restore"}
+                      </Button>
+                    </Form>
+                    {collection.status !== "active" ? (
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="delete_collection"
+                        />
+                        <input
+                          type="hidden"
+                          name="collection_id"
+                          value={collection.collection_id}
+                        />
+                        <Tooltip title="Remove collection">
+                          <IconButton
+                            type="submit"
+                            color="error"
+                            aria-label={`Remove ${collection.name}`}
+                          >
+                            <DeleteOutlineRounded />
+                          </IconButton>
+                        </Tooltip>
+                      </Form>
+                    ) : null}
                   </Stack>
                 </Stack>
-              );
-            })}
+              ))
+            )}
             <PaginationFooter
-              count={sizeBandPageCount}
-              label="size bands"
-              page={sizeBandPage}
-              pageSize={12}
-              total={sizeBands.length}
-              onChange={setSizeBandPage}
+              count={collectionPageCount}
+              label="collections"
+              page={collectionPage}
+              pageSize={6}
+              total={collections.length}
+              onChange={setCollectionPage}
             />
           </Stack>
-        )}
-      </Panel>
+        </Panel>
+      ) : null}
+
+      {mode === "sizeBands" ? (
+        <Panel
+          sx={{
+            p: { xs: 2, md: 2.5 },
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <StraightenRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Size bands</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Sizes become price rows for standard checkout.
+              </Typography>
+            </Box>
+          </Stack>
+          {sizeBandError ? (
+            <Alert severity="warning" sx={{ mt: 1.5 }}>
+              {sizeBandError}
+            </Alert>
+          ) : null}
+          <Form method="post">
+            <input type="hidden" name="intent" value="create_size_band" />
+            <Box
+              sx={{
+                mt: 1.5,
+                display: "grid",
+                gap: 1,
+                gridTemplateColumns: { xs: "1fr", sm: "minmax(0, 1fr) 96px" },
+              }}
+            >
+              <TextField
+                name="label"
+                label="Size label"
+                size="small"
+                placeholder="M, L, XL, Custom"
+                required
+              />
+              <TextField
+                name="sequence"
+                label="Order"
+                type="number"
+                size="small"
+                defaultValue={nextSizeBandSequence}
+                slotProps={{ htmlInput: { min: 0 } }}
+                required
+              />
+            </Box>
+            <Button
+              type="submit"
+              variant="outlined"
+              startIcon={<AddRounded />}
+              sx={{ mt: 1.25 }}
+            >
+              Add size band
+            </Button>
+          </Form>
+          <Divider
+            sx={{ mt: sizeBands.length === 0 ? "auto" : 1.75, mb: 1.75 }}
+          />
+          {sizeBands.length === 0 ? (
+            <InlineEmptyState
+              icon={<StraightenRounded sx={{ fontSize: 34 }} />}
+              title="No size bands yet"
+              helper="Add sizes before setting per-design prices."
+            />
+          ) : (
+            <Stack spacing={1}>
+              {pagedSizeBands.map((band) => {
+                const chartCount = band.chart?.length ?? 0;
+                return (
+                  <Stack
+                    key={band.size_band_id}
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      p: 1,
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 2,
+                      bgcolor: "rgba(var(--surface-rgb), 0.72)",
+                    }}
+                  >
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 800 }} noWrap>
+                        {band.label} · #{band.sequence}
+                      </Typography>
+                      <Typography
+                        variant="caption"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {chartCount === 0
+                          ? "No size chart"
+                          : `${chartCount} measurement${chartCount === 1 ? "" : "s"}`}
+                      </Typography>
+                    </Box>
+                    <Stack
+                      direction="row"
+                      spacing={0.75}
+                      sx={{ alignItems: "center" }}
+                    >
+                      <SizeBandEditButton band={band} error={sizeBandError} />
+                      <SizeBandDeleteButton band={band} />
+                    </Stack>
+                  </Stack>
+                );
+              })}
+              <PaginationFooter
+                count={sizeBandPageCount}
+                label="size bands"
+                page={sizeBandPage}
+                pageSize={12}
+                total={sizeBands.length}
+                onChange={setSizeBandPage}
+              />
+            </Stack>
+          )}
+        </Panel>
+      ) : null}
     </Box>
   );
 }
@@ -15748,6 +15665,7 @@ export default function Dashboard({
         </DialogTitle>
         <DialogContent dividers>
           <CatalogueSetupPanel
+            mode={catalogueToolsOpen}
             collections={collections}
             sizeBands={sizeBands}
             storeHandle={profile.handle}
@@ -16570,31 +16488,15 @@ export default function Dashboard({
                               helper={`${collections.length} total collections`}
                               tone={tokens.info}
                               action={
-                                <Stack
-                                  direction="row"
-                                  spacing={0.75}
-                                  sx={{ flexWrap: "wrap", gap: 0.75 }}
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() =>
+                                    setCatalogueToolsOpen("collections")
+                                  }
                                 >
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() =>
-                                      setCatalogueToolsOpen("collections")
-                                    }
-                                  >
-                                    All collections
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    variant="contained"
-                                    startIcon={<AddRounded />}
-                                    onClick={() =>
-                                      setCatalogueToolsOpen("collections")
-                                    }
-                                  >
-                                    Add collection
-                                  </Button>
-                                </Stack>
+                                  All collections
+                                </Button>
                               }
                             />
                             <MiniStat
@@ -16615,31 +16517,15 @@ export default function Dashboard({
                               helper={`${cataloguePriceCount} prices set`}
                               tone={tokens.warning}
                               action={
-                                <Stack
-                                  direction="row"
-                                  spacing={0.75}
-                                  sx={{ flexWrap: "wrap", gap: 0.75 }}
+                                <Button
+                                  size="small"
+                                  variant="outlined"
+                                  onClick={() =>
+                                    setCatalogueToolsOpen("sizeBands")
+                                  }
                                 >
-                                  <Button
-                                    size="small"
-                                    variant="outlined"
-                                    onClick={() =>
-                                      setCatalogueToolsOpen("sizeBands")
-                                    }
-                                  >
-                                    All size bands
-                                  </Button>
-                                  <Button
-                                    size="small"
-                                    variant="contained"
-                                    startIcon={<AddRounded />}
-                                    onClick={() =>
-                                      setCatalogueToolsOpen("sizeBands")
-                                    }
-                                  >
-                                    Add size band
-                                  </Button>
-                                </Stack>
+                                  All size bands
+                                </Button>
                               }
                             />
                           </Box>
@@ -16807,123 +16693,120 @@ export default function Dashboard({
 
               <Stack spacing={2.5} sx={{ minWidth: 0 }}>
                 {canManage && section === "measurements" ? (
-                  <>
-                    <Panel id="measurements">
-                      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <Stack
-                          direction="row"
-                          spacing={1.25}
-                          sx={{ alignItems: "center" }}
+                  <Panel id="measurements">
+                    <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                      <Stack
+                        direction="row"
+                        spacing={1.25}
+                        sx={{ alignItems: "center" }}
+                      >
+                        <Box sx={{ color: "primary.main" }}>
+                          <StraightenRounded />
+                        </Box>
+                        <Box>
+                          <Typography sx={{ fontWeight: 900 }}>
+                            Measurement setup
+                          </Typography>
+                          <Typography
+                            variant="body2"
+                            sx={{ color: "text.secondary" }}
+                          >
+                            Define the fields used for self, visit, and shop
+                            measurements.
+                          </Typography>
+                        </Box>
+                      </Stack>
+                      {action.fieldError ? (
+                        <Alert severity="warning" sx={{ mt: 2 }}>
+                          {action.fieldError}
+                        </Alert>
+                      ) : null}
+                      <Form method="post">
+                        <input
+                          type="hidden"
+                          name="intent"
+                          value="create_measurement_field"
+                        />
+                        <Box
+                          sx={{
+                            mt: 2,
+                            display: "grid",
+                            gap: 1.25,
+                            gridTemplateColumns: {
+                              xs: "1fr",
+                              sm: "minmax(0, 1fr) 96px 96px",
+                            },
+                          }}
                         >
-                          <Box sx={{ color: "primary.main" }}>
-                            <StraightenRounded />
-                          </Box>
-                          <Box>
-                            <Typography sx={{ fontWeight: 900 }}>
-                              Measurement setup
-                            </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ color: "text.secondary" }}
-                            >
-                              Define the fields used for self, visit, and shop
-                              measurements.
-                            </Typography>
-                          </Box>
-                        </Stack>
-                        {action.fieldError ? (
-                          <Alert severity="warning" sx={{ mt: 2 }}>
-                            {action.fieldError}
-                          </Alert>
-                        ) : null}
-                        <Form method="post">
-                          <input
-                            type="hidden"
-                            name="intent"
-                            value="create_measurement_field"
+                          <TextField
+                            name="label"
+                            label="Field label"
+                            placeholder="Chest"
+                            size="small"
+                            required
                           />
-                          <Box
-                            sx={{
-                              mt: 2,
-                              display: "grid",
-                              gap: 1.25,
-                              gridTemplateColumns: {
-                                xs: "1fr",
-                                sm: "minmax(0, 1fr) 96px 96px",
-                              },
-                            }}
+                          <TextField
+                            name="unit"
+                            label="Unit"
+                            select
+                            defaultValue="in"
+                            size="small"
                           >
-                            <TextField
-                              name="label"
-                              label="Field label"
-                              placeholder="Chest"
-                              size="small"
-                              required
-                            />
-                            <TextField
-                              name="unit"
-                              label="Unit"
-                              select
-                              defaultValue="in"
-                              size="small"
-                            >
-                              {fieldUnits.map((unit) => (
-                                <MenuItem key={unit.value} value={unit.value}>
-                                  {unit.label}
-                                </MenuItem>
-                              ))}
-                            </TextField>
-                            <TextField
-                              name="sequence"
-                              label="Order"
-                              type="number"
-                              defaultValue={nextFieldSequence}
-                              size="small"
-                              slotProps={{ htmlInput: { min: 0 } }}
-                              required
-                            />
-                          </Box>
-                          <Button
-                            type="submit"
-                            variant="contained"
-                            startIcon={<AddRounded />}
-                            sx={{ mt: 1.5 }}
-                          >
-                            Add field
-                          </Button>
-                        </Form>
-                      </Box>
-
-                      {measurementFields.length === 0 ? (
-                        <Box sx={{ px: 2.5, pb: 2.5 }}>
-                          <EmptyState
-                            icon={<StraightenRounded sx={{ fontSize: 38 }} />}
-                            title="No measurement fields yet"
-                            helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
+                            {fieldUnits.map((unit) => (
+                              <MenuItem key={unit.value} value={unit.value}>
+                                {unit.label}
+                              </MenuItem>
+                            ))}
+                          </TextField>
+                          <TextField
+                            name="sequence"
+                            label="Order"
+                            type="number"
+                            defaultValue={nextFieldSequence}
+                            size="small"
+                            slotProps={{ htmlInput: { min: 0 } }}
+                            required
                           />
                         </Box>
-                      ) : (
-                        <>
-                          {pagedMeasurementFields.map((field) => (
-                            <MeasurementFieldRow
-                              key={field.field_id}
-                              field={field}
-                            />
-                          ))}
-                          <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
-                            <PaginationFooter
-                              count={measurementFieldPageCount}
-                              label="measurement fields"
-                              page={measurementFieldPage}
-                              total={measurementFields.length}
-                              onChange={setMeasurementFieldPage}
-                            />
-                          </Box>
-                        </>
-                      )}
-                    </Panel>
-                    <SizeBandLibraryPanel sizeBands={sizeBands} />
-                  </>
+                        <Button
+                          type="submit"
+                          variant="contained"
+                          startIcon={<AddRounded />}
+                          sx={{ mt: 1.5 }}
+                        >
+                          Add field
+                        </Button>
+                      </Form>
+                    </Box>
+
+                    {measurementFields.length === 0 ? (
+                      <Box sx={{ px: 2.5, pb: 2.5 }}>
+                        <EmptyState
+                          icon={<StraightenRounded sx={{ fontSize: 38 }} />}
+                          title="No measurement fields yet"
+                          helper="Add fields such as chest, waist, sleeve, and length before staff record visit or shop measurements."
+                        />
+                      </Box>
+                    ) : (
+                      <>
+                        {pagedMeasurementFields.map((field) => (
+                          <MeasurementFieldRow
+                            key={field.field_id}
+                            field={field}
+                          />
+                        ))}
+                        <Box sx={{ px: { xs: 2, md: 2.5 }, pb: 1.5 }}>
+                          <PaginationFooter
+                            count={measurementFieldPageCount}
+                            label="measurement fields"
+                            page={measurementFieldPage}
+                            total={measurementFields.length}
+                            onChange={setMeasurementFieldPage}
+                          />
+                        </Box>
+                      </>
+                    )}
+                  </Panel>
                 ) : null}
 
                 {canManage && section === "availability" ? (
