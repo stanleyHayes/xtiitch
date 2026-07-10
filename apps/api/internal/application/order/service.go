@@ -128,6 +128,12 @@ func (s Service) ListOrders(ctx context.Context, scope common.TenantScope) ([]po
 	return s.orders.ListOrders(ctx, scope)
 }
 
+// ListStages returns the business's ordered production stages per flow, so the
+// dashboard can render every stage column on the board.
+func (s Service) ListStages(ctx context.Context, scope common.TenantScope) ([]ports.StageTemplate, error) {
+	return s.orders.ListStageTemplates(ctx, scope)
+}
+
 type AdvanceStageCommand struct {
 	Scope     common.TenantScope
 	ActorRole business.UserRole

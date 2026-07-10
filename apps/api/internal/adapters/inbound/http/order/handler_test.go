@@ -247,6 +247,10 @@ func (s *fakeOrderService) ListOrders(context.Context, common.TenantScope) ([]po
 	return s.orders, nil
 }
 
+func (s *fakeOrderService) ListStages(context.Context, common.TenantScope) ([]ports.StageTemplate, error) {
+	return nil, nil
+}
+
 func (s *fakeOrderService) AdvanceStage(_ context.Context, command orderapp.AdvanceStageCommand) (order.Tracking, error) {
 	s.advanceCommand = command
 	return order.Tracking{}, s.advanceErr

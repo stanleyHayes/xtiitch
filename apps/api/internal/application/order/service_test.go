@@ -159,6 +159,10 @@ func (r *fakeOrderRepo) ListOrders(_ context.Context, _ common.TenantScope) ([]p
 	return nil, nil
 }
 
+func (r *fakeOrderRepo) ListStageTemplates(_ context.Context, _ common.TenantScope) ([]ports.StageTemplate, error) {
+	return nil, nil
+}
+
 func (r *fakeOrderRepo) AdvanceStage(_ context.Context, scope common.TenantScope, orderID common.ID) (order.Tracking, error) {
 	r.advanceCalled = true
 	r.advanceScope = scope

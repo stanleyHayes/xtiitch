@@ -25,6 +25,7 @@ type Service interface {
 	CreateWalkInOrder(ctx context.Context, command orderapp.CreateWalkInOrderCommand) (common.ID, error)
 	CreateConfirmedCustomOrder(ctx context.Context, command orderapp.CreateConfirmedCustomOrderCommand) (common.ID, error)
 	ListOrders(ctx context.Context, scope common.TenantScope) ([]ports.OrderSummary, error)
+	ListStages(ctx context.Context, scope common.TenantScope) ([]ports.StageTemplate, error)
 	AdvanceStage(ctx context.Context, command orderapp.AdvanceStageCommand) (order.Tracking, error)
 	GetTracking(ctx context.Context, orderID common.ID) (order.Tracking, error)
 	SetAgreedTotal(ctx context.Context, command orderapp.SetAgreedTotalCommand) error
@@ -48,6 +49,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/orders", handler.createWalkIn)
 		protected.Post("/orders/custom", handler.createCustomWalkIn)
 		protected.Get("/orders", handler.listOrders)
+		protected.Get("/stages", handler.listStages)
 		protected.Post("/orders/{id}/advance", handler.advance)
 		protected.Post("/orders/{id}/agreed-total", handler.setAgreedTotal)
 		protected.Post("/orders/{id}/balance", handler.collectBalance)
@@ -168,6 +170,29 @@ func (handler Handler) listOrders(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"orders": out})
+}
+
+func (handler Handler) listStages(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	stages, err := handler.service.ListStages(r.Context(), principal.TenantScope())
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	out := make([]map[string]any, 0, len(stages))
+	for _, s := range stages {
+		out = append(out, map[string]any{
+			"name":     s.Name,
+			"colour":   s.Colour,
+			"flow":     s.Flow,
+			"sequence": s.Sequence,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"stages": out})
 }
 
 func (handler Handler) advance(w http.ResponseWriter, r *http.Request) {

@@ -65,6 +65,18 @@ type OrderRepository interface {
 	// GetOrderBilling reads the financial state a balance charge needs for one
 	// order (type, status, agreed total, settled, customer email), tenant-scoped.
 	GetOrderBilling(ctx context.Context, scope common.TenantScope, orderID common.ID) (OrderBilling, error)
+	// ListStageTemplates returns the business's ordered production stages per flow,
+	// so the dashboard can render every stage column (even empty ones), not just
+	// the stages live orders happen to sit in.
+	ListStageTemplates(ctx context.Context, scope common.TenantScope) ([]StageTemplate, error)
+}
+
+// StageTemplate is one production stage in a business's flow (a board column).
+type StageTemplate struct {
+	Name     string
+	Colour   string
+	Flow     string
+	Sequence int
 }
 
 // OrderBilling is the slice of an order a balance charge reasons about.

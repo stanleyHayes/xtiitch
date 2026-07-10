@@ -1436,6 +1436,10 @@ func (f *fakeOrders) ListOrders(context.Context, common.TenantScope) ([]ports.Or
 	return nil, nil
 }
 
+func (f *fakeOrders) ListStageTemplates(context.Context, common.TenantScope) ([]ports.StageTemplate, error) {
+	return nil, nil
+}
+
 func (f *fakeOrders) AdvanceStage(context.Context, common.TenantScope, common.ID) (order.Tracking, error) {
 	return order.Tracking{}, nil
 }
