@@ -57,6 +57,12 @@ var ErrSequenceTaken = errors.New("display order position already in use")
 // business's plan allows (free: 2, paid: 5). Services map it to a 409.
 var ErrImageLimitExceeded = errors.New("image limit exceeded for plan")
 
+// ErrVariationLimitReached is returned when creating a colour variation would
+// exceed the business plan's per-design variation cap (counting the design's
+// implicit default variation). Services surface it; the HTTP layer maps it to a
+// 409 so the dashboard can prompt an upgrade.
+var ErrVariationLimitReached = errors.New("colour variation limit reached for plan")
+
 // ErrZoneNameTaken is returned when a business tries to create two delivery zones
 // with the same name. The unique database index makes it race-proof; services map
 // it to a 409.

@@ -59,6 +59,12 @@ type CatalogueRepository interface {
 	UpdateDesign(ctx context.Context, scope common.TenantScope, input DesignInput) error
 	SetDesignStatus(ctx context.Context, scope common.TenantScope, designID common.ID, status catalogue.Status) error
 
+	ListDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignVariation, error)
+	CreateDesignVariation(ctx context.Context, scope common.TenantScope, input DesignVariationInput) error
+	UpdateDesignVariation(ctx context.Context, scope common.TenantScope, input DesignVariationUpdateInput) error
+	DeleteDesignVariation(ctx context.Context, scope common.TenantScope, variationID common.ID) error
+	ReorderDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID, orderedIDs []common.ID) error
+
 	CreateSizeBand(ctx context.Context, scope common.TenantScope, input SizeBandInput) error
 	ListSizeBands(ctx context.Context, scope common.TenantScope) ([]catalogue.SizeBand, error)
 	UpdateSizeBand(ctx context.Context, scope common.TenantScope, input SizeBandUpdateInput) error
@@ -99,6 +105,30 @@ type DesignInput struct {
 	DepositOverrideMinor *int64
 	Handle               string
 	Sequence             int
+}
+
+// DesignVariationInput creates one stored colour variation for a design. A
+// Sequence of 0 (or below) auto-assigns the next free position for the design.
+type DesignVariationInput struct {
+	VariationID common.ID
+	DesignID    common.ID
+	BusinessID  common.ID
+	Name        string
+	Images      []string
+	IsDefault   bool
+	Sequence    int
+}
+
+// DesignVariationUpdateInput edits a stored colour variation's name, images,
+// default flag, and display order. A Sequence of 0 (or below) keeps the
+// variation's current position.
+type DesignVariationUpdateInput struct {
+	VariationID common.ID
+	BusinessID  common.ID
+	Name        string
+	Images      []string
+	IsDefault   bool
+	Sequence    int
 }
 
 type SizeBandInput struct {

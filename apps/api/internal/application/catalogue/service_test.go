@@ -302,6 +302,122 @@ func TestCatalogueManagementRequiresOwnerOrAdmin(t *testing.T) {
 	}
 }
 
+func TestVariationCapForPlanMatchesPricingBook(t *testing.T) {
+	t.Parallel()
+	// Caps count the design's implicit default variation as the first slot.
+	cases := map[string]int{
+		"free":    2,
+		"starter": 3,
+		"growth":  5,
+		"studio":  10,
+		"":        2, // unknown/blank falls back to the most restrictive cap
+		"bogus":   2,
+	}
+	for plan, want := range cases {
+		if got := catalogue.VariationCapForPlan(plan); got != want {
+			t.Fatalf("VariationCapForPlan(%q) = %d, want %d", plan, got, want)
+		}
+	}
+}
+
+func TestVariationCreateAllowedCountsImplicitDefault(t *testing.T) {
+	t.Parallel()
+	// Free cap 2 = 1 implicit default + at most 1 stored variation.
+	if !catalogue.VariationCreateAllowed("free", 0) {
+		t.Fatal("free plan must allow the first stored variation")
+	}
+	if catalogue.VariationCreateAllowed("free", 1) {
+		t.Fatal("free plan must reject a second stored variation (default + 1 = cap of 2)")
+	}
+	// Studio cap 10 = 1 implicit default + at most 9 stored variations.
+	if !catalogue.VariationCreateAllowed("studio", 8) {
+		t.Fatal("studio plan must allow the ninth stored variation")
+	}
+	if catalogue.VariationCreateAllowed("studio", 9) {
+		t.Fatal("studio plan must reject the tenth stored variation")
+	}
+}
+
+func TestCreateDesignVariationSurfacesPlanCap(t *testing.T) {
+	t.Parallel()
+	// The repository enforces the cap and returns ErrVariationLimitReached; the
+	// service must surface it unchanged so the HTTP layer can map it to a 409.
+	repo := &fakeCatalogueRepo{createVariationErr: ports.ErrVariationLimitReached}
+	service := newService(repo)
+
+	_, err := service.CreateDesignVariation(context.Background(), CreateDesignVariationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleOwner,
+		DesignID:  "design-1",
+		Name:      "Red",
+	})
+	if !errors.Is(err, ports.ErrVariationLimitReached) {
+		t.Fatalf("expected variation limit reached, got %v", err)
+	}
+}
+
+func TestCreateDesignVariationRequiresManageRole(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesignVariation(context.Background(), CreateDesignVariationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleStaff,
+		DesignID:  "design-1",
+		Name:      "Red",
+	})
+	if !errors.Is(err, authdomain.ErrForbidden) {
+		t.Fatalf("expected forbidden for staff, got %v", err)
+	}
+	if repo.variationCreated {
+		t.Fatal("staff variation creation must stop before the repository write")
+	}
+}
+
+func TestCreateDesignVariationTrimsNameAndImages(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesignVariation(context.Background(), CreateDesignVariationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleOwner,
+		DesignID:  "design-1",
+		Name:      "  Royal Blue  ",
+		Images:    []string{" a.jpg ", "", "  ", "b.jpg"},
+	})
+	if err != nil {
+		t.Fatalf("create variation: %v", err)
+	}
+	if repo.createdVariation.Name != "Royal Blue" {
+		t.Fatalf("name not trimmed: %q", repo.createdVariation.Name)
+	}
+	if len(repo.createdVariation.Images) != 2 ||
+		repo.createdVariation.Images[0] != "a.jpg" || repo.createdVariation.Images[1] != "b.jpg" {
+		t.Fatalf("images not normalized: %+v", repo.createdVariation.Images)
+	}
+}
+
+func TestCreateDesignVariationRejectsEmptyName(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesignVariation(context.Background(), CreateDesignVariationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		ActorRole: business.UserRoleOwner,
+		DesignID:  "design-1",
+		Name:      "   ",
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input, got %v", err)
+	}
+	if repo.variationCreated {
+		t.Fatal("must not create a variation with a blank name")
+	}
+}
+
 type fakeCatalogueRepo struct {
 	created            bool
 	design             ports.DesignInput
@@ -312,6 +428,15 @@ type fakeCatalogueRepo struct {
 	getDesign          catalogue.Design
 	priceSet           bool
 	priceSetSizeBandID common.ID
+
+	variations         []catalogue.DesignVariation
+	variationCreated   bool
+	createdVariation   ports.DesignVariationInput
+	createVariationErr error
+	updatedVariation   ports.DesignVariationUpdateInput
+	deletedVariation   common.ID
+	reorderedDesign    common.ID
+	reorderedIDs       []common.ID
 }
 
 func (r *fakeCatalogueRepo) CreateDesign(_ context.Context, _ common.TenantScope, input ports.DesignInput) error {
@@ -372,6 +497,30 @@ func (r *fakeCatalogueRepo) SetDesignPrice(_ context.Context, _ common.TenantSco
 }
 func (r *fakeCatalogueRepo) ListDesignPrices(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.BandPrice, error) {
 	return nil, nil
+}
+func (r *fakeCatalogueRepo) ListDesignVariations(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.DesignVariation, error) {
+	return r.variations, nil
+}
+func (r *fakeCatalogueRepo) CreateDesignVariation(_ context.Context, _ common.TenantScope, input ports.DesignVariationInput) error {
+	if r.createVariationErr != nil {
+		return r.createVariationErr
+	}
+	r.variationCreated = true
+	r.createdVariation = input
+	return nil
+}
+func (r *fakeCatalogueRepo) UpdateDesignVariation(_ context.Context, _ common.TenantScope, input ports.DesignVariationUpdateInput) error {
+	r.updatedVariation = input
+	return nil
+}
+func (r *fakeCatalogueRepo) DeleteDesignVariation(_ context.Context, _ common.TenantScope, variationID common.ID) error {
+	r.deletedVariation = variationID
+	return nil
+}
+func (r *fakeCatalogueRepo) ReorderDesignVariations(_ context.Context, _ common.TenantScope, designID common.ID, orderedIDs []common.ID) error {
+	r.reorderedDesign = designID
+	r.reorderedIDs = orderedIDs
+	return nil
 }
 
 type sequenceIDs struct {

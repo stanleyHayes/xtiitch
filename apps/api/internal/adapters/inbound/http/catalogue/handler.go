@@ -66,6 +66,12 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Put("/designs/{id}/prices/{bandId}", handler.setPrice)
 		protected.Get("/designs/{id}/prices", handler.listPrices)
 
+		protected.Get("/designs/{id}/variations", handler.listVariations)
+		protected.Post("/designs/{id}/variations", handler.createVariation)
+		protected.Post("/designs/{id}/variations/reorder", handler.reorderVariations)
+		protected.Patch("/designs/{id}/variations/{variationId}", handler.updateVariation)
+		protected.Delete("/designs/{id}/variations/{variationId}", handler.deleteVariation)
+
 		protected.Post("/size-bands", handler.createSizeBand)
 		protected.Get("/size-bands", handler.listSizeBands)
 		protected.Patch("/size-bands/{id}", handler.updateSizeBand)
@@ -652,6 +658,125 @@ func (handler Handler) listPrices(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"prices": toPrices(prices)})
 }
 
+// --- design colour variations ---
+
+type variationBody struct {
+	Name      string   `json:"name"`
+	Images    []string `json:"images"`
+	IsDefault bool     `json:"is_default"`
+	Sequence  int      `json:"sequence"`
+}
+
+type reorderVariationsBody struct {
+	OrderedIDs []string `json:"ordered_ids"`
+}
+
+func (handler Handler) listVariations(w http.ResponseWriter, r *http.Request) {
+	scope, ok := tenantScope(w, r)
+	if !ok {
+		return
+	}
+	variations, err := handler.service.ListDesignVariations(r.Context(), scope, common.ID(chi.URLParam(r, "id")))
+	if err != nil {
+		writeRepoError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"variations": toVariationResponses(variations)})
+}
+
+func (handler Handler) createVariation(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body variationBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	id, err := handler.service.CreateDesignVariation(r.Context(), catalogueapp.CreateDesignVariationCommand{
+		Scope:     scope,
+		ActorRole: role,
+		DesignID:  common.ID(chi.URLParam(r, "id")),
+		Name:      body.Name,
+		Images:    body.Images,
+		IsDefault: body.IsDefault,
+		Sequence:  body.Sequence,
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, map[string]string{"variation_id": id.String()})
+}
+
+func (handler Handler) updateVariation(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body variationBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if err := handler.service.UpdateDesignVariation(r.Context(), catalogueapp.UpdateDesignVariationCommand{
+		Scope:       scope,
+		ActorRole:   role,
+		VariationID: common.ID(chi.URLParam(r, "variationId")),
+		Name:        body.Name,
+		Images:      body.Images,
+		IsDefault:   body.IsDefault,
+		Sequence:    body.Sequence,
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) deleteVariation(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	if err := handler.service.DeleteDesignVariation(r.Context(), catalogueapp.DeleteDesignVariationCommand{
+		Scope:       scope,
+		ActorRole:   role,
+		VariationID: common.ID(chi.URLParam(r, "variationId")),
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func (handler Handler) reorderVariations(w http.ResponseWriter, r *http.Request) {
+	scope, role, ok := tenantPrincipal(w, r)
+	if !ok {
+		return
+	}
+	var body reorderVariationsBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	orderedIDs := make([]common.ID, 0, len(body.OrderedIDs))
+	for _, id := range body.OrderedIDs {
+		orderedIDs = append(orderedIDs, common.ID(id))
+	}
+	if err := handler.service.ReorderDesignVariations(r.Context(), catalogueapp.ReorderDesignVariationsCommand{
+		Scope:      scope,
+		ActorRole:  role,
+		DesignID:   common.ID(chi.URLParam(r, "id")),
+		OrderedIDs: orderedIDs,
+	}); err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // --- promotions ---
 
 func (handler Handler) listPromotions(w http.ResponseWriter, r *http.Request) {
@@ -772,17 +897,26 @@ type collectionResponse struct {
 }
 
 type designResponse struct {
-	DesignID             string          `json:"design_id"`
-	CollectionID         *string         `json:"collection_id"`
-	Title                string          `json:"title"`
-	Description          string          `json:"description"`
-	Images               []string        `json:"images"`
-	CustomisationAllowed bool            `json:"customisation_allowed"`
-	DepositOverrideMinor *int64          `json:"deposit_override_minor"`
-	Handle               string          `json:"handle"`
-	Status               string          `json:"status"`
-	Sequence             int             `json:"sequence"`
-	Prices               []priceResponse `json:"prices"`
+	DesignID             string              `json:"design_id"`
+	CollectionID         *string             `json:"collection_id"`
+	Title                string              `json:"title"`
+	Description          string              `json:"description"`
+	Images               []string            `json:"images"`
+	CustomisationAllowed bool                `json:"customisation_allowed"`
+	DepositOverrideMinor *int64              `json:"deposit_override_minor"`
+	Handle               string              `json:"handle"`
+	Status               string              `json:"status"`
+	Sequence             int                 `json:"sequence"`
+	Prices               []priceResponse     `json:"prices"`
+	Variations           []variationResponse `json:"variations"`
+}
+
+type variationResponse struct {
+	VariationID string   `json:"variation_id"`
+	Name        string   `json:"name"`
+	Images      []string `json:"images"`
+	IsDefault   bool     `json:"is_default"`
+	Sequence    int      `json:"sequence"`
 }
 
 type priceResponse struct {
@@ -850,12 +984,31 @@ func toDesignResponse(d catalogue.Design, prices []catalogue.BandPrice) designRe
 		Images: images, CustomisationAllowed: d.CustomisationAllowed,
 		DepositOverrideMinor: d.DepositOverrideMinor, Handle: d.Handle,
 		Status: string(d.Status), Sequence: d.Sequence, Prices: toPrices(prices),
+		Variations: toVariationResponses(d.Variations),
 	}
 	if d.CollectionID != nil {
 		value := d.CollectionID.String()
 		resp.CollectionID = &value
 	}
 	return resp
+}
+
+func toVariationResponses(variations []catalogue.DesignVariation) []variationResponse {
+	out := make([]variationResponse, 0, len(variations))
+	for _, v := range variations {
+		images := v.Images
+		if images == nil {
+			images = []string{}
+		}
+		out = append(out, variationResponse{
+			VariationID: v.ID.String(),
+			Name:        v.Name,
+			Images:      images,
+			IsDefault:   v.IsDefault,
+			Sequence:    v.Sequence,
+		})
+	}
+	return out
 }
 
 func toPrices(prices []catalogue.BandPrice) []priceResponse {
@@ -958,6 +1111,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, ports.ErrImageLimitExceeded) {
 		writeError(w, http.StatusConflict, "image_limit_exceeded")
+		return
+	}
+	if errors.Is(err, ports.ErrVariationLimitReached) {
+		writeError(w, http.StatusConflict, "variation_limit_reached")
 		return
 	}
 	writeRepoError(w, err)

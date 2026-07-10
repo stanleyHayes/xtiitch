@@ -24,6 +24,50 @@ type Design struct {
 	Handle               string
 	Status               Status
 	Sequence             int
+	// Variations are the design's stored colour variations (each a colour name +
+	// an ordered image set). The design itself is the implicit default variation,
+	// so this holds only the ADDITIONAL colour-labelled sets. Empty on list reads;
+	// populated on the single-design dashboard and public storefront reads.
+	Variations []DesignVariation
+}
+
+// DesignVariation is one stored colour variation of a design: a colour name and
+// an ordered list of images. It shares the design's price and order flow and
+// only adds a colour-labelled image set. The design itself is the implicit
+// default (first) variation, so a stored row is normally a non-default extra.
+type DesignVariation struct {
+	ID         common.ID
+	DesignID   common.ID
+	BusinessID common.ID
+	Name       string
+	Images     []string
+	IsDefault  bool
+	Sequence   int
+}
+
+// VariationCapForPlan returns the maximum number of colour variations a single
+// design may have on the given plan, COUNTING the implicit default variation
+// (the design itself) as the first: Free 2 / Starter 3 / Growth 5 / Studio 10.
+// An unknown or blank plan code falls back to the most restrictive Free cap.
+func VariationCapForPlan(planCode string) int {
+	switch planCode {
+	case "starter":
+		return 3
+	case "growth":
+		return 5
+	case "studio":
+		return 10
+	default:
+		return 2
+	}
+}
+
+// VariationCreateAllowed reports whether a business on planCode may store one
+// more colour variation for a design that already has existingStored rows. The
+// design's implicit default occupies one slot, so a new row is allowed only
+// while the stored count plus that default stays below the plan cap.
+func VariationCreateAllowed(planCode string, existingStored int) bool {
+	return existingStored+1 < VariationCapForPlan(planCode)
 }
 
 type SizeBand struct {

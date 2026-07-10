@@ -396,8 +396,19 @@ func (s Service) ListDesigns(ctx context.Context, scope common.TenantScope) ([]c
 	return s.catalogue.ListDesigns(ctx, scope)
 }
 
+// GetDesign returns a single design with its stored colour variations attached,
+// for the dashboard's design editor.
 func (s Service) GetDesign(ctx context.Context, scope common.TenantScope, id common.ID) (catalogue.Design, error) {
-	return s.catalogue.GetDesign(ctx, scope, id)
+	design, err := s.catalogue.GetDesign(ctx, scope, id)
+	if err != nil {
+		return catalogue.Design{}, err
+	}
+	variations, err := s.catalogue.ListDesignVariations(ctx, scope, design.ID)
+	if err != nil {
+		return catalogue.Design{}, err
+	}
+	design.Variations = variations
+	return design, nil
 }
 
 type DesignStatusCommand struct {
@@ -425,6 +436,120 @@ func (s Service) DeleteDesign(ctx context.Context, cmd DesignStatusCommand) erro
 		return err
 	}
 	return s.catalogue.SetDesignStatus(ctx, cmd.Scope, cmd.DesignID, catalogue.StatusDeleted)
+}
+
+// --- Design colour variations ---
+
+// normalizeVariationImages trims image entries and drops the blanks, returning a
+// non-nil slice so an empty image set is stored as the column's '{}' default.
+func normalizeVariationImages(images []string) []string {
+	cleaned := make([]string, 0, len(images))
+	for _, image := range images {
+		if trimmed := strings.TrimSpace(image); trimmed != "" {
+			cleaned = append(cleaned, trimmed)
+		}
+	}
+	return cleaned
+}
+
+func (s Service) ListDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignVariation, error) {
+	return s.catalogue.ListDesignVariations(ctx, scope, designID)
+}
+
+type CreateDesignVariationCommand struct {
+	Scope     common.TenantScope
+	ActorRole business.UserRole
+	DesignID  common.ID
+	Name      string
+	Images    []string
+	IsDefault bool
+	Sequence  int
+}
+
+// CreateDesignVariation adds a colour variation (name + ordered images) to a
+// design. The repository enforces the plan's per-design variation cap (counting
+// the implicit default) and the plan image cap, returning typed errors the HTTP
+// layer maps to 409.
+func (s Service) CreateDesignVariation(ctx context.Context, cmd CreateDesignVariationCommand) (common.ID, error) {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return "", err
+	}
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" || cmd.DesignID.IsZero() {
+		return "", ErrInvalidInput
+	}
+	id := s.ids.NewID()
+	err := s.catalogue.CreateDesignVariation(ctx, cmd.Scope, ports.DesignVariationInput{
+		VariationID: id,
+		DesignID:    cmd.DesignID,
+		BusinessID:  cmd.Scope.BusinessID,
+		Name:        name,
+		Images:      normalizeVariationImages(cmd.Images),
+		IsDefault:   cmd.IsDefault,
+		Sequence:    cmd.Sequence,
+	})
+	return id, err
+}
+
+type UpdateDesignVariationCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	VariationID common.ID
+	Name        string
+	Images      []string
+	IsDefault   bool
+	Sequence    int
+}
+
+func (s Service) UpdateDesignVariation(ctx context.Context, cmd UpdateDesignVariationCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" || cmd.VariationID.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.catalogue.UpdateDesignVariation(ctx, cmd.Scope, ports.DesignVariationUpdateInput{
+		VariationID: cmd.VariationID,
+		BusinessID:  cmd.Scope.BusinessID,
+		Name:        name,
+		Images:      normalizeVariationImages(cmd.Images),
+		IsDefault:   cmd.IsDefault,
+		Sequence:    cmd.Sequence,
+	})
+}
+
+type DeleteDesignVariationCommand struct {
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	VariationID common.ID
+}
+
+func (s Service) DeleteDesignVariation(ctx context.Context, cmd DeleteDesignVariationCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.VariationID.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.catalogue.DeleteDesignVariation(ctx, cmd.Scope, cmd.VariationID)
+}
+
+type ReorderDesignVariationsCommand struct {
+	Scope      common.TenantScope
+	ActorRole  business.UserRole
+	DesignID   common.ID
+	OrderedIDs []common.ID
+}
+
+func (s Service) ReorderDesignVariations(ctx context.Context, cmd ReorderDesignVariationsCommand) error {
+	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
+		return err
+	}
+	if cmd.DesignID.IsZero() {
+		return ErrInvalidInput
+	}
+	return s.catalogue.ReorderDesignVariations(ctx, cmd.Scope, cmd.DesignID, cmd.OrderedIDs)
 }
 
 // --- Size bands & pricing ---
@@ -566,8 +691,26 @@ func (s Service) LoadStorefront(ctx context.Context, handle string) (StorefrontV
 	return StorefrontView{Store: store, Collections: collections, Designs: designs}, nil
 }
 
+// GetStoreDesign returns a public storefront design with its stored colour
+// variations attached so the storefront can render colour swatches. The
+// variations are read under the resolved business's tenant scope (their table is
+// tenant-isolated), which is safe because the storefront read already resolved
+// the design to that business.
 func (s Service) GetStoreDesign(ctx context.Context, handle string) (ports.StorefrontDesign, error) {
-	return s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(handle))
+	design, err := s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(handle))
+	if err != nil {
+		return ports.StorefrontDesign{}, err
+	}
+	variations, err := s.catalogue.ListDesignVariations(
+		ctx,
+		common.TenantScope{BusinessID: design.Design.BusinessID},
+		design.Design.ID,
+	)
+	if err != nil {
+		return ports.StorefrontDesign{}, err
+	}
+	design.Design.Variations = variations
+	return design, nil
 }
 
 func (s Service) GetStoreCollection(ctx context.Context, handle string) (ports.StorefrontCollection, error) {
