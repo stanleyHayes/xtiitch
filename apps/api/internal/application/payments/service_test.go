@@ -50,6 +50,79 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	}
 }
 
+func TestInitiateChargeCapsCommissionPerDesignLine(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{verifySig: true, initResult: ports.InitializeTransactionResult{AuthorizationURL: "https://pay/x"}}
+	payments := &fakePaymentRepo{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
+	}}
+	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+
+	// Three GHS 2,000 designs on the Free plan (3%). Each design's raw fee is 6000,
+	// over the GHS 50 (5000) cap, so the cart pays 3 × 5000 = 15000 — one cap per
+	// design, summed — NOT a single 5000 cap on the 600000 total.
+	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:            common.TenantScope{BusinessID: "business-1"},
+		Purpose:          money.PaymentPurposeCartFull,
+		AmountMinor:      600000,
+		LineAmountsMinor: []int64{200000, 200000, 200000},
+		Method:           money.PaymentMethodMomo,
+		CustomerEmail:    "buyer@example.com",
+	})
+	if err != nil {
+		t.Fatalf("initiate charge: %v", err)
+	}
+	if result.CommissionMinor != 15000 {
+		t.Fatalf("expected 3 per-design GHS 50 caps summed (15000), got %d", result.CommissionMinor)
+	}
+	// The split's transaction_charge must equal the summed per-design commission.
+	if provider.initInput.CommissionMinor != 15000 {
+		t.Fatalf("expected the split transaction_charge to equal the summed per-design commission, got %d", provider.initInput.CommissionMinor)
+	}
+	if len(payments.created) != 1 || payments.created[0].CommissionMinor != 15000 {
+		t.Fatalf("expected the recorded payment to carry the summed per-design commission, got %+v", payments.created)
+	}
+	// Contrast with the pre-fix bug: one commission on the whole 600000 total would
+	// hit the single GHS 50 cap at 5000, a third of the correct per-design fee.
+	if money.Commission(600000, 300) != 5000 {
+		t.Fatalf("sanity: the whole-total commission should have hit the single GHS 50 cap at 5000")
+	}
+}
+
+// A bespoke balance is its own Paystack transaction and is fee'd like the deposit
+// (P0.6b): InitiateCharge levies the store's per-design commission at its plan
+// rate, capped at GHS 50, and settles it to Xtiitch in the split.
+func TestInitiateChargeAppliesCappedCommissionToBespokeBalance(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{verifySig: true, initResult: ports.InitializeTransactionResult{AuthorizationURL: "https://pay/x"}}
+	payments := &fakePaymentRepo{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
+	}}
+	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+
+	// A GHS 2,000 balance at 3% raw-fees 6000, capped to the GHS 50 (5000) cap.
+	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:         common.TenantScope{BusinessID: "business-1"},
+		Purpose:       money.PaymentPurposeBalance,
+		AmountMinor:   200000,
+		Method:        money.PaymentMethodMomo,
+		CustomerEmail: "buyer@example.com",
+	})
+	if err != nil {
+		t.Fatalf("initiate charge: %v", err)
+	}
+	if result.CommissionMinor != 5000 {
+		t.Fatalf("expected the balance commission capped at GHS 50 (5000), got %d", result.CommissionMinor)
+	}
+	if provider.initInput.CommissionMinor != 5000 || payments.created[0].CommissionMinor != 5000 {
+		t.Fatalf("expected the balance fee settled to Xtiitch in the split, provider=%+v payment=%+v", provider.initInput, payments.created[0])
+	}
+}
+
 func TestInitiateChargeAcceptsCommissionOverride(t *testing.T) {
 	t.Parallel()
 

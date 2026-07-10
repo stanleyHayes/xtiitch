@@ -221,6 +221,12 @@ func (s Service) CollectBalance(ctx context.Context, cmd CollectBalanceCommand) 
 	if chargeMethod == "" {
 		chargeMethod = money.PaymentMethodMomo
 	}
+	// The bespoke fee applies to BOTH the deposit AND the balance (P0.6b): each is
+	// its own Paystack transaction. Passing no commission override lets
+	// InitiateCharge levy the store's per-design commission (at its plan rate,
+	// capped GHS 50) on this single-design balance and settle it to Xtiitch in the
+	// split — mirroring the deposit charge. Manual/offline balance logging stays
+	// free (it never reaches this Paystack path).
 	charge, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
 		Scope:         cmd.Scope,
 		OrderID:       &cmd.OrderID,

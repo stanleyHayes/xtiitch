@@ -275,6 +275,16 @@ func TestCollectBalanceChargesOutstanding(t *testing.T) {
 	if payments.command.OrderID == nil || *payments.command.OrderID != "o1" {
 		t.Fatalf("expected the charge tied to the order, got %+v", payments.command.OrderID)
 	}
+	// The bespoke fee applies to the balance too (P0.6b): CollectBalance forces
+	// neither a zero commission override nor per-design line amounts, so
+	// InitiateCharge levies the store's per-design commission (capped GHS 50) on
+	// this single-design balance and settles it to Xtiitch in the split.
+	if payments.command.CommissionMinorOverride != nil {
+		t.Fatalf("balance must not suppress the Xtiitch fee via an override, got %v", payments.command.CommissionMinorOverride)
+	}
+	if payments.command.LineAmountsMinor != nil {
+		t.Fatalf("a single-design balance must not pass per-design line amounts, got %+v", payments.command.LineAmountsMinor)
+	}
 }
 
 func TestCollectBalanceRejectsWhenNothingDue(t *testing.T) {

@@ -90,8 +90,15 @@ type InitiateChargeCommand struct {
 	Purpose                    money.PaymentPurpose
 	AmountMinor                int64
 	CommissionMinorOverride    *int64
-	Method                     money.PaymentMethod
-	CustomerEmail              string
+	// LineAmountsMinor, when set, charges and caps the platform commission PER
+	// DESIGN — each amount gets its own GHS 50 cap and the capped fees are summed
+	// — instead of one cap on the whole charge. A bulk cart passes one amount per
+	// design, so an N-design cart pays N separately-capped fees rather than a
+	// single GHS 50 cap on the total (Pricing Book §3 / P0.6a). Single-design
+	// charges leave it empty and are commissioned once on AmountMinor.
+	LineAmountsMinor []int64
+	Method           money.PaymentMethod
+	CustomerEmail    string
 }
 
 type ChargeResult struct {
@@ -122,12 +129,9 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		return ChargeResult{}, ErrBusinessNotVerified
 	}
 
-	commission := money.Commission(cmd.AmountMinor, info.CommissionBps)
-	if cmd.CommissionMinorOverride != nil {
-		if *cmd.CommissionMinorOverride < 0 || *cmd.CommissionMinorOverride > cmd.AmountMinor {
-			return ChargeResult{}, ErrInvalidCharge
-		}
-		commission = *cmd.CommissionMinorOverride
+	commission, err := resolveCommission(cmd, info.CommissionBps)
+	if err != nil {
+		return ChargeResult{}, err
 	}
 	// Pass-to-buyer (Pricing Book §3): when the merchant opts to pass the fee to
 	// the buyer, the customer is charged the order total PLUS the commission; the
@@ -177,6 +181,30 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		AuthorizationURL: result.AuthorizationURL,
 		CommissionMinor:  commission,
 	}, nil
+}
+
+// resolveCommission determines the platform's commission for a charge. By
+// default it is one capped commission on the whole amount. A bulk cart passes
+// per-design line amounts, so each design is commissioned and capped separately
+// (its own GHS 50 cap) and the capped fees are summed — an N-design cart pays N
+// separately-capped fees, not one GHS 50 cap on the total (Pricing Book §3 /
+// P0.6a). An explicit override (used by promotions) wins over both and may not
+// be negative or exceed the amount being charged.
+func resolveCommission(cmd InitiateChargeCommand, basisPoints int) (int64, error) {
+	if cmd.CommissionMinorOverride != nil {
+		if *cmd.CommissionMinorOverride < 0 || *cmd.CommissionMinorOverride > cmd.AmountMinor {
+			return 0, ErrInvalidCharge
+		}
+		return *cmd.CommissionMinorOverride, nil
+	}
+	if len(cmd.LineAmountsMinor) > 0 {
+		var perDesign int64
+		for _, lineMinor := range cmd.LineAmountsMinor {
+			perDesign += money.Commission(lineMinor, basisPoints)
+		}
+		return perDesign, nil
+	}
+	return money.Commission(cmd.AmountMinor, basisPoints), nil
 }
 
 // HandleProviderEvent verifies and applies a provider webhook. The signature is

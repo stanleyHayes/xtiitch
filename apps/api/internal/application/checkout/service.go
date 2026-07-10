@@ -428,6 +428,11 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	standardInputs := make([]ports.CreateOnlineOrderInput, 0, len(cmd.Lines))
 	customInputs := make([]ports.CreateCustomOrderInput, 0, len(cmd.Lines))
 	orderIDs := make([]common.ID, 0, len(cmd.Lines))
+	// lineAmounts is one amount per design (garment price or bespoke deposit),
+	// EXCLUDING the delivery fee. It drives the per-design commission cap: the
+	// Xtiitch fee is charged and capped at GHS 50 per design, then summed — so a
+	// bulk cart is not capped once on the whole total (Pricing Book §3 / P0.6a).
+	lineAmounts := make([]int64, 0, len(cmd.Lines))
 	var total int64
 	for _, line := range cmd.Lines {
 		orderID := s.ids.NewID()
@@ -468,6 +473,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 			}
 			standardInputs = append(standardInputs, input)
 			total += price
+			lineAmounts = append(lineAmounts, price)
 		case CartLineBespoke:
 			design, err := s.resolveCustomDesign(ctx, store, line.DesignHandle, line.SizeMode)
 			if err != nil {
@@ -497,6 +503,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 			}
 			customInputs = append(customInputs, input)
 			total += deposit
+			lineAmounts = append(lineAmounts, deposit)
 		}
 	}
 	total += deliv.feeMinor
@@ -526,12 +533,13 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 		method = money.PaymentMethodMomo
 	}
 	chargeResult, err := s.payments.InitiateCharge(ctx, paymentsapp.InitiateChargeCommand{
-		Scope:         scope,
-		OrderID:       &anchorOrderID,
-		Purpose:       money.PaymentPurposeCartFull,
-		AmountMinor:   total,
-		Method:        method,
-		CustomerEmail: email,
+		Scope:            scope,
+		OrderID:          &anchorOrderID,
+		Purpose:          money.PaymentPurposeCartFull,
+		AmountMinor:      total,
+		LineAmountsMinor: lineAmounts,
+		Method:           method,
+		CustomerEmail:    email,
 	})
 	if err != nil {
 		// The group is committed but no payment was raised, so it could never be

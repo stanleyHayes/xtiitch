@@ -170,6 +170,65 @@ func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine(t *testing.T) {
 	}
 }
 
+// A bulk cart threads ONE amount per design to the charge (excluding delivery),
+// so the platform commission is charged and capped per design and summed, not
+// capped once on the whole cart total (Pricing Book §3 / P0.6a).
+func TestPlaceCartOrderChargesCommissionPerDesignLine(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				// GHS 2,000/design: on the Free plan (3%) each design's raw fee is
+				// 6000, over the GHS 50 (5000) cap, so the per-design cap must bite
+				// three separate times rather than once on the 600000 total.
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 200000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1", CommissionBps: 300,
+		}},
+		Orders:   orders,
+		Payments: payments,
+		IDs:      &seqIDs{ids: []common.ID{"group-1", "customer-1", "order-a", "order-b", "order-c"}},
+	})
+
+	res, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		StoreHandle: "shop",
+		Lines: []CartLineCommand{
+			{DesignHandle: "design", SizeBandID: "band-1"},
+			{DesignHandle: "design", SizeBandID: "band-1"},
+			{DesignHandle: "design", SizeBandID: "band-1"},
+		},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com", CustomerPhone: "+233 24 000 0000",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.AmountMinor != 600000 || payments.command.AmountMinor != 600000 {
+		t.Fatalf("expected the whole cart total charged, got result=%d charge=%d", res.AmountMinor, payments.command.AmountMinor)
+	}
+	// One commission line per design; the payments service caps each at GHS 50 and
+	// sums them (proved in the payments package). The delivery fee (none here) is
+	// never a design line.
+	want := []int64{200000, 200000, 200000}
+	if len(payments.command.LineAmountsMinor) != len(want) {
+		t.Fatalf("expected one commission line per design, got %+v", payments.command.LineAmountsMinor)
+	}
+	for i, amt := range want {
+		if payments.command.LineAmountsMinor[i] != amt {
+			t.Fatalf("expected per-design line %d = %d, got %d", i, amt, payments.command.LineAmountsMinor[i])
+		}
+	}
+	if payments.command.CommissionMinorOverride != nil {
+		t.Fatalf("a plain cart must not force a commission override, got %v", payments.command.CommissionMinorOverride)
+	}
+}
+
 func TestPlaceCartOrderCreatesMixedReadyMadeAndBespokeGroup(t *testing.T) {
 	t.Parallel()
 
@@ -356,6 +415,12 @@ func TestPlaceCartOrderAddsDeliveryFeeToAnchor(t *testing.T) {
 	// 50000 + 50000 garment + 2500 delivery.
 	if res.AmountMinor != 102500 || payments.command.AmountMinor != 102500 {
 		t.Fatalf("expected charge of garment + delivery fee, got result=%d charge=%d", res.AmountMinor, payments.command.AmountMinor)
+	}
+	// The per-design commission lines are the two garment prices only; the delivery
+	// fee is never a design line (Xtiitch's fee is on design sales, not delivery).
+	if len(payments.command.LineAmountsMinor) != 2 ||
+		payments.command.LineAmountsMinor[0] != 50000 || payments.command.LineAmountsMinor[1] != 50000 {
+		t.Fatalf("expected per-design lines [50000 50000] excluding delivery, got %+v", payments.command.LineAmountsMinor)
 	}
 	if len(orders.createdGroup) != 2 {
 		t.Fatalf("expected two orders, got %d", len(orders.createdGroup))
