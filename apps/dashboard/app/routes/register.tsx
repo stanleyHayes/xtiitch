@@ -162,9 +162,6 @@ export default function Register({
     | { brandLogoUrl?: string }
     | undefined;
   const brandLogoUrl = branding?.brandLogoUrl ?? "";
-  const defaultPlan = plans.some((plan) => plan.code === "free")
-    ? "free"
-    : (plans[0]?.code ?? "free");
 
   // The signup is one POST, but we reveal it as three steps so it never reads as
   // a wall of fields. Every input stays mounted (just hidden) so values persist
@@ -186,8 +183,10 @@ export default function Register({
   const [otpSending, setOtpSending] = useState(false);
   const [otpError, setOtpError] = useState("");
   // Plan selection is controlled so a paid-plan choice always registers and is
-  // submitted (the previous uncontrolled radios could fall back to "free").
-  const [selectedPlan, setSelectedPlan] = useState(defaultPlan);
+  // submitted (the previous uncontrolled radios could fall back to "free"). No
+  // plan is pre-selected — the owner MUST deliberately pick one before "Create
+  // store" is enabled, so signup never silently lands them on Free/the dashboard.
+  const [selectedPlan, setSelectedPlan] = useState("");
 
   const handleOk = /^[a-z0-9-]{2,}$/.test(handle.trim().toLowerCase());
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -275,6 +274,9 @@ export default function Register({
     whatsappOk &&
     otpRequested &&
     whatsappCode.trim().length > 0;
+  // The final step requires a deliberate plan choice. When no paid catalogue
+  // loaded, the free fallback (hidden input) is the only option, so allow submit.
+  const step2Valid = plans.length === 0 || selectedPlan !== "";
 
   const goNext = () => setStep((s) => Math.min(s + 1, 2));
   const goBack = () => setStep((s) => Math.max(s - 1, 0));
@@ -877,18 +879,21 @@ export default function Register({
                   type="submit"
                   variant="contained"
                   size="large"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !step2Valid}
                   endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
                   sx={{
                     flex: 1,
                     "&.Mui-disabled": {
-                      bgcolor: tokens.burgundy,
-                      color: tokens.white,
-                      opacity: 0.72,
+                      bgcolor: alpha(tokens.burgundy, 0.14),
+                      color: alpha(tokens.burgundy, 0.55),
                     },
                   }}
                 >
-                  {isSubmitting ? "Creating your store…" : "Create store"}
+                  {isSubmitting
+                    ? "Creating your store…"
+                    : !step2Valid
+                      ? "Select a plan to continue"
+                      : "Create store"}
                 </Button>
               )}
             </Stack>
