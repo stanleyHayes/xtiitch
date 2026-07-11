@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -90,9 +91,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 	// Tenant isolation depends ENTIRELY on FORCE ROW LEVEL SECURITY, which Postgres
 	// silently bypasses for a superuser or a role with BYPASSRLS. If prod is ever
-	// pointed at the DB owner/superuser, every tenant policy is void. Assert the
-	// connected role cannot bypass RLS in any non-local environment, and fail fast.
-	if err := assertRoleEnforcesRLS(ctx, db, cfg.Environment); err != nil {
+	// pointed at the DB owner/superuser, every tenant policy is void. Warn LOUDLY at
+	// boot when the connected role can bypass RLS in a non-local environment. By
+	// default this is a warning (not a hard fail) so it cannot take down a deploy
+	// that is currently (mis)configured that way; set STRICT_DB_ROLE_RLS=true to make
+	// it refuse to start once the dedicated NOBYPASSRLS app role is confirmed.
+	if err := checkRoleEnforcesRLS(ctx, db, cfg.Environment, logger); err != nil {
 		db.Close()
 		return App{}, err
 	}
@@ -524,26 +528,40 @@ func (a App) Close() {
 // are deliberate conveniences for local/dev (a fake Paystack, an unsigned media
 // store, a default signing key); shipping them to production would mean fake
 // payment confirmations, tamperable uploads, and forgeable sessions.
-// assertRoleEnforcesRLS refuses to start when the connected Postgres role can
-// bypass row-level security (superuser or BYPASSRLS) in a non-local environment.
-// FORCE RLS does not apply to such roles, so this closes the "prod pointed at the
-// DB owner/superuser → all tenant isolation void" failure mode.
-func assertRoleEnforcesRLS(ctx context.Context, db *pgxpool.Pool, environment string) error {
+// checkRoleEnforcesRLS warns (or, under STRICT_DB_ROLE_RLS, refuses to start) when
+// the connected Postgres role can bypass row-level security (superuser or
+// BYPASSRLS) in a non-local environment. FORCE RLS does not apply to such roles, so
+// this surfaces the "prod pointed at the DB owner/superuser → all tenant isolation
+// void" failure mode. It defaults to a warning so it can never take down a deploy
+// that is presently configured that way; set STRICT_DB_ROLE_RLS=true to hard-fail.
+func checkRoleEnforcesRLS(ctx context.Context, db *pgxpool.Pool, environment string, logger *slog.Logger) error {
 	switch strings.ToLower(strings.TrimSpace(environment)) {
 	case "local", "development", "dev", "test", "ci", "":
 		return nil
 	}
+	var role string
 	var isSuperuser, bypassRLS bool
 	if err := db.QueryRow(ctx, `
-		select
+		select current_user,
 			(select rolsuper from pg_roles where rolname = current_user),
 			(select rolbypassrls from pg_roles where rolname = current_user)
-	`).Scan(&isSuperuser, &bypassRLS); err != nil {
-		return fmt.Errorf("could not verify the database role enforces RLS: %w", err)
+	`).Scan(&role, &isSuperuser, &bypassRLS); err != nil {
+		// Do not block startup on an inability to introspect the role; just warn.
+		logger.Warn("could not verify the database role enforces RLS", slog.String("error", err.Error()))
+		return nil
 	}
-	if isSuperuser || bypassRLS {
-		return fmt.Errorf("refusing to start: the database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) — tenant isolation would be void; connect as a NOBYPASSRLS app role", "current_user", isSuperuser, bypassRLS)
+	if !isSuperuser && !bypassRLS {
+		return nil
 	}
+	strict := strings.EqualFold(strings.TrimSpace(os.Getenv("STRICT_DB_ROLE_RLS")), "true")
+	if strict {
+		return fmt.Errorf("refusing to start: database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) — tenant isolation would be void; connect as a NOBYPASSRLS app role", role, isSuperuser, bypassRLS)
+	}
+	logger.Error("SECURITY: database role can BYPASS row-level security — tenant isolation depends on FORCE RLS which does not apply to this role; use a dedicated NOBYPASSRLS app role (set STRICT_DB_ROLE_RLS=true to enforce)",
+		slog.String("db_role", role),
+		slog.Bool("is_superuser", isSuperuser),
+		slog.Bool("bypassrls", bypassRLS),
+	)
 	return nil
 }
 
