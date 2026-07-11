@@ -43,7 +43,6 @@ func (s Service) ListBusinessPromotions(
 	}
 	return s.promotions.ListBusinessPromotions(ctx, scope)
 }
-
 func (s Service) CreateBusinessPromotion(
 	ctx context.Context,
 	cmd BusinessPromotionCommand,
@@ -61,7 +60,6 @@ func (s Service) CreateBusinessPromotion(
 	}
 	return s.promotions.CreateBusinessPromotion(ctx, cmd.Scope, input)
 }
-
 func (s Service) UpdateBusinessPromotion(
 	ctx context.Context,
 	cmd BusinessPromotionCommand,
@@ -97,7 +95,6 @@ func (s Service) ArchiveBusinessPromotion(
 	}
 	return s.promotions.ArchiveBusinessPromotion(ctx, cmd.Scope, cmd.PromotionID)
 }
-
 func normalizeBusinessPromotionInput(cmd BusinessPromotionCommand) (ports.BusinessPromotionInput, error) {
 	code := strings.ToUpper(strings.TrimSpace(cmd.Code))
 	if !businessPromotionCodePattern.MatchString(code) {

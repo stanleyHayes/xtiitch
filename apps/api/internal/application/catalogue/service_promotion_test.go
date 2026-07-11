@@ -50,7 +50,6 @@ func TestNormalizeBusinessPromotionInputCleansCodeAndTargets(t *testing.T) {
 		t.Fatalf("unexpected normalized input: %+v", input)
 	}
 }
-
 func TestNormalizeBusinessPromotionInputRejectsUnsafeShapes(t *testing.T) {
 	t.Parallel()
 
@@ -126,7 +125,6 @@ func TestNormalizeBusinessPromotionInputRejectsUnsafeShapes(t *testing.T) {
 		})
 	}
 }
-
 func TestBusinessPromotionWritesRequireOwnerOrAdmin(t *testing.T) {
 	t.Parallel()
 
@@ -176,25 +174,20 @@ type fakePromotionRepo struct {
 func (repo *fakePromotionRepo) ListBusinessPromotions(context.Context, common.TenantScope) ([]ports.BusinessPromotionRecord, error) {
 	return nil, nil
 }
-
 func (repo *fakePromotionRepo) CreateBusinessPromotion(_ context.Context, scope common.TenantScope, input ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
 	repo.created = true
 	return ports.BusinessPromotionRecord{PromotionID: input.PromotionID, BusinessID: scope.BusinessID}, nil
 }
-
 func (repo *fakePromotionRepo) UpdateBusinessPromotion(_ context.Context, scope common.TenantScope, input ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
 	return ports.BusinessPromotionRecord{PromotionID: input.PromotionID, BusinessID: scope.BusinessID}, nil
 }
-
 func (repo *fakePromotionRepo) ArchiveBusinessPromotion(_ context.Context, scope common.TenantScope, promotionID common.ID) (ports.BusinessPromotionRecord, error) {
 	repo.archived = true
 	return ports.BusinessPromotionRecord{PromotionID: promotionID, BusinessID: scope.BusinessID}, nil
 }
-
 func (repo *fakePromotionRepo) ReservePromotion(context.Context, common.TenantScope, ports.ReservePromotionInput) (ports.PromotionRedemption, error) {
 	return ports.PromotionRedemption{}, nil
 }
-
 func (repo *fakePromotionRepo) VoidPendingPromotionRedemptions(context.Context, common.TenantScope, common.ID) error {
 	return nil
 }
