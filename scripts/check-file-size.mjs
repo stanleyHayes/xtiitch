@@ -21,18 +21,13 @@ import path from "node:path";
 const ALLOWLIST = new Set([
   // Go production files
   "apps/api/internal/application/adminauth/service.go",
-  "apps/api/internal/adapters/outbound/postgres/business_identity_repository.go",
   "apps/api/internal/application/ports/admin.go",
-  "apps/api/internal/adapters/outbound/postgres/payment_repository.go",
-  "apps/api/internal/adapters/outbound/postgres/order_repository.go",
   "apps/api/internal/application/ports/ports.go",
-  "apps/api/internal/adapters/outbound/postgres/catalogue_repository.go",
   "apps/api/internal/application/catalogue/service.go",
   "apps/api/internal/bootstrap/app.go",
   "apps/api/internal/adapters/outbound/postgres/affiliate_repository.go",
   "apps/api/internal/adapters/outbound/postgres/promotion_repository.go",
   // Go test files
-  "apps/api/internal/adapters/outbound/postgres/payment_repository_integration_test.go",
   "apps/api/internal/application/catalogue/service_test.go",
 
   // TypeScript / TSX files
