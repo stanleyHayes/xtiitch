@@ -48,11 +48,13 @@ linters:
       - legacy
       - std-error-handling
     rules:
+      # Don't gate size/complexity linters on test files: table-driven tests are
+      # legitimately long/branchy. Applies to all *_test.go (unit + integration).
       - linters:
           - funlen
           - gocognit
           - gocyclo
-        path: _integration_test\.go
+        path: _test\.go
     paths:
       - third_party$
       - builtin$

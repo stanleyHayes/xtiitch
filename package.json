@@ -2,10 +2,10 @@
   "name": "xtiitch",
   "version": "0.0.0",
   "private": true,
-  "packageManager": "pnpm@10.27.0",
+  "packageManager": "pnpm@11.0.0",
   "engines": {
     "node": ">=22.0.0",
-    "pnpm": ">=10.0.0"
+    "pnpm": ">=11.0.0"
   },
   "scripts": {
     "check": "pnpm lint && node scripts/check-file-size.mjs && pnpm -r --if-present run check",

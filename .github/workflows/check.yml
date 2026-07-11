@@ -28,22 +28,34 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.27.0
+          version: 11.0.0
 
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
 
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Go lint (report-only during refactor)
+      # Enforced gate: the curated linter set (.golangci.yml) must be clean.
+      - name: Go lint (curated, blocking)
         uses: golangci/golangci-lint-action@v8
         with:
           version: v2.12.2
           working-directory: apps/api
+
+      # Visibility only: the full linter set (all linters, .golangci.full.yml).
+      # --issues-exit-code=0 keeps it non-blocking — a burn-down report, never a
+      # build failure. Promote linters into the curated .golangci.yml as the code
+      # is cleaned up.
+      - name: Go lint (all linters, report-only)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: apps/api
+          args: --config .golangci.full.yml --issues-exit-code=0
 
       - name: Check workspace
         run: pnpm check
