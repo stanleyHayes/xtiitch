@@ -591,6 +591,13 @@ func (service *fakeAuthService) ChangeSubscriptionPlan(
 	return authapp.ChangeSubscriptionPlanResult{}, nil
 }
 
+func (service *fakeAuthService) GetSubscriptionActivation(
+	_ context.Context,
+	_ common.TenantScope,
+) (authapp.SubscriptionActivation, error) {
+	return authapp.SubscriptionActivation{}, nil
+}
+
 func (service *fakeAuthService) SubmitIdentityVerification(_ context.Context, command authapp.SubmitIdentityVerificationCommand) error {
 	service.submitIdentityCalled = true
 	service.submitIdentityCommand = command

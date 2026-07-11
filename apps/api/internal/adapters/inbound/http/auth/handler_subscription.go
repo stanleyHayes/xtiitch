@@ -111,6 +111,27 @@ func (handler Handler) verifySubscriptionAuthorization(w http.ResponseWriter, r 
 	})
 }
 
+func (handler Handler) subscriptionActivation(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	result, err := handler.service.GetSubscriptionActivation(r.Context(), principal.TenantScope())
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, subscriptionActivationResponse{
+		Activated:      result.Activated,
+		Status:         result.Status,
+		PlanCode:       result.PlanCode,
+		PlanName:       result.PlanName,
+		AmountDueMinor: result.AmountDueMinor,
+	})
+}
+
 func (handler Handler) changeSubscriptionPlan(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {

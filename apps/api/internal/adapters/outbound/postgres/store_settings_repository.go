@@ -81,13 +81,16 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 	if err := tx.QueryRow(ctx, `
 		select b.name, b.handle, b.verification_status,
 			coalesce(b.settlement_provider_subaccount, '') <> '' as payout_ready,
-			p.code, coalesce(p.features, '{}'::jsonb)
+			p.code, coalesce(p.features, '{}'::jsonb),
+			coalesce(s.status, '')
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
+		left join business_subscriptions s on s.business_id = b.business_id
 		where b.business_id = $1
 	`, scope.BusinessID.String()).Scan(
 		&profile.Name, &profile.Handle, &profile.VerificationStatus,
 		&profile.PayoutReady, &profile.PlanCode, &featuresRaw,
+		&profile.SubscriptionStatus,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.StoreProfile{}, ErrNotFound
