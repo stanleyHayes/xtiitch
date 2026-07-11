@@ -83,6 +83,8 @@ type VerifySignInOTPCommand struct {
 // the matching store owner. WhatsApp OTP replaces the password as the first
 // factor; it does NOT bypass a second factor, so an MFA-enrolled account still
 // returns a challenge to complete via VerifyMFALogin (same as password login).
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) VerifySignInOTP(ctx context.Context, cmd VerifySignInOTPCommand) (AuthResult, error) {
 	if !s.whatsAppOTPEnabled() {
 		return AuthResult{}, ErrWhatsAppOTPUnavailable

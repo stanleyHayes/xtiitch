@@ -50,6 +50,7 @@ func (repo AdminAuthRepository) ListAdminAffiliates(ctx context.Context) ([]port
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) ListAdminAffiliateAttribution(ctx context.Context) ([]ports.AdminAffiliateAttributionRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -225,6 +226,7 @@ func (repo AdminAuthRepository) UpdateAdminAffiliateConversionStatus(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 	ctx context.Context,
 	input ports.CreateAdminAffiliatePayoutInput,
@@ -346,6 +348,7 @@ func (repo AdminAuthRepository) CreateAdminAffiliatePayout(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminAffiliate(
 	ctx context.Context,
 	input ports.CreateAdminAffiliateInput,

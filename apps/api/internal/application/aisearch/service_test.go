@@ -103,8 +103,14 @@ func TestSearchRanksLexicallyRelevantDesignsFirst(t *testing.T) {
 func TestSearchAppliesParsedPriceCap(t *testing.T) {
 	embedder := aiadapter.NewDevEmbedder()
 	candidates := []ports.EmbeddingCandidate{
-		{DesignID: common.ID("1"), DesignTitle: "Budget Kente Dress", PriceMinor: 40000, Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
-		{DesignID: common.ID("2"), DesignTitle: "Luxury Kente Dress", PriceMinor: 150000, Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress")},
+		{
+			DesignID: common.ID("1"), DesignTitle: "Budget Kente Dress", PriceMinor: 40000,
+			Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress"),
+		},
+		{
+			DesignID: common.ID("2"), DesignTitle: "Luxury Kente Dress", PriceMinor: 150000,
+			Searchable: "kente dress", Embedding: embed(t, embedder, "kente dress"),
+		},
 	}
 	service := NewService(Dependencies{
 		Embedder: embedder,

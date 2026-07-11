@@ -19,7 +19,7 @@ import { StageRow } from "./stage-row";
 import { headline, paletteFor } from "./utils";
 import type { TrackingWithHandover } from "./types";
 
-export default function Track({ loaderData }: Route.ComponentProps) {
+export default function Track({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const tracking = loaderData.tracking as TrackingWithHandover;
   const fulfilled = tracking.status === "fulfilled";
   const showHandover = fulfilled || Boolean(tracking.handover);

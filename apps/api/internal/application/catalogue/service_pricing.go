@@ -206,6 +206,11 @@ func (s Service) DeleteDesignSizeBandOverride(ctx context.Context, cmd DeleteDes
 
 // ListDesignSizeBandOverrides returns a design's stored size-band overrides, for
 // the dashboard's override editor.
-func (s Service) ListDesignSizeBandOverrides(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignSizeBandOverride, error) {
+func (s Service) ListDesignSizeBandOverrides(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID) ([]catalogue.DesignSizeBandOverride,
+	error,
+) {
 	return s.catalogue.ListDesignSizeBandOverrides(ctx, scope, designID)
 }

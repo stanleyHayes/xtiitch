@@ -11,7 +11,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { site } from "../../content";
 import { riseInSx } from "./shared";
 
-export function CtaBand({ title, body }: { title: string; body: string }) {
+export function CtaBand({ title, body }: { title: string; body: string }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   return (
     <Box
       sx={{

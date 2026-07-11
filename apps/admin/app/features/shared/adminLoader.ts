@@ -32,7 +32,7 @@ import {
 } from "./adminApi";
 import { AdminNotification, AdminReportItem, Section } from "./types";
 
-export async function loadAdminDashboardData(request: Request) {
+export async function loadAdminDashboardData(request: Request) { // eslint-disable-line max-lines-per-function -- large function with conditional branches; refactor in follow-up
   const { admin, accessToken } = await requireAdminContext(request);
   const [profileSettingsResult, platformSettingsResult] = await Promise.all([
     loadAdminResource(

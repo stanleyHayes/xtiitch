@@ -10,7 +10,12 @@ import (
 type MeasurementRepository interface {
 	ListFields(ctx context.Context, scope common.TenantScope) ([]BusinessMeasurementField, error)
 	CreateField(ctx context.Context, scope common.TenantScope, input CreateMeasurementFieldInput) (BusinessMeasurementField, error)
-	UpdateField(ctx context.Context, scope common.TenantScope, fieldID common.ID, input UpdateMeasurementFieldInput) (BusinessMeasurementField, error)
+	UpdateField(
+		ctx context.Context,
+		scope common.TenantScope,
+		fieldID common.ID,
+		input UpdateMeasurementFieldInput,
+	) (BusinessMeasurementField, error)
 	DeleteField(ctx context.Context, scope common.TenantScope, fieldID common.ID) error
 	RecordOrderMeasurements(ctx context.Context, scope common.TenantScope, input RecordOrderMeasurementsInput) (OrderMeasurement, error)
 }

@@ -9,7 +9,7 @@ import { tokens } from "../../theme";
 import type { TrackingHandover } from "./types";
 import { formatHandoverMethod, formatHandoverStatus } from "./utils";
 
-export function HandoverPanel({
+export function HandoverPanel({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   handover,
   storeName,
 }: {

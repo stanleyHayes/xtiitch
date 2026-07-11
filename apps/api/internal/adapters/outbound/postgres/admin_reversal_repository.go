@@ -10,6 +10,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 	ctx context.Context,
 	input ports.ReverseAdminMoneyPaymentInput,

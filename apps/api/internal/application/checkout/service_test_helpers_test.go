@@ -55,7 +55,14 @@ func verifiedCharge() ports.BusinessChargeContext {
 	return ports.BusinessChargeContext{BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1", CommissionBps: 300}
 }
 
-func customService(orders ports.OrderRepository, payments Payments, store ports.Storefront, design ports.StorefrontDesign, charge ports.BusinessChargeContext, ids []common.ID) Service {
+func customService(
+	orders ports.OrderRepository,
+	payments Payments,
+	store ports.Storefront,
+	design ports.StorefrontDesign,
+	charge ports.BusinessChargeContext,
+	ids []common.ID,
+) Service {
 	return NewService(Dependencies{
 		Storefront: fakeStorefront{store: store, design: design},
 		Businesses: fakeCharge{ctx: charge},
@@ -112,7 +119,13 @@ func (f fakeAvailability) ResolveOpenSlot(_ context.Context, _ common.TenantScop
 	return f.slot, f.err
 }
 
-func bookingService(orders ports.OrderRepository, bookings ports.BookingRepository, availability Availability, payments Payments, ids []common.ID) Service {
+func bookingService(
+	orders ports.OrderRepository,
+	bookings ports.BookingRepository,
+	availability Availability,
+	payments Payments,
+	ids []common.ID,
+) Service {
 	return NewService(Dependencies{
 		Storefront:   fakeStorefront{store: customStore(), design: customDesign()},
 		Businesses:   fakeCharge{ctx: verifiedCharge()},
@@ -301,12 +314,16 @@ func (f *fakeOrders) CreateCustomOrder(_ context.Context, _ common.TenantScope, 
 	return nil
 }
 
-func (f *fakeOrders) CreateCustomOrderConfirmed(_ context.Context, _ common.TenantScope, input ports.CreateCustomOrderConfirmedInput) error {
+func (f *fakeOrders) CreateCustomOrderConfirmed(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.CreateCustomOrderConfirmedInput,
+) error {
 	f.customConfirmed = input
 	return nil
 }
 
-func (f *fakeOrders) DiscardCustomDraftOrder(_ context.Context, _ common.TenantScope, orderID, customerID common.ID) error {
+func (f *fakeOrders) DiscardCustomDraftOrder(_ context.Context, _ common.TenantScope, orderID, _ common.ID) error {
 	f.customDiscardCalled = true
 	f.customDiscardOrder = orderID
 	return nil
@@ -351,7 +368,11 @@ func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.Ini
 	return f.result, f.err
 }
 
-func (f *fakePayments) InitiateMarketplaceCharge(_ context.Context, command paymentsapp.InitiateMarketplaceChargeCommand) (paymentsapp.ChargeResult, error) {
+func (f *fakePayments) InitiateMarketplaceCharge(
+	_ context.Context,
+	command paymentsapp.InitiateMarketplaceChargeCommand) (paymentsapp.ChargeResult,
+	error,
+) {
 	f.marketplaceCalled = true
 	f.marketplaceCommand = command
 	return f.result, f.err
@@ -369,11 +390,21 @@ func (f *fakePromotions) ListBusinessPromotions(context.Context, common.TenantSc
 	return nil, nil
 }
 
-func (f *fakePromotions) CreateBusinessPromotion(context.Context, common.TenantScope, ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
+func (f *fakePromotions) CreateBusinessPromotion(
+	context.Context,
+	common.TenantScope,
+	ports.BusinessPromotionInput) (ports.BusinessPromotionRecord,
+	error,
+) {
 	return ports.BusinessPromotionRecord{}, nil
 }
 
-func (f *fakePromotions) UpdateBusinessPromotion(context.Context, common.TenantScope, ports.BusinessPromotionInput) (ports.BusinessPromotionRecord, error) {
+func (f *fakePromotions) UpdateBusinessPromotion(
+	context.Context,
+	common.TenantScope,
+	ports.BusinessPromotionInput) (ports.BusinessPromotionRecord,
+	error,
+) {
 	return ports.BusinessPromotionRecord{}, nil
 }
 
@@ -381,7 +412,12 @@ func (f *fakePromotions) ArchiveBusinessPromotion(context.Context, common.Tenant
 	return ports.BusinessPromotionRecord{}, nil
 }
 
-func (f *fakePromotions) ReservePromotion(_ context.Context, _ common.TenantScope, input ports.ReservePromotionInput) (ports.PromotionRedemption, error) {
+func (f *fakePromotions) ReservePromotion(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.ReservePromotionInput) (ports.PromotionRedemption,
+	error,
+) {
 	f.reserve = input
 	if f.err != nil {
 		return ports.PromotionRedemption{}, f.err
@@ -411,7 +447,12 @@ func (f *fakeAffiliates) RecordAffiliateClick(context.Context, ports.RecordAffil
 	return ports.AffiliateClickRecord{}, nil
 }
 
-func (f *fakeAffiliates) ReserveAffiliateAttribution(_ context.Context, _ common.TenantScope, input ports.ReserveAffiliateAttributionInput) (ports.AffiliateAttributionReservation, error) {
+func (f *fakeAffiliates) ReserveAffiliateAttribution(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.ReserveAffiliateAttributionInput) (ports.AffiliateAttributionReservation,
+	error,
+) {
 	f.reserveCalled = true
 	f.reserve = input
 	if f.err != nil {
@@ -437,7 +478,12 @@ func (f *fakeReferrals) ResolveReferralCode(context.Context, ports.ResolveReferr
 	return ports.ReferralCodeRecord{}, nil
 }
 
-func (f *fakeReferrals) ReserveReferralAttribution(_ context.Context, _ common.TenantScope, input ports.ReserveReferralAttributionInput) (ports.ReferralAttributionReservation, error) {
+func (f *fakeReferrals) ReserveReferralAttribution(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.ReserveReferralAttributionInput) (ports.ReferralAttributionReservation,
+	error,
+) {
 	f.reserveCalled = true
 	f.reserve = input
 	if f.err != nil {

@@ -70,6 +70,8 @@ func cleanupBookingFixtures(t *testing.T, pool *pgxpool.Pool) {
 
 // seedDraftHomeVisitOrder creates a customer and a draft home_visit order so a
 // booking can reference it (the bookings -> orders composite FK).
+//
+//nolint:unparam // test helper uses fixed business across current cases
 func seedDraftHomeVisitOrder(t *testing.T, pool *pgxpool.Pool, businessID, orderID, customerID string) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
@@ -95,7 +97,10 @@ func bkReadBooking(t *testing.T, pool *pgxpool.Pool, bookingID string) (status s
 }
 
 func bkActiveCountForSlot(t *testing.T, pool *pgxpool.Pool, slot time.Time) int {
-	return countBypass(t, pool, `select count(*) from bookings where business_id = $1 and slot_start = $2 and status in ('held','booked')`, bkBiz, slot)
+	return countBypass(t, pool, `
+		select count(*) from bookings
+		where business_id = $1 and slot_start = $2 and status in ('held','booked')
+	`, bkBiz, slot)
 }
 
 // TestHoldSlotIsRaceProof: many concurrent holds of the same slot — exactly one
@@ -186,8 +191,12 @@ func TestBookingDepositConfirmsBookingAndOrder(t *testing.T) {
 	if status != "booked" || !depositSet {
 		t.Fatalf("expected booked booking with deposit recorded, got status=%q depositSet=%v", status, depositSet)
 	}
-	if orderStatus, settled, _, seq, colour := readConfirmedStage(t, pool, common.ID(orderID)); orderStatus != "confirmed" || settled != 15000 || seq != 1 || colour != "red" {
-		t.Fatalf("expected order confirmed at first bespoke stage with deposit, got status=%q settled=%d seq=%d colour=%q", orderStatus, settled, seq, colour)
+	orderStatus, settled, _, seq, colour := readConfirmedStage(t, pool, common.ID(orderID))
+	if orderStatus != "confirmed" || settled != 15000 || seq != 1 || colour != "red" {
+		t.Fatalf(
+			"expected order confirmed at first bespoke stage with deposit, got status=%q settled=%d seq=%d colour=%q",
+			orderStatus, settled, seq, colour,
+		)
 	}
 
 	// Idempotent re-delivery.
@@ -475,7 +484,10 @@ func TestRescheduleBookingMovesAtomically(t *testing.T) {
 	taken := time.Date(2026, 7, 8, 9, 0, 0, 0, time.UTC)
 	seedBookedBooking(t, pool, otherOrder, uuidN("cccccccc-0000-0000-0000-", 602), otherBooking, taken, uuidN("eeeeeeee-0000-0000-0000-", 602))
 	if err := repo.RescheduleBooking(ctx, bkScope(), ports.RescheduleBookingInput{
-		OldBookingID: common.ID(newID), NewBookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 603)), SlotStart: taken, SlotEnd: taken.Add(time.Hour),
+		OldBookingID: common.ID(newID),
+		NewBookingID: common.ID(uuidN("bbbbbbbb-0000-0000-0000-", 603)),
+		SlotStart:    taken,
+		SlotEnd:      taken.Add(time.Hour),
 	}); !errors.Is(err, ports.ErrSlotTaken) {
 		t.Fatalf("expected ErrSlotTaken rescheduling onto a taken slot, got %v", err)
 	}

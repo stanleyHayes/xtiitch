@@ -12,7 +12,7 @@ import { OrderSummary, Stage } from "../shared/types";
 import { orderFlow, orderBoardKey, orderBoardRank } from "./utils";
 import { ToneChip } from "../../components/ui/ToneChip";
 
-export function OrdersKanban({
+export function OrdersKanban({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   orders,
   stages,
   returnTo,

@@ -46,7 +46,12 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 			provider_reference, status, through_platform, commission_minor, settle_amount_minor
 		)
 		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10, $11)
-	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), nullableIDArg(input.BookingID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor, settleAmount); err != nil {
+	`,
+		input.PaymentID.String(), input.BusinessID.String(),
+		nullableIDArg(input.OrderID), nullableIDArg(input.BookingID),
+		input.Purpose, input.AmountMinor, input.Currency, method,
+		input.ProviderReference, input.CommissionMinor, settleAmount,
+	); err != nil {
 		// A second in-flight balance charge for the same order is rejected by the
 		// partial unique index; surface it as the dedicated sentinel so callers
 		// can refuse cleanly rather than double-charging the customer.
@@ -101,7 +106,13 @@ func (repo PaymentRepository) CreateMarketplaceCharge(ctx context.Context, input
 // payment in a single transaction. The event's unique signature makes a
 // re-delivered confirmation a no-op, and a payment only moves out of
 // 'initiated' once.
-func (repo PaymentRepository) ConfirmFromProvider(ctx context.Context, input ports.ConfirmPaymentInput) (ports.ConfirmPaymentResult, error) {
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (repo PaymentRepository) ConfirmFromProvider(
+	ctx context.Context,
+	input ports.ConfirmPaymentInput) (ports.ConfirmPaymentResult,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.ConfirmPaymentResult{}, err

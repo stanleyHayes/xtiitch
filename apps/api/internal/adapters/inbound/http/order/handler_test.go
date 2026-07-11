@@ -238,7 +238,11 @@ func (s *fakeOrderService) CreateWalkInOrder(_ context.Context, command orderapp
 	return s.createdOrderID, nil
 }
 
-func (s *fakeOrderService) CreateConfirmedCustomOrder(_ context.Context, command orderapp.CreateConfirmedCustomOrderCommand) (common.ID, error) {
+func (s *fakeOrderService) CreateConfirmedCustomOrder(
+	_ context.Context,
+	command orderapp.CreateConfirmedCustomOrderCommand) (common.ID,
+	error,
+) {
 	s.customCommand = command
 	return s.createdOrderID, nil
 }
@@ -265,7 +269,11 @@ func (s *fakeOrderService) SetAgreedTotal(_ context.Context, command orderapp.Se
 	return s.setAgreedErr
 }
 
-func (s *fakeOrderService) CollectBalance(_ context.Context, command orderapp.CollectBalanceCommand) (orderapp.CollectBalanceResult, error) {
+func (s *fakeOrderService) CollectBalance(
+	_ context.Context,
+	command orderapp.CollectBalanceCommand) (orderapp.CollectBalanceResult,
+	error,
+) {
 	s.collectCommand = command
 	return orderapp.CollectBalanceResult{}, nil
 }

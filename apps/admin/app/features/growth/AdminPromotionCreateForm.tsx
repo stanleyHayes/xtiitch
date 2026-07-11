@@ -12,7 +12,7 @@ import { StyledDateTimeField } from "../shared/StyledDateTimeField";
 
 
 
-export function AdminPromotionCreateForm({
+export function AdminPromotionCreateForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   businesses,
 }: {
   businesses: AdminBusiness[];

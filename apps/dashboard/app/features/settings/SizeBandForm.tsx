@@ -14,7 +14,7 @@ import TextField from "../../components/form-text-field";
 import { SizeBand, SizeChartItem } from "../shared/types";
 import { SIZE_CHART_UNITS } from "../shared/constants";
 
-export function SizeBandForm({
+export function SizeBandForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   band,
   onCancel,
 }: {

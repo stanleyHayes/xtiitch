@@ -176,7 +176,13 @@ func (s Service) persist(ctx context.Context, waID string, result outcome) error
 
 // advance is the state machine: it routes by the current step. A brand-new
 // conversation (or one with no step) is greeted and asked for a shop.
-func (s Service) advance(ctx context.Context, existed bool, businessID string, state conversationState, msg InboundMessage) (outcome, error) {
+func (s Service) advance(
+	ctx context.Context,
+	existed bool,
+	businessID string,
+	state conversationState,
+	msg InboundMessage,
+) (outcome, error) {
 	if !existed || state.Step == "" {
 		return outcome{reply: greeting(msg.ContactName), state: withStep(state, stepAwaitingShop)}, nil
 	}
@@ -229,7 +235,11 @@ func (s Service) handleMenu(ctx context.Context, businessID string, state conver
 	case command == "browse" || command == "1" || command == "designs":
 		return s.listDesigns(ctx, businessID, state)
 	case command == "track" || command == "2":
-		return outcome{reply: "Sure — send me your order code (it's in your order confirmation message).", state: withStep(state, stepAwaitingOrder), businessID: businessID}, nil
+		return outcome{
+			reply:      "Sure — send me your order code (it's in your order confirmation message).",
+			state:      withStep(state, stepAwaitingOrder),
+			businessID: businessID,
+		}, nil
 	case strings.HasPrefix(command, "track "):
 		return s.trackOrder(ctx, businessID, state, strings.TrimSpace(text[len("track "):]))
 	case strings.HasPrefix(command, "shop "):
@@ -239,7 +249,11 @@ func (s Service) handleMenu(ctx context.Context, businessID string, state conver
 	case command == "menu" || command == "help" || command == "hi" || command == "hello":
 		return outcome{reply: s.shopMenu(state.ShopName), state: state, businessID: businessID}, nil
 	default:
-		return outcome{reply: "Sorry, I didn't catch that. Reply *BROWSE* to see designs, or *TRACK <order code>* to check an order.", state: state, businessID: businessID}, nil
+		return outcome{
+			reply:      "Sorry, I didn't catch that. Reply *BROWSE* to see designs, or *TRACK <order code>* to check an order.",
+			state:      state,
+			businessID: businessID,
+		}, nil
 	}
 }
 
@@ -250,7 +264,11 @@ func (s Service) listDesigns(ctx context.Context, businessID string, state conve
 		return outcome{}, err
 	}
 	if len(designs) == 0 {
-		return outcome{reply: "This shop hasn't published any designs yet — check back soon! Reply *MENU* anytime.", state: withStep(state, stepMenu), businessID: businessID}, nil
+		return outcome{
+			reply:      "This shop hasn't published any designs yet — check back soon! Reply *MENU* anytime.",
+			state:      withStep(state, stepMenu),
+			businessID: businessID,
+		}, nil
 	}
 
 	var b strings.Builder
@@ -324,10 +342,21 @@ func (s Service) designDetail(ctx context.Context, businessID string, state conv
 // online ordering.
 func (s Service) startOrder(ctx context.Context, businessID string, state conversationState) (outcome, error) {
 	if !state.OnlineOrdering {
-		return outcome{reply: fmt.Sprintf("This shop isn't taking online orders in chat yet. You can still order at %s/store/%s. Reply *MENU* for more.", s.storefrontBase, state.Shop), state: withStep(state, stepMenu), businessID: businessID}, nil
+		return outcome{
+			reply: fmt.Sprintf(
+				"This shop isn't taking online orders in chat yet. You can still order at %s/store/%s. Reply *MENU* for more.",
+				s.storefrontBase, state.Shop,
+			),
+			state:      withStep(state, stepMenu),
+			businessID: businessID,
+		}, nil
 	}
 	if state.OrderDesign == "" {
-		return outcome{reply: "Pick a design first: reply *BROWSE*, choose a number, then *ORDER*.", state: withStep(state, stepMenu), businessID: businessID}, nil
+		return outcome{
+			reply:      "Pick a design first: reply *BROWSE*, choose a number, then *ORDER*.",
+			state:      withStep(state, stepMenu),
+			businessID: businessID,
+		}, nil
 	}
 	designs, err := s.catalogue.ListDesigns(ctx, businessID)
 	if err != nil {
@@ -342,7 +371,11 @@ func (s Service) startOrder(ctx context.Context, businessID string, state conver
 		sizes := make([]orderSize, 0, len(d.Sizes))
 		for i, band := range d.Sizes {
 			fmt.Fprintf(&b, "%d. %s — %s\n", i+1, band.Label, formatGHS(band.PriceMinor))
-			sizes = append(sizes, orderSize{BandID: band.ID, Label: band.Label, PriceMinor: band.PriceMinor})
+			sizes = append(sizes, orderSize{
+				BandID:     band.ID,
+				Label:      band.Label,
+				PriceMinor: band.PriceMinor,
+			})
 		}
 		b.WriteString("\nOr reply *MENU* to cancel.")
 		next := state
@@ -351,7 +384,11 @@ func (s Service) startOrder(ctx context.Context, businessID string, state conver
 		next.OrderSizes = sizes
 		return outcome{reply: b.String(), state: next, businessID: businessID}, nil
 	}
-	return outcome{reply: "That design isn't available to order right now. Reply *MENU* for more.", state: withStep(state, stepMenu), businessID: businessID}, nil
+	return outcome{
+		reply:      "That design isn't available to order right now. Reply *MENU* for more.",
+		state:      withStep(state, stepMenu),
+		businessID: businessID,
+	}, nil
 }
 
 // handleOrderSize records the chosen size band and asks for the customer's name.
@@ -370,7 +407,10 @@ func (s Service) handleOrderSize(_ context.Context, businessID string, state con
 	next.ChosenBandID = band.BandID
 	next.ChosenLabel = band.Label
 	next.ChosenAmount = band.PriceMinor
-	reply := fmt.Sprintf("Great — *%s* (%s), size %s.\nWhat name should we put on the order?", state.OrderTitle, formatGHS(band.PriceMinor), band.Label)
+	reply := fmt.Sprintf(
+		"Great — *%s* (%s), size %s.\nWhat name should we put on the order?",
+		state.OrderTitle, formatGHS(band.PriceMinor), band.Label,
+	)
 	return outcome{reply: reply, state: next, businessID: businessID}, nil
 }
 
@@ -395,14 +435,24 @@ func (s Service) handleOrderName(ctx context.Context, businessID string, state c
 		CustomerEmail: synthEmail(waID),
 	})
 	if errors.Is(err, ports.ErrOrderingUnavailable) {
-		return outcome{reply: "This shop isn't taking online orders right now. Reply *MENU* for more.", state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+		return outcome{
+			reply:      "This shop isn't taking online orders right now. Reply *MENU* for more.",
+			state:      clearOrder(withStep(state, stepMenu)),
+			businessID: businessID,
+		}, nil
 	}
 	if err != nil {
-		return outcome{reply: "Sorry, I couldn't start that order just now. Please try again in a moment, or reply *MENU*.", state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
+		return outcome{
+			reply:      "Sorry, I couldn't start that order just now. Please try again in a moment, or reply *MENU*.",
+			state:      clearOrder(withStep(state, stepMenu)),
+			businessID: businessID,
+		}, nil
 	}
 
 	reply := fmt.Sprintf(
-		"🧾 Order ready: *%s* (size %s) — %s.\n\nTap to pay securely:\n%s\n\nOnce your payment is confirmed you'll get a confirmation here. Reply *MENU* for more.",
+		"🧾 Order ready: *%s* (size %s) — %s.\n\n"+
+			"Tap to pay securely:\n%s\n\n"+
+			"Once your payment is confirmed you'll get a confirmation here. Reply *MENU* for more.",
 		state.OrderTitle, state.ChosenLabel, formatGHS(draft.AmountMinor), draft.AuthorizationURL,
 	)
 	return outcome{reply: reply, state: clearOrder(withStep(state, stepMenu)), businessID: businessID}, nil
@@ -446,7 +496,11 @@ func (s Service) trackOrder(ctx context.Context, businessID string, state conver
 	}
 	o, err := s.catalogue.TrackOrder(ctx, code)
 	if errors.Is(err, ports.ErrNotFound) {
-		return outcome{reply: "I couldn't find an order with that code. Double-check it and try again, or reply *MENU*.", state: withStep(state, stepAwaitingOrder), businessID: businessID}, nil
+		return outcome{
+			reply:      "I couldn't find an order with that code. Double-check it and try again, or reply *MENU*.",
+			state:      withStep(state, stepAwaitingOrder),
+			businessID: businessID,
+		}, nil
 	}
 	if err != nil {
 		return outcome{}, err
@@ -460,7 +514,11 @@ func (s Service) trackOrder(ctx context.Context, businessID string, state conver
 }
 
 func (s Service) shopMenu(name string) string {
-	return fmt.Sprintf("You're shopping *%s* 🛍️\n\nReply *BROWSE* to see designs, or *TRACK <order code>* to check an order. Send *STOP* to opt out.", name)
+	return fmt.Sprintf(
+		"You're shopping *%s* 🛍️\n\n"+
+			"Reply *BROWSE* to see designs, or *TRACK <order code>* to check an order. Send *STOP* to opt out.",
+		name,
+	)
 }
 
 func greeting(name string) string {
@@ -468,7 +526,11 @@ func greeting(name string) string {
 	if who == "" {
 		who = "there"
 	}
-	return fmt.Sprintf("Hi %s! 👋 Welcome to Xtiitch shopping. Which shop would you like to browse? Reply with the shop name (for example: demo-atelier).", who)
+	return fmt.Sprintf(
+		"Hi %s! 👋 Welcome to Xtiitch shopping. Which shop would you like to browse? "+
+			"Reply with the shop name (for example: demo-atelier).",
+		who,
+	)
 }
 
 func withStep(state conversationState, step string) conversationState {

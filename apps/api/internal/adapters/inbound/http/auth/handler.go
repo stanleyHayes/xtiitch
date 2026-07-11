@@ -23,8 +23,14 @@ type Service interface {
 	CheckHandleAvailability(ctx context.Context, raw string) (authapp.HandleAvailability, error)
 	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
 	SubscriptionVATPolicy() (rateBps int, inclusive bool)
-	InitializeSubscriptionAuthorization(ctx context.Context, command authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error)
-	VerifySubscriptionAuthorization(ctx context.Context, command authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error)
+	InitializeSubscriptionAuthorization(
+		ctx context.Context,
+		command authapp.InitializeSubscriptionAuthorizationCommand,
+	) (authapp.SubscriptionAuthorizationLink, error)
+	VerifySubscriptionAuthorization(
+		ctx context.Context,
+		command authapp.VerifySubscriptionAuthorizationCommand,
+	) (authapp.SubscriptionAuthorizationResult, error)
 	ChangeSubscriptionPlan(ctx context.Context, command authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult, error)
 	SubmitIdentityVerification(ctx context.Context, command authapp.SubmitIdentityVerificationCommand) error
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
@@ -140,6 +146,7 @@ func newAuthResponse(result authapp.AuthResult) authResponse {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func authError(err error) (int, string) {
 	switch {
 	case errors.Is(err, authdomain.ErrInvalidInput):

@@ -13,7 +13,7 @@ import {
 } from "../options";
 import type { AdminAffiliate } from "../../../lib/api";
 
-export function AffiliateEditForm({
+export function AffiliateEditForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   affiliate,
 }: {
   affiliate: AdminAffiliate;

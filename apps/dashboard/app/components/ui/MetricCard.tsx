@@ -7,22 +7,22 @@ import { alpha } from "@mui/material/styles";
 import { tokens } from "../../theme";
 import { Panel } from "./Panel";
 
-export function MetricCard({
-  icon,
-  label,
-  value,
-  helper,
-  tone = tokens.burgundy,
-  href,
-}: {
+type MetricCardContentProps = {
   icon: ReactNode;
   label: string;
   value: string;
   helper: string;
   tone?: string;
-  href?: string;
-}) {
-  const card = (
+};
+
+function MetricCardContent({
+  icon,
+  label,
+  value,
+  helper,
+  tone = tokens.burgundy,
+}: MetricCardContentProps) {
+  return (
     <Panel
       sx={{
         p: 2.25,
@@ -54,7 +54,7 @@ export function MetricCard({
           transform: "translateY(-2px)",
           boxShadow: `0 22px 64px ${alpha(tokens.ink, 0.09)}`,
         },
-        cursor: href ? "pointer" : "default",
+        cursor: "default",
         transition:
           "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
       }}
@@ -142,6 +142,32 @@ export function MetricCard({
       </Stack>
     </Panel>
   );
+}
+
+export function MetricCard({
+  icon,
+  label,
+  value,
+  helper,
+  tone = tokens.burgundy,
+  href,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  helper: string;
+  tone?: string;
+  href?: string;
+}) {
+  const card = (
+    <MetricCardContent
+      icon={icon}
+      label={label}
+      value={value}
+      helper={helper}
+      tone={tone}
+    />
+  );
   if (!href) {
     return card;
   }
@@ -155,6 +181,7 @@ export function MetricCard({
         minWidth: 0,
         color: "inherit",
         textDecoration: "none",
+        cursor: "pointer",
       }}
     >
       {card}

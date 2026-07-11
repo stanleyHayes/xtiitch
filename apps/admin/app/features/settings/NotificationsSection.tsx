@@ -40,7 +40,7 @@ const notificationFilters: {
   { value: "audit", label: "Audit" },
 ];
 
-export function NotificationsSection({
+export function NotificationsSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   notifications,
   notificationsError,
   preferences,

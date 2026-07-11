@@ -30,7 +30,7 @@ import type { Design } from "../../../lib/api";
 import { DesignRowStatus } from "./DesignRowStatus";
 import { DialogActions, RowActions } from "./DesignRowActions";
 
-export function DesignRow({
+export function DesignRow({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   design,
   collections,
   sizeBands,

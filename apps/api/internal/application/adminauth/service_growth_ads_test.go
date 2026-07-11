@@ -12,6 +12,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestAdCampaignsRequirePermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -129,6 +130,7 @@ func TestAdCampaignsRequirePermissionAndAudit(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestCollectAdCampaignPaymentCreatesProviderLinkAndAudit(t *testing.T) {
 	t.Parallel()
 

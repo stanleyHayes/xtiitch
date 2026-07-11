@@ -179,7 +179,14 @@ func (repo MFARepository) MarkVerified(ctx context.Context, scope common.TenantS
 // RegisterFailedAttempt increments the failed-attempt counter; on reaching
 // threshold it sets a lockout of lockFor and resets the counter. It returns the
 // lockout deadline (zero when not locked).
-func (repo MFARepository) RegisterFailedAttempt(ctx context.Context, scope common.TenantScope, userID common.ID, threshold int, lockFor time.Duration) (time.Time, error) {
+func (repo MFARepository) RegisterFailedAttempt(
+	ctx context.Context,
+	scope common.TenantScope,
+	userID common.ID,
+	threshold int,
+	lockFor time.Duration) (time.Time,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return time.Time{}, err
@@ -215,7 +222,13 @@ func (repo MFARepository) RegisterFailedAttempt(ctx context.Context, scope commo
 	return time.Time{}, nil
 }
 
-func (repo MFARepository) ConsumeBackupCode(ctx context.Context, scope common.TenantScope, userID common.ID, codeHash string) (bool, error) {
+func (repo MFARepository) ConsumeBackupCode(
+	ctx context.Context,
+	scope common.TenantScope,
+	userID common.ID,
+	codeHash string) (bool,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return false, err

@@ -32,7 +32,11 @@ func NewClaudeAssistant(apiKey, model string) ClaudeAssistant {
 	}
 }
 
-const assistSystemPrompt = `You are a writing assistant for a Ghanaian fashion business's storefront and customer messages. Rewrite the user's text to follow their instruction. Keep it natural, warm and professional, and concise. Never invent facts (prices, dates, materials, measurements) that are not in the text. Reply with ONLY the rewritten text — no preamble, no quotes, no markdown.`
+const assistSystemPrompt = `You are a writing assistant for a Ghanaian fashion business's ` +
+	`storefront and customer messages. Rewrite the user's text to follow their instruction. ` +
+	`Keep it natural, warm and professional, and concise. Never invent facts (prices, dates, ` +
+	`materials, measurements) that are not in the text. Reply with ONLY the rewritten text ` +
+	`— no preamble, no quotes, no markdown.`
 
 func (a ClaudeAssistant) Assist(ctx context.Context, input ports.AssistInput) (string, error) {
 	text := strings.TrimSpace(input.Text)

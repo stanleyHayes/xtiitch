@@ -47,7 +47,13 @@ type deliveryChoice struct {
 // is pickup/no delivery (no fee). A zone is honoured only when the store has
 // delivery enabled, the zone exists for the tenant and is active, and a
 // destination address is given; otherwise ErrDeliveryUnavailable / ErrInvalidInput.
-func (s Service) resolveDelivery(ctx context.Context, scope common.TenantScope, store ports.Storefront, zoneID common.ID, address string) (deliveryChoice, error) {
+func (s Service) resolveDelivery(
+	ctx context.Context,
+	scope common.TenantScope,
+	store ports.Storefront,
+	zoneID common.ID,
+	address string,
+) (deliveryChoice, error) {
 	if zoneID == "" {
 		return deliveryChoice{}, nil
 	}
@@ -193,7 +199,12 @@ func (s Service) discardDraft(ctx context.Context, scope common.TenantScope, ord
 
 // resolvePricedDesign loads an active design by its public handle, verifies it
 // belongs to the resolved store, and returns its price for the chosen band.
-func (s Service) resolvePricedDesign(ctx context.Context, businessID common.ID, designHandle string, bandID common.ID) (common.ID, int64, error) {
+func (s Service) resolvePricedDesign(
+	ctx context.Context,
+	businessID common.ID,
+	designHandle string,
+	bandID common.ID,
+) (common.ID, int64, error) {
 	design, err := s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(designHandle))
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {

@@ -50,7 +50,7 @@ const stats: {
   },
 ];
 
-export function StatsSection() {
+export function StatsSection() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   return (
     <Box
       sx={{

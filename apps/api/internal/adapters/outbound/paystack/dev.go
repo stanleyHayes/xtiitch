@@ -19,13 +19,21 @@ func NewDevProvider(webhookSecret string) DevProvider {
 	return DevProvider{webhookSecret: webhookSecret}
 }
 
-func (p DevProvider) CreateBusinessSubaccount(_ context.Context, input ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
+func (p DevProvider) CreateBusinessSubaccount(
+	_ context.Context,
+	input ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult,
+	error,
+) {
 	return ports.CreateBusinessSubaccountResult{
 		ProviderReference: "DEV_SUB_" + input.BusinessID.String(),
 	}, nil
 }
 
-func (p DevProvider) InitializeTransaction(_ context.Context, input ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+func (p DevProvider) InitializeTransaction(
+	_ context.Context,
+	input ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
+	error,
+) {
 	return ports.InitializeTransactionResult{
 		AuthorizationURL:  "https://dev.local/pay/" + input.Reference,
 		AccessCode:        "dev_access_" + input.Reference,
@@ -33,7 +41,11 @@ func (p DevProvider) InitializeTransaction(_ context.Context, input ports.Initia
 	}, nil
 }
 
-func (p DevProvider) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (p DevProvider) InitializeAuthorization(
+	_ context.Context,
+	input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult,
+	error,
+) {
 	reference := "dev_auth_" + input.BusinessID.String()
 	return ports.InitializeAuthorizationResult{
 		RedirectURL: "https://dev.local/authorize/" + reference,

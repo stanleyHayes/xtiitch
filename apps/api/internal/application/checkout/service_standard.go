@@ -41,6 +41,8 @@ type PlaceStandardOrderResult struct {
 // raises the full payment for it through the money rails. The order stays draft
 // until its payment is confirmed by webhook (which advances it to its first
 // stage). The account-free customer tracks it by the returned order reference.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderCommand) (PlaceStandardOrderResult, error) {
 	name := strings.TrimSpace(cmd.CustomerName)
 	email := strings.TrimSpace(cmd.CustomerEmail)

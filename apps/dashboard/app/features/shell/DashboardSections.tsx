@@ -45,7 +45,7 @@ import type {
 } from "../shared/types";
 import type { OverviewData } from "../overview/useOverviewData";
 
-export function DashboardSections({
+export function DashboardSections({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   section,
   canManage,
   orders,

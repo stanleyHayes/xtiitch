@@ -23,7 +23,7 @@ import { SupportTicketsSection } from "../support/SupportTicketsSection";
 import { AuditSection } from "../audit/AuditSection";
 import type { AdminLoaderData } from "../shared/adminLoader";
 
-export function AdminDashboardBody({
+export function AdminDashboardBody({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   section,
   isNavLoading,
   setSection,

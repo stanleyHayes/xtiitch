@@ -17,7 +17,7 @@ import { AdminPlatformSettings, AdminRoleDefinition } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
 import { BooleanPreference } from "./BooleanPreference";
 
-export function PlatformSettingsForm({
+export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   admin,
   platformSettings,
   roles,

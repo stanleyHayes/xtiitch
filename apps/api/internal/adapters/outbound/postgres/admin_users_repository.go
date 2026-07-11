@@ -107,7 +107,11 @@ func (repo AdminAuthRepository) UpdateAdminUser(ctx context.Context, input ports
 	return user, nil
 }
 
-func (repo AdminAuthRepository) UpdateAdminProfile(ctx context.Context, input ports.UpdateAdminProfileInput) (ports.AdminUserRecord, error) {
+func (repo AdminAuthRepository) UpdateAdminProfile(
+	ctx context.Context,
+	input ports.UpdateAdminProfileInput) (ports.AdminUserRecord,
+	error,
+) {
 	user, err := scanAdminUserRecord(repo.pool.QueryRow(ctx, `
 		update admin_users
 		set email = $2,
@@ -230,10 +234,7 @@ func (repo AdminAuthRepository) ReplaceAdminRolePermissions(
 		return ports.AdminRolePermissionsRecord{}, err
 	}
 
-	return ports.AdminRolePermissionsRecord{
-		Role:        input.Role,
-		Permissions: input.Permissions,
-	}, nil
+	return ports.AdminRolePermissionsRecord(input), nil
 }
 
 func (repo AdminAuthRepository) GetAdminPreferences(ctx context.Context, userID common.ID) (ports.AdminPreferencesRecord, error) {

@@ -25,7 +25,7 @@ import { DetailLine } from "../shared/DetailLine";
 
 
 
-export function BusinessInspector({
+export function BusinessInspector({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   business,
   onReviewPayments,
   onOpenAudit,

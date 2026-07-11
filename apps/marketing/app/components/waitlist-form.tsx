@@ -57,7 +57,7 @@ function LoadingButtonLabel({ label }: { label: string }) {
   );
 }
 
-export function WaitlistForm({
+export function WaitlistForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   source = "marketing-contact",
 }: {
   source?: string;

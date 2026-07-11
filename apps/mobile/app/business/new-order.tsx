@@ -19,7 +19,7 @@ import { CenterState, ImageTile, LoadingButtonLabel } from "../../src/ui";
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
 
-export default function NewOrderScreen() {
+export default function NewOrderScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();

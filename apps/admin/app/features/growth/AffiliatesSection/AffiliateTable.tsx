@@ -27,7 +27,7 @@ import {
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import { AffiliateDetail } from "./AffiliateDetail";
 
-export function AffiliateTable({
+export function AffiliateTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   affiliates,
   pagedAffiliates,
   affiliateAttribution,

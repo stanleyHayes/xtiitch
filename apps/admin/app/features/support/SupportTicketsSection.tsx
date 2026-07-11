@@ -19,7 +19,7 @@ import {
 } from "../shared/types";
 import { shortTime } from "../shared/dates";
 
-export function SupportTicketsSection({
+export function SupportTicketsSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   supportTickets,
   supportQueueError,
   actionData,
@@ -53,7 +53,7 @@ export function SupportTicketsSection({
         <Alert severity="warning">{supportQueueError}</Alert>
       ) : null}
       <Stack spacing={1.5}>
-        {pagedSupportTickets.map((ticket) => {
+        {pagedSupportTickets.map((ticket) => { // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
           const resolved = ticket.status === "resolved";
           const assignedToMe = ticket.assignedAdminEmail === admin.adminEmail;
           const assignee =

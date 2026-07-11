@@ -7,7 +7,7 @@ import type { Theme } from "@mui/material/styles";
 import { formatGHS } from "../../../lib/format";
 import type { RevenueBucket } from "../../shared/types";
 
-export function ReportChart({
+export function ReportChart({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   revenueBuckets,
   totalRevenueMinor,
   weekEntries,

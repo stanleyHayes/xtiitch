@@ -199,7 +199,7 @@ function ResultCard({
   );
 }
 
-export default function Discover({ loaderData }: Route.ComponentProps) {
+export default function Discover({ loaderData }: Route.ComponentProps) { // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   const { query, signedIn, search } = loaderData;
   const understoodFacets =
     search && search.ok

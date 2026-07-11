@@ -77,7 +77,11 @@ type fakeBusinessIdentityRepository struct {
 	downgradeScheduled    *ports.SchedulePlanDowngradeInput
 }
 
-func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
+func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(
+	_ context.Context,
+	input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity,
+	error,
+) {
 	repo.created = input
 	if repo.createErr != nil {
 		return ports.BusinessOwnerIdentity{}, repo.createErr
@@ -89,7 +93,7 @@ func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(_ context.Co
 	}, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) HandleExists(_ context.Context, handle string) (bool, error) {
+func (repo *fakeBusinessIdentityRepository) HandleExists(_ context.Context, _ string) (bool, error) {
 	return repo.handleExists, repo.handleExistsErr
 }
 
@@ -97,7 +101,11 @@ func (repo *fakeBusinessIdentityRepository) ListActivePlans(_ context.Context) (
 	return nil, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(_ context.Context, _ common.ID) (ports.BusinessSubscriptionRecord, error) {
+func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(
+	_ context.Context,
+	_ common.ID) (ports.BusinessSubscriptionRecord,
+	error,
+) {
 	// After a plan switch, a re-read reflects the upgraded plan (mirrors the real
 	// repo, whose figures are joined from the now-current plan).
 	if repo.upgradeApplied != nil && repo.subscriptionUpgraded.SubscriptionID != "" {
@@ -138,7 +146,10 @@ func (repo *fakeBusinessIdentityRepository) ClearFailedBusinessLogin(_ context.C
 	return nil
 }
 
-func (repo *fakeBusinessIdentityRepository) RecordSubscriptionActivationPayment(_ context.Context, input ports.RecordSubscriptionActivationPaymentInput) error {
+func (repo *fakeBusinessIdentityRepository) RecordSubscriptionActivationPayment(
+	_ context.Context,
+	input ports.RecordSubscriptionActivationPaymentInput,
+) error {
 	repo.activationPayment = input
 	return nil
 }
@@ -151,7 +162,11 @@ func (repo *fakeBusinessIdentityRepository) SetSubscriptionBillingCadence(_ cont
 	return nil
 }
 
-func (repo *fakeBusinessIdentityRepository) PrepareSubscriptionActivationCharge(_ context.Context, _ common.ID) (ports.SubscriptionActivationCharge, error) {
+func (repo *fakeBusinessIdentityRepository) PrepareSubscriptionActivationCharge(
+	_ context.Context,
+	_ common.ID) (ports.SubscriptionActivationCharge,
+	error,
+) {
 	return ports.SubscriptionActivationCharge{Ref: "xtsub_act_test", ShouldCharge: !repo.activationAlreadyPaid}, nil
 }
 
@@ -177,20 +192,36 @@ type fakeSubscriptionPayments struct {
 	chargeErr          error
 }
 
-func (f *fakeSubscriptionPayments) CreateBusinessSubaccount(_ context.Context, _ ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
+func (f *fakeSubscriptionPayments) CreateBusinessSubaccount(
+	_ context.Context,
+	_ ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult,
+	error,
+) {
 	return ports.CreateBusinessSubaccountResult{}, nil
 }
 
-func (f *fakeSubscriptionPayments) InitializeTransaction(_ context.Context, _ ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+func (f *fakeSubscriptionPayments) InitializeTransaction(
+	_ context.Context,
+	_ ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
+	error,
+) {
 	return ports.InitializeTransactionResult{}, nil
 }
 
-func (f *fakeSubscriptionPayments) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (f *fakeSubscriptionPayments) InitializeAuthorization(
+	_ context.Context,
+	input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult,
+	error,
+) {
 	f.initInput = input
 	return ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: input.Reference}, nil
 }
 
-func (f *fakeSubscriptionPayments) VerifyAuthorization(_ context.Context, _ ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+func (f *fakeSubscriptionPayments) VerifyAuthorization(
+	_ context.Context,
+	_ ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult,
+	error,
+) {
 	if f.verifyNotSucceeded {
 		return ports.VerifyAuthorizationResult{Succeeded: false}, nil
 	}
@@ -212,7 +243,11 @@ func (f *fakeSubscriptionPayments) VerifyAuthorization(_ context.Context, _ port
 	}, nil
 }
 
-func (f *fakeSubscriptionPayments) ChargeAuthorization(_ context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+func (f *fakeSubscriptionPayments) ChargeAuthorization(
+	_ context.Context,
+	input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult,
+	error,
+) {
 	f.chargeInput = input
 	if f.chargeErr != nil {
 		return ports.ChargeAuthorizationResult{}, f.chargeErr
@@ -239,7 +274,12 @@ func newSubscriptionTestService(businesses *fakeBusinessIdentityRepository, paym
 	})
 }
 
-func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(
+	_ context.Context,
+	handle string,
+	email string) (ports.BusinessUserCredentials,
+	error,
+) {
 	repo.lookupHandle = handle
 	repo.lookupEmail = email
 	if repo.findErr != nil {
@@ -248,7 +288,12 @@ func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail(_ c
 	return repo.credentials, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) FindBusinessUserCredentialsByID(_ context.Context, scope common.TenantScope, userID common.ID) (ports.BusinessUserCredentials, error) {
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserCredentialsByID(
+	_ context.Context,
+	scope common.TenantScope,
+	userID common.ID) (ports.BusinessUserCredentials,
+	error,
+) {
 	repo.listScope = scope
 	repo.lookupUserID = userID
 	if repo.findByIDErr != nil {
@@ -257,7 +302,11 @@ func (repo *fakeBusinessIdentityRepository) FindBusinessUserCredentialsByID(_ co
 	return repo.credentialsByID, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) ListBusinessUsers(_ context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
+func (repo *fakeBusinessIdentityRepository) ListBusinessUsers(
+	_ context.Context,
+	scope common.TenantScope) ([]ports.BusinessUserRecord,
+	error,
+) {
 	repo.listScope = scope
 	if repo.listErr != nil {
 		return nil, repo.listErr
@@ -265,7 +314,12 @@ func (repo *fakeBusinessIdentityRepository) ListBusinessUsers(_ context.Context,
 	return repo.users, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) CreateBusinessUser(_ context.Context, scope common.TenantScope, input ports.CreateBusinessUserInput) (ports.BusinessUserRecord, error) {
+func (repo *fakeBusinessIdentityRepository) CreateBusinessUser(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.CreateBusinessUserInput) (ports.BusinessUserRecord,
+	error,
+) {
 	repo.listScope = scope
 	repo.createdUser = input
 	if repo.createUserErr != nil {
@@ -281,7 +335,12 @@ func (repo *fakeBusinessIdentityRepository) CreateBusinessUser(_ context.Context
 	}, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserInput) (ports.BusinessUserRecord, error) {
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserInput) (ports.BusinessUserRecord,
+	error,
+) {
 	repo.updateScope = scope
 	repo.updatedUser = input
 	if repo.updateUserErr != nil {
@@ -296,19 +355,32 @@ func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser(_ context.Context
 	}, nil
 }
 
-func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserPasswordInput,
+) error {
 	repo.updateScope = scope
 	repo.updatedPassword = input
 	return repo.updatePasswordErr
 }
 
-func (repo *fakeBusinessIdentityRepository) UpdateOwnPassword(_ context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+func (repo *fakeBusinessIdentityRepository) UpdateOwnPassword(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserPasswordInput,
+) error {
 	repo.updateScope = scope
 	repo.updatedOwnPassword = input
 	return repo.updateOwnPasswordErr
 }
 
-func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner(_ context.Context, scope common.TenantScope, input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult, error) {
+func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult,
+	error,
+) {
 	repo.transferScope = scope
 	repo.transferredOwner = input
 	if repo.transferErr != nil {
@@ -363,12 +435,24 @@ func (r *fakeDiscountRepository) CountAppliedRedemptionsForAccount(_ context.Con
 	return r.appliedForAccount, nil
 }
 
-func (r *fakeDiscountRepository) CreateRedemption(_ context.Context, _ common.TenantScope, input ports.CreateDiscountRedemptionInput) (common.ID, error) {
+func (r *fakeDiscountRepository) CreateRedemption(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.CreateDiscountRedemptionInput) (common.ID,
+	error,
+) {
 	r.created = append(r.created, input)
 	return "redemption-1", nil
 }
 
-func (r *fakeDiscountRepository) CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input ports.CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error) {
+func (r *fakeDiscountRepository) CreateRedemptionWithinCaps(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateDiscountRedemptionInput,
+	maxPerAccount int,
+	maxTotal *int) (common.ID,
+	error,
+) {
 	if r.appliedForAccount >= maxPerAccount {
 		return "", ports.ErrDiscountRedemptionCapReached
 	}
@@ -378,24 +462,41 @@ func (r *fakeDiscountRepository) CreateRedemptionWithinCaps(ctx context.Context,
 	return r.CreateRedemption(ctx, scope, input)
 }
 
-func (r *fakeDiscountRepository) FindPendingRedemption(_ context.Context, _ common.TenantScope, _ common.ID) (ports.PendingDiscountRedemption, error) {
+func (r *fakeDiscountRepository) FindPendingRedemption(
+	_ context.Context,
+	_ common.TenantScope,
+	_ common.ID) (ports.PendingDiscountRedemption,
+	error,
+) {
 	if !r.hasPending {
 		return ports.PendingDiscountRedemption{}, ports.ErrNotFound
 	}
 	return r.pending, nil
 }
 
-func (r *fakeDiscountRepository) MarkRedemptionApplied(_ context.Context, _ common.TenantScope, input ports.MarkDiscountRedemptionAppliedInput) error {
+func (r *fakeDiscountRepository) MarkRedemptionApplied(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.MarkDiscountRedemptionAppliedInput,
+) error {
 	r.marked = append(r.marked, input)
 	return nil
 }
 
-func (r *fakeDiscountRepository) ActivateFreePeriodBilling(_ context.Context, _ common.TenantScope, input ports.ActivateFreePeriodInput) error {
+func (r *fakeDiscountRepository) ActivateFreePeriodBilling(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.ActivateFreePeriodInput,
+) error {
 	r.freePeriods = append(r.freePeriods, input)
 	return nil
 }
 
-func newDiscountTestService(businesses *fakeBusinessIdentityRepository, payments ports.PaymentProvider, discounts ports.SubscriptionDiscountRepository) Service {
+func newDiscountTestService(
+	businesses *fakeBusinessIdentityRepository,
+	payments ports.PaymentProvider,
+	discounts ports.SubscriptionDiscountRepository,
+) Service {
 	return NewService(Dependencies{
 		Businesses:    businesses,
 		Sessions:      &fakeSessionRepository{},

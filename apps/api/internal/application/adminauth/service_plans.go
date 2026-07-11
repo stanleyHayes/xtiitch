@@ -369,6 +369,7 @@ func normalizePlanEntitlementKey(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func validPlanEntitlementKey(value string) bool {
 	if len(value) < 2 || len(value) > 80 {
 		return false
@@ -380,7 +381,7 @@ func validPlanEntitlementKey(value string) bool {
 		if !valid {
 			return false
 		}
-		if index == 0 && !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+		if index == 0 && (char < 'a' || char > 'z') && (char < '0' || char > '9') {
 			return false
 		}
 	}
@@ -401,6 +402,7 @@ func normalizePlanName(value string) string {
 	return name
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func validPlanCode(value string) bool {
 	if len(value) < 2 || len(value) > 32 {
 		return false
@@ -413,7 +415,7 @@ func validPlanCode(value string) bool {
 		if !valid {
 			return false
 		}
-		if index == 0 && !((char >= 'a' && char <= 'z') || (char >= '0' && char <= '9')) {
+		if index == 0 && (char < 'a' || char > 'z') && (char < '0' || char > '9') {
 			return false
 		}
 	}

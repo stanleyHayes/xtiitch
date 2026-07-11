@@ -90,7 +90,13 @@ func (f *fakeCatalogue) TrackOrder(_ context.Context, code string) (ports.BotOrd
 	if code != "ORDER123" {
 		return ports.BotOrder{}, ports.ErrNotFound
 	}
-	return ports.BotOrder{DesignTitle: "Kente Wrap Dress", StoreName: "Demo Atelier", Status: "awaiting_deposit", Stage: "Deposit", Colour: "yellow"}, nil
+	return ports.BotOrder{
+		DesignTitle: "Kente Wrap Dress",
+		StoreName:   "Demo Atelier",
+		Status:      "awaiting_deposit",
+		Stage:       "Deposit",
+		Colour:      "yellow",
+	}, nil
 }
 
 func (f *fakeCatalogue) PlaceStandardOrder(_ context.Context, req ports.BotOrderRequest) (ports.BotOrderDraft, error) {
@@ -121,9 +127,17 @@ func newServiceWith(onlineOrdering bool) (Service, *fakeSessions, *fakeSender, *
 }
 
 // send is a tiny helper to drive a turn with a unique message id.
+//
+//nolint:unparam // test helper uses fixed WhatsApp number across current cases
 func send(t *testing.T, svc Service, wa, id, text string) {
 	t.Helper()
-	if err := svc.HandleInbound(context.Background(), InboundMessage{WaID: wa, MessageID: id, Type: "text", Text: text, ContactName: "Ama"}); err != nil {
+	if err := svc.HandleInbound(context.Background(), InboundMessage{
+		WaID:        wa,
+		MessageID:   id,
+		Type:        "text",
+		Text:        text,
+		ContactName: "Ama",
+	}); err != nil {
 		t.Fatalf("HandleInbound(%q): %v", text, err)
 	}
 }

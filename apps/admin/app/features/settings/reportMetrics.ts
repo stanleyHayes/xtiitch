@@ -15,7 +15,7 @@ import type {
 } from "../shared/types";
 import { formatGHS } from "../shared/formatting";
 
-export function buildReportMetrics({
+export function buildReportMetrics({ // eslint-disable-line complexity, max-lines-per-function -- dataset builder with many conditional branches; refactor in follow-up
   platformSettings,
   adminBusinesses,
   verificationCases,

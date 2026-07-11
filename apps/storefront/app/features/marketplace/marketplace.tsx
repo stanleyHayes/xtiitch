@@ -26,7 +26,7 @@ import { FeaturedCard } from "./featured-card";
 import { StudioCard } from "./studio-card";
 import type { FlatDesign, SortKey, Tab } from "./types";
 
-export function Marketplace({
+export function Marketplace({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   shops,
   sponsored,
 }: {

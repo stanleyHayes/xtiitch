@@ -10,55 +10,9 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
-	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
-
-type RunSubscriptionBillingSweepCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
-	Reason      string
-	UserAgent   string
-	IPAddress   string
-}
-
-type RunSubscriptionRecurringSweepCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
-	Reason      string
-	UserAgent   string
-	IPAddress   string
-}
-
-type InitializeSubscriptionAuthorizationCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
-	BusinessID  common.ID
-	CallbackURL string
-	Reason      string
-	UserAgent   string
-	IPAddress   string
-}
-
-type SubscriptionAuthorizationLinkResult struct {
-	BusinessID   common.ID
-	BusinessName string
-	OwnerEmail   string
-	RedirectURL  string
-	AccessCode   string
-	Reference    string
-}
-
-type VerifySubscriptionAuthorizationCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
-	BusinessID  common.ID
-	Reference   string
-	Reason      string
-	UserAgent   string
-	IPAddress   string
-}
 
 func (s Service) RunSubscriptionBillingSweep(
 	ctx context.Context,
@@ -117,6 +71,7 @@ func (s Service) RunSubscriptionBillingSweep(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) InitializeSubscriptionAuthorization(
 	ctx context.Context,
 	cmd InitializeSubscriptionAuthorizationCommand,
@@ -209,6 +164,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 	}, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) VerifySubscriptionAuthorization(
 	ctx context.Context,
 	cmd VerifySubscriptionAuthorizationCommand,
@@ -336,6 +292,7 @@ func (s Service) VerifySubscriptionAuthorization(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) RunSubscriptionRecurringSweep(
 	ctx context.Context,
 	cmd RunSubscriptionRecurringSweepCommand,
@@ -394,7 +351,9 @@ func (s Service) RunSubscriptionRecurringSweep(
 		// re-pays via the billing/onboarding flow, which advances the period.
 		if subscriptionUsesMoMo(subscription) {
 			record.ChargesSkipped++
-			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record); err != nil {
+			if err := s.emitRenewalReminder(
+				ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record,
+			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
 			continue
@@ -452,7 +411,8 @@ func (s Service) RunSubscriptionRecurringSweep(
 			// issue a fresh invoice and charge the card a second time. Only when the
 			// verify is reachable and confirms the money did NOT move do we mark it
 			// failed (the previous, double-charge-prone behaviour).
-			if verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: invoiceRef}); verifyErr == nil && verify.Succeeded {
+			verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: invoiceRef})
+			if verifyErr == nil && verify.Succeeded {
 				if _, markErr := s.businesses.MarkAdminSubscriptionInvoicePaid(ctx, ports.MarkAdminSubscriptionInvoicePaidInput{
 					InvoiceID:      invoiceID,
 					ActorAdminUser: cmd.ActorUserID,
@@ -474,7 +434,9 @@ func (s Service) RunSubscriptionRecurringSweep(
 			record.ChargesFailed++
 			// (b) The card charge failed and the subscription is now past due / in
 			// grace: remind the business to re-pay before the grace window ends.
-			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record); err != nil {
+			if err := s.emitRenewalReminder(
+				ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record,
+			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
 			continue
@@ -504,7 +466,9 @@ func (s Service) RunSubscriptionRecurringSweep(
 			record.ChargesFailed++
 			// (b) A non-success provider status is also a failed renewal: remind the
 			// business to re-pay before the grace window ends.
-			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record); err != nil {
+			if err := s.emitRenewalReminder(
+				ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record,
+			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
 		}

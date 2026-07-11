@@ -17,7 +17,7 @@ import { datetimeLocalDefault } from "../../shared/dates";
 import { moneyInputDefault } from "../../shared/validation";
 import type { AdminPromotion, AdminBusiness } from "../../../lib/api";
 
-export function PromotionEditForm({
+export function PromotionEditForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   promotion,
   businesses,
 }: {

@@ -9,6 +9,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) ListAdminCustomers(ctx context.Context) ([]ports.AdminCustomerRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -120,6 +121,7 @@ func (repo AdminAuthRepository) ListAdminCustomers(ctx context.Context) ([]ports
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) ExportAdminCustomer(ctx context.Context, customerID common.ID) (ports.AdminCustomerExportRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -184,7 +186,10 @@ func (repo AdminAuthRepository) ExportAdminCustomer(ctx context.Context, custome
 	}
 	for orderRows.Next() {
 		var o ports.AdminCustomerExportOrder
-		if err := orderRows.Scan(&o.OrderID, &o.BusinessName, &o.DesignTitle, &o.OrderType, &o.Status, &o.AgreedTotalMinor, &o.CreatedAt); err != nil {
+		if err := orderRows.Scan(
+			&o.OrderID, &o.BusinessName, &o.DesignTitle, &o.OrderType,
+			&o.Status, &o.AgreedTotalMinor, &o.CreatedAt,
+		); err != nil {
 			orderRows.Close()
 			return ports.AdminCustomerExportRecord{}, err
 		}

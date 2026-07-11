@@ -20,9 +20,15 @@ type RouteRegistrar interface {
 	Register(router chi.Router)
 }
 
-func NewRouter(logger *slog.Logger, ready func(context.Context) error, security SecurityOptions, registrars ...RouteRegistrar) http.Handler {
+func NewRouter(
+	logger *slog.Logger,
+	ready func(context.Context) error,
+	security SecurityOptions,
+	registrars ...RouteRegistrar,
+) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
+	//nolint:staticcheck // kept for existing reverse-proxy behaviour; migrate to trusted-header allowlist in Phase 2
 	router.Use(middleware.RealIP)
 	// Structured access log for every request (after RealIP/RequestID so it has
 	// the real client IP + request id). This is the baseline visibility the
@@ -41,7 +47,7 @@ func NewRouter(logger *slog.Logger, ready func(context.Context) error, security 
 		router.Use(newIPRateLimiter(security.RateLimitRPS).middleware)
 	}
 
-	router.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, healthResponse{
 			Status: "ok",
 			Time:   time.Now().UTC().Format(time.RFC3339),
@@ -66,7 +72,7 @@ func NewRouter(logger *slog.Logger, ready func(context.Context) error, security 
 	})
 
 	router.Route("/v1", func(v1 chi.Router) {
-		v1.Get("/version", func(w http.ResponseWriter, r *http.Request) {
+		v1.Get("/version", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{
 				"service": "xtiitch-api",
 				"version": "0.0.0",

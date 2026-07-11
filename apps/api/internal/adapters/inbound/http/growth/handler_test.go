@@ -175,7 +175,8 @@ func TestRecordSponsoredEventReturnsCreated(t *testing.T) {
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/public/sponsored/campaign-1/events",
-		strings.NewReader(`{"event_type":"impression","visitor_id":"visitor-1","page_url":"https://xtiitch.test","referrer_url":"https://search.test"}`),
+		strings.NewReader(`{"event_type":"impression","visitor_id":"visitor-1",`+
+			`"page_url":"https://xtiitch.test","referrer_url":"https://search.test"}`),
 	)
 	request.RemoteAddr = "198.51.100.10:4444"
 	request.Header.Set("User-Agent", "Test browser")

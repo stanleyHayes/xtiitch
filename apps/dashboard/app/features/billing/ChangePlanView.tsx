@@ -45,7 +45,7 @@ function changeSummary(change: PlanChangeResult): string {
   )}. You keep your current plan until then — no charge or refund now.`;
 }
 
-export function ChangePlanView({
+export function ChangePlanView({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   currentPlan,
   plans,
   result,

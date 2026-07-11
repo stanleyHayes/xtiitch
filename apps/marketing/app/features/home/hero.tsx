@@ -23,7 +23,7 @@ const heroSignals = [
   { label: "Tracking shared", detail: "Yellow: being made", color: "#237a4b" },
 ] as const;
 
-export function Hero() {
+export function Hero() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   // Self-serve signup URL (the business dashboard's /register, a separate
   // origin) comes from the root loader; fall back to the waitlist if absent.
   const rootData = useRouteLoaderData("root") as

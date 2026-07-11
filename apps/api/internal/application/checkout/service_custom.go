@@ -94,7 +94,12 @@ func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderComma
 // resolveCustomDesign loads an active design for a custom order, gating on the
 // store's bespoke (and, for self-measure, measurements) switch, and never letting
 // an unguessable handle span tenants.
-func (s Service) resolveCustomDesign(ctx context.Context, store ports.Storefront, designHandle string, mode order.SizeMode) (catalogue.Design, error) {
+func (s Service) resolveCustomDesign(
+	ctx context.Context,
+	store ports.Storefront,
+	designHandle string,
+	mode order.SizeMode,
+) (catalogue.Design, error) {
 	if !store.Settings.BespokeEnabled {
 		return catalogue.Design{}, ErrBespokeDisabled
 	}
@@ -114,7 +119,12 @@ func (s Service) resolveCustomDesign(ctx context.Context, store ports.Storefront
 	return design.Design, nil
 }
 
-func (s Service) placeComeToShop(ctx context.Context, scope common.TenantScope, businessID, designID common.ID, customer customerDetails) (PlaceCustomOrderResult, error) {
+func (s Service) placeComeToShop(
+	ctx context.Context,
+	scope common.TenantScope,
+	businessID, designID common.ID,
+	customer customerDetails,
+) (PlaceCustomOrderResult, error) {
 	orderID := s.ids.NewID()
 	customerID, _ := s.resolveCustomerByPhone(ctx, customer.phone)
 	if err := s.orders.CreateCustomOrderConfirmed(ctx, scope, ports.CreateCustomOrderConfirmedInput{
@@ -133,7 +143,16 @@ func (s Service) placeComeToShop(ctx context.Context, scope common.TenantScope, 
 	return PlaceCustomOrderResult{OrderID: orderID}, nil
 }
 
-func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.TenantScope, store ports.Storefront, design catalogue.Design, mode order.SizeMode, customer customerDetails, cmd PlaceCustomOrderCommand) (PlaceCustomOrderResult, error) {
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) placeDepositCustomOrder(
+	ctx context.Context,
+	scope common.TenantScope,
+	store ports.Storefront,
+	design catalogue.Design,
+	mode order.SizeMode,
+	customer customerDetails,
+	cmd PlaceCustomOrderCommand,
+) (PlaceCustomOrderResult, error) {
 	var measurements map[string]string
 	if mode == order.SizeModeSelfMeasure {
 		cleaned, err := cleanMeasurements(cmd.Measurements)

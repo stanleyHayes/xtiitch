@@ -567,15 +567,27 @@ func (service *fakeAuthService) SubscriptionVATPolicy() (int, bool) {
 	return 0, false
 }
 
-func (service *fakeAuthService) InitializeSubscriptionAuthorization(_ context.Context, _ authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink, error) {
+func (service *fakeAuthService) InitializeSubscriptionAuthorization(
+	_ context.Context,
+	_ authapp.InitializeSubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationLink,
+	error,
+) {
 	return authapp.SubscriptionAuthorizationLink{}, nil
 }
 
-func (service *fakeAuthService) VerifySubscriptionAuthorization(_ context.Context, _ authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult, error) {
+func (service *fakeAuthService) VerifySubscriptionAuthorization(
+	_ context.Context,
+	_ authapp.VerifySubscriptionAuthorizationCommand) (authapp.SubscriptionAuthorizationResult,
+	error,
+) {
 	return authapp.SubscriptionAuthorizationResult{}, nil
 }
 
-func (service *fakeAuthService) ChangeSubscriptionPlan(_ context.Context, _ authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult, error) {
+func (service *fakeAuthService) ChangeSubscriptionPlan(
+	_ context.Context,
+	_ authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult,
+	error,
+) {
 	return authapp.ChangeSubscriptionPlanResult{}, nil
 }
 
@@ -613,7 +625,11 @@ func (service *fakeAuthService) Logout(_ context.Context, _ authapp.LogoutComman
 	return service.err
 }
 
-func (service *fakeAuthService) ListBusinessUsers(_ context.Context, command authapp.ListBusinessUsersCommand) ([]ports.BusinessUserRecord, error) {
+func (service *fakeAuthService) ListBusinessUsers(
+	_ context.Context,
+	command authapp.ListBusinessUsersCommand) ([]ports.BusinessUserRecord,
+	error,
+) {
 	service.listUsersCalled = true
 	service.listUsersCommand = command
 	if service.userErr != nil {
@@ -622,7 +638,11 @@ func (service *fakeAuthService) ListBusinessUsers(_ context.Context, command aut
 	return service.users, nil
 }
 
-func (service *fakeAuthService) CreateBusinessUser(_ context.Context, command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+func (service *fakeAuthService) CreateBusinessUser(
+	_ context.Context,
+	command authapp.CreateBusinessUserCommand) (ports.BusinessUserRecord,
+	error,
+) {
 	service.createUserCalled = true
 	service.createUserCommand = command
 	if service.userErr != nil {
@@ -631,7 +651,11 @@ func (service *fakeAuthService) CreateBusinessUser(_ context.Context, command au
 	return service.businessUser, nil
 }
 
-func (service *fakeAuthService) UpdateBusinessUser(_ context.Context, command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord, error) {
+func (service *fakeAuthService) UpdateBusinessUser(
+	_ context.Context,
+	command authapp.UpdateBusinessUserCommand) (ports.BusinessUserRecord,
+	error,
+) {
 	service.updateUserCalled = true
 	service.updateUserCommand = command
 	if service.userErr != nil {
@@ -660,7 +684,11 @@ func (service *fakeAuthService) ConfirmPasswordReset(_ context.Context, _ string
 	return service.err
 }
 
-func (service *fakeAuthService) TransferBusinessOwner(_ context.Context, command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult, error) {
+func (service *fakeAuthService) TransferBusinessOwner(
+	_ context.Context,
+	command authapp.TransferBusinessOwnerCommand) (ports.TransferBusinessOwnerResult,
+	error,
+) {
 	service.transferOwnerCalled = true
 	service.transferOwnerCommand = command
 	if service.userErr != nil {
@@ -673,7 +701,12 @@ func (service *fakeAuthService) GetMFAStatus(_ context.Context, _ common.TenantS
 	return authapp.MFAStatus{}, nil
 }
 
-func (service *fakeAuthService) StartMFAEnrollment(_ context.Context, _ common.TenantScope, _ common.ID) (authapp.MFAEnrollmentSetup, error) {
+func (service *fakeAuthService) StartMFAEnrollment(
+	_ context.Context,
+	_ common.TenantScope,
+	_ common.ID) (authapp.MFAEnrollmentSetup,
+	error,
+) {
 	return authapp.MFAEnrollmentSetup{}, nil
 }
 

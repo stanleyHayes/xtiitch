@@ -44,9 +44,15 @@ func checkRoleEnforcesRLS(ctx context.Context, db *pgxpool.Pool, environment str
 	}
 	strict := strings.EqualFold(strings.TrimSpace(os.Getenv("STRICT_DB_ROLE_RLS")), "true")
 	if strict {
-		return fmt.Errorf("refusing to start: database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) — tenant isolation would be void; connect as a NOBYPASSRLS app role", role, isSuperuser, bypassRLS)
+		return fmt.Errorf(
+			"refusing to start: database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) "+
+				"— tenant isolation would be void; connect as a NOBYPASSRLS app role",
+			role, isSuperuser, bypassRLS,
+		)
 	}
-	logger.Error("SECURITY: database role can BYPASS row-level security — tenant isolation depends on FORCE RLS which does not apply to this role; use a dedicated NOBYPASSRLS app role (set STRICT_DB_ROLE_RLS=true to enforce)",
+	logger.Error("SECURITY: database role can BYPASS row-level security — "+
+		"tenant isolation depends on FORCE RLS which does not apply to this role; "+
+		"use a dedicated NOBYPASSRLS app role (set STRICT_DB_ROLE_RLS=true to enforce)",
 		slog.String("db_role", role),
 		slog.Bool("is_superuser", isSuperuser),
 		slog.Bool("bypassrls", bypassRLS),
@@ -87,7 +93,10 @@ func validateProductionConfig(cfg config.Config) error {
 	// If the WhatsApp bot is enabled (verify token set), inbound webhooks must be
 	// signature-verified — otherwise anyone could POST forged messages.
 	if cfg.WhatsAppVerifyToken != "" && cfg.WhatsAppAppSecret == "" {
-		problems = append(problems, "WHATSAPP_APP_SECRET must be set when the WhatsApp bot is enabled (inbound webhooks must be signature-verified)")
+		problems = append(problems,
+			"WHATSAPP_APP_SECRET must be set when the WhatsApp bot is enabled "+
+				"(inbound webhooks must be signature-verified)",
+		)
 	}
 
 	if len(problems) == 0 {

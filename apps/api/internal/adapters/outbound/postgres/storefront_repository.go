@@ -149,7 +149,12 @@ func (repo StorefrontRepository) ListActiveDesigns(ctx context.Context, business
 	return results, err
 }
 
-func (repo StorefrontRepository) SearchActiveDesigns(ctx context.Context, businessID common.ID, query string) ([]ports.StorefrontDesign, error) {
+func (repo StorefrontRepository) SearchActiveDesigns(
+	ctx context.Context,
+	businessID common.ID,
+	query string) ([]ports.StorefrontDesign,
+	error,
+) {
 	var results []ports.StorefrontDesign
 	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {
 		designs, err := queryActiveDesigns(ctx, tx, `business_id = $1 and title ilike '%' || $2 || '%'`, businessID.String(), query)

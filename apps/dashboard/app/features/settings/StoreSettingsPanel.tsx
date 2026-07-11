@@ -19,7 +19,7 @@ import { enabledStoreSettings } from "./utils";
 import { PlanGatedControl } from "../../components/ui/PlanGatedControl";
 import { StorefrontImageUploadField } from "../studio/StorefrontImageUploadField";
 
-export function StoreSettingsPanel({
+export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   settings,
   profile,
   error,

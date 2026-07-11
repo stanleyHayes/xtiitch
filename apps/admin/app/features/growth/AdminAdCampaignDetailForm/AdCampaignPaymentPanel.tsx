@@ -15,7 +15,7 @@ import { DetailLine } from "../../shared/DetailLine";
 import { adCampaignPaymentStatusColor } from "../utils";
 import type { AdminAdCampaign } from "../../../lib/api";
 
-export function AdCampaignPaymentPanel({
+export function AdCampaignPaymentPanel({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   campaign,
 }: {
   campaign: AdminAdCampaign;

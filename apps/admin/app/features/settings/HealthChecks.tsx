@@ -19,7 +19,7 @@ import {
 } from "../shared/types";
 import { formatGHS, formatPercentBps } from "../shared/formatting";
 
-export function useHealthChecks({
+export function useHealthChecks({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   platformMetrics,
   platformSettings,
   adminUsers,

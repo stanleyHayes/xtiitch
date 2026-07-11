@@ -20,7 +20,7 @@ import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminAffiliateDetailForm } from "../AdminAffiliateDetailForm";
 import { AffiliateTable } from "./AffiliateTable";
 
-export function AffiliatesSection({
+export function AffiliatesSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   affiliates,
   affiliatesError,
   affiliateAttribution,

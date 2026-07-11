@@ -207,6 +207,7 @@ func (s Service) CheckHandleAvailability(ctx context.Context, raw string) (Handl
 	return HandleAvailability{Handle: handle, Available: true}, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (AuthResult, error) {
 	handle := normalizeHandle(cmd.BusinessHandle)
 	email, err := normalizeEmail(cmd.OwnerEmail)
@@ -365,7 +366,11 @@ func (s Service) RequestPasswordReset(ctx context.Context, rawEmail string) erro
 		displayName = target.Email
 	}
 	body := fmt.Sprintf(
-		"Hi %s,\n\nUse this code to reset your Xtiitch dashboard password:\n\n    %s\n\nIt expires in 15 minutes. If you didn't request this, ignore this email — your password stays unchanged.\n\nThanks,\nXtiitch",
+		"Hi %s,\n\n"+
+			"Use this code to reset your Xtiitch dashboard password:\n\n    %s\n\n"+
+			"It expires in 15 minutes. If you didn't request this, ignore this email "+
+			"— your password stays unchanged.\n\n"+
+			"Thanks,\nXtiitch",
 		displayName,
 		code,
 	)

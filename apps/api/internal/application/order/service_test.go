@@ -302,10 +302,22 @@ func TestCollectBalanceRejectsWhenNothingDue(t *testing.T) {
 		name    string
 		billing ports.OrderBilling
 	}{
-		{"standard order", ports.OrderBilling{OrderType: "standard", Status: "confirmed", AgreedTotalMinor: ptr(int64(50000)), CustomerEmail: "c@x.z"}},
+		{
+			"standard order",
+			ports.OrderBilling{
+				OrderType: "standard", Status: "confirmed",
+				AgreedTotalMinor: ptr(int64(50000)), CustomerEmail: "c@x.z",
+			},
+		},
 		{"not confirmed", ports.OrderBilling{OrderType: "custom", Status: "draft", AgreedTotalMinor: ptr(int64(50000)), CustomerEmail: "c@x.z"}},
 		{"no agreed total", ports.OrderBilling{OrderType: "custom", Status: "confirmed", AgreedTotalMinor: nil, CustomerEmail: "c@x.z"}},
-		{"fully settled", ports.OrderBilling{OrderType: "custom", Status: "confirmed", AgreedTotalMinor: ptr(int64(50000)), SettledMinor: 50000, CustomerEmail: "c@x.z"}},
+		{
+			"fully settled",
+			ports.OrderBilling{
+				OrderType: "custom", Status: "confirmed",
+				AgreedTotalMinor: ptr(int64(50000)), SettledMinor: 50000, CustomerEmail: "c@x.z",
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -331,7 +343,9 @@ func TestCollectBalanceRejectsWhenBalanceInFlight(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakeOrderRepo{billing: ports.OrderBilling{
-		OrderType: "custom", Status: "confirmed", AgreedTotalMinor: ptr(int64(50000)), SettledMinor: 15000, CustomerEmail: "c@x.z", BalanceInFlight: true,
+		OrderType: "custom", Status: "confirmed",
+		AgreedTotalMinor: ptr(int64(50000)), SettledMinor: 15000,
+		CustomerEmail: "c@x.z", BalanceInFlight: true,
 	}}
 	payments := &fakeOrderPayments{}
 	service := NewService(Dependencies{Orders: repo, Payments: payments, IDs: &seqIDs{}})

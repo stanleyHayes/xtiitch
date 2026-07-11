@@ -48,7 +48,8 @@ func TestRequestOTPRoutesEmailChannel(t *testing.T) {
 
 	service := &fakeService{}
 	router := newTestRouter(service)
-	request := httptest.NewRequest(http.MethodPost, "/customer/auth/request-otp", bytes.NewReader([]byte(`{"channel":"email","email":"ama@example.com"}`)))
+	payload := []byte(`{"channel":"email","email":"ama@example.com"}`)
+	request := httptest.NewRequest(http.MethodPost, "/customer/auth/request-otp", bytes.NewReader(payload))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 
@@ -77,7 +78,8 @@ func TestVerifyOTPRoutesEmailChannelAndReturnsToken(t *testing.T) {
 		},
 	}
 	router := newTestRouter(service)
-	request := httptest.NewRequest(http.MethodPost, "/customer/auth/verify-otp", bytes.NewReader([]byte(`{"channel":"email","email":"ama@example.com","code":"123456"}`)))
+	payload := []byte(`{"channel":"email","email":"ama@example.com","code":"123456"}`)
+	request := httptest.NewRequest(http.MethodPost, "/customer/auth/verify-otp", bytes.NewReader(payload))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 
@@ -110,7 +112,8 @@ func TestVerifyOTPDefaultsToPhoneChannel(t *testing.T) {
 		},
 	}
 	router := newTestRouter(service)
-	request := httptest.NewRequest(http.MethodPost, "/customer/auth/verify-otp", bytes.NewReader([]byte(`{"phone":"0240000000","code":"123456"}`)))
+	payload := []byte(`{"phone":"0240000000","code":"123456"}`)
+	request := httptest.NewRequest(http.MethodPost, "/customer/auth/verify-otp", bytes.NewReader(payload))
 	request.Header.Set("Content-Type", "application/json")
 	response := httptest.NewRecorder()
 

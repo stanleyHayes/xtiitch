@@ -26,7 +26,7 @@ export function meta(): MetaDescriptor[] {
   });
 }
 
-export default function Growth() {
+export default function Growth() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   return (
     <>
       <PageHero

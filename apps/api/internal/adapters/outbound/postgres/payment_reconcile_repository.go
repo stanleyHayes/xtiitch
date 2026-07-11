@@ -31,7 +31,10 @@ func lookupPaymentByReference(ctx context.Context, tx pgx.Tx, providerReference 
 		select payment_id::text, business_id::text, order_id::text, booking_id::text,
 			amount_minor, coalesce(settle_amount_minor, amount_minor), purpose
 		from payments where provider_reference = $1
-	`, providerReference).Scan(&payment.paymentID, &payment.businessID, &payment.orderID, &payment.bookingID, &payment.amountMinor, &payment.settleAmountMinor, &payment.purpose)
+	`, providerReference).Scan(
+		&payment.paymentID, &payment.businessID, &payment.orderID, &payment.bookingID,
+		&payment.amountMinor, &payment.settleAmountMinor, &payment.purpose,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return scopedPayment{}, false, nil
 	}
@@ -320,6 +323,8 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 // left as-is (recoverable), matching the single-store cart failure. Returns
 // found=false when no marketplace charge matches the reference, so the other
 // non-order reconciles can try it.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func reconcileMarketplaceChargeFromProvider(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymentInput) (bool, error) {
 	var chargeID string
 	err := tx.QueryRow(ctx, `

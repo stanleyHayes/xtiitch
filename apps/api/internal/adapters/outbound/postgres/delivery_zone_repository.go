@@ -76,7 +76,11 @@ func (repo DeliveryZoneRepository) listZones(ctx context.Context, scope common.T
 	return zones, nil
 }
 
-func (repo DeliveryZoneRepository) GetDeliveryZone(ctx context.Context, scope common.TenantScope, zoneID common.ID) (ports.DeliveryZone, error) {
+func (repo DeliveryZoneRepository) GetDeliveryZone(
+	ctx context.Context,
+	scope common.TenantScope,
+	zoneID common.ID,
+) (ports.DeliveryZone, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.DeliveryZone{}, err
@@ -106,7 +110,11 @@ func (repo DeliveryZoneRepository) GetDeliveryZone(ctx context.Context, scope co
 	return z, nil
 }
 
-func (repo DeliveryZoneRepository) CreateDeliveryZone(ctx context.Context, scope common.TenantScope, input ports.CreateDeliveryZoneInput) error {
+func (repo DeliveryZoneRepository) CreateDeliveryZone(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateDeliveryZoneInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -130,7 +138,11 @@ func (repo DeliveryZoneRepository) CreateDeliveryZone(ctx context.Context, scope
 	return tx.Commit(ctx)
 }
 
-func (repo DeliveryZoneRepository) UpdateDeliveryZone(ctx context.Context, scope common.TenantScope, input ports.UpdateDeliveryZoneInput) error {
+func (repo DeliveryZoneRepository) UpdateDeliveryZone(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.UpdateDeliveryZoneInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err

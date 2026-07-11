@@ -8,7 +8,7 @@ import {
 } from "../utils";
 import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
 
-export function AffiliateSummary({
+export function AffiliateSummary({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   affiliate,
   performance,
 }: {

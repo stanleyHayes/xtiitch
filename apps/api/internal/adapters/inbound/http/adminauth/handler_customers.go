@@ -151,7 +151,8 @@ func (handler Handler) eraseCustomer(w http.ResponseWriter, r *http.Request) {
 		OrdersRetained:      record.OrdersRetained,
 		MeasurementsCleared: record.MeasurementsCleared,
 		BookingAddresses:    record.BookingAddresses,
-		Notice:              "Personal data anonymised platform-wide under the Data Protection Act, 2012 (Act 843). Order records are retained for accounting and reference the customer by opaque id only.",
+		Notice: "Personal data anonymised platform-wide under the Data Protection Act, 2012 (Act 843). " +
+			"Order records are retained for accounting and reference the customer by opaque id only.",
 	})
 }
 

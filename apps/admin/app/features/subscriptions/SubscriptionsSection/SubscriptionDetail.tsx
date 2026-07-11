@@ -18,7 +18,7 @@ import {
 import MenuItem from "@mui/material/MenuItem";
 import { InvoicePanel } from "./InvoicePanel";
 
-export function SubscriptionDetail({
+export function SubscriptionDetail({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   subscription,
   openInvoice,
   latestInvoice,

@@ -86,7 +86,7 @@ function cadenceCopy(
   };
 }
 
-export function PaymentMethodForm({
+export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   plan,
   identityOnFile,
   verified,

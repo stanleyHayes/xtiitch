@@ -115,7 +115,12 @@ func (repo DeliveryRepository) ListHandovers(ctx context.Context, scope common.T
 	return summaries, nil
 }
 
-func (repo DeliveryRepository) GetHandover(ctx context.Context, scope common.TenantScope, handoverID common.ID) (ports.HandoverState, error) {
+func (repo DeliveryRepository) GetHandover(
+	ctx context.Context,
+	scope common.TenantScope,
+	handoverID common.ID) (ports.HandoverState,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.HandoverState{}, err

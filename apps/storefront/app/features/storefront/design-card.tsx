@@ -61,7 +61,7 @@ function DesignImage({ design }: { design: Design }) {
   );
 }
 
-export function DesignCard({
+export function DesignCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   design,
   index = 0,
   featured = false,

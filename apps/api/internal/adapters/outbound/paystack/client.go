@@ -44,7 +44,11 @@ func (c Client) ParseChargeEvent(payload []byte) (ports.ProviderChargeEvent, err
 	return parseChargeEvent(payload)
 }
 
-func (c Client) CreateBusinessSubaccount(ctx context.Context, input ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
+func (c Client) CreateBusinessSubaccount(
+	ctx context.Context,
+	input ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult,
+	error,
+) {
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {
@@ -63,7 +67,11 @@ func (c Client) CreateBusinessSubaccount(ctx context.Context, input ports.Create
 	return ports.CreateBusinessSubaccountResult{ProviderReference: response.Data.SubaccountCode}, nil
 }
 
-func (c Client) InitializeTransaction(ctx context.Context, input ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+func (c Client) InitializeTransaction(
+	ctx context.Context,
+	input ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
+	error,
+) {
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {
@@ -122,7 +130,11 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 // also yields a reusable authorization (read back in VerifyAuthorization) for
 // later recurring charges. This replaces the old direct-debit mandate link, which
 // resolved to a dead page for this account.
-func (c Client) InitializeAuthorization(ctx context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (c Client) InitializeAuthorization(
+	ctx context.Context,
+	input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult,
+	error,
+) {
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {

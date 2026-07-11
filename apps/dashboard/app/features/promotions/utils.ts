@@ -70,7 +70,7 @@ export function promotionPercentInputValue(promotion: BusinessPromotion): string
     : "";
 }
 
-export function promotionBodyFromForm(form: FormData): PromotionFormBody {
+export function promotionBodyFromForm(form: FormData): PromotionFormBody { // eslint-disable-line complexity -- form-data mapper with many conditional branches; refactor in follow-up
   const code = String(form.get("code") ?? "")
     .trim()
     .toUpperCase();

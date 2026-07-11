@@ -52,6 +52,8 @@ type builtStoreGroup struct {
 // per-store checkout). Groups are created store by store; any failure discards
 // every group already committed, so the whole basket is all-or-nothing. A
 // single-shop basket must use PlaceCartOrder.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) PlaceMarketplaceOrder(ctx context.Context, cmd PlaceMarketplaceOrderCommand) (PlaceMarketplaceOrderResult, error) {
 	name := strings.TrimSpace(cmd.CustomerName)
 	email := strings.TrimSpace(cmd.CustomerEmail)
@@ -150,7 +152,14 @@ func (s Service) PlaceMarketplaceOrder(ctx context.Context, cmd PlaceMarketplace
 // group (pickup only), and returns its settlement figures (net + commission).
 // The commission is per-design and capped, summed — mirroring the single-store
 // cart. The caller compensates by discarding the group on any later failure.
-func (s Service) buildMarketplaceStoreGroup(ctx context.Context, st MarketplaceStoreLines, customerID common.ID, name, phone, whatsapp, email string) (builtStoreGroup, error) {
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) buildMarketplaceStoreGroup(
+	ctx context.Context,
+	st MarketplaceStoreLines,
+	customerID common.ID,
+	name, phone, whatsapp, email string,
+) (builtStoreGroup, error) {
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(st.StoreHandle))
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {

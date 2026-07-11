@@ -226,6 +226,7 @@ func (s Service) ArchiveAdCampaign(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) CollectAdCampaignPayment(
 	ctx context.Context,
 	cmd CollectAdCampaignPaymentCommand,
@@ -422,6 +423,7 @@ type adCampaignFields struct {
 	ReviewNote    string
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func normalizeAdCampaignFields(input adCampaignFields) (adCampaignFields, error) {
 	if input.BusinessID.IsZero() || input.StartsAt == nil || input.EndsAt == nil {
 		return adCampaignFields{}, authdomain.ErrInvalidInput

@@ -12,6 +12,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AffiliateRepository) ReserveAffiliateAttribution(
 	ctx context.Context,
 	scope common.TenantScope,
@@ -182,6 +183,7 @@ func (repo AffiliateRepository) ResolveReferralCode(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AffiliateRepository) ReserveReferralAttribution(
 	ctx context.Context,
 	scope common.TenantScope,

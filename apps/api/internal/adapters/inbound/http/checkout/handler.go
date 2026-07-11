@@ -21,9 +21,15 @@ const maxBodyBytes = 1 << 20
 type Service interface {
 	PlaceStandardOrder(ctx context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
 	PlaceCartOrder(ctx context.Context, command checkoutapp.PlaceCartOrderCommand) (checkoutapp.PlaceCartOrderResult, error)
-	PlaceMarketplaceOrder(ctx context.Context, command checkoutapp.PlaceMarketplaceOrderCommand) (checkoutapp.PlaceMarketplaceOrderResult, error)
+	PlaceMarketplaceOrder(
+		ctx context.Context,
+		command checkoutapp.PlaceMarketplaceOrderCommand,
+	) (checkoutapp.PlaceMarketplaceOrderResult, error)
 	PlaceCustomOrder(ctx context.Context, command checkoutapp.PlaceCustomOrderCommand) (checkoutapp.PlaceCustomOrderResult, error)
-	PlaceHomeVisitBooking(ctx context.Context, command checkoutapp.PlaceHomeVisitBookingCommand) (checkoutapp.PlaceHomeVisitBookingResult, error)
+	PlaceHomeVisitBooking(
+		ctx context.Context,
+		command checkoutapp.PlaceHomeVisitBookingCommand,
+	) (checkoutapp.PlaceHomeVisitBookingResult, error)
 	StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error)
 }
 

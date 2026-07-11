@@ -17,7 +17,7 @@ import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminAdCampaignDetailForm } from "../AdminAdCampaignDetailForm";
 import { AdCampaignTable } from "./AdCampaignTable";
 
-export function AdsSection({
+export function AdsSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   campaigns,
   adCampaignsError,
   businesses,

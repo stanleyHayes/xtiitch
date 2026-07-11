@@ -41,7 +41,10 @@ func (repo AuthSessionRepository) Create(ctx context.Context, input ports.Create
 			expires_at
 		)
 		values ($1, $2, $3, $4, $5, $6, $7)
-	`, input.SessionID.String(), input.BusinessID.String(), input.BusinessUserID.String(), input.RefreshTokenHash, input.UserAgent, input.IPAddress, input.ExpiresAt); err != nil {
+	`,
+		input.SessionID.String(), input.BusinessID.String(), input.BusinessUserID.String(),
+		input.RefreshTokenHash, input.UserAgent, input.IPAddress, input.ExpiresAt,
+	); err != nil {
 		return err
 	}
 

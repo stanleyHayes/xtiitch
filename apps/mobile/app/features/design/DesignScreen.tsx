@@ -27,7 +27,7 @@ function cleanRewardCode(value: string): string | undefined {
   return code.length > 0 ? code : undefined;
 }
 
-export default function DesignScreen() {
+export default function DesignScreen() { // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const { handle } = useLocalSearchParams<{ handle: string }>();

@@ -91,6 +91,7 @@ func (repo AffiliateRepository) RecordAffiliateClick(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AffiliateRepository) ListActiveSponsoredPlacements(
 	ctx context.Context,
 	input ports.ListActiveSponsoredPlacementsInput,
@@ -203,6 +204,7 @@ func (repo AffiliateRepository) ListActiveSponsoredPlacements(
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AffiliateRepository) RecordSponsoredAdEvent(
 	ctx context.Context,
 	input ports.RecordSponsoredAdEventInput,

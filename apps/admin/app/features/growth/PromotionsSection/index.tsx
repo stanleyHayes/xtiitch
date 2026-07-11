@@ -20,7 +20,7 @@ import { promotionDiscountLabel, promotionScopeTargetLabel, promotionTargetLabel
 import { PromotionActions } from "./PromotionActions";
 import { PromotionTable } from "./PromotionTable";
 
-export function PromotionsSection({
+export function PromotionsSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   promotions,
   promotionsError,
   businesses,

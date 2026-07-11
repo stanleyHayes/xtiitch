@@ -81,7 +81,10 @@ func TestPlaceHomeVisitBookingPropagatesNoAvailability(t *testing.T) {
 	orders := &fakeOrders{}
 	bookings := &fakeBookings{}
 	payments := &fakePayments{}
-	svc := bookingService(orders, bookings, fakeAvailability{err: ports.ErrNoAvailability}, payments, []common.ID{"order-1", "customer-1", "booking-1"})
+	svc := bookingService(
+		orders, bookings, fakeAvailability{err: ports.ErrNoAvailability}, payments,
+		[]common.ID{"order-1", "customer-1", "booking-1"},
+	)
 
 	if _, err := svc.PlaceHomeVisitBooking(context.Background(), bookingCommand()); !errors.Is(err, ports.ErrNoAvailability) {
 		t.Fatalf("expected no availability, got %v", err)

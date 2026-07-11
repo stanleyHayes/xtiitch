@@ -13,7 +13,7 @@ import { PaginationFooter } from "../../../components/ui";
 import { formatGHS, shortTime } from "../../shared";
 import { webhookColor } from "../utils";
 
-export function MoneyRailsPanel({
+export function MoneyRailsPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   events,
   pagedEvents,
   page,

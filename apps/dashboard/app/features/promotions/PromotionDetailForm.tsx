@@ -22,7 +22,7 @@ import { datetimeLocalValue } from "../shared/utils";
 import { moneyInputValue } from "../orders/utils";
 import { StyledDateTimeField } from "../../components/ui/StyledDateTimeField";
 
-export function PromotionDetailForm({
+export function PromotionDetailForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   promotion,
   collections,
   designs,

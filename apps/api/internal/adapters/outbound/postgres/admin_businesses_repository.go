@@ -11,6 +11,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) ListAdminBusinesses(ctx context.Context) ([]ports.AdminBusinessRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -109,6 +110,7 @@ func (repo AdminAuthRepository) ListAdminBusinesses(ctx context.Context) ([]port
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 	ctx context.Context,
 	input ports.UpdateAdminBusinessStatusInput,

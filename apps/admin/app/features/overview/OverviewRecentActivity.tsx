@@ -27,7 +27,7 @@ import { Panel } from "../../components/ui/Panel";
 import { CardDetailAction } from "../shared/CardDetailAction";
 import { overviewParseMs } from "./utils";
 
-export function OverviewRecentActivity({
+export function OverviewRecentActivity({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   operationsHealth,
   subscriptions,
   verificationCases,

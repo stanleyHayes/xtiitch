@@ -11,7 +11,7 @@ import { datetimeLocalDefault } from "../../shared/dates";
 import { moneyInputDefault } from "../../shared/validation";
 import type { AdminAdCampaign, AdminBusiness } from "../../../lib/api";
 
-export function AdCampaignEditForm({
+export function AdCampaignEditForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   campaign,
   eligibleBusinesses,
 }: {

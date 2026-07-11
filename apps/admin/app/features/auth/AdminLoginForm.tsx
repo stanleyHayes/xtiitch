@@ -65,7 +65,7 @@ function LoadingButtonLabel({ label }: { label: string }) {
   );
 }
 
-export default function AdminLoginForm({ actionData }: AdminLoginFormProps) {
+export default function AdminLoginForm({ actionData }: AdminLoginFormProps) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const [showPassword, setShowPassword] = useState(false);

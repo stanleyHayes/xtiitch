@@ -32,7 +32,15 @@ var (
 // The verify step reads the pending redemption back and marks it applied once the
 // first period is paid. A blank code is a no-op (nil outcome); any non-blank but
 // invalid/ineligible code is rejected (never silently ignored).
-func (s Service) captureSubscriptionDiscount(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, rawCode string) (*discountOutcome, error) {
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) captureSubscriptionDiscount(
+	ctx context.Context,
+	scope common.TenantScope,
+	sub ports.BusinessSubscriptionRecord,
+	cadence string,
+	rawCode string,
+) (*discountOutcome, error) {
 	code := normalizeDiscountCode(rawCode)
 	if code == "" {
 		return nil, nil
@@ -99,7 +107,14 @@ func (s Service) captureSubscriptionDiscount(ctx context.Context, scope common.T
 // (>=100%) discount books a zero paid invoice on the normal cadence — then flips
 // the pending redemption to 'applied'. Used at initialize so these codes never open
 // a zero-amount Paystack checkout (which Paystack would reject).
-func (s Service) activateDiscountedWithoutCharge(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, ref string, outcome discountOutcome) error {
+func (s Service) activateDiscountedWithoutCharge(
+	ctx context.Context,
+	scope common.TenantScope,
+	sub ports.BusinessSubscriptionRecord,
+	cadence string,
+	ref string,
+	outcome discountOutcome,
+) error {
 	pending, err := s.discounts.FindPendingRedemption(ctx, scope, sub.SubscriptionID)
 	if err != nil {
 		return err
@@ -142,7 +157,14 @@ func cadenceMonths(cadence string) int {
 // (the customer already paid at checkout.paystack.com — never re-charged here) and
 // flips any captured discount to 'applied'. paidMinor is the amount Paystack
 // actually collected. Idempotent: the paid-invoice insert no-ops on a repeat ref.
-func (s Service) bookFirstPeriodPaid(ctx context.Context, scope common.TenantScope, sub ports.BusinessSubscriptionRecord, cadence string, ref string, paidMinor int64) error {
+func (s Service) bookFirstPeriodPaid(
+	ctx context.Context,
+	scope common.TenantScope,
+	sub ports.BusinessSubscriptionRecord,
+	cadence string,
+	ref string,
+	paidMinor int64,
+) error {
 	if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
 		BusinessID:     sub.BusinessID,
 		AmountMinor:    paidMinor,

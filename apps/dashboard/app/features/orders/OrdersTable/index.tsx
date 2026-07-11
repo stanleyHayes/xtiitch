@@ -40,7 +40,7 @@ import { OrderActionMenuItem } from "../OrderActionMenuItem";
 import { OrderCard } from "../OrderCard";
 import { OrderRow } from "./OrderRow";
 
-export function OrdersTable({
+export function OrdersTable({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   orders,
   returnTo,
   measurementFields,

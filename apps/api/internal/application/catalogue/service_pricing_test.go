@@ -197,7 +197,10 @@ func TestSetDesignSizeBandOverrideNormalizesAndRecords(t *testing.T) {
 	if repo.overrideSet.Label == nil || *repo.overrideSet.Label != "Petite" {
 		t.Fatalf("label should be trimmed, got %v", repo.overrideSet.Label)
 	}
-	if !repo.overrideSet.ChartSet || len(repo.overrideSet.Chart) != 1 || repo.overrideSet.Chart[0].Unit != "in" || repo.overrideSet.Chart[0].Name != "Bust" {
+	if !repo.overrideSet.ChartSet ||
+		len(repo.overrideSet.Chart) != 1 ||
+		repo.overrideSet.Chart[0].Unit != "in" ||
+		repo.overrideSet.Chart[0].Name != "Bust" {
 		t.Fatalf("chart should be normalized, got %+v", repo.overrideSet.Chart)
 	}
 	if repo.overrideSet.BusinessID != "business-1" {

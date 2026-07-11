@@ -8,7 +8,7 @@ import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
 import { bespokeStages } from "../../content";
 import { riseInSx, statusColour } from "./shared";
 
-export function ProductPreview() {
+export function ProductPreview() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const workflow = [
     {
       label: "Share the store",

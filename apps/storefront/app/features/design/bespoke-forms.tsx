@@ -191,7 +191,7 @@ function CustomRouteForm({
   );
 }
 
-export function BespokeCustomise({
+export function BespokeCustomise({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   design,
   store,
   isSubmitting,

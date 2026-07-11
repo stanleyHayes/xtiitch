@@ -228,10 +228,7 @@ func (repo *fakeAdminUsers) ReplaceAdminRolePermissions(
 	input ports.UpdateAdminRolePermissionsInput,
 ) (ports.AdminRolePermissionsRecord, error) {
 	repo.updatedRolePermissions = input
-	return ports.AdminRolePermissionsRecord{
-		Role:        input.Role,
-		Permissions: input.Permissions,
-	}, nil
+	return ports.AdminRolePermissionsRecord(input), nil
 }
 
 func (repo *fakeAdminUsers) RecordLogin(_ context.Context, userID common.ID) error {

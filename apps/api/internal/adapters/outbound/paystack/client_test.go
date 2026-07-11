@@ -30,7 +30,9 @@ func TestClientInitializeAuthorizationOpensStandardCheckout(t *testing.T) {
 		gotPath = r.URL.Path
 		body, _ := io.ReadAll(r.Body)
 		_ = json.Unmarshal(body, &gotBody)
-		_, _ = w.Write([]byte(`{"status":true,"data":{"authorization_url":"https://checkout.paystack.com/abc","access_code":"abc","reference":"ref-1"}}`))
+		_, _ = w.Write([]byte(`{"status":true,"data":{` +
+			`"authorization_url":"https://checkout.paystack.com/abc",` +
+			`"access_code":"abc","reference":"ref-1"}}`))
 	}))
 	defer server.Close()
 

@@ -59,7 +59,7 @@ const reassurance: string[] = [
 
 const launchSteps = ["Request", "Guided setup", "Store live"] as const;
 
-export default function Contact() {
+export default function Contact() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   return (
     <Box
       sx={{

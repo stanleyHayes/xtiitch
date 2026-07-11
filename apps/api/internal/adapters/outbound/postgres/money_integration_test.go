@@ -138,6 +138,9 @@ func TestRecordAndListManualTakings(t *testing.T) {
 		t.Fatalf("summary: %v", err)
 	}
 	if summary.ManualTakingsMinor != 9000 || summary.OfflineCommissionDueMinor != 0 || summary.NetIncomeMinor != 88200 {
-		t.Fatalf("expected manual=9000 offline_due=0 net=88200 after the new taking, got manual=%d offline_due=%d net=%d", summary.ManualTakingsMinor, summary.OfflineCommissionDueMinor, summary.NetIncomeMinor)
+		t.Fatalf(
+			"expected manual=9000 offline_due=0 net=88200 after the new taking, got manual=%d offline_due=%d net=%d",
+			summary.ManualTakingsMinor, summary.OfflineCommissionDueMinor, summary.NetIncomeMinor,
+		)
 	}
 }

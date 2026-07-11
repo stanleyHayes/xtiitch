@@ -17,7 +17,7 @@ import { datetimeLocalDefault } from "../../shared/dates";
 import { moneyInputDefault } from "../../shared/validation";
 import type { AdminReferralProgramme } from "../../../lib/api";
 
-export function ReferralProgrammeEditForm({
+export function ReferralProgrammeEditForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   programme,
 }: {
   programme: AdminReferralProgramme;

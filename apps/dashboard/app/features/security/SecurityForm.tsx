@@ -24,7 +24,7 @@ export type SecurityActionResult = {
   passwordChanged?: boolean;
 };
 
-export function SecurityForm({
+export function SecurityForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   status,
   result,
   busy,

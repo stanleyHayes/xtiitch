@@ -12,7 +12,7 @@ import { formatGHS } from "../../shared/formatting";
 import { shortID } from "../../shared/dates";
 import type { AdminAffiliate, AdminAffiliateAttribution } from "../../../lib/api";
 
-export function AffiliateConversionsPanel({
+export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   affiliate,
   performance,
 }: {

@@ -17,7 +17,7 @@ import { FormGroupLabel } from "../../shared/FormGroupLabel";
 import { PlanBenefitsField } from "../../plans/PlanBenefitsField";
 import { Panel } from "../../../components/ui/Panel";
 
-export function BillingPanel({
+export function BillingPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   plans,
   plansError,
   createPlanOpen,

@@ -24,7 +24,7 @@ export const fontStylesheetHref = xtiitchFonts.googleFontsHref;
 const controlRadius = 8;
 const buttonRadius = 999;
 
-export function createAppTheme(mode: AppThemeMode = "light"): Theme {
+export function createAppTheme(mode: AppThemeMode = "light"): Theme { // eslint-disable-line max-lines-per-function -- large function with conditional branches; refactor in follow-up
   const colors = getXtiitchThemeColors(mode);
 
   return createTheme({

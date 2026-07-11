@@ -282,7 +282,13 @@ type SubscriptionDiscountRepository interface {
 	// cannot both pass the cap check and over-redeem. Counts APPLIED redemptions
 	// plus recent (uncommitted-window) PENDING ones so a race in the pending→settle
 	// window is caught. Returns ErrDiscountRedemptionCapReached when a cap is hit.
-	CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error)
+	CreateRedemptionWithinCaps(
+		ctx context.Context,
+		scope common.TenantScope,
+		input CreateDiscountRedemptionInput,
+		maxPerAccount int,
+		maxTotal *int,
+	) (common.ID, error)
 	// FindPendingRedemption returns the latest still-'pending' redemption for a
 	// subscription (the discount captured at checkout), joined with its code so the
 	// verify step can apply it. ErrNotFound when the subscription has no pending

@@ -76,7 +76,10 @@ func (repo BusinessIdentityRepository) GetPlanByCode(ctx context.Context, code s
 
 // GetBusinessSubscription returns the tenant's subscription joined with its plan
 // and owner email, powering the self-serve billing flow.
-func (repo BusinessIdentityRepository) GetBusinessSubscription(ctx context.Context, businessID common.ID) (ports.BusinessSubscriptionRecord, error) {
+func (repo BusinessIdentityRepository) GetBusinessSubscription(
+	ctx context.Context,
+	businessID common.ID,
+) (ports.BusinessSubscriptionRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessSubscriptionRecord{}, err
@@ -216,7 +219,10 @@ func (repo BusinessIdentityRepository) SetSubscriptionBillingCadence(ctx context
 // the period end. It is tenant-scoped and idempotent against the charge webhook —
 // the invoice is created already 'paid', and the webhook only advances
 // 'issued'/'failed' invoices, so a redelivered charge.success is a no-op.
-func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx context.Context, input ports.RecordSubscriptionActivationPaymentInput) error {
+func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
+	ctx context.Context,
+	input ports.RecordSubscriptionActivationPaymentInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -307,7 +313,10 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(ctx c
 // against retries and the verify-callback being hit twice: a repeated verify at
 // the same cadence reuses the same ref, so Paystack dedupes the charge and the
 // paid-invoice insert no-ops.
-func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(ctx context.Context, businessID common.ID) (ports.SubscriptionActivationCharge, error) {
+func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
+	ctx context.Context,
+	businessID common.ID,
+) (ports.SubscriptionActivationCharge, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.SubscriptionActivationCharge{}, err

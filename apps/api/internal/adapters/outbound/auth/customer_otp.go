@@ -112,7 +112,9 @@ func (d EmailOTPDelivery) SendEmailOTP(ctx context.Context, email string, code s
 		return nil
 	}
 	body := fmt.Sprintf(
-		"Your Xtiitch sign-in code is:\n\n    %s\n\nIt expires in 5 minutes. If you didn't request this, you can ignore this email.\n\nThanks,\nXtiitch",
+		"Your Xtiitch sign-in code is:\n\n    %s\n\n"+
+			"It expires in 5 minutes. If you didn't request this, you can ignore this email.\n\n"+
+			"Thanks,\nXtiitch",
 		code,
 	)
 	return d.sender.Send(ctx, ports.EmailMessage{

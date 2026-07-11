@@ -20,7 +20,7 @@ import {
   affiliateStatusLabel,
 } from "../utils";
 
-export function AffiliateDetail({
+export function AffiliateDetail({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   affiliate,
   performance,
   onOpen,

@@ -93,7 +93,13 @@ type MFARepository interface {
 	// RegisterFailedAttempt increments the failed-attempt counter and, once it
 	// reaches threshold, sets a lockout of lockFor and resets the counter. It
 	// returns the active lockout deadline (zero time when not locked).
-	RegisterFailedAttempt(ctx context.Context, scope common.TenantScope, userID common.ID, threshold int, lockFor time.Duration) (time.Time, error)
+	RegisterFailedAttempt(
+		ctx context.Context,
+		scope common.TenantScope,
+		userID common.ID,
+		threshold int,
+		lockFor time.Duration,
+	) (time.Time, error)
 	// Delete removes the enrolment, disabling MFA for the user.
 	Delete(ctx context.Context, scope common.TenantScope, userID common.ID) error
 }

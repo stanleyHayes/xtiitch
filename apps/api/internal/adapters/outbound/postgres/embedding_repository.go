@@ -18,7 +18,12 @@ func NewEmbeddingRepository(pool *pgxpool.Pool) EmbeddingRepository {
 	return EmbeddingRepository{pool: pool}
 }
 
-func (repo EmbeddingRepository) DesignsNeedingEmbedding(ctx context.Context, limit int, model string) ([]ports.DesignEmbeddingSource, error) {
+func (repo EmbeddingRepository) DesignsNeedingEmbedding(
+	ctx context.Context,
+	limit int,
+	model string) ([]ports.DesignEmbeddingSource,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return nil, err

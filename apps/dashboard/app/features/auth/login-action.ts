@@ -3,7 +3,7 @@ import type { Route } from "../../routes/+types/login";
 import { fetchApi } from "../../lib/api-base";
 import { commitSession, getSession } from "../../lib/session";
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "login");
   const session = await getSession(request.headers.get("Cookie"));

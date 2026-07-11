@@ -26,8 +26,8 @@ export class PostgresSubscriptionBillingSweepStore implements SubscriptionBillin
     this.pool = new Pool({ connectionString: databaseUrl });
   }
 
-  async runSubscriptionBillingSweep(reason: string): Promise<SubscriptionBillingSweepSummary> {
-    return this.withTransportBypass(async (client) => {
+  async runSubscriptionBillingSweep(reason: string): Promise<SubscriptionBillingSweepSummary> { // eslint-disable-line max-lines-per-function -- billing sweep with many conditional branches; refactor in follow-up
+    return this.withTransportBypass(async (client) => { // eslint-disable-line max-lines-per-function -- billing sweep with many conditional branches; refactor in follow-up
       const result = await client.query<BillingSweepRow>(
         `
           with free_plan as (

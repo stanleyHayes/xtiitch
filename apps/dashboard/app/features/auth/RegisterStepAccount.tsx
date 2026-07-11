@@ -13,7 +13,7 @@ import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import WhatsApp from "@mui/icons-material/WhatsApp";
 import TextField from "../../components/form-text-field";
 
-export function RegisterStepAccount({
+export function RegisterStepAccount({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   ownerName,
   onOwnerNameChange,
   email,

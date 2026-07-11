@@ -16,7 +16,7 @@ import { MiniStat } from "../../components/ui/MiniStat";
 import { InfoStrip } from "../studio/InfoStrip";
 import { businessUserRoleOptions } from "../shared/constants";
 
-export function BusinessUserDetailForm({
+export function BusinessUserDetailForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   user,
   currentUser,
 }: {

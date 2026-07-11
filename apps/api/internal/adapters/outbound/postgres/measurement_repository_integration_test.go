@@ -65,7 +65,8 @@ func TestMeasurementFieldManagementIsTenantScoped(t *testing.T) {
 		t.Fatalf("unexpected updated field: %+v", updated)
 	}
 
-	if _, err := measurements.UpdateField(ctx, common.TenantScope{BusinessID: common.ID(coBizB)}, created.FieldID, ports.UpdateMeasurementFieldInput{
+	scopeB := common.TenantScope{BusinessID: common.ID(coBizB)}
+	if _, err := measurements.UpdateField(ctx, scopeB, created.FieldID, ports.UpdateMeasurementFieldInput{
 		Label: &label,
 	}); !errors.Is(err, ports.ErrNotFound) {
 		t.Fatalf("expected cross-tenant update to be not found, got %v", err)
@@ -121,7 +122,10 @@ func TestRecordVisitMeasurementsForConfirmedHomeVisitOrder(t *testing.T) {
 		t.Fatalf("upsert visit measurements: %v", err)
 	}
 	if second.MeasurementID != first.MeasurementID || measurementCount(t, pool, orderID) != 1 {
-		t.Fatalf("expected upsert to preserve one measurement row, first=%+v second=%+v count=%d", first, second, measurementCount(t, pool, orderID))
+		t.Fatalf(
+			"expected upsert to preserve one measurement row, first=%+v second=%+v count=%d",
+			first, second, measurementCount(t, pool, orderID),
+		)
 	}
 	if chest := readMeasurement(t, pool, orderID, coField1); chest != "43" {
 		t.Fatalf("expected updated chest measurement 43, got %q", chest)
@@ -147,7 +151,8 @@ func TestRecordVisitMeasurementsForConfirmedHomeVisitOrder(t *testing.T) {
 		t.Fatalf("expected unknown field rejection, got %v", err)
 	}
 
-	if _, err := measurements.RecordOrderMeasurements(ctx, common.TenantScope{BusinessID: common.ID(coBizB)}, ports.RecordOrderMeasurementsInput{
+	crossScope := common.TenantScope{BusinessID: common.ID(coBizB)}
+	if _, err := measurements.RecordOrderMeasurements(ctx, crossScope, ports.RecordOrderMeasurementsInput{
 		MeasurementID: common.ID("00000000-0000-0000-0000-0000000000f8"),
 		BusinessID:    common.ID(coBizB),
 		OrderID:       orderID,

@@ -5,7 +5,7 @@ import (
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // RFC 6238/4226 TOTP/HOTP requires SHA1
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base32"
@@ -98,12 +98,13 @@ func (m TOTPManager) VerifyCode(secret string, code string, now time.Time, after
 	if err != nil {
 		return 0, false
 	}
-	counter := int64(uint64(now.Unix()) / m.period)
+	counter := int64(uint64(now.Unix()) / m.period) //nolint:gosec // Unix timestamp is non-negative and m.period is a small positive constant
 	for offset := -m.skew; offset <= m.skew; offset++ {
 		step := counter + offset
 		if step < 0 || step <= afterStep {
 			continue
 		}
+		//nolint:gosec // step is non-negative after the guard above
 		if subtle.ConstantTimeCompare([]byte(m.hotp(key, uint64(step))), []byte(code)) == 1 {
 			return step, true
 		}

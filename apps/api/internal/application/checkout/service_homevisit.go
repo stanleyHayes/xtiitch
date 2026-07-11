@@ -95,7 +95,16 @@ func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBo
 	return s.holdAndCharge(ctx, scope, store, design, slot, customer, cmd)
 }
 
-func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, store ports.Storefront, design catalogue.Design, slot booking.Slot, customer customerDetails, cmd PlaceHomeVisitBookingCommand) (PlaceHomeVisitBookingResult, error) {
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) holdAndCharge(
+	ctx context.Context,
+	scope common.TenantScope,
+	store ports.Storefront,
+	design catalogue.Design,
+	slot booking.Slot,
+	customer customerDetails,
+	cmd PlaceHomeVisitBookingCommand,
+) (PlaceHomeVisitBookingResult, error) {
 	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
 
 	orderID := s.ids.NewID()

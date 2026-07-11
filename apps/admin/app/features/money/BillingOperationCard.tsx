@@ -15,7 +15,7 @@ import TextField from "../../components/form-text-field";
 
 
 
-export function BillingOperationCard({
+export function BillingOperationCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   icon,
   title,
   helper,

@@ -36,8 +36,14 @@ type Service interface {
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
 	UpdateMarketingFlags(ctx context.Context, command adminauthapp.UpdateMarketingFlagsCommand) (ports.AdminPlatformSettingsRecord, error)
 	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
-	ListBusinessVerifications(ctx context.Context, command adminauthapp.ListBusinessVerificationsCommand) ([]ports.AdminVerificationCaseRecord, error)
-	DecideBusinessVerification(ctx context.Context, command adminauthapp.DecideBusinessVerificationCommand) (ports.AdminVerificationCaseRecord, error)
+	ListBusinessVerifications(
+		ctx context.Context,
+		command adminauthapp.ListBusinessVerificationsCommand,
+	) ([]ports.AdminVerificationCaseRecord, error)
+	DecideBusinessVerification(
+		ctx context.Context,
+		command adminauthapp.DecideBusinessVerificationCommand,
+	) (ports.AdminVerificationCaseRecord, error)
 	ListBusinesses(ctx context.Context, command adminauthapp.ListBusinessesCommand) ([]ports.AdminBusinessRecord, error)
 	ListCustomers(ctx context.Context, command adminauthapp.ListCustomersCommand) ([]ports.AdminCustomerRecord, error)
 	ExportCustomerData(ctx context.Context, command adminauthapp.ExportCustomerDataCommand) (ports.AdminCustomerExportRecord, error)
@@ -46,28 +52,67 @@ type Service interface {
 	GetPlatformMetrics(ctx context.Context, command adminauthapp.GetPlatformMetricsCommand) (ports.AdminPlatformMetricsRecord, error)
 	GetMoneyRails(ctx context.Context, command adminauthapp.GetMoneyRailsCommand) (ports.AdminMoneyRailsRecord, error)
 	GetOperationsHealth(ctx context.Context, command adminauthapp.GetOperationsHealthCommand) (adminauthapp.OperationsHealthResult, error)
-	GetAdminNotifications(ctx context.Context, command adminauthapp.GetAdminNotificationsCommand) (adminauthapp.AdminNotificationsResult, error)
+	GetAdminNotifications(
+		ctx context.Context,
+		command adminauthapp.GetAdminNotificationsCommand,
+	) (adminauthapp.AdminNotificationsResult, error)
 	GetAdminReports(ctx context.Context, command adminauthapp.GetAdminReportsCommand) (adminauthapp.AdminReportsResult, error)
 	GetLaunchReadiness(ctx context.Context, command adminauthapp.GetLaunchReadinessCommand) (adminauthapp.LaunchReadinessResult, error)
 	ListSubscriptions(ctx context.Context, command adminauthapp.ListSubscriptionsCommand) ([]ports.AdminSubscriptionRecord, error)
 	UpdateSubscription(ctx context.Context, command adminauthapp.UpdateSubscriptionCommand) (ports.AdminSubscriptionRecord, error)
 	IssueSubscriptionInvoice(ctx context.Context, command adminauthapp.IssueSubscriptionInvoiceCommand) (ports.AdminSubscriptionRecord, error)
-	MarkSubscriptionInvoicePaid(ctx context.Context, command adminauthapp.MarkSubscriptionInvoicePaidCommand) (ports.AdminSubscriptionRecord, error)
-	MarkSubscriptionInvoiceFailed(ctx context.Context, command adminauthapp.MarkSubscriptionInvoiceFailedCommand) (ports.AdminSubscriptionRecord, error)
-	RunSubscriptionBillingSweep(ctx context.Context, command adminauthapp.RunSubscriptionBillingSweepCommand) (ports.AdminSubscriptionBillingSweepRecord, error)
-	RunSubscriptionRecurringSweep(ctx context.Context, command adminauthapp.RunSubscriptionRecurringSweepCommand) (ports.AdminSubscriptionRecurringSweepRecord, error)
-	InitializeSubscriptionAuthorization(ctx context.Context, command adminauthapp.InitializeSubscriptionAuthorizationCommand) (adminauthapp.SubscriptionAuthorizationLinkResult, error)
-	VerifySubscriptionAuthorization(ctx context.Context, command adminauthapp.VerifySubscriptionAuthorizationCommand) (ports.AdminSubscriptionRecord, error)
+	MarkSubscriptionInvoicePaid(
+		ctx context.Context,
+		command adminauthapp.MarkSubscriptionInvoicePaidCommand,
+	) (ports.AdminSubscriptionRecord, error)
+	MarkSubscriptionInvoiceFailed(
+		ctx context.Context,
+		command adminauthapp.MarkSubscriptionInvoiceFailedCommand,
+	) (ports.AdminSubscriptionRecord, error)
+	RunSubscriptionBillingSweep(
+		ctx context.Context,
+		command adminauthapp.RunSubscriptionBillingSweepCommand,
+	) (ports.AdminSubscriptionBillingSweepRecord, error)
+	RunSubscriptionRecurringSweep(
+		ctx context.Context,
+		command adminauthapp.RunSubscriptionRecurringSweepCommand,
+	) (ports.AdminSubscriptionRecurringSweepRecord, error)
+	InitializeSubscriptionAuthorization(
+		ctx context.Context,
+		command adminauthapp.InitializeSubscriptionAuthorizationCommand,
+	) (adminauthapp.SubscriptionAuthorizationLinkResult, error)
+	VerifySubscriptionAuthorization(
+		ctx context.Context,
+		command adminauthapp.VerifySubscriptionAuthorizationCommand,
+	) (ports.AdminSubscriptionRecord, error)
 	ListPlans(ctx context.Context, command adminauthapp.ListPlansCommand) ([]ports.AdminPlanRecord, error)
 	CreatePlan(ctx context.Context, command adminauthapp.CreatePlanCommand) (ports.AdminPlanRecord, error)
 	UpdatePlan(ctx context.Context, command adminauthapp.UpdatePlanCommand) (ports.AdminPlanRecord, error)
 	ArchivePlan(ctx context.Context, command adminauthapp.ArchivePlanCommand) (ports.AdminPlanRecord, error)
-	ListPlanEntitlements(ctx context.Context, command adminauthapp.ListPlanEntitlementsCommand) ([]ports.AdminPlanEntitlementFeatureRecord, error)
-	UpdatePlanEntitlements(ctx context.Context, command adminauthapp.UpdatePlanEntitlementsCommand) ([]ports.AdminPlanEntitlementFeatureRecord, error)
-	ListSubscriptionDiscountCodes(ctx context.Context, command adminauthapp.ListSubscriptionDiscountCodesCommand) ([]ports.AdminSubscriptionDiscountCodeRecord, error)
-	CreateSubscriptionDiscountCode(ctx context.Context, command adminauthapp.CreateSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
-	UpdateSubscriptionDiscountCode(ctx context.Context, command adminauthapp.UpdateSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
-	ArchiveSubscriptionDiscountCode(ctx context.Context, command adminauthapp.ArchiveSubscriptionDiscountCodeCommand) (ports.AdminSubscriptionDiscountCodeRecord, error)
+	ListPlanEntitlements(
+		ctx context.Context,
+		command adminauthapp.ListPlanEntitlementsCommand,
+	) ([]ports.AdminPlanEntitlementFeatureRecord, error)
+	UpdatePlanEntitlements(
+		ctx context.Context,
+		command adminauthapp.UpdatePlanEntitlementsCommand,
+	) ([]ports.AdminPlanEntitlementFeatureRecord, error)
+	ListSubscriptionDiscountCodes(
+		ctx context.Context,
+		command adminauthapp.ListSubscriptionDiscountCodesCommand,
+	) ([]ports.AdminSubscriptionDiscountCodeRecord, error)
+	CreateSubscriptionDiscountCode(
+		ctx context.Context,
+		command adminauthapp.CreateSubscriptionDiscountCodeCommand,
+	) (ports.AdminSubscriptionDiscountCodeRecord, error)
+	UpdateSubscriptionDiscountCode(
+		ctx context.Context,
+		command adminauthapp.UpdateSubscriptionDiscountCodeCommand,
+	) (ports.AdminSubscriptionDiscountCodeRecord, error)
+	ArchiveSubscriptionDiscountCode(
+		ctx context.Context,
+		command adminauthapp.ArchiveSubscriptionDiscountCodeCommand,
+	) (ports.AdminSubscriptionDiscountCodeRecord, error)
 	ListPromotions(ctx context.Context, command adminauthapp.ListPromotionsCommand) ([]ports.AdminPromotionRecord, error)
 	CreatePromotion(ctx context.Context, command adminauthapp.CreatePromotionCommand) (ports.AdminPromotionRecord, error)
 	UpdatePromotion(ctx context.Context, command adminauthapp.UpdatePromotionCommand) (ports.AdminPromotionRecord, error)
@@ -76,23 +121,47 @@ type Service interface {
 	CreateAdCampaign(ctx context.Context, command adminauthapp.CreateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	UpdateAdCampaign(ctx context.Context, command adminauthapp.UpdateAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
 	ArchiveAdCampaign(ctx context.Context, command adminauthapp.ArchiveAdCampaignCommand) (ports.AdminAdCampaignRecord, error)
-	CollectAdCampaignPayment(ctx context.Context, command adminauthapp.CollectAdCampaignPaymentCommand) (adminauthapp.AdCampaignPaymentResult, error)
+	CollectAdCampaignPayment(
+		ctx context.Context,
+		command adminauthapp.CollectAdCampaignPaymentCommand,
+	) (adminauthapp.AdCampaignPaymentResult, error)
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
-	ListAffiliateAttribution(ctx context.Context, command adminauthapp.ListAffiliateAttributionCommand) ([]ports.AdminAffiliateAttributionRecord, error)
-	UpdateAffiliateConversionStatus(ctx context.Context, command adminauthapp.UpdateAffiliateConversionStatusCommand) (ports.AdminAffiliateConversionRecord, error)
+	ListAffiliateAttribution(
+		ctx context.Context,
+		command adminauthapp.ListAffiliateAttributionCommand,
+	) ([]ports.AdminAffiliateAttributionRecord, error)
+	UpdateAffiliateConversionStatus(
+		ctx context.Context,
+		command adminauthapp.UpdateAffiliateConversionStatusCommand,
+	) (ports.AdminAffiliateConversionRecord, error)
 	CreateAffiliatePayout(ctx context.Context, command adminauthapp.CreateAffiliatePayoutCommand) (ports.AdminAffiliatePayoutRecord, error)
 	CreateAffiliate(ctx context.Context, command adminauthapp.CreateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	UpdateAffiliate(ctx context.Context, command adminauthapp.UpdateAffiliateCommand) (ports.AdminAffiliateRecord, error)
 	ArchiveAffiliate(ctx context.Context, command adminauthapp.ArchiveAffiliateCommand) (ports.AdminAffiliateRecord, error)
-	ListReferralProgrammes(ctx context.Context, command adminauthapp.ListReferralProgrammesCommand) ([]ports.AdminReferralProgrammeRecord, error)
-	CreateReferralProgramme(ctx context.Context, command adminauthapp.CreateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
-	UpdateReferralProgramme(ctx context.Context, command adminauthapp.UpdateReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
-	ArchiveReferralProgramme(ctx context.Context, command adminauthapp.ArchiveReferralProgrammeCommand) (ports.AdminReferralProgrammeRecord, error)
+	ListReferralProgrammes(
+		ctx context.Context,
+		command adminauthapp.ListReferralProgrammesCommand,
+	) ([]ports.AdminReferralProgrammeRecord, error)
+	CreateReferralProgramme(
+		ctx context.Context,
+		command adminauthapp.CreateReferralProgrammeCommand,
+	) (ports.AdminReferralProgrammeRecord, error)
+	UpdateReferralProgramme(
+		ctx context.Context,
+		command adminauthapp.UpdateReferralProgrammeCommand,
+	) (ports.AdminReferralProgrammeRecord, error)
+	ArchiveReferralProgramme(
+		ctx context.Context,
+		command adminauthapp.ArchiveReferralProgrammeCommand,
+	) (ports.AdminReferralProgrammeRecord, error)
 	CreateReferralCode(ctx context.Context, command adminauthapp.CreateReferralCodeCommand) (ports.AdminReferralCodeRecord, error)
 	IssueReferralRewards(ctx context.Context, command adminauthapp.IssueReferralRewardsCommand) (ports.AdminReferralRewardIssueRecord, error)
 	QueueMoneyReplay(ctx context.Context, command adminauthapp.QueueMoneyReplayCommand) (ports.AdminMoneyReplayRequestRecord, error)
 	ReverseMoneyPayment(ctx context.Context, command adminauthapp.ReverseMoneyPaymentCommand) (ports.AdminMoneyReversalRecord, error)
-	SetSettlementReviewHold(ctx context.Context, command adminauthapp.SetSettlementReviewHoldCommand) (ports.AdminMoneyPayoutReviewRecord, error)
+	SetSettlementReviewHold(
+		ctx context.Context,
+		command adminauthapp.SetSettlementReviewHoldCommand,
+	) (ports.AdminMoneyPayoutReviewRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
 	SetRiskReviewStatus(ctx context.Context, command adminauthapp.SetRiskReviewStatusCommand) (ports.AdminRiskReviewRecord, error)
 	ListSupportTickets(ctx context.Context, command adminauthapp.ListSupportTicketsCommand) ([]ports.AdminSupportTicketRecord, error)
@@ -114,6 +183,7 @@ func NewHandler(service Service, authenticator Authenticator) Handler {
 	return Handler{service: service, authenticator: authenticator}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/admin/auth/login", handler.login)
 	router.Post("/admin/auth/refresh", handler.refresh)
@@ -300,8 +370,7 @@ func authError(err error) (int, string) {
 func writeCSV(w http.ResponseWriter, filename string, rows [][]string) {
 	var body bytes.Buffer
 	writer := csv.NewWriter(&body)
-	writer.WriteAll(rows)
-	if err := writer.Error(); err != nil {
+	if err := writer.WriteAll(rows); err != nil {
 		writeError(w, http.StatusInternalServerError, "csv_error")
 		return
 	}

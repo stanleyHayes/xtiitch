@@ -9,7 +9,11 @@ import (
 
 type AffiliateClickRepository interface {
 	RecordAffiliateClick(ctx context.Context, input RecordAffiliateClickInput) (AffiliateClickRecord, error)
-	ReserveAffiliateAttribution(ctx context.Context, scope common.TenantScope, input ReserveAffiliateAttributionInput) (AffiliateAttributionReservation, error)
+	ReserveAffiliateAttribution(
+		ctx context.Context,
+		scope common.TenantScope,
+		input ReserveAffiliateAttributionInput,
+	) (AffiliateAttributionReservation, error)
 }
 
 type SponsoredPlacementRepository interface {
@@ -19,7 +23,11 @@ type SponsoredPlacementRepository interface {
 
 type ReferralRepository interface {
 	ResolveReferralCode(ctx context.Context, input ResolveReferralCodeInput) (ReferralCodeRecord, error)
-	ReserveReferralAttribution(ctx context.Context, scope common.TenantScope, input ReserveReferralAttributionInput) (ReferralAttributionReservation, error)
+	ReserveReferralAttribution(
+		ctx context.Context,
+		scope common.TenantScope,
+		input ReserveReferralAttributionInput,
+	) (ReferralAttributionReservation, error)
 }
 
 type RecordAffiliateClickInput struct {

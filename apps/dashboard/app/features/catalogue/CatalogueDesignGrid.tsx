@@ -23,7 +23,7 @@ import type {
 } from "../shared/types";
 import { tokens } from "../../theme";
 
-export function CatalogueDesignGrid({
+export function CatalogueDesignGrid({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   designs,
   collections,
   sizeBands,

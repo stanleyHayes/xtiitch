@@ -55,6 +55,7 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(http.StatusOK)
+	//nolint:gosec // webhook verification echo: Meta sends a random challenge that must be echoed verbatim
 	_, _ = w.Write([]byte(challenge))
 }
 
@@ -145,6 +146,8 @@ type metaWebhook struct {
 
 // messages flattens the nested envelope into normalized InboundMessages,
 // resolving the sender's profile name and lifting interactive replies to text.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (w metaWebhook) messages() []whatsappbot.InboundMessage {
 	var out []whatsappbot.InboundMessage
 	for _, entry := range w.Entry {

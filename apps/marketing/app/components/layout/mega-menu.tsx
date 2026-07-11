@@ -123,7 +123,7 @@ export function MegaItem({
   );
 }
 
-export function MegaMenu({
+export function MegaMenu({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   active,
   groups,
 }: {

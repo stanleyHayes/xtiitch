@@ -15,7 +15,7 @@ import { AdminRiskReview, AdminActionFeedback } from "../shared/types";
 import { shortTime, riskColor } from "../shared";
 import { RiskChip } from "../shared/RiskChip";
 
-export function RiskSection({
+export function RiskSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   riskReviews,
   riskReviewError,
   actionData,

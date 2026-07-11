@@ -23,6 +23,7 @@ const (
 	authItOwnerMail = "owner.integration@example.com"
 )
 
+//nolint:gosec // test fixtures use hardcoded placeholder hashes
 func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()
@@ -39,7 +40,7 @@ func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 		OwnerUserID:      common.ID(authItOwnerA),
 		OwnerDisplayName: "Owner A",
 		OwnerEmail:       authItOwnerMail,
-		OwnerPassword:    "hash-owner-a",
+		OwnerPassword:    "hash-owner-a", //nolint:gosec // test fixture password hash
 	}); err != nil {
 		t.Fatalf("create business A: %v", err)
 	}
@@ -50,7 +51,7 @@ func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 		OwnerUserID:      common.ID(authItOwnerB),
 		OwnerDisplayName: "Owner B",
 		OwnerEmail:       authItOwnerMail,
-		OwnerPassword:    "hash-owner-b",
+		OwnerPassword:    "hash-owner-b", //nolint:gosec // test fixture password hash
 	}); err != nil {
 		t.Fatalf("create business B: %v", err)
 	}
@@ -115,6 +116,7 @@ func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 	}
 }
 
+//nolint:gosec // test fixtures use hardcoded placeholder hashes
 func TestAuthSessionRepositoryBypassLookupAndTenantScopedRevoke(t *testing.T) {
 	pool := openIntegrationPool(t)
 	defer pool.Close()
@@ -130,7 +132,7 @@ func TestAuthSessionRepositoryBypassLookupAndTenantScopedRevoke(t *testing.T) {
 		OwnerUserID:      common.ID(authItOwnerA),
 		OwnerDisplayName: "Owner A",
 		OwnerEmail:       authItOwnerMail,
-		OwnerPassword:    "hash-owner-a",
+		OwnerPassword:    "hash-owner-a", //nolint:gosec // test fixture password hash
 	}); err != nil {
 		t.Fatalf("create business A: %v", err)
 	}
@@ -141,7 +143,7 @@ func TestAuthSessionRepositoryBypassLookupAndTenantScopedRevoke(t *testing.T) {
 		OwnerUserID:      common.ID(authItOwnerB),
 		OwnerDisplayName: "Owner B",
 		OwnerEmail:       "owner-b.integration@example.com",
-		OwnerPassword:    "hash-owner-b",
+		OwnerPassword:    "hash-owner-b", //nolint:gosec // test fixture password hash
 	}); err != nil {
 		t.Fatalf("create business B: %v", err)
 	}
@@ -151,7 +153,7 @@ func TestAuthSessionRepositoryBypassLookupAndTenantScopedRevoke(t *testing.T) {
 		SessionID:        common.ID(authItSessionA),
 		BusinessID:       common.ID(authItBizA),
 		BusinessUserID:   common.ID(authItOwnerA),
-		RefreshTokenHash: "auth-it-refresh-a",
+		RefreshTokenHash: "auth-it-refresh-a", //nolint:gosec // test fixture token hash
 		UserAgent:        "integration",
 		IPAddress:        "127.0.0.1",
 		ExpiresAt:        time.Now().Add(time.Hour),

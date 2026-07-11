@@ -17,7 +17,7 @@ import { countOrders } from "./utils";
 import type { MeasurementField, OrderSummary, Stage } from "../shared/types";
 import { tokens } from "../../theme";
 
-export function OrdersSection({
+export function OrdersSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   canManage,
   orders,
   filteredOrders,

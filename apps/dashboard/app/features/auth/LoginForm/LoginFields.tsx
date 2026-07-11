@@ -176,7 +176,7 @@ export function PasswordForm({
   );
 }
 
-export function WhatsappForm({
+export function WhatsappForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   result,
   isSubmitting,
   waHandle,

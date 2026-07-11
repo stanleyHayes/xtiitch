@@ -443,6 +443,7 @@ type referralProgrammeFields struct {
 	Notes                   string
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func normalizeReferralProgrammeFields(input referralProgrammeFields) (referralProgrammeFields, error) {
 	title := normalizePromotionTitle(input.Title)
 	if title == "" {

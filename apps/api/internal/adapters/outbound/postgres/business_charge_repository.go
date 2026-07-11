@@ -63,7 +63,12 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 	return context, nil
 }
 
-func (repo BusinessChargeRepository) ProvisionSubaccount(ctx context.Context, businessID common.ID, subaccountRef string, settlementAccount string) error {
+func (repo BusinessChargeRepository) ProvisionSubaccount(
+	ctx context.Context,
+	businessID common.ID,
+	subaccountRef string,
+	settlementAccount string,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err

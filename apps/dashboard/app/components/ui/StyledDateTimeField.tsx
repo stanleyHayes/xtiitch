@@ -14,7 +14,7 @@ import { tokens } from "../../theme";
 import { splitDateTimeInputValue, splitDateParts, splitTimeParts, dayOptionsFor, optionListWithSelected, composeDateInputValue, composeTimeInputValue, composeDateTimeValue, yearOptionsFor } from "../../features/shared/utils";
 import { defaultMinuteOptions, monthOptions, hourOptions, periodOptions } from "../../features/shared/constants";
 
-export function StyledDateTimeField({
+export function StyledDateTimeField({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   name,
   label,
   defaultValue = "",

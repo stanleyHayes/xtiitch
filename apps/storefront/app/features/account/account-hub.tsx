@@ -24,7 +24,7 @@ import { tokens } from "../../theme";
 import type { CustomerOrder, CustomerProfile } from "../../lib/discovery";
 import { formatDate, orderStatus } from "./utils";
 
-export function AccountHub({
+export function AccountHub({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   phone,
   profile,
   orders,

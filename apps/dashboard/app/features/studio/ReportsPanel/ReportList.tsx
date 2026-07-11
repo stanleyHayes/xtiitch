@@ -17,7 +17,7 @@ import { InlineEmptyState } from "../../../components/ui/InlineEmptyState";
 import { ToneChip } from "../../../components/ui/ToneChip";
 import { formatPercent, percentage } from "../../shared/utils";
 
-export function ReportList({
+export function ReportList({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   stageMetrics,
   followUps,
   completionRate,

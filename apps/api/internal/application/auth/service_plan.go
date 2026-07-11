@@ -101,7 +101,11 @@ func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscript
 // upgradeSubscriptionPlan switches to the higher plan immediately and charges the
 // prorated difference for the remainder of the current period. The plan is switched
 // only after a successful charge (or when nothing is owed).
-func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.BusinessSubscriptionRecord, target ports.PlanPricingRecord) (ChangeSubscriptionPlanResult, error) {
+func (s Service) upgradeSubscriptionPlan(
+	ctx context.Context,
+	sub ports.BusinessSubscriptionRecord,
+	target ports.PlanPricingRecord,
+) (ChangeSubscriptionPlanResult, error) {
 	now := s.clock.Now()
 	// Proration is computed against the cadence renewal figures, matching how the
 	// recurring sweep bills each renewal. A non-billable cadence has no figure.
@@ -149,7 +153,8 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 	// REJECTS a duplicate reference, a naive retry would be stuck forever. So first
 	// verify the deterministic ref: if it already succeeded, skip the (duplicate)
 	// charge and go straight to applying the upgrade, which is idempotent on the ref.
-	if verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: ref}); verifyErr != nil || !verify.Succeeded {
+	verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: ref})
+	if verifyErr != nil || !verify.Succeeded {
 		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
 			BusinessID:        sub.BusinessID,
 			AuthorizationCode: strings.TrimSpace(sub.ProviderSubscriptionRef),
@@ -180,7 +185,11 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 
 // downgradeSubscriptionPlan parks the change to apply at the next renewal. It never
 // refunds or changes entitlements mid-cycle.
-func (s Service) downgradeSubscriptionPlan(ctx context.Context, sub ports.BusinessSubscriptionRecord, target ports.PlanPricingRecord) (ChangeSubscriptionPlanResult, error) {
+func (s Service) downgradeSubscriptionPlan(
+	ctx context.Context,
+	sub ports.BusinessSubscriptionRecord,
+	target ports.PlanPricingRecord,
+) (ChangeSubscriptionPlanResult, error) {
 	if err := s.businesses.SchedulePlanDowngrade(ctx, ports.SchedulePlanDowngradeInput{
 		BusinessID:  sub.BusinessID,
 		NewPlanID:   target.PlanID,
@@ -188,7 +197,10 @@ func (s Service) downgradeSubscriptionPlan(ctx context.Context, sub ports.Busine
 	}); err != nil {
 		return ChangeSubscriptionPlanResult{}, err
 	}
-	return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: false, ProratedChargeMinor: 0, EffectiveAt: sub.CurrentPeriodEnd}, nil
+	return ChangeSubscriptionPlanResult{
+		PlanCode: target.Code, Immediate: false,
+		ProratedChargeMinor: 0, EffectiveAt: sub.CurrentPeriodEnd,
+	}, nil
 }
 
 // targetRenewalFigureMinor returns the target plan's FULL renewal figure for the

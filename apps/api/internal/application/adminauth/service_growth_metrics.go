@@ -96,6 +96,7 @@ func (s Service) GetPlatformMetrics(ctx context.Context, cmd GetPlatformMetricsC
 	return s.businesses.GetAdminPlatformMetrics(ctx)
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) GetOperationsHealth(
 	ctx context.Context,
 	cmd GetOperationsHealthCommand,
@@ -457,9 +458,7 @@ func (s Service) GetAdminNotifications(
 	ctx context.Context,
 	cmd GetAdminNotificationsCommand,
 ) (AdminNotificationsResult, error) {
-	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand{
-		ActorRole: cmd.ActorRole,
-	})
+	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand(cmd))
 	if err != nil {
 		return AdminNotificationsResult{}, err
 	}
@@ -506,23 +505,13 @@ func (s Service) GetAdminReports(
 	ctx context.Context,
 	cmd GetAdminReportsCommand,
 ) (AdminReportsResult, error) {
-	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand{
-		ActorRole: cmd.ActorRole,
-	})
+	health, err := s.GetOperationsHealth(ctx, GetOperationsHealthCommand(cmd))
 	if err != nil {
 		return AdminReportsResult{}, err
 	}
 	result := AdminReportsResult{UpdatedAt: health.UpdatedAt}
 	for _, signal := range health.Signals {
-		result.Items = append(result.Items, AdminReportRecord{
-			ID:          signal.ID,
-			Label:       signal.Label,
-			Value:       signal.Value,
-			Helper:      signal.Helper,
-			Status:      signal.Status,
-			Target:      signal.Target,
-			TargetLabel: signal.TargetLabel,
-		})
+		result.Items = append(result.Items, AdminReportRecord(signal))
 	}
 	return result, nil
 }

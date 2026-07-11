@@ -21,7 +21,7 @@ export const meta: MetaFunction = () => [
   { name: "description", content: "Sign in to your Xtiitch workspace." },
 ];
 
-export default function Login(_props: Route.ComponentProps) {
+export default function Login(_props: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const result = (useActionData() ?? {}) as {
     error?: string;
     mfaRequired?: boolean;

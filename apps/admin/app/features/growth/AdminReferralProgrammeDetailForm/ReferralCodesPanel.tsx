@@ -16,7 +16,7 @@ import {
 } from "../options";
 import type { AdminBusiness, AdminReferralProgramme } from "../../../lib/api";
 
-export function ReferralCodesPanel({
+export function ReferralCodesPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   programme,
   eligibleBusinesses,
 }: {

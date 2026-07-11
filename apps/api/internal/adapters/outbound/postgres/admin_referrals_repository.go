@@ -57,6 +57,7 @@ func (repo AdminAuthRepository) ListAdminReferralProgrammes(ctx context.Context)
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminReferralProgramme(
 	ctx context.Context,
 	input ports.CreateAdminReferralProgrammeInput,
@@ -274,6 +275,7 @@ func (repo AdminAuthRepository) ArchiveAdminReferralProgramme(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminReferralCode(
 	ctx context.Context,
 	input ports.CreateAdminReferralCodeInput,
@@ -363,6 +365,7 @@ func (repo AdminAuthRepository) CreateAdminReferralCode(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) IssueAdminReferralRewards(
 	ctx context.Context,
 	input ports.IssueAdminReferralRewardsInput,

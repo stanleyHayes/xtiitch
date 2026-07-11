@@ -191,9 +191,30 @@ func TestPlaceCustomOrderRejectsInvalidRoutesAndGates(t *testing.T) {
 	}{
 		{"band is not a custom route", "band", customStore(), nil, ErrInvalidSizeMode},
 		{"unknown mode", "nonsense", customStore(), nil, ErrInvalidSizeMode},
-		{"online ordering off", "home_visit", ports.Storefront{BusinessID: testBusinessID, Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: true}}, nil, ErrOnlineOrderingOff},
-		{"bespoke disabled", "home_visit", ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true, Settings: ports.StoreSettings{BespokeEnabled: false}}, nil, ErrBespokeDisabled},
-		{"measurements disabled", "self_measure", ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true, Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: false}}, map[string]string{"f": "1"}, ErrMeasurementsDisabled},
+		{
+			"online ordering off", "home_visit",
+			ports.Storefront{
+				BusinessID: testBusinessID,
+				Settings:   ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: true},
+			},
+			nil, ErrOnlineOrderingOff,
+		},
+		{
+			"bespoke disabled", "home_visit",
+			ports.Storefront{
+				BusinessID: testBusinessID, OnlineOrderingEnabled: true,
+				Settings: ports.StoreSettings{BespokeEnabled: false},
+			},
+			nil, ErrBespokeDisabled,
+		},
+		{
+			"measurements disabled", "self_measure",
+			ports.Storefront{
+				BusinessID: testBusinessID, OnlineOrderingEnabled: true,
+				Settings: ports.StoreSettings{BespokeEnabled: true, MeasurementsEnabled: false},
+			},
+			map[string]string{"f": "1"}, ErrMeasurementsDisabled,
+		},
 		{"self_measure without measurements", "self_measure", customStore(), nil, ErrInvalidMeasurements},
 		{"self_measure with a blank value", "self_measure", customStore(), map[string]string{"field-1": "   "}, ErrInvalidMeasurements},
 	}

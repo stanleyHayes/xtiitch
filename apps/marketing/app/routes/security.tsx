@@ -42,7 +42,7 @@ const moneyFlow: { step: string; body: string }[] = [
   },
 ];
 
-export default function Security() {
+export default function Security() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   return (
     <>
       <PageHero

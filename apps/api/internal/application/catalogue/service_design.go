@@ -161,7 +161,12 @@ func normalizeVariationImages(images []string) []string {
 	}
 	return cleaned
 }
-func (s Service) ListDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignVariation, error) {
+func (s Service) ListDesignVariations(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID) ([]catalogue.DesignVariation,
+	error,
+) {
 	return s.catalogue.ListDesignVariations(ctx, scope, designID)
 }
 

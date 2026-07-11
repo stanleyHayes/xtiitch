@@ -116,7 +116,8 @@ func (s Service) EraseCustomerData(ctx context.Context, cmd EraseCustomerDataCom
 		TargetID:    cmd.CustomerID.String(),
 		TargetLabel: "Customer (Act 843 erasure)",
 		Summary: fmt.Sprintf(
-			"Anonymised customer personal data platform-wide. %d order(s) retained for accounting; %d measurement set(s) and %d booking address(es) cleared.",
+			"Anonymised customer personal data platform-wide. %d order(s) retained for accounting; "+
+				"%d measurement set(s) and %d booking address(es) cleared.",
 			record.OrdersRetained, record.MeasurementsCleared, record.BookingAddresses,
 		),
 		Severity: admindomain.AuditSeverityCritical,

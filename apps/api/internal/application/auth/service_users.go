@@ -262,7 +262,11 @@ func (s Service) sendBusinessUserInvite(ctx context.Context, user ports.Business
 	}
 	subject := "You have been invited to Xtiitch"
 	body := fmt.Sprintf(
-		"Hi %s,\n\nYou have been added to the Xtiitch business dashboard as %s.\nOpen %s and sign in with this email address. For security, Xtiitch does not email temporary passwords, so ask your owner or admin for the temporary password they set for you.\n\nThanks,\nXtiitch",
+		"Hi %s,\n\n"+
+			"You have been added to the Xtiitch business dashboard as %s.\n"+
+			"Open %s and sign in with this email address. For security, Xtiitch does not email temporary passwords, "+
+			"so ask your owner or admin for the temporary password they set for you.\n\n"+
+			"Thanks,\nXtiitch",
 		displayName,
 		user.Role,
 		loginURL,

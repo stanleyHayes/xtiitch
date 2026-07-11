@@ -64,6 +64,7 @@ func (repo AdminAuthRepository) ListAdminAdCampaigns(ctx context.Context) ([]por
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminAdCampaign(
 	ctx context.Context,
 	input ports.CreateAdminAdCampaignInput,
@@ -169,6 +170,7 @@ func (repo AdminAuthRepository) CreateAdminAdCampaign(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) UpdateAdminAdCampaign(
 	ctx context.Context,
 	input ports.UpdateAdminAdCampaignInput,
@@ -303,6 +305,7 @@ func (repo AdminAuthRepository) ArchiveAdminAdCampaign(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) GetAdminAdCampaignPaymentIntent(
 	ctx context.Context,
 	campaignID common.ID,

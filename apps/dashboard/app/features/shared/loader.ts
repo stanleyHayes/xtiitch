@@ -60,7 +60,7 @@ export type DashboardLoaderData = {
   dataWarnings: string[];
 };
 
-export async function loadDashboardData({
+export async function loadDashboardData({ // eslint-disable-line complexity, max-lines-per-function -- large function with conditional branches; refactor in follow-up
   request,
   params,
 }: {

@@ -43,7 +43,7 @@ export type AiAssistFieldProps = Omit<TextFieldProps, "value" | "onChange"> & {
  * /ai/assist resource route; on success the field is replaced, with an Undo to
  * restore the previous text. A 402 surfaces the "paid add-on" prompt inline.
  */
-export default function AiAssistField({
+export default function AiAssistField({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   defaultValue = "",
   assistField,
   helperText,

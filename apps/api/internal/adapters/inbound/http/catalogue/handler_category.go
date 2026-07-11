@@ -82,7 +82,9 @@ func (handler Handler) listCollections(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"collections": out})
 }
 
-func (handler Handler) collectionAction(action func(catalogueapp.Service, context.Context, catalogueapp.CollectionStatusCommand) error) http.HandlerFunc {
+func (handler Handler) collectionAction(
+	action func(catalogueapp.Service, context.Context, catalogueapp.CollectionStatusCommand) error,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scope, role, ok := tenantPrincipal(w, r)
 		if !ok {
