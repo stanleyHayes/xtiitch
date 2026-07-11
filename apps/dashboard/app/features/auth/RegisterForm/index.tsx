@@ -1,22 +1,20 @@
 import { useEffect, useState } from "react";
-import { Form, Link as RouterLink, useRouteLoaderData } from "react-router";
+import { Form, useRouteLoaderData } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
-import Link from "@mui/material/Link";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
-import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
-import { tokens } from "../../theme";
-import { RegisterStepAccount } from "./RegisterStepAccount";
-import { RegisterStepPlan } from "./RegisterStepPlan";
-import { RegisterStepStore } from "./RegisterStepStore";
-import { STEP_LABELS } from "./Register";
+import { tokens } from "../../../theme";
+import { RegisterStepAccount } from "../RegisterStepAccount";
+import { RegisterStepPlan } from "../RegisterStepPlan";
+import { RegisterStepStore } from "../RegisterStepStore";
+import { STEP_LABELS } from "../Register";
+import { RegisterActions } from "./RegisterActions";
+import { RegisterStepIndicator } from "./RegisterStepIndicator";
 
 export function RegisterForm({
   plans,
@@ -252,35 +250,7 @@ export function RegisterForm({
             </Typography>
           </Stack>
 
-          {/* Step progress */}
-          <Stack direction="row" spacing={1} sx={{ mb: 3 }}>
-            {STEP_LABELS.map((label, i) => (
-              <Box key={label} sx={{ flex: 1, minWidth: 0 }}>
-                <Box
-                  sx={{
-                    height: 5,
-                    borderRadius: 999,
-                    bgcolor:
-                      i <= step ? tokens.burgundy : alpha(tokens.ink, 0.12),
-                    transition: "background-color 240ms ease",
-                  }}
-                />
-                <Typography
-                  variant="caption"
-                  noWrap
-                  sx={{
-                    mt: 0.75,
-                    display: "block",
-                    fontWeight: i === step ? 800 : 600,
-                    color:
-                      i <= step ? tokens.burgundy : alpha(tokens.ink, 0.55),
-                  }}
-                >
-                  {i + 1}. {label}
-                </Typography>
-              </Box>
-            ))}
-          </Stack>
+          <RegisterStepIndicator step={step} labels={STEP_LABELS} />
 
           {result.error ? (
             <Alert severity="error" sx={{ mb: 2.5 }}>
@@ -309,7 +279,7 @@ export function RegisterForm({
                 ownerPhone={ownerPhone}
                 onOwnerPhoneChange={setOwnerPhone}
                 whatsappNumber={whatsappNumber}
-                onWhatsappNumberChange={(value) => {
+                onWhatsappNumberChange={(value: string) => {
                   setWhatsappNumber(value);
                   setOtpRequested(false);
                   setWhatsappCode("");
@@ -340,75 +310,15 @@ export function RegisterForm({
               />
             ) : null}
 
-            {/* Navigation */}
-            <Stack direction="row" spacing={1.5} sx={{ mt: 3 }}>
-              {step > 0 ? (
-                <Button
-                  type="button"
-                  variant="outlined"
-                  size="large"
-                  onClick={goBack}
-                  disabled={isSubmitting}
-                  startIcon={<ArrowBackRounded />}
-                >
-                  Back
-                </Button>
-              ) : null}
-              {step < 2 ? (
-                <Button
-                  type="button"
-                  variant="contained"
-                  size="large"
-                  onClick={goNext}
-                  disabled={step === 0 ? !step0Valid : !step1Valid}
-                  endIcon={<ArrowForwardRounded />}
-                  sx={{
-                    flex: 1,
-                    "&.Mui-disabled": {
-                      bgcolor: alpha(tokens.burgundy, 0.14),
-                      color: alpha(tokens.burgundy, 0.55),
-                    },
-                  }}
-                >
-                  Continue
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  variant="contained"
-                  size="large"
-                  disabled={isSubmitting || !step2Valid}
-                  endIcon={isSubmitting ? undefined : <ArrowForwardRounded />}
-                  sx={{
-                    flex: 1,
-                    "&.Mui-disabled": {
-                      bgcolor: alpha(tokens.burgundy, 0.14),
-                      color: alpha(tokens.burgundy, 0.55),
-                    },
-                  }}
-                >
-                  {isSubmitting
-                    ? "Creating your store…"
-                    : !step2Valid
-                      ? "Select a plan to continue"
-                      : "Create store"}
-                </Button>
-              )}
-            </Stack>
-
-            <Typography
-              variant="body2"
-              sx={{
-                textAlign: "center",
-                color: alpha(tokens.ink, 0.68),
-                mt: 2.5,
-              }}
-            >
-              Already have a store?{" "}
-              <Link component={RouterLink} to="/login" sx={{ fontWeight: 700 }}>
-                Sign in
-              </Link>
-            </Typography>
+            <RegisterActions
+              step={step}
+              isSubmitting={isSubmitting}
+              step0Valid={step0Valid}
+              step1Valid={step1Valid}
+              step2Valid={step2Valid}
+              onBack={goBack}
+              onNext={goNext}
+            />
           </Form>
         </Paper>
       </Container>
