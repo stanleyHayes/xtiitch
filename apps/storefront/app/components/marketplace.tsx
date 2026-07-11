@@ -39,6 +39,13 @@ function storeHref(handle: string) {
   return `/store/${encodeURIComponent(handle)}`;
 }
 
+// A design opens its single buy page on the marketplace domain (/d/:handle),
+// not the shop's separate storefront — the shopper stays in the marketplace
+// (Updates §4). The design page still shows other pieces from the same shop.
+function designHref(handle: string) {
+  return `/d/${encodeURIComponent(handle)}`;
+}
+
 // ── Featured (sponsored) ─────────────────────────────────────────────────────
 function FeaturedCard({ p }: { p: SponsoredPlacement }) {
   return (
@@ -186,7 +193,7 @@ function DesignCard({ d }: { d: FlatDesign }) {
   return (
     <Box
       component={RouterLink}
-      to={storeHref(d.store_handle)}
+      to={designHref(d.handle)}
       sx={{
         display: "block",
         textDecoration: "none",
