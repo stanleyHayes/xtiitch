@@ -315,10 +315,6 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusBadRequest, "invalid_input")
 		return
 	}
-	if errors.Is(err, catalogueapp.ErrActivationRequired) {
-		writeError(w, http.StatusPaymentRequired, "activation_required")
-		return
-	}
 	if errors.Is(err, catalogueapp.ErrPricingModeConflict) {
 		writeError(w, http.StatusConflict, "pricing_mode_conflict")
 		return

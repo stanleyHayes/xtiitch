@@ -32,7 +32,6 @@ type Service interface {
 		command authapp.VerifySubscriptionAuthorizationCommand,
 	) (authapp.SubscriptionAuthorizationResult, error)
 	ChangeSubscriptionPlan(ctx context.Context, command authapp.ChangeSubscriptionPlanCommand) (authapp.ChangeSubscriptionPlanResult, error)
-	GetSubscriptionActivation(ctx context.Context, scope common.TenantScope) (authapp.SubscriptionActivation, error)
 	SubmitIdentityVerification(ctx context.Context, command authapp.SubmitIdentityVerificationCommand) error
 	LoginBusiness(ctx context.Context, command authapp.LoginBusinessCommand) (authapp.AuthResult, error)
 	RefreshSession(ctx context.Context, command authapp.RefreshSessionCommand) (authapp.AuthResult, error)
@@ -92,7 +91,6 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/auth/business/subscription/authorization-link", handler.initializeSubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/authorization-verifications", handler.verifySubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/change-plan", handler.changeSubscriptionPlan)
-		protected.Get("/auth/business/subscription/activation", handler.subscriptionActivation)
 		protected.Post("/auth/business/identity-verification", handler.submitIdentityVerification)
 		protected.Get("/auth/business/users", handler.listBusinessUsers)
 		protected.Post("/auth/business/users", handler.createBusinessUser)

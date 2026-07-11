@@ -35,52 +35,6 @@ func (s Service) ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord,
 	return s.businesses.ListActivePlans(ctx)
 }
 
-// SubscriptionActivation reports whether a paid plan has paid (activated) its
-// first invoice, powering the dashboard activation banner/page. A paid plan that
-// has never paid is 'trialing' (Activated=false); a free plan or a paid plan that
-// has paid is 'active' (Activated=true). AmountDueMinor is the first-purchase
-// figure the owner must pay to activate.
-type SubscriptionActivation struct {
-	Activated bool
-	Status    string
-	PlanCode  string
-	PlanName  string
-	// AmountDueMinor is the first-purchase charge (minor units) needed to activate.
-	AmountDueMinor int
-}
-
-// GetSubscriptionActivation resolves the tenant's activation state from its
-// current subscription. activated = status != "trialing".
-func (s Service) GetSubscriptionActivation(ctx context.Context, scope common.TenantScope) (SubscriptionActivation, error) {
-	sub, err := s.businesses.GetBusinessSubscription(ctx, scope.BusinessID)
-	if err != nil {
-		return SubscriptionActivation{}, err
-	}
-	return SubscriptionActivation{
-		Activated: sub.Status != "trialing",
-		Status:    sub.Status,
-		PlanCode:  sub.PlanCode,
-		// The subscription record carries the plan code, not its display name; the
-		// dashboard shows the code as the plan label here.
-		PlanName:       sub.PlanCode,
-		AmountDueMinor: firstPurchaseAmountDue(sub),
-	}, nil
-}
-
-// firstPurchaseAmountDue picks the first-purchase charge for the subscription's
-// chosen cadence (the Pricing Book intro figure), falling back to the monthly fee
-// when the cadence is the legacy/unset 'monthly'.
-func firstPurchaseAmountDue(sub ports.BusinessSubscriptionRecord) int {
-	switch sub.BillingCadence {
-	case "quarterly":
-		return sub.QuarterlyFirstMinor
-	case "yearly":
-		return sub.YearlyFirstMinor
-	default:
-		return sub.MonthlyFeeMinor
-	}
-}
-
 type InitializeSubscriptionAuthorizationCommand struct {
 	Scope       common.TenantScope
 	CallbackURL string
