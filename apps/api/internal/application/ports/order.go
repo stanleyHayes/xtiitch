@@ -28,6 +28,11 @@ type OrderRepository interface {
 	// FindCustomerIDByPhone resolves an existing (non-erased) customer by phone so
 	// repeat guest orders link to one identity; the bool reports a match.
 	FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error)
+	// ResolveOrCreateCustomerByPhone atomically resolves-or-creates the customer for
+	// a phone under an advisory lock, so concurrent first-time orders from the same
+	// phone share one identity instead of racing to create duplicates. Returns
+	// (id, created); created=true means a fresh row was minted (for cleanup).
+	ResolveOrCreateCustomerByPhone(ctx context.Context, phone string, newID common.ID) (common.ID, bool, error)
 	// DiscardDraftOrder removes a still-draft order and the customer row that was
 	// created with it, scoped to the tenant. It compensates a checkout whose
 	// payment could not be raised, so no un-payable draft is left behind.

@@ -44,6 +44,11 @@ var ErrSubscriptionBillingUnavailable = errors.New("subscription billing unavail
 // subscription invoice while one is still open.
 var ErrSubscriptionInvoiceOpen = errors.New("subscription invoice already open")
 
+// ErrDiscountRedemptionCapReached is returned by CreateRedemptionWithinCaps when a
+// code's per-account or total redemption cap is already met (counting applied +
+// recent pending), so the redemption is refused atomically under the code lock.
+var ErrDiscountRedemptionCapReached = errors.New("discount redemption cap reached")
+
 // ErrPlanLimitExceeded is returned when a tenant-scoped write would exceed the
 // business's current subscription/package entitlement.
 var ErrPlanLimitExceeded = errors.New("plan limit exceeded")

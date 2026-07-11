@@ -1607,6 +1607,16 @@ func (r *fakeDiscountRepository) CreateRedemption(_ context.Context, _ common.Te
 	return "redemption-1", nil
 }
 
+func (r *fakeDiscountRepository) CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input ports.CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error) {
+	if r.appliedForAccount >= maxPerAccount {
+		return "", ports.ErrDiscountRedemptionCapReached
+	}
+	if maxTotal != nil && r.appliedTotal >= *maxTotal {
+		return "", ports.ErrDiscountRedemptionCapReached
+	}
+	return r.CreateRedemption(ctx, scope, input)
+}
+
 func (r *fakeDiscountRepository) FindPendingRedemption(_ context.Context, _ common.TenantScope, _ common.ID) (ports.PendingDiscountRedemption, error) {
 	if !r.hasPending {
 		return ports.PendingDiscountRedemption{}, ports.ErrNotFound

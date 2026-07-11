@@ -857,10 +857,12 @@ func (s Service) StoreDeliveryZones(ctx context.Context, storeHandle string) ([]
 // freshly-created customer is cleaned up if the checkout rolls back (an existing
 // customer is shared across orders).
 func (s Service) resolveCustomerByPhone(ctx context.Context, phone string) (common.ID, bool) {
-	if trimmed := strings.TrimSpace(phone); trimmed != "" {
-		if existing, found, err := s.orders.FindCustomerIDByPhone(ctx, trimmed); err == nil && found {
-			return existing, false
-		}
+	// Atomic resolve-or-create under an advisory lock on the phone, so two
+	// simultaneous first-time orders from the same number share one identity
+	// instead of racing to mint duplicate customers. On any error, fall back to a
+	// fresh id (best-effort, preserving the previous non-atomic behaviour).
+	if id, created, err := s.orders.ResolveOrCreateCustomerByPhone(ctx, strings.TrimSpace(phone), s.ids.NewID()); err == nil {
+		return id, created
 	}
 	return s.ids.NewID(), true
 }

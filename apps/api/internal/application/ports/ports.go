@@ -275,6 +275,13 @@ type SubscriptionDiscountRepository interface {
 	// CreateRedemption inserts a tenant-scoped redemption row (written 'pending' at
 	// checkout) and returns its id.
 	CreateRedemption(ctx context.Context, scope common.TenantScope, input CreateDiscountRedemptionInput) (common.ID, error)
+	// CreateRedemptionWithinCaps atomically enforces the per-account and total caps
+	// and inserts the 'pending' redemption in ONE transaction, serialized by an
+	// advisory lock on the code, so concurrent checkouts of the same limited code
+	// cannot both pass the cap check and over-redeem. Counts APPLIED redemptions
+	// plus recent (uncommitted-window) PENDING ones so a race in the pending→settle
+	// window is caught. Returns ErrDiscountRedemptionCapReached when a cap is hit.
+	CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error)
 	// FindPendingRedemption returns the latest still-'pending' redemption for a
 	// subscription (the discount captured at checkout), joined with its code so the
 	// verify step can apply it. ErrNotFound when the subscription has no pending

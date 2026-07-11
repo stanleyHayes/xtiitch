@@ -734,26 +734,13 @@ func (s Service) captureSubscriptionDiscount(ctx context.Context, scope common.T
 	if renewal <= 0 {
 		return nil, ErrDiscountCodeIneligible
 	}
-	// Caps count only APPLIED redemptions, so pending captures from abandoned
-	// checkouts never exhaust a code.
-	perAccount, err := s.discounts.CountAppliedRedemptionsForAccount(ctx, record.DiscountCodeID, sub.BusinessID)
-	if err != nil {
-		return nil, err
-	}
-	if perAccount >= record.MaxPerAccount {
-		return nil, ErrDiscountCodeExhausted
-	}
-	if record.MaxRedemptionsTotal != nil {
-		total, err := s.discounts.CountAppliedRedemptions(ctx, record.DiscountCodeID)
-		if err != nil {
-			return nil, err
-		}
-		if total >= *record.MaxRedemptionsTotal {
-			return nil, ErrDiscountCodeExhausted
-		}
-	}
 	outcome := computeDiscountOutcome(record.DiscountType, record.DiscountValue, renewal)
-	if _, err = s.discounts.CreateRedemption(ctx, scope, ports.CreateDiscountRedemptionInput{
+	// Enforce the per-account + total caps and insert the pending redemption
+	// ATOMICALLY under an advisory lock on the code. This closes the check-then-act
+	// race where two concurrent checkouts of a last-slot code both pass a separate
+	// applied-only count and over-redeem; the repo counts applied + recent-pending
+	// under the lock, so the second caller is refused before it can pay.
+	if _, err := s.discounts.CreateRedemptionWithinCaps(ctx, scope, ports.CreateDiscountRedemptionInput{
 		DiscountCodeID: record.DiscountCodeID,
 		BusinessID:     sub.BusinessID,
 		SubscriptionID: sub.SubscriptionID,
@@ -762,7 +749,10 @@ func (s Service) captureSubscriptionDiscount(ctx context.Context, scope common.T
 		Cadence:        cadence,
 		DiscountMinor:  outcome.DiscountMinor,
 		Status:         "pending",
-	}); err != nil {
+	}, record.MaxPerAccount, record.MaxRedemptionsTotal); err != nil {
+		if errors.Is(err, ports.ErrDiscountRedemptionCapReached) {
+			return nil, ErrDiscountCodeExhausted
+		}
 		return nil, err
 	}
 	return &outcome, nil

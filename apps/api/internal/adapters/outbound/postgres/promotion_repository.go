@@ -363,6 +363,10 @@ func (repo PromotionRepository) ReservePromotion(
 			status
 		)
 		values ($1, $2, $3, $4, $5, $6, 'pending')
+		-- The unique (promotion_id, order_id) constraint already blocks a duplicate
+		-- reserve for one order; DO NOTHING makes a checkout retry idempotent rather
+		-- than erroring, so it can't double-consume the promotion's usage limit.
+		on conflict (promotion_id, order_id) do nothing
 	`, input.RedemptionID.String(), candidate.promotionID, input.BusinessID.String(),
 		input.OrderID.String(), input.CustomerID.String(), discount); err != nil {
 		return ports.PromotionRedemption{}, err

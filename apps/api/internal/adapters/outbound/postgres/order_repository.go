@@ -48,6 +48,53 @@ func (repo OrderRepository) FindCustomerIDByPhone(ctx context.Context, phone str
 	return common.ID(id), true, nil
 }
 
+// ResolveOrCreateCustomerByPhone atomically returns the existing customer for a
+// phone or creates a minimal one with newID, serialized by an advisory lock on the
+// phone. Without this, two concurrent first-time orders from the same new phone
+// both resolve "not found" and mint different customer_ids — fragmenting that
+// person's identity/history. The order transaction later enriches the row (name,
+// email, whatsapp) via its on-conflict upsert. Returns (id, created).
+func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, phone string, newID common.ID) (common.ID, bool, error) {
+	trimmed := strings.TrimSpace(phone)
+	if trimmed == "" {
+		// No phone to dedupe on — a fresh anonymous identity.
+		return newID, true, nil
+	}
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+
+	if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtext($1)::bigint)`, trimmed); err != nil {
+		return "", false, err
+	}
+	var existing string
+	err = tx.QueryRow(ctx, `
+		select customer_id::text from customers
+		where phone = $1 and erased_at is null
+		order by created_at asc limit 1
+	`, trimmed).Scan(&existing)
+	if err == nil {
+		if err := tx.Commit(ctx); err != nil {
+			return "", false, err
+		}
+		return common.ID(existing), false, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return "", false, err
+	}
+	if _, err := tx.Exec(ctx, `
+		insert into customers (customer_id, phone) values ($1, $2)
+	`, newID.String(), trimmed); err != nil {
+		return "", false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", false, err
+	}
+	return newID, true, nil
+}
+
 func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.TenantScope, input ports.CreateWalkInOrderInput) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

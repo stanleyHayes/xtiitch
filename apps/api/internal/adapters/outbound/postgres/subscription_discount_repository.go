@@ -200,6 +200,89 @@ func (repo SubscriptionDiscountRepository) CreateRedemption(ctx context.Context,
 	return common.ID(redemptionID), nil
 }
 
+// recentPendingWindow bounds how long an un-applied ('pending') redemption from an
+// in-flight checkout counts against the caps. It must comfortably exceed the
+// pending→settle window so a genuine concurrent checkout is caught, while letting
+// an abandoned checkout's slot free up afterwards.
+const recentPendingWindow = "1 hour"
+
+// CreateRedemptionWithinCaps enforces the caps and inserts the 'pending' redemption
+// atomically, serialized by an advisory lock on the code so two concurrent
+// checkouts of the same limited code cannot both pass the cap check. It counts
+// APPLIED redemptions plus recent PENDING ones (an in-flight checkout has only a
+// pending row until its payment settles), closing the pending→settle race.
+func (repo SubscriptionDiscountRepository) CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input ports.CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	// Bypass: the total cap counts across tenants and the insert supplies its own
+	// business_id, so RLS scoping is unnecessary here and would hide other tenants'
+	// redemptions from the total count.
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return "", err
+	}
+
+	// Serialize all concurrent redemptions of THIS code for the rest of the txn.
+	if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtext($1)::bigint)`, input.DiscountCodeID.String()); err != nil {
+		return "", err
+	}
+
+	countedStatuses := `(status = 'applied' or (status = 'pending' and created_at > now() - interval '` + recentPendingWindow + `'))`
+
+	var perAccount int
+	if err := tx.QueryRow(ctx, `
+		select count(*)::int from subscription_discount_redemptions
+		where discount_code_id = $1 and business_id = $2 and `+countedStatuses,
+		input.DiscountCodeID.String(), input.BusinessID.String()).Scan(&perAccount); err != nil {
+		return "", err
+	}
+	if perAccount >= maxPerAccount {
+		return "", ports.ErrDiscountRedemptionCapReached
+	}
+	if maxTotal != nil {
+		var total int
+		if err := tx.QueryRow(ctx, `
+			select count(*)::int from subscription_discount_redemptions
+			where discount_code_id = $1 and `+countedStatuses,
+			input.DiscountCodeID.String()).Scan(&total); err != nil {
+			return "", err
+		}
+		if total >= *maxTotal {
+			return "", ports.ErrDiscountRedemptionCapReached
+		}
+	}
+
+	status := input.Status
+	if status == "" {
+		status = "pending"
+	}
+	var subscriptionID any
+	if !input.SubscriptionID.IsZero() {
+		subscriptionID = input.SubscriptionID.String()
+	}
+	var redemptionID string
+	if err := tx.QueryRow(ctx, `
+		insert into subscription_discount_redemptions (
+			discount_code_id, business_id, subscription_id,
+			account_key, plan_code, cadence, discount_minor, status,
+			applied_at
+		)
+		values ($1, $2, $3, $4, $5, $6, $7, $8,
+			case when $8 = 'applied' then now() else null end)
+		returning redemption_id::text
+	`, input.DiscountCodeID.String(), input.BusinessID.String(), subscriptionID,
+		input.AccountKey, input.PlanCode, input.Cadence, input.DiscountMinor, status,
+	).Scan(&redemptionID); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", err
+	}
+	return common.ID(redemptionID), nil
+}
+
 // FindPendingRedemption returns the latest still-'pending' redemption for a
 // subscription — the discount captured at checkout — joined with its code so the
 // verify step can apply it without a second lookup. Returns ErrNotFound when the
