@@ -105,7 +105,15 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	var paymentProvider ports.PaymentProvider
 	if cfg.PaystackSecretKey != "" {
-		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, cfg.PaystackWebhookKey)
+		// Paystack signs webhooks with HMAC-SHA512 using the SECRET KEY, so when no
+		// separate PAYSTACK_WEBHOOK_SECRET is configured, fall back to the secret
+		// key — otherwise every webhook signature check fails and no charge ever
+		// settles.
+		webhookKey := cfg.PaystackWebhookKey
+		if webhookKey == "" {
+			webhookKey = cfg.PaystackSecretKey
+		}
+		paymentProvider = paystack.NewClient(cfg.PaystackSecretKey, webhookKey)
 	} else {
 		// No live key: deterministic dev provider with real webhook-signature
 		// verification, so the money path runs locally and in tests.
