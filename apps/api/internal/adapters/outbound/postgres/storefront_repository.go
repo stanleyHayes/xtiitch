@@ -64,15 +64,17 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 				(select count(*) from designs d
 					where d.business_id = b.business_id and d.status = 'active')
 			from businesses b
-			-- LEFT so a brand-new active store with no store_settings row still
-			-- appears in the directory (Updates §4: show ALL stores, none left out).
+			-- LEFT so a store with no store_settings row still appears once it is
+			-- payment-ready.
 			left join store_settings ss on ss.business_id = b.business_id
-			-- Every active (non-suspended) store is listed in the public directory
-			-- and "Discover other studios" as soon as it is created — payment
-			-- verification is not required to be discoverable (Version-one review:
-			-- newly created stores must appear automatically). Suspended stores are
-			-- still excluded.
+			-- P0.5: gate marketplace appearance on a PROVISIONED PAYOUT SUBACCOUNT.
+			-- The marketplace is a shoppable, checkout-ready surface (and the §4
+			-- multi-store split settles to each store's subaccount), so only stores
+			-- that can actually receive a payment are listed; a store appears
+			-- automatically the moment it sets up payouts. Suspended stores are
+			-- excluded regardless.
 			where b.operational_status = 'active'
+				and coalesce(b.settlement_provider_subaccount, '') <> ''
 			order by b.name
 		`)
 		if err != nil {
