@@ -160,7 +160,9 @@ func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAutho
 			Status   string `json:"status"`
 			Amount   int64  `json:"amount"`
 			Customer struct {
-				Code  string `json:"code"`
+				// Paystack's /transaction/verify returns the customer code as
+				// "customer_code" (the /customer endpoints use "code").
+				Code  string `json:"customer_code"`
 				Email string `json:"email"`
 			} `json:"customer"`
 			Authorization struct {
