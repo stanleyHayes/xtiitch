@@ -1503,7 +1503,10 @@ Also shipped after the list above:
 - `8140f22` §3b account-gate before pay (checkout + bespoke-deposit flows require a verified customer session; prefill from profile).
 - `2ea681c` §4(d) marketplace design click opens /d/:handle (stays on marketplace).
 
-IN FLIGHT: dashboard.tsx Wave-3 UI agent (§9 board, §11 per-day, §1b editor, §1c field, §1a/6 override, §8 forms reset, P0.5 payout setup UI) — integrate + commit on completion.
+- `4933312` dashboard Wave-3 UI (§9 four-stage board, §11 per-day + blackout UI, §1b colour-variation editor + §1a/6 override via new design-editor.$id.ts resource route, §1c display field, §8 forms reset, P0.5 payout setup + onboarding banner). All 8 dashboard→API contracts verified against the Go handlers; check + eslint + build green.
+- `3b95310` §4 item 4 unified multi-store basket + per-store checkout (accumulate across shops, grouped by store; `checkout?store=HANDLE` settles one store, clears only its lines; single-store path unchanged). Deferred P0.4 (single Paystack charge split across N subaccounts) — money-path/webhook change needing every store's subaccount provisioned.
+
+STATUS: every Xtiitch-Updates item is implemented and shipped EXCEPT P0.4 (multi-subaccount single-charge split), which is intentionally deferred — the unified basket already supports multi-store shopping via the proven per-store single-charge checkout. P0.4 is an optimization (one payment vs N) that rewrites the payments provider split + webhook confirmation across stores and depends on P0.5 subaccount provisioning; do it as a dedicated, well-tested effort.
 
 REMAINING (item 4 core + P0.4) — deliberately NOT rushed; it changes the money path + webhook/settlement:
 - item 4 (a,b,c): multi-store UNIFIED cart on the apex/marketplace context, grouped by store, kept SEPARATE from the subdomain single-shop cart (two cart cookies / host-keyed, "don't merge"); cart UI grouped by store with per-store subtotals; per-store checkout.
