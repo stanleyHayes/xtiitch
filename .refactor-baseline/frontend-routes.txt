@@ -1,0 +1,95 @@
+### apps/admin/app/routes.ts
+import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+export default [
+  index("routes/home.tsx"),
+  route("login", "routes/login.tsx"),
+  route("admin", "routes/admin.tsx"),
+  route("admin/customers/:id/export", "routes/customer-export.tsx"),
+  route("help", "routes/help.tsx"),
+  route("*", "routes/not-found.tsx"),
+] satisfies RouteConfig;
+### apps/dashboard/app/routes.ts
+import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+// The business dashboard, served at app.xtiitch.com. The index redirects into
+// the dashboard, which itself bounces to /login when there is no session.
+export default [
+  index("routes/home.tsx"),
+  route("login", "routes/login.tsx"),
+  route("register", "routes/register.tsx"),
+  route("forgot-password", "routes/forgot-password.tsx"),
+  // Resource route: same-origin proxy for the signup form's real-time store
+  // handle availability check (the API base isn't reachable from the browser).
+  route("handle-check", "routes/handle-check.ts"),
+  // Resource route: same-origin proxy for the WhatsApp one-time-code "Send code"
+  // buttons on sign-in / sign-up (forwards to the opaque OTP-request endpoints).
+  route("business-otp", "routes/business-otp.ts"),
+  route("onboarding/billing", "routes/billing-onboarding.tsx"),
+  route("onboarding/billing/callback", "routes/billing-callback.tsx"),
+  route("addons/ai-assistant", "routes/addons.ai-assistant.tsx"),
+  route(
+    "addons/ai-assistant/callback",
+    "routes/addons.ai-assistant.callback.tsx",
+  ),
+  route("security", "routes/security.tsx"),
+  route("dashboard/:section?", "routes/dashboard.tsx"),
+  // Resource route backing the design editor's colour-variation and per-design
+  // size-band-override panels (GET current state; POST create/update/delete/
+  // reorder variations and set/clear an override). See design-editor.$id.ts.
+  route("design-editor/:id", "routes/design-editor.$id.ts"),
+  // Resource route for the ✨ AI writing assistant (no UI; proxies to the API
+  // with the session token). See routes/ai-assist.ts.
+  route("ai/assist", "routes/ai-assist.ts"),
+  route("help", "routes/help.tsx"),
+  route("*", "routes/not-found.tsx"),
+] satisfies RouteConfig;
+### apps/marketing/app/routes.ts
+import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+export default [
+  index("routes/home.tsx"),
+  route("discover", "routes/discover.tsx"),
+  route("shops", "routes/shops.tsx"),
+  route("designs", "routes/designs.tsx"),
+  route("features", "routes/features.tsx"),
+  route("growth", "routes/growth.tsx"),
+  route("how-it-works", "routes/how-it-works.tsx"),
+  route("pricing", "routes/pricing.tsx"),
+  route("for-customers", "routes/for-customers.tsx"),
+  route("security", "routes/security.tsx"),
+  route("faq", "routes/faq.tsx"),
+  route("privacy", "routes/privacy.tsx"),
+  route("terms", "routes/terms.tsx"),
+  route("payment-policy", "routes/payment-policy.tsx"),
+  route("contact", "routes/contact.tsx"),
+  route("robots.txt", "routes/robots.tsx"),
+  route("sitemap.xml", "routes/sitemap.tsx"),
+  route("*", "routes/not-found.tsx"),
+] satisfies RouteConfig;
+### apps/storefront/app/routes.ts
+import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+// The customer storefront. Each business is reached at <handle>.xtiitch.com;
+// subdomain-based store resolution replaces the legacy /store/:handle path in a
+// follow-up step, so both are kept working during the transition.
+export default [
+  index("routes/home.tsx"),
+  route("discover", "routes/discover.tsx"),
+  route("account", "routes/account.tsx"),
+  route("store/:handle", "routes/store.tsx"),
+  route("d/:handle", "routes/design.tsx"),
+  route("c/:handle", "routes/collection.tsx"),
+  // Canonicalise the long share paths the dashboard produces onto the short
+  // storefront routes above, so shared design/collection links resolve.
+  route("design/:handle", "routes/design-redirect.tsx"),
+  route("collection/:handle", "routes/collection-redirect.tsx"),
+  route("cart", "routes/cart.tsx"),
+  route("checkout", "routes/checkout.tsx"),
+  route("checkout-all", "routes/checkout-all.tsx"),
+  route("track", "routes/track-lookup.tsx"),
+  route("track/:orderId", "routes/track.tsx"),
+  route("robots.txt", "routes/robots.tsx"),
+  route("sitemap.xml", "routes/sitemap.tsx"),
+  route("*", "routes/not-found.tsx"),
+] satisfies RouteConfig;

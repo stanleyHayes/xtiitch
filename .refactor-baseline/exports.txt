@@ -1,0 +1,1434 @@
+func (a *upperAssistant) Assist
+func (c Channel) Valid
+func (c fixedClock) Now
+func (clock fixedClock) Now
+func (d *fakeDelivery) SendOTP
+func (d *fakeEmailDelivery) SendEmailOTP
+func (d *fakeOTPDelivery) SendOTP
+func (e Entitlements) Has
+func (f *fakeAffiliates) RecordAffiliateClick
+func (f *fakeAffiliates) ReserveAffiliateAttribution
+func (f *fakeBookings) CancelBooking
+func (f *fakeBookings) DiscardHeldBooking
+func (f *fakeBookings) HoldSlot
+func (f *fakeBookings) ListBookings
+func (f *fakeBookings) RescheduleBooking
+func (f *fakeCatalogue) ListDesigns
+func (f *fakeCatalogue) PlaceStandardOrder
+func (f *fakeCatalogue) ResolveShop
+func (f *fakeCatalogue) TrackOrder
+func (f *fakeDedupe) MarkProcessed
+func (f *fakeDeliveryZones) CreateDeliveryZone
+func (f *fakeDeliveryZones) DeleteDeliveryZone
+func (f *fakeDeliveryZones) GetDeliveryZone
+func (f *fakeDeliveryZones) ListActiveDeliveryZones
+func (f *fakeDeliveryZones) ListDeliveryZones
+func (f *fakeDeliveryZones) UpdateDeliveryZone
+func (f *fakeMeasurementRepo) CreateField
+func (f *fakeMeasurementRepo) DeleteField
+func (f *fakeMeasurementRepo) ListFields
+func (f *fakeMeasurementRepo) RecordOrderMeasurements
+func (f *fakeMeasurementRepo) UpdateField
+func (f *fakeOrderPayments) InitiateCharge
+func (f *fakeOrders) AdvanceStage
+func (f *fakeOrders) CreateCustomOrder
+func (f *fakeOrders) CreateCustomOrderConfirmed
+func (f *fakeOrders) CreateOnlineOrder
+func (f *fakeOrders) CreateOnlineOrderGroup
+func (f *fakeOrders) CreateWalkInOrder
+func (f *fakeOrders) DiscardCustomDraftOrder
+func (f *fakeOrders) DiscardDraftOrder
+func (f *fakeOrders) DiscardDraftOrderGroup
+func (f *fakeOrders) FindCustomerIDByPhone
+func (f *fakeOrders) GetOrderBilling
+func (f *fakeOrders) GetTracking
+func (f *fakeOrders) ListOrders
+func (f *fakeOrders) ListStageTemplates
+func (f *fakeOrders) ResolveOrCreateCustomerByPhone
+func (f *fakeOrders) SetAgreedTotal
+func (f *fakeOrders) SetDraftOrderAgreedTotal
+func (f *fakePayments) InitiateCharge
+func (f *fakePayments) InitiateMarketplaceCharge
+func (f *fakePromotions) ArchiveBusinessPromotion
+func (f *fakePromotions) CreateBusinessPromotion
+func (f *fakePromotions) ListBusinessPromotions
+func (f *fakePromotions) ReservePromotion
+func (f *fakePromotions) UpdateBusinessPromotion
+func (f *fakePromotions) VoidPendingPromotionRedemptions
+func (f *fakeReferrals) ReserveReferralAttribution
+func (f *fakeReferrals) ResolveReferralCode
+func (f *fakeSender) SendText
+func (f *fakeSessions) DeleteSession
+func (f *fakeSessions) GetSession
+func (f *fakeSessions) SaveSession
+func (f *fakeSubscriptionPayments) ChargeAuthorization
+func (f *fakeSubscriptionPayments) CreateBusinessSubaccount
+func (f *fakeSubscriptionPayments) InitializeAuthorization
+func (f *fakeSubscriptionPayments) InitializeTransaction
+func (f *fakeSubscriptionPayments) ParseChargeEvent
+func (f *fakeSubscriptionPayments) VerifyAuthorization
+func (f *fakeSubscriptionPayments) VerifyWebhookSignature
+func (f *fakeWhatsAppAuth) ConsumeSignInOTPChallenge
+func (f *fakeWhatsAppAuth) CreateSignInOTPChallenge
+func (f *fakeWhatsAppAuth) FindBusinessUserByHandleAndWhatsApp
+func (f *fakeWhatsAppAuth) IncrementSignInOTPAttempts
+func (f *fakeWhatsAppAuth) LatestActiveSignInOTPChallenge
+func (f fakeAvailability) ResolveOpenSlot
+func (f fakeCharge) GetChargeContext
+func (f fakeCharge) ProvisionSubaccount
+func (f fakeStorefront) GetActiveCollectionByHandle
+func (f fakeStorefront) GetActiveDesignByHandle
+func (f fakeStorefront) ListActiveCollections
+func (f fakeStorefront) ListActiveDesigns
+func (f fakeStorefront) ListPublicShops
+func (f fakeStorefront) ResolveStore
+func (f fakeStorefront) SearchActiveDesigns
+func (f fixedIDs) NewID
+func (g fakeOTPGen) HashCode
+func (g fakeOTPGen) NewCode
+func (h *countingPasswordHasher) Compare
+func (h *countingPasswordHasher) Hash
+func (id ID) IsZero
+func (id ID) String
+func (k Kind) Valid
+func (m Method) Valid
+func (m Money) Add
+func (m PaymentMethod) Valid
+func (m SizeMode) IsCustomRoute
+func (m SizeMode) Valid
+func (o fakeOTP) NewCode
+func (p *fakeProvider) ChargeAuthorization
+func (p *fakeProvider) CreateBusinessSubaccount
+func (p *fakeProvider) InitializeAuthorization
+func (p *fakeProvider) InitializeTransaction
+func (p *fakeProvider) ParseChargeEvent
+func (p *fakeProvider) VerifyAuthorization
+func (p *fakeProvider) VerifyWebhookSignature
+func (p *stubPayments) ChargeAuthorization
+func (p *stubPayments) InitializeAuthorization
+func (p *stubPayments) VerifyAuthorization
+func (p PaymentPurpose) Valid
+func (permission Permission) Valid
+func (provider *fakePaymentProvider) ChargeAuthorization
+func (provider *fakePaymentProvider) InitializeAuthorization
+func (provider *fakePaymentProvider) InitializeTransaction
+func (provider *fakePaymentProvider) VerifyAuthorization
+func (r *fakeBookingRepo) CancelBooking
+func (r *fakeBookingRepo) DiscardHeldBooking
+func (r *fakeBookingRepo) HoldSlot
+func (r *fakeBookingRepo) ListBookings
+func (r *fakeBookingRepo) RescheduleBooking
+func (r *fakeCatalogueRepo) CreateCollection
+func (r *fakeCatalogueRepo) CreateDesign
+func (r *fakeCatalogueRepo) CreateDesignVariation
+func (r *fakeCatalogueRepo) CreateSizeBand
+func (r *fakeCatalogueRepo) DeleteDesignSizeBandOverride
+func (r *fakeCatalogueRepo) DeleteDesignVariation
+func (r *fakeCatalogueRepo) DeleteSizeBand
+func (r *fakeCatalogueRepo) GetDesign
+func (r *fakeCatalogueRepo) ListCollections
+func (r *fakeCatalogueRepo) ListDesignPrices
+func (r *fakeCatalogueRepo) ListDesignSizeBandOverrides
+func (r *fakeCatalogueRepo) ListDesignVariations
+func (r *fakeCatalogueRepo) ListDesigns
+func (r *fakeCatalogueRepo) ListSizeBands
+func (r *fakeCatalogueRepo) ReorderDesignVariations
+func (r *fakeCatalogueRepo) SetCollectionStatus
+func (r *fakeCatalogueRepo) SetDesignPrice
+func (r *fakeCatalogueRepo) SetDesignSizeBandOverride
+func (r *fakeCatalogueRepo) SetDesignStatus
+func (r *fakeCatalogueRepo) UpdateCollection
+func (r *fakeCatalogueRepo) UpdateDesign
+func (r *fakeCatalogueRepo) UpdateDesignVariation
+func (r *fakeCatalogueRepo) UpdateSizeBand
+func (r *fakeChargeRepo) GetChargeContext
+func (r *fakeChargeRepo) ProvisionSubaccount
+func (r *fakeDeliveryRepo) ArrangeHandover
+func (r *fakeDeliveryRepo) GetHandover
+func (r *fakeDeliveryRepo) ListHandovers
+func (r *fakeDeliveryRepo) SetHandoverStatus
+func (r *fakeDiscountRepository) ActivateFreePeriodBilling
+func (r *fakeDiscountRepository) CountAppliedRedemptions
+func (r *fakeDiscountRepository) CountAppliedRedemptionsForAccount
+func (r *fakeDiscountRepository) CreateRedemption
+func (r *fakeDiscountRepository) CreateRedemptionWithinCaps
+func (r *fakeDiscountRepository) FindActiveDiscountCodeByCode
+func (r *fakeDiscountRepository) FindPendingRedemption
+func (r *fakeDiscountRepository) MarkRedemptionApplied
+func (r *fakeOrderRepo) AdvanceStage
+func (r *fakeOrderRepo) CreateCustomOrder
+func (r *fakeOrderRepo) CreateCustomOrderConfirmed
+func (r *fakeOrderRepo) CreateOnlineOrder
+func (r *fakeOrderRepo) CreateOnlineOrderGroup
+func (r *fakeOrderRepo) CreateWalkInOrder
+func (r *fakeOrderRepo) DiscardCustomDraftOrder
+func (r *fakeOrderRepo) DiscardDraftOrder
+func (r *fakeOrderRepo) DiscardDraftOrderGroup
+func (r *fakeOrderRepo) FindCustomerIDByPhone
+func (r *fakeOrderRepo) GetOrderBilling
+func (r *fakeOrderRepo) GetTracking
+func (r *fakeOrderRepo) ListOrders
+func (r *fakeOrderRepo) ListStageTemplates
+func (r *fakeOrderRepo) ResolveOrCreateCustomerByPhone
+func (r *fakeOrderRepo) SetAgreedTotal
+func (r *fakeOrderRepo) SetDraftOrderAgreedTotal
+func (r *fakePaymentRepo) ConfirmFromProvider
+func (r *fakePaymentRepo) Create
+func (r *fakePaymentRepo) CreateMarketplaceCharge
+func (r *fakePaymentRepo) ListByBusiness
+func (r *fakePaymentRepo) ListManualTakings
+func (r *fakePaymentRepo) MoneySummary
+func (r *fakePaymentRepo) RecordManualTaking
+func (r *fakeRepo) ConsumeOTPChallenge
+func (r *fakeRepo) CreateOTPChallenge
+func (r *fakeRepo) GetCustomerProfile
+func (r *fakeRepo) IncrementOTPAttempts
+func (r *fakeRepo) LatestActiveOTPChallenge
+func (r *fakeRepo) ListCustomerOrders
+func (r *fakeRepo) UpdateCustomerProfile
+func (r *fakeRepo) UpsertVerifiedCustomerByEmail
+func (r *fakeRepo) UpsertVerifiedCustomerByPhone
+func (r *fakeWaitlistRepo) CreateWaitlistLead
+func (r *fakeWaitlistRepo) ListWaitlistLeads
+func (r *stubRepo) DesignsNeedingEmbedding
+func (r *stubRepo) SearchCandidates
+func (r *stubRepo) UpsertEmbedding
+func (r fakeAvailRepo) ListBlackouts
+func (r fakeAvailRepo) ListTakenSlots
+func (r fakeAvailRepo) ListWindows
+func (r fakeAvailRepo) ReplaceWindows
+func (r fakeStorefrontRepo) ResolveStore
+func (repo *fakeAdminAudits) CreateAdminAuditEvent
+func (repo *fakeAdminAudits) ListAdminAuditEvents
+func (repo *fakeAdminBusinesses) ArchiveAdminAdCampaign
+func (repo *fakeAdminBusinesses) ArchiveAdminAffiliate
+func (repo *fakeAdminBusinesses) ArchiveAdminPlan
+func (repo *fakeAdminBusinesses) ArchiveAdminPromotion
+func (repo *fakeAdminBusinesses) ArchiveAdminReferralProgramme
+func (repo *fakeAdminBusinesses) ArchiveAdminSubscriptionDiscountCode
+func (repo *fakeAdminBusinesses) CreateAdminAdCampaign
+func (repo *fakeAdminBusinesses) CreateAdminAdCampaignPayment
+func (repo *fakeAdminBusinesses) CreateAdminAffiliate
+func (repo *fakeAdminBusinesses) CreateAdminAffiliatePayout
+func (repo *fakeAdminBusinesses) CreateAdminPlan
+func (repo *fakeAdminBusinesses) CreateAdminPromotion
+func (repo *fakeAdminBusinesses) CreateAdminReferralCode
+func (repo *fakeAdminBusinesses) CreateAdminReferralProgramme
+func (repo *fakeAdminBusinesses) CreateAdminSubscriptionDiscountCode
+func (repo *fakeAdminBusinesses) DecideAdminBusinessVerification
+func (repo *fakeAdminBusinesses) EnqueueSubscriptionRenewalReminder
+func (repo *fakeAdminBusinesses) EraseAdminCustomer
+func (repo *fakeAdminBusinesses) ExportAdminCustomer
+func (repo *fakeAdminBusinesses) GetAdminAdCampaignPaymentIntent
+func (repo *fakeAdminBusinesses) GetAdminMoneyRails
+func (repo *fakeAdminBusinesses) GetAdminPlatformMetrics
+func (repo *fakeAdminBusinesses) IssueAdminReferralRewards
+func (repo *fakeAdminBusinesses) IssueAdminSubscriptionInvoice
+func (repo *fakeAdminBusinesses) ListAdminAdCampaigns
+func (repo *fakeAdminBusinesses) ListAdminAffiliateAttribution
+func (repo *fakeAdminBusinesses) ListAdminAffiliates
+func (repo *fakeAdminBusinesses) ListAdminBusinesses
+func (repo *fakeAdminBusinesses) ListAdminCustomers
+func (repo *fakeAdminBusinesses) ListAdminPlanEntitlements
+func (repo *fakeAdminBusinesses) ListAdminPlans
+func (repo *fakeAdminBusinesses) ListAdminPromotions
+func (repo *fakeAdminBusinesses) ListAdminReferralProgrammes
+func (repo *fakeAdminBusinesses) ListAdminRiskReviews
+func (repo *fakeAdminBusinesses) ListAdminSubscriptionDiscountCodes
+func (repo *fakeAdminBusinesses) ListAdminSubscriptions
+func (repo *fakeAdminBusinesses) ListAdminSupportTickets
+func (repo *fakeAdminBusinesses) ListAdminVerificationCases
+func (repo *fakeAdminBusinesses) MarkAdminSubscriptionInvoiceFailed
+func (repo *fakeAdminBusinesses) MarkAdminSubscriptionInvoicePaid
+func (repo *fakeAdminBusinesses) QueueAdminMoneyReplay
+func (repo *fakeAdminBusinesses) ReverseAdminMoneyPayment
+func (repo *fakeAdminBusinesses) RunAdminSubscriptionBillingSweep
+func (repo *fakeAdminBusinesses) SetAdminRiskReviewStatus
+func (repo *fakeAdminBusinesses) SetAdminSettlementReviewHold
+func (repo *fakeAdminBusinesses) UpdateAdminAdCampaign
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliate
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliateConversionStatus
+func (repo *fakeAdminBusinesses) UpdateAdminBusinessStatus
+func (repo *fakeAdminBusinesses) UpdateAdminPlan
+func (repo *fakeAdminBusinesses) UpdateAdminPlanEntitlements
+func (repo *fakeAdminBusinesses) UpdateAdminPromotion
+func (repo *fakeAdminBusinesses) UpdateAdminReferralProgramme
+func (repo *fakeAdminBusinesses) UpdateAdminSubscription
+func (repo *fakeAdminBusinesses) UpdateAdminSubscriptionDiscountCode
+func (repo *fakeAdminBusinesses) UpdateAdminSupportTicket
+func (repo *fakeAdminSessions) Create
+func (repo *fakeAdminSessions) FindByRefreshTokenHash
+func (repo *fakeAdminSessions) Revoke
+func (repo *fakeAdminUsers) ClearFailedAdminLogin
+func (repo *fakeAdminUsers) CreateAdminUser
+func (repo *fakeAdminUsers) EnsureBootstrapUser
+func (repo *fakeAdminUsers) FindByEmail
+func (repo *fakeAdminUsers) FindByID
+func (repo *fakeAdminUsers) GetAdminPlatformSettings
+func (repo *fakeAdminUsers) GetAdminPreferences
+func (repo *fakeAdminUsers) ListAdminRolePermissions
+func (repo *fakeAdminUsers) ListAdminUsers
+func (repo *fakeAdminUsers) RecordFailedAdminLogin
+func (repo *fakeAdminUsers) RecordLogin
+func (repo *fakeAdminUsers) ReplaceAdminRolePermissions
+func (repo *fakeAdminUsers) UpdateAdminMarketingFlags
+func (repo *fakeAdminUsers) UpdateAdminPlatformSettings
+func (repo *fakeAdminUsers) UpdateAdminPreferences
+func (repo *fakeAdminUsers) UpdateAdminProfile
+func (repo *fakeAdminUsers) UpdateAdminUser
+func (repo *fakeAffiliateClicks) RecordAffiliateClick
+func (repo *fakeAffiliateClicks) ReserveAffiliateAttribution
+func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling
+func (repo *fakeBusinessIdentityRepository) ApplyImmediatePlanUpgrade
+func (repo *fakeBusinessIdentityRepository) ClearFailedBusinessLogin
+func (repo *fakeBusinessIdentityRepository) CreateBusinessUser
+func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserByHandleAndEmail
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserCredentialsByID
+func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription
+func (repo *fakeBusinessIdentityRepository) GetPlanByCode
+func (repo *fakeBusinessIdentityRepository) HandleExists
+func (repo *fakeBusinessIdentityRepository) ListActivePlans
+func (repo *fakeBusinessIdentityRepository) ListBusinessUsers
+func (repo *fakeBusinessIdentityRepository) PrepareSubscriptionActivationCharge
+func (repo *fakeBusinessIdentityRepository) RecordFailedBusinessLogin
+func (repo *fakeBusinessIdentityRepository) RecordSubscriptionActivationPayment
+func (repo *fakeBusinessIdentityRepository) SchedulePlanDowngrade
+func (repo *fakeBusinessIdentityRepository) SetSubscriptionBillingCadence
+func (repo *fakeBusinessIdentityRepository) SubmitIdentityDocument
+func (repo *fakeBusinessIdentityRepository) TransferBusinessOwner
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUser
+func (repo *fakeBusinessIdentityRepository) UpdateBusinessUserPassword
+func (repo *fakeBusinessIdentityRepository) UpdateOwnPassword
+func (repo *fakePromotionRepo) ArchiveBusinessPromotion
+func (repo *fakePromotionRepo) CreateBusinessPromotion
+func (repo *fakePromotionRepo) ListBusinessPromotions
+func (repo *fakePromotionRepo) ReservePromotion
+func (repo *fakePromotionRepo) UpdateBusinessPromotion
+func (repo *fakePromotionRepo) VoidPendingPromotionRedemptions
+func (repo *fakeSessionRepository) Create
+func (repo *fakeSessionRepository) FindByRefreshTokenHash
+func (repo *fakeSessionRepository) Revoke
+func (repo *fakeSponsoredPlacements) ListActiveSponsoredPlacements
+func (repo *fakeSponsoredPlacements) RecordSponsoredAdEvent
+func (role Role) Permissions
+func (role Role) Valid
+func (s *fakeEmailSender) Send
+func (s *seqIDs) NewID
+func (s *sequenceIDs) NewID
+func (s *stubAddons) GetAddonStatus
+func (s *stubAddons) GetBusinessOwnerEmail
+func (s *stubAddons) HasActiveAddon
+func (s *stubAddons) ListAddonChargesDue
+func (s *stubAddons) RecordAddonRenewal
+func (s *stubAddons) SetBusinessAddon
+func (s *stubAddons) UpsertAddonBilling
+func (s *stubIDs) NewID
+func (s Service) ActivateMFA
+func (s Service) AddonAvailable
+func (s Service) AddonStatus
+func (s Service) AdvanceHandover
+func (s Service) AdvanceStage
+func (s Service) ArchiveAdCampaign
+func (s Service) ArchiveAffiliate
+func (s Service) ArchiveBusinessPromotion
+func (s Service) ArchivePlan
+func (s Service) ArchivePromotion
+func (s Service) ArchiveReferralProgramme
+func (s Service) ArchiveSubscriptionDiscountCode
+func (s Service) ArrangeHandover
+func (s Service) Assist
+func (s Service) Backfill
+func (s Service) BootstrapAdmin
+func (s Service) CancelBooking
+func (s Service) CancelHandover
+func (s Service) ChangeOwnPassword
+func (s Service) ChangeSubscriptionPlan
+func (s Service) CheckHandleAvailability
+func (s Service) ClearUnavailableDay
+func (s Service) CollectAdCampaignPayment
+func (s Service) CollectBalance
+func (s Service) ConfirmPasswordReset
+func (s Service) CreateAdCampaign
+func (s Service) CreateAffiliate
+func (s Service) CreateAffiliatePayout
+func (s Service) CreateBusinessPromotion
+func (s Service) CreateBusinessUser
+func (s Service) CreateCollection
+func (s Service) CreateConfirmedCustomOrder
+func (s Service) CreateDeliveryZone
+func (s Service) CreateDesign
+func (s Service) CreateDesignVariation
+func (s Service) CreateField
+func (s Service) CreatePlan
+func (s Service) CreatePromotion
+func (s Service) CreateReferralCode
+func (s Service) CreateReferralProgramme
+func (s Service) CreateSizeBand
+func (s Service) CreateSubscriptionDiscountCode
+func (s Service) CreateUser
+func (s Service) CreateWalkInOrder
+func (s Service) DecideBusinessVerification
+func (s Service) DefineAvailability
+func (s Service) DeleteCollection
+func (s Service) DeleteDeliveryZone
+func (s Service) DeleteDesign
+func (s Service) DeleteDesignSizeBandOverride
+func (s Service) DeleteDesignVariation
+func (s Service) DeleteField
+func (s Service) DeleteSizeBand
+func (s Service) DisableMFA
+func (s Service) EraseCustomerData
+func (s Service) ExportCustomerData
+func (s Service) GetAdminNotifications
+func (s Service) GetAdminReports
+func (s Service) GetDesign
+func (s Service) GetLaunchReadiness
+func (s Service) GetMFAStatus
+func (s Service) GetMoneyRails
+func (s Service) GetOperationsHealth
+func (s Service) GetPlatformMetrics
+func (s Service) GetPlatformSettings
+func (s Service) GetProfile
+func (s Service) GetProfileSettings
+func (s Service) GetSettings
+func (s Service) GetStoreCollection
+func (s Service) GetStoreDesign
+func (s Service) GetStoreProfile
+func (s Service) GetTracking
+func (s Service) HandleInbound
+func (s Service) HandleProviderEvent
+func (s Service) InitializeCheckout
+func (s Service) InitializeSubscriptionAuthorization
+func (s Service) InitiateCharge
+func (s Service) InitiateMarketplaceCharge
+func (s Service) IssueReferralRewards
+func (s Service) IssueSubscriptionInvoice
+func (s Service) JoinDesignWaitlist
+func (s Service) ListActiveDeliveryZones
+func (s Service) ListAdCampaigns
+func (s Service) ListAffiliateAttribution
+func (s Service) ListAffiliates
+func (s Service) ListAuditEvents
+func (s Service) ListBlackouts
+func (s Service) ListBookings
+func (s Service) ListBusinessPromotions
+func (s Service) ListBusinessUsers
+func (s Service) ListBusinessVerifications
+func (s Service) ListBusinesses
+func (s Service) ListCollections
+func (s Service) ListCustomers
+func (s Service) ListDeliveryZones
+func (s Service) ListDesignPrices
+func (s Service) ListDesignSizeBandOverrides
+func (s Service) ListDesignVariations
+func (s Service) ListDesigns
+func (s Service) ListFields
+func (s Service) ListHandovers
+func (s Service) ListLeads
+func (s Service) ListManualTakings
+func (s Service) ListMessages
+func (s Service) ListOrders
+func (s Service) ListPayments
+func (s Service) ListPlanEntitlements
+func (s Service) ListPlans
+func (s Service) ListPromotions
+func (s Service) ListPublicPlans
+func (s Service) ListPublicShops
+func (s Service) ListReferralProgrammes
+func (s Service) ListRiskReviews
+func (s Service) ListRolePermissions
+func (s Service) ListSizeBands
+func (s Service) ListSponsoredPlacements
+func (s Service) ListStages
+func (s Service) ListStoreAvailability
+func (s Service) ListSubscriptionDiscountCodes
+func (s Service) ListSubscriptions
+func (s Service) ListSupportTickets
+func (s Service) ListUsers
+func (s Service) ListWaitlistEntries
+func (s Service) ListWindows
+func (s Service) LoadStorefront
+func (s Service) LogManualTaking
+func (s Service) Login
+func (s Service) LoginBusiness
+func (s Service) Logout
+func (s Service) MarkDayUnavailable
+func (s Service) MarkSubscriptionInvoiceFailed
+func (s Service) MarkSubscriptionInvoicePaid
+func (s Service) Me
+func (s Service) MoneySummary
+func (s Service) PhoneOTPEnabled
+func (s Service) PlaceCartOrder
+func (s Service) PlaceCustomOrder
+func (s Service) PlaceHomeVisitBooking
+func (s Service) PlaceMarketplaceOrder
+func (s Service) PlaceStandardOrder
+func (s Service) QueueMoneyReplay
+func (s Service) RecordAffiliateClick
+func (s Service) RecordOrderMeasurements
+func (s Service) RecordSponsoredAdEvent
+func (s Service) Refresh
+func (s Service) RefreshSession
+func (s Service) RegisterBusiness
+func (s Service) ReorderDesignVariations
+func (s Service) RequestEmailOTP
+func (s Service) RequestOTP
+func (s Service) RequestPasswordReset
+func (s Service) RequestRegistrationOTP
+func (s Service) RequestSignInOTP
+func (s Service) RescheduleBooking
+func (s Service) ResetBusinessUserPassword
+func (s Service) ResolveOpenSlot
+func (s Service) ResolveReferralCode
+func (s Service) RestoreCollection
+func (s Service) RestoreDesign
+func (s Service) RetireCollection
+func (s Service) RetireDesign
+func (s Service) ReverseMoneyPayment
+func (s Service) RunRenewalSweep
+func (s Service) RunSubscriptionBillingSweep
+func (s Service) RunSubscriptionRecurringSweep
+func (s Service) SMSEnabled
+func (s Service) Search
+func (s Service) SearchStore
+func (s Service) SetAddon
+func (s Service) SetAgreedTotal
+func (s Service) SetDesignPrice
+func (s Service) SetDesignSizeBandOverride
+func (s Service) SetRiskReviewStatus
+func (s Service) SetSettlementReviewHold
+func (s Service) SignBrandingUpload
+func (s Service) SignDesignUpload
+func (s Service) StartMFAEnrollment
+func (s Service) StoreDeliveryZones
+func (s Service) Submit
+func (s Service) SubmitIdentityVerification
+func (s Service) SubscriptionVATPolicy
+func (s Service) TransferBusinessOwner
+func (s Service) UpdateAdCampaign
+func (s Service) UpdateAffiliate
+func (s Service) UpdateAffiliateConversionStatus
+func (s Service) UpdateBusinessPromotion
+func (s Service) UpdateBusinessStatus
+func (s Service) UpdateBusinessUser
+func (s Service) UpdateCollection
+func (s Service) UpdateDeliveryZone
+func (s Service) UpdateDesign
+func (s Service) UpdateDesignVariation
+func (s Service) UpdateField
+func (s Service) UpdateMarketingFlags
+func (s Service) UpdatePlan
+func (s Service) UpdatePlanEntitlements
+func (s Service) UpdatePlatformSettings
+func (s Service) UpdatePreferences
+func (s Service) UpdateProfile
+func (s Service) UpdatePromotion
+func (s Service) UpdateReferralProgramme
+func (s Service) UpdateRolePermissions
+func (s Service) UpdateSettings
+func (s Service) UpdateSizeBand
+func (s Service) UpdateSubscription
+func (s Service) UpdateSubscriptionDiscountCode
+func (s Service) UpdateSupportTicket
+func (s Service) UpdateUser
+func (s Service) UpdateWaitlistStatus
+func (s Service) VerifyBusiness
+func (s Service) VerifyCheckout
+func (s Service) VerifyEmailOTP
+func (s Service) VerifyMFALogin
+func (s Service) VerifyOTP
+func (s Service) VerifySignInOTP
+func (s Service) VerifySubscriptionAuthorization
+func (s Service) WhatsAppEnabled
+func (s Status) CanDelete
+func (s Status) CanRestore
+func (s Status) CanRetire
+func (s Status) IsPublic
+func (s Status) Terminal
+func (s Status) Valid
+func (s staticIDs) NewID
+func (s stubSettings) AIAssistantAddonEnabled
+func (scope TenantScope) IsZero
+func (sender *fakeEmailSender) Send
+func (seq *sequenceIDs) NewID
+func (seq sequenceIDs) NewID
+func (severity AuditSeverity) Valid
+func (status OperationalStatus) Valid
+func (status VerificationStatus) Valid
+func (store *fakeMediaStore) SignUpload
+func (t Type) Flow
+func (u *stubUsage) CustomerIsPro
+func (u *stubUsage) IncrementUsage
+func ApplyBandOverrides
+func ApplyVAT
+func BuildHandle
+func CanCancel
+func Classify
+func Commission
+func DedupKey
+func EnumerateSlots
+func FeatureCatalogue
+func IsKnownFeature
+func IsValidLayoutVariant
+func NewGHSMoney
+func NewHandleToken
+func NewService
+func NextOnAdvance
+func PermissionCatalog
+func ResolveDeposit
+func RoleCatalog
+func RouteCapturesMeasurement
+func RouteTakesDeposit
+func SanitizeFeatures
+func Slugify
+func StageAdvanceReference
+func SubscriptionReminderReference
+func TestAdCampaignValidation
+func TestAdCampaignsRequirePermissionAndAudit
+func TestAddonAvailableWhenConfiguredAndSwitchedOn
+func TestAddonMasterSwitchOffOverrides
+func TestAddonNotSellableWhenAIDisabled
+func TestAdvanceHandoverPicksTheForwardStep
+func TestAffiliateAttributionRequiresGrowthPermission
+func TestAffiliatesRequireGrowthPermissionAndAudit
+func TestApplyBandOverridesInheritsUnsetFields
+func TestApplyBandOverridesResolvesEffectiveLabelAndChart
+func TestApplyVATDisabledIsNoOp
+func TestApplyVATExclusiveAddsOnTop
+func TestApplyVATInclusiveBacksOutVAT
+func TestApplyVATRoundsToNearestPesewaAndReconciles
+func TestArrangeHandoverValidatesMethodAndAddress
+func TestAssistEmptyTextRejected
+func TestAssistGatedWhenAddonInactive
+func TestAssistRunsWhenAddonActive
+func TestBackfillEmbedsEachSource
+func TestBookingOperationsRequireKnownBusinessRole
+func TestBootstrapAdminNormalizesAndHashesUser
+func TestBrowseFlowResolvesShopAndListsDesigns
+func TestBuildHandle
+func TestBusinessPromotionWritesRequireOwnerOrAdmin
+func TestCadenceRenewalMinorAndCadenceMonths
+func TestCanCancel
+func TestCancelBookingPassesThrough
+func TestCancelHandoverGuardsTerminalState
+func TestCatalogueManagementRequiresOwnerOrAdmin
+func TestChangeOwnPasswordVerifiesCurrentAndHashesNew
+func TestChangeSubscriptionPlanDowngradeSchedulesPendingChangeAndDoesNotCharge
+func TestChangeSubscriptionPlanRejectsSamePlan
+func TestChangeSubscriptionPlanRequiresManagerRole
+func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmediately
+func TestChangeSubscriptionPlanUpgradeRequiresActiveBilling
+func TestChannelValid
+func TestCheckHandleAvailability
+func TestClassify
+func TestCoerceStoreCustomizationKeepsGrantedFeatures
+func TestCoerceStoreCustomizationResetsUngrantedFeatures
+func TestCollectAdCampaignPaymentCreatesProviderLinkAndAudit
+func TestCollectBalanceChargesOutstanding
+func TestCollectBalanceRejectsWhenBalanceInFlight
+func TestCollectBalanceRejectsWhenNothingDue
+func TestCommission
+func TestCreateAffiliatePayoutRequiresGrowthPermissionAndAudit
+func TestCreateBusinessUserNormalizesAndHashesInput
+func TestCreateBusinessUserRejectsOwnerRole
+func TestCreateBusinessUserSendsInviteEmailWithoutPassword
+func TestCreateCollectionRejectsEmptyName
+func TestCreateDesignGeneratesHandleAndRecordsInput
+func TestCreateDesignRejectsDepositOverrideBelowFloor
+func TestCreateDesignVariationRejectsEmptyName
+func TestCreateDesignVariationRequiresManageRole
+func TestCreateDesignVariationSurfacesPlanCap
+func TestCreateDesignVariationTrimsNameAndImages
+func TestCreateFieldNormalizesAndAssignsID
+func TestCreateFieldRejectsInvalidInput
+func TestCreateReferralCodeRequiresGrowthPermissionAndAudits
+func TestCreateSizeBandNormalizesChart
+func TestCreateSizeBandRejectsInvalidChart
+func TestCreateUserNormalizesAndHashesInput
+func TestCreateUserRejectsInvalidRoleAndWeakPassword
+func TestCreateUserWritesAuditEvent
+func TestCreateWalkInOrderRecordsScopedInput
+func TestCreateWalkInOrderRejectsMissingDesignOrCustomer
+func TestCustomisationDesignKeepsBespokeDisplayAmount
+func TestCustomisationDesignKeepsDeposit
+func TestDecideBusinessVerificationUpdatesStatusAndWritesAudit
+func TestDedupKey
+func TestDefineAvailabilityRecurrenceValidation
+func TestDefineAvailabilityRejectsOverlap
+func TestDefineAvailabilityRequiresOwnerOrAdmin
+func TestDeleteDesignSizeBandOverride
+func TestDesignRejectsNegativeBespokeDisplayAmount
+func TestDuplicateMessageIsIgnored
+func TestEnumerateSlots
+func TestEnumerateSlotsDaily
+func TestEnumerateSlotsMonthly
+func TestFirstMessageGreetsAndPersistsSession
+func TestGetLaunchReadinessRequiresSettingsAndSummarizesConfig
+func TestGetMoneyRailsRequiresMoneyPermission
+func TestGetOperationsHealthSummarizesAllowedReadModels
+func TestGetPlatformMetricsRequiresReviewPermission
+func TestHandleProviderEventConfirmsVerifiedEvent
+func TestHandleProviderEventRejectsBadSignature
+func TestHandoverOperationsRequireKnownBusinessRole
+func TestInitializeCheckoutReturnsRedirect
+func TestInitializeSubscriptionAuthorizationCapturesValidDiscountAsPending
+func TestInitializeSubscriptionAuthorizationEnforcesPerAccountLimit
+func TestInitializeSubscriptionAuthorizationRejectsDowngradeTarget
+func TestInitializeSubscriptionAuthorizationRejectsFreeWithoutTarget
+func TestInitializeSubscriptionAuthorizationRejectsIneligibleAndExpiredCodes
+func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget
+func TestInitializeSubscriptionAuthorizationValidatesAndPersistsCadence
+func TestInitiateChargeAcceptsCommissionOverride
+func TestInitiateChargeAppliesCappedCommissionToBespokeBalance
+func TestInitiateChargeCapsCommissionPerDesignLine
+func TestInitiateChargeComputesSplitAndRecordsPayment
+func TestInitiateChargeRejectsInvalidCommissionOverride
+func TestInitiateChargeRejectsInvalidInput
+func TestInitiateChargeRejectsUnverifiedBusiness
+func TestInitiateMarketplaceChargeBuildsSplitAcrossShops
+func TestInitiateMarketplaceChargeRejectsSingleShop
+func TestIssueReferralRewardsRequiresGrowthPermissionAndAudits
+func TestKindValid
+func TestListAuditEventsRequiresViewAudit
+func TestListBusinessUsersRequiresOwnerOrAdmin
+func TestListBusinessVerificationsRequiresReviewPermission
+func TestListCustomersRequiresReviewPermission
+func TestListDesignPricesAppliesSizeBandOverride
+func TestListLeadsClampsLimit
+func TestListRiskReviewsRequiresRiskPermission
+func TestListSponsoredPlacementsCapsLimit
+func TestListStoreAvailabilityBlackoutRemovesADay
+func TestListStoreAvailabilityDateWindowOnlyOnItsDate
+func TestListStoreAvailabilityReturnsRecurringOpenSlots
+func TestListSubscriptionsRequiresSubscriptionPermission
+func TestListSupportTicketsRequiresSupportPermission
+func TestListUsersRequiresOwner
+func TestLogManualTakingRecordsOffPlatformSale
+func TestLogManualTakingRejectsInvalidInput
+func TestLoginBusinessEqualisesTimingForUnknownUser
+func TestLoginBusinessIssuesSessionForValidCredentials
+func TestLoginBusinessLockoutAndClear
+func TestLoginBusinessRecordsFailedAttempt
+func TestLoginBusinessRejectsInvalidPassword
+func TestLoginEqualizesTimingForUnknownAdmin
+func TestLoginIssuesAdminSessionForValidCredentials
+func TestLogoutIsIdempotentForUnknownToken
+func TestLogoutRevokesSession
+func TestMadeToWearDesignDropsBespokeDisplayAmount
+func TestMadeToWearDesignDropsDeposit
+func TestMeRejectsInactiveAdmin
+func TestMeasurementTemplateManagementRequiresOwnerOrAdmin
+func TestMethodValid
+func TestMoneyAddRejectsCurrencyMismatch
+func TestMoneyAddSumsMinorUnits
+func TestMoneyManagementRequiresOwnerOrAdmin
+func TestNewGHSMoneyRejectsNegativeAmounts
+func TestNewHandleToken
+func TestNextOnAdvance
+func TestNormalizeBusinessPromotionInputCleansCodeAndTargets
+func TestNormalizeBusinessPromotionInputRejectsUnsafeShapes
+func TestOrderFlowPlacesOrderAndSendsPaymentLink
+func TestOrderMoneyMutationsRequireOwnerOrAdmin
+func TestOrderOperationsRequireKnownBusinessRole
+func TestOrderRefusedWhenOnlineOrderingOff
+func TestPlaceCartOrderAddsDeliveryFeeToAnchor
+func TestPlaceCartOrderChargesBespokeOnlyDepositCart
+func TestPlaceCartOrderChargesCommissionPerDesignLine
+func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine
+func TestPlaceCartOrderCreatesMixedReadyMadeAndBespokeGroup
+func TestPlaceCartOrderDiscardsGroupWhenChargeFails
+func TestPlaceCartOrderRejectsBespokeLineWithoutMeasurements
+func TestPlaceCartOrderRejectsDeliveryWhenDisabled
+func TestPlaceCustomOrderAppliesPromotionToDeposit
+func TestPlaceCustomOrderComeToShopConfirmsWithoutPayment
+func TestPlaceCustomOrderDepositPrecedenceUsesDesignOverride
+func TestPlaceCustomOrderDiscardsDraftWhenDepositChargeFails
+func TestPlaceCustomOrderHomeVisitRaisesDepositWithoutMeasurements
+func TestPlaceCustomOrderMapsUnknownMeasurementField
+func TestPlaceCustomOrderRejectsInvalidRoutesAndGates
+func TestPlaceCustomOrderRejectsUnverifiedForDepositRoute
+func TestPlaceCustomOrderSelfMeasureRaisesDepositAndStoresMeasurements
+func TestPlaceHomeVisitBookingDiscardsOnChargeFailure
+func TestPlaceHomeVisitBookingDiscardsWhenSlotTaken
+func TestPlaceHomeVisitBookingHoldsSlotAndChargesDeposit
+func TestPlaceHomeVisitBookingPropagatesNoAvailability
+func TestPlaceStandardOrderAppliesPromotionAndKeepsBusinessFundedCommission
+func TestPlaceStandardOrderDiscardsDraftWhenChargeFails
+func TestPlaceStandardOrderIgnoresUnavailableAffiliateAttribution
+func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds
+func TestPlaceStandardOrderRejectsInvalidPaymentMethod
+func TestPlaceStandardOrderRejectsPlatformFundedDiscountAboveCommission
+func TestPlaceStandardOrderRejectsUnavailableBand
+func TestPlaceStandardOrderRejectsUnverifiedStore
+func TestPlaceStandardOrderReservesAffiliateAttribution
+func TestPlaceStandardOrderReservesReferralAttribution
+func TestPlaceStandardOrderVoidsPromotionWhenChargeFails
+func TestPlanPackageValidation
+func TestPlanPackagesRequirePermissionAndAudit
+func TestProfileSettingsLoadsActiveAdminAndPreferences
+func TestPromotionValidation
+func TestPromotionsRequirePermissionAndAudit
+func TestQueueMoneyReplayRequiresMoneyPermissionAndAudits
+func TestRecordAffiliateClickNormalizesAndHashesInput
+func TestRecordAffiliateClickRequiresIdentifierAndKnownAffiliate
+func TestRecordOrderMeasurementsNormalizesValuesAndAssignsID
+func TestRecordOrderMeasurementsRejectsInvalidInput
+func TestRecordSponsoredAdEventNormalizesVisitorAndMapsMissingCampaign
+func TestRecordSponsoredAdEventRequiresValidTypeAndIdentifier
+func TestReferralProgrammesRequireGrowthPermissionAndAudit
+func TestRefreshRotatesAdminSession
+func TestRefreshSessionRejectsExpiredToken
+func TestRefreshSessionRejectsInactiveUser
+func TestRefreshSessionRejectsRevokedToken
+func TestRefreshSessionRotatesValidToken
+func TestRegisterBusinessCreatesOwnerSession
+func TestRegisterBusinessPropagatesHandleConflict
+func TestRegisterBusinessRejectsBadWhatsAppCode
+func TestRegisterBusinessRejectsOverlongPassword
+func TestRegisterBusinessRejectsReservedHandle
+func TestRegisterBusinessRejectsWeakPassword
+func TestRegisterBusinessStoresVerifiedWhatsApp
+func TestRequestEmailOTPCreatesEmailChallengeAndEmailsCode
+func TestRequestEmailOTPRejectsInvalidEmail
+func TestRequestOTPCreatesWhatsAppChallengeAndDelivers
+func TestRequestSignInOTPOpaqueForUnknownOwner
+func TestRequestSignInOTPSendsCodeToKnownOwner
+func TestRescheduleBookingValidatesSlotBeforeMoving
+func TestResetBusinessUserPasswordRequiresOwnerOrAdminAndHashesPassword
+func TestResolveDeposit
+func TestResolveOpenSlot
+func TestReverseMoneyPaymentRequiresMoneyPermissionAndAudits
+func TestRunRenewalSweepChargesDue
+func TestRunRenewalSweepDeactivatesOnFailure
+func TestRunRenewalSweepDefersOnTransportError
+func TestRunSubscriptionBillingSweepRequiresPermissionAndAudits
+func TestRunSubscriptionRecurringSweepBillsCadenceRenewalFigure
+func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits
+func TestRunSubscriptionRecurringSweepEnqueuesRepayReminderOnCardFailure
+func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce
+func TestRunSubscriptionRecurringSweepMarksProviderFailure
+func TestRunSubscriptionRecurringSweepMoMoIsReminderDrivenNotCharged
+func TestSearchAppliesParsedPriceCap
+func TestSearchEnforcesAnonymousQuota
+func TestSearchProCustomerIsUnlimited
+func TestSearchRanksLexicallyRelevantDesignsFirst
+func TestSearchRejectsEmptyQuery
+func TestSetAddonRejectsUnknownKey
+func TestSetAddonUpsertsKnownKey
+func TestSetAgreedTotalRejectsNonPositive
+func TestSetDesignPriceAllowedForMadeToWear
+func TestSetDesignPriceRejectedForCustomisationDesign
+func TestSetDesignSizeBandOverrideNormalizesAndRecords
+func TestSetDesignSizeBandOverrideRejectsEmpty
+func TestSetDesignSizeBandOverrideRequiresOwnerOrAdmin
+func TestSetRiskReviewStatusRequiresRiskPermissionAndAudits
+func TestSetSettlementReviewHoldRequiresMoneyPermissionAndAudits
+func TestSignDesignUploadRequiresOwnerOrAdmin
+func TestSizeModeHelpers
+func TestSlugify
+func TestStageAdvanceReferenceDedupesPerStage
+func TestStatusLifecycle
+func TestStatusValid
+func TestStatusValidAndTerminal
+func TestStopOptsOutAndClearsSession
+func TestSubmitAcceptsOptionalEmptyEmailAndCity
+func TestSubmitEmailFailureDoesNotFailRequest
+func TestSubmitIdentityVerificationRequiresManagerRole
+func TestSubmitSkipsEmailWhenRecipientMissing
+func TestSubmitSkipsEmailWhenSenderNil
+func TestSubmitStoresLeadAndEmailsTeam
+func TestSubmitValidationRejectsMissingRequiredFields
+func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits
+func TestSubscriptionInvoicesRequirePermissionAndAudit
+func TestTrackOrderByCode
+func TestTrackUnknownOrder
+func TestTransferBusinessOwnerRequiresCurrentOwnerAndConfirmation
+func TestTypeFlow
+func TestUnknownShopAsksAgain
+func TestUpdateAffiliateConversionStatusRequiresGrowthPermissionAndAudit
+func TestUpdateAndDeleteSizeBand
+func TestUpdateBusinessStatusSuspendsAndAudits
+func TestUpdateBusinessUserPassesManageableRoleAndActiveState
+func TestUpdateCollectionRequiresManageRole
+func TestUpdateCollectionTrimsAndRejectsEmpty
+func TestUpdateDesignRoundTripsBespokeDisplayAmount
+func TestUpdateFieldNormalizesPartialPatch
+func TestUpdateFieldRejectsEmptyOrInvalidPatch
+func TestUpdateMarketingFlagsPartialUpdateAndPermission
+func TestUpdatePlatformSettingsRequiresManageSettings
+func TestUpdatePreferencesNormalizesAndValidatesInput
+func TestUpdateProfileNormalizesSelfProfile
+func TestUpdateRolePermissionsProtectsOwnerRecoveryGrants
+func TestUpdateRolePermissionsRequiresManageRolesAndNormalizes
+func TestUpdateSubscriptionRequiresPermissionAndAudits
+func TestUpdateSupportTicketRequiresSupportPermissionAndAudits
+func TestUpdateUserProtectsOwnerFromSelfDemotion
+func TestValidateDepositConfig
+func TestVariationCapForPlanMatchesPricingBook
+func TestVariationCreateAllowedCountsImplicitDefault
+func TestVerifyBusinessIsIdempotentWhenAlreadyVerified
+func TestVerifyBusinessProvisionsSubaccount
+func TestVerifyCheckoutActivatesMobileMoneyWithoutAuthorization
+func TestVerifyCheckoutActivatesOnSuccess
+func TestVerifyCheckoutRejectsUnpaidCheckout
+func TestVerifyEmailOTPExpiredWhenNoActiveChallenge
+func TestVerifyEmailOTPRejectsWrongCodeAndIncrements
+func TestVerifyEmailOTPUpsertsCustomerByEmailAndIssuesToken
+func TestVerifyOTPPhonePathStillWorks
+func TestVerifySignInOTPExpiredOrMissing
+func TestVerifySignInOTPIssuesSession
+func TestVerifySignInOTPRejectsWrongCode
+func TestVerifySignInOTPTooManyAttempts
+func TestVerifySubscriptionAuthorizationAppliesFreePeriodDiscount
+func TestVerifySubscriptionAuthorizationAppliesFullDiscountAsFreeWindow
+func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal
+func TestVerifySubscriptionAuthorizationChargesFirstPeriod
+func TestVerifySubscriptionAuthorizationConsumedAccountChargesRenewal
+func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid
+func TestVerifySubscriptionAuthorizationFirstPurchaseChargesQuarterlyIntro
+func TestVerifySubscriptionAuthorizationLeavesUnactivatedWhenCheckoutNotPaid
+func TestVerifySubscriptionAuthorizationMobileMoneyActivatesRecurringWithoutAuth
+func TestVerifySubscriptionAuthorizationRejectsNonBillableCadence
+func ValidAddon
+func ValidSizeChartUnit
+func ValidateDepositConfig
+func VariationCapForPlan
+func VariationCreateAllowed
+type AccessTokenInput
+type ActivateFreePeriodInput
+type ActivateRecurringBillingInput
+type AdCampaignPaymentResult
+type AddonChargeDue
+type AddonStatus
+type AddonStatusView
+type AdminAccessTokenInput
+type AdminAdCampaignPaymentIntentRecord
+type AdminAdCampaignPaymentRecord
+type AdminAdCampaignRecord
+type AdminAffiliateAttributionRecord
+type AdminAffiliateConversionRecord
+type AdminAffiliatePayoutRecord
+type AdminAffiliateRecord
+type AdminAuditEventRecord
+type AdminAuditRepository
+type AdminBusinessRecord
+type AdminBusinessRepository
+type AdminBusinessVerificationDecisionInput
+type AdminCustomerErasureRecord
+type AdminCustomerExportBusiness
+type AdminCustomerExportMeasurement
+type AdminCustomerExportOrder
+type AdminCustomerExportRecord
+type AdminCustomerRecord
+type AdminLaunchReadinessConfig
+type AdminMoneyPayoutReviewRecord
+type AdminMoneyRailsRecord
+type AdminMoneyReplayRequestRecord
+type AdminMoneyReversalRecord
+type AdminMoneyWebhookEventRecord
+type AdminNotificationRecord
+type AdminNotificationsResult
+type AdminPlanEntitlementFeatureRecord
+type AdminPlanEntitlementValueInput
+type AdminPlanEntitlementValueRecord
+type AdminPlanRecord
+type AdminPlatformMetricsRecord
+type AdminPlatformSettingsRecord
+type AdminPreferencesRecord
+type AdminPromotionRecord
+type AdminPromotionRedemptionRecord
+type AdminReferralCodeRecord
+type AdminReferralProgrammeRecord
+type AdminReferralRewardIssueRecord
+type AdminReportRecord
+type AdminReportsResult
+type AdminRiskReviewRecord
+type AdminRolePermissionsRecord
+type AdminSessionRepository
+type AdminSessionWithUser
+type AdminSubscriptionBillingSweepRecord
+type AdminSubscriptionDiscountCodeRecord
+type AdminSubscriptionDiscountRedemptionRecord
+type AdminSubscriptionEventRecord
+type AdminSubscriptionInvoiceRecord
+type AdminSubscriptionRecord
+type AdminSubscriptionRecurringSweepRecord
+type AdminSupportTicketRecord
+type AdminTokenIssuer
+type AdminTokenVerifier
+type AdminUserCredentials
+type AdminUserRecord
+type AdminUserRepository
+type AdminVerificationCaseRecord
+type AdvanceHandoverCommand
+type AdvanceStageCommand
+type AffiliateAttributionReservation
+type AffiliateClickRecord
+type AffiliateClickRepository
+type AiAssistant
+type ApplyImmediatePlanUpgradeInput
+type ArchiveAdCampaignCommand
+type ArchiveAdminAdCampaignInput
+type ArchiveAdminAffiliateInput
+type ArchiveAdminPlanInput
+type ArchiveAdminPromotionInput
+type ArchiveAdminReferralProgrammeInput
+type ArchiveAdminSubscriptionDiscountCodeInput
+type ArchiveAffiliateCommand
+type ArchivePlanCommand
+type ArchivePromotionCommand
+type ArchiveReferralProgrammeCommand
+type ArchiveSubscriptionDiscountCodeCommand
+type ArrangeHandoverCommand
+type ArrangeHandoverInput
+type AssistInput
+type AuditSeverity
+type AuthResult
+type AuthSessionRepository
+type AuthSessionWithUser
+type Availability
+type AvailabilityRepository
+type AvailabilityWindow
+type BandPrice
+type BookingRepository
+type BookingSummary
+type BootstrapAdminCommand
+type BotCatalogue
+type BotDesign
+type BotOrder
+type BotOrderDraft
+type BotOrderRequest
+type BotShop
+type BotSizeBand
+type Business
+type BusinessAddonRepository
+type BusinessChargeContext
+type BusinessChargeRepository
+type BusinessIdentityRepository
+type BusinessMeasurementField
+type BusinessOTPChallengeRecord
+type BusinessOwnerIdentity
+type BusinessPromotionActionCommand
+type BusinessPromotionCommand
+type BusinessPromotionInput
+type BusinessPromotionRecord
+type BusinessRepository
+type BusinessSubscriptionRecord
+type BusinessUserCredentials
+type BusinessUserRecord
+type BusinessVerificationDecision
+type BusinessWhatsAppAuthRepository
+type CancelBookingCommand
+type CancelHandoverCommand
+type CartLineCommand
+type CartLineKind
+type CatalogueRepository
+type ChangeOwnPasswordCommand
+type ChangeSubscriptionPlanCommand
+type ChangeSubscriptionPlanResult
+type Channel
+type ChargeAuthorizationInput
+type ChargeAuthorizationResult
+type ChargeResult
+type CheckoutLink
+type CheckoutResult
+type Clock
+type CollectAdCampaignPaymentCommand
+type CollectBalanceCommand
+type CollectBalanceResult
+type Collection
+type CollectionInput
+type CollectionStatusCommand
+type CollectionUpdateInput
+type Colour
+type ConfirmPaymentInput
+type ConfirmPaymentResult
+type CreateAdCampaignCommand
+type CreateAdminAdCampaignInput
+type CreateAdminAdCampaignPaymentInput
+type CreateAdminAffiliateInput
+type CreateAdminAffiliatePayoutInput
+type CreateAdminAuditEventInput
+type CreateAdminPlanInput
+type CreateAdminPromotionInput
+type CreateAdminReferralCodeInput
+type CreateAdminReferralProgrammeInput
+type CreateAdminSessionInput
+type CreateAdminSubscriptionDiscountCodeInput
+type CreateAdminUserInput
+type CreateAffiliateCommand
+type CreateAffiliatePayoutCommand
+type CreateAuthSessionInput
+type CreateBusinessSubaccountInput
+type CreateBusinessSubaccountResult
+type CreateBusinessUserCommand
+type CreateBusinessUserInput
+type CreateBusinessWithOwnerInput
+type CreateCollectionCommand
+type CreateConfirmedCustomOrderCommand
+type CreateCustomOrderConfirmedInput
+type CreateCustomOrderInput
+type CreateDeliveryZoneInput
+type CreateDesignVariationCommand
+type CreateDiscountRedemptionInput
+type CreateFieldCommand
+type CreateMeasurementFieldInput
+type CreateOTPChallengeInput
+type CreateOnlineOrderInput
+type CreatePasswordResetChallengeInput
+type CreatePaymentInput
+type CreatePlanCommand
+type CreatePromotionCommand
+type CreateReferralCodeCommand
+type CreateReferralProgrammeCommand
+type CreateSignInOTPChallengeInput
+type CreateSizeBandCommand
+type CreateSubscriptionDiscountCodeCommand
+type CreateUserCommand
+type CreateWaitlistLeadInput
+type CreateWalkInOrderCommand
+type CreateWalkInOrderInput
+type Customer
+type CustomerAccessTokenInput
+type CustomerAuthRepository
+type CustomerAuthResult
+type CustomerEmailOTPDelivery
+type CustomerOTPChannel
+type CustomerOTPDelivery
+type CustomerOrderSummary
+type CustomerProfile
+type CustomerTokenIssuer
+type CustomerTokenVerifier
+type DecideBusinessVerificationCommand
+type DefineAvailabilityCommand
+type DeleteDesignSizeBandOverrideCommand
+type DeleteDesignVariationCommand
+type DeleteFieldCommand
+type DeleteSizeBandCommand
+type DeliveryRepository
+type DeliveryZone
+type DeliveryZoneRepository
+type Dependencies
+type Design
+type DesignCommand
+type DesignEmbeddingSource
+type DesignInput
+type DesignSizeBandOverride
+type DesignSizeBandOverrideInput
+type DesignStatusCommand
+type DesignVariation
+type DesignVariationInput
+type DesignVariationUpdateInput
+type DesignWaitlistEntry
+type DesignWaitlistEntryInput
+type DesignWaitlistRepository
+type EmailMessage
+type EmailSender
+type Embedder
+type EmbeddingCandidate
+type EmbeddingRepository
+type EnableMFAInput
+type EnqueueSubscriptionRenewalReminderInput
+type Entitlements
+type EraseCustomerDataCommand
+type ExportCustomerDataCommand
+type Feature
+type Flow
+type GetAdminNotificationsCommand
+type GetAdminReportsCommand
+type GetLaunchReadinessCommand
+type GetMoneyRailsCommand
+type GetOperationsHealthCommand
+type GetPlatformMetricsCommand
+type HandleAvailability
+type HandoverState
+type HandoverSummary
+type HandoverTracking
+type HoldSlotInput
+type ID
+type IDGenerator
+type InboundMessage
+type InitializeAuthorizationInput
+type InitializeAuthorizationResult
+type InitializeSubscriptionAuthorizationCommand
+type InitializeTransactionInput
+type InitializeTransactionResult
+type InitiateChargeCommand
+type InitiateMarketplaceChargeCommand
+type IssueAdminReferralRewardsInput
+type IssueAdminSubscriptionInvoiceInput
+type IssueReferralRewardsCommand
+type IssueSubscriptionInvoiceCommand
+type Job
+type JobQueue
+type JoinDesignWaitlistCommand
+type Kind
+type LaunchReadinessCheck
+type LaunchReadinessResult
+type ListActiveSponsoredPlacementsInput
+type ListAdCampaignsCommand
+type ListAdminAuditEventsInput
+type ListAffiliateAttributionCommand
+type ListAffiliatesCommand
+type ListAuditEventsCommand
+type ListBusinessUsersCommand
+type ListBusinessVerificationsCommand
+type ListBusinessesCommand
+type ListCustomersCommand
+type ListPlanEntitlementsCommand
+type ListPlansCommand
+type ListPromotionsCommand
+type ListReferralProgrammesCommand
+type ListRiskReviewsCommand
+type ListSponsoredPlacementsCommand
+type ListSubscriptionDiscountCodesCommand
+type ListSubscriptionsCommand
+type ListSupportTicketsCommand
+type ListUsersCommand
+type LogManualTakingCommand
+type LogManualTakingResult
+type LoginBusinessCommand
+type LoginCommand
+type LogoutCommand
+type MFAChallengeInput
+type MFAChallengeIssuer
+type MFAChallengeVerifier
+type MFAEnrollment
+type MFAEnrollmentSetup
+type MFARepository
+type MFASecrets
+type MFAStatus
+type ManualTakingInput
+type ManualTakingRecord
+type MarkAdminSubscriptionInvoiceFailedInput
+type MarkAdminSubscriptionInvoicePaidInput
+type MarkDayCommand
+type MarkDiscountRedemptionAppliedInput
+type MarkSubscriptionInvoiceFailedCommand
+type MarkSubscriptionInvoicePaidCommand
+type MarketingFlags
+type MarketingWaitlistRepository
+type MarketplaceChargeInput
+type MarketplaceChargeMember
+type MarketplaceStoreCharge
+type MarketplaceStoreLines
+type MeasurementField
+type MeasurementRepository
+type MediaStore
+type MessageSummary
+type Method
+type Money
+type MoneySummary
+type NotificationRepository
+type OTPChallengeRecord
+type OTPGenerator
+type OperationalStatus
+type OperationsHealthResult
+type OperationsHealthSignal
+type Order
+type OrderBilling
+type OrderMeasurement
+type OrderRepository
+type OrderSummary
+type ParsedQuery
+type PasswordHasher
+type PasswordResetChallenge
+type PasswordResetRepository
+type PasswordResetTarget
+type Payment
+type PaymentAuthorizer
+type PaymentMethod
+type PaymentProvider
+type PaymentPurpose
+type PaymentRecord
+type PaymentRepository
+type PaymentStatus
+type Payments
+type PendingDiscountRedemption
+type Permission
+type PlaceCartOrderCommand
+type PlaceCartOrderResult
+type PlaceCustomOrderCommand
+type PlaceCustomOrderResult
+type PlaceHomeVisitBookingCommand
+type PlaceHomeVisitBookingResult
+type PlaceMarketplaceOrderCommand
+type PlaceMarketplaceOrderResult
+type PlaceStandardOrderCommand
+type PlaceStandardOrderResult
+type PlanChangeApplier
+type PlanPricingRecord
+type PlatformSettings
+type ProfileSettingsResult
+type PromotionRedemption
+type PromotionRepository
+type ProviderChargeEvent
+type PublicPlanRecord
+type PublicShop
+type PublicShopDesign
+type PushMessage
+type PushSender
+type QueryParser
+type QueueAdminMoneyReplayInput
+type QueueMoneyReplayCommand
+type Quota
+type RecordAddonRenewalInput
+type RecordAffiliateClickCommand
+type RecordAffiliateClickInput
+type RecordOrderMeasurementsCommand
+type RecordOrderMeasurementsInput
+type RecordSponsoredAdEventCommand
+type RecordSponsoredAdEventInput
+type RecordSubscriptionActivationPaymentInput
+type ReferralAttributionReservation
+type ReferralCodeRecord
+type ReferralRepository
+type RefreshCommand
+type RefreshSessionCommand
+type RefreshTokenIssuer
+type RegisterBusinessCommand
+type RenewalSweepResult
+type ReorderDesignVariationsCommand
+type Requester
+type RescheduleBookingCommand
+type RescheduleBookingInput
+type ReserveAffiliateAttributionInput
+type ReservePromotionInput
+type ReserveReferralAttributionInput
+type ResetBusinessUserPasswordCommand
+type ResolveReferralCodeCommand
+type ResolveReferralCodeInput
+type ReverseAdminMoneyPaymentInput
+type ReverseMoneyPaymentCommand
+type Role
+type RunAdminSubscriptionBillingSweepInput
+type RunSubscriptionBillingSweepCommand
+type RunSubscriptionRecurringSweepCommand
+type SMSSender
+type SchedulePlanDowngradeInput
+type SearchResponse
+type SearchResult
+type SearchUsageRepository
+type Service
+type SetAdminRiskReviewStatusInput
+type SetAdminSettlementReviewHoldInput
+type SetAgreedTotalCommand
+type SetBusinessAddonInput
+type SetDesignPriceCommand
+type SetDesignSizeBandOverrideCommand
+type SetHandoverStatusInput
+type SetRiskReviewStatusCommand
+type SetSettlementReviewHoldCommand
+type SignBrandingUploadCommand
+type SignDesignUploadCommand
+type SignedUpload
+type SizeBand
+type SizeBandInput
+type SizeBandUpdateInput
+type SizeChartItem
+type SizeMode
+type Slot
+type SponsoredAdEventRecord
+type SponsoredPlacementRecord
+type SponsoredPlacementRepository
+type Stage
+type StageTemplate
+type Status
+type StoreProfile
+type StoreSettings
+type StoreSettingsRepository
+type Storefront
+type StorefrontCollection
+type StorefrontDesign
+type StorefrontRepository
+type StorefrontView
+type SubaccountSplit
+type SubmitCommand
+type SubmitIdentityDocumentInput
+type SubmitIdentityVerificationCommand
+type SubscriptionActivationCharge
+type SubscriptionAuthorizationLink
+type SubscriptionAuthorizationLinkResult
+type SubscriptionAuthorizationResult
+type SubscriptionDiscountCode
+type SubscriptionDiscountRepository
+type SubscriptionRenewalReminderResult
+type TenantScope
+type TokenIssuer
+type TokenVerifier
+type Tracking
+type TransactionManager
+type TransferBusinessOwnerCommand
+type TransferBusinessOwnerInput
+type TransferBusinessOwnerResult
+type Type
+type UpdateAdCampaignCommand
+type UpdateAdminAdCampaignInput
+type UpdateAdminAffiliateConversionStatusInput
+type UpdateAdminAffiliateInput
+type UpdateAdminBusinessStatusInput
+type UpdateAdminMarketingFlagsInput
+type UpdateAdminPlanEntitlementsInput
+type UpdateAdminPlanInput
+type UpdateAdminPlatformSettingsInput
+type UpdateAdminPreferencesInput
+type UpdateAdminProfileInput
+type UpdateAdminPromotionInput
+type UpdateAdminReferralProgrammeInput
+type UpdateAdminRolePermissionsInput
+type UpdateAdminSubscriptionDiscountCodeInput
+type UpdateAdminSubscriptionInput
+type UpdateAdminSupportTicketInput
+type UpdateAdminUserInput
+type UpdateAffiliateCommand
+type UpdateAffiliateConversionStatusCommand
+type UpdateBusinessStatusCommand
+type UpdateBusinessUserCommand
+type UpdateBusinessUserInput
+type UpdateBusinessUserPasswordInput
+type UpdateCollectionCommand
+type UpdateDeliveryZoneInput
+type UpdateDesignVariationCommand
+type UpdateFieldCommand
+type UpdateMarketingFlagsCommand
+type UpdateMeasurementFieldInput
+type UpdatePlanCommand
+type UpdatePlanEntitlementsCommand
+type UpdatePlatformSettingsCommand
+type UpdatePreferencesCommand
+type UpdateProfileCommand
+type UpdatePromotionCommand
+type UpdateReferralProgrammeCommand
+type UpdateRolePermissionsCommand
+type UpdateSettingsCommand
+type UpdateSizeBandCommand
+type UpdateSubscriptionCommand
+type UpdateSubscriptionDiscountCodeCommand
+type UpdateSupportTicketCommand
+type UpdateUserCommand
+type UpdateWaitlistStatusCommand
+type UpsertAddonBillingInput
+type UpsertEmbeddingInput
+type UpsertMFAInput
+type User
+type UserRole
+type VATBreakdown
+type VerificationStatus
+type VerifiedAccessToken
+type VerifiedAdminAccessToken
+type VerifiedCustomerToken
+type VerifyAuthorizationInput
+type VerifyAuthorizationResult
+type VerifyBusinessCommand
+type VerifyMFALoginCommand
+type VerifySignInOTPCommand
+type VerifySubscriptionAuthorizationCommand
+type WaitlistLeadRecord
+type WhatsAppDedupeStore
+type WhatsAppSender
+type WhatsAppSession
+type WhatsAppSessionRepository
+type Window
+type WindowInput
+type ZoneCommand
