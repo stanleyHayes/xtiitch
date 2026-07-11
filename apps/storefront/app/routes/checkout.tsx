@@ -28,6 +28,12 @@ import { tokens } from "../theme";
 import { formatGHS } from "../lib/format";
 import { api } from "../lib/api";
 import { cartTotalMinor, clearCart, getCart } from "../lib/cart";
+import { getSession } from "../lib/session";
+import { fetchCustomerProfile } from "../lib/discovery";
+
+// §3b: paying requires a verified customer session. Guests are sent to sign in
+// and returned to checkout with the cart intact.
+const SIGN_IN_REDIRECT = "/account?redirectTo=/checkout";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -41,6 +47,16 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (items.length === 0) {
     return redirect("/cart");
   }
+  // §3b account gate: a verified customer session is required to pay. Guests are
+  // redirected to sign in and returned here; the cart (its own cookie) survives.
+  const session = await getSession(request.headers.get("Cookie"));
+  const token = session.get("customerToken") as string | undefined;
+  if (!token) {
+    return redirect(SIGN_IN_REDIRECT);
+  }
+  // Prefill the contact fields from the signed-in profile so a verified shopper
+  // does not re-type what we already hold.
+  const profile = await fetchCustomerProfile(token);
   // Delivery zones are offered when the cart has at least one ready-made piece.
   // Bespoke self-measure deposit lines can pay in the same transaction, but they
   // do not carry delivery fulfilment until the balance/order details are agreed.
@@ -50,7 +66,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     const page = await api.deliveryZones(storeHandle);
     zones = page?.zones ?? [];
   }
-  return { storeHandle, items, totalMinor: cartTotalMinor(items), zones };
+  return {
+    storeHandle,
+    items,
+    totalMinor: cartTotalMinor(items),
+    zones,
+    profile,
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -58,6 +80,12 @@ export async function action({ request }: Route.ActionArgs) {
   const { storeHandle, items } = await getCart(request);
   if (items.length === 0) {
     return redirect("/cart");
+  }
+  // §3b: enforce the account gate on submit too, so a direct POST without a
+  // verified session cannot place an order past the loader redirect.
+  const session = await getSession(request.headers.get("Cookie"));
+  if (!session.get("customerToken")) {
+    return redirect(SIGN_IN_REDIRECT);
   }
 
   const customerName = String(form.get("customer_name") ?? "").trim();
@@ -169,7 +197,7 @@ export default function Checkout({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { items, totalMinor, zones } = loaderData;
+  const { items, totalMinor, zones, profile } = loaderData;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const canPayNow = items.length > 0;
@@ -334,6 +362,7 @@ export default function Checkout({
               label="Full name"
               required
               fullWidth
+              defaultValue={profile?.display_name ?? ""}
             />
             <TextField
               name="customer_email"
@@ -341,12 +370,14 @@ export default function Checkout({
               type="email"
               required
               fullWidth
+              defaultValue={profile?.email ?? ""}
             />
             <TextField
               name="customer_phone"
               label="Phone"
               helperText="For calls and SMS order updates."
               fullWidth
+              defaultValue={profile?.phone ?? ""}
             />
             <TextField
               name="customer_whatsapp"
@@ -354,6 +385,7 @@ export default function Checkout({
               placeholder="e.g. 024 123 4567"
               helperText="The store owner uses this to chat with you about your order (incl. bespoke pricing)."
               fullWidth
+              defaultValue={profile?.whatsapp_phone ?? ""}
             />
             <Button
               type="submit"

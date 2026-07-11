@@ -44,6 +44,7 @@ import {
 import { formatGHS, priceLabel } from "../lib/format";
 import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import { addToCart } from "../lib/cart";
+import { getSession } from "../lib/session";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
 import { DesignCard, StoreNotice } from "../components/storefront";
@@ -273,6 +274,14 @@ export async function action({ request, params }: Route.ActionArgs) {
   }
 
   if (intent === "custom") {
+    // §3b: taking a bespoke deposit is a payment, so it needs a verified
+    // customer session too. Send guests to sign in and back to this design.
+    const session = await getSession(request.headers.get("Cookie"));
+    if (!session.get("customerToken")) {
+      return redirect(
+        `/account?redirectTo=/d/${encodeURIComponent(params.handle ?? "")}`,
+      );
+    }
     const sizeMode = toCustomSizeMode(String(form.get("size_mode") ?? ""));
     const note = String(form.get("note") ?? "").trim();
     if (!storeHandle || !sizeMode || !customerName || !customerEmail) {
