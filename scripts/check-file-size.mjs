@@ -20,9 +20,7 @@ import path from "node:path";
 // are refactored; this list must never grow.
 const ALLOWLIST = new Set([
   // Go production files
-  "apps/api/internal/adapters/outbound/postgres/admin_auth_repository.go",
   "apps/api/internal/application/adminauth/service.go",
-  "apps/api/internal/adapters/inbound/http/adminauth/handler.go",
   "apps/api/internal/application/auth/service.go",
   "apps/api/internal/application/checkout/service.go",
   "apps/api/internal/adapters/outbound/postgres/business_identity_repository.go",
@@ -37,11 +35,9 @@ const ALLOWLIST = new Set([
   "apps/api/internal/bootstrap/app.go",
   "apps/api/internal/adapters/outbound/postgres/affiliate_repository.go",
   "apps/api/internal/adapters/outbound/postgres/promotion_repository.go",
-
   // Go test files
   "apps/api/internal/application/auth/service_test.go",
   "apps/api/internal/application/checkout/service_test.go",
-  "apps/api/internal/adapters/outbound/postgres/admin_auth_repository_integration_test.go",
   "apps/api/internal/adapters/outbound/postgres/payment_repository_integration_test.go",
   "apps/api/internal/application/catalogue/service_test.go",
 
