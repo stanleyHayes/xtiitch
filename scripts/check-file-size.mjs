@@ -18,49 +18,7 @@ import path from "node:path";
 
 // Known oversized files that are being actively split. Remove entries as they
 // are refactored; this list must never grow.
-const ALLOWLIST = new Set([
-  // Go production files
-  "apps/api/internal/application/adminauth/service.go",
-
-  // TypeScript / TSX files
-  "apps/admin/app/routes/admin.tsx",
-  "apps/dashboard/app/routes/dashboard.tsx",
-  "apps/dashboard/app/routes/register.tsx",
-  "apps/dashboard/app/routes/billing-onboarding.tsx",
-  "apps/dashboard/app/routes/login.tsx",
-  "apps/admin/app/routes/login.tsx",
-  "apps/mobile/app/design/[handle].tsx",
-  "apps/mobile/app/business/order/[id].tsx",
-  "apps/worker/src/senders.ts",
-  "apps/dashboard/app/routes/security.tsx",
-  "apps/mobile/src/ui.tsx",
-  "apps/mobile/app/index.tsx",
-  "apps/storefront/app/routes/checkout.tsx",
-  // Pre-existing oversized files outside the current storefront refactor scope
-  "apps/admin/app/features/growth/AdminAdCampaignDetailForm.tsx",
-  "apps/admin/app/features/growth/AdminAffiliateDetailForm.tsx",
-  "apps/admin/app/features/growth/AdminPromotionDetailForm.tsx",
-  "apps/admin/app/features/growth/AdminReferralProgrammeDetailForm.tsx",
-  "apps/admin/app/features/growth/AdsSection.tsx",
-  "apps/admin/app/features/growth/AffiliatesSection.tsx",
-  "apps/admin/app/features/growth/PromotionsSection.tsx",
-  "apps/admin/app/features/growth/ReferralsSection.tsx",
-  "apps/admin/app/features/money/MoneySection.tsx",
-  "apps/admin/app/features/shell/AdminRail.tsx",
-  "apps/admin/app/features/shell/AdminTopBar.tsx",
-  "apps/admin/app/features/subscriptions/SubscriberCrmPanel.tsx",
-  "apps/admin/app/features/subscriptions/SubscriptionsSection.tsx",
-  "apps/admin/app/features/users/RolePermissionsSection.tsx",
-  "apps/dashboard/app/features/orders/OrderCard.tsx",
-  "apps/dashboard/app/features/orders/OrdersTable.tsx",
-  "apps/dashboard/app/features/overview/useOverviewData.tsx",
-  "apps/dashboard/app/features/shared/types.ts",
-  "apps/dashboard/app/features/shared/utils.ts",
-  "apps/dashboard/app/features/shell/WorkspaceRail.tsx",
-  "apps/dashboard/app/features/shell/WorkspaceTopBar.tsx",
-  "apps/dashboard/app/features/studio/DesignRow.tsx",
-  "apps/dashboard/app/features/studio/ReportsPanel.tsx",
-]);
+const ALLOWLIST = new Set([]);
 
 const BUDGETS = [
   { pattern: /_test\.go$/, lines: 800 },
