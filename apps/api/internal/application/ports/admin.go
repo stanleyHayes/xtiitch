@@ -12,6 +12,12 @@ import (
 type AdminUserRepository interface {
 	EnsureBootstrapUser(ctx context.Context, input CreateAdminUserInput) (AdminUserRecord, error)
 	FindByEmail(ctx context.Context, email string) (AdminUserCredentials, error)
+	// RecordFailedAdminLogin increments the account's failed-attempt counter and, on
+	// reaching maxAttempts, sets a lockout of lockFor and resets the counter.
+	RecordFailedAdminLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error
+	// ClearFailedAdminLogin resets the failed-attempt counter and lockout after a
+	// successful password login.
+	ClearFailedAdminLogin(ctx context.Context, userID common.ID) error
 	FindByID(ctx context.Context, userID common.ID) (AdminUserRecord, error)
 	ListAdminUsers(ctx context.Context) ([]AdminUserRecord, error)
 	CreateAdminUser(ctx context.Context, input CreateAdminUserInput) (AdminUserRecord, error)
@@ -218,12 +224,15 @@ type UpdateAdminMarketingFlagsInput struct {
 }
 
 type AdminUserCredentials struct {
-	UserID       common.ID
-	Email        string
-	DisplayName  string
-	PasswordHash string
-	Role         admindomain.Role
-	IsActive     bool
+	UserID      common.ID
+	Email       string
+	DisplayName string
+	// LoginLockedUntil is non-nil and in the future when the account is temporarily
+	// locked after too many failed password attempts.
+	LoginLockedUntil *time.Time
+	PasswordHash     string
+	Role             admindomain.Role
+	IsActive         bool
 }
 
 type AdminAuditEventRecord struct {

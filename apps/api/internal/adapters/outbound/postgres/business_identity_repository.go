@@ -885,7 +885,8 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 			u.business_user_id,
 			u.password_hash,
 			u.role,
-			u.is_active
+			u.is_active,
+			u.login_locked_until
 		from businesses b
 		join business_users u on u.business_id = b.business_id
 		where lower(b.handle) = lower($1)
@@ -897,6 +898,7 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 		&credentials.PasswordHash,
 		&role,
 		&credentials.IsActive,
+		&credentials.LoginLockedUntil,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessUserCredentials{}, ErrNotFound
@@ -910,6 +912,50 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 	}
 
 	return credentials, nil
+}
+
+// RecordFailedBusinessLogin bumps the failed-attempt counter and locks the account
+// for lockFor once it reaches maxAttempts (then resets the counter), mirroring the
+// MFA verify lockout. Bypass: login is cross-tenant (resolved by handle).
+func (repo BusinessIdentityRepository) RecordFailedBusinessLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update business_users
+		set failed_login_attempts = case when failed_login_attempts + 1 >= $2 then 0 else failed_login_attempts + 1 end,
+			login_locked_until = case when failed_login_attempts + 1 >= $2 then now() + make_interval(secs => $3) else login_locked_until end,
+			updated_at = now()
+		where business_user_id = $1
+	`, userID.String(), maxAttempts, lockFor.Seconds()); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+// ClearFailedBusinessLogin resets the counter + lockout after a successful login.
+func (repo BusinessIdentityRepository) ClearFailedBusinessLogin(ctx context.Context, userID common.ID) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		update business_users
+		set failed_login_attempts = 0, login_locked_until = null, updated_at = now()
+		where business_user_id = $1 and (failed_login_attempts <> 0 or login_locked_until is not null)
+	`, userID.String()); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // FindBusinessUserByHandleAndWhatsApp resolves the owner of a store handle whose

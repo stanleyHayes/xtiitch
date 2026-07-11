@@ -25,6 +25,11 @@ const (
 	accessTokenTTL    = 15 * time.Minute
 	refreshTokenTTL   = 30 * 24 * time.Hour
 
+	// Admin password login lockout: stricter than the business one because an
+	// admin compromise is a platform-wide RLS bypass.
+	adminMaxFailedLoginAttempts = 5
+	adminLoginLockoutDuration   = 15 * time.Minute
+
 	// renewalReminderLeadDays is how many days before next_billing_at the
 	// recurring sweep enqueues the "your plan renews soon — tap to pay" reminder.
 	renewalReminderLeadDays = 3
@@ -1039,9 +1044,16 @@ func (s Service) Login(ctx context.Context, cmd LoginCommand) (AuthResult, error
 		_, _ = s.passwords.Hash(cmd.Password)
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
+	// Refuse a locked account before the password check — admin compromise is a
+	// platform-wide RLS bypass, so throttling brute force per-account matters most.
+	if credentials.LoginLockedUntil != nil && credentials.LoginLockedUntil.After(s.clock.Now()) {
+		return AuthResult{}, authdomain.ErrAccountLocked
+	}
 	if err := s.passwords.Compare(credentials.PasswordHash, cmd.Password); err != nil {
+		_ = s.users.RecordFailedAdminLogin(ctx, credentials.UserID, adminMaxFailedLoginAttempts, adminLoginLockoutDuration)
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
+	_ = s.users.ClearFailedAdminLogin(ctx, credentials.UserID)
 	if err := s.users.RecordLogin(ctx, credentials.UserID); err != nil {
 		return AuthResult{}, err
 	}

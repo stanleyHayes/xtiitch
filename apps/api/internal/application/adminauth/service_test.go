@@ -3426,6 +3426,14 @@ func (repo *fakeAdminUsers) EnsureBootstrapUser(_ context.Context, input ports.C
 	}, nil
 }
 
+func (repo *fakeAdminUsers) RecordFailedAdminLogin(_ context.Context, _ common.ID, _ int, _ time.Duration) error {
+	return nil
+}
+
+func (repo *fakeAdminUsers) ClearFailedAdminLogin(_ context.Context, _ common.ID) error {
+	return nil
+}
+
 func (repo *fakeAdminUsers) FindByEmail(_ context.Context, email string) (ports.AdminUserCredentials, error) {
 	repo.lookupEmail = email
 	if repo.findErr != nil {

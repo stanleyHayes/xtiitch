@@ -65,6 +65,12 @@ type BusinessIdentityRepository interface {
 	SubmitIdentityDocument(ctx context.Context, input SubmitIdentityDocumentInput) error
 	FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (BusinessUserCredentials, error)
 	FindBusinessUserCredentialsByID(ctx context.Context, scope common.TenantScope, userID common.ID) (BusinessUserCredentials, error)
+	// RecordFailedBusinessLogin increments the account's failed-attempt counter and,
+	// on reaching maxAttempts, sets a lockout of lockFor and resets the counter.
+	RecordFailedBusinessLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error
+	// ClearFailedBusinessLogin resets the failed-attempt counter and lockout after a
+	// successful password login.
+	ClearFailedBusinessLogin(ctx context.Context, userID common.ID) error
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserInput) (BusinessUserRecord, error)
@@ -365,11 +371,14 @@ type BusinessOwnerIdentity struct {
 }
 
 type BusinessUserCredentials struct {
-	BusinessID   common.ID
-	UserID       common.ID
-	PasswordHash string
-	Role         business.UserRole
-	IsActive     bool
+	BusinessID common.ID
+	UserID     common.ID
+	// LoginLockedUntil is non-nil and in the future when the account is temporarily
+	// locked after too many failed password attempts.
+	LoginLockedUntil *time.Time
+	PasswordHash     string
+	Role             business.UserRole
+	IsActive         bool
 }
 
 // BusinessWhatsAppAuthRepository backs WhatsApp one-time-code auth for the

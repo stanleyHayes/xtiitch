@@ -119,6 +119,10 @@ func (r *fakeOrderRepo) CreateWalkInOrder(_ context.Context, _ common.TenantScop
 	return nil
 }
 
+func (r *fakeOrderRepo) ResolveOrCreateCustomerByPhone(_ context.Context, _ string, newID common.ID) (common.ID, bool, error) {
+	return newID, true, nil
+}
+
 func (r *fakeOrderRepo) CreateOnlineOrder(_ context.Context, _ common.TenantScope, _ ports.CreateOnlineOrderInput) error {
 	return nil
 }

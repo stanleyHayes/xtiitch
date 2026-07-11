@@ -7,6 +7,10 @@ var (
 	ErrInvalidInput       = errors.New("invalid auth input")
 	ErrForbidden          = errors.New("forbidden")
 
+	// ErrAccountLocked is returned when a password login is refused because the
+	// account is temporarily locked after too many failed attempts.
+	ErrAccountLocked = errors.New("account temporarily locked")
+
 	// ErrResetCodeInvalid covers a wrong, expired, already-used, or
 	// too-many-attempts password-reset code. Deliberately one error so the
 	// response never reveals which of those it was.

@@ -42,6 +42,11 @@ const (
 	// is locked from MFA verification for the duration, to bound brute force.
 	mfaMaxFailedAttempts = 5
 	mfaLockoutDuration   = 15 * time.Minute
+	// Password login lockout: after this many consecutive bad passwords the account
+	// is locked for the duration, throttling brute force per-account (independent of
+	// the per-IP limiter). More lenient than MFA since legitimate typos are common.
+	maxFailedLoginAttempts = 10
+	loginLockoutDuration   = 15 * time.Minute
 	// Self-service password reset: a one-time emailed code, short-lived and
 	// attempt-capped to bound brute force.
 	passwordResetTTL      = 15 * time.Minute
@@ -1163,9 +1168,18 @@ func (s Service) LoginBusiness(ctx context.Context, cmd LoginBusinessCommand) (A
 		_, _ = s.passwords.Hash(cmd.OwnerPassword)
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
+	// Refuse a locked account before checking the password, so a brute-force attack
+	// is throttled per-account regardless of source IP.
+	if credentials.LoginLockedUntil != nil && credentials.LoginLockedUntil.After(s.clock.Now()) {
+		return AuthResult{}, authdomain.ErrAccountLocked
+	}
 	if err := s.passwords.Compare(credentials.PasswordHash, cmd.OwnerPassword); err != nil {
+		// Count the failure and lock the account once the threshold is reached.
+		_ = s.businesses.RecordFailedBusinessLogin(ctx, credentials.UserID, maxFailedLoginAttempts, loginLockoutDuration)
 		return AuthResult{}, authdomain.ErrInvalidCredentials
 	}
+	// Successful password: clear any accumulated failures/lockout.
+	_ = s.businesses.ClearFailedBusinessLogin(ctx, credentials.UserID)
 
 	// If the account has a second factor enabled, do not issue a session yet:
 	// return a short-lived challenge the caller redeems via VerifyMFALogin.

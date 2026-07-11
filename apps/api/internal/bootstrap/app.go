@@ -88,6 +88,14 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		db.Close()
 		return App{}, err
 	}
+	// Tenant isolation depends ENTIRELY on FORCE ROW LEVEL SECURITY, which Postgres
+	// silently bypasses for a superuser or a role with BYPASSRLS. If prod is ever
+	// pointed at the DB owner/superuser, every tenant policy is void. Assert the
+	// connected role cannot bypass RLS in any non-local environment, and fail fast.
+	if err := assertRoleEnforcesRLS(ctx, db, cfg.Environment); err != nil {
+		db.Close()
+		return App{}, err
+	}
 
 	jwtIssuer, err := authadapter.NewJWTIssuer(cfg.JWTSigningKey, cfg.JWTIssuer, cfg.JWTAudience)
 	if err != nil {
@@ -516,8 +524,37 @@ func (a App) Close() {
 // are deliberate conveniences for local/dev (a fake Paystack, an unsigned media
 // store, a default signing key); shipping them to production would mean fake
 // payment confirmations, tamperable uploads, and forgeable sessions.
+// assertRoleEnforcesRLS refuses to start when the connected Postgres role can
+// bypass row-level security (superuser or BYPASSRLS) in a non-local environment.
+// FORCE RLS does not apply to such roles, so this closes the "prod pointed at the
+// DB owner/superuser → all tenant isolation void" failure mode.
+func assertRoleEnforcesRLS(ctx context.Context, db *pgxpool.Pool, environment string) error {
+	switch strings.ToLower(strings.TrimSpace(environment)) {
+	case "local", "development", "dev", "test", "ci", "":
+		return nil
+	}
+	var isSuperuser, bypassRLS bool
+	if err := db.QueryRow(ctx, `
+		select
+			(select rolsuper from pg_roles where rolname = current_user),
+			(select rolbypassrls from pg_roles where rolname = current_user)
+	`).Scan(&isSuperuser, &bypassRLS); err != nil {
+		return fmt.Errorf("could not verify the database role enforces RLS: %w", err)
+	}
+	if isSuperuser || bypassRLS {
+		return fmt.Errorf("refusing to start: the database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) — tenant isolation would be void; connect as a NOBYPASSRLS app role", "current_user", isSuperuser, bypassRLS)
+	}
+	return nil
+}
+
 func validateProductionConfig(cfg config.Config) error {
-	if !strings.EqualFold(strings.TrimSpace(cfg.Environment), "production") {
+	// Apply the guard to ANY non-local environment, not just the exact string
+	// "production": otherwise a typo ("prod"), a "staging" deploy, or an unset
+	// APP_ENV would silently ship the insecure dev defaults (e.g. the public default
+	// JWT signing key → forgeable admin/tenant tokens). Only recognized local/dev/
+	// test values opt out.
+	switch strings.ToLower(strings.TrimSpace(cfg.Environment)) {
+	case "local", "development", "dev", "test", "ci", "":
 		return nil
 	}
 

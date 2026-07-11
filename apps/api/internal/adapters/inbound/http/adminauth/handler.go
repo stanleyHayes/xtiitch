@@ -5190,6 +5190,8 @@ func authError(err error) (int, string) {
 	switch {
 	case errors.Is(err, authdomain.ErrInvalidInput):
 		return http.StatusBadRequest, "invalid_input"
+	case errors.Is(err, authdomain.ErrAccountLocked):
+		return http.StatusTooManyRequests, "account_locked"
 	case errors.Is(err, authdomain.ErrInvalidCredentials):
 		return http.StatusUnauthorized, "invalid_credentials"
 	case errors.Is(err, authdomain.ErrForbidden):

@@ -78,7 +78,8 @@ func (repo AdminAuthRepository) FindByEmail(ctx context.Context, email string) (
 			display_name,
 			password_hash,
 			role,
-			is_active
+			is_active,
+			login_locked_until
 		from admin_users
 		where lower(email) = lower($1)
 		limit 1
@@ -89,6 +90,7 @@ func (repo AdminAuthRepository) FindByEmail(ctx context.Context, email string) (
 		&user.PasswordHash,
 		&role,
 		&user.IsActive,
+		&user.LoginLockedUntil,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.AdminUserCredentials{}, ErrNotFound
@@ -98,6 +100,29 @@ func (repo AdminAuthRepository) FindByEmail(ctx context.Context, email string) (
 	user.Role = admindomain.Role(role)
 
 	return user, nil
+}
+
+// RecordFailedAdminLogin bumps the failed-attempt counter and locks the account for
+// lockFor once it reaches maxAttempts (then resets the counter).
+func (repo AdminAuthRepository) RecordFailedAdminLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error {
+	_, err := repo.pool.Exec(ctx, `
+		update admin_users
+		set failed_login_attempts = case when failed_login_attempts + 1 >= $2 then 0 else failed_login_attempts + 1 end,
+			login_locked_until = case when failed_login_attempts + 1 >= $2 then now() + make_interval(secs => $3) else login_locked_until end,
+			updated_at = now()
+		where admin_user_id = $1::uuid
+	`, userID.String(), maxAttempts, lockFor.Seconds())
+	return err
+}
+
+// ClearFailedAdminLogin resets the counter + lockout after a successful login.
+func (repo AdminAuthRepository) ClearFailedAdminLogin(ctx context.Context, userID common.ID) error {
+	_, err := repo.pool.Exec(ctx, `
+		update admin_users
+		set failed_login_attempts = 0, login_locked_until = null, updated_at = now()
+		where admin_user_id = $1::uuid and (failed_login_attempts <> 0 or login_locked_until is not null)
+	`, userID.String())
+	return err
 }
 
 func (repo AdminAuthRepository) FindByID(ctx context.Context, userID common.ID) (ports.AdminUserRecord, error) {
