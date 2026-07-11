@@ -11,12 +11,6 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-type meResponse struct {
-	BusinessID string `json:"business_id"`
-	UserID     string `json:"user_id"`
-	Role       string `json:"role"`
-}
-
 func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -29,23 +23,6 @@ func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 		UserID:     principal.UserID.String(),
 		Role:       string(principal.Role),
 	})
-}
-
-type businessUserResponse struct {
-	UserID      string `json:"business_user_id"`
-	BusinessID  string `json:"business_id"`
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
-	Phone       string `json:"phone"`
-	Role        string `json:"role"`
-	IsActive    bool   `json:"is_active"`
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-}
-
-type transferBusinessOwnerResponse struct {
-	PreviousOwner businessUserResponse `json:"previous_owner"`
-	NewOwner      businessUserResponse `json:"new_owner"`
 }
 
 func newBusinessUserResponse(user ports.BusinessUserRecord) businessUserResponse {
@@ -86,14 +63,6 @@ func (handler Handler) listBusinessUsers(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string][]businessUserResponse{"users": out})
 }
 
-type createBusinessUserRequest struct {
-	DisplayName string `json:"display_name"`
-	Phone       string `json:"phone"`
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	Role        string `json:"role"`
-}
-
 func (handler Handler) createBusinessUser(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -123,13 +92,6 @@ func (handler Handler) createBusinessUser(w http.ResponseWriter, r *http.Request
 	}
 
 	writeJSON(w, http.StatusCreated, newBusinessUserResponse(user))
-}
-
-type updateBusinessUserRequest struct {
-	DisplayName string `json:"display_name"`
-	Phone       string `json:"phone"`
-	Role        string `json:"role"`
-	IsActive    bool   `json:"is_active"`
 }
 
 func (handler Handler) updateBusinessUser(w http.ResponseWriter, r *http.Request) {
@@ -163,10 +125,6 @@ func (handler Handler) updateBusinessUser(w http.ResponseWriter, r *http.Request
 	writeJSON(w, http.StatusOK, newBusinessUserResponse(user))
 }
 
-type resetBusinessUserPasswordRequest struct {
-	Password string `json:"password"`
-}
-
 func (handler Handler) resetBusinessUserPassword(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -193,11 +151,6 @@ func (handler Handler) resetBusinessUserPassword(w http.ResponseWriter, r *http.
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-type transferBusinessOwnerRequest struct {
-	NewOwnerUserID string `json:"new_owner_user_id"`
-	Confirmation   string `json:"confirmation"`
 }
 
 func (handler Handler) transferBusinessOwner(w http.ResponseWriter, r *http.Request) {
@@ -230,11 +183,6 @@ func (handler Handler) transferBusinessOwner(w http.ResponseWriter, r *http.Requ
 		PreviousOwner: newBusinessUserResponse(result.PreviousOwner),
 		NewOwner:      newBusinessUserResponse(result.NewOwner),
 	})
-}
-
-type identityVerificationRequest struct {
-	CardNumber string `json:"card_number"`
-	IDPhotoURL string `json:"id_photo_url"`
 }
 
 func (handler Handler) submitIdentityVerification(w http.ResponseWriter, r *http.Request) {

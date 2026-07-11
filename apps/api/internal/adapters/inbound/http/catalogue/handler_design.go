@@ -11,8 +11,6 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// --- designs ---
-
 type designBody struct {
 	CollectionID         *string  `json:"collection_id"`
 	Title                string   `json:"title"`
@@ -135,18 +133,6 @@ func (handler Handler) designAction(
 }
 
 // --- size bands & prices ---
-
-type sizeChartItemBody struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-	Unit  string `json:"unit"`
-}
-
-type sizeBandBody struct {
-	Label    string              `json:"label"`
-	Chart    []sizeChartItemBody `json:"chart"`
-	Sequence int                 `json:"sequence"`
-}
 
 func toSizeChartItems(body []sizeChartItemBody) []catalogue.SizeChartItem {
 	if len(body) == 0 {
@@ -293,21 +279,6 @@ func (handler Handler) listPrices(w http.ResponseWriter, r *http.Request) {
 
 // --- per-design size-band overrides ---
 
-// sizeBandOverrideBody is the PUT payload. Both fields are optional pointers so an
-// absent key means "leave the master value in place": a nil label keeps the master
-// label; a nil chart keeps the master chart (a present chart, even [], overrides).
-type sizeBandOverrideBody struct {
-	Label *string              `json:"label"`
-	Chart *[]sizeChartItemBody `json:"chart"`
-}
-
-type sizeBandOverrideResponse struct {
-	SizeBandID string              `json:"size_band_id"`
-	Label      *string             `json:"label"`
-	Chart      []sizeChartItemBody `json:"chart"`
-	ChartSet   bool                `json:"chart_set"`
-}
-
 func (handler Handler) listSizeBandOverrides(w http.ResponseWriter, r *http.Request) {
 	scope, ok := tenantScope(w, r)
 	if !ok {
@@ -376,17 +347,6 @@ func (handler Handler) clearSizeBandOverride(w http.ResponseWriter, r *http.Requ
 }
 
 // --- design colour variations ---
-
-type variationBody struct {
-	Name      string   `json:"name"`
-	Images    []string `json:"images"`
-	IsDefault bool     `json:"is_default"`
-	Sequence  int      `json:"sequence"`
-}
-
-type reorderVariationsBody struct {
-	OrderedIDs []string `json:"ordered_ids"`
-}
 
 func (handler Handler) listVariations(w http.ResponseWriter, r *http.Request) {
 	scope, ok := tenantScope(w, r)

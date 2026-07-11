@@ -7,15 +7,6 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// CustomerOTPChannel names the medium a one-time code is sent over. Customers
-// can sign in by phone (WhatsApp) or by email; the challenge stores which.
-type CustomerOTPChannel string
-
-const (
-	CustomerOTPChannelWhatsApp CustomerOTPChannel = "whatsapp"
-	CustomerOTPChannelEmail    CustomerOTPChannel = "email"
-)
-
 // CustomerAuthRepository persists one-time-code challenges and resolves customer
 // identities. Customers are a global identity (no tenant scope), so this runs
 // under the RLS bypass.
@@ -44,43 +35,6 @@ type CustomerAuthRepository interface {
 	UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (CustomerProfile, error)
 }
 
-type CustomerOrderSummary struct {
-	OrderID          common.ID
-	BusinessName     string
-	BusinessHandle   string
-	DesignTitle      string
-	Status           string
-	AgreedTotalMinor int64
-	CreatedAt        time.Time
-}
-
-type CustomerProfile struct {
-	CustomerID    common.ID
-	DisplayName   string
-	Phone         string
-	Email         string
-	WhatsAppPhone string
-}
-
-type CreateOTPChallengeInput struct {
-	ChallengeID common.ID
-	Channel     CustomerOTPChannel
-	Phone       string
-	Email       string
-	CodeHash    string
-	ExpiresAt   time.Time
-}
-
-type OTPChallengeRecord struct {
-	ChallengeID common.ID
-	Channel     CustomerOTPChannel
-	Phone       string
-	Email       string
-	CodeHash    string
-	Attempts    int
-	ExpiresAt   time.Time
-}
-
 // CustomerTokenIssuer / CustomerTokenVerifier mint and validate customer session
 // tokens. This is a distinct scope from business and admin tokens.
 type CustomerTokenIssuer interface {
@@ -89,18 +43,6 @@ type CustomerTokenIssuer interface {
 
 type CustomerTokenVerifier interface {
 	VerifyCustomerAccessToken(ctx context.Context, token string) (VerifiedCustomerToken, error)
-}
-
-type CustomerAccessTokenInput struct {
-	CustomerID common.ID
-	Phone      string
-	IssuedAt   time.Time
-	ExpiresAt  time.Time
-}
-
-type VerifiedCustomerToken struct {
-	CustomerID common.ID
-	Phone      string
 }
 
 // CustomerOTPDelivery sends a one-time code to a customer's phone (WhatsApp/SMS).
