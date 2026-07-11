@@ -41,6 +41,12 @@ type StoreProfile struct {
 	Handle             string
 	VerificationStatus string
 	PlanCode           string
+	// PayoutReady is true when the store has a provisioned payout subaccount, so
+	// it can actually receive online payments. This is DISTINCT from
+	// VerificationStatus (identity/Ghana-Card verification): a store can be
+	// identity-verified yet still have no subaccount, in which case checkout is
+	// refused. The dashboard prompts the owner to set up payouts on !PayoutReady.
+	PayoutReady bool
 	// Entitlements is the business's resolved benefit set from its plan's features,
 	// so the dashboard knows which storefront customizations to unlock.
 	Entitlements map[string]bool

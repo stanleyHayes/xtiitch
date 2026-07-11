@@ -113,6 +113,11 @@ type Profile = {
   name: string;
   handle: string;
   verification_status: string;
+  // True once the store has set up payouts (a provisioned settlement account), so
+  // it can actually RECEIVE payments. Distinct from verification_status (identity):
+  // a store can be identity-verified yet unable to take orders until payouts are
+  // set up. Drives the "set up payouts" prompt.
+  payout_ready?: boolean;
   plan: string;
   // Resolved plan benefits, e.g. { custom_logo: true }. Drives which storefront
   // customizations the dashboard unlocks; the API enforces the same set.
@@ -16339,6 +16344,15 @@ export default function Dashboard({
       icon: <VerifiedUserRounded fontSize="small" />,
     },
     {
+      label: "Payouts set up",
+      helper: (profile.payout_ready ?? false)
+        ? "Your mobile money is linked — customers can pay and money reaches you."
+        : "Add your mobile money number so customers can check out and pay you.",
+      href: "/dashboard/settings#payouts",
+      done: profile.payout_ready ?? false,
+      icon: <PaymentsRounded fontSize="small" />,
+    },
+    {
       label: "Catalogue live",
       helper:
         activeDesigns > 0
@@ -17834,7 +17848,7 @@ export default function Dashboard({
                 {canManage && section === "settings" ? (
                   <>
                     <PayoutSetupPanel
-                      provisioned={profile.verification_status === "verified"}
+                      provisioned={profile.payout_ready ?? false}
                       error={action.payoutError}
                       success={action.payoutSuccess}
                     />
@@ -17875,7 +17889,7 @@ export default function Dashboard({
 
                 {canManage && section === "overview" ? (
                   <>
-                    {profile.verification_status !== "verified" ? (
+                    {!(profile.payout_ready ?? false) ? (
                       <Alert
                         severity="warning"
                         icon={<PaymentsRounded />}
@@ -17891,8 +17905,9 @@ export default function Dashboard({
                           </Button>
                         }
                       >
-                        Add your mobile money payout details so we can release
-                        your settlements.
+                        <strong>Add your mobile money number to get paid.</strong>{" "}
+                        Until you do, customers can&apos;t check out — payments to
+                        your store won&apos;t start.
                       </Alert>
                     ) : null}
                     <StoreReadinessPanel

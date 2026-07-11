@@ -122,6 +122,7 @@ func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 		"name":                profile.Name,
 		"handle":              profile.Handle,
 		"verification_status": profile.VerificationStatus,
+		"payout_ready":        profile.PayoutReady,
 		"plan":                profile.PlanCode,
 		"entitlements":        entitlements,
 	})
