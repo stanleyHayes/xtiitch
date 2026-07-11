@@ -57,6 +57,43 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 	return tx.Commit(ctx)
 }
 
+// CreateMarketplaceCharge records a combined multi-store split charge and its
+// per-shop members. It is a platform-level (cross-tenant) write — the charge
+// spans several businesses — so it runs under the RLS bypass, like the webhook
+// lookup. The webhook settles each member's checkout group when the single
+// Paystack transaction succeeds (reconcileMarketplaceChargeFromProvider).
+func (repo PaymentRepository) CreateMarketplaceCharge(ctx context.Context, input ports.MarketplaceChargeInput) error {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		insert into marketplace_charges (charge_id, provider_reference, customer_email, total_minor, status)
+		values ($1, $2, $3, $4, 'initiated')
+	`, input.ChargeID.String(), input.ProviderReference, input.CustomerEmail, input.TotalMinor); err != nil {
+		return err
+	}
+	for _, m := range input.Members {
+		if _, err := tx.Exec(ctx, `
+			insert into marketplace_charge_members (
+				member_id, charge_id, business_id, checkout_group_id, anchor_order_id, net_minor, commission_minor
+			)
+			values ($1, $2, $3, $4, $5, $6, $7)
+		`, m.MemberID.String(), input.ChargeID.String(), m.BusinessID.String(), m.CheckoutGroupID.String(),
+			m.AnchorOrderID.String(), m.NetMinor, m.CommissionMinor); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}
+
 // ConfirmFromProvider records the webhook event and advances the matching
 // payment in a single transaction. The event's unique signature makes a
 // re-delivered confirmation a no-op, and a payment only moves out of
@@ -87,6 +124,16 @@ func (repo PaymentRepository) ConfirmFromProvider(ctx context.Context, input por
 		return ports.ConfirmPaymentResult{}, err
 	}
 	if !found {
+		// §4 / P0.4: a combined marketplace charge is not a single-tenant payment
+		// row — it settles across shops. Try it before the other non-order
+		// reconciles; its provider reference is distinct so no overlap.
+		mpFound, err := reconcileMarketplaceChargeFromProvider(ctx, tx, input)
+		if err != nil {
+			return ports.ConfirmPaymentResult{}, err
+		}
+		if mpFound {
+			return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{PaymentFound: false})
+		}
 		invoice, invoiceFound, err := reconcileSubscriptionInvoiceFromProvider(ctx, tx, input)
 		if err != nil {
 			return ports.ConfirmPaymentResult{}, err
@@ -711,6 +758,101 @@ func confirmOrderGroupOnPayment(ctx context.Context, tx pgx.Tx, businessID, anch
 		}
 	}
 	return nil
+}
+
+// reconcileMarketplaceChargeFromProvider settles a combined §4 marketplace split
+// charge (one Paystack transaction across several shops). It runs from the RLS
+// bypass (the tenant is unknown at lookup). The single status transition
+// initiated -> (succeeded|failed) is the settle-once gate; on success it
+// confirms every shop's checkout group under that shop's own tenant scope and
+// records a per-shop money-tracker payment row. On failure the draft orders are
+// left as-is (recoverable), matching the single-store cart failure. Returns
+// found=false when no marketplace charge matches the reference, so the other
+// non-order reconciles can try it.
+func reconcileMarketplaceChargeFromProvider(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymentInput) (bool, error) {
+	var chargeID string
+	err := tx.QueryRow(ctx, `
+		select charge_id::text from marketplace_charges where provider_reference = $1
+	`, input.ProviderReference).Scan(&chargeID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	newStatus := "failed"
+	if input.Succeeded {
+		newStatus = "succeeded"
+	}
+	tag, err := tx.Exec(ctx, `
+		update marketplace_charges set status = $2, updated_at = now()
+		where provider_reference = $1 and status = 'initiated'
+	`, input.ProviderReference, newStatus)
+	if err != nil {
+		return true, err
+	}
+	// Only the event that actually transitions the charge settles it (idempotent);
+	// a failure leaves the shops' drafts recoverable.
+	if tag.RowsAffected() != 1 || !input.Succeeded {
+		return true, nil
+	}
+
+	type member struct {
+		businessID      string
+		anchorOrderID   string
+		netMinor        int64
+		commissionMinor int64
+	}
+	rows, err := tx.Query(ctx, `
+		select business_id::text, anchor_order_id::text, net_minor, commission_minor
+		from marketplace_charge_members where charge_id = $1
+	`, chargeID)
+	if err != nil {
+		return true, err
+	}
+	var members []member
+	for rows.Next() {
+		var m member
+		if err := rows.Scan(&m.businessID, &m.anchorOrderID, &m.netMinor, &m.commissionMinor); err != nil {
+			rows.Close()
+			return true, err
+		}
+		members = append(members, m)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return true, err
+	}
+
+	for _, m := range members {
+		// Narrow from the bypass to this shop for its tenant-scoped order/payment
+		// writes, then restore the bypass after the loop for the caller's commit.
+		if err := clearTenantBypass(ctx, tx); err != nil {
+			return true, err
+		}
+		if err := setTenantScope(ctx, tx, common.TenantScope{BusinessID: common.ID(m.businessID)}); err != nil {
+			return true, err
+		}
+		if err := confirmOrderGroupOnPayment(ctx, tx, m.businessID, m.anchorOrderID); err != nil {
+			return true, err
+		}
+		if _, err := tx.Exec(ctx, `
+			insert into payments (
+				payment_id, business_id, order_id, purpose, amount_minor, currency, method,
+				provider_reference, status, through_platform, commission_minor
+			)
+			values (gen_random_uuid(), $1, $2, 'marketplace_split', $3, 'GHS', 'momo', $4, 'succeeded', true, $5)
+			on conflict (provider_reference) do nothing
+		`, m.businessID, m.anchorOrderID, m.netMinor+m.commissionMinor,
+			input.ProviderReference+"::"+m.businessID, m.commissionMinor); err != nil {
+			return true, err
+		}
+	}
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 // applyPaymentFailure releases a held home-visit slot when its booking deposit

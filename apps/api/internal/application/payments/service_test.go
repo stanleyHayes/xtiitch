@@ -50,6 +50,74 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	}
 }
 
+func TestInitiateMarketplaceChargeBuildsSplitAcrossShops(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{verifySig: true, initResult: ports.InitializeTransactionResult{AuthorizationURL: "https://pay/mp"}}
+	payments := &fakePaymentRepo{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: payments, Businesses: &fakeChargeRepo{},
+		IDs: &sequenceIDs{ids: []common.ID{"m1", "m2", "ref", "charge"}},
+	})
+
+	result, err := service.InitiateMarketplaceCharge(context.Background(), InitiateMarketplaceChargeCommand{
+		CustomerEmail: "buyer@example.com",
+		Method:        money.PaymentMethodMomo,
+		Stores: []MarketplaceStoreCharge{
+			{BusinessID: "b1", SubaccountRef: "sub_1", CheckoutGroupID: "g1", AnchorOrderID: "o1", NetMinor: 9700, CommissionMinor: 300},
+			{BusinessID: "b2", SubaccountRef: "sub_2", CheckoutGroupID: "g2", AnchorOrderID: "o2", NetMinor: 4850, CommissionMinor: 150},
+		},
+	})
+	if err != nil {
+		t.Fatalf("initiate marketplace charge: %v", err)
+	}
+	if result.AuthorizationURL != "https://pay/mp" {
+		t.Fatalf("expected auth url passthrough, got %q", result.AuthorizationURL)
+	}
+	// Total = each shop's (net + commission), summed: 10000 + 5000.
+	if provider.initInput.AmountMinor != 15000 {
+		t.Fatalf("expected charge total 15000, got %d", provider.initInput.AmountMinor)
+	}
+	// The single-subaccount fields must be unused; the split carries each shop's net.
+	if provider.initInput.SubaccountRef != "" {
+		t.Fatalf("marketplace split must not set a single subaccount, got %q", provider.initInput.SubaccountRef)
+	}
+	if len(provider.initInput.Splits) != 2 ||
+		provider.initInput.Splits[0].SubaccountRef != "sub_1" || provider.initInput.Splits[0].ShareMinor != 9700 ||
+		provider.initInput.Splits[1].SubaccountRef != "sub_2" || provider.initInput.Splits[1].ShareMinor != 4850 {
+		t.Fatalf("unexpected splits: %+v", provider.initInput.Splits)
+	}
+	if len(payments.marketplace) != 1 {
+		t.Fatalf("expected one marketplace charge recorded, got %d", len(payments.marketplace))
+	}
+	charge := payments.marketplace[0]
+	if charge.TotalMinor != 15000 || charge.ProviderReference != "xt_ref" || len(charge.Members) != 2 {
+		t.Fatalf("unexpected marketplace charge: %+v", charge)
+	}
+	if charge.Members[0].BusinessID != "b1" || charge.Members[0].NetMinor != 9700 || charge.Members[0].CommissionMinor != 300 {
+		t.Fatalf("unexpected member 0: %+v", charge.Members[0])
+	}
+}
+
+func TestInitiateMarketplaceChargeRejectsSingleShop(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{verifySig: true}, Payments: &fakePaymentRepo{}, Businesses: &fakeChargeRepo{},
+		IDs: &sequenceIDs{ids: []common.ID{"a", "b", "c", "d"}},
+	})
+	_, err := service.InitiateMarketplaceCharge(context.Background(), InitiateMarketplaceChargeCommand{
+		CustomerEmail: "buyer@example.com",
+		Method:        money.PaymentMethodMomo,
+		Stores: []MarketplaceStoreCharge{
+			{BusinessID: "b1", SubaccountRef: "sub_1", NetMinor: 1000, CommissionMinor: 0},
+		},
+	})
+	if !errors.Is(err, ErrInvalidCharge) {
+		t.Fatalf("expected a single-shop marketplace charge to be rejected, got %v", err)
+	}
+}
+
 func TestInitiateChargeCapsCommissionPerDesignLine(t *testing.T) {
 	t.Parallel()
 
@@ -429,6 +497,7 @@ func (p *fakeProvider) ParseChargeEvent(_ []byte) (ports.ProviderChargeEvent, er
 
 type fakePaymentRepo struct {
 	created       []ports.CreatePaymentInput
+	marketplace   []ports.MarketplaceChargeInput
 	confirmCalled bool
 	confirmInput  ports.ConfirmPaymentInput
 	confirmResult ports.ConfirmPaymentResult
@@ -438,6 +507,11 @@ type fakePaymentRepo struct {
 
 func (r *fakePaymentRepo) Create(_ context.Context, input ports.CreatePaymentInput) error {
 	r.created = append(r.created, input)
+	return nil
+}
+
+func (r *fakePaymentRepo) CreateMarketplaceCharge(_ context.Context, input ports.MarketplaceChargeInput) error {
+	r.marketplace = append(r.marketplace, input)
 	return nil
 }
 

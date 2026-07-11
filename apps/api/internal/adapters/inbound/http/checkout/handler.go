@@ -21,6 +21,7 @@ const maxBodyBytes = 1 << 20
 type Service interface {
 	PlaceStandardOrder(ctx context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
 	PlaceCartOrder(ctx context.Context, command checkoutapp.PlaceCartOrderCommand) (checkoutapp.PlaceCartOrderResult, error)
+	PlaceMarketplaceOrder(ctx context.Context, command checkoutapp.PlaceMarketplaceOrderCommand) (checkoutapp.PlaceMarketplaceOrderResult, error)
 	PlaceCustomOrder(ctx context.Context, command checkoutapp.PlaceCustomOrderCommand) (checkoutapp.PlaceCustomOrderResult, error)
 	PlaceHomeVisitBooking(ctx context.Context, command checkoutapp.PlaceHomeVisitBookingCommand) (checkoutapp.PlaceHomeVisitBookingResult, error)
 	StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error)
@@ -37,6 +38,7 @@ func NewHandler(service Service) Handler {
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/public/stores/{handle}/orders", handler.placeOrder)
 	router.Post("/public/stores/{handle}/cart-orders", handler.placeCartOrder)
+	router.Post("/public/marketplace/orders", handler.placeMarketplaceOrder)
 	router.Get("/public/stores/{handle}/delivery-zones", handler.listDeliveryZones)
 	router.Post("/public/stores/{handle}/custom-orders", handler.placeCustomOrder)
 	router.Post("/public/stores/{handle}/bookings", handler.placeBooking)
@@ -160,6 +162,65 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
+}
+
+type marketplaceStoreBody struct {
+	StoreHandle string         `json:"store_handle"`
+	Items       []cartLineBody `json:"items"`
+}
+
+type placeMarketplaceOrderBody struct {
+	Stores           []marketplaceStoreBody `json:"stores"`
+	CustomerName     string                 `json:"customer_name"`
+	CustomerPhone    string                 `json:"customer_phone"`
+	CustomerWhatsApp string                 `json:"customer_whatsapp"`
+	CustomerEmail    string                 `json:"customer_email"`
+	Method           string                 `json:"method"`
+}
+
+// placeMarketplaceOrder settles a unified basket that spans several shops in ONE
+// combined split charge (§4 "pay once"). It is not store-scoped; each store's
+// lines carry their own handle.
+func (handler Handler) placeMarketplaceOrder(w http.ResponseWriter, r *http.Request) {
+	var body placeMarketplaceOrderBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	stores := make([]checkoutapp.MarketplaceStoreLines, 0, len(body.Stores))
+	for _, store := range body.Stores {
+		lines := make([]checkoutapp.CartLineCommand, 0, len(store.Items))
+		for _, item := range store.Items {
+			lines = append(lines, checkoutapp.CartLineCommand{
+				DesignHandle: item.DesignHandle,
+				SizeBandID:   common.ID(item.SizeBandID),
+				Kind:         checkoutapp.CartLineKind(item.Kind),
+				SizeMode:     order.SizeMode(item.SizeMode),
+				Measurements: item.Measurements,
+			})
+		}
+		stores = append(stores, checkoutapp.MarketplaceStoreLines{
+			StoreHandle: store.StoreHandle,
+			Lines:       lines,
+		})
+	}
+
+	result, err := handler.service.PlaceMarketplaceOrder(r.Context(), checkoutapp.PlaceMarketplaceOrderCommand{
+		Stores:           stores,
+		CustomerName:     body.CustomerName,
+		CustomerPhone:    body.CustomerPhone,
+		CustomerWhatsApp: body.CustomerWhatsApp,
+		CustomerEmail:    body.CustomerEmail,
+		Method:           money.PaymentMethod(body.Method),
+	})
+	if err != nil {
+		status, code := checkoutError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeOrderResult(w, "", result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
 }
 
 type placeCustomOrderBody struct {

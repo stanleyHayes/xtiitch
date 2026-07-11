@@ -622,6 +622,18 @@ type InitializeTransactionInput struct {
 	CommissionMinor int64
 	Currency        string
 	Reference       string
+	// Splits, when set, routes ONE charge across several merchants' subaccounts
+	// (the §4 marketplace basket). Each entry is a merchant's net share; the
+	// platform receives the remainder (total charge minus the summed shares) as
+	// its commission. When Splits is empty the single SubaccountRef path is used.
+	Splits []SubaccountSplit
+}
+
+// SubaccountSplit is one merchant's net share (minor units) of a marketplace
+// split charge, settled to that merchant's subaccount.
+type SubaccountSplit struct {
+	SubaccountRef string
+	ShareMinor    int64
 }
 
 type InitializeTransactionResult struct {
@@ -683,6 +695,11 @@ type ProviderChargeEvent struct {
 
 type PaymentRepository interface {
 	Create(ctx context.Context, input CreatePaymentInput) error
+	// CreateMarketplaceCharge records a combined multi-store split charge and its
+	// per-shop members (the §4 "pay once" basket), so the webhook can settle each
+	// shop's checkout group when the single Paystack transaction succeeds. It is a
+	// platform-level (cross-tenant) write, distinct from the per-tenant Create.
+	CreateMarketplaceCharge(ctx context.Context, input MarketplaceChargeInput) error
 	// ConfirmFromProvider records the provider event and advances the matching
 	// payment in a single transaction, so a re-delivered event is a no-op.
 	ConfirmFromProvider(ctx context.Context, input ConfirmPaymentInput) (ConfirmPaymentResult, error)
@@ -746,6 +763,27 @@ type CreatePaymentInput struct {
 	Method            string
 	ProviderReference string
 	CommissionMinor   int64
+}
+
+// MarketplaceChargeInput records one combined multi-store split charge: the
+// parent (keyed by the Paystack provider reference) plus a member per shop in
+// the basket. TotalMinor is the whole charge; each member's NetMinor is that
+// shop's flat split share and CommissionMinor the platform's cut for it.
+type MarketplaceChargeInput struct {
+	ChargeID          common.ID
+	ProviderReference string
+	CustomerEmail     string
+	TotalMinor        int64
+	Members           []MarketplaceChargeMember
+}
+
+type MarketplaceChargeMember struct {
+	MemberID        common.ID
+	BusinessID      common.ID
+	CheckoutGroupID common.ID
+	AnchorOrderID   common.ID
+	NetMinor        int64
+	CommissionMinor int64
 }
 
 type ConfirmPaymentInput struct {

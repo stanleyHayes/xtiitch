@@ -76,7 +76,30 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 		"currency":  input.Currency,
 		"reference": input.Reference,
 	}
-	if input.SubaccountRef != "" {
+	switch {
+	case len(input.Splits) > 0:
+		// Marketplace split (§4 / P0.4): route ONE charge across several
+		// merchants' subaccounts. Each subaccount receives its flat net share;
+		// the platform (main account) gets the remainder (= its summed
+		// commission). "all-proportional" spreads the Paystack processing fee
+		// across all parties in proportion to their share, mirroring the
+		// single-store "bearer=subaccount" intent (the merchant bears the fee).
+		// The exact split-object shape must be validated against a Paystack test
+		// account before going live, like the single-subaccount path above.
+		subaccounts := make([]map[string]any, 0, len(input.Splits))
+		for _, split := range input.Splits {
+			subaccounts = append(subaccounts, map[string]any{
+				"subaccount": split.SubaccountRef,
+				"share":      split.ShareMinor,
+			})
+		}
+		body["split"] = map[string]any{
+			"type":        "flat",
+			"currency":    input.Currency,
+			"bearer_type": "all-proportional",
+			"subaccounts": subaccounts,
+		}
+	case input.SubaccountRef != "":
 		body["subaccount"] = input.SubaccountRef
 		body["transaction_charge"] = input.CommissionMinor
 		body["bearer"] = "subaccount"

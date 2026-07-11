@@ -183,6 +183,89 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 	}, nil
 }
 
+// MarketplaceStoreCharge is one shop's slice of a combined marketplace charge:
+// its net (the flat split share to its subaccount) and the platform's commission
+// on it, plus the checkout group the webhook confirms on success.
+type MarketplaceStoreCharge struct {
+	BusinessID      common.ID
+	SubaccountRef   string
+	CheckoutGroupID common.ID
+	AnchorOrderID   common.ID
+	NetMinor        int64
+	CommissionMinor int64
+}
+
+type InitiateMarketplaceChargeCommand struct {
+	CustomerEmail string
+	Method        money.PaymentMethod
+	Stores        []MarketplaceStoreCharge
+}
+
+// InitiateMarketplaceCharge raises ONE Paystack transaction whose split settles
+// each shop's net to its own subaccount and the platform's summed commission to
+// the main account (§4 "pay once"). It records a marketplace charge + members so
+// the webhook can confirm every shop's checkout group on success. It requires at
+// least two shops; a single-shop basket uses the existing single-store charge.
+func (s Service) InitiateMarketplaceCharge(ctx context.Context, cmd InitiateMarketplaceChargeCommand) (ChargeResult, error) {
+	if cmd.CustomerEmail == "" || len(cmd.Stores) < 2 || !cmd.Method.Valid() {
+		return ChargeResult{}, ErrInvalidCharge
+	}
+
+	var total int64
+	splits := make([]ports.SubaccountSplit, 0, len(cmd.Stores))
+	members := make([]ports.MarketplaceChargeMember, 0, len(cmd.Stores))
+	for _, st := range cmd.Stores {
+		if st.SubaccountRef == "" || st.NetMinor < 0 || st.CommissionMinor < 0 {
+			return ChargeResult{}, ErrInvalidCharge
+		}
+		storeTotal := st.NetMinor + st.CommissionMinor
+		if storeTotal <= 0 {
+			return ChargeResult{}, ErrInvalidCharge
+		}
+		total += storeTotal
+		splits = append(splits, ports.SubaccountSplit{SubaccountRef: st.SubaccountRef, ShareMinor: st.NetMinor})
+		members = append(members, ports.MarketplaceChargeMember{
+			MemberID:        s.ids.NewID(),
+			BusinessID:      st.BusinessID,
+			CheckoutGroupID: st.CheckoutGroupID,
+			AnchorOrderID:   st.AnchorOrderID,
+			NetMinor:        st.NetMinor,
+			CommissionMinor: st.CommissionMinor,
+		})
+	}
+	if total <= 0 {
+		return ChargeResult{}, ErrInvalidCharge
+	}
+
+	reference := "xt_" + s.ids.NewID().String()
+	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{
+		CustomerEmail: cmd.CustomerEmail,
+		AmountMinor:   total,
+		Currency:      common.CurrencyGHS,
+		Reference:     reference,
+		Splits:        splits,
+	})
+	if err != nil {
+		return ChargeResult{}, err
+	}
+	providerReference := result.ProviderReference
+	if providerReference == "" {
+		providerReference = reference
+	}
+
+	if err := s.payments.CreateMarketplaceCharge(ctx, ports.MarketplaceChargeInput{
+		ChargeID:          s.ids.NewID(),
+		ProviderReference: providerReference,
+		CustomerEmail:     cmd.CustomerEmail,
+		TotalMinor:        total,
+		Members:           members,
+	}); err != nil {
+		return ChargeResult{}, err
+	}
+
+	return ChargeResult{Reference: providerReference, AuthorizationURL: result.AuthorizationURL}, nil
+}
+
 // resolveCommission determines the platform's commission for a charge. By
 // default it is one capped commission on the whole amount. A bulk cart passes
 // per-design line amounts, so each design is commissioned and capped separately

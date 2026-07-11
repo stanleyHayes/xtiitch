@@ -1457,15 +1457,23 @@ func (f *fakeOrders) GetOrderBilling(context.Context, common.TenantScope, common
 }
 
 type fakePayments struct {
-	result  paymentsapp.ChargeResult
-	err     error
-	called  bool
-	command paymentsapp.InitiateChargeCommand
+	result             paymentsapp.ChargeResult
+	err                error
+	called             bool
+	command            paymentsapp.InitiateChargeCommand
+	marketplaceCommand paymentsapp.InitiateMarketplaceChargeCommand
+	marketplaceCalled  bool
 }
 
 func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {
 	f.called = true
 	f.command = command
+	return f.result, f.err
+}
+
+func (f *fakePayments) InitiateMarketplaceCharge(_ context.Context, command paymentsapp.InitiateMarketplaceChargeCommand) (paymentsapp.ChargeResult, error) {
+	f.marketplaceCalled = true
+	f.marketplaceCommand = command
 	return f.result, f.err
 }
 
