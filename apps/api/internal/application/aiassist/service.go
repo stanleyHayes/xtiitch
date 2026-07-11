@@ -3,6 +3,7 @@ package aiassist
 import (
 	"context"
 	"errors"
+	"strconv"
 	"strings"
 	"time"
 
@@ -311,6 +312,11 @@ type RenewalSweepResult struct {
 	Attempted int
 	Charged   int
 	Failed    int
+	// Deferred counts add-ons left untouched because the charge attempt errored at
+	// the transport level (timeout / network). They stay due and are retried on the
+	// next sweep with the SAME deterministic reference, so a charge that actually
+	// went through is deduped by the provider rather than repeated.
+	Deferred int
 }
 
 // RunRenewalSweep charges every paid add-on whose monthly renewal is due. A
@@ -341,7 +347,10 @@ func (s Service) RunRenewalSweep(ctx context.Context, limit int) (RenewalSweepRe
 	var result RenewalSweepResult
 	for _, item := range due {
 		result.Attempted++
-		chargeRef := addonChargeRef(s.ids.NewID())
+		// DETERMINISTIC per-period reference: two overlapping sweeps (or a re-run
+		// before next_charge_at advances) reuse the same reference, so Paystack
+		// dedups and the card is debited at most once for the period.
+		chargeRef := addonRenewalChargeRef(item.BusinessID, item.NextChargeAt)
 		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
 			BusinessID:        item.BusinessID,
 			AuthorizationCode: item.AuthorizationRef,
@@ -350,16 +359,24 @@ func (s Service) RunRenewalSweep(ctx context.Context, limit int) (RenewalSweepRe
 			Currency:          item.Currency,
 			Reference:         chargeRef,
 		})
-		success := chargeErr == nil && chargeActivates(charge.Status)
+		if chargeErr != nil {
+			// Transport/timeout error: the charge MAY have gone through. Do NOT
+			// revoke and do NOT advance — leave it due so the next sweep retries
+			// with the same deterministic reference (a real charge is deduped).
+			result.Deferred++
+			continue
+		}
+		success := chargeActivates(charge.Status)
 
 		nextCharge := now.AddDate(0, 1, 0)
 		if err := s.addons.RecordAddonRenewal(ctx, ports.RecordAddonRenewalInput{
-			BusinessID:   item.BusinessID,
-			Addon:        item.Addon,
-			Success:      success,
-			Reference:    chargeRef,
-			ChargedAt:    now,
-			NextChargeAt: nextCharge,
+			BusinessID:           item.BusinessID,
+			Addon:                item.Addon,
+			Success:              success,
+			Reference:            chargeRef,
+			ChargedAt:            now,
+			NextChargeAt:         nextCharge,
+			ExpectedNextChargeAt: item.NextChargeAt,
 		}); err != nil {
 			return RenewalSweepResult{}, err
 		}
@@ -373,9 +390,16 @@ func (s Service) RunRenewalSweep(ctx context.Context, limit int) (RenewalSweepRe
 }
 
 // addonChargeRef builds a unique, idempotent Paystack reference for an add-on
-// charge from a fresh id.
+// charge from a fresh id (used for the one-off first-month checkout).
 func addonChargeRef(id common.ID) string {
 	return "addon-aiast-" + id.String()
+}
+
+// addonRenewalChargeRef builds a DETERMINISTIC per-period renewal reference keyed
+// to the business and the period's next_charge_at, so overlapping/retried sweeps
+// reuse the same reference and Paystack dedups the charge (no double-debit).
+func addonRenewalChargeRef(businessID common.ID, nextChargeAt time.Time) string {
+	return "addon-aiast-renew-" + businessID.String() + "-" + strconv.FormatInt(nextChargeAt.UTC().Unix(), 10)
 }
 
 // chargeActivates reports whether a Paystack charge status should grant access.

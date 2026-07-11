@@ -386,6 +386,8 @@ func TestRunRenewalSweepChargesDue(t *testing.T) {
 	}
 }
 
+// A HARD charge failure (provider returned a non-activating status) deactivates
+// the add-on and marks it past_due until the business re-pays.
 func TestRunRenewalSweepDeactivatesOnFailure(t *testing.T) {
 	addons := newStubAddons()
 	addons.active[key("biz-1", business.AddonAIAssistant)] = true
@@ -397,7 +399,7 @@ func TestRunRenewalSweepDeactivatesOnFailure(t *testing.T) {
 		AmountMinor:      5000,
 		Currency:         "GHS",
 	}}
-	payments := &stubPayments{chargeErr: errors.New("paystack down")}
+	payments := &stubPayments{chargeResult: ports.ChargeAuthorizationResult{Status: "failed"}}
 	svc := newBillingService(addons, payments)
 
 	result, err := svc.RunRenewalSweep(context.Background(), 0)
@@ -412,5 +414,37 @@ func TestRunRenewalSweepDeactivatesOnFailure(t *testing.T) {
 	}
 	if addons.active[key("biz-1", business.AddonAIAssistant)] {
 		t.Fatal("expected add-on deactivated after a failed renewal charge")
+	}
+}
+
+// A TRANSPORT error (timeout/network) must NOT revoke access and must NOT advance
+// the period — the charge may have gone through, so the add-on is left due and
+// retried next sweep with the same deterministic reference (deduped by Paystack).
+func TestRunRenewalSweepDefersOnTransportError(t *testing.T) {
+	addons := newStubAddons()
+	addons.active[key("biz-1", business.AddonAIAssistant)] = true
+	addons.due = []ports.AddonChargeDue{{
+		BusinessID:       common.ID("biz-1"),
+		Addon:            business.AddonAIAssistant,
+		AuthorizationRef: "AUTH",
+		CustomerEmail:    "owner@test",
+		AmountMinor:      5000,
+		Currency:         "GHS",
+	}}
+	payments := &stubPayments{chargeErr: errors.New("paystack timeout")}
+	svc := newBillingService(addons, payments)
+
+	result, err := svc.RunRenewalSweep(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Deferred != 1 || result.Failed != 0 || result.Charged != 0 {
+		t.Fatalf("a transport error must defer, not fail/charge: %+v", result)
+	}
+	if len(addons.renewals) != 0 {
+		t.Fatalf("no renewal outcome must be recorded on a transport error, got %+v", addons.renewals)
+	}
+	if !addons.active[key("biz-1", business.AddonAIAssistant)] {
+		t.Fatal("the add-on must stay active (not revoked) on a transport error")
 	}
 }

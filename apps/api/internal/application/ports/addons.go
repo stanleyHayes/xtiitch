@@ -45,6 +45,10 @@ type RecordAddonRenewalInput struct {
 	Reference    string
 	ChargedAt    time.Time
 	NextChargeAt time.Time
+	// ExpectedNextChargeAt optimistically guards the advance: the update only
+	// applies while the row is still due for THIS period, so a replayed/overlapping
+	// sweep for the same period cannot advance next_charge_at twice.
+	ExpectedNextChargeAt time.Time
 }
 
 // AddonChargeDue is one paid add-on whose next renewal charge is due. The owner
@@ -57,6 +61,10 @@ type AddonChargeDue struct {
 	CustomerEmail    string
 	AmountMinor      int64
 	Currency         string
+	// NextChargeAt is the period this row is due for. It anchors a DETERMINISTIC
+	// per-period charge reference (so overlapping sweeps dedup at the provider) and
+	// the optimistic guard on RecordAddonRenewal (so the period advances once).
+	NextChargeAt time.Time
 }
 
 // AddonStatus is a tenant's own view of one add-on: whether it is active, how it

@@ -211,13 +211,23 @@ func (repo BusinessAddonRepository) RecordAddonRenewal(ctx context.Context, inpu
 		return err
 	}
 
+	// The optimistic guard `next_charge_at = $expected` makes the advance apply at
+	// most once per period: a replayed/overlapping sweep read the same period, so
+	// after the first run advances next_charge_at the guard fails and the second
+	// run is a no-op. A zero ExpectedNextChargeAt (legacy callers) skips the guard.
+	var expected any
+	if !input.ExpectedNextChargeAt.IsZero() {
+		expected = input.ExpectedNextChargeAt
+	}
 	if input.Success {
 		if _, err := tx.Exec(ctx, `
 			update business_addons
 			set active = true, billing_status = 'active',
 				last_charged_at = $3, last_reference = $4, next_charge_at = $5, updated_at = now()
 			where business_id = $1 and addon = $2
-		`, input.BusinessID.String(), input.Addon, input.ChargedAt, input.Reference, input.NextChargeAt); err != nil {
+				and ($6::timestamptz is null or next_charge_at = $6)
+		`, input.BusinessID.String(), input.Addon, input.ChargedAt, input.Reference, input.NextChargeAt,
+			expected); err != nil {
 			return err
 		}
 	} else {
@@ -226,7 +236,9 @@ func (repo BusinessAddonRepository) RecordAddonRenewal(ctx context.Context, inpu
 			set active = false, billing_status = 'past_due',
 				last_reference = $3, next_charge_at = $4, updated_at = now()
 			where business_id = $1 and addon = $2
-		`, input.BusinessID.String(), input.Addon, input.Reference, input.NextChargeAt); err != nil {
+				and ($5::timestamptz is null or next_charge_at = $5)
+		`, input.BusinessID.String(), input.Addon, input.Reference, input.NextChargeAt,
+			expected); err != nil {
 			return err
 		}
 	}
@@ -258,7 +270,7 @@ func (repo BusinessAddonRepository) ListAddonChargesDue(ctx context.Context, now
 				order by created_at asc
 				limit 1
 			), ''),
-			a.amount_minor, a.currency
+			a.amount_minor, a.currency, a.next_charge_at
 		from business_addons a
 		where a.active = true
 			and a.billing_status = 'active'
@@ -279,7 +291,7 @@ func (repo BusinessAddonRepository) ListAddonChargesDue(ctx context.Context, now
 		var d ports.AddonChargeDue
 		if err := rows.Scan(
 			&d.BusinessID, &d.Addon, &d.AuthorizationRef, &d.CustomerRef,
-			&d.CustomerEmail, &d.AmountMinor, &d.Currency,
+			&d.CustomerEmail, &d.AmountMinor, &d.Currency, &d.NextChargeAt,
 		); err != nil {
 			return nil, err
 		}
