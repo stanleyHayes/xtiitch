@@ -39,6 +39,13 @@ jobs:
       - name: Install Node dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Go lint (report-only during refactor)
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.12.2
+          working-directory: apps/api
+          args: --issues-exit-code=0
+
       - name: Check workspace
         run: pnpm check
 

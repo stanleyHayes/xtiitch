@@ -1,31 +1,5 @@
-import { useState } from "react";
-import {
-  Form,
-  Link as RouterLink,
-  redirect,
-  useNavigation,
-} from "react-router";
-import Alert from "@mui/material/Alert";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Container from "@mui/material/Container";
-import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import Select from "@mui/material/Select";
-import Stack from "@mui/material/Stack";
-import TextField from "@mui/material/TextField";
-import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
-import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
-import LockRounded from "@mui/icons-material/LockRounded";
+import { redirect } from "react-router";
 import type { Route } from "./+types/checkout";
-import { tokens } from "../theme";
-import { formatGHS } from "../lib/format";
 import { api } from "../lib/api";
 import {
   cartTotalMinor,
@@ -33,9 +7,11 @@ import {
   getCart,
   itemsForStore,
   storeHandlesInCart,
+  type CartItem,
 } from "../lib/cart";
 import { getSession } from "../lib/session";
 import { fetchCustomerProfile } from "../lib/discovery";
+import Checkout from "../features/checkout/Checkout";
 
 // §3b: paying requires a verified customer session. Guests are sent to sign in
 // and returned to the same checkout URL (keeping any ?store= selection) with the
@@ -199,7 +175,7 @@ export async function action({ request }: Route.ActionArgs) {
   // single payment's webhook confirms them all. A chosen delivery zone adds its
   // fee to the charge.
   const response = await api.placeCartOrder(storeHandle, {
-    items: items.map((item) => ({
+    items: items.map((item: CartItem) => ({
       design_handle: item.design_handle,
       size_band_id: item.size_band_id,
       kind: item.kind,
@@ -232,221 +208,9 @@ export async function action({ request }: Route.ActionArgs) {
   });
 }
 
-export default function Checkout({
+export default function CheckoutRoute({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { storeHandle, items, totalMinor, zones, profile } = loaderData;
-  // Post back to this same store's checkout so the action settles the right
-  // store's lines regardless of how <Form> would default the search string.
-  const submitAction = `/checkout?store=${encodeURIComponent(storeHandle)}`;
-  const navigation = useNavigation();
-  const submitting = navigation.state === "submitting";
-  const canPayNow = items.length > 0;
-  const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
-  const hasBespoke = items.some((item) => item.kind === "bespoke");
-  const deliveryOffered = hasMadeToWear && zones.length > 0;
-
-  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
-  const [zoneID, setZoneID] = useState("");
-  const selectedZone = zones.find((zone) => zone.zone_id === zoneID);
-  const deliveryFee =
-    fulfilment === "delivery" && selectedZone ? selectedZone.fee_minor : 0;
-  const grandTotal = totalMinor + deliveryFee;
-
-  return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: "sm" }}>
-        <Button
-          component={RouterLink}
-          to="/cart"
-          variant="text"
-          startIcon={<ArrowBackRounded />}
-          sx={{ px: 0, color: "text.secondary", fontWeight: 800, mb: 2 }}
-        >
-          Back to cart
-        </Button>
-        <Typography variant="h4" component="h1" sx={{ mb: 2 }}>
-          Secure checkout
-        </Typography>
-
-        <Stack
-          spacing={1}
-          sx={{
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 3,
-            p: 2,
-            mb: 2,
-          }}
-        >
-          {items.map((item) => (
-            <Stack
-              key={item.line_id}
-              direction="row"
-              sx={{ justifyContent: "space-between" }}
-            >
-              <Typography variant="body2" noWrap sx={{ pr: 1 }}>
-                {item.title}
-                {item.kind === "bespoke" ? " (bespoke deposit)" : ""}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {formatGHS(item.amount_minor)}
-              </Typography>
-            </Stack>
-          ))}
-          {deliveryFee > 0 ? (
-            <Stack direction="row" sx={{ justifyContent: "space-between" }}>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Delivery{selectedZone ? ` · ${selectedZone.name}` : ""}
-              </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {formatGHS(deliveryFee)}
-              </Typography>
-            </Stack>
-          ) : null}
-          <Divider />
-          <Stack direction="row" sx={{ justifyContent: "space-between" }}>
-            <Typography sx={{ fontWeight: 900 }}>Total</Typography>
-            <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
-              {formatGHS(grandTotal)}
-            </Typography>
-          </Stack>
-        </Stack>
-
-        {actionData?.error ? (
-          <Alert severity="warning" sx={{ mb: 2 }}>
-            {actionData.error}
-          </Alert>
-        ) : null}
-
-        {hasBespoke ? (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Bespoke pieces are charged as deposits in this cart. The store can
-            confirm the remaining balance after reviewing the measurements.
-          </Alert>
-        ) : null}
-
-        <Form method="post" action={submitAction}>
-          <Stack spacing={1.5}>
-            {deliveryOffered ? (
-              <Box
-                sx={{
-                  border: "1px solid",
-                  borderColor: "divider",
-                  borderRadius: 3,
-                  p: 2,
-                }}
-              >
-                <Typography sx={{ fontWeight: 800, mb: 1 }}>
-                  How would you like it?
-                </Typography>
-                <RadioGroup
-                  name="fulfilment"
-                  value={fulfilment}
-                  onChange={(event) =>
-                    setFulfilment(event.target.value as "pickup" | "delivery")
-                  }
-                >
-                  <FormControlLabel
-                    value="pickup"
-                    control={<Radio />}
-                    label="Pick up from the studio (free)"
-                  />
-                  <FormControlLabel
-                    value="delivery"
-                    control={<Radio />}
-                    label="Deliver to me"
-                  />
-                </RadioGroup>
-                {fulfilment === "delivery" ? (
-                  <Stack spacing={1.5} sx={{ mt: 1 }}>
-                    <FormControl fullWidth required>
-                      <InputLabel id="delivery-zone-label">
-                        Delivery area
-                      </InputLabel>
-                      <Select
-                        labelId="delivery-zone-label"
-                        name="delivery_zone_id"
-                        label="Delivery area"
-                        value={zoneID}
-                        onChange={(event) => setZoneID(event.target.value)}
-                      >
-                        {zones.map((zone) => (
-                          <MenuItem key={zone.zone_id} value={zone.zone_id}>
-                            {zone.name} — {formatGHS(zone.fee_minor)}
-                          </MenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
-                    <TextField
-                      name="delivery_address"
-                      label="Delivery address"
-                      placeholder="House number, street, area, landmark"
-                      required
-                      fullWidth
-                      multiline
-                      minRows={2}
-                    />
-                    <TextField
-                      name="gps_location"
-                      label="GPS location (optional)"
-                      placeholder="GA-123-4567 or Google Maps link"
-                      fullWidth
-                    />
-                  </Stack>
-                ) : null}
-              </Box>
-            ) : null}
-
-            <TextField
-              name="customer_name"
-              label="Full name"
-              required
-              fullWidth
-              defaultValue={profile?.display_name ?? ""}
-            />
-            <TextField
-              name="customer_email"
-              label="Email"
-              type="email"
-              required
-              fullWidth
-              defaultValue={profile?.email ?? ""}
-            />
-            <TextField
-              name="customer_phone"
-              label="Phone"
-              helperText="For calls and SMS order updates."
-              fullWidth
-              defaultValue={profile?.phone ?? ""}
-            />
-            <TextField
-              name="customer_whatsapp"
-              label="WhatsApp number"
-              placeholder="e.g. 024 123 4567"
-              helperText="The store owner uses this to chat with you about your order (incl. bespoke pricing)."
-              fullWidth
-              defaultValue={profile?.whatsapp_phone ?? ""}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              size="large"
-              startIcon={<LockRounded />}
-              disabled={submitting || !canPayNow}
-              sx={{
-                bgcolor: tokens.burgundy,
-                "&:hover": { bgcolor: alpha(tokens.burgundy, 0.85) },
-              }}
-            >
-              {submitting
-                ? "Starting payment…"
-                : `Pay ${formatGHS(grandTotal)} with Paystack`}
-            </Button>
-          </Stack>
-        </Form>
-      </Container>
-    </Box>
-  );
+  return <Checkout {...loaderData} actionData={actionData} />;
 }

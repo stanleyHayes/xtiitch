@@ -2,11 +2,8 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -29,18 +26,12 @@ import (
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
 	whatsapphttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/whatsapp"
-	aiadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/ai"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
-	botcatalogueadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/botcatalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
 	emailadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/email"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
-	smsadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/sms"
-	whatsappadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/whatsapp"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
-	aiassistapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aiassist"
-	aisearchapp "github.com/xcreativs/xtiitch/apps/api/internal/application/aisearch"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
@@ -56,8 +47,6 @@ import (
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
-	whatsappbotapp "github.com/xcreativs/xtiitch/apps/api/internal/application/whatsappbot"
-	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/config"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/ids"
@@ -358,161 +347,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		db: db,
 	}, nil
 }
-
-// buildAISearchService wires the marketplace semantic-search service and kicks
-// off a non-blocking embedding backfill. Both AI hops degrade to deterministic,
-// key-free dev implementations (mirrors the Paystack/Cloudinary dev fallbacks):
-//   - embeddings: hosted model when OPENAI_API_KEY is set, else a hashing embedder
-//   - query understanding: Claude when ANTHROPIC_API_KEY is set, else a heuristic
-func buildAISearchService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool) aisearchapp.Service {
-	var embedder ports.Embedder
-	if cfg.OpenAIAPIKey != "" {
-		embedder = aiadapter.NewOpenAIEmbedder(cfg.OpenAIAPIKey, cfg.OpenAIEmbeddingModel)
-	} else {
-		logger.Warn("openai api key not set; using dev embedder for AI search")
-		embedder = aiadapter.NewDevEmbedder()
-	}
-
-	var queryParser ports.QueryParser
-	if cfg.AnthropicAPIKey != "" {
-		queryParser = aiadapter.NewClaudeQueryParser(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel)
-	} else {
-		logger.Warn("anthropic api key not set; using heuristic query parser for AI search")
-		queryParser = aiadapter.NewHeuristicQueryParser()
-	}
-
-	service := aisearchapp.NewService(aisearchapp.Dependencies{
-		Embedder: embedder,
-		Repo:     postgres.NewEmbeddingRepository(db),
-		Parser:   queryParser,
-		Usage:    postgres.NewSearchUsageRepository(db),
-		Clock:    clock.SystemClock{},
-	})
-
-	// Backfill embeddings in the background so the catalogue is searchable shortly
-	// after boot without blocking startup. Safe to run repeatedly; it only embeds
-	// designs whose content changed.
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-		embedded, err := service.Backfill(ctx, 500)
-		if err != nil {
-			logger.Warn("ai search backfill failed", "error", err)
-			return
-		}
-		if embedded > 0 {
-			logger.Info("ai search backfill complete", "embedded", embedded, "model", embedder.Model())
-		}
-	}()
-
-	return service
-}
-
-// buildAIAssistService wires the ✨ AI writing assistant (a paid add-on billed
-// separately from a business's plan). The assist call uses Claude when
-// ANTHROPIC_API_KEY is set, reusing the same key + model as AI search; with no
-// key the ClaudeAssistant degrades to returning the input text unchanged, so the
-// endpoint stays exercisable locally. The add-on entitlement check is always
-// tenant-scoped via the business_addons repository.
-func buildAIAssistService(
-	cfg config.Config,
-	logger *slog.Logger,
-	db *pgxpool.Pool,
-	payments ports.PaymentProvider,
-) aiassistapp.Service {
-	assistantEnabled := cfg.AnthropicAPIKey != ""
-	if !assistantEnabled {
-		logger.Warn("anthropic api key not set; AI assistant returns input unchanged — the paid add-on is DISABLED (not sellable) on this deployment")
-	}
-	return aiassistapp.NewService(aiassistapp.Dependencies{
-		Assistant:        aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
-		Addons:           postgres.NewBusinessAddonRepository(db),
-		Payments:         payments,
-		Settings:         postgres.NewPlatformSettingsReader(db),
-		IDs:              ids.UUIDGenerator{},
-		Clock:            clock.SystemClock{},
-		PriceMinor:       int64(cfg.AIAssistantAddonPriceMinor),
-		Currency:         "GHS",
-		AssistantEnabled: assistantEnabled,
-	})
-}
-
-// buildWhatsAppBotService wires the inbound WhatsApp bot's conversation engine.
-// Replies go through the Cloud API when WHATSAPP_PHONE_NUMBER_ID and
-// WHATSAPP_ACCESS_TOKEN are set, else a logging sender (dev fallback) so the
-// engine is fully exercisable locally.
-func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, checkout botcatalogueadapter.CheckoutPlacer) whatsappbotapp.Service {
-	var sender ports.WhatsAppSender
-	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
-		sender = whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion)
-	} else {
-		logger.Warn("whatsapp cloud credentials not set; bot replies will be logged only")
-		sender = whatsappadapter.NewLoggingSender(logger)
-	}
-
-	repo := postgres.NewWhatsAppRepository(db)
-	catalogue := botcatalogueadapter.New(
-		postgres.NewStorefrontRepository(db),
-		postgres.NewOrderRepository(db),
-		checkout,
-	)
-	return whatsappbotapp.NewService(whatsappbotapp.Dependencies{
-		Sessions:       repo,
-		Dedupe:         repo,
-		Sender:         sender,
-		Catalogue:      catalogue,
-		Clock:          clock.SystemClock{},
-		StorefrontBase: cfg.StorefrontBaseURL,
-	})
-}
-
-// buildCustomerOTPDelivery selects the auth-OTP channel for BOTH customers and
-// store owners. The platform standard is SMS (OTP_CHANNEL=sms, the default):
-// codes go over SMS (Arkesel) when a key is set. If SMS is unavailable or
-// OTP_CHANNEL=whatsapp, it falls back to WhatsApp (Cloud API); with neither
-// configured it logs the code (dev), so sign-in stays exercisable locally.
-func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerOTPDelivery {
-	smsConfigured := cfg.SMSArkeselAPIKey != ""
-	whatsAppConfigured := cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != ""
-	preferSMS := !strings.EqualFold(strings.TrimSpace(cfg.OTPChannel), "whatsapp")
-
-	if preferSMS && smsConfigured {
-		logger.Info("customer/owner OTP channel: SMS (Arkesel)", slog.String("sender_id", cfg.SMSSenderID))
-		return authadapter.NewSMSOTPDelivery(
-			smsadapter.NewArkeselSender(cfg.SMSArkeselAPIKey, cfg.SMSSenderID, cfg.SMSArkeselEndpoint),
-		)
-	}
-	if whatsAppConfigured {
-		if cfg.WhatsAppOTPTemplateName == "" {
-			logger.Warn("WHATSAPP_OTP_TEMPLATE_NAME not set; OTPs send as free-form text, which WhatsApp only delivers inside a 24h session — set an approved AUTHENTICATION template for cold sign-ups")
-		}
-		logger.Info("customer/owner OTP channel: WhatsApp (Cloud API)")
-		return authadapter.NewWhatsAppOTPDelivery(
-			whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion),
-			cfg.WhatsAppOTPTemplateName,
-			cfg.WhatsAppOTPTemplateLang,
-		)
-	}
-	if preferSMS && !smsConfigured {
-		logger.Warn("OTP_CHANNEL=sms but ARKESEL_API_KEY not set and no WhatsApp creds; OTPs will be logged, not sent")
-	} else {
-		logger.Warn("no OTP delivery configured (SMS/WhatsApp); OTPs will be logged, not sent")
-	}
-	return authadapter.NewLoggingOTPDelivery(logger)
-}
-
-// buildCustomerEmailOTPDelivery emails customer sign-in codes via Resend when a
-// key is configured; otherwise NewResendSender returns nil and the email
-// delivery logs the code (dev), so email sign-in is exercisable locally with no
-// provider key.
-func buildCustomerEmailOTPDelivery(cfg config.Config, logger *slog.Logger) ports.CustomerEmailOTPDelivery {
-	sender := emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail)
-	if sender == nil {
-		logger.Warn("resend not configured; customer email OTPs will be logged, not sent")
-	}
-	return authadapter.NewEmailOTPDelivery(sender, logger)
-}
-
 func (a App) HTTPServer() *http.Server {
 	return a.httpServer
 }
@@ -520,193 +354,5 @@ func (a App) HTTPServer() *http.Server {
 func (a App) Close() {
 	if a.db != nil {
 		a.db.Close()
-	}
-}
-
-// validateProductionConfig fails fast when APP_ENV=production but the process is
-// still configured with insecure dev defaults or stub providers. These fallbacks
-// are deliberate conveniences for local/dev (a fake Paystack, an unsigned media
-// store, a default signing key); shipping them to production would mean fake
-// payment confirmations, tamperable uploads, and forgeable sessions.
-// checkRoleEnforcesRLS warns (or, under STRICT_DB_ROLE_RLS, refuses to start) when
-// the connected Postgres role can bypass row-level security (superuser or
-// BYPASSRLS) in a non-local environment. FORCE RLS does not apply to such roles, so
-// this surfaces the "prod pointed at the DB owner/superuser → all tenant isolation
-// void" failure mode. It defaults to a warning so it can never take down a deploy
-// that is presently configured that way; set STRICT_DB_ROLE_RLS=true to hard-fail.
-func checkRoleEnforcesRLS(ctx context.Context, db *pgxpool.Pool, environment string, logger *slog.Logger) error {
-	switch strings.ToLower(strings.TrimSpace(environment)) {
-	case "local", "development", "dev", "test", "ci", "":
-		return nil
-	}
-	var role string
-	var isSuperuser, bypassRLS bool
-	if err := db.QueryRow(ctx, `
-		select current_user,
-			(select rolsuper from pg_roles where rolname = current_user),
-			(select rolbypassrls from pg_roles where rolname = current_user)
-	`).Scan(&role, &isSuperuser, &bypassRLS); err != nil {
-		// Do not block startup on an inability to introspect the role; just warn.
-		logger.Warn("could not verify the database role enforces RLS", slog.String("error", err.Error()))
-		return nil
-	}
-	if !isSuperuser && !bypassRLS {
-		return nil
-	}
-	strict := strings.EqualFold(strings.TrimSpace(os.Getenv("STRICT_DB_ROLE_RLS")), "true")
-	if strict {
-		return fmt.Errorf("refusing to start: database role %q can BYPASS row-level security (superuser=%v, bypassrls=%v) — tenant isolation would be void; connect as a NOBYPASSRLS app role", role, isSuperuser, bypassRLS)
-	}
-	logger.Error("SECURITY: database role can BYPASS row-level security — tenant isolation depends on FORCE RLS which does not apply to this role; use a dedicated NOBYPASSRLS app role (set STRICT_DB_ROLE_RLS=true to enforce)",
-		slog.String("db_role", role),
-		slog.Bool("is_superuser", isSuperuser),
-		slog.Bool("bypassrls", bypassRLS),
-	)
-	return nil
-}
-
-func validateProductionConfig(cfg config.Config) error {
-	// Apply the guard to ANY non-local environment, not just the exact string
-	// "production": otherwise a typo ("prod"), a "staging" deploy, or an unset
-	// APP_ENV would silently ship the insecure dev defaults (e.g. the public default
-	// JWT signing key → forgeable admin/tenant tokens). Only recognized local/dev/
-	// test values opt out.
-	switch strings.ToLower(strings.TrimSpace(cfg.Environment)) {
-	case "local", "development", "dev", "test", "ci", "":
-		return nil
-	}
-
-	var problems []string
-	if cfg.JWTSigningKey == "" || cfg.JWTSigningKey == "change-me-for-local-development" {
-		problems = append(problems, "JWT_SIGNING_KEY must be a strong, non-default secret")
-	}
-	if cfg.MFAEncryptionKey == "" {
-		problems = append(problems, "MFA_ENCRYPTION_KEY must be set (do not silently reuse the JWT signing key for MFA secrets)")
-	}
-	if cfg.PaystackSecretKey == "" {
-		problems = append(problems, "PAYSTACK_SECRET_KEY must be set (the dev payment provider returns fake confirmations)")
-	}
-	if cfg.CloudinaryURL == "" {
-		problems = append(problems, "CLOUDINARY_URL must be set (the dev media store issues unsigned upload signatures)")
-	}
-	if cfg.DatabaseURL == "" || strings.Contains(cfg.DatabaseURL, "xtiitch_app:xtiitch_app@localhost") {
-		problems = append(problems, "DATABASE_URL must point at the production database, not the local default")
-	}
-	if strings.Contains(cfg.DatabaseURL, "sslmode=disable") {
-		problems = append(problems, "DATABASE_URL must not disable TLS (sslmode=disable) in production")
-	}
-	// If the WhatsApp bot is enabled (verify token set), inbound webhooks must be
-	// signature-verified — otherwise anyone could POST forged messages.
-	if cfg.WhatsAppVerifyToken != "" && cfg.WhatsAppAppSecret == "" {
-		problems = append(problems, "WHATSAPP_APP_SECRET must be set when the WhatsApp bot is enabled (inbound webhooks must be signature-verified)")
-	}
-
-	if len(problems) == 0 {
-		return nil
-	}
-	return fmt.Errorf("refusing to start: insecure production configuration:\n  - %s", strings.Join(problems, "\n  - "))
-}
-
-type adminBootstrapUserConfig struct {
-	Email       string `json:"email"`
-	DisplayName string `json:"display_name"`
-	Password    string `json:"password"`
-	Role        string `json:"role"`
-}
-
-func adminBootstrapCommands(cfg config.Config) ([]adminauthapp.BootstrapAdminCommand, error) {
-	commands := make([]adminauthapp.BootstrapAdminCommand, 0, 1)
-	if cfg.AdminBootstrapEmail != "" || cfg.AdminBootstrapPassword != "" {
-		commands = append(commands, adminauthapp.BootstrapAdminCommand{
-			Email:       cfg.AdminBootstrapEmail,
-			DisplayName: cfg.AdminBootstrapDisplayName,
-			Password:    cfg.AdminBootstrapPassword,
-			Role:        admindomain.Role(cfg.AdminBootstrapRole),
-		})
-	}
-
-	rawExtraUsers := strings.TrimSpace(cfg.AdminBootstrapExtraUsers)
-	if rawExtraUsers == "" {
-		return commands, nil
-	}
-
-	var extraUsers []adminBootstrapUserConfig
-	if err := json.Unmarshal([]byte(rawExtraUsers), &extraUsers); err != nil {
-		return nil, fmt.Errorf("parse ADMIN_BOOTSTRAP_EXTRA_USERS_JSON: %w", err)
-	}
-
-	for index, user := range extraUsers {
-		if strings.TrimSpace(user.Email) == "" || strings.TrimSpace(user.Password) == "" {
-			return nil, fmt.Errorf("ADMIN_BOOTSTRAP_EXTRA_USERS_JSON[%d] is missing email or password", index)
-		}
-
-		role := admindomain.Role(strings.TrimSpace(user.Role))
-		if role == "" {
-			role = admindomain.RoleOperator
-		}
-
-		displayName := strings.TrimSpace(user.DisplayName)
-		if displayName == "" {
-			displayName = defaultAdminDisplayName(role)
-		}
-
-		commands = append(commands, adminauthapp.BootstrapAdminCommand{
-			Email:       user.Email,
-			DisplayName: displayName,
-			Password:    user.Password,
-			Role:        role,
-		})
-	}
-
-	return commands, nil
-}
-
-func adminLaunchReadinessConfig(cfg config.Config) adminauthapp.AdminLaunchReadinessConfig {
-	notificationTransport := strings.TrimSpace(cfg.NotificationTransport)
-	if notificationTransport == "" {
-		notificationTransport = "log"
-	}
-	return adminauthapp.AdminLaunchReadinessConfig{
-		Environment: strings.TrimSpace(cfg.Environment),
-		AdminBootstrapOwnerConfigured: strings.TrimSpace(cfg.AdminBootstrapEmail) != "" &&
-			strings.TrimSpace(cfg.AdminBootstrapPassword) != "",
-		CloudinaryConfigured:      strings.TrimSpace(cfg.CloudinaryURL) != "",
-		ExpoAccessTokenConfigured: strings.TrimSpace(cfg.ExpoAccessToken) != "",
-		GrowthPolicyConfirmed:     cfg.GrowthPolicyConfirmed,
-		JWTSigningKeyDefault: strings.TrimSpace(cfg.JWTSigningKey) == "" ||
-			strings.TrimSpace(cfg.JWTSigningKey) == "change-me-for-local-development",
-		LegalReviewConfirmed: cfg.LegalReviewConfirmed,
-		MarketingWaitlistEmailReady: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
-			strings.TrimSpace(cfg.ResendFromEmail) != "" &&
-			strings.TrimSpace(cfg.MarketingWaitlistEmailTo) != "",
-		MarketingWaitlistWebhookReady: strings.TrimSpace(cfg.MarketingWaitlistWebhook) != "" &&
-			strings.TrimSpace(cfg.MarketingWaitlistSecret) != "",
-		NotificationHTTPReady: strings.EqualFold(notificationTransport, "http") &&
-			strings.TrimSpace(cfg.NotificationHTTPURL) != "" &&
-			strings.TrimSpace(cfg.NotificationHTTPAuthValue) != "",
-		NotificationWhatsAppReady: strings.EqualFold(notificationTransport, "whatsapp_cloud") &&
-			strings.TrimSpace(cfg.WhatsAppPhoneNumberID) != "" &&
-			strings.TrimSpace(cfg.WhatsAppAccessToken) != "" &&
-			strings.TrimSpace(cfg.WhatsAppVerifyToken) != "" &&
-			strings.TrimSpace(cfg.WhatsAppAppSecret) != "",
-		NotificationTransport:     strings.ToLower(notificationTransport),
-		PaystackSecretConfigured:  strings.TrimSpace(cfg.PaystackSecretKey) != "",
-		PaystackWebhookConfigured: strings.TrimSpace(cfg.PaystackWebhookKey) != "",
-		ResendConfigured: strings.TrimSpace(cfg.ResendAPIKey) != "" &&
-			strings.TrimSpace(cfg.ResendFromEmail) != "",
-		SonarHostConfigured:         strings.TrimSpace(cfg.SonarHostURL) != "",
-		SonarOrganizationConfigured: strings.TrimSpace(cfg.SonarOrganization) != "",
-		SonarTokenConfigured:        strings.TrimSpace(cfg.SonarToken) != "",
-	}
-}
-
-func defaultAdminDisplayName(role admindomain.Role) string {
-	switch role {
-	case admindomain.RoleSupport:
-		return "Xtiitch Support"
-	case admindomain.RoleOperator:
-		return "Xtiitch Operator"
-	default:
-		return "Xtiitch Owner"
 	}
 }
