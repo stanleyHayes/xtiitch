@@ -17,7 +17,9 @@ import {
   cartTotalMinor,
   clearCart,
   getCart,
+  itemsForStore,
   removeFromCart,
+  storeHandlesInCart,
 } from "../lib/cart";
 
 export function meta(): Route.MetaDescriptors {
@@ -29,7 +31,16 @@ export function meta(): Route.MetaDescriptors {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const { storeHandle, items } = await getCart(request);
-  return { storeHandle, items, totalMinor: cartTotalMinor(items) };
+  // Group the unified basket by store; each store checks out on its own (§4).
+  const groups = storeHandlesInCart(items).map((handle) => {
+    const storeItems = itemsForStore(items, handle);
+    return {
+      handle,
+      items: storeItems,
+      subtotalMinor: cartTotalMinor(storeItems),
+    };
+  });
+  return { storeHandle, groups, totalMinor: cartTotalMinor(items) };
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -50,8 +61,9 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Cart({ loaderData }: Route.ComponentProps) {
-  const { storeHandle, items, totalMinor } = loaderData;
+  const { storeHandle, groups, totalMinor } = loaderData;
   const storeHref = storeHandle ? `/store/${storeHandle}` : "/discover";
+  const multiStore = groups.length > 1;
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
@@ -89,7 +101,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) {
           </Typography>
         </Stack>
 
-        {items.length === 0 ? (
+        {groups.length === 0 ? (
           <Box
             sx={{
               p: 4,
@@ -112,92 +124,145 @@ export default function Cart({ loaderData }: Route.ComponentProps) {
             </Button>
           </Box>
         ) : (
-          <Stack
-            spacing={1.5}
-            sx={{
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              p: { xs: 1.5, md: 2 },
-            }}
-          >
-            {items.map((item) => (
+          <Stack spacing={2}>
+            {multiStore ? (
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Your basket has pieces from {groups.length} studios. Each studio
+                is paid separately, so you'll check out one at a time.
+              </Typography>
+            ) : null}
+
+            {groups.map((group) => (
               <Stack
-                key={item.line_id}
-                direction="row"
+                key={group.handle}
                 spacing={1.5}
-                sx={{ alignItems: "center" }}
+                sx={{
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 3,
+                  p: { xs: 1.5, md: 2 },
+                }}
               >
-                <Box
-                  component="img"
-                  src={item.image || "/images/storefront-atelier-review.webp"}
-                  alt={item.title}
-                  sx={{
-                    width: 56,
-                    height: 70,
-                    objectFit: "cover",
-                    borderRadius: 1.5,
-                    flexShrink: 0,
-                  }}
-                />
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography sx={{ fontWeight: 800 }} noWrap>
-                    {item.title}
+                {multiStore ? (
+                  <Typography sx={{ fontWeight: 900 }} noWrap>
+                    {group.handle}
                   </Typography>
-                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {item.kind === "bespoke"
-                      ? "Bespoke deposit"
-                      : item.size_label}
-                  </Typography>
-                </Box>
-                <Typography sx={{ fontWeight: 800 }}>
-                  {formatGHS(item.amount_minor)}
-                </Typography>
-                <Form method="post">
-                  <input type="hidden" name="intent" value="remove" />
-                  <input type="hidden" name="line_id" value={item.line_id} />
-                  <IconButton
-                    type="submit"
-                    aria-label={`Remove ${item.title}`}
-                    size="small"
-                    color="error"
+                ) : null}
+
+                {group.items.map((item) => (
+                  <Stack
+                    key={item.line_id}
+                    direction="row"
+                    spacing={1.5}
+                    sx={{ alignItems: "center" }}
                   >
-                    <DeleteOutlineRounded fontSize="small" />
-                  </IconButton>
-                </Form>
+                    <Box
+                      component="img"
+                      src={
+                        item.image || "/images/storefront-atelier-review.webp"
+                      }
+                      alt={item.title}
+                      sx={{
+                        width: 56,
+                        height: 70,
+                        objectFit: "cover",
+                        borderRadius: 1.5,
+                        flexShrink: 0,
+                      }}
+                    />
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography sx={{ fontWeight: 800 }} noWrap>
+                        {item.title}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary" }}
+                      >
+                        {item.kind === "bespoke"
+                          ? "Bespoke deposit"
+                          : item.size_label}
+                      </Typography>
+                    </Box>
+                    <Typography sx={{ fontWeight: 800 }}>
+                      {formatGHS(item.amount_minor)}
+                    </Typography>
+                    <Form method="post">
+                      <input type="hidden" name="intent" value="remove" />
+                      <input
+                        type="hidden"
+                        name="line_id"
+                        value={item.line_id}
+                      />
+                      <IconButton
+                        type="submit"
+                        aria-label={`Remove ${item.title}`}
+                        size="small"
+                        color="error"
+                      >
+                        <DeleteOutlineRounded fontSize="small" />
+                      </IconButton>
+                    </Form>
+                  </Stack>
+                ))}
+
+                <Divider />
+                <Stack
+                  direction="row"
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 900 }}>
+                    {multiStore ? "Subtotal" : "Total"}
+                  </Typography>
+                  <Typography
+                    sx={{ fontWeight: 900, color: "primary.main" }}
+                  >
+                    {formatGHS(group.subtotalMinor)}
+                  </Typography>
+                </Stack>
+                <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                  <Button
+                    component={RouterLink}
+                    to={
+                      multiStore
+                        ? `/checkout?store=${encodeURIComponent(group.handle)}`
+                        : "/checkout"
+                    }
+                    variant="contained"
+                    size="large"
+                  >
+                    {multiStore ? "Check out this studio" : "Proceed to checkout"}
+                  </Button>
+                </Box>
               </Stack>
             ))}
 
-            <Divider />
-            <Stack
-              direction="row"
-              sx={{ justifyContent: "space-between", alignItems: "center" }}
-            >
-              <Typography sx={{ fontWeight: 900 }}>Total</Typography>
-              <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
-                {formatGHS(totalMinor)}
-              </Typography>
-            </Stack>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={1}
-              sx={{ justifyContent: "flex-end" }}
-            >
+            {multiStore ? (
+              <Stack
+                direction="row"
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  px: { xs: 1.5, md: 2 },
+                }}
+              >
+                <Typography sx={{ fontWeight: 900 }}>Basket total</Typography>
+                <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
+                  {formatGHS(totalMinor)}
+                </Typography>
+              </Stack>
+            ) : null}
+
+            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
               <Form method="post">
                 <input type="hidden" name="intent" value="clear" />
                 <Button type="submit" color="inherit">
                   Clear cart
                 </Button>
               </Form>
-              <Button
-                component={RouterLink}
-                to="/checkout"
-                variant="contained"
-                size="large"
-              >
-                Proceed to checkout
-              </Button>
-            </Stack>
+            </Box>
           </Stack>
         )}
       </Container>

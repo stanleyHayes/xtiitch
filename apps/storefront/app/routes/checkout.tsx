@@ -27,13 +27,32 @@ import type { Route } from "./+types/checkout";
 import { tokens } from "../theme";
 import { formatGHS } from "../lib/format";
 import { api } from "../lib/api";
-import { cartTotalMinor, clearCart, getCart } from "../lib/cart";
+import {
+  cartTotalMinor,
+  clearStoreItems,
+  getCart,
+  itemsForStore,
+  storeHandlesInCart,
+} from "../lib/cart";
 import { getSession } from "../lib/session";
 import { fetchCustomerProfile } from "../lib/discovery";
 
 // §3b: paying requires a verified customer session. Guests are sent to sign in
-// and returned to checkout with the cart intact.
-const SIGN_IN_REDIRECT = "/account?redirectTo=/checkout";
+// and returned to the same checkout URL (keeping any ?store= selection) with the
+// cart intact.
+function signInRedirect(url: URL): string {
+  return `/account?redirectTo=${encodeURIComponent("/checkout" + url.search)}`;
+}
+
+// resolveCheckoutStore picks which store's basket lines this checkout settles:
+// the ?store= param, or the sole store when the unified basket has just one.
+function resolveCheckoutStore(url: URL, stores: string[]): string {
+  const requested = url.searchParams.get("store") ?? "";
+  if (requested) {
+    return requested;
+  }
+  return stores.length === 1 ? (stores[0] ?? "") : "";
+}
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -43,16 +62,26 @@ export function meta(): Route.MetaDescriptors {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { storeHandle, items } = await getCart(request);
-  if (items.length === 0) {
+  const { items: allItems } = await getCart(request);
+  if (allItems.length === 0) {
     return redirect("/cart");
   }
+  const url = new URL(request.url);
   // §3b account gate: a verified customer session is required to pay. Guests are
-  // redirected to sign in and returned here; the cart (its own cookie) survives.
+  // redirected to sign in and returned here (store selection preserved); the cart
+  // (its own cookie) survives.
   const session = await getSession(request.headers.get("Cookie"));
   const token = session.get("customerToken") as string | undefined;
   if (!token) {
-    return redirect(SIGN_IN_REDIRECT);
+    return redirect(signInRedirect(url));
+  }
+  // §4: settle ONE store's basket lines per charge. Resolve the store and filter
+  // to its items; a multi-store basket with no store chosen goes back to the cart
+  // to pick a shop to check out.
+  const storeHandle = resolveCheckoutStore(url, storeHandlesInCart(allItems));
+  const items = storeHandle ? itemsForStore(allItems, storeHandle) : [];
+  if (items.length === 0) {
+    return redirect("/cart");
   }
   // Prefill the contact fields from the signed-in profile so a verified shopper
   // does not re-type what we already hold.
@@ -77,15 +106,22 @@ export async function loader({ request }: Route.LoaderArgs) {
 
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
-  const { storeHandle, items } = await getCart(request);
-  if (items.length === 0) {
+  const url = new URL(request.url);
+  const { items: allItems } = await getCart(request);
+  if (allItems.length === 0) {
     return redirect("/cart");
   }
   // §3b: enforce the account gate on submit too, so a direct POST without a
   // verified session cannot place an order past the loader redirect.
   const session = await getSession(request.headers.get("Cookie"));
   if (!session.get("customerToken")) {
-    return redirect(SIGN_IN_REDIRECT);
+    return redirect(signInRedirect(url));
+  }
+  // §4: settle exactly one store's lines (same resolution as the loader).
+  const storeHandle = resolveCheckoutStore(url, storeHandlesInCart(allItems));
+  const items = storeHandle ? itemsForStore(allItems, storeHandle) : [];
+  if (items.length === 0) {
+    return redirect("/cart");
   }
 
   const customerName = String(form.get("customer_name") ?? "").trim();
@@ -117,7 +153,10 @@ export async function action({ request }: Route.ActionArgs) {
       ? `${deliveryAddress}\nGPS: ${gpsLocation}`
       : deliveryAddress;
 
-  const startedHeaders = { "Set-Cookie": await clearCart(request) };
+  // Clear only this store's lines on success; any other stores stay in the basket.
+  const startedHeaders = {
+    "Set-Cookie": await clearStoreItems(request, storeHandle),
+  };
   const failed = {
     error: "We couldn't start that payment. Check your details and try again.",
   };
@@ -197,7 +236,10 @@ export default function Checkout({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
-  const { items, totalMinor, zones, profile } = loaderData;
+  const { storeHandle, items, totalMinor, zones, profile } = loaderData;
+  // Post back to this same store's checkout so the action settles the right
+  // store's lines regardless of how <Form> would default the search string.
+  const submitAction = `/checkout?store=${encodeURIComponent(storeHandle)}`;
   const navigation = useNavigation();
   const submitting = navigation.state === "submitting";
   const canPayNow = items.length > 0;
@@ -285,7 +327,7 @@ export default function Checkout({
           </Alert>
         ) : null}
 
-        <Form method="post">
+        <Form method="post" action={submitAction}>
           <Stack spacing={1.5}>
             {deliveryOffered ? (
               <Box

@@ -2,9 +2,11 @@ import { createCookieSessionStorage } from "react-router";
 
 // The shopping cart is held in its own signed, httpOnly cookie (separate from the
 // auth session) so an account isn't required to add items — the shopper builds a
-// cart first and only creates a mini-account at checkout. Items are scoped to a
-// single store (a cart belongs to one shop); adding from a different store
-// replaces the cart, since checkout settles to one business's subaccount.
+// cart first and signs in at checkout. The basket is UNIFIED across stores
+// (Updates §4): items from several shops coexist, grouped by store_handle. Each
+// store settles to its own subaccount, so checkout operates on ONE store's group
+// at a time (checkout?store=<handle>) and clears only that store's lines on
+// success, leaving the other stores' items in the basket.
 
 export type CartItemKind = "made_to_wear" | "bespoke";
 
@@ -63,20 +65,39 @@ export function cartTotalMinor(items: CartItem[]): number {
   return items.reduce((sum, item) => sum + item.amount_minor, 0);
 }
 
-// addToCart appends a line. A cart belongs to one store; adding an item from a
-// different store starts a fresh cart for that store.
+// storeHandlesInCart returns the distinct store handles present, in first-seen
+// order, so callers can tell a single-store basket from a multi-store one.
+export function storeHandlesInCart(items: CartItem[]): string[] {
+  const seen: string[] = [];
+  for (const item of items) {
+    if (!seen.includes(item.store_handle)) {
+      seen.push(item.store_handle);
+    }
+  }
+  return seen;
+}
+
+// itemsForStore filters the basket to one store's lines (the unit a single
+// Paystack charge settles).
+export function itemsForStore(
+  items: CartItem[],
+  storeHandle: string,
+): CartItem[] {
+  return items.filter((item) => item.store_handle === storeHandle);
+}
+
+// addToCart appends a line to the unified basket. Items from different stores
+// coexist (grouped by store_handle); nothing is wiped when adding across stores.
 export async function addToCart(
   request: Request,
   item: Omit<CartItem, "line_id">,
 ): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
-  const currentStore = session.get("store_handle") ?? "";
-  let items = session.get("items") ?? [];
-  if (currentStore !== item.store_handle) {
-    items = [];
-  }
+  const items = session.get("items") ?? [];
   const lineID = `${item.design_handle}:${item.size_band_id}:${crypto.randomUUID()}`;
   items.push({ ...item, line_id: lineID });
+  // store_handle tracks the most recently added store (used for "continue
+  // shopping" back-links); the basket itself is multi-store via item.store_handle.
   session.set("store_handle", item.store_handle);
   session.set("items", items);
   return storage.commitSession(session);
@@ -100,4 +121,22 @@ export async function removeFromCart(
 export async function clearCart(request: Request): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
   return storage.destroySession(session);
+}
+
+// clearStoreItems removes one store's lines after that store's checkout, leaving
+// any other stores' items in the basket. When it empties the basket the store
+// pointer is cleared too.
+export async function clearStoreItems(
+  request: Request,
+  storeHandle: string,
+): Promise<string> {
+  const session = await storage.getSession(request.headers.get("Cookie"));
+  const items = (session.get("items") ?? []).filter(
+    (item) => item.store_handle !== storeHandle,
+  );
+  session.set("items", items);
+  if (items.length === 0) {
+    session.unset("store_handle");
+  }
+  return storage.commitSession(session);
 }

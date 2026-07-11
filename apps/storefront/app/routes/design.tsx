@@ -229,9 +229,13 @@ export async function action({ request, params }: Route.ActionArgs) {
       measurements,
       note: note || undefined,
     });
-    // Pay Now takes the shopper straight to checkout (where personal details are
-    // collected); Add to Cart lands on the cart. Neither collects contact here.
-    const destination = intent === "buy_now" ? "/checkout" : "/cart";
+    // Pay Now takes the shopper straight to this store's checkout (the ?store=
+    // scopes it in a multi-store basket; personal details are collected there);
+    // Add to Cart lands on the cart. Neither collects contact here.
+    const destination =
+      intent === "buy_now"
+        ? `/checkout?store=${encodeURIComponent(storeHandle)}`
+        : "/cart";
     return redirect(destination, { headers: { "Set-Cookie": cookie } });
   }
 
