@@ -123,14 +123,94 @@ func newService(addons ports.BusinessAddonRepository, assistant ports.AiAssistan
 
 func newBillingService(addons ports.BusinessAddonRepository, payments PaymentAuthorizer) Service {
 	return NewService(Dependencies{
-		Assistant:  &upperAssistant{},
-		Addons:     addons,
-		Payments:   payments,
-		IDs:        &stubIDs{},
-		Clock:      fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
-		PriceMinor: 5000,
-		Currency:   "GHS",
+		Assistant:        &upperAssistant{},
+		Addons:           addons,
+		Payments:         payments,
+		IDs:              &stubIDs{},
+		Clock:            fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
+		PriceMinor:       5000,
+		Currency:         "GHS",
+		AssistantEnabled: true,
 	})
+}
+
+// stubSettings is the admin master switch for the add-on in tests.
+type stubSettings struct {
+	enabled bool
+	err     error
+}
+
+func (s stubSettings) AIAssistantAddonEnabled(_ context.Context) (bool, error) {
+	return s.enabled, s.err
+}
+
+func newBillingServiceWith(addons ports.BusinessAddonRepository, payments PaymentAuthorizer, assistantEnabled bool, settings PlatformSettings) Service {
+	return NewService(Dependencies{
+		Assistant:        &upperAssistant{},
+		Addons:           addons,
+		Payments:         payments,
+		Settings:         settings,
+		IDs:              &stubIDs{},
+		Clock:            fixedClock{t: time.Date(2026, 6, 20, 0, 0, 0, 0, time.UTC)},
+		PriceMinor:       5000,
+		Currency:         "GHS",
+		AssistantEnabled: assistantEnabled,
+	})
+}
+
+// The add-on is not sellable where the AI is a passthrough no-op (no provider key):
+// checkout is refused and status reports unavailable, so no one pays for nothing.
+func TestAddonNotSellableWhenAIDisabled(t *testing.T) {
+	addons := newStubAddons()
+	payments := &stubPayments{initResult: ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: "r"}}
+	svc := newBillingServiceWith(addons, payments, false, nil)
+
+	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
+	if _, err := svc.InitializeCheckout(context.Background(), scope, "https://x/cb"); !errors.Is(err, ErrBillingUnavailable) {
+		t.Fatalf("expected ErrBillingUnavailable when the AI is not configured, got %v", err)
+	}
+	status, err := svc.AddonStatus(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status.Available {
+		t.Fatal("status must report the add-on unavailable when the AI is not configured")
+	}
+	if r, _ := svc.RunRenewalSweep(context.Background(), 0); r.Attempted != 0 {
+		t.Fatal("renewal sweep must not charge when the add-on is unavailable")
+	}
+}
+
+// The admin master switch overrides everything: even with the AI configured, an
+// off switch makes the add-on unsellable / non-renewing.
+func TestAddonMasterSwitchOffOverrides(t *testing.T) {
+	addons := newStubAddons()
+	payments := &stubPayments{initResult: ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: "r"}}
+	svc := newBillingServiceWith(addons, payments, true, stubSettings{enabled: false})
+
+	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
+	if _, err := svc.InitializeCheckout(context.Background(), scope, "https://x/cb"); !errors.Is(err, ErrBillingUnavailable) {
+		t.Fatalf("expected ErrBillingUnavailable when the admin switch is off, got %v", err)
+	}
+	status, err := svc.AddonStatus(context.Background(), scope)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if status.Available {
+		t.Fatal("status must report unavailable when the admin switch is off")
+	}
+}
+
+// With the AI configured AND the admin switch on, the add-on is available again.
+func TestAddonAvailableWhenConfiguredAndSwitchedOn(t *testing.T) {
+	svc := newBillingServiceWith(newStubAddons(), &stubPayments{}, true, stubSettings{enabled: true})
+	available, err := svc.AddonAvailable(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !available {
+		t.Fatal("expected the add-on available when configured and switched on")
+	}
 }
 
 func TestAssistGatedWhenAddonInactive(t *testing.T) {

@@ -408,17 +408,20 @@ func buildAIAssistService(
 	db *pgxpool.Pool,
 	payments ports.PaymentProvider,
 ) aiassistapp.Service {
-	if cfg.AnthropicAPIKey == "" {
-		logger.Warn("anthropic api key not set; AI assistant will return input text unchanged")
+	assistantEnabled := cfg.AnthropicAPIKey != ""
+	if !assistantEnabled {
+		logger.Warn("anthropic api key not set; AI assistant returns input unchanged — the paid add-on is DISABLED (not sellable) on this deployment")
 	}
 	return aiassistapp.NewService(aiassistapp.Dependencies{
-		Assistant:  aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
-		Addons:     postgres.NewBusinessAddonRepository(db),
-		Payments:   payments,
-		IDs:        ids.UUIDGenerator{},
-		Clock:      clock.SystemClock{},
-		PriceMinor: int64(cfg.AIAssistantAddonPriceMinor),
-		Currency:   "GHS",
+		Assistant:        aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
+		Addons:           postgres.NewBusinessAddonRepository(db),
+		Payments:         payments,
+		Settings:         postgres.NewPlatformSettingsReader(db),
+		IDs:              ids.UUIDGenerator{},
+		Clock:            clock.SystemClock{},
+		PriceMinor:       int64(cfg.AIAssistantAddonPriceMinor),
+		Currency:         "GHS",
+		AssistantEnabled: assistantEnabled,
 	})
 }
 

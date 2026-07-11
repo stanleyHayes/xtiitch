@@ -181,7 +181,11 @@ type AdminPlatformSettingsRecord struct {
 	MaintenanceMode              bool
 	BrandLogoURL                 string
 	MarketingFlags               MarketingFlags
-	UpdatedAt                    time.Time
+	// AIAssistantAddonEnabled is the platform master switch for the paid AI writing
+	// add-on: when false it cannot be purchased or renewed anywhere, overriding the
+	// per-deployment capability gate.
+	AIAssistantAddonEnabled bool
+	UpdatedAt               time.Time
 }
 
 // MarketingFlags gate whether each not-yet-launched marketing surface is shown.
@@ -201,6 +205,7 @@ type UpdateAdminPlatformSettingsInput struct {
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
 	BrandLogoURL                 string
+	AIAssistantAddonEnabled      bool
 }
 
 // UpdateAdminMarketingFlagsInput is a partial update of the four marketing

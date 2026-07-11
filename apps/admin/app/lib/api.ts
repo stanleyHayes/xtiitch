@@ -70,6 +70,7 @@ export type AdminPlatformSettings = {
   maintenanceMode: boolean;
   brandLogoUrl: string;
   marketingFlags: MarketingFlags;
+  aiAssistantAddonEnabled: boolean;
   updatedAt?: string;
 };
 
@@ -913,6 +914,7 @@ type AdminPlatformSettingsPayload = {
   maintenance_mode: boolean;
   brand_logo_url?: string;
   marketing_flags?: MarketingFlagsPayload | null;
+  ai_assistant_addon_enabled?: boolean;
   updated_at?: string;
 };
 
@@ -1707,6 +1709,7 @@ function mapPlatformSettings(
     maintenanceMode: payload.maintenance_mode,
     brandLogoUrl: payload.brand_logo_url ?? "",
     marketingFlags: mapMarketingFlags(payload.marketing_flags),
+    aiAssistantAddonEnabled: payload.ai_assistant_addon_enabled ?? true,
     updatedAt: payload.updated_at,
   };
 }
@@ -2542,6 +2545,7 @@ export const adminApi = {
       payoutReviewThresholdPesewas: number;
       maintenanceMode: boolean;
       brandLogoUrl: string;
+      aiAssistantAddonEnabled: boolean;
     },
   ) =>
     requestJSON<AdminPlatformSettingsPayload>("/admin/settings/platform", {
@@ -2554,6 +2558,7 @@ export const adminApi = {
         payout_review_threshold_pesewas: input.payoutReviewThresholdPesewas,
         maintenance_mode: input.maintenanceMode,
         brand_logo_url: input.brandLogoUrl,
+        ai_assistant_addon_enabled: input.aiAssistantAddonEnabled,
       }),
     }).then(mapPlatformSettings),
   signBrandingUpload: (accessToken: string) =>

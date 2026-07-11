@@ -57,24 +57,43 @@ type PaymentAuthorizer interface {
 // ultimately fails. A Paystack webhook for exact reconciliation is a follow-up
 // (see apps/api/AI_ADDON_TODO.md). Xtiitch never holds funds — Paystack charges
 // the customer directly.
+// PlatformSettings reads the admin master switch for the AI add-on. A nil reader
+// (or a read error) is treated as admin-enabled, so the capability gate alone
+// still governs; the switch can only ever turn the add-on OFF, never force a no-op
+// deployment on.
+type PlatformSettings interface {
+	AIAssistantAddonEnabled(ctx context.Context) (bool, error)
+}
+
 type Service struct {
 	assistant  ports.AiAssistant
 	addons     ports.BusinessAddonRepository
 	payments   PaymentAuthorizer
+	settings   PlatformSettings
 	ids        ports.IDGenerator
 	clock      ports.Clock
 	priceMinor int64
 	currency   string
+	// assistantEnabled is false when no AI provider is configured (no Anthropic
+	// key), in which case the assistant only echoes the input unchanged. The add-on
+	// is then NOT sellable — we never take money for a no-op — so checkout is
+	// refused and the tenant status reports it unavailable.
+	assistantEnabled bool
 }
 
 type Dependencies struct {
 	Assistant  ports.AiAssistant
 	Addons     ports.BusinessAddonRepository
 	Payments   PaymentAuthorizer
+	Settings   PlatformSettings
 	IDs        ports.IDGenerator
 	Clock      ports.Clock
 	PriceMinor int64
 	Currency   string
+	// AssistantEnabled MUST be true only when a real AI provider is configured
+	// (see bootstrap: cfg.AnthropicAPIKey != ""). When false the add-on cannot be
+	// purchased or renewed, so a business never pays for a passthrough no-op.
+	AssistantEnabled bool
 }
 
 func NewService(deps Dependencies) Service {
@@ -83,14 +102,30 @@ func NewService(deps Dependencies) Service {
 		currency = defaultAddonCurrency
 	}
 	return Service{
-		assistant:  deps.Assistant,
-		addons:     deps.Addons,
-		payments:   deps.Payments,
-		ids:        deps.IDs,
-		clock:      deps.Clock,
-		priceMinor: deps.PriceMinor,
-		currency:   currency,
+		assistant:        deps.Assistant,
+		addons:           deps.Addons,
+		payments:         deps.Payments,
+		settings:         deps.Settings,
+		ids:              deps.IDs,
+		clock:            deps.Clock,
+		priceMinor:       deps.PriceMinor,
+		currency:         currency,
+		assistantEnabled: deps.AssistantEnabled,
 	}
+}
+
+// AddonAvailable reports whether the AI Assistant add-on can be sold on this
+// deployment: a real AI provider must be configured, a price set, AND the admin
+// master switch on. The admin switch overrides everything (can force OFF), but can
+// never turn a no-op deployment (no AI provider) into a sellable one.
+func (s Service) AddonAvailable(ctx context.Context) (bool, error) {
+	if !s.assistantEnabled || s.priceMinor <= 0 {
+		return false, nil
+	}
+	if s.settings == nil {
+		return true, nil
+	}
+	return s.settings.AIAssistantAddonEnabled(ctx)
 }
 
 // Assist rewrites the business's draft text per the requested instruction. It is
@@ -142,11 +177,18 @@ type AddonStatusView struct {
 	PriceMinor    int64
 	Currency      string
 	NextChargeAt  *time.Time
+	// Available is false when the add-on cannot be purchased on this deployment
+	// (no AI provider configured / no price). The dashboard hides the buy button.
+	Available bool
 }
 
 // AddonStatus returns the authenticated business's AI Assistant add-on status.
 func (s Service) AddonStatus(ctx context.Context, scope common.TenantScope) (AddonStatusView, error) {
 	status, err := s.addons.GetAddonStatus(ctx, scope, business.AddonAIAssistant)
+	if err != nil {
+		return AddonStatusView{}, err
+	}
+	available, err := s.AddonAvailable(ctx)
 	if err != nil {
 		return AddonStatusView{}, err
 	}
@@ -157,6 +199,7 @@ func (s Service) AddonStatus(ctx context.Context, scope common.TenantScope) (Add
 		PriceMinor:    s.priceMinor,
 		Currency:      s.currency,
 		NextChargeAt:  status.NextChargeAt,
+		Available:     available,
 	}, nil
 }
 
@@ -174,6 +217,15 @@ type CheckoutLink struct {
 // first payment — it never re-charges (which would double-bill).
 func (s Service) InitializeCheckout(ctx context.Context, scope common.TenantScope, callbackURL string) (CheckoutLink, error) {
 	if scope.BusinessID.IsZero() || s.payments == nil || s.priceMinor <= 0 {
+		return CheckoutLink{}, ErrBillingUnavailable
+	}
+	// Never sell the add-on where the AI is a passthrough no-op (no provider key) or
+	// the admin master switch is off.
+	available, err := s.AddonAvailable(ctx)
+	if err != nil {
+		return CheckoutLink{}, err
+	}
+	if !available {
 		return CheckoutLink{}, ErrBillingUnavailable
 	}
 	email, err := s.addons.GetBusinessOwnerEmail(ctx, scope)
@@ -269,6 +321,16 @@ type RenewalSweepResult struct {
 func (s Service) RunRenewalSweep(ctx context.Context, limit int) (RenewalSweepResult, error) {
 	if s.payments == nil {
 		return RenewalSweepResult{}, ErrBillingUnavailable
+	}
+	// Do not renew (charge) the add-on when it is not available — no AI provider
+	// (no-op), or the admin master switch is off. Existing subscriptions then stop
+	// being billed rather than paying for a passthrough / a disabled feature.
+	available, err := s.AddonAvailable(ctx)
+	if err != nil {
+		return RenewalSweepResult{}, err
+	}
+	if !available {
+		return RenewalSweepResult{}, nil
 	}
 	now := s.clock.Now().UTC()
 	due, err := s.addons.ListAddonChargesDue(ctx, now, limit)

@@ -682,6 +682,7 @@ function fallbackPlatformSettings(): AdminPlatformSettings {
       createStore: false,
       pricing: false,
     },
+    aiAssistantAddonEnabled: true,
   };
 }
 
@@ -1075,6 +1076,7 @@ export async function action({ request }: Route.ActionArgs) {
           form.get("payout_review_threshold_ghs"),
         ),
         maintenanceMode: readBoolean(form, "maintenance_mode"),
+        aiAssistantAddonEnabled: readBoolean(form, "ai_assistant_addon_enabled"),
         brandLogoUrl,
       });
       return {
@@ -17759,6 +17761,14 @@ function SettingsSection({
                   label="Maintenance mode"
                   helper="Temporarily signal that storefront and dashboard operations are restricted."
                   defaultChecked={platformSettings.maintenanceMode}
+                  disabled={!canManagePlatformSettings}
+                />
+
+                <BooleanPreference
+                  name="ai_assistant_addon_enabled"
+                  label="AI writing add-on available"
+                  helper="Master switch for the paid ✨ AI writing add-on. Off hides the purchase and stops renewals platform-wide (overrides everything). It can never be sold where no AI provider is configured."
+                  defaultChecked={platformSettings.aiAssistantAddonEnabled}
                   disabled={!canManagePlatformSettings}
                 />
 

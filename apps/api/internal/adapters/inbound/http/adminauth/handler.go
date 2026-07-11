@@ -260,6 +260,7 @@ type updatePlatformSettingsRequest struct {
 	PayoutReviewThresholdPesewas int    `json:"payout_review_threshold_pesewas"`
 	MaintenanceMode              bool   `json:"maintenance_mode"`
 	BrandLogoURL                 string `json:"brand_logo_url"`
+	AIAssistantAddonEnabled      bool   `json:"ai_assistant_addon_enabled"`
 }
 
 type businessVerificationDecisionRequest struct {
@@ -546,6 +547,7 @@ type platformSettingsResponse struct {
 	MaintenanceMode              bool                   `json:"maintenance_mode"`
 	BrandLogoURL                 string                 `json:"brand_logo_url"`
 	MarketingFlags               marketingFlagsResponse `json:"marketing_flags"`
+	AIAssistantAddonEnabled      bool                   `json:"ai_assistant_addon_enabled"`
 	UpdatedAt                    string                 `json:"updated_at,omitempty"`
 }
 
@@ -1440,6 +1442,7 @@ func (handler Handler) updatePlatformSettings(w http.ResponseWriter, r *http.Req
 		PayoutReviewThresholdPesewas: request.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              request.MaintenanceMode,
 		BrandLogoURL:                 request.BrandLogoURL,
+		AIAssistantAddonEnabled:      request.AIAssistantAddonEnabled,
 		UserAgent:                    r.UserAgent(),
 		IPAddress:                    requestIP(r),
 	})
@@ -4198,6 +4201,7 @@ func newPlatformSettingsResponse(settings ports.AdminPlatformSettingsRecord) pla
 		MaintenanceMode:              settings.MaintenanceMode,
 		BrandLogoURL:                 settings.BrandLogoURL,
 		MarketingFlags:               newMarketingFlagsResponse(settings.MarketingFlags),
+		AIAssistantAddonEnabled:      settings.AIAssistantAddonEnabled,
 		UpdatedAt:                    settings.UpdatedAt.Format(time.RFC3339),
 	}
 }

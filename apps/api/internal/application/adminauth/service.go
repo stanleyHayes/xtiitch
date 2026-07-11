@@ -935,6 +935,7 @@ type UpdatePlatformSettingsCommand struct {
 	PayoutReviewThresholdPesewas int
 	MaintenanceMode              bool
 	BrandLogoURL                 string
+	AIAssistantAddonEnabled      bool
 	UserAgent                    string
 	IPAddress                    string
 }
@@ -4894,6 +4895,7 @@ func normalizePlatformSettings(
 		PayoutReviewThresholdPesewas: cmd.PayoutReviewThresholdPesewas,
 		MaintenanceMode:              cmd.MaintenanceMode,
 		BrandLogoURL:                 brandLogoURL,
+		AIAssistantAddonEnabled:      cmd.AIAssistantAddonEnabled,
 	}, nil
 }
 

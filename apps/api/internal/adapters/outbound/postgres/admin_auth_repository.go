@@ -487,6 +487,7 @@ func (repo AdminAuthRepository) GetAdminPlatformSettings(ctx context.Context) (p
 			marketing_show_discover,
 			marketing_show_create_store,
 			marketing_show_pricing,
+			ai_assistant_addon_enabled,
 			updated_at
 		from admin_platform_settings
 		where settings_id = true
@@ -514,9 +515,10 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			verification_sla_hours,
 			payout_review_threshold_pesewas,
 			maintenance_mode,
-			brand_logo_url
+			brand_logo_url,
+			ai_assistant_addon_enabled
 		)
-		values (true, $1, $2, $3, $4, $5, $6)
+		values (true, $1, $2, $3, $4, $5, $6, $7)
 		on conflict (settings_id) do update
 		set platform_name = excluded.platform_name,
 			support_email = excluded.support_email,
@@ -524,6 +526,7 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			payout_review_threshold_pesewas = excluded.payout_review_threshold_pesewas,
 			maintenance_mode = excluded.maintenance_mode,
 			brand_logo_url = excluded.brand_logo_url,
+			ai_assistant_addon_enabled = excluded.ai_assistant_addon_enabled,
 			updated_at = now()
 		returning
 			platform_name,
@@ -536,6 +539,7 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			marketing_show_discover,
 			marketing_show_create_store,
 			marketing_show_pricing,
+			ai_assistant_addon_enabled,
 			updated_at
 	`, input.PlatformName,
 		input.SupportEmail,
@@ -543,6 +547,7 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 		input.PayoutReviewThresholdPesewas,
 		input.MaintenanceMode,
 		input.BrandLogoURL,
+		input.AIAssistantAddonEnabled,
 	))
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
@@ -5605,6 +5610,7 @@ func scanAdminPlatformSettingsRecord(row pgx.Row) (ports.AdminPlatformSettingsRe
 		&settings.MarketingFlags.Discover,
 		&settings.MarketingFlags.CreateStore,
 		&settings.MarketingFlags.Pricing,
+		&settings.AIAssistantAddonEnabled,
 		&settings.UpdatedAt,
 	); err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err

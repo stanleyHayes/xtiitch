@@ -31,6 +31,9 @@ type AddonStatus = {
   price_minor: number;
   currency: string;
   next_charge_at: string | null;
+  // available is false when the add-on cannot be purchased on this deployment (no
+  // AI provider configured, or the admin master switch is off).
+  available?: boolean;
 };
 
 export function meta(): Route.MetaDescriptors {
@@ -123,6 +126,8 @@ export default function AiAssistantAddon({
   const active = status?.active ?? false;
   const pastDue = status?.billing_status === "past_due";
   const renewal = formatRenewal(status?.next_charge_at ?? null);
+  // Default true so an older API (no `available` field) keeps the buy button.
+  const available = status?.available ?? true;
 
   return (
     <Box
@@ -227,6 +232,20 @@ export default function AiAssistantAddon({
               >
                 Back to dashboard
               </Button>
+            </>
+          ) : !available ? (
+            <>
+              <Alert severity="info" sx={{ mb: 2 }}>
+                The ✨ AI writing add-on isn’t available right now. Please check
+                back later.
+              </Alert>
+              <Link
+                component={RouterLink}
+                to="/dashboard"
+                sx={{ color: alpha(tokens.ink, 0.6), textAlign: "center" }}
+              >
+                Back to dashboard
+              </Link>
             </>
           ) : (
             <>

@@ -132,6 +132,7 @@ func (handler Handler) addonStatus(w http.ResponseWriter, r *http.Request) {
 		"price_minor":    status.PriceMinor,
 		"currency":       status.Currency,
 		"next_charge_at": nextCharge,
+		"available":      status.Available,
 	})
 }
 
