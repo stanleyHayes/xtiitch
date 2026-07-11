@@ -74,6 +74,7 @@ type placeOrderBody struct {
 	AffiliateClickID   string `json:"affiliate_click_id"`
 	AffiliateVisitorID string `json:"affiliate_visitor_id"`
 	ReferralCode       string `json:"referral_code"`
+	Note               string `json:"note"`
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +98,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		AffiliateClickID:   common.ID(body.AffiliateClickID),
 		AffiliateVisitorID: body.AffiliateVisitorID,
 		ReferralCode:       body.ReferralCode,
+		Note:               body.Note,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -113,6 +115,7 @@ type cartLineBody struct {
 	Kind         string            `json:"kind"`
 	SizeMode     string            `json:"size_mode"`
 	Measurements map[string]string `json:"measurements"`
+	Note         string            `json:"note"`
 }
 
 type placeCartOrderBody struct {
@@ -141,6 +144,7 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 			Kind:         checkoutapp.CartLineKind(item.Kind),
 			SizeMode:     order.SizeMode(item.SizeMode),
 			Measurements: item.Measurements,
+			Note:         item.Note,
 		})
 	}
 
@@ -237,6 +241,7 @@ type placeCustomOrderBody struct {
 	AffiliateVisitorID string            `json:"affiliate_visitor_id"`
 	ReferralCode       string            `json:"referral_code"`
 	Measurements       map[string]string `json:"measurements"`
+	Note               string            `json:"note"`
 }
 
 func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) {
@@ -261,6 +266,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		AffiliateVisitorID: body.AffiliateVisitorID,
 		ReferralCode:       body.ReferralCode,
 		Measurements:       body.Measurements,
+		Note:               body.Note,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -284,6 +290,7 @@ type placeBookingBody struct {
 	ReferralCode       string `json:"referral_code"`
 	SlotStart          string `json:"slot_start"`
 	Address            string `json:"address"`
+	Note               string `json:"note"`
 }
 
 func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
@@ -312,6 +319,7 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		ReferralCode:       body.ReferralCode,
 		SlotStart:          slotStart,
 		Address:            body.Address,
+		Note:               body.Note,
 	})
 	if err != nil {
 		status, code := checkoutError(err)

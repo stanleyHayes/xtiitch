@@ -133,13 +133,13 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
 			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
-			checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id
+			checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id, note
 		)
-		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11)
+		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11, $12)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
 		nullableIDArg(input.SizeBandID), input.AgreedTotalMinor, nullableIDArg(input.CheckoutGroupID),
 		nullableTextArg(input.DeliveryMethod), input.DeliveryAddress, input.DeliveryFeeMinor,
-		nullableIDArg(input.DeliveryZoneID)); err != nil {
+		nullableIDArg(input.DeliveryZoneID), input.Note); err != nil {
 		return err
 	}
 
@@ -185,13 +185,13 @@ func (repo OrderRepository) CreateOnlineOrderGroup(ctx context.Context, scope co
 			insert into orders (
 				order_id, business_id, customer_id, design_id, size_band_id,
 				order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
-				checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id
+				checkout_group_id, delivery_method, delivery_address, delivery_fee_minor, delivery_zone_id, note
 			)
-			values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11)
+			values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'online', $6, 0, 'draft', $7, $8, $9, $10, $11, $12)
 		`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
 			nullableIDArg(input.SizeBandID), input.AgreedTotalMinor, nullableIDArg(input.CheckoutGroupID),
 			nullableTextArg(input.DeliveryMethod), input.DeliveryAddress, input.DeliveryFeeMinor,
-			nullableIDArg(input.DeliveryZoneID)); err != nil {
+			nullableIDArg(input.DeliveryZoneID), input.Note); err != nil {
 			return err
 		}
 	}
@@ -336,12 +336,12 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
 			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status,
-			checkout_group_id
+			checkout_group_id, note
 		)
-		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', $6, 0, 'draft', $7)
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', 'online', $6, 0, 'draft', $7, $8)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
 		input.DesignID.String(), input.SizeMode, nullableInt64Arg(input.AgreedTotalMinor),
-		nullableIDArg(input.CheckoutGroupID)); err != nil {
+		nullableIDArg(input.CheckoutGroupID), input.Note); err != nil {
 		return err
 	}
 
@@ -715,6 +715,7 @@ func (repo OrderRepository) AdvanceStage(ctx context.Context, scope common.Tenan
 		from orders o
 		left join stage_templates st on st.stage_id = o.current_stage_id
 		where o.order_id = $1
+		for update of o
 	`, orderID.String()).Scan(&businessID, &flow, &status, &currentSeq); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return order.Tracking{}, ErrNotFound

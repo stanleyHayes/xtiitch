@@ -125,6 +125,8 @@ type CreateOnlineOrderInput struct {
 	DeliveryAddress  string
 	DeliveryFeeMinor int64
 	DeliveryZoneID   *common.ID
+	// Note is the customer's free-text instruction captured at checkout ('' if none).
+	Note string
 }
 
 type CreateCustomOrderInput struct {
@@ -149,6 +151,8 @@ type CreateCustomOrderInput struct {
 	// Measurements maps the business's measurement field ids to entered values.
 	MeasurementID common.ID
 	Measurements  map[string]string
+	// Note is the customer's free-text instruction captured at checkout ('' if none).
+	Note string
 }
 
 type CreateCustomOrderConfirmedInput struct {

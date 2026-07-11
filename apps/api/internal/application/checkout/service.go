@@ -155,6 +155,8 @@ type PlaceStandardOrderCommand struct {
 	AffiliateClickID   common.ID
 	AffiliateVisitorID string
 	ReferralCode       string
+	// Note is the customer's free-text instruction captured at checkout ('' if none).
+	Note string
 }
 
 type PlaceStandardOrderResult struct {
@@ -222,6 +224,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		CustomerWhatsApp: strings.TrimSpace(cmd.CustomerWhatsApp),
 		CustomerEmail:    email,
 		AgreedTotalMinor: price,
+		Note:             strings.TrimSpace(cmd.Note),
 	}); err != nil {
 		return PlaceStandardOrderResult{}, err
 	}
@@ -326,6 +329,8 @@ type CartLineCommand struct {
 	Kind         CartLineKind
 	SizeMode     order.SizeMode
 	Measurements map[string]string
+	// Note is the customer's free-text instruction for this line ('' if none).
+	Note string
 }
 
 type PlaceCartOrderCommand struct {
@@ -460,6 +465,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 				CustomerEmail:    email,
 				AgreedTotalMinor: price,
 				CheckoutGroupID:  &groupID,
+				Note:             strings.TrimSpace(line.Note),
 			}
 			// Delivery method + destination ride every standard order in the
 			// group so each ready-made piece segments correctly when fulfilled.
@@ -503,6 +509,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 				CheckoutGroupID:  &groupID,
 				MeasurementID:    s.ids.NewID(),
 				Measurements:     measurements,
+				Note:             strings.TrimSpace(line.Note),
 			}
 			customInputs = append(customInputs, input)
 			total += deposit
@@ -617,10 +624,19 @@ func (s Service) PlaceMarketplaceOrder(ctx context.Context, cmd PlaceMarketplace
 		return PlaceMarketplaceOrderResult{}, ErrInvalidInput
 	}
 	totalLines := 0
+	seenHandles := make(map[string]struct{}, len(cmd.Stores))
 	for _, st := range cmd.Stores {
-		if strings.TrimSpace(st.StoreHandle) == "" || len(st.Lines) == 0 {
+		handle := strings.ToLower(strings.TrimSpace(st.StoreHandle))
+		if handle == "" || len(st.Lines) == 0 {
 			return PlaceMarketplaceOrderResult{}, ErrInvalidInput
 		}
+		// Reject the same shop twice: duplicate handles would build two checkout
+		// groups and a Paystack split with a repeated subaccount (a provider error /
+		// double net-credit). Each shop must appear at most once per basket.
+		if _, dup := seenHandles[handle]; dup {
+			return PlaceMarketplaceOrderResult{}, ErrInvalidInput
+		}
+		seenHandles[handle] = struct{}{}
 		totalLines += len(st.Lines)
 	}
 	if totalLines > maxCartLines {
@@ -748,6 +764,7 @@ func (s Service) buildMarketplaceStoreGroup(ctx context.Context, st MarketplaceS
 				CustomerEmail:    email,
 				AgreedTotalMinor: price,
 				CheckoutGroupID:  &groupID,
+				Note:             strings.TrimSpace(line.Note),
 			})
 			total += price
 			commission += money.Commission(price, charge.CommissionBps)
@@ -778,6 +795,7 @@ func (s Service) buildMarketplaceStoreGroup(ctx context.Context, st MarketplaceS
 				CheckoutGroupID:  &groupID,
 				MeasurementID:    s.ids.NewID(),
 				Measurements:     measurements,
+				Note:             strings.TrimSpace(line.Note),
 			})
 			total += deposit
 			commission += money.Commission(deposit, charge.CommissionBps)
@@ -903,6 +921,8 @@ type PlaceHomeVisitBookingCommand struct {
 	ReferralCode       string
 	SlotStart          time.Time
 	Address            string
+	// Note is the customer's free-text instruction captured at checkout ('' if none).
+	Note string
 }
 
 type PlaceHomeVisitBookingResult struct {
@@ -987,6 +1007,7 @@ func (s Service) holdAndCharge(ctx context.Context, scope common.TenantScope, st
 		CustomerPhone:    customer.phone,
 		CustomerWhatsApp: customer.whatsapp,
 		CustomerEmail:    customer.email,
+		Note:             strings.TrimSpace(cmd.Note),
 	}); err != nil {
 		return PlaceHomeVisitBookingResult{}, err
 	}
@@ -1070,6 +1091,8 @@ type PlaceCustomOrderCommand struct {
 	// Measurements maps the business's measurement field ids to entered values;
 	// only used (and required) for the self-measure route.
 	Measurements map[string]string
+	// Note is the customer's free-text instruction captured at checkout ('' if none).
+	Note string
 }
 
 type PlaceCustomOrderResult struct {
@@ -1214,6 +1237,7 @@ func (s Service) placeDepositCustomOrder(ctx context.Context, scope common.Tenan
 		CustomerPhone:    customer.phone,
 		CustomerWhatsApp: customer.whatsapp,
 		CustomerEmail:    customer.email,
+		Note:             strings.TrimSpace(cmd.Note),
 	}
 	if mode == order.SizeModeSelfMeasure {
 		input.MeasurementID = s.ids.NewID()
