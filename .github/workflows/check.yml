@@ -42,7 +42,7 @@ jobs:
       - name: Go lint (report-only during refactor)
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.8.0
+          version: v2.12.2
           working-directory: apps/api
           args: --issues-exit-code=0
 

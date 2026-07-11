@@ -39,7 +39,6 @@ const ALLOWLIST = new Set([
   "apps/api/internal/adapters/outbound/postgres/promotion_repository.go",
 
   // Go test files
-  "apps/api/internal/application/adminauth/service_test.go",
   "apps/api/internal/application/auth/service_test.go",
   "apps/api/internal/application/checkout/service_test.go",
   "apps/api/internal/adapters/outbound/postgres/admin_auth_repository_integration_test.go",

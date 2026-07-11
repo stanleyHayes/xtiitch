@@ -1,4 +1,4 @@
-.PHONY: build test lint vet fmt
+.PHONY: build test lint vet fmt fmt-check
 
 build:
 	go build ./...
@@ -13,4 +13,7 @@ vet:
 	go vet ./...
 
 fmt:
-	gofmt -w .
+	golangci-lint fmt ./...
+
+fmt-check:
+	golangci-lint fmt --diff ./...
