@@ -1865,18 +1865,25 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   if (intent === "setup_payout") {
-    // The settlement account is the MoMo/number payouts are sent to. The API's
-    // /businesses/me/verify records it and marks the business verified.
+    // The settlement account is the MoMo number payouts are sent to, and the
+    // settlement bank is its network (MTN / VOD / ATL) — Paystack requires the
+    // network code to create the payout subaccount. /businesses/me/verify records
+    // both and marks the business verified.
     const settlementAccount = String(form.get("settlement_account") ?? "").trim();
-    if (!settlementAccount) {
+    const settlementBank = String(form.get("settlement_bank") ?? "").trim();
+    if (!settlementAccount || !settlementBank) {
       return {
-        payoutError: "Enter the mobile money number payouts should go to.",
+        payoutError:
+          "Choose your mobile money network and enter the number payouts should go to.",
       };
     }
     const response = await apiFetch(request, "/businesses/me/verify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settlement_account: settlementAccount }),
+      body: JSON.stringify({
+        settlement_account: settlementAccount,
+        settlement_bank: settlementBank,
+      }),
     });
     if (!response.ok) {
       return {
@@ -12072,6 +12079,19 @@ function PayoutSetupPanel({
             spacing={1.5}
             sx={{ mt: 2, alignItems: { sm: "center" } }}
           >
+            <TextField
+              name="settlement_bank"
+              label="Network"
+              select
+              required
+              defaultValue="MTN"
+              sx={{ minWidth: { sm: 160 } }}
+              fullWidth
+            >
+              <MenuItem value="MTN">MTN MoMo</MenuItem>
+              <MenuItem value="VOD">Telecel (Vodafone) Cash</MenuItem>
+              <MenuItem value="ATL">AT (AirtelTigo) Money</MenuItem>
+            </TextField>
             <TextField
               name="settlement_account"
               label="Mobile money number"

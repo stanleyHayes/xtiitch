@@ -53,6 +53,9 @@ func (handler Handler) Register(router chi.Router) {
 }
 
 type verifyRequest struct {
+	// SettlementBank is the mobile-money network code (MTN / VOD / ATL) or bank
+	// code Paystack settles the subaccount to; required alongside the number.
+	SettlementBank    string `json:"settlement_bank"`
 	SettlementAccount string `json:"settlement_account"`
 }
 
@@ -96,6 +99,7 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 	if err := handler.service.VerifyBusiness(r.Context(), paymentsapp.VerifyBusinessCommand{
 		BusinessID:        principal.BusinessID,
 		ActorRole:         principal.Role,
+		SettlementBank:    request.SettlementBank,
 		SettlementAccount: request.SettlementAccount,
 	}); err != nil {
 		status, code := paymentError(err)

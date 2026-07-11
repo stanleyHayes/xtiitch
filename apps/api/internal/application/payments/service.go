@@ -45,6 +45,7 @@ func NewService(deps Dependencies) Service {
 type VerifyBusinessCommand struct {
 	BusinessID        common.ID
 	ActorRole         business.UserRole
+	SettlementBank    string
 	SettlementAccount string
 }
 
@@ -56,7 +57,7 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
 		return err
 	}
-	if cmd.SettlementAccount == "" {
+	if cmd.SettlementAccount == "" || cmd.SettlementBank == "" {
 		return ErrInvalidCharge
 	}
 
@@ -72,6 +73,7 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	result, err := s.provider.CreateBusinessSubaccount(ctx, ports.CreateBusinessSubaccountInput{
 		BusinessID:        cmd.BusinessID,
 		BusinessName:      info.Name,
+		SettlementBank:    cmd.SettlementBank,
 		SettlementAccount: cmd.SettlementAccount,
 	})
 	if err != nil {

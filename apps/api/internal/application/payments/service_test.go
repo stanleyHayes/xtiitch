@@ -337,6 +337,7 @@ func TestMoneyManagementRequiresOwnerOrAdmin(t *testing.T) {
 	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
 		ActorRole:         business.UserRoleStaff,
+		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
 	})
 	if !errors.Is(err, authdomain.ErrForbidden) {
@@ -422,6 +423,7 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
 		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
@@ -444,6 +446,7 @@ func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
 		ActorRole:         business.UserRoleAdmin,
+		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)

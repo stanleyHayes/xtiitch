@@ -52,6 +52,7 @@ func (c Client) CreateBusinessSubaccount(ctx context.Context, input ports.Create
 	}
 	if err := c.post(ctx, "/subaccount", map[string]any{
 		"business_name":     input.BusinessName,
+		"settlement_bank":   input.SettlementBank,
 		"account_number":    input.SettlementAccount,
 		"percentage_charge": 0,
 	}, &response); err != nil {

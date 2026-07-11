@@ -605,8 +605,13 @@ type PaymentProvider interface {
 }
 
 type CreateBusinessSubaccountInput struct {
-	BusinessID        common.ID
-	BusinessName      string
+	BusinessID   common.ID
+	BusinessName string
+	// SettlementBank is the provider's settlement-bank code — for Ghana mobile
+	// money the network code (MTN / VOD / ATL), or a bank code. Paystack REQUIRES
+	// it on /subaccount; without it the subaccount is rejected ("Bank code is
+	// required").
+	SettlementBank    string
 	SettlementAccount string
 }
 
