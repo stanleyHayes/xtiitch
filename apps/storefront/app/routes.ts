@@ -16,6 +16,7 @@ export default [
   route("collection/:handle", "routes/collection-redirect.tsx"),
   route("cart", "routes/cart.tsx"),
   route("checkout", "routes/checkout.tsx"),
+  route("checkout-all", "routes/checkout-all.tsx"),
   route("track", "routes/track-lookup.tsx"),
   route("track/:orderId", "routes/track.tsx"),
   route("robots.txt", "routes/robots.tsx"),

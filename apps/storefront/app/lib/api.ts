@@ -212,6 +212,22 @@ export type PlaceCartOrderInput = {
   delivery_address?: string;
 };
 
+// A unified marketplace basket paid in one split charge (§4 "pay once"): each
+// store's lines settle to that store's own subaccount. Pickup only.
+export type MarketplaceOrderStore = {
+  store_handle: string;
+  items: CartOrderLine[];
+};
+
+export type PlaceMarketplaceOrderInput = {
+  stores: MarketplaceOrderStore[];
+  customer_name: string;
+  customer_phone: string;
+  customer_whatsapp?: string;
+  customer_email: string;
+  method: "momo" | "card";
+};
+
 export type DeliveryZone = {
   zone_id: string;
   name: string;
@@ -384,6 +400,8 @@ export const api = {
       `/public/stores/${enc(storeHandle)}/cart-orders`,
       input,
     ),
+  placeMarketplaceOrder: (input: PlaceMarketplaceOrderInput) =>
+    postJSON<PlaceOrderResult>(`/public/marketplace/orders`, input),
   deliveryZones: (storeHandle: string) =>
     getJSON<DeliveryZonesPage>(
       `/public/stores/${enc(storeHandle)}/delivery-zones`,

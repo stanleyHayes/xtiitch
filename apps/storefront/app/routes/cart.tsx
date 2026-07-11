@@ -241,16 +241,34 @@ export default function Cart({ loaderData }: Route.ComponentProps) {
 
             {multiStore ? (
               <Stack
-                direction="row"
+                spacing={1.5}
                 sx={{
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  px: { xs: 1.5, md: 2 },
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 3,
+                  p: { xs: 1.5, md: 2 },
                 }}
               >
-                <Typography sx={{ fontWeight: 900 }}>Basket total</Typography>
-                <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
-                  {formatGHS(totalMinor)}
+                <Stack
+                  direction="row"
+                  sx={{ justifyContent: "space-between", alignItems: "center" }}
+                >
+                  <Typography sx={{ fontWeight: 900 }}>Basket total</Typography>
+                  <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
+                    {formatGHS(totalMinor)}
+                  </Typography>
+                </Stack>
+                <Button
+                  component={RouterLink}
+                  to="/checkout-all"
+                  variant="contained"
+                  size="large"
+                >
+                  Pay for all {groups.length} studios at once
+                </Button>
+                <Typography variant="caption" sx={{ color: "text.secondary" }}>
+                  One payment, split to each studio automatically — or check out
+                  a single studio above.
                 </Typography>
               </Stack>
             ) : null}
