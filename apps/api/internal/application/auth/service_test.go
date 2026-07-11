@@ -835,6 +835,7 @@ type fakeBusinessIdentityRepository struct {
 	transferScope         common.TenantScope
 	transferErr           error
 	subscription          ports.BusinessSubscriptionRecord
+	subscriptionUpgraded  ports.BusinessSubscriptionRecord
 	activationPayment     ports.RecordSubscriptionActivationPaymentInput
 	activationAlreadyPaid bool
 	cadenceSet            string
@@ -867,6 +868,11 @@ func (repo *fakeBusinessIdentityRepository) ListActivePlans(_ context.Context) (
 }
 
 func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(_ context.Context, _ common.ID) (ports.BusinessSubscriptionRecord, error) {
+	// After a plan switch, a re-read reflects the upgraded plan (mirrors the real
+	// repo, whose figures are joined from the now-current plan).
+	if repo.upgradeApplied != nil && repo.subscriptionUpgraded.SubscriptionID != "" {
+		return repo.subscriptionUpgraded, nil
+	}
 	return repo.subscription, nil
 }
 
@@ -971,6 +977,86 @@ func newSubscriptionTestService(businesses *fakeBusinessIdentityRepository, paym
 
 // A paid plan's authorization-verify charges the first period immediately and,
 // on success, books the activation payment and reports the subscription active.
+func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget(t *testing.T) {
+	t.Parallel()
+
+	// A store on the FREE plan (fee 0) activating a paid plan. Without the plan
+	// switch this fails the fee gate outright — the reported "couldn't start billing"
+	// bug for free→paid upgrades.
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "free", MonthlyFeeMinor: 0, Status: "active",
+		},
+		planByCode: ports.PlanPricingRecord{PlanID: "plan-growth", Code: "growth", MonthlyFeeMinor: 9900},
+		subscriptionUpgraded: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "active", BillingCadence: "yearly", YearlyFirstMinor: 89100,
+		},
+	}
+	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{chargeStatus: "success"})
+
+	result, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb",
+		BillingCadence: "yearly", PlanCode: "growth",
+	})
+	if err != nil {
+		t.Fatalf("free→paid activation should succeed, got %v", err)
+	}
+	if businesses.upgradeApplied == nil || businesses.upgradeApplied.NewPlanID != "plan-growth" {
+		t.Fatalf("expected the subscription switched to the target plan, got %+v", businesses.upgradeApplied)
+	}
+	if businesses.upgradeApplied.AmountMinor != 0 {
+		t.Fatalf("activation switch must not book a proration invoice (first charge is on the callback), got %d", businesses.upgradeApplied.AmountMinor)
+	}
+	if result.RedirectURL == "" {
+		t.Fatal("expected a Paystack authorization link")
+	}
+}
+
+func TestInitializeSubscriptionAuthorizationRejectsFreeWithoutTarget(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "free", MonthlyFeeMinor: 0, Status: "active",
+		},
+	}
+	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{})
+	_, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("a free plan with no target must be rejected, got %v", err)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatal("no plan switch should occur without a target")
+	}
+}
+
+func TestInitializeSubscriptionAuthorizationRejectsDowngradeTarget(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "active",
+		},
+		planByCode: ports.PlanPricingRecord{PlanID: "plan-starter", Code: "starter", MonthlyFeeMinor: 4900},
+	}
+	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{})
+	_, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly", PlanCode: "starter",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("a downgrade via activation must be rejected, got %v", err)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatal("no immediate switch on a downgrade target")
+	}
+}
+
 func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	t.Parallel()
 

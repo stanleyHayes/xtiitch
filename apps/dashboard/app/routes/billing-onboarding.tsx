@@ -107,6 +107,7 @@ async function startPaystackBilling(
   origin: string,
   cadence: BillingCadence,
   code: string,
+  planCode: string,
 ): Promise<Response | { error: string }> {
   const response = await apiFetch(
     request,
@@ -117,6 +118,10 @@ async function startPaystackBilling(
       body: JSON.stringify({
         callback_url: `${origin}/onboarding/billing/callback`,
         billing_cadence: cadence,
+        // The target plan being activated/upgraded to. Sending it lets a store on
+        // the free plan switch to the chosen paid plan as billing starts (otherwise
+        // the free-fee subscription fails the API's fee gate and can never upgrade).
+        ...(planCode ? { plan_code: planCode } : {}),
         // Only send a code when the owner entered one; the API treats it as
         // optional and applies the discount at checkout when valid.
         ...(code ? { code } : {}),
@@ -323,12 +328,15 @@ export async function action({ request }: Route.ActionArgs) {
   }
 
   // Identity is on file (already or just submitted) — start Paystack billing,
-  // carrying any discount code so the API can apply it at checkout.
+  // carrying the target plan (?plan=) so a free store activates the chosen paid
+  // plan, plus any discount code for the API to apply at checkout.
+  const targetPlan = new URL(request.url).searchParams.get("plan") ?? "";
   const result = await startPaystackBilling(
     request,
     origin,
     cadence,
     discountCode,
+    targetPlan.trim(),
   );
   return result;
 }

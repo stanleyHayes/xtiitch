@@ -360,6 +360,12 @@ func (s Service) ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord,
 type InitializeSubscriptionAuthorizationCommand struct {
 	Scope       common.TenantScope
 	CallbackURL string
+	// PlanCode is the TARGET plan the owner is activating/upgrading to. When set and
+	// it differs from the current plan (e.g. a free store upgrading to a paid plan),
+	// the subscription is switched to it before billing so the fee gate and first
+	// charge use the target plan — mirroring how a fresh paid signup is seeded on
+	// its plan before payment. Empty keeps the current plan (a re-activation).
+	PlanCode string
 	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
 	// Monthly billing is not offered under the Pricing Book, so an empty or
 	// 'monthly' value is rejected for a paid plan.
@@ -412,7 +418,47 @@ func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd In
 	if err != nil {
 		return SubscriptionAuthorizationLink{}, err
 	}
-	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+	if subscription.Status == "canceled" {
+		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+	}
+	// Target plan: when the owner is activating/upgrading to a specific plan (e.g. a
+	// FREE store choosing a paid plan), switch the subscription onto that plan first
+	// so the fee gate and the callback's first charge use the target plan's figures.
+	// Without this, a free-plan store (fee 0) can never start billing — it fails the
+	// fee gate below, and change-plan refuses it as "billing inactive" — a deadlock.
+	// The switch mirrors a fresh paid signup (plan seeded before payment; the
+	// non-payment sweep reverts an abandoned activation).
+	if targetCode := strings.ToLower(strings.TrimSpace(cmd.PlanCode)); targetCode != "" &&
+		!strings.EqualFold(targetCode, strings.TrimSpace(subscription.PlanCode)) {
+		target, err := s.businesses.GetPlanByCode(ctx, targetCode)
+		if err != nil {
+			return SubscriptionAuthorizationLink{}, err
+		}
+		if target.MonthlyFeeMinor <= 0 {
+			// The target must be a paid plan; you don't "set up billing" for free.
+			return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+		}
+		// Only switch on a strict UPGRADE here (target fee > current). A downgrade
+		// must go through ChangeSubscriptionPlan (parked to renewal), never an
+		// immediate mid-cycle switch via activation.
+		if target.MonthlyFeeMinor <= subscription.MonthlyFeeMinor {
+			return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
+		}
+		if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
+			BusinessID: subscription.BusinessID,
+			NewPlanID:  target.PlanID,
+			// AmountMinor 0: no proration invoice here — the FIRST period is charged
+			// on the Paystack callback (VerifySubscriptionAuthorization).
+		}); err != nil {
+			return SubscriptionAuthorizationLink{}, err
+		}
+		// Re-read so the fee gate + downstream figures reflect the target plan.
+		subscription, err = s.businesses.GetBusinessSubscription(ctx, cmd.Scope.BusinessID)
+		if err != nil {
+			return SubscriptionAuthorizationLink{}, err
+		}
+	}
+	if subscription.MonthlyFeeMinor <= 0 {
 		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
 	}
 	// Validate and capture an optional discount code BEFORE persisting the cadence

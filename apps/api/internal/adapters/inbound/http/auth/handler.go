@@ -342,6 +342,9 @@ func (handler Handler) checkHandleAvailability(w http.ResponseWriter, r *http.Re
 
 type subscriptionAuthorizationLinkRequest struct {
 	CallbackURL string `json:"callback_url"`
+	// PlanCode is the target plan being activated/upgraded to; when set and it
+	// differs from the current plan the subscription is switched onto it first.
+	PlanCode string `json:"plan_code"`
 	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
 	BillingCadence string `json:"billing_cadence"`
 	// Code is an optional subscription discount code applied at checkout.
@@ -371,6 +374,7 @@ func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter
 	result, err := handler.service.InitializeSubscriptionAuthorization(r.Context(), authapp.InitializeSubscriptionAuthorizationCommand{
 		Scope:          principal.TenantScope(),
 		CallbackURL:    request.CallbackURL,
+		PlanCode:       request.PlanCode,
 		BillingCadence: request.BillingCadence,
 		Code:           request.Code,
 	})
