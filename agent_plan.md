@@ -1509,7 +1509,12 @@ Also shipped after the list above:
 STATUS: every Xtiitch-Updates item is now implemented and shipped.
 - P0.5 marketplace gate: `ListPublicShops` lists only stores with a provisioned subaccount (`b18dfbd`).
 - P0.4 multi-store "pay once": backend `b658283` (provider split object; migration 000080 marketplace_charges + members; payments.InitiateMarketplaceCharge; checkout.PlaceMarketplaceOrder → POST /public/marketplace/orders; ISOLATED webhook reconcile that settles each shop's group under its own tenant scope + writes per-shop money rows). Storefront: unified cart's "Pay for all N studios at once" → /checkout-all → one split charge. Existing single-store money path is byte-for-byte unchanged.
-- CAVEAT: like the existing single-subaccount split, the Paystack `split` object shape + the cross-tenant settlement must be validated against a Paystack TEST account (and a staging DB) before it settles real money — the single-store per-store checkout remains the proven fallback.
+- VALIDATED against the live Paystack TEST API (2026-07-11):
+  - the multi-store `split` object shape (`type:flat`, `bearer_type:all-proportional`, `subaccounts:[{subaccount,share}]`) is ACCEPTED — returns an authorization URL. The P0.4 caveat is resolved.
+  - the existing single-store split path (`subaccount`+`transaction_charge`+`bearer`) still works (no regression from the client `switch`).
+  - BUG FOUND + FIXED (`e631609`): `CreateBusinessSubaccount` omitted `settlement_bank`, which Paystack REQUIRES ("Bank code is required") — no store could provision a subaccount (blocking the P0.5 gate + P0.4). Now threads the MoMo network (MTN/VOD/ATL) through `/businesses/me/verify` + a dashboard Network selector. Verified: subaccount creation succeeds with `settlement_bank` + a MoMo number.
+  - webhook HMAC uses the Paystack SECRET KEY; `PAYSTACK_WEBHOOK_SECRET` now defaults to `PAYSTACK_SECRET_KEY` when unset (`807a0ff`).
+- REMAINING for the user (needs the running API + browser payment): set `PAYSTACK_SECRET_KEY=sk_test_…` on the API, set the Paystack dashboard webhook URL to `<api>/v1/webhooks/paystack`, provision ≥2 test stores' subaccounts (payout panel), then run a multi-store checkout and pay a test MoMo to confirm the split settles + the webhook confirms each shop's group. Test MoMo numbers that resolve: MTN 0551234987 / 0540000000.
 
 REMAINING (item 4 core + P0.4) — deliberately NOT rushed; it changes the money path + webhook/settlement:
 - item 4 (a,b,c): multi-store UNIFIED cart on the apex/marketplace context, grouped by store, kept SEPARATE from the subdomain single-shop cart (two cart cookies / host-keyed, "don't merge"); cart UI grouped by store with per-store subtotals; per-store checkout.
