@@ -1,3 +1,4 @@
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
@@ -7,6 +8,7 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
+import { ACTIVATION_PATH } from "../../lib/activation";
 import { SectionHeader } from "../../components/ui/SectionHeader";
 import { ToneChip } from "../../components/ui/ToneChip";
 import { Panel } from "../../components/ui/Panel";
@@ -51,6 +53,7 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
   setCatalogueToolsOpen,
   publishedCollections,
   cataloguePriceCount,
+  pendingActivation,
 }: {
   designs: Design[];
   collections: CollectionSummary[];
@@ -80,6 +83,7 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
   setCatalogueToolsOpen: (mode: "collections" | "sizeBands" | null) => void;
   publishedCollections: number;
   cataloguePriceCount: number;
+  pendingActivation: boolean;
 }) {
   void openDesignId;
   return (
@@ -113,40 +117,56 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
         >
           All designs ({designs.length})
         </Button>
-        <Tooltip
-          title={
-            atDesignLimit
-              ? `You've reached the ${designLimit}-design limit on the Free plan`
-              : ""
-          }
-        >
-          <Button
-            variant={
-              !openCatalogueDesign && catalogueView === "add"
-                ? "contained"
-                : "outlined"
-            }
-            onClick={() => {
-              if (atDesignLimit) {
-                setDesignLimitDialogOpen(true);
-                return;
-              }
-              setOpenDesignId(null);
-              setCatalogueView("add");
-            }}
-            startIcon={atDesignLimit ? <LockRounded /> : <AddRounded />}
-            sx={
+        {pendingActivation ? (
+          // Paid plan pending activation: route to the activation page instead
+          // of opening the add-design form (the API would reject the save with
+          // 402 anyway). Reads and the rest of the catalogue stay available.
+          <Tooltip title="Activate your plan to add designs">
+            <Button
+              component={RouterLink}
+              to={ACTIVATION_PATH}
+              variant="outlined"
+              startIcon={<LockRounded />}
+            >
+              Add design
+            </Button>
+          </Tooltip>
+        ) : (
+          <Tooltip
+            title={
               atDesignLimit
-                ? {
-                    color: "text.disabled",
-                    borderColor: "divider",
-                  }
-                : undefined
+                ? `You've reached the ${designLimit}-design limit on the Free plan`
+                : ""
             }
           >
-            Add design
-          </Button>
-        </Tooltip>
+            <Button
+              variant={
+                !openCatalogueDesign && catalogueView === "add"
+                  ? "contained"
+                  : "outlined"
+              }
+              onClick={() => {
+                if (atDesignLimit) {
+                  setDesignLimitDialogOpen(true);
+                  return;
+                }
+                setOpenDesignId(null);
+                setCatalogueView("add");
+              }}
+              startIcon={atDesignLimit ? <LockRounded /> : <AddRounded />}
+              sx={
+                atDesignLimit
+                  ? {
+                      color: "text.disabled",
+                      borderColor: "divider",
+                    }
+                  : undefined
+              }
+            >
+              Add design
+            </Button>
+          </Tooltip>
+        )}
         {openCatalogueDesign ? (
           <ToneChip
             label={`Editing: ${openCatalogueDesign.title}`}

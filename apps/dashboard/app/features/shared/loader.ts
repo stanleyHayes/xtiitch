@@ -1,5 +1,9 @@
 import type { BandPrice, Design } from "../../lib/api";
 import {
+  fetchActivationStatus,
+  type ActivationStatus,
+} from "../../lib/activation";
+import {
   loadCurrentUser,
   loadDashboardJSON,
   readDashboardJSON,
@@ -37,6 +41,7 @@ import type {
 export type DashboardLoaderData = {
   profile: Profile;
   currentUser: CurrentUser;
+  activation: ActivationStatus;
   designs: Design[];
   orders: OrderSummary[];
   stages: Stage[];
@@ -69,13 +74,16 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
 }): Promise<DashboardLoaderData> {
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
-  const [profile, currentUser] = await Promise.all([
+  const [profile, currentUser, activation] = await Promise.all([
     readDashboardJSON<Profile>(
       request,
       "/businesses/me",
       "The business dashboard API is unavailable. Start the API and refresh this dashboard.",
     ),
     loadCurrentUser(request),
+    // Drives the persistent activation banner and the paid-action gating; fails
+    // open (activated) so a hiccup never blocks the dashboard.
+    fetchActivationStatus(request),
   ]);
   const canManage = canManageDashboard(currentUser.role);
   const section = parseDashboardSection(params.section, canManage);
@@ -303,6 +311,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   return {
     profile,
     currentUser,
+    activation,
     designs,
     orders: canManage ? orders : stripStaffMoneyDetails(orders),
     stages: stagesData.stages ?? [],

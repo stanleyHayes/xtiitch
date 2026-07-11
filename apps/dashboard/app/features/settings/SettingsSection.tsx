@@ -11,12 +11,14 @@ export function SettingsSection({
   deliveryZones,
   waitlistEntries,
   action,
+  pendingActivation,
 }: {
   profile: Profile;
   storeSettings: StoreSettings;
   deliveryZones: DeliveryZone[];
   waitlistEntries: WaitlistEntry[];
   action: DashboardActionData;
+  pendingActivation: boolean;
 }) {
   return (
     <>
@@ -34,6 +36,7 @@ export function SettingsSection({
         settings={storeSettings}
         profile={profile}
         error={action.settingsError}
+        pendingActivation={pendingActivation}
       />
       {storeSettings.delivery_enabled ? (
         <DeliveryZonesPanel

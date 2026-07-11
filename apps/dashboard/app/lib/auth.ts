@@ -28,6 +28,23 @@ export async function apiFetch(request: Request, path: string, init?: RequestIni
   if (response.status === 401) {
     throw redirect("/login", { headers: { "Set-Cookie": await destroySession(session) } });
   }
+  // A paid plan that is still pending activation is rejected by the API with 402
+  // { error: "activation_required" } on every paid mutation. Handle it globally:
+  // send the owner to the activation page (reads/navigation stay untouched). The
+  // body is read from a clone so a non-activation 402 leaves the response intact.
+  if (response.status === 402) {
+    let error: string | undefined;
+    try {
+      const body = (await response.clone().json()) as { error?: string };
+      error = body.error;
+    } catch {
+      error = undefined;
+    }
+    if (error === "activation_required") {
+      // Mirrors ACTIVATION_PATH in ./activation; kept literal to avoid a cycle.
+      throw redirect("/activate?blocked=1");
+    }
+  }
   return response;
 }
 

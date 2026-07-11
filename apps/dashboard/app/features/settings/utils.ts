@@ -13,6 +13,65 @@ export function enabledStoreSettings(settings: StoreSettings): number {
   ].filter(Boolean).length;
 }
 
+export type StoreFeatureSwitch = {
+  name: string;
+  label: string;
+  helper: string;
+  checked: boolean;
+};
+
+// The storefront request-path toggles rendered by StoreSettingsPanel. Kept here
+// (rather than inline) so the panel component stays within its line budget.
+export function storeFeatureSwitches(
+  settings: StoreSettings,
+): StoreFeatureSwitch[] {
+  return [
+    {
+      name: "bespoke_enabled",
+      label: "Bespoke orders",
+      helper: "Let customers request custom work from eligible designs.",
+      checked: settings.bespoke_enabled,
+    },
+    {
+      name: "measurements_enabled",
+      label: "Measurements",
+      helper: "Show measurement-led ordering and fitting flows.",
+      checked: settings.measurements_enabled,
+    },
+    {
+      name: "customisation_enabled",
+      label: "Customisation",
+      helper: "Allow customers to ask for alterations to catalogue pieces.",
+      checked: settings.customisation_enabled,
+    },
+    {
+      name: "collections_enabled",
+      label: "Collections",
+      helper: "Organise designs into public storefront collections.",
+      checked: settings.collections_enabled,
+    },
+    {
+      name: "delivery_enabled",
+      label: "Delivery",
+      helper: "Show delivery as a fulfilment option where available.",
+      checked: settings.delivery_enabled,
+    },
+    {
+      name: "dispatch_enabled",
+      label: "Dispatch desk",
+      helper: "Let the team manage pickup and delivery handovers.",
+      checked: settings.dispatch_enabled,
+    },
+    {
+      name: "fee_pass_to_buyer",
+      label: "Pass platform fee to buyer",
+      helper:
+        "Add the Xtiitch sales fee to the customer's total at checkout instead of absorbing it. Off = you absorb the fee.",
+      checked: settings.fee_pass_to_buyer,
+    },
+  ];
+}
+
 export function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null { // eslint-disable-line complexity -- form-data mapper with many conditional branches; refactor in follow-up
   const recurrences = form.getAll("recurrence");
   const weekdays = form.getAll("weekday");

@@ -5,20 +5,24 @@ import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
 import { alpha } from "@mui/material/styles";
+import BoltRounded from "@mui/icons-material/BoltRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import { tokens } from "../../../theme";
+import { ACTIVATION_PATH } from "../../../lib/activation";
 import type { Profile } from "../../shared/types";
 
-export function RailFooter({
+export function RailFooter({ // eslint-disable-line max-lines-per-function -- large presentational footer with compact/expanded button variants; refactor in follow-up
   profile,
   storefrontURL,
   compact,
+  pendingActivation,
 }: {
   profile: Profile;
   storefrontURL: string;
   compact: boolean;
+  pendingActivation: boolean;
 }) {
   return (
     <Box sx={{ mt: "auto" }}>
@@ -62,7 +66,49 @@ export function RailFooter({
           View storefront
         </Button>
       )}
-      {profile.plan !== "growth" && profile.plan !== "studio" ? (
+      {pendingActivation ? (
+        compact ? (
+          <Tooltip title="Activate plan" placement="right">
+            <IconButton
+              component={RouterLink}
+              to={ACTIVATION_PATH}
+              aria-label="Activate plan"
+              sx={{
+                mt: 1,
+                width: "100%",
+                height: 48,
+                color: tokens.charcoal,
+                border: "1px solid",
+                borderColor: alpha(tokens.gold, 0.6),
+                bgcolor: tokens.gold,
+                borderRadius: 1.5,
+                "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
+              }}
+            >
+              <BoltRounded />
+            </IconButton>
+          </Tooltip>
+        ) : (
+          <Button
+            component={RouterLink}
+            to={ACTIVATION_PATH}
+            startIcon={<BoltRounded />}
+            fullWidth
+            sx={{
+              mt: 1,
+              color: tokens.charcoal,
+              fontWeight: 800,
+              bgcolor: tokens.gold,
+              "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
+            }}
+          >
+            Activate plan
+          </Button>
+        )
+      ) : null}
+      {!pendingActivation &&
+      profile.plan !== "growth" &&
+      profile.plan !== "studio" ? (
         compact ? (
           <Tooltip title="Upgrade plan" placement="right">
             <IconButton

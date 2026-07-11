@@ -99,6 +99,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   designLimit,
   atDesignLimit,
   profile,
+  pendingActivation,
 }: {
   section: string;
   canManage: boolean;
@@ -153,6 +154,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   designLimit: number | null;
   atDesignLimit: boolean;
   profile: Profile;
+  pendingActivation: boolean;
 }) {
   return (
     <>
@@ -299,6 +301,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
                 setCatalogueToolsOpen={setCatalogueToolsOpen}
                 publishedCollections={overview.publishedCollections}
                 cataloguePriceCount={overview.cataloguePriceCount}
+                pendingActivation={pendingActivation}
               />
             )}
           </Stack>
@@ -332,6 +335,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
               deliveryZones={deliveryZones}
               waitlistEntries={waitlistEntries}
               action={action}
+              pendingActivation={pendingActivation}
             />
           )}
 

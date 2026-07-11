@@ -16,7 +16,7 @@ import type { DashboardLoaderData } from "../shared/loader";
 import { WorkspaceRail } from "./WorkspaceRail";
 import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { WorkspaceHeader } from "./WorkspaceHeader";
-import { BillingSetupBanner } from "../billing/BillingSetupBanner";
+import { ActivationBanner } from "../billing/ActivationBanner";
 import { DashboardSections } from "./DashboardSections";
 import { DashboardDialogs } from "./DashboardDialogs";
 import { DashboardSnackbar } from "./DashboardSnackbar";
@@ -41,6 +41,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
   const {
     profile,
     currentUser,
+    activation,
     designs,
     orders,
     stages,
@@ -283,6 +284,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
           collapsed={railCollapsed}
           mobileOpen={mobileNavOpen}
           onCloseMobile={() => setMobileNavOpen(false)}
+          pendingActivation={!activation.activated}
         />
         <Box
           sx={{
@@ -317,7 +319,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               overflowX: "hidden",
             }}
           >
-            <BillingSetupBanner plan={profile.plan} handle={profile.handle} />
+            <ActivationBanner activation={activation} />
             <WorkspaceHeader
               meta={pageMeta}
               canManage={canManage}
@@ -388,6 +390,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               designLimit={designLimit}
               atDesignLimit={atDesignLimit}
               profile={profile}
+              pendingActivation={!activation.activated}
             />
           </Box>
         </Box>

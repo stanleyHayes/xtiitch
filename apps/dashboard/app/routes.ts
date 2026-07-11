@@ -15,6 +15,9 @@ export default [
   route("business-otp", "routes/business-otp.ts"),
   route("onboarding/billing", "routes/billing-onboarding.tsx"),
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
+  // Canonical paid-plan activation page. The banner, blocked primary actions and
+  // the global 402 handler all route here; it resolves the pending plan itself.
+  route("activate", "routes/activate.tsx"),
   route("addons/ai-assistant", "routes/addons.ai-assistant.tsx"),
   route(
     "addons/ai-assistant/callback",

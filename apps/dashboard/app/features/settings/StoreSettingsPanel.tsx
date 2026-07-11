@@ -1,4 +1,4 @@
-import { Form } from "react-router";
+import { Form, Link as RouterLink } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -7,6 +7,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import LockRounded from "@mui/icons-material/LockRounded";
 import PaletteRounded from "@mui/icons-material/PaletteRounded";
 import SaveRounded from "@mui/icons-material/SaveRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
@@ -15,64 +16,32 @@ import { tokens } from "../../theme";
 import { StoreSettings, Profile } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
-import { enabledStoreSettings } from "./utils";
+import { enabledStoreSettings, storeFeatureSwitches } from "./utils";
 import { PlanGatedControl } from "../../components/ui/PlanGatedControl";
 import { StorefrontImageUploadField } from "../studio/StorefrontImageUploadField";
+import {
+  ACTIVATION_PATH,
+  activationPlanLabel,
+  activationPromptMessage,
+} from "../../lib/activation";
 
 export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   settings,
   profile,
   error,
+  pendingActivation,
 }: {
   settings: StoreSettings;
   profile: Profile;
   error?: string;
+  pendingActivation: boolean;
 }) {
-  const featureSwitches = [
-    {
-      name: "bespoke_enabled",
-      label: "Bespoke orders",
-      helper: "Let customers request custom work from eligible designs.",
-      checked: settings.bespoke_enabled,
-    },
-    {
-      name: "measurements_enabled",
-      label: "Measurements",
-      helper: "Show measurement-led ordering and fitting flows.",
-      checked: settings.measurements_enabled,
-    },
-    {
-      name: "customisation_enabled",
-      label: "Customisation",
-      helper: "Allow customers to ask for alterations to catalogue pieces.",
-      checked: settings.customisation_enabled,
-    },
-    {
-      name: "collections_enabled",
-      label: "Collections",
-      helper: "Organise designs into public storefront collections.",
-      checked: settings.collections_enabled,
-    },
-    {
-      name: "delivery_enabled",
-      label: "Delivery",
-      helper: "Show delivery as a fulfilment option where available.",
-      checked: settings.delivery_enabled,
-    },
-    {
-      name: "dispatch_enabled",
-      label: "Dispatch desk",
-      helper: "Let the team manage pickup and delivery handovers.",
-      checked: settings.dispatch_enabled,
-    },
-    {
-      name: "fee_pass_to_buyer",
-      label: "Pass platform fee to buyer",
-      helper:
-        "Add the Xtiitch sales fee to the customer's total at checkout instead of absorbing it. Off = you absorb the fee.",
-      checked: settings.fee_pass_to_buyer,
-    },
-  ];
+  const featureSwitches = storeFeatureSwitches(settings);
+
+  const planLabel = activationPlanLabel({
+    plan_name: "",
+    plan_code: profile.plan,
+  });
 
   return (
     <Panel id="settings">
@@ -107,6 +76,27 @@ export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-functi
         {error ? (
           <Alert severity="warning" sx={{ mt: 2 }}>
             {error}
+          </Alert>
+        ) : null}
+
+        {pendingActivation ? (
+          // Paid plan pending activation: saving would 402 server-side, so send
+          // the owner to the activation page with a clear prompt instead.
+          <Alert
+            severity="info"
+            sx={{ mt: 2 }}
+            action={
+              <Button
+                component={RouterLink}
+                to={ACTIVATION_PATH}
+                color="inherit"
+                size="small"
+              >
+                Activate now
+              </Button>
+            }
+          >
+            {activationPromptMessage(planLabel)}.
           </Alert>
         ) : null}
 
@@ -366,14 +356,26 @@ export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-functi
               justifyContent: { xs: "stretch", sm: "flex-end" },
             }}
           >
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<SaveRounded />}
-              sx={{ width: { xs: "100%", sm: "auto" } }}
-            >
-              Save storefront settings
-            </Button>
+            {pendingActivation ? (
+              <Button
+                component={RouterLink}
+                to={ACTIVATION_PATH}
+                variant="contained"
+                startIcon={<LockRounded />}
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+              >
+                Activate to save settings
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                variant="contained"
+                startIcon={<SaveRounded />}
+                sx={{ width: { xs: "100%", sm: "auto" } }}
+              >
+                Save storefront settings
+              </Button>
+            )}
           </Box>
         </Form>
       </Box>

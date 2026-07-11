@@ -19,6 +19,7 @@ export function WorkspaceRail({
   collapsed,
   mobileOpen,
   onCloseMobile,
+  pendingActivation,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
@@ -30,6 +31,7 @@ export function WorkspaceRail({
   collapsed: boolean;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  pendingActivation: boolean;
 }) {
   const railSurfaceSx = {
     bgcolor: tokens.charcoal,
@@ -87,6 +89,7 @@ export function WorkspaceRail({
           profile={profile}
           storefrontURL={storefrontURL}
           compact={compact}
+          pendingActivation={pendingActivation}
         />
       </Stack>
     );

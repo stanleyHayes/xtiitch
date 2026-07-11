@@ -1,6 +1,7 @@
-import { useNavigation } from "react-router";
+import { redirect, useNavigation } from "react-router";
 import type { Route } from "../../routes/+types/billing-onboarding";
 import { fetchApi } from "../../lib/api-base";
+import { fetchActivationStatus } from "../../lib/activation";
 import type { PlanChangeResult, PublicPlan } from "./billing-helpers";
 import {
   fetchProfile,
@@ -20,6 +21,15 @@ export function meta(): Route.MetaDescriptors {
 
 export async function loader({ request }: Route.LoaderArgs) {
   const planCode = new URL(request.url).searchParams.get("plan") ?? "";
+  // A paid plan pending activation that reaches the bare plans/management screen
+  // (no explicit ?plan target) belongs on the activation page, not the
+  // change-plan view — send them there so the plans flow is never a dead-end.
+  if (!planCode) {
+    const activation = await fetchActivationStatus(request);
+    if (!activation.activated) {
+      throw redirect("/activate");
+    }
+  }
   // Fetch the catalogue once: it drives both the activation target (?plan=) and the
   // plan-change control (comparing each plan to the one the business is on).
   let plans: PublicPlan[] = [];
