@@ -54,7 +54,7 @@ export type OverviewData = {
   railBadges: Partial<Record<string, string | undefined>>;
 };
 
-export function useOverviewData({
+export function useOverviewData({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   profile,
   orders,
   bookings,

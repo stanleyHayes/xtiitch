@@ -195,7 +195,11 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 // and each order carries the shared checkout_group_id, so the combined payment
 // webhook can confirm them together. All-or-nothing: any insert error rolls the
 // whole group back, keeping the cart checkout atomic before the charge.
-func (repo OrderRepository) CreateOnlineOrderGroup(ctx context.Context, scope common.TenantScope, inputs []ports.CreateOnlineOrderInput) error {
+func (repo OrderRepository) CreateOnlineOrderGroup(
+	ctx context.Context,
+	scope common.TenantScope,
+	inputs []ports.CreateOnlineOrderInput,
+) error {
 	if len(inputs) == 0 {
 		return nil
 	}

@@ -80,7 +80,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
   const form = await request.formData();
   const url = new URL(request.url);
   const { items: allItems } = await getCart(request);

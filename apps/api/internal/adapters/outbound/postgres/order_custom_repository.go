@@ -146,7 +146,11 @@ func assertBespokeStageExists(ctx context.Context, tx pgx.Tx, businessID common.
 	return nil
 }
 
-func (repo OrderRepository) CreateCustomOrderConfirmed(ctx context.Context, scope common.TenantScope, input ports.CreateCustomOrderConfirmedInput) error {
+func (repo OrderRepository) CreateCustomOrderConfirmed(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateCustomOrderConfirmedInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err

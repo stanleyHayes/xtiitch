@@ -30,6 +30,7 @@ func TestPlaceStandardOrderDiscardsDraftWhenChargeFails(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 	t.Parallel()
 

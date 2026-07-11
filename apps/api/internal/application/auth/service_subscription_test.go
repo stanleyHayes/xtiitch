@@ -42,7 +42,10 @@ func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget(t *testing.
 		t.Fatalf("expected the subscription switched to the target plan, got %+v", businesses.upgradeApplied)
 	}
 	if businesses.upgradeApplied.AmountMinor != 0 {
-		t.Fatalf("activation switch must not book a proration invoice (first charge is on the callback), got %d", businesses.upgradeApplied.AmountMinor)
+		t.Fatalf(
+			"activation switch must not book a proration invoice (first charge is on the callback), got %d",
+			businesses.upgradeApplied.AmountMinor,
+		)
 	}
 	if result.RedirectURL == "" {
 		t.Fatal("expected a Paystack authorization link")

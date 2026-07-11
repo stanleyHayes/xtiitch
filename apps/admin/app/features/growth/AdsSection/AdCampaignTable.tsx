@@ -19,7 +19,7 @@ import { StyledDateTimeField } from "../../shared/StyledDateTimeField";
 import { adCampaignStatusOptions, adPlacementOptions } from "../options";
 import { AdCampaignDetail } from "./AdCampaignDetail";
 
-export function AdCampaignTable({
+export function AdCampaignTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   campaigns,
   pagedCampaigns,
   businesses,

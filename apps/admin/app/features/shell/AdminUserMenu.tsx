@@ -68,7 +68,7 @@ function initials(displayName: string): string {
     .toUpperCase();
 }
 
-export function AdminUserMenu({
+export function AdminUserMenu({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   admin,
   darkChrome,
   onSelect,

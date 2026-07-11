@@ -20,7 +20,7 @@ import {
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleReferralsAction({
+export async function handleReferralsAction({ // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request,
   intent,
   form,

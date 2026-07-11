@@ -35,7 +35,7 @@ import { SubscriptionDiscountCodeFormFields } from "../SubscriptionDiscountCodeF
 import { DialogHeading } from "../DialogHeading";
 import { DialogActionsRow } from "../DialogActionsRow";
 
-export function DiscountCodePanel({
+export function DiscountCodePanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   discountCodes,
   discountCodesError,
   plans,

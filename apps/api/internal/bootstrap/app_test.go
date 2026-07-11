@@ -64,6 +64,7 @@ func TestAdminBootstrapCommandsRejectsIncompleteExtraUser(t *testing.T) {
 }
 
 func TestValidateProductionConfig(t *testing.T) {
+	//nolint:gosec // test config contains placeholder credentials
 	secure := config.Config{
 		Environment:       "production",
 		JWTSigningKey:     "a-strong-production-secret",
@@ -83,6 +84,7 @@ func TestValidateProductionConfig(t *testing.T) {
 	}
 
 	// Production with dev defaults must fail and name each problem.
+	//nolint:gosec // test config contains placeholder credentials
 	insecure := config.Config{
 		Environment:   "production",
 		JWTSigningKey: "change-me-for-local-development",
@@ -92,7 +94,10 @@ func TestValidateProductionConfig(t *testing.T) {
 	if err == nil {
 		t.Fatal("insecure production config should be refused")
 	}
-	for _, want := range []string{"JWT_SIGNING_KEY", "MFA_ENCRYPTION_KEY", "PAYSTACK_SECRET_KEY", "CLOUDINARY_URL", "DATABASE_URL", "sslmode=disable"} {
+	for _, want := range []string{
+		"JWT_SIGNING_KEY", "MFA_ENCRYPTION_KEY", "PAYSTACK_SECRET_KEY",
+		"CLOUDINARY_URL", "DATABASE_URL", "sslmode=disable",
+	} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("expected error to mention %q, got: %v", want, err)
 		}

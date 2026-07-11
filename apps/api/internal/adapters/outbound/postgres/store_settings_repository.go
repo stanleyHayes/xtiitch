@@ -85,7 +85,10 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
-	`, scope.BusinessID.String()).Scan(&profile.Name, &profile.Handle, &profile.VerificationStatus, &profile.PayoutReady, &profile.PlanCode, &featuresRaw); err != nil {
+	`, scope.BusinessID.String()).Scan(
+		&profile.Name, &profile.Handle, &profile.VerificationStatus,
+		&profile.PayoutReady, &profile.PlanCode, &featuresRaw,
+	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.StoreProfile{}, ErrNotFound
 		}

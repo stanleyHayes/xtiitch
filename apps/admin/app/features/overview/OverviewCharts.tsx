@@ -19,7 +19,7 @@ import { buildOverviewSeries, overviewParseMs } from "./utils";
 import { OverviewTrendCard } from "./OverviewTrendCard";
 import { OverviewBreakdownCard } from "./OverviewBreakdownCard";
 
-export function OverviewCharts({
+export function OverviewCharts({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   businesses,
   customers,
   subscriptions,

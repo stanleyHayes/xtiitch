@@ -54,7 +54,8 @@ func TestCheckoutRequiresAuthentication(t *testing.T) {
 	t.Parallel()
 
 	router := newRouter(&fakeService{}, fakeVerifier{err: errTest})
-	request := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader([]byte(`{"purpose":"standard_full","amount_minor":20000,"customer_email":"b@x.com"}`)))
+	body := []byte(`{"purpose":"standard_full","amount_minor":20000,"customer_email":"b@x.com"}`)
+	request := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
@@ -70,7 +71,8 @@ func TestCheckoutReturnsAuthorization(t *testing.T) {
 	service := &fakeService{charge: paymentsapp.ChargeResult{Reference: "xt_1", AuthorizationURL: "https://pay/x", CommissionMinor: 600}}
 	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "user-1", BusinessID: "business-1", Role: business.UserRoleOwner}}
 	router := newRouter(service, verifier)
-	request := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader([]byte(`{"purpose":"standard_full","amount_minor":20000,"method":"momo","customer_email":"b@x.com"}`)))
+	body := []byte(`{"purpose":"standard_full","amount_minor":20000,"method":"momo","customer_email":"b@x.com"}`)
+	request := httptest.NewRequest(http.MethodPost, "/payments/checkout", bytes.NewReader(body))
 	request.Header.Set("Authorization", "Bearer token")
 	response := httptest.NewRecorder()
 
@@ -113,7 +115,8 @@ func TestLogTakingMapsForbidden(t *testing.T) {
 	service := &fakeService{takingErr: authdomain.ErrForbidden}
 	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "staff-1", BusinessID: "business-1", Role: business.UserRoleStaff}}
 	router := newRouter(service, verifier)
-	request := httptest.NewRequest(http.MethodPost, "/money/takings", bytes.NewReader([]byte(`{"amount_minor":5000,"method":"cash","what_for":"cash sale"}`)))
+	body := []byte(`{"amount_minor":5000,"method":"cash","what_for":"cash sale"}`)
+	request := httptest.NewRequest(http.MethodPost, "/money/takings", bytes.NewReader(body))
 	request.Header.Set("Authorization", "Bearer token")
 	response := httptest.NewRecorder()
 
@@ -177,7 +180,11 @@ func (s *fakeService) ListPayments(_ context.Context, _ common.TenantScope) ([]p
 	return nil, nil
 }
 
-func (s *fakeService) LogManualTaking(_ context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error) {
+func (s *fakeService) LogManualTaking(
+	_ context.Context,
+	command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult,
+	error,
+) {
 	s.takingCommand = command
 	if s.takingErr != nil {
 		return paymentsapp.LogManualTakingResult{}, s.takingErr

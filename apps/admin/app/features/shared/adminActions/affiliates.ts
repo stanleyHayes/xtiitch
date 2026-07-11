@@ -15,7 +15,7 @@ import {
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleAffiliatesAction({
+export async function handleAffiliatesAction({ // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request,
   intent,
   form,

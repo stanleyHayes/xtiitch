@@ -8,6 +8,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) RunAdminSubscriptionBillingSweep(
 	ctx context.Context,
 	input ports.RunAdminSubscriptionBillingSweepInput,

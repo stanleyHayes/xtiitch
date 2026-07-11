@@ -10,7 +10,12 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-func (repo CatalogueRepository) ListDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignVariation, error) {
+func (repo CatalogueRepository) ListDesignVariations(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID) ([]catalogue.DesignVariation,
+	error,
+) {
 	var variations []catalogue.DesignVariation
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
@@ -36,7 +41,11 @@ func (repo CatalogueRepository) ListDesignVariations(ctx context.Context, scope 
 	return variations, err
 }
 
-func (repo CatalogueRepository) CreateDesignVariation(ctx context.Context, scope common.TenantScope, input ports.DesignVariationInput) error {
+func (repo CatalogueRepository) CreateDesignVariation(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.DesignVariationInput,
+) error {
 	images := input.Images
 	if images == nil {
 		images = []string{}
@@ -66,7 +75,11 @@ func (repo CatalogueRepository) CreateDesignVariation(ctx context.Context, scope
 	})
 }
 
-func (repo CatalogueRepository) UpdateDesignVariation(ctx context.Context, scope common.TenantScope, input ports.DesignVariationUpdateInput) error {
+func (repo CatalogueRepository) UpdateDesignVariation(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.DesignVariationUpdateInput,
+) error {
 	images := input.Images
 	if images == nil {
 		images = []string{}
@@ -113,7 +126,12 @@ func (repo CatalogueRepository) DeleteDesignVariation(ctx context.Context, scope
 // ReorderDesignVariations rewrites the display order of a design's variations to
 // match orderedIDs (1-based positions). Ids not belonging to the design or the
 // tenant are simply not matched.
-func (repo CatalogueRepository) ReorderDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID, orderedIDs []common.ID) error {
+func (repo CatalogueRepository) ReorderDesignVariations(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+	orderedIDs []common.ID,
+) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		for position, id := range orderedIDs {
 			if _, err := tx.Exec(ctx, `

@@ -182,7 +182,10 @@ func TestCreateCustomOrderConfirmedComeToShop(t *testing.T) {
 	_, settled, stageFlow, stageSeq, colour := readConfirmedStage(t, pool, orderID)
 	assertCustomOrder(t, pool, orderID, "confirmed", "custom", "bespoke", "come_to_shop")
 	if settled != 0 || stageFlow != "bespoke" || stageSeq != 1 || colour != "red" {
-		t.Fatalf("come_to_shop must confirm at first bespoke stage with no settlement, got settled=%d flow=%q seq=%d", settled, stageFlow, stageSeq)
+		t.Fatalf(
+			"come_to_shop must confirm at first bespoke stage with no settlement, got settled=%d flow=%q seq=%d",
+			settled, stageFlow, stageSeq,
+		)
 	}
 	if paymentCount(t, pool, orderID) != 0 {
 		t.Fatal("come_to_shop must raise no payment")
@@ -332,7 +335,11 @@ func assertCustomOrder(t *testing.T, pool *pgxpool.Pool, orderID common.ID, stat
 	})
 }
 
-func readConfirmedStage(t *testing.T, pool *pgxpool.Pool, orderID common.ID) (status string, settled int64, stageFlow string, stageSeq int, colour string) {
+func readConfirmedStage(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	orderID common.ID,
+) (status string, settled int64, stageFlow string, stageSeq int, colour string) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
 		if err := tx.QueryRow(context.Background(), `

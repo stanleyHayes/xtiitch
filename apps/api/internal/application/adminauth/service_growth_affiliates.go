@@ -475,6 +475,7 @@ type affiliateFields struct {
 	Notes            string
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func normalizeAffiliateFields(input affiliateFields) (affiliateFields, error) {
 	entityType := normalizePromotionOption(input.EntityType, "person")
 	if entityType != "person" && entityType != "business" && entityType != "agency" {

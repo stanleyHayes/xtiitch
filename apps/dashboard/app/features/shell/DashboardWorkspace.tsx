@@ -27,7 +27,7 @@ import {
   dashboardRailWidth,
   dashboardRailCollapsedWidth,
 } from "../shared/constants";
-export function DashboardWorkspace({
+export function DashboardWorkspace({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   loaderData,
   actionData,
   darkChrome,

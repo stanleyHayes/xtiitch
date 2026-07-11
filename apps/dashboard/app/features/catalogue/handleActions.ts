@@ -2,7 +2,7 @@ import { apiFetch } from "../../lib/auth";
 import { redirect } from "react-router";
 import { parseSequence, parseSizeChartJSON } from "../shared/utils";
 
-export async function handleCatalogueActions(
+export async function handleCatalogueActions( // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

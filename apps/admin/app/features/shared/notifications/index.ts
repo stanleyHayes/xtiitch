@@ -34,7 +34,7 @@ export {
   notificationCategoryWatched,
 } from "./categories";
 
-export function buildAdminNotifications({
+export function buildAdminNotifications({ // eslint-disable-line max-lines-per-function -- large function with conditional branches; refactor in follow-up
   verificationCases,
   moneyRails,
   platformMetrics,

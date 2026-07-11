@@ -13,7 +13,7 @@ import { invoiceStatusLabel } from "../utils";
 import type { AdminSubscription } from "../../shared/types";
 import type { AdminSubscriptionInvoice } from "../../../lib/api";
 
-export function InvoicePanel({
+export function InvoicePanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   subscription,
   openInvoice,
   latestInvoice,

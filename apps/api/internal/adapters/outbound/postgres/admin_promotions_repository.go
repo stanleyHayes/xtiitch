@@ -57,6 +57,7 @@ func (repo AdminAuthRepository) ListAdminPromotions(ctx context.Context) ([]port
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo AdminAuthRepository) CreateAdminPromotion(
 	ctx context.Context,
 	input ports.CreateAdminPromotionInput,

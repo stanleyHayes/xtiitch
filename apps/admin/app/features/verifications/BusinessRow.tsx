@@ -16,7 +16,7 @@ import { StatusChip } from "../shared/StatusChip";
 
 
 
-export function BusinessRow({
+export function BusinessRow({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   business,
   selected,
   onInspect,

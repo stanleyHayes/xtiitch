@@ -27,7 +27,10 @@ func NewSubscriptionDiscountRepository(pool *pgxpool.Pool) SubscriptionDiscountR
 // FindActiveDiscountCodeByCode resolves an active, non-archived discount code by
 // its (already normalized/upper-cased) code string. Codes are global, so the
 // lookup runs under the bypass. Returns ErrNotFound when no active code matches.
-func (repo SubscriptionDiscountRepository) FindActiveDiscountCodeByCode(ctx context.Context, code string) (ports.SubscriptionDiscountCode, error) {
+func (repo SubscriptionDiscountRepository) FindActiveDiscountCodeByCode(
+	ctx context.Context,
+	code string,
+) (ports.SubscriptionDiscountCode, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.SubscriptionDiscountCode{}, err
@@ -121,7 +124,11 @@ func (repo SubscriptionDiscountRepository) CountAppliedRedemptions(ctx context.C
 // single business has made against a code, for the max_per_account cap. Runs
 // under the bypass (it filters by business_id explicitly) so the pre-checkout
 // validation does not depend on a tenant scope being set.
-func (repo SubscriptionDiscountRepository) CountAppliedRedemptionsForAccount(ctx context.Context, discountCodeID common.ID, businessID common.ID) (int, error) {
+func (repo SubscriptionDiscountRepository) CountAppliedRedemptionsForAccount(
+	ctx context.Context,
+	discountCodeID common.ID,
+	businessID common.ID,
+) (int, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return 0, err
@@ -150,7 +157,11 @@ func (repo SubscriptionDiscountRepository) CountAppliedRedemptionsForAccount(ctx
 // charged); it is transitioned to 'applied' by MarkRedemptionApplied only once the
 // activation charge settles, so an abandoned checkout never consumes a slot
 // against the max_redemptions_total / max_per_account caps (those count 'applied').
-func (repo SubscriptionDiscountRepository) CreateRedemption(ctx context.Context, scope common.TenantScope, input ports.CreateDiscountRedemptionInput) (common.ID, error) {
+func (repo SubscriptionDiscountRepository) CreateRedemption(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateDiscountRedemptionInput,
+) (common.ID, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -211,7 +222,13 @@ const recentPendingWindow = "1 hour"
 // checkouts of the same limited code cannot both pass the cap check. It counts
 // APPLIED redemptions plus recent PENDING ones (an in-flight checkout has only a
 // pending row until its payment settles), closing the pending→settle race.
-func (repo SubscriptionDiscountRepository) CreateRedemptionWithinCaps(ctx context.Context, scope common.TenantScope, input ports.CreateDiscountRedemptionInput, maxPerAccount int, maxTotal *int) (common.ID, error) {
+func (repo SubscriptionDiscountRepository) CreateRedemptionWithinCaps(
+	ctx context.Context,
+	_ common.TenantScope,
+	input ports.CreateDiscountRedemptionInput,
+	maxPerAccount int,
+	maxTotal *int,
+) (common.ID, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return "", err
@@ -287,7 +304,11 @@ func (repo SubscriptionDiscountRepository) CreateRedemptionWithinCaps(ctx contex
 // subscription — the discount captured at checkout — joined with its code so the
 // verify step can apply it without a second lookup. Returns ErrNotFound when the
 // subscription has no pending discount. Tenant-scoped (RLS).
-func (repo SubscriptionDiscountRepository) FindPendingRedemption(ctx context.Context, scope common.TenantScope, subscriptionID common.ID) (ports.PendingDiscountRedemption, error) {
+func (repo SubscriptionDiscountRepository) FindPendingRedemption(
+	ctx context.Context,
+	scope common.TenantScope,
+	subscriptionID common.ID,
+) (ports.PendingDiscountRedemption, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.PendingDiscountRedemption{}, err
@@ -336,7 +357,11 @@ func (repo SubscriptionDiscountRepository) FindPendingRedemption(ctx context.Con
 // the final discount amount and applied_at. It is idempotent: it only touches a
 // row still in 'pending', so a replayed verify (double callback) that finds the
 // row already applied is a no-op. Tenant-scoped (RLS).
-func (repo SubscriptionDiscountRepository) MarkRedemptionApplied(ctx context.Context, scope common.TenantScope, input ports.MarkDiscountRedemptionAppliedInput) error {
+func (repo SubscriptionDiscountRepository) MarkRedemptionApplied(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.MarkDiscountRedemptionAppliedInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -364,7 +389,11 @@ func (repo SubscriptionDiscountRepository) MarkRedemptionApplied(ctx context.Con
 // deterministic activation ref (so the charge webhook and any re-verify are
 // no-ops), and next_billing_at is set to now + freeMonths, after which the normal
 // recurring renewal charge resumes. Idempotent on the invoice ref. Tenant-scoped.
-func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(ctx context.Context, scope common.TenantScope, input ports.ActivateFreePeriodInput) error {
+func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.ActivateFreePeriodInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err

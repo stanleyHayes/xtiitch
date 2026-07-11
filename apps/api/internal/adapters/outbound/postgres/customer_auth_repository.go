@@ -106,7 +106,14 @@ func (repo CustomerAuthRepository) GetCustomerProfile(ctx context.Context, custo
 	return p, nil
 }
 
-func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error) {
+func (repo CustomerAuthRepository) UpdateCustomerProfile(
+	ctx context.Context,
+	customerID common.ID,
+	displayName,
+	email,
+	whatsAppPhone string) (ports.CustomerProfile,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.CustomerProfile{}, err
@@ -122,7 +129,9 @@ func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, cu
 		set display_name = $2, email = $3, whatsapp_phone = $4
 		where customer_id = $1 and erased_at is null
 		returning customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, ''), coalesce(whatsapp_phone, '')
-	`, customerID.String(), displayName, email, whatsAppPhone).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email, &p.WhatsAppPhone); err != nil {
+	`,
+		customerID.String(), displayName, email, whatsAppPhone,
+	).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email, &p.WhatsAppPhone); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.CustomerProfile{}, ErrNotFound
 		}
@@ -151,7 +160,10 @@ func (repo CustomerAuthRepository) CreateOTPChallenge(ctx context.Context, input
 	if _, err := tx.Exec(ctx, `
 		insert into customer_otp_challenges (challenge_id, channel, phone, email, code_hash, expires_at)
 		values ($1, $2, $3, $4, $5, $6)
-	`, input.ChallengeID.String(), string(channel), nullIfEmpty(input.Phone), nullIfEmpty(input.Email), input.CodeHash, input.ExpiresAt); err != nil {
+	`,
+		input.ChallengeID.String(), string(channel), nullIfEmpty(input.Phone),
+		nullIfEmpty(input.Email), input.CodeHash, input.ExpiresAt,
+	); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -160,7 +172,13 @@ func (repo CustomerAuthRepository) CreateOTPChallenge(ctx context.Context, input
 // LatestActiveOTPChallenge resolves the newest active challenge for a channel +
 // identifier. The identifier is matched against the channel's column (phone for
 // whatsapp, email for email) so the two channels never collide.
-func (repo CustomerAuthRepository) LatestActiveOTPChallenge(ctx context.Context, channel ports.CustomerOTPChannel, identifier string, now time.Time) (ports.OTPChallengeRecord, error) {
+func (repo CustomerAuthRepository) LatestActiveOTPChallenge(
+	ctx context.Context,
+	channel ports.CustomerOTPChannel,
+	identifier string,
+	now time.Time) (ports.OTPChallengeRecord,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.OTPChallengeRecord{}, err

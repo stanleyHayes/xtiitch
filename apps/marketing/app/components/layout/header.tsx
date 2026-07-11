@@ -22,7 +22,7 @@ import { navGroups } from "./nav-data";
 import { MegaMenu } from "./mega-menu";
 import { MobileNav } from "./mobile-nav";
 
-export function Header() {
+export function Header() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const rootData = useRouteLoaderData("root") as

@@ -470,9 +470,15 @@ func seedSponsoredPlacementFixture(t *testing.T, pool *pgxpool.Pool) {
 				ends_at
 			)
 			values
-				($1, $2, 'promoted_design', $3, 'Sponsored design', 'Visible on the public marketing site.', 'active', 'flat_time', 25000, now() - interval '1 day', now() + interval '7 days'),
-				($4, $2, 'featured_business', '', 'Paused placement', 'Should not render.', 'paused', 'flat_time', 25000, now() - interval '1 day', now() + interval '7 days'),
-				($5, $2, 'featured_business', '', 'Old placement', 'Should not render.', 'active', 'flat_time', 25000, now() - interval '10 days', now() - interval '1 day')
+				($1, $2, 'promoted_design', $3, 'Sponsored design',
+				 'Visible on the public marketing site.', 'active', 'flat_time', 25000,
+				 now() - interval '1 day', now() + interval '7 days'),
+				($4, $2, 'featured_business', '', 'Paused placement',
+				 'Should not render.', 'paused', 'flat_time', 25000,
+				 now() - interval '1 day', now() + interval '7 days'),
+				($5, $2, 'featured_business', '', 'Old placement',
+				 'Should not render.', 'active', 'flat_time', 25000,
+				 now() - interval '10 days', now() - interval '1 day')
 		`, itSponsoredCampaignActive, itSponsoredBusiness, itSponsoredDesign, itSponsoredCampaignPaused, itSponsoredCampaignOld)
 	})
 }

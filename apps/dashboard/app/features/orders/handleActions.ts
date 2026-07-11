@@ -4,7 +4,7 @@ import { safeDashboardReturn } from "../shared/api";
 import { parseMoneyMinor } from "../shared/utils";
 import { extractMeasurementValues } from "../settings/utils";
 
-export async function handleOrdersActions(
+export async function handleOrdersActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

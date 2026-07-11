@@ -35,7 +35,7 @@ import { BusinessUserCreateForm } from "./BusinessUserCreateForm";
 import { OwnerTransferPanel } from "./OwnerTransferPanel";
 import { BusinessUserDetailForm } from "./BusinessUserDetailForm";
 
-export function TeamPanel({
+export function TeamPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   users,
   currentUser,
   error,

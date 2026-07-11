@@ -75,6 +75,8 @@ type PlaceCartOrderResult struct {
 // one payment's webhook confirms every order in the group (each settled by its
 // own line total). The whole checkout is all-or-nothing: if the charge cannot be
 // raised, every draft and the customer created for them are rolled back.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) (PlaceCartOrderResult, error) {
 	name := strings.TrimSpace(cmd.CustomerName)
 	email := strings.TrimSpace(cmd.CustomerEmail)

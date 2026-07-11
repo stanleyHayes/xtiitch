@@ -16,7 +16,7 @@ import { StyledDateTimeField } from "../shared/StyledDateTimeField";
 
 
 
-export function SubscriptionDiscountCodeFormFields({
+export function SubscriptionDiscountCodeFormFields({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   discountCode,
   plans,
 }: {

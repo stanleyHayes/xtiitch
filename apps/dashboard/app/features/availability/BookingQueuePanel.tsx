@@ -23,7 +23,7 @@ import { InfoStrip } from "../studio/InfoStrip";
 import { StyledDateTimeField } from "../../components/ui/StyledDateTimeField";
 import { PaginationFooter } from "../../components/ui/PaginationFooter";
 
-export function BookingQueuePanel({
+export function BookingQueuePanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   bookings,
   error,
 }: {

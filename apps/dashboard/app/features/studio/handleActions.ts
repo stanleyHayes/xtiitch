@@ -13,7 +13,7 @@ import {
   uploadDesignImage,
 } from "./utils";
 
-export async function handleStudioActions(
+export async function handleStudioActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

@@ -101,6 +101,7 @@ func queryAdminRiskReview(
 	return records[0], nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func queryAdminRiskReviews(
 	ctx context.Context,
 	tx pgx.Tx,

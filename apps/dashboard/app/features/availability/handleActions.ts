@@ -3,7 +3,7 @@ import { redirect } from "react-router";
 import { datetimeLocalToRFC3339 } from "../shared/utils";
 import { parseAvailabilityWindows } from "../settings/utils";
 
-export async function handleAvailabilityActions(
+export async function handleAvailabilityActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

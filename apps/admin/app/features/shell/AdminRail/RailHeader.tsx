@@ -7,7 +7,7 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import { tokens } from "../../../theme";
 
-export function RailHeader({
+export function RailHeader({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   collapsed,
   brandLogoUrl,
   onClose,

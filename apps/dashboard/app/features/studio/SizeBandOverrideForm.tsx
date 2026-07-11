@@ -15,7 +15,7 @@ import { SizeBand, DesignSizeBandOverride, DesignExtrasData, SizeChartItem } fro
 import { ToneChip } from "../../components/ui/ToneChip";
 import { SIZE_CHART_UNITS } from "../shared/constants";
 
-export function SizeBandOverrideForm({
+export function SizeBandOverrideForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   band,
   override,
   actionUrl,

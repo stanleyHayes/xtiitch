@@ -172,7 +172,11 @@ func TestChangeSubscriptionPlanRejectsSamePlan(t *testing.T) {
 		},
 		planByCode: ports.PlanPricingRecord{PlanID: "plan-growth", Code: "growth", MonthlyFeeMinor: 4900},
 	}
-	service := newPlanChangeTestService(businesses, &fakeSubscriptionPayments{chargeStatus: "success"}, time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC))
+	service := newPlanChangeTestService(
+		businesses,
+		&fakeSubscriptionPayments{chargeStatus: "success"},
+		time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC),
+	)
 
 	_, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},

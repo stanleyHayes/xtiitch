@@ -10,7 +10,10 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-func (repo BusinessIdentityRepository) ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]ports.BusinessUserRecord, error) {
+func (repo BusinessIdentityRepository) ListBusinessUsers(
+	ctx context.Context,
+	scope common.TenantScope,
+) ([]ports.BusinessUserRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -66,7 +69,11 @@ func (repo BusinessIdentityRepository) ListBusinessUsers(ctx context.Context, sc
 	return users, nil
 }
 
-func (repo BusinessIdentityRepository) CreateBusinessUser(ctx context.Context, scope common.TenantScope, input ports.CreateBusinessUserInput) (ports.BusinessUserRecord, error) {
+func (repo BusinessIdentityRepository) CreateBusinessUser(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateBusinessUserInput,
+) (ports.BusinessUserRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessUserRecord{}, err
@@ -99,7 +106,10 @@ func (repo BusinessIdentityRepository) CreateBusinessUser(ctx context.Context, s
 			is_active,
 			created_at,
 			updated_at
-	`, input.UserID.String(), input.BusinessID.String(), input.Email, input.DisplayName, nullIfEmpty(input.Phone), input.PasswordHash, string(input.Role)))
+	`,
+		input.UserID.String(), input.BusinessID.String(), input.Email, input.DisplayName,
+		nullIfEmpty(input.Phone), input.PasswordHash, string(input.Role),
+	))
 	if err != nil {
 		if businessUserEmailTaken(err) {
 			return ports.BusinessUserRecord{}, business.ErrUserEmailTaken
@@ -114,7 +124,11 @@ func (repo BusinessIdentityRepository) CreateBusinessUser(ctx context.Context, s
 	return user, nil
 }
 
-func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserInput) (ports.BusinessUserRecord, error) {
+func (repo BusinessIdentityRepository) UpdateBusinessUser(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserInput,
+) (ports.BusinessUserRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessUserRecord{}, err
@@ -160,7 +174,11 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(ctx context.Context, s
 	return user, nil
 }
 
-func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserPasswordInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -189,7 +207,11 @@ func (repo BusinessIdentityRepository) UpdateBusinessUserPassword(ctx context.Co
 	return tx.Commit(ctx)
 }
 
-func (repo BusinessIdentityRepository) UpdateOwnPassword(ctx context.Context, scope common.TenantScope, input ports.UpdateBusinessUserPasswordInput) error {
+func (repo BusinessIdentityRepository) UpdateOwnPassword(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.UpdateBusinessUserPasswordInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -219,7 +241,12 @@ func (repo BusinessIdentityRepository) UpdateOwnPassword(ctx context.Context, sc
 	return tx.Commit(ctx)
 }
 
-func (repo BusinessIdentityRepository) TransferBusinessOwner(ctx context.Context, scope common.TenantScope, input ports.TransferBusinessOwnerInput) (ports.TransferBusinessOwnerResult, error) {
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (repo BusinessIdentityRepository) TransferBusinessOwner(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.TransferBusinessOwnerInput,
+) (ports.TransferBusinessOwnerResult, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.TransferBusinessOwnerResult{}, err

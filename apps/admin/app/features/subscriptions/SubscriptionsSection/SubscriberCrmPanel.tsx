@@ -37,7 +37,7 @@ import { PlanStatTile } from "../../plans/PlanStatTile";
 import { ContactActionButton } from "../ContactActionButton";
 import { SubscriptionFilters } from "./SubscriptionFilters";
 
-export function SubscriberCrmPanel({
+export function SubscriberCrmPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   subscriptions,
   filteredSubscriptions,
   pagedSubscriptions,

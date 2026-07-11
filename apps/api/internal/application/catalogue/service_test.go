@@ -140,7 +140,11 @@ func (r *fakeCatalogueRepo) ListDesignPrices(_ context.Context, _ common.TenantS
 	}
 	return nil, nil
 }
-func (r *fakeCatalogueRepo) SetDesignSizeBandOverride(_ context.Context, _ common.TenantScope, input ports.DesignSizeBandOverrideInput) error {
+func (r *fakeCatalogueRepo) SetDesignSizeBandOverride(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.DesignSizeBandOverrideInput,
+) error {
 	r.overrideWasSet = true
 	r.overrideSet = input
 	return nil
@@ -150,10 +154,20 @@ func (r *fakeCatalogueRepo) DeleteDesignSizeBandOverride(_ context.Context, _ co
 	r.overrideDeletedBand = sizeBandID
 	return nil
 }
-func (r *fakeCatalogueRepo) ListDesignSizeBandOverrides(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.DesignSizeBandOverride, error) {
+func (r *fakeCatalogueRepo) ListDesignSizeBandOverrides(
+	_ context.Context,
+	_ common.TenantScope,
+	_ common.ID) ([]catalogue.DesignSizeBandOverride,
+	error,
+) {
 	return r.overrides, nil
 }
-func (r *fakeCatalogueRepo) ListDesignVariations(_ context.Context, _ common.TenantScope, _ common.ID) ([]catalogue.DesignVariation, error) {
+func (r *fakeCatalogueRepo) ListDesignVariations(
+	_ context.Context,
+	_ common.TenantScope,
+	_ common.ID) ([]catalogue.DesignVariation,
+	error,
+) {
 	return r.variations, nil
 }
 func (r *fakeCatalogueRepo) CreateDesignVariation(_ context.Context, _ common.TenantScope, input ports.DesignVariationInput) error {
@@ -172,7 +186,12 @@ func (r *fakeCatalogueRepo) DeleteDesignVariation(_ context.Context, _ common.Te
 	r.deletedVariation = variationID
 	return nil
 }
-func (r *fakeCatalogueRepo) ReorderDesignVariations(_ context.Context, _ common.TenantScope, designID common.ID, orderedIDs []common.ID) error {
+func (r *fakeCatalogueRepo) ReorderDesignVariations(
+	_ context.Context,
+	_ common.TenantScope,
+	designID common.ID,
+	orderedIDs []common.ID,
+) error {
 	r.reorderedDesign = designID
 	r.reorderedIDs = orderedIDs
 	return nil

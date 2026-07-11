@@ -17,7 +17,7 @@ import { ImageDropzone } from "../shared/ImageDropzone";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
 
-export function CatalogueAddDesign({
+export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   designs,
   collections,
   sizeBands,

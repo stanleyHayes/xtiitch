@@ -150,6 +150,8 @@ func listAdminSubscriptionInvoices(
 // adminSubscriptionCadence carries the cadence-driven billing figures the
 // recurring sweep needs to decide the charge amount and period length, keyed by
 // business id and merged into AdminSubscriptionRecord after the main list scan.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func getAdminSubscriptionRecordByBusiness(
 	ctx context.Context,
 	tx pgx.Tx,

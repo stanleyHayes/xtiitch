@@ -42,7 +42,10 @@ func seedConfirmedCustomOrder(t *testing.T, pool *pgxpool.Pool, settledMinor int
 			insert into businesses (business_id, plan_id, name, handle, verification_status)
 			values ($1, $2, 'IT Balance', 'it-balance', 'verified')
 		`, blBiz, planID)
-		mustExec(t, tx, `insert into customers (customer_id, display_name, email) values ($1, 'IT Balance Customer', 'bal@example.com')`, blCustomer)
+		mustExec(t, tx, `
+			insert into customers (customer_id, display_name, email)
+			values ($1, 'IT Balance Customer', 'bal@example.com')
+		`, blCustomer)
 		mustExec(t, tx, `
 			insert into designs (design_id, business_id, title, handle, status)
 			values ($1, $2, 'IT Balance Design', 'it-balance-design', 'active')
@@ -72,6 +75,7 @@ func cleanupBalanceFixtures(t *testing.T, pool *pgxpool.Pool) {
 	})
 }
 
+//nolint:unparam // test helper uses fixed amount across current cases
 func insertBalancePayment(t *testing.T, pool *pgxpool.Pool, reference string, amount int64) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
@@ -178,7 +182,8 @@ func TestSetAgreedTotalRejectsBelowSettledOrWrongState(t *testing.T) {
 	}
 
 	// Another tenant's scope cannot touch this order (RLS); reports invalid state.
-	if err := orders.SetAgreedTotal(ctx, common.TenantScope{BusinessID: "99999999-9999-9999-9999-999999999999"}, blOrder, 60000); !errors.Is(err, ports.ErrInvalidOrderState) {
+	crossScope := common.TenantScope{BusinessID: "99999999-9999-9999-9999-999999999999"}
+	if err := orders.SetAgreedTotal(ctx, crossScope, blOrder, 60000); !errors.Is(err, ports.ErrInvalidOrderState) {
 		t.Fatalf("expected invalid order state across tenants, got %v", err)
 	}
 }
@@ -247,7 +252,8 @@ func TestGetOrderBillingReturnsFinancialState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get billing: %v", err)
 	}
-	if billing.OrderType != "custom" || billing.Status != "confirmed" || billing.SettledMinor != 15000 || billing.CustomerEmail != "bal@example.com" {
+	if billing.OrderType != "custom" || billing.Status != "confirmed" ||
+		billing.SettledMinor != 15000 || billing.CustomerEmail != "bal@example.com" {
 		t.Fatalf("unexpected billing: %+v", billing)
 	}
 	if billing.AgreedTotalMinor != nil {

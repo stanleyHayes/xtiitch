@@ -11,7 +11,11 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx context.Context, handle string, email string) (ports.BusinessUserCredentials, error) {
+func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(
+	ctx context.Context,
+	handle string,
+	email string,
+) (ports.BusinessUserCredentials, error) {
 	// Login resolves a tenant from a handle, so it is inherently cross-tenant:
 	// it runs with the RLS bypass under a transaction.
 	tx, err := repo.pool.Begin(ctx)
@@ -64,7 +68,12 @@ func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndEmail(ctx cont
 // RecordFailedBusinessLogin bumps the failed-attempt counter and locks the account
 // for lockFor once it reaches maxAttempts (then resets the counter), mirroring the
 // MFA verify lockout. Bypass: login is cross-tenant (resolved by handle).
-func (repo BusinessIdentityRepository) RecordFailedBusinessLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error {
+func (repo BusinessIdentityRepository) RecordFailedBusinessLogin(
+	ctx context.Context,
+	userID common.ID,
+	maxAttempts int,
+	lockFor time.Duration,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -108,7 +117,11 @@ func (repo BusinessIdentityRepository) ClearFailedBusinessLogin(ctx context.Cont
 // FindBusinessUserByHandleAndWhatsApp resolves the owner of a store handle whose
 // WhatsApp number matches (the WhatsApp sign-in identity). Cross-tenant, so it
 // runs under the RLS bypass, mirroring FindBusinessUserByHandleAndEmail.
-func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndWhatsApp(ctx context.Context, handle string, whatsAppNumber string) (ports.BusinessUserCredentials, error) {
+func (repo BusinessIdentityRepository) FindBusinessUserByHandleAndWhatsApp(
+	ctx context.Context,
+	handle string,
+	whatsAppNumber string,
+) (ports.BusinessUserCredentials, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessUserCredentials{}, err
@@ -176,7 +189,11 @@ func (repo BusinessIdentityRepository) CreateSignInOTPChallenge(ctx context.Cont
 
 // LatestActiveSignInOTPChallenge returns the newest unconsumed, unexpired sign-in
 // challenge for a WhatsApp number.
-func (repo BusinessIdentityRepository) LatestActiveSignInOTPChallenge(ctx context.Context, whatsAppNumber string, now time.Time) (ports.BusinessOTPChallengeRecord, error) {
+func (repo BusinessIdentityRepository) LatestActiveSignInOTPChallenge(
+	ctx context.Context,
+	whatsAppNumber string,
+	now time.Time,
+) (ports.BusinessOTPChallengeRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessOTPChallengeRecord{}, err
@@ -233,7 +250,11 @@ func (repo BusinessIdentityRepository) execSignInOTPBypass(ctx context.Context, 
 	return tx.Commit(ctx)
 }
 
-func (repo BusinessIdentityRepository) FindBusinessUserCredentialsByID(ctx context.Context, scope common.TenantScope, userID common.ID) (ports.BusinessUserCredentials, error) {
+func (repo BusinessIdentityRepository) FindBusinessUserCredentialsByID(
+	ctx context.Context,
+	scope common.TenantScope,
+	userID common.ID,
+) (ports.BusinessUserCredentials, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessUserCredentials{}, err

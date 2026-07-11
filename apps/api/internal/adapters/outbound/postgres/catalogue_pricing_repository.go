@@ -11,7 +11,13 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-func (repo CatalogueRepository) SetDesignPrice(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID, priceMinor int64) error {
+func (repo CatalogueRepository) SetDesignPrice(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+	sizeBandID common.ID,
+	priceMinor int64,
+) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		// Pricing-mode exclusivity, enforced atomically with the write: a
 		// customisation design is priced by deposit, never by band prices. Lock the
@@ -42,7 +48,11 @@ func (repo CatalogueRepository) SetDesignPrice(ctx context.Context, scope common
 	})
 }
 
-func (repo CatalogueRepository) ListDesignPrices(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.BandPrice, error) {
+func (repo CatalogueRepository) ListDesignPrices(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+) ([]catalogue.BandPrice, error) {
 	var prices []catalogue.BandPrice
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
@@ -71,7 +81,11 @@ func (repo CatalogueRepository) ListDesignPrices(ctx context.Context, scope comm
 	return prices, err
 }
 
-func (repo CatalogueRepository) SetDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, input ports.DesignSizeBandOverrideInput) error {
+func (repo CatalogueRepository) SetDesignSizeBandOverride(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.DesignSizeBandOverrideInput,
+) error {
 	var labelArg any
 	if input.Label != nil {
 		labelArg = *input.Label
@@ -109,7 +123,12 @@ func (repo CatalogueRepository) SetDesignSizeBandOverride(ctx context.Context, s
 	})
 }
 
-func (repo CatalogueRepository) DeleteDesignSizeBandOverride(ctx context.Context, scope common.TenantScope, designID common.ID, sizeBandID common.ID) error {
+func (repo CatalogueRepository) DeleteDesignSizeBandOverride(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+	sizeBandID common.ID,
+) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		// Idempotent clear: reverting a band with no override in place is a no-op.
 		_, err := tx.Exec(ctx, `
@@ -120,7 +139,11 @@ func (repo CatalogueRepository) DeleteDesignSizeBandOverride(ctx context.Context
 	})
 }
 
-func (repo CatalogueRepository) ListDesignSizeBandOverrides(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignSizeBandOverride, error) {
+func (repo CatalogueRepository) ListDesignSizeBandOverrides(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+) ([]catalogue.DesignSizeBandOverride, error) {
 	var overrides []catalogue.DesignSizeBandOverride
 	err := repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `

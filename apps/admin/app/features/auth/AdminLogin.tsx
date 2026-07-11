@@ -16,7 +16,7 @@ type AdminLoginProps = {
   actionData?: { error?: string } | null;
 };
 
-export default function AdminLogin({ actionData }: AdminLoginProps) {
+export default function AdminLogin({ actionData }: AdminLoginProps) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const commandSignals = [
     {
       icon: <VerifiedUserRounded />,

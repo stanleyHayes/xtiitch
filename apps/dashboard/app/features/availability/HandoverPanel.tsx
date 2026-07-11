@@ -28,7 +28,7 @@ import { ToneChip } from "../../components/ui/ToneChip";
 import { InfoStrip } from "../studio/InfoStrip";
 import { PaginationFooter } from "../../components/ui/PaginationFooter";
 
-export function HandoverPanel({
+export function HandoverPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   handovers,
   orders,
   error,

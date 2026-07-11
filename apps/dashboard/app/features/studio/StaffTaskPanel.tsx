@@ -23,7 +23,7 @@ import { shortDateTime } from "../shared/utils";
 import { formatMethod } from "../money/utils";
 import { ToneChip } from "../../components/ui/ToneChip";
 
-export function StaffTaskPanel({
+export function StaffTaskPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   orders,
   bookings,
   handovers,

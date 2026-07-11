@@ -18,7 +18,7 @@ import { SectionHeader } from "../../components/ui/SectionHeader";
 
 
 
-export function LaunchReadinessSection({
+export function LaunchReadinessSection({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   readiness,
   readinessError,
   onSelect,

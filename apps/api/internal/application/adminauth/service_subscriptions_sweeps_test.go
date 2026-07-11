@@ -71,6 +71,7 @@ func TestRunSubscriptionBillingSweepRequiresPermissionAndAudits(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -298,6 +299,7 @@ func TestRunSubscriptionRecurringSweepBillsCadenceRenewalFigure(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T) {
 	t.Parallel()
 
@@ -530,6 +532,7 @@ func TestCadenceRenewalMinorAndCadenceMonths(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 

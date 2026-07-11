@@ -59,6 +59,7 @@ type App struct {
 	db         *pgxpool.Pool
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, error) {
 	// Refuse to start in production with insecure dev defaults or stub providers.
 	if err := validateProductionConfig(cfg); err != nil {

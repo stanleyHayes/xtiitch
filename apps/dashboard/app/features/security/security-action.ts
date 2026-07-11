@@ -3,7 +3,7 @@ import type { Route } from "../../routes/+types/security";
 import { fetchApi } from "../../lib/api-base";
 import { requireAccess } from "./security-loader";
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
   const access = await requireAccess(request);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");

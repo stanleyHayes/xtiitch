@@ -231,7 +231,12 @@ func toVariationResponses(variations []catalogue.DesignVariation) []variationRes
 func toPrices(prices []catalogue.BandPrice) []priceResponse {
 	out := make([]priceResponse, 0, len(prices))
 	for _, p := range prices {
-		out = append(out, priceResponse{SizeBandID: p.SizeBandID.String(), Label: p.Label, PriceMinor: p.PriceMinor, Chart: toSizeChartBody(p.Chart)})
+		out = append(out, priceResponse{
+			SizeBandID: p.SizeBandID.String(),
+			Label:      p.Label,
+			PriceMinor: p.PriceMinor,
+			Chart:      toSizeChartBody(p.Chart),
+		})
 	}
 	return out
 }

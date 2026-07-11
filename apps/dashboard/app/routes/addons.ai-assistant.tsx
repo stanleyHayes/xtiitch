@@ -111,7 +111,7 @@ function formatRenewal(value: string | null): string {
   }).format(date);
 }
 
-export default function AiAssistantAddon({
+export default function AiAssistantAddon({ // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   loaderData,
   actionData,
 }: Route.ComponentProps) {

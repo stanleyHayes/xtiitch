@@ -85,6 +85,7 @@ func (s Service) ListSupportTickets(
 	return s.businesses.ListAdminSupportTickets(ctx)
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) UpdateSupportTicket(
 	ctx context.Context,
 	cmd UpdateSupportTicketCommand,
@@ -174,6 +175,8 @@ func (s Service) UpdateSupportTicket(
 
 	return record, nil
 }
+
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 	cfg := s.readiness
 	paystackReady := cfg.PaystackSecretConfigured && cfg.PaystackWebhookConfigured
@@ -185,8 +188,10 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 	notificationReady := (notificationTransport == "http" && cfg.NotificationHTTPReady) ||
 		(notificationTransport == "whatsapp_cloud" && cfg.NotificationWhatsAppReady)
 	notificationReadySummary := "HTTP notification provider transport is configured."
-	notificationBlockedSummary := "Configure NOTIFICATION_TRANSPORT=http plus provider URL/auth, or NOTIFICATION_TRANSPORT=whatsapp_cloud plus WhatsApp Cloud credentials."
-	notificationAction := "Set NOTIFICATION_HTTP_URL and NOTIFICATION_HTTP_AUTH_VALUE, or set WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET."
+	notificationBlockedSummary := "Configure NOTIFICATION_TRANSPORT=http plus provider URL/auth, " +
+		"or NOTIFICATION_TRANSPORT=whatsapp_cloud plus WhatsApp Cloud credentials."
+	notificationAction := "Set NOTIFICATION_HTTP_URL and NOTIFICATION_HTTP_AUTH_VALUE, " +
+		"or set WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_ACCESS_TOKEN, WHATSAPP_VERIFY_TOKEN, and WHATSAPP_APP_SECRET."
 	if notificationTransport == "whatsapp_cloud" {
 		notificationReadySummary = "WhatsApp Cloud notification and inbound webhook credentials are configured."
 		notificationBlockedSummary = "Configure WhatsApp Cloud phone-number, access-token, verify-token, and app-secret values."
@@ -227,7 +232,8 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 				"Secret key and webhook secret are configured.",
 				"Configure PAYSTACK_SECRET_KEY and PAYSTACK_WEBHOOK_SECRET for live money rails.",
 			),
-			Detail:      "Checkout, subscription invoices, recurring charges, ad payments, and webhook reconciliation use this provider configuration.",
+			Detail: "Checkout, subscription invoices, recurring charges, ad payments, " +
+				"and webhook reconciliation use this provider configuration.",
 			Action:      "Add test/live Paystack credentials and verify webhook delivery.",
 			Target:      "money",
 			TargetLabel: "Open money rails",
@@ -332,7 +338,8 @@ func (s Service) launchReadinessChecks() []LaunchReadinessCheck {
 				"Owner sign-off is recorded for promotions, referrals, affiliates, sponsored placements, and subscription policy.",
 				"Growth and monetisation owner decisions still need final sign-off before launch.",
 			),
-			Detail:      "Confirm funding defaults, opt-in rules, payout/KYC thresholds, sponsored pricing, voucher scope, reward precedence, and subscription timing before turning growth features public.",
+			Detail: "Confirm funding defaults, opt-in rules, payout/KYC thresholds, sponsored pricing, " +
+				"voucher scope, reward precedence, and subscription timing before turning growth features public.",
 			Action:      "Set XTIITCH_GROWTH_POLICY_CONFIRMED=true only after the owner decisions are recorded.",
 			Target:      "promotions",
 			TargetLabel: "Open promotions",

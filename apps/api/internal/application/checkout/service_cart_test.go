@@ -13,6 +13,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine(t *testing.T) {
 	t.Parallel()
 
@@ -140,6 +141,7 @@ func TestPlaceCartOrderChargesCommissionPerDesignLine(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestPlaceCartOrderCreatesMixedReadyMadeAndBespokeGroup(t *testing.T) {
 	t.Parallel()
 
@@ -205,7 +207,9 @@ func TestPlaceCartOrderCreatesMixedReadyMadeAndBespokeGroup(t *testing.T) {
 	if custom.AgreedTotalMinor == nil || *custom.AgreedTotalMinor != deposit || custom.CustomerID != "customer-1" {
 		t.Fatalf("bespoke draft must carry its deposit as agreed total, got %+v", custom)
 	}
-	if custom.SizeMode != string(order.SizeModeSelfMeasure) || custom.MeasurementID != "measurement-1" || custom.Measurements["field-1"] != "40" {
+	if custom.SizeMode != string(order.SizeModeSelfMeasure) ||
+		custom.MeasurementID != "measurement-1" ||
+		custom.Measurements["field-1"] != "40" {
 		t.Fatalf("bespoke measurements were not recorded cleanly: %+v", custom)
 	}
 }
@@ -283,6 +287,8 @@ func TestPlaceCartOrderRejectsBespokeLineWithoutMeasurements(t *testing.T) {
 // A delivery cart adds the chosen zone's fee to the combined charge and folds it
 // into the anchor order's total (so the group confirmation settles it exactly),
 // while recording the delivery snapshot on the anchor only.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestPlaceCartOrderAddsDeliveryFeeToAnchor(t *testing.T) {
 	t.Parallel()
 

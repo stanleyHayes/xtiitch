@@ -85,7 +85,7 @@ export async function action({ request }: Route.ActionArgs) {
   return actionModule.handleAdminAction({ request, intent, form });
 }
 
-export default function AdminDashboard({
+export default function AdminDashboard({ // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   loaderData,
   actionData,
 }: Route.ComponentProps) {

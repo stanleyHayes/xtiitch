@@ -35,7 +35,7 @@ export async function loader() {
   return { plans };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
   const form = await request.formData();
   const session = await getSession(request.headers.get("Cookie"));
 

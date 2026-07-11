@@ -26,7 +26,7 @@ import { BusinessRow } from "../verifications/BusinessRow";
 import { BusinessInspector } from "../verifications/BusinessInspector";
 import { BusinessTable } from "./BusinessTable";
 
-export function BusinessesSection({
+export function BusinessesSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   adminBusinesses,
   businessManagementError,
   actionData,

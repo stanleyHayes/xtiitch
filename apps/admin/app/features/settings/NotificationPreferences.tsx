@@ -17,7 +17,7 @@ import {
 import { notificationCategoryWatched } from "../shared/notifications";
 import { Panel } from "../../components/ui/Panel";
 
-export function NotificationPreferences({
+export function NotificationPreferences({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   filters,
   notifications,
   preferences,

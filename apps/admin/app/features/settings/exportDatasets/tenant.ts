@@ -10,7 +10,7 @@ import {
 import { formatGHS } from "../../shared/formatting";
 import { shortTime } from "../../shared/dates";
 
-export function buildTenantDatasets({
+export function buildTenantDatasets({ // eslint-disable-line complexity, max-lines-per-function -- dataset builder with many conditional branches; refactor in follow-up
   adminBusinesses,
   adminCustomers,
   verificationCases,

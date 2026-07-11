@@ -195,7 +195,14 @@ func (s Service) VerifyEmailOTP(ctx context.Context, rawEmail string, code strin
 // verifyChallenge resolves the active challenge for a channel + identifier,
 // enforces the attempt cap, checks the code, and consumes the challenge on a
 // match. Shared by the phone and email verify paths.
-func (s Service) verifyChallenge(ctx context.Context, channel ports.CustomerOTPChannel, identifier string, code string) (ports.OTPChallengeRecord, error) {
+//
+//nolint:unparam // OTPChallengeRecord return kept for symmetry with repository interface
+func (s Service) verifyChallenge(
+	ctx context.Context,
+	channel ports.CustomerOTPChannel,
+	identifier string,
+	code string,
+) (ports.OTPChallengeRecord, error) {
 	now := s.clock.Now()
 	challenge, err := s.repo.LatestActiveOTPChallenge(ctx, channel, identifier, now)
 	if err != nil {
@@ -257,7 +264,14 @@ func (s Service) GetProfile(ctx context.Context, customerID common.ID) (ports.Cu
 // number is canonicalised to E.164 when it parses as a Ghana number, and kept
 // as entered otherwise (lenient — it's a contact detail, not an identity key);
 // an empty value clears it.
-func (s Service) UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error) {
+func (s Service) UpdateProfile(
+	ctx context.Context,
+	customerID common.ID,
+	displayName,
+	email,
+	whatsAppPhone string) (ports.CustomerProfile,
+	error,
+) {
 	whatsapp := strings.TrimSpace(whatsAppPhone)
 	if whatsapp != "" {
 		if canonical, err := normalizeGhanaPhone(whatsapp); err == nil {

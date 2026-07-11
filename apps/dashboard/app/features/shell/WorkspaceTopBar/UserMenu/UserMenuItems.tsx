@@ -17,7 +17,7 @@ import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import type { Profile, CurrentUser } from "../../../shared/types";
 import { roleLabel } from "../../../shared/utils";
 
-export function UserMenuItems({
+export function UserMenuItems({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   profile,
   currentUser,
   verified,

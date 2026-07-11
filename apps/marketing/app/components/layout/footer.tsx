@@ -11,7 +11,7 @@ import { site } from "../../content";
 import { Logo } from "./logo";
 import { footerGroups, footerProof } from "./footer-data";
 
-export function Footer() {
+export function Footer() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const year = 2026;
   return (
     <Box

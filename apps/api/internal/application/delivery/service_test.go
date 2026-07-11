@@ -69,7 +69,8 @@ func TestArrangeHandoverValidatesMethodAndAddress(t *testing.T) {
 
 	// A valid delivery is arranged with a fresh id and the full input.
 	id, err := svc.ArrangeHandover(context.Background(), ArrangeHandoverCommand{
-		Scope: scope(), ActorRole: business.UserRoleOwner, OrderID: "o1", Method: delivery.MethodDelivery, Address: "12 Oxford St, Accra", RecipientName: "Ama",
+		Scope: scope(), ActorRole: business.UserRoleOwner, OrderID: "o1",
+		Method: delivery.MethodDelivery, Address: "12 Oxford St, Accra", RecipientName: "Ama",
 	})
 	if err != nil {
 		t.Fatalf("arrange: %v", err)

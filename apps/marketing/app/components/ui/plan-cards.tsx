@@ -16,7 +16,7 @@ import { type Plan, site } from "../../content";
 import { useMarketingFlags } from "../../root";
 import { fadeInSx } from "./shared";
 
-export function PlanCards({ items }: { items: Plan[] }) {
+export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const yearly = period === "yearly";
   // Picking a plan should start signup (self-serve register), not the waitlist.
@@ -80,7 +80,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
           alignItems: "stretch",
         }}
       >
-        {items.map((plan, index) => (
+        {items.map((plan, index) => ( // eslint-disable-line complexity -- large presentational component; refactor in follow-up
         <Card
           key={plan.name}
           sx={{

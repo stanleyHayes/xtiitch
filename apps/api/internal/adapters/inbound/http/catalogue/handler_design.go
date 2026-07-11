@@ -114,7 +114,9 @@ func (handler Handler) getDesign(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, toDesignResponse(design, prices))
 }
 
-func (handler Handler) designAction(action func(catalogueapp.Service, context.Context, catalogueapp.DesignStatusCommand) error) http.HandlerFunc {
+func (handler Handler) designAction(
+	action func(catalogueapp.Service, context.Context, catalogueapp.DesignStatusCommand) error,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scope, role, ok := tenantPrincipal(w, r)
 		if !ok {

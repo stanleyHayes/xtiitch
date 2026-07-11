@@ -22,7 +22,7 @@ import {
 } from "../options";
 import { ReferralDetail } from "./ReferralDetail";
 
-export function ReferralProgrammeTable({
+export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   programmes,
   pagedProgrammes,
   page,

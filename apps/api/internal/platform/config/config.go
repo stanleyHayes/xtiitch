@@ -115,7 +115,9 @@ func Load() Config {
 		CloudinaryURL:              getenv("CLOUDINARY_URL", ""),
 		CORSAllowedOrigins: getenvList(
 			"CORS_ALLOWED_ORIGINS",
-			"http://localhost:3000,http://localhost:3001,http://localhost:3100,http://localhost:3401,http://localhost:3403,http://localhost:3333,http://*.localhost:3100,https://*.xtiitch.com,https://xtiitch.com",
+			"http://localhost:3000,http://localhost:3001,http://localhost:3100,"+
+				"http://localhost:3401,http://localhost:3403,http://localhost:3333,"+
+				"http://*.localhost:3100,https://*.xtiitch.com,https://xtiitch.com",
 		),
 		RateLimitRPS: getenvInt("RATE_LIMIT_RPS", 100),
 		// The API connects as the non-superuser application role so row-level

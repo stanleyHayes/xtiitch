@@ -27,7 +27,12 @@ type fakeWhatsAppAuth struct {
 	created     []ports.CreateSignInOTPChallengeInput
 }
 
-func (f *fakeWhatsAppAuth) FindBusinessUserByHandleAndWhatsApp(_ context.Context, _ string, _ string) (ports.BusinessUserCredentials, error) {
+func (f *fakeWhatsAppAuth) FindBusinessUserByHandleAndWhatsApp(
+	_ context.Context,
+	_ string,
+	_ string) (ports.BusinessUserCredentials,
+	error,
+) {
 	if f.findErr != nil {
 		return ports.BusinessUserCredentials{}, f.findErr
 	}
@@ -45,7 +50,12 @@ func (f *fakeWhatsAppAuth) CreateSignInOTPChallenge(_ context.Context, input por
 	return nil
 }
 
-func (f *fakeWhatsAppAuth) LatestActiveSignInOTPChallenge(_ context.Context, number string, now time.Time) (ports.BusinessOTPChallengeRecord, error) {
+func (f *fakeWhatsAppAuth) LatestActiveSignInOTPChallenge(
+	_ context.Context,
+	number string,
+	now time.Time) (ports.BusinessOTPChallengeRecord,
+	error,
+) {
 	for i := len(f.challenges) - 1; i >= 0; i-- {
 		c := f.challenges[i]
 		if c.number == number && !c.consumed && c.expiresAt.After(now) {
@@ -99,7 +109,11 @@ func (d *fakeOTPDelivery) SendOTP(_ context.Context, phone string, code string) 
 
 var fixedOTPClock = fixedClock{now: time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)}
 
-func newWhatsAppOTPService(wa *fakeWhatsAppAuth, delivery *fakeOTPDelivery, idList []common.ID) (Service, *fakeSessionRepository, *fakeBusinessIdentityRepository) {
+func newWhatsAppOTPService(
+	wa *fakeWhatsAppAuth,
+	delivery *fakeOTPDelivery,
+	idList []common.ID,
+) (Service, *fakeSessionRepository, *fakeBusinessIdentityRepository) {
 	sessions := &fakeSessionRepository{}
 	businesses := &fakeBusinessIdentityRepository{}
 	svc := NewService(Dependencies{
@@ -276,7 +290,10 @@ func TestRegisterBusinessStoresVerifiedWhatsApp(t *testing.T) {
 		t.Fatalf("register: %v", err)
 	}
 	if businesses.created.WhatsAppNumber != "233244000111" || !businesses.created.WhatsAppVerified {
-		t.Fatalf("expected a verified WhatsApp number persisted, got %q verified=%v", businesses.created.WhatsAppNumber, businesses.created.WhatsAppVerified)
+		t.Fatalf(
+			"expected a verified WhatsApp number persisted, got %q verified=%v",
+			businesses.created.WhatsAppNumber, businesses.created.WhatsAppVerified,
+		)
 	}
 	if !wa.challenges[0].consumed {
 		t.Fatal("expected the registration challenge to be consumed")

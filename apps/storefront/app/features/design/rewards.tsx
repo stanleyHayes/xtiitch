@@ -91,7 +91,7 @@ function rewardTone(tone: RewardCue["tone"]) {
   }
 }
 
-export function RewardFields({
+export function RewardFields({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   codes,
   referralPreview,
   includePromo = true,

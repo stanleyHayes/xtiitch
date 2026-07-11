@@ -28,12 +28,18 @@ type AdminBusinessRepository interface {
 	IssueAdminSubscriptionInvoice(ctx context.Context, input IssueAdminSubscriptionInvoiceInput) (AdminSubscriptionRecord, error)
 	MarkAdminSubscriptionInvoicePaid(ctx context.Context, input MarkAdminSubscriptionInvoicePaidInput) (AdminSubscriptionRecord, error)
 	MarkAdminSubscriptionInvoiceFailed(ctx context.Context, input MarkAdminSubscriptionInvoiceFailedInput) (AdminSubscriptionRecord, error)
-	RunAdminSubscriptionBillingSweep(ctx context.Context, input RunAdminSubscriptionBillingSweepInput) (AdminSubscriptionBillingSweepRecord, error)
+	RunAdminSubscriptionBillingSweep(
+		ctx context.Context,
+		input RunAdminSubscriptionBillingSweepInput,
+	) (AdminSubscriptionBillingSweepRecord, error)
 	// EnqueueSubscriptionRenewalReminder writes a renewal-reminder intent to the
 	// notification outbox (WhatsApp) alongside a dedup log row in one transaction,
 	// so each (subscription, period, kind) reminder is enqueued at most once. The
 	// result reports whether a new reminder was enqueued (false = already sent).
-	EnqueueSubscriptionRenewalReminder(ctx context.Context, input EnqueueSubscriptionRenewalReminderInput) (SubscriptionRenewalReminderResult, error)
+	EnqueueSubscriptionRenewalReminder(
+		ctx context.Context,
+		input EnqueueSubscriptionRenewalReminderInput,
+	) (SubscriptionRenewalReminderResult, error)
 	ListAdminPlans(ctx context.Context) ([]AdminPlanRecord, error)
 	CreateAdminPlan(ctx context.Context, input CreateAdminPlanInput) (AdminPlanRecord, error)
 	UpdateAdminPlan(ctx context.Context, input UpdateAdminPlanInput) (AdminPlanRecord, error)
@@ -41,9 +47,18 @@ type AdminBusinessRepository interface {
 	ListAdminPlanEntitlements(ctx context.Context) ([]AdminPlanEntitlementFeatureRecord, error)
 	UpdateAdminPlanEntitlements(ctx context.Context, input UpdateAdminPlanEntitlementsInput) ([]AdminPlanEntitlementFeatureRecord, error)
 	ListAdminSubscriptionDiscountCodes(ctx context.Context) ([]AdminSubscriptionDiscountCodeRecord, error)
-	CreateAdminSubscriptionDiscountCode(ctx context.Context, input CreateAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
-	UpdateAdminSubscriptionDiscountCode(ctx context.Context, input UpdateAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
-	ArchiveAdminSubscriptionDiscountCode(ctx context.Context, input ArchiveAdminSubscriptionDiscountCodeInput) (AdminSubscriptionDiscountCodeRecord, error)
+	CreateAdminSubscriptionDiscountCode(
+		ctx context.Context,
+		input CreateAdminSubscriptionDiscountCodeInput,
+	) (AdminSubscriptionDiscountCodeRecord, error)
+	UpdateAdminSubscriptionDiscountCode(
+		ctx context.Context,
+		input UpdateAdminSubscriptionDiscountCodeInput,
+	) (AdminSubscriptionDiscountCodeRecord, error)
+	ArchiveAdminSubscriptionDiscountCode(
+		ctx context.Context,
+		input ArchiveAdminSubscriptionDiscountCodeInput,
+	) (AdminSubscriptionDiscountCodeRecord, error)
 	ListAdminPromotions(ctx context.Context) ([]AdminPromotionRecord, error)
 	CreateAdminPromotion(ctx context.Context, input CreateAdminPromotionInput) (AdminPromotionRecord, error)
 	UpdateAdminPromotion(ctx context.Context, input UpdateAdminPromotionInput) (AdminPromotionRecord, error)
@@ -56,7 +71,10 @@ type AdminBusinessRepository interface {
 	CreateAdminAdCampaignPayment(ctx context.Context, input CreateAdminAdCampaignPaymentInput) (AdminAdCampaignPaymentRecord, error)
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
-	UpdateAdminAffiliateConversionStatus(ctx context.Context, input UpdateAdminAffiliateConversionStatusInput) (AdminAffiliateConversionRecord, error)
+	UpdateAdminAffiliateConversionStatus(
+		ctx context.Context,
+		input UpdateAdminAffiliateConversionStatusInput,
+	) (AdminAffiliateConversionRecord, error)
 	CreateAdminAffiliatePayout(ctx context.Context, input CreateAdminAffiliatePayoutInput) (AdminAffiliatePayoutRecord, error)
 	CreateAdminAffiliate(ctx context.Context, input CreateAdminAffiliateInput) (AdminAffiliateRecord, error)
 	UpdateAdminAffiliate(ctx context.Context, input UpdateAdminAffiliateInput) (AdminAffiliateRecord, error)

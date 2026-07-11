@@ -16,7 +16,7 @@ import { STEP_LABELS } from "../Register";
 import { RegisterActions } from "./RegisterActions";
 import { RegisterStepIndicator } from "./RegisterStepIndicator";
 
-export function RegisterForm({
+export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   plans,
   isSubmitting,
   result,

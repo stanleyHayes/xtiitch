@@ -84,7 +84,12 @@ type SubscriptionAuthorizationResult struct {
 // InitializeSubscriptionAuthorization starts a Paystack recurring-billing
 // authorization for the signed-in tenant's paid plan and returns the redirect
 // link. Free plans (no monthly fee) need no authorization.
-func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd InitializeSubscriptionAuthorizationCommand) (SubscriptionAuthorizationLink, error) {
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) InitializeSubscriptionAuthorization(
+	ctx context.Context,
+	cmd InitializeSubscriptionAuthorizationCommand,
+) (SubscriptionAuthorizationLink, error) {
 	if cmd.Scope.BusinessID.IsZero() {
 		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
 	}
@@ -235,7 +240,12 @@ func (s Service) InitializeSubscriptionAuthorization(ctx context.Context, cmd In
 // VerifySubscriptionAuthorization confirms the Paystack authorization the tenant
 // completed and flips their subscription to recurring billing; the existing
 // recurring-charge sweep then bills them each period.
-func (s Service) VerifySubscriptionAuthorization(ctx context.Context, cmd VerifySubscriptionAuthorizationCommand) (SubscriptionAuthorizationResult, error) {
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (s Service) VerifySubscriptionAuthorization(
+	ctx context.Context,
+	cmd VerifySubscriptionAuthorizationCommand,
+) (SubscriptionAuthorizationResult, error) {
 	if cmd.Scope.BusinessID.IsZero() {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}

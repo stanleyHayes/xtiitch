@@ -102,7 +102,12 @@ func (repo AdminAuthRepository) FindByEmail(ctx context.Context, email string) (
 
 // RecordFailedAdminLogin bumps the failed-attempt counter and locks the account for
 // lockFor once it reaches maxAttempts (then resets the counter).
-func (repo AdminAuthRepository) RecordFailedAdminLogin(ctx context.Context, userID common.ID, maxAttempts int, lockFor time.Duration) error {
+func (repo AdminAuthRepository) RecordFailedAdminLogin(
+	ctx context.Context,
+	userID common.ID,
+	maxAttempts int,
+	lockFor time.Duration,
+) error {
 	_, err := repo.pool.Exec(ctx, `
 		update admin_users
 		set failed_login_attempts = case when failed_login_attempts + 1 >= $2 then 0 else failed_login_attempts + 1 end,

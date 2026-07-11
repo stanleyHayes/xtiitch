@@ -87,7 +87,8 @@ func buildAIAssistService(
 ) aiassistapp.Service {
 	assistantEnabled := cfg.AnthropicAPIKey != ""
 	if !assistantEnabled {
-		logger.Warn("anthropic api key not set; AI assistant returns input unchanged — the paid add-on is DISABLED (not sellable) on this deployment")
+		logger.Warn("anthropic api key not set; AI assistant returns input unchanged " +
+			"— the paid add-on is DISABLED (not sellable) on this deployment")
 	}
 	return aiassistapp.NewService(aiassistapp.Dependencies{
 		Assistant:        aiadapter.NewClaudeAssistant(cfg.AnthropicAPIKey, cfg.AnthropicQueryModel),
@@ -106,7 +107,12 @@ func buildAIAssistService(
 // Replies go through the Cloud API when WHATSAPP_PHONE_NUMBER_ID and
 // WHATSAPP_ACCESS_TOKEN are set, else a logging sender (dev fallback) so the
 // engine is fully exercisable locally.
-func buildWhatsAppBotService(cfg config.Config, logger *slog.Logger, db *pgxpool.Pool, checkout botcatalogueadapter.CheckoutPlacer) whatsappbotapp.Service {
+func buildWhatsAppBotService(
+	cfg config.Config,
+	logger *slog.Logger,
+	db *pgxpool.Pool,
+	checkout botcatalogueadapter.CheckoutPlacer,
+) whatsappbotapp.Service {
 	var sender ports.WhatsAppSender
 	if cfg.WhatsAppPhoneNumberID != "" && cfg.WhatsAppAccessToken != "" {
 		sender = whatsappadapter.NewCloudSender(cfg.WhatsAppPhoneNumberID, cfg.WhatsAppAccessToken, cfg.WhatsAppGraphVersion)
@@ -149,7 +155,9 @@ func buildCustomerOTPDelivery(cfg config.Config, logger *slog.Logger) ports.Cust
 	}
 	if whatsAppConfigured {
 		if cfg.WhatsAppOTPTemplateName == "" {
-			logger.Warn("WHATSAPP_OTP_TEMPLATE_NAME not set; OTPs send as free-form text, which WhatsApp only delivers inside a 24h session — set an approved AUTHENTICATION template for cold sign-ups")
+			logger.Warn("WHATSAPP_OTP_TEMPLATE_NAME not set; OTPs send as free-form text, " +
+				"which WhatsApp only delivers inside a 24h session " +
+				"— set an approved AUTHENTICATION template for cold sign-ups")
 		}
 		logger.Info("customer/owner OTP channel: WhatsApp (Cloud API)")
 		return authadapter.NewWhatsAppOTPDelivery(

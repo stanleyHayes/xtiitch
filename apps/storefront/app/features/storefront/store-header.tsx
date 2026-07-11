@@ -30,7 +30,7 @@ function contrastText(hex: string): string {
   return luminance > 0.6 ? "#15111a" : "#ffffff";
 }
 
-export function StoreHeader({
+export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   store,
   designs,
   query,

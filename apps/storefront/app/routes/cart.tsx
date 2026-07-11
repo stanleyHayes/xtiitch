@@ -60,7 +60,7 @@ export async function action({ request }: Route.ActionArgs) {
   return null;
 }
 
-export default function Cart({ loaderData }: Route.ComponentProps) {
+export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   const { storeHandle, groups, totalMinor } = loaderData;
   const storeHref = storeHandle ? `/store/${storeHandle}` : "/discover";
   const multiStore = groups.length > 1;

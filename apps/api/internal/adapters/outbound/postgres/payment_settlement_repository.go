@@ -35,6 +35,8 @@ func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 // every line was paid in full in one transaction. The tenant scope is already
 // set by applyConfirmation, matching the other confirm helpers. If the anchor
 // carries no group (defensive), it confirms the anchor alone.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func confirmOrderGroupOnPayment(ctx context.Context, tx pgx.Tx, businessID, anchorOrderID string) error {
 	var groupID sql.NullString
 	err := tx.QueryRow(ctx, `

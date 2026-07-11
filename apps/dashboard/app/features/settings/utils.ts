@@ -13,7 +13,7 @@ export function enabledStoreSettings(settings: StoreSettings): number {
   ].filter(Boolean).length;
 }
 
-export function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
+export function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null { // eslint-disable-line complexity -- form-data mapper with many conditional branches; refactor in follow-up
   const recurrences = form.getAll("recurrence");
   const weekdays = form.getAll("weekday");
   const daysOfMonth = form.getAll("day_of_month");

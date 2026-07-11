@@ -186,6 +186,7 @@ func lookupOrderIDByProviderReference(ctx context.Context, tx pgx.Tx, providerRe
 	return common.ID(orderID), nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func loadTracking(ctx context.Context, tx pgx.Tx, orderID common.ID) (order.Tracking, error) {
 	var tracking order.Tracking
 	var businessID, flow, status, stageName, colour string
@@ -270,9 +271,9 @@ func isLikelyUUID(value string) bool {
 				return false
 			}
 		default:
-			if !((char >= '0' && char <= '9') ||
-				(char >= 'a' && char <= 'f') ||
-				(char >= 'A' && char <= 'F')) {
+			if (char < '0' || char > '9') &&
+				(char < 'a' || char > 'f') &&
+				(char < 'A' || char > 'F') {
 				return false
 			}
 		}

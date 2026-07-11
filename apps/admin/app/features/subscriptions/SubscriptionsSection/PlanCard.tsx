@@ -30,7 +30,7 @@ import {
   planYearlyFeeDefault,
 } from "../../plans/utils";
 
-export function PlanCard({
+export function PlanCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   plan,
   dialogOpen,
   onDialogChange,

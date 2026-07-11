@@ -62,7 +62,10 @@ func (repo BusinessIdentityRepository) FindBusinessUserByEmail(ctx context.Conte
 	return target, nil
 }
 
-func (repo BusinessIdentityRepository) CreatePasswordResetChallenge(ctx context.Context, input ports.CreatePasswordResetChallengeInput) error {
+func (repo BusinessIdentityRepository) CreatePasswordResetChallenge(
+	ctx context.Context,
+	input ports.CreatePasswordResetChallengeInput,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -81,7 +84,11 @@ func (repo BusinessIdentityRepository) CreatePasswordResetChallenge(ctx context.
 	return tx.Commit(ctx)
 }
 
-func (repo BusinessIdentityRepository) LatestActivePasswordResetChallenge(ctx context.Context, email string, now time.Time) (ports.PasswordResetChallenge, error) {
+func (repo BusinessIdentityRepository) LatestActivePasswordResetChallenge(
+	ctx context.Context,
+	email string,
+	now time.Time,
+) (ports.PasswordResetChallenge, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.PasswordResetChallenge{}, err
@@ -174,7 +181,11 @@ func (repo BusinessIdentityRepository) SetBusinessUserPasswordByID(ctx context.C
 	return tx.Commit(ctx)
 }
 
-func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Context, input ports.CreateBusinessWithOwnerInput) (ports.BusinessOwnerIdentity, error) {
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (repo BusinessIdentityRepository) CreateBusinessWithOwner(
+	ctx context.Context,
+	input ports.CreateBusinessWithOwnerInput,
+) (ports.BusinessOwnerIdentity, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessOwnerIdentity{}, err
@@ -239,7 +250,11 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(ctx context.Conte
 			whatsapp_verified_at
 		)
 		values ($1, $2, $3, $4, $5, 'owner', true, $6, $7, case when $8 then now() else null end)
-	`, input.OwnerUserID.String(), input.BusinessID.String(), input.OwnerEmail, input.OwnerDisplayName, input.OwnerPassword, nullIfEmpty(input.Phone), nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified); err != nil {
+	`,
+		input.OwnerUserID.String(), input.BusinessID.String(),
+		input.OwnerEmail, input.OwnerDisplayName, input.OwnerPassword,
+		nullIfEmpty(input.Phone), nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified,
+	); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}
 

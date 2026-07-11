@@ -67,7 +67,7 @@ export function meta({ data: loaded }: Route.MetaArgs) {
   ];
 }
 
-export async function action({ request, params }: Route.ActionArgs) {
+export async function action({ request, params }: Route.ActionArgs) { // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "standard");
   const storeHandle = String(form.get("store_handle") ?? "").trim();

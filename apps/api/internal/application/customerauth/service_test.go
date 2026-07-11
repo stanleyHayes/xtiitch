@@ -215,7 +215,13 @@ func (r *fakeRepo) CreateOTPChallenge(_ context.Context, input ports.CreateOTPCh
 	return nil
 }
 
-func (r *fakeRepo) LatestActiveOTPChallenge(_ context.Context, channel ports.CustomerOTPChannel, identifier string, _ time.Time) (ports.OTPChallengeRecord, error) {
+func (r *fakeRepo) LatestActiveOTPChallenge(
+	_ context.Context,
+	channel ports.CustomerOTPChannel,
+	identifier string,
+	_ time.Time) (ports.OTPChallengeRecord,
+	error,
+) {
 	r.lookupChannel = channel
 	r.lookupIdentifier = identifier
 	if r.lookupErr != nil {

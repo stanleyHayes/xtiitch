@@ -101,7 +101,7 @@ export async function action({ request }: Route.ActionArgs): Promise<ActionResul
   return { stage: "confirm", email, sent: true };
 }
 
-export default function ForgotPassword({ actionData }: Route.ComponentProps) {
+export default function ForgotPassword({ actionData }: Route.ComponentProps) { // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const data = (actionData ?? {}) as ActionResult;

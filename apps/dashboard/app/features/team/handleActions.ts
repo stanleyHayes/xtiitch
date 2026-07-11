@@ -2,7 +2,7 @@ import { apiFetch } from "../../lib/auth";
 import { redirect } from "react-router";
 import { businessUserErrorMessage } from "../shared/utils";
 
-export async function handleTeamActions(
+export async function handleTeamActions( // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

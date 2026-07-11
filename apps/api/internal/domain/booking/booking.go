@@ -96,6 +96,8 @@ type Slot struct {
 // function: callers subtract already-held/booked slots separately. Ghana sits at
 // UTC+0 with no DST today, so loc is effectively UTC, but it is threaded so a
 // different timezone never silently breaks slot times.
+//
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func EnumerateSlots(windows []Window, from, to, now time.Time, leadMinutes int, loc *time.Location) []Slot {
 	if loc == nil {
 		loc = time.UTC

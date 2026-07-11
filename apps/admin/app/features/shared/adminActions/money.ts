@@ -3,7 +3,7 @@ import { requireAdminContext } from "../../../lib/session";
 import { adminMoneyActionError } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleMoneyAction({
+export async function handleMoneyAction({ // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request,
   intent,
   form,

@@ -144,7 +144,9 @@ func (handler Handler) deleteZone(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	if err := handler.service.DeleteDeliveryZone(r.Context(), principal.TenantScope(), principal.Role, common.ID(chi.URLParam(r, "id"))); err != nil {
+	if err := handler.service.DeleteDeliveryZone(
+		r.Context(), principal.TenantScope(), principal.Role, common.ID(chi.URLParam(r, "id")),
+	); err != nil {
 		status, code := zoneError(err)
 		writeError(w, status, code)
 		return

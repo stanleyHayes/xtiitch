@@ -11,7 +11,7 @@ import {
 import { adminAdCampaignActionError } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
-export async function handleAdsAction({
+export async function handleAdsAction({ // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request,
   intent,
   form,

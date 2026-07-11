@@ -35,7 +35,7 @@ import { WaitlistPanel } from "./waitlist";
 
 import { resolveDepositMinor } from "./utils";
 
-export default function DesignPage({
+export default function DesignPage({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   loaderData,
   actionData,
 }: Route.ComponentProps) {

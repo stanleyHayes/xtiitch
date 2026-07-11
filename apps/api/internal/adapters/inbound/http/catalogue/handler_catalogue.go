@@ -284,7 +284,11 @@ func (handler Handler) archivePromotion(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, toPromotionResponse(record))
 }
 
-func (body promotionBody) toCommand(scope common.TenantScope, role business.UserRole, promotionID common.ID) catalogueapp.BusinessPromotionCommand {
+func (body promotionBody) toCommand(
+	scope common.TenantScope,
+	role business.UserRole,
+	promotionID common.ID,
+) catalogueapp.BusinessPromotionCommand {
 	cmd := catalogueapp.BusinessPromotionCommand{
 		Scope:                 scope,
 		ActorRole:             role,

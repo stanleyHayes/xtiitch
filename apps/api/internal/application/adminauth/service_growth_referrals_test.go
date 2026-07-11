@@ -12,6 +12,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	t.Parallel()
 
@@ -153,6 +154,7 @@ func TestReferralProgrammesRequireGrowthPermissionAndAudit(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestCreateReferralCodeRequiresGrowthPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 
@@ -225,6 +227,7 @@ func TestCreateReferralCodeRequiresGrowthPermissionAndAudits(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestIssueReferralRewardsRequiresGrowthPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 

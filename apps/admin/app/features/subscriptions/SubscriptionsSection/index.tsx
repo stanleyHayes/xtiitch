@@ -28,7 +28,7 @@ import { SubscriptionEventsPanel } from "./SubscriptionEventsPanel";
 import { SubscriptionMetrics } from "./SubscriptionMetrics";
 import { SubscriptionAlerts } from "./SubscriptionAlerts";
 
-export function SubscriptionsSection({
+export function SubscriptionsSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   subscriptions,
   subscriptionsError,
   plans,

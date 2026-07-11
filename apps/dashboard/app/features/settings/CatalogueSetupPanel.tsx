@@ -22,7 +22,7 @@ import { PaginationFooter } from "../../components/ui/PaginationFooter";
 import { SizeBandEditButton } from "./SizeBandEditButton";
 import { SizeBandDeleteButton } from "./SizeBandDeleteButton";
 
-export function CatalogueSetupPanel({
+export function CatalogueSetupPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   mode,
   collections,
   sizeBands,

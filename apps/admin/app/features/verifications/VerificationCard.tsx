@@ -24,7 +24,7 @@ import { StatusChip } from "../shared/StatusChip";
 
 
 
-export function VerificationCard({
+export function VerificationCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   item,
   note,
   onNoteChange,

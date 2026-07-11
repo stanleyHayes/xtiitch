@@ -85,7 +85,10 @@ type stubPayments struct {
 	charges      []ports.ChargeAuthorizationInput
 }
 
-func (p *stubPayments) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (p *stubPayments) InitializeAuthorization(
+	_ context.Context,
+	input ports.InitializeAuthorizationInput,
+) (ports.InitializeAuthorizationResult, error) {
 	p.initInput = input
 	return p.initResult, p.initErr
 }
@@ -94,7 +97,10 @@ func (p *stubPayments) VerifyAuthorization(_ context.Context, _ ports.VerifyAuth
 	return p.verifyResult, p.verifyErr
 }
 
-func (p *stubPayments) ChargeAuthorization(_ context.Context, input ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
+func (p *stubPayments) ChargeAuthorization(
+	_ context.Context,
+	input ports.ChargeAuthorizationInput,
+) (ports.ChargeAuthorizationResult, error) {
 	p.charges = append(p.charges, input)
 	return p.chargeResult, p.chargeErr
 }
@@ -144,7 +150,12 @@ func (s stubSettings) AIAssistantAddonEnabled(_ context.Context) (bool, error) {
 	return s.enabled, s.err
 }
 
-func newBillingServiceWith(addons ports.BusinessAddonRepository, payments PaymentAuthorizer, assistantEnabled bool, settings PlatformSettings) Service {
+func newBillingServiceWith(
+	addons ports.BusinessAddonRepository,
+	payments PaymentAuthorizer,
+	assistantEnabled bool,
+	settings PlatformSettings,
+) Service {
 	return NewService(Dependencies{
 		Assistant:        &upperAssistant{},
 		Addons:           addons,

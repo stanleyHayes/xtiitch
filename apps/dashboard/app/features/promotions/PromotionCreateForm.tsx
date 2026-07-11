@@ -10,7 +10,7 @@ import type { Design } from "../../lib/api";
 import { CollectionSummary } from "../shared/types";
 import { StyledDateTimeField } from "../../components/ui/StyledDateTimeField";
 
-export function PromotionCreateForm({
+export function PromotionCreateForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   activeCollections,
   activeDesigns,
 }: {

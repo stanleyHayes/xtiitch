@@ -44,7 +44,8 @@ func TestCreateFieldRejectsInvalidInput(t *testing.T) {
 		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, Label: "Chest", Unit: "cm", Sequence: -1},
 	}
 	for _, cmd := range cases {
-		if _, err := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{ids: []common.ID{"field-1"}}}).CreateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
+		svc := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{ids: []common.ID{"field-1"}}})
+		if _, err := svc.CreateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("expected invalid input for %+v, got %v", cmd, err)
 		}
 	}
@@ -89,7 +90,8 @@ func TestUpdateFieldRejectsEmptyOrInvalidPatch(t *testing.T) {
 		{Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner, FieldID: "field-1", Sequence: &negative},
 	}
 	for _, cmd := range cases {
-		if _, err := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{}}).UpdateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
+		svc := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{}})
+		if _, err := svc.UpdateField(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("expected invalid input for %+v, got %v", cmd, err)
 		}
 	}
@@ -160,14 +162,43 @@ func TestRecordOrderMeasurementsRejectsInvalidInput(t *testing.T) {
 		cmd  RecordOrderMeasurementsCommand
 		want error
 	}{
-		{RecordOrderMeasurementsCommand{Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "", Source: SourceVisit, Values: map[string]string{"field-1": "41"}}, ErrInvalidInput},
-		{RecordOrderMeasurementsCommand{Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: "self", Values: map[string]string{"field-1": "41"}}, ErrInvalidMeasurementSource},
-		{RecordOrderMeasurementsCommand{Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop, Values: map[string]string{}}, ErrInvalidInput},
-		{RecordOrderMeasurementsCommand{Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop, Values: map[string]string{" ": "41"}}, ErrInvalidInput},
-		{RecordOrderMeasurementsCommand{Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop, Values: map[string]string{"field-1": " "}}, ErrInvalidInput},
+		{
+			RecordOrderMeasurementsCommand{
+				Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "", Source: SourceVisit,
+				Values: map[string]string{"field-1": "41"},
+			}, ErrInvalidInput,
+		},
+		{
+			RecordOrderMeasurementsCommand{
+				Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: "self",
+				Values: map[string]string{"field-1": "41"},
+			}, ErrInvalidMeasurementSource,
+		},
+		{
+			RecordOrderMeasurementsCommand{
+				Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop,
+				Values: map[string]string{},
+			}, ErrInvalidInput,
+		},
+		{
+			RecordOrderMeasurementsCommand{
+				Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop,
+				Values: map[string]string{" ": "41"},
+			}, ErrInvalidInput,
+		},
+		{
+			RecordOrderMeasurementsCommand{
+				Scope: common.TenantScope{BusinessID: "b1"}, OrderID: "order-1", Source: SourceShop,
+				Values: map[string]string{"field-1": " "},
+			}, ErrInvalidInput,
+		},
 	}
 	for _, tc := range cases {
-		if _, err := NewService(Dependencies{Measurements: &fakeMeasurementRepo{}, IDs: &seqIDs{ids: []common.ID{"measurement-1"}}}).RecordOrderMeasurements(context.Background(), tc.cmd); !errors.Is(err, tc.want) {
+		svc := NewService(Dependencies{
+			Measurements: &fakeMeasurementRepo{},
+			IDs:          &seqIDs{ids: []common.ID{"measurement-1"}},
+		})
+		if _, err := svc.RecordOrderMeasurements(context.Background(), tc.cmd); !errors.Is(err, tc.want) {
 			t.Fatalf("expected %v for %+v, got %v", tc.want, tc.cmd, err)
 		}
 	}
@@ -183,12 +214,21 @@ func (f *fakeMeasurementRepo) ListFields(_ context.Context, _ common.TenantScope
 	return nil, nil
 }
 
-func (f *fakeMeasurementRepo) CreateField(_ context.Context, _ common.TenantScope, input ports.CreateMeasurementFieldInput) (ports.BusinessMeasurementField, error) {
+func (f *fakeMeasurementRepo) CreateField(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.CreateMeasurementFieldInput,
+) (ports.BusinessMeasurementField, error) {
 	f.created = input
 	return ports.BusinessMeasurementField{FieldID: input.FieldID, Label: input.Label, Unit: input.Unit, Sequence: input.Sequence}, nil
 }
 
-func (f *fakeMeasurementRepo) UpdateField(_ context.Context, _ common.TenantScope, fieldID common.ID, input ports.UpdateMeasurementFieldInput) (ports.BusinessMeasurementField, error) {
+func (f *fakeMeasurementRepo) UpdateField(
+	_ context.Context,
+	_ common.TenantScope,
+	fieldID common.ID,
+	input ports.UpdateMeasurementFieldInput,
+) (ports.BusinessMeasurementField, error) {
 	f.updated = input
 	return ports.BusinessMeasurementField{FieldID: fieldID, Label: *input.Label, Unit: *input.Unit, Sequence: *input.Sequence}, nil
 }
@@ -197,7 +237,11 @@ func (f *fakeMeasurementRepo) DeleteField(_ context.Context, _ common.TenantScop
 	return nil
 }
 
-func (f *fakeMeasurementRepo) RecordOrderMeasurements(_ context.Context, _ common.TenantScope, input ports.RecordOrderMeasurementsInput) (ports.OrderMeasurement, error) {
+func (f *fakeMeasurementRepo) RecordOrderMeasurements(
+	_ context.Context,
+	_ common.TenantScope,
+	input ports.RecordOrderMeasurementsInput,
+) (ports.OrderMeasurement, error) {
 	f.recorded = input
 	return ports.OrderMeasurement{MeasurementID: input.MeasurementID, OrderID: input.OrderID, Source: input.Source, Values: input.Values}, nil
 }

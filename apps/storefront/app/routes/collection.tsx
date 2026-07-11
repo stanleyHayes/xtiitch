@@ -42,7 +42,7 @@ export function meta({ data: loaded }: Route.MetaArgs) {
   ];
 }
 
-export default function CollectionPage({ loaderData }: Route.ComponentProps) {
+export default function CollectionPage({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   if ("notFound" in loaderData) {
     return (
       <StoreNotice

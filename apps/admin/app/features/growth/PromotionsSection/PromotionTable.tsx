@@ -18,7 +18,7 @@ import {
   promotionTargetLabel,
 } from "../utils";
 
-export function PromotionTable({
+export function PromotionTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   promotions,
   filteredPromotions,
   pagedPromotions,

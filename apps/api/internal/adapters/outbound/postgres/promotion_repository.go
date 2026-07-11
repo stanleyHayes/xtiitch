@@ -62,6 +62,7 @@ func (repo PromotionRepository) ListBusinessPromotions(
 	return records, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo PromotionRepository) CreateBusinessPromotion(
 	ctx context.Context,
 	scope common.TenantScope,
@@ -180,6 +181,7 @@ func (repo PromotionRepository) CreateBusinessPromotion(
 	return record, nil
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (repo PromotionRepository) UpdateBusinessPromotion(
 	ctx context.Context,
 	scope common.TenantScope,

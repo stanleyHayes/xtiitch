@@ -136,7 +136,10 @@ func markAdCampaignPaymentPaidFromProvider(
 				'source', 'paystack_webhook'
 			)
 		)
-	`, payment.campaignID, payment.headline, payment.paymentID, payment.businessID, input.ProviderReference, input.EventType, payment.amountMinor)
+	`,
+		payment.campaignID, payment.headline, payment.paymentID, payment.businessID,
+		input.ProviderReference, input.EventType, payment.amountMinor,
+	)
 	return err
 }
 
@@ -194,7 +197,10 @@ func markAdCampaignPaymentFailedFromProvider(
 				'reason', $3::text
 			)
 		)
-	`, payment.campaignID, payment.headline, reason, payment.paymentID, payment.businessID, input.ProviderReference, input.EventType, payment.amountMinor)
+	`,
+		payment.campaignID, payment.headline, reason, payment.paymentID, payment.businessID,
+		input.ProviderReference, input.EventType, payment.amountMinor,
+	)
 	return err
 }
 

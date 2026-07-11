@@ -22,7 +22,7 @@ import { useCloseOnSuccess } from "../settings/useCloseOnSuccess";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 
-export function WalkInOrderPanel({
+export function WalkInOrderPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   designs,
   sizeBands,
   measurementFields,

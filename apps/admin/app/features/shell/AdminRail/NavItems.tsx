@@ -23,7 +23,7 @@ import {
   adminOverviewNavId,
 } from "../../shared/types";
 
-export function NavItems({
+export function NavItems({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   section,
   collapsed,
   notificationCount,
@@ -77,7 +77,7 @@ export function NavItems({
     item: AdminNavItem,
     compact: boolean,
     close?: () => void,
-  ) => {
+  ) => { // eslint-disable-line complexity -- large presentational component; refactor in follow-up
     const selected = item.id === section;
     const badge = navBadge(item.id);
     const button = (

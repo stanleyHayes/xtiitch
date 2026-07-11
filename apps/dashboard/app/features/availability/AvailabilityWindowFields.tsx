@@ -9,7 +9,7 @@ import { weekdays } from "../shared/constants";
 import { StyledTimeField } from "../../components/ui/StyledTimeField";
 import { minutesToTime } from "../shared/utils";
 
-export function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
+export function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) { // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   const [recurrence, setRecurrence] = useState(window?.recurrence ?? "weekly");
   return (
     <Box

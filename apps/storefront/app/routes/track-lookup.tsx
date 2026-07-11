@@ -100,7 +100,7 @@ function LookupSignal({
   );
 }
 
-export default function TrackLookup() {
+export default function TrackLookup() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   return (
     <Box
       sx={{

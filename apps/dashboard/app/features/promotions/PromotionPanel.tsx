@@ -36,7 +36,7 @@ import { PaginationFooter } from "../../components/ui/PaginationFooter";
 import { PromotionCreateForm } from "./PromotionCreateForm";
 import { PromotionDetailForm } from "./PromotionDetailForm";
 
-export function PromotionPanel({
+export function PromotionPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   promotions,
   collections,
   designs,

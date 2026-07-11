@@ -50,7 +50,12 @@ func TestEnumerateSlots(t *testing.T) {
 	}
 
 	// A window on a different weekday yields nothing in this one-day range.
-	other := EnumerateSlots([]Window{{Weekday: (weekday + 1) % 7, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}}, from, to, now, 0, time.UTC)
+	other := EnumerateSlots([]Window{{
+		Weekday:     (weekday + 1) % 7,
+		StartMinute: 540,
+		EndMinute:   660,
+		SlotMinutes: 60,
+	}}, from, to, now, 0, time.UTC)
 	if len(other) != 0 {
 		t.Fatalf("expected no slots for a different weekday, got %d", len(other))
 	}

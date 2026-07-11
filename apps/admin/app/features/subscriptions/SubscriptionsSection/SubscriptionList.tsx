@@ -24,7 +24,7 @@ import { subscriptionDesignUsageLabel } from "../../plans/utils";
 import type { AdminSubscription } from "../../shared/types";
 import { SubscriptionDetail } from "./SubscriptionDetail";
 
-export function SubscriptionList({
+export function SubscriptionList({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   subscriptions,
   lifecycleRows,
   pagedLifecycleRows,

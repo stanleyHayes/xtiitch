@@ -17,7 +17,7 @@ import type { AdminSession } from "../../lib/session";
 import { AdminNavItem, Section } from "../shared/types";
 import { AdminUserMenu } from "./AdminUserMenu";
 
-export function AdminTopBar({
+export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   admin,
   currentSection,
   collapsed,

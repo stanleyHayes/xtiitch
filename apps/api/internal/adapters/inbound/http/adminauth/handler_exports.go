@@ -33,6 +33,7 @@ func (handler Handler) exportDatasetCSV(w http.ResponseWriter, r *http.Request) 
 	writeCSV(w, "xtiitch-admin-"+safeExportName(dataset)+".csv", rows)
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func (handler Handler) exportDatasetRows(
 	ctx context.Context,
 	principal Principal,
@@ -57,8 +58,16 @@ func (handler Handler) exportDatasetRows(
 			{"Active businesses", fmt.Sprint(metrics.ActiveBusinesses), fmt.Sprintf("%d total tenants", metrics.TotalBusinesses)},
 			{"Pending KYC", fmt.Sprint(metrics.PendingVerifications), "Business verification backlog"},
 			{"Suspended businesses", fmt.Sprint(metrics.SuspendedBusinesses), "Operational holds"},
-			{"Payment health", fmt.Sprintf("%.2f%%", float64(metrics.PaymentHealthBPS)/100), fmt.Sprintf("%d failed of %d payments in 30 days", metrics.FailedPayments30d, metrics.TotalPayments30d)},
-			{"Platform policy", boolCSV(!settings.MaintenanceMode, "Live", "Maintenance"), fmt.Sprintf("%dh verification SLA", settings.VerificationSLAHours)},
+			{
+				"Payment health",
+				fmt.Sprintf("%.2f%%", float64(metrics.PaymentHealthBPS)/100),
+				fmt.Sprintf("%d failed of %d payments in 30 days", metrics.FailedPayments30d, metrics.TotalPayments30d),
+			},
+			{
+				"Platform policy",
+				boolCSV(!settings.MaintenanceMode, "Live", "Maintenance"),
+				fmt.Sprintf("%dh verification SLA", settings.VerificationSLAHours),
+			},
 			{"Payout review threshold", moneyCSV(int64(settings.PayoutReviewThresholdPesewas)), "Admin settlement review threshold"},
 		}, nil
 	case "launch-readiness":
@@ -87,7 +96,9 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Business", "Handle", "Owner", "Status", "Operational", "Plan", "Orders", "GMV", "Commission", "Risk", "Subaccount", "Last active"}}
+		rows := [][]string{
+			{"Business", "Handle", "Owner", "Status", "Operational", "Plan", "Orders", "GMV", "Commission", "Risk", "Subaccount", "Last active"},
+		}
 		for _, record := range records {
 			rows = append(rows, []string{
 				record.Name,
@@ -110,7 +121,9 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Customer", "Email", "Phone", "Businesses", "Orders", "Custom orders", "GMV", "Last business", "Last active", "Created"}}
+		rows := [][]string{
+			{"Customer", "Email", "Phone", "Businesses", "Orders", "Custom orders", "GMV", "Last business", "Last active", "Created"},
+		}
 		for _, record := range records {
 			rows = append(rows, []string{
 				fallbackText(record.DisplayName, record.CustomerID.String()),
@@ -155,14 +168,32 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Kind", "Business", "Reference", "Status", "Amount", "Attempts", "Received/Updated", "Note"}}
 		for _, event := range record.WebhookEvents {
-			rows = append(rows, []string{"Webhook", event.BusinessName, event.ProviderReference, event.Status, moneyCSV(event.AmountMinor), fmt.Sprint(event.Attempts), timeCSV(event.ReceivedAt), event.Note})
+			rows = append(rows, []string{
+				"Webhook",
+				event.BusinessName,
+				event.ProviderReference,
+				event.Status,
+				moneyCSV(event.AmountMinor),
+				fmt.Sprint(event.Attempts),
+				timeCSV(event.ReceivedAt),
+				event.Note,
+			})
 		}
 		for _, review := range record.PayoutReviews {
 			status := review.Status
 			if review.HoldActive {
 				status = "held"
 			}
-			rows = append(rows, []string{"Settlement", review.BusinessName, review.SubaccountRef, status, moneyCSV(review.SettlementMinor), "", optionalTimeCSV(review.HoldUpdatedAt), fallbackText(review.HoldReason, review.NextAction)})
+			rows = append(rows, []string{
+				"Settlement",
+				review.BusinessName,
+				review.SubaccountRef,
+				status,
+				moneyCSV(review.SettlementMinor),
+				"",
+				optionalTimeCSV(review.HoldUpdatedAt),
+				fallbackText(review.HoldReason, review.NextAction),
+			})
 		}
 		return rows, nil
 	case "risk":
@@ -172,7 +203,15 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Title", "Business", "Level", "Status", "Owner", "Updated", "Reason"}}
 		for _, record := range records {
-			rows = append(rows, []string{record.Title, record.BusinessName, record.Level, record.Status, record.Owner, timeCSV(record.UpdatedAt), record.Reason})
+			rows = append(rows, []string{
+				record.Title,
+				record.BusinessName,
+				record.Level,
+				record.Status,
+				record.Owner,
+				timeCSV(record.UpdatedAt),
+				record.Reason,
+			})
 		}
 		return rows, nil
 	case "support":
@@ -182,7 +221,17 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Subject", "Business", "Category", "Priority", "Status", "Assigned", "Created", "Updated", "Summary"}}
 		for _, record := range records {
-			rows = append(rows, []string{record.Subject, record.BusinessName, record.Category, record.Priority, record.Status, fallbackText(record.AssignedAdminName, record.AssignedAdminEmail), timeCSV(record.CreatedAt), timeCSV(record.UpdatedAt), record.Summary})
+			rows = append(rows, []string{
+				record.Subject,
+				record.BusinessName,
+				record.Category,
+				record.Priority,
+				record.Status,
+				fallbackText(record.AssignedAdminName, record.AssignedAdminEmail),
+				timeCSV(record.CreatedAt),
+				timeCSV(record.UpdatedAt),
+				record.Summary,
+			})
 		}
 		return rows, nil
 	case "audit":
@@ -195,7 +244,15 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Action", "Actor", "Role", "Severity", "Target", "Created", "Detail"}}
 		for _, record := range records {
-			rows = append(rows, []string{record.Action, record.ActorEmail, string(record.ActorRole), string(record.Severity), fallbackText(record.TargetLabel, record.TargetID), timeCSV(record.CreatedAt), record.Summary})
+			rows = append(rows, []string{
+				record.Action,
+				record.ActorEmail,
+				string(record.ActorRole),
+				string(record.Severity),
+				fallbackText(record.TargetLabel, record.TargetID),
+				timeCSV(record.CreatedAt),
+				record.Summary,
+			})
 		}
 		return rows, nil
 	case "users":
@@ -205,7 +262,14 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Name", "Email", "Role", "Active", "Created", "Updated"}}
 		for _, record := range records {
-			rows = append(rows, []string{record.DisplayName, record.Email, string(record.Role), boolCSV(record.IsActive, "Active", "Inactive"), timeCSV(record.CreatedAt), timeCSV(record.UpdatedAt)})
+			rows = append(rows, []string{
+				record.DisplayName,
+				record.Email,
+				string(record.Role),
+				boolCSV(record.IsActive, "Active", "Inactive"),
+				timeCSV(record.CreatedAt),
+				timeCSV(record.UpdatedAt),
+			})
 		}
 		return rows, nil
 	case "roles":
@@ -242,12 +306,32 @@ func (handler Handler) exportDatasetRows(
 			{"Operator profile", "Display name", profile.User.DisplayName, profile.User.Email},
 			{"Operator profile", "Role", string(profile.User.Role), boolCSV(profile.User.IsActive, "Active", "Inactive")},
 			{"Notification preferences", "Email alerts", boolCSV(preferences.NotifyEmail, "On", "Off"), "Primary operator delivery route"},
-			{"Notification preferences", "SMS alerts", boolCSV(preferences.NotifySMS, "On", "Off"), fallbackText(preferences.PhoneNumber, "No phone number")},
+			{
+				"Notification preferences", "SMS alerts",
+				boolCSV(preferences.NotifySMS, "On", "Off"),
+				fallbackText(preferences.PhoneNumber, "No phone number"),
+			},
 			{"Notification preferences", "Daily digest", preferences.DailyDigestTime, preferences.Timezone},
-			{"Notification preferences", "Verification alerts", boolCSV(preferences.AlertVerifications, "Watched", "Muted"), "Business verification queue"},
-			{"Notification preferences", "Money rail alerts", boolCSV(preferences.AlertMoneyRails, "Watched", "Muted"), "Payment, payout, and webhook queue"},
-			{"Notification preferences", "Subscription alerts", boolCSV(preferences.AlertSubscriptions, "Watched", "Muted"), "Subscription billing and plan usage"},
-			{"Notification preferences", "Promotion alerts", boolCSV(preferences.AlertPromotions, "Watched", "Muted"), "Promotion redemption activity"},
+			{
+				"Notification preferences", "Verification alerts",
+				boolCSV(preferences.AlertVerifications, "Watched", "Muted"),
+				"Business verification queue",
+			},
+			{
+				"Notification preferences", "Money rail alerts",
+				boolCSV(preferences.AlertMoneyRails, "Watched", "Muted"),
+				"Payment, payout, and webhook queue",
+			},
+			{
+				"Notification preferences", "Subscription alerts",
+				boolCSV(preferences.AlertSubscriptions, "Watched", "Muted"),
+				"Subscription billing and plan usage",
+			},
+			{
+				"Notification preferences", "Promotion alerts",
+				boolCSV(preferences.AlertPromotions, "Watched", "Muted"),
+				"Promotion redemption activity",
+			},
 			{"Notification preferences", "Risk alerts", boolCSV(preferences.AlertRisk, "Watched", "Muted"), "Risk review queue"},
 			{"Notification preferences", "Support alerts", boolCSV(preferences.AlertSupport, "Watched", "Muted"), "Support queue"},
 			{"Platform policy", "Platform name", settings.PlatformName, settings.SupportEmail},
@@ -310,7 +394,12 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Name", "Code", "Active", "Monthly fee", "Yearly fee", "Commission", "Design limit", "Businesses", "Active subscriptions", "Estimated MRR", "Created", "Updated"}}
+		rows := [][]string{
+			{
+				"Name", "Code", "Active", "Monthly fee", "Yearly fee", "Commission",
+				"Design limit", "Businesses", "Active subscriptions", "Estimated MRR", "Created", "Updated",
+			},
+		}
 		for _, record := range records {
 			designLimit := "Unlimited"
 			if record.DesignLimit != nil {
@@ -339,7 +428,18 @@ func (handler Handler) exportDatasetRows(
 		}
 		rows := [][]string{{"Title", "Code", "Business", "Status", "Type", "Value", "Funding", "Scope", "Redemptions", "Discount redeemed"}}
 		for _, record := range records {
-			rows = append(rows, []string{record.Title, record.Code, fallbackText(record.BusinessName, "Platform-wide"), record.Status, record.DiscountType, fmt.Sprint(record.DiscountValue), record.FundingSource, record.Scope, fmt.Sprint(record.RedemptionCount), moneyCSV(record.DiscountRedeemedMinor)})
+			rows = append(rows, []string{
+				record.Title,
+				record.Code,
+				fallbackText(record.BusinessName, "Platform-wide"),
+				record.Status,
+				record.DiscountType,
+				fmt.Sprint(record.DiscountValue),
+				record.FundingSource,
+				record.Scope,
+				fmt.Sprint(record.RedemptionCount),
+				moneyCSV(record.DiscountRedeemedMinor),
+			})
 		}
 		return rows, nil
 	case "ad-campaigns":
@@ -347,7 +447,13 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Campaign", "Business", "Handle", "Placement", "Target", "Status", "Pricing", "Budget", "Spend", "Daily cap", "Starts", "Ends", "Impressions", "Clicks", "CTR", "Review note", "Updated"}}
+		rows := [][]string{
+			{
+				"Campaign", "Business", "Handle", "Placement", "Target", "Status", "Pricing",
+				"Budget", "Spend", "Daily cap", "Starts", "Ends", "Impressions", "Clicks", "CTR",
+				"Review note", "Updated",
+			},
+		}
 		for _, record := range records {
 			dailyCap := ""
 			if record.DailyCapMinor != nil {
@@ -379,7 +485,12 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Affiliate", "Code", "Entity", "Contact", "Email", "Phone", "Website", "Commission", "Cookie window", "Payout mode", "Payout reference", "Status", "Notes", "Updated"}}
+		rows := [][]string{
+			{
+				"Affiliate", "Code", "Entity", "Contact", "Email", "Phone", "Website",
+				"Commission", "Cookie window", "Payout mode", "Payout reference", "Status", "Notes", "Updated",
+			},
+		}
 		for _, record := range records {
 			commission := moneyCSV(record.CommissionRate)
 			if record.CommissionModel == "percentage" {
@@ -408,7 +519,12 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Programme", "Code prefix", "Audience", "Referrer reward", "New customer reward", "Reward", "Reward cap", "Minimum order", "Hold days", "Status", "Starts", "Ends", "Notes", "Updated"}}
+		rows := [][]string{
+			{
+				"Programme", "Code prefix", "Audience", "Referrer reward", "New customer reward",
+				"Reward", "Reward cap", "Minimum order", "Hold days", "Status", "Starts", "Ends", "Notes", "Updated",
+			},
+		}
 		for _, record := range records {
 			reward := moneyCSV(record.RewardValue)
 			if record.RewardType == "percentage" {
@@ -441,7 +557,12 @@ func (handler Handler) exportDatasetRows(
 		if err != nil {
 			return nil, err
 		}
-		rows := [][]string{{"Promotion", "Code", "Business", "Business ID", "Customer", "Customer ID", "Order ID", "Status", "Discount", "Redeemed at", "Created at", "Updated at"}}
+		rows := [][]string{
+			{
+				"Promotion", "Code", "Business", "Business ID", "Customer", "Customer ID",
+				"Order ID", "Status", "Discount", "Redeemed at", "Created at", "Updated at",
+			},
+		}
 		for _, record := range records {
 			for _, redemption := range record.RecentRedemptions {
 				customerID := ""

@@ -15,7 +15,7 @@ import TextField from "../../../../components/form-text-field";
 import type { MeasurementField, OrderSummary } from "../../../shared/types";
 import { orderRouteLabel } from "../../utils";
 
-export function MeasurementsDialog({
+export function MeasurementsDialog({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   order,
   measurementFields,
   measurementSource,

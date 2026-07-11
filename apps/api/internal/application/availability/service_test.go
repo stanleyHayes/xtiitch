@@ -152,10 +152,14 @@ func TestDefineAvailabilityRecurrenceValidation(t *testing.T) {
 	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 17, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); err != nil {
 		t.Fatalf("monthly window with valid day_of_month should be accepted, got %v", err)
 	}
-	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 0, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+	if err := define(WindowInput{
+		Recurrence: "monthly", DayOfMonth: 0, StartMinute: 540, EndMinute: 660, SlotMinutes: 60,
+	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("monthly window without day_of_month should be rejected, got %v", err)
 	}
-	if err := define(WindowInput{Recurrence: "monthly", DayOfMonth: 32, StartMinute: 540, EndMinute: 660, SlotMinutes: 60}); !errors.Is(err, ErrInvalidInput) {
+	if err := define(WindowInput{
+		Recurrence: "monthly", DayOfMonth: 32, StartMinute: 540, EndMinute: 660, SlotMinutes: 60,
+	}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("monthly window with out-of-range day_of_month should be rejected, got %v", err)
 	}
 
@@ -296,7 +300,10 @@ func TestResolveOpenSlot(t *testing.T) {
 		t.Fatalf("expected the 10:00 slot to resolve, got %+v err=%v", slot, err)
 	}
 
-	taken := NewService(Dependencies{Availability: fakeAvailRepo{windows: windows, taken: []time.Time{slot10}}, Now: func() time.Time { return now }})
+	taken := NewService(Dependencies{
+		Availability: fakeAvailRepo{windows: windows, taken: []time.Time{slot10}},
+		Now:          func() time.Time { return now },
+	})
 	if _, err := taken.ResolveOpenSlot(ctx, scope, slot10); !errors.Is(err, ports.ErrSlotTaken) {
 		t.Fatalf("a taken slot should resolve to ErrSlotTaken, got %v", err)
 	}

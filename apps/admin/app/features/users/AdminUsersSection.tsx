@@ -33,7 +33,7 @@ import { SectionHeader } from "../../components/ui/SectionHeader";
 
 
 
-export function AdminUsersSection({
+export function AdminUsersSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   users,
   roles,
   currentUserId,

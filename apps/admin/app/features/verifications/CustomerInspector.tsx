@@ -24,7 +24,7 @@ import { DetailLine } from "../shared/DetailLine";
 
 
 
-export function CustomerInspector({
+export function CustomerInspector({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   customer,
   onClose,
 }: {

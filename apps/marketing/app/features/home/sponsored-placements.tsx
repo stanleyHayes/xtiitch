@@ -67,7 +67,7 @@ function sendSponsoredEvent(
   }).catch(() => undefined);
 }
 
-export function SponsoredPlacements({
+export function SponsoredPlacements({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   placements,
 }: {
   placements: SponsoredPlacement[];

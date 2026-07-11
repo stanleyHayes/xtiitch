@@ -23,7 +23,7 @@ import { entitlementValueLabel, planEntitlementValue } from "./utils";
 
 
 
-export function PlanEntitlementMatrixPanel({
+export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   features,
   featuresError,
   plans,

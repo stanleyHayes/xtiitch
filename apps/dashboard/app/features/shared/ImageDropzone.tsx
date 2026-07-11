@@ -8,7 +8,7 @@ import { alpha } from "@mui/material/styles";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import { tokens } from "../../theme";
 
-export function ImageDropzone({
+export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   name,
   helper,
   required = false,

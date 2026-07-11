@@ -73,7 +73,11 @@ func (repo BookingRepository) HoldSlot(ctx context.Context, scope common.TenantS
 	return tx.Commit(ctx)
 }
 
-func (repo BookingRepository) DiscardHeldBooking(ctx context.Context, scope common.TenantScope, bookingID, orderID, customerID common.ID) error {
+func (repo BookingRepository) DiscardHeldBooking(
+	ctx context.Context,
+	scope common.TenantScope,
+	bookingID, orderID, customerID common.ID,
+) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err

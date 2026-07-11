@@ -12,6 +12,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestPromotionsRequirePermissionAndAudit(t *testing.T) {
 	t.Parallel()
 

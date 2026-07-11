@@ -68,10 +68,8 @@ run_go_gate() {
   LINTER="$(command -v golangci-lint || true)"
   if [ -x "$HOME/go/bin/golangci-lint" ]; then LINTER="$HOME/go/bin/golangci-lint"; fi
   if [ -n "$LINTER" ] && [ -x "$LINTER" ]; then
-    # Report-only during the refactor: we are driving the allowlist to empty
-    # before flipping the gate to blocking.
-    ( cd "$API" && "$LINTER" run --issues-exit-code=0 ./... ) >/tmp/refactor-lint.log 2>&1 && ok "golangci-lint (report-only)" \
-      || { bad "golangci-lint crashed — see /tmp/refactor-lint.log"; tail -20 /tmp/refactor-lint.log | sed 's/^/      /'; }
+    ( cd "$API" && "$LINTER" run ./... ) >/tmp/refactor-lint.log 2>&1 && ok "golangci-lint" \
+      || { bad "golangci-lint failed — see /tmp/refactor-lint.log"; tail -20 /tmp/refactor-lint.log | sed 's/^/      /'; }
   else
     printf '  \033[33m! golangci-lint not installed — skipped (install per REFACTOR-PLAN §3.1)\033[0m\n'
   fi

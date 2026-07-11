@@ -33,7 +33,7 @@ import { formatMethod, formatCommissionStatus } from "./utils";
 import { shortDateTime } from "../shared/utils";
 import { PaginationFooter } from "../../components/ui/PaginationFooter";
 
-export function MoneyPanel({
+export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   summary,
   takings,
   orders,

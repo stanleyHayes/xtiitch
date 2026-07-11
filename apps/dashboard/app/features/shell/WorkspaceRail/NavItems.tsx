@@ -69,7 +69,7 @@ export function NavItems({
   );
 }
 
-function WorkspaceGroup({
+function WorkspaceGroup({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   group,
   section,
   badges,
@@ -251,7 +251,7 @@ function WorkspaceGroup({
   );
 }
 
-function NavItem({
+function NavItem({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
   item,
   section,
   badge,

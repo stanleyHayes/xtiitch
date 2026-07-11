@@ -42,10 +42,16 @@ type HeuristicQueryParser struct{}
 func NewHeuristicQueryParser() HeuristicQueryParser { return HeuristicQueryParser{} }
 
 // priceCap matches "under 800", "below ghc 1,200", "less than 500 cedis", etc.
-var priceCapPattern = regexp.MustCompile(`(?i)(?:under|below|less than|max|up to|at most|within|no more than)\s*(?:gh[c₵]?|₵|cedis)?\s*([0-9][0-9,]*)`)
+var priceCapPattern = regexp.MustCompile(
+	`(?i)(?:under|below|less than|max|up to|at most|within|no more than)` +
+		`\s*(?:gh[c₵]?|₵|cedis)?\s*([0-9][0-9,]*)`,
+)
 
 // priceFloor matches "over 500", "above 1000", "from 300", "at least 250".
-var priceFloorPattern = regexp.MustCompile(`(?i)(?:over|above|from|at least|min|minimum|more than|starting at)\s*(?:gh[c₵]?|₵|cedis)?\s*([0-9][0-9,]*)`)
+var priceFloorPattern = regexp.MustCompile(
+	`(?i)(?:over|above|from|at least|min|minimum|more than|starting at)` +
+		`\s*(?:gh[c₵]?|₵|cedis)?\s*([0-9][0-9,]*)`,
+)
 
 func (HeuristicQueryParser) Parse(_ context.Context, query string) (ports.ParsedQuery, error) {
 	lower := strings.ToLower(query)
@@ -117,9 +123,12 @@ func NewClaudeQueryParser(apiKey, model string) ClaudeQueryParser {
 	}
 }
 
-const claudeQuerySystemPrompt = `You convert a fashion shopper's natural-language request into a compact JSON filter for a Ghanaian fashion marketplace search.
+const claudeQuerySystemPrompt = `You convert a fashion shopper's natural-language request ` +
+	`into a compact JSON filter for a Ghanaian fashion marketplace search.
 Return ONLY a JSON object, no prose, with this exact shape:
-{"cleaned_query": string, "colors": string[], "categories": string[], "occasions": string[], "price_min_cedis": number, "price_max_cedis": number}
+		{"cleaned_query": string, "colors": string[], "categories": string[],` +
+	`"occasions": string[], "price_min_cedis": number, "price_max_cedis": number}` +
+	`
 Rules:
 - cleaned_query: the style description with any budget/price words removed.
 - colors/categories/occasions: lowercase single words found or strongly implied; [] if none.

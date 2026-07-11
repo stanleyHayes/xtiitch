@@ -42,9 +42,16 @@ func (repo AvailabilityRepository) ReplaceWindows(ctx context.Context, scope com
 			specificDate = window.SpecificDate.Format("2006-01-02")
 		}
 		if _, err := tx.Exec(ctx, `
-			insert into availability_windows (window_id, business_id, weekday, start_minute, end_minute, slot_minutes, recurrence, day_of_month, specific_date)
+			insert into availability_windows (
+				window_id, business_id, weekday, start_minute, end_minute,
+				slot_minutes, recurrence, day_of_month, specific_date
+			)
 			values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		`, window.WindowID.String(), scope.BusinessID.String(), window.Weekday, window.StartMinute, window.EndMinute, window.SlotMinutes, window.Recurrence, dayOfMonth, specificDate); err != nil {
+		`,
+			window.WindowID.String(), scope.BusinessID.String(), window.Weekday,
+			window.StartMinute, window.EndMinute, window.SlotMinutes,
+			window.Recurrence, dayOfMonth, specificDate,
+		); err != nil {
 			return err
 		}
 	}
@@ -84,7 +91,10 @@ func (repo AvailabilityRepository) ListWindows(ctx context.Context, scope common
 		var window booking.Window
 		var dayOfMonth *int
 		var specificDate *time.Time
-		if err := rows.Scan(&window.Weekday, &window.StartMinute, &window.EndMinute, &window.SlotMinutes, &window.Recurrence, &dayOfMonth, &specificDate); err != nil {
+		if err := rows.Scan(
+			&window.Weekday, &window.StartMinute, &window.EndMinute, &window.SlotMinutes,
+			&window.Recurrence, &dayOfMonth, &specificDate,
+		); err != nil {
 			return nil, "", err
 		}
 		if dayOfMonth != nil {

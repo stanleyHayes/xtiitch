@@ -2,7 +2,7 @@ import { apiFetch } from "../../lib/auth";
 import { tokens } from "../../theme";
 import { uploadDesignImage } from "../studio/utils";
 
-export async function handleSettingsActions(
+export async function handleSettingsActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
   intent: string,

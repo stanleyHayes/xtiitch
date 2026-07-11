@@ -14,7 +14,7 @@ import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
 import type { ActionResult, OtpChannel, Step } from "./types";
 
-export function SignInFlow({
+export function SignInFlow({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   redirectTo,
   action,
   step,

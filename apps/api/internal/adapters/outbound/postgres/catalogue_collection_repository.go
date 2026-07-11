@@ -84,7 +84,12 @@ func (repo CatalogueRepository) ListCollections(ctx context.Context, scope commo
 	return collections, err
 }
 
-func (repo CatalogueRepository) SetCollectionStatus(ctx context.Context, scope common.TenantScope, collectionID common.ID, status catalogue.Status) error {
+func (repo CatalogueRepository) SetCollectionStatus(
+	ctx context.Context,
+	scope common.TenantScope,
+	collectionID common.ID,
+	status catalogue.Status,
+) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		if _, err := tx.Exec(ctx, `
 			update collections set status = $3, updated_at = now()

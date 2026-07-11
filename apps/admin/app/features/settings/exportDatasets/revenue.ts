@@ -27,7 +27,7 @@ import {
   referralStatusLabel,
 } from "../../growth/utils";
 
-export function buildRevenueDatasets({
+export function buildRevenueDatasets({ // eslint-disable-line max-lines-per-function -- dataset builder with many conditional branches; refactor in follow-up
   plans,
   subscriptions,
   promotions,

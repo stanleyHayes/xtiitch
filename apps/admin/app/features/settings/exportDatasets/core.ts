@@ -11,7 +11,7 @@ import {
 import { formatGHS, formatPercentBps } from "../../shared/formatting";
 import { shortTime } from "../../shared/dates";
 
-export function buildCoreDatasets({
+export function buildCoreDatasets({ // eslint-disable-line complexity, max-lines-per-function -- dataset builder with many conditional branches; refactor in follow-up
   platformMetrics,
   platformSettings,
   profileSettings,

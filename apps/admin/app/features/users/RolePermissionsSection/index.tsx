@@ -28,7 +28,7 @@ import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { RoleRow } from "./RoleRow";
 import { PermissionMatrix } from "./PermissionMatrix";
 
-export function RolePermissionsSection({
+export function RolePermissionsSection({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   roles,
   permissions,
   actionData,

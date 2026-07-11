@@ -23,8 +23,8 @@ func TestTOTPGenerateAndVerify(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode secret: %v", err)
 	}
-	step := int64(uint64(now.Unix()) / m.period)
-	code := m.hotp(key, uint64(step))
+	step := int64(uint64(now.Unix()) / m.period) //nolint:gosec // Unix timestamp is non-negative and m.period is a small positive constant
+	code := m.hotp(key, uint64(step))            //nolint:gosec // step is non-negative in tests
 
 	matchedStep, ok := m.VerifyCode(secret, code, now, 0)
 	if !ok {

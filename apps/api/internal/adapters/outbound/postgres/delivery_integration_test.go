@@ -66,10 +66,15 @@ func cleanupDeliveryFixtures(t *testing.T, pool *pgxpool.Pool) {
 
 // seedOrder creates a customer and an order with the given status so a handover
 // can reference it (the handovers -> orders composite FK).
+//
+//nolint:unparam // test helper uses fixed business across current cases
 func seedOrder(t *testing.T, pool *pgxpool.Pool, businessID, orderID, customerID, status string) {
 	t.Helper()
 	inBypass(t, pool, func(tx pgx.Tx) {
-		mustExec(t, tx, `insert into customers (customer_id, display_name, phone, email) values ($1, 'IT Handover Customer', '0240000000', 'h@example.com')`, customerID)
+		mustExec(t, tx, `
+			insert into customers (customer_id, display_name, phone, email)
+			values ($1, 'IT Handover Customer', '0240000000', 'h@example.com')
+		`, customerID)
 		mustExec(t, tx, `
 			insert into orders (order_id, business_id, customer_id, design_id, size_band_id,
 				order_type, size_mode, flow, channel, agreed_total_minor, settled_minor, status)

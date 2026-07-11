@@ -20,7 +20,12 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
 		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
 	}}
-	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   provider,
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
 		Scope:         common.TenantScope{BusinessID: "business-1"},
@@ -50,6 +55,7 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestInitiateMarketplaceChargeBuildsSplitAcrossShops(t *testing.T) {
 	t.Parallel()
 
@@ -126,7 +132,12 @@ func TestInitiateChargeCapsCommissionPerDesignLine(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
 		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
 	}}
-	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   provider,
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	// Three GHS 2,000 designs on the Free plan (3%). Each design's raw fee is 6000,
 	// over the GHS 50 (5000) cap, so the cart pays 3 × 5000 = 15000 — one cap per
@@ -170,7 +181,12 @@ func TestInitiateChargeAppliesCappedCommissionToBespokeBalance(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
 		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
 	}}
-	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   provider,
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	// A GHS 2,000 balance at 3% raw-fees 6000, capped to the GHS 50 (5000) cap.
 	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
@@ -200,7 +216,12 @@ func TestInitiateChargeAcceptsCommissionOverride(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
 		BusinessID: "business-1", Name: "Ama", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
 	}}
-	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   provider,
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	result, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
 		Scope:                   common.TenantScope{BusinessID: "business-1"},
@@ -228,7 +249,12 @@ func TestInitiateChargeRejectsInvalidCommissionOverride(t *testing.T) {
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
 		BusinessID: "business-1", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
 	}}
-	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   &fakeProvider{},
+		Payments:   &fakePaymentRepo{},
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	_, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
 		Scope:                   common.TenantScope{BusinessID: "business-1"},
@@ -248,7 +274,12 @@ func TestInitiateChargeRejectsUnverifiedBusiness(t *testing.T) {
 
 	payments := &fakePaymentRepo{}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
-	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}}})
+	service := NewService(Dependencies{
+		Provider:   &fakeProvider{},
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"ref-1", "pay-1"}},
+	})
 
 	_, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
 		Scope: common.TenantScope{BusinessID: "business-1"}, Purpose: money.PaymentPurposeStandardFull, AmountMinor: 20000,
@@ -266,10 +297,18 @@ func TestInitiateChargeRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{Verified: true, SubaccountRef: "sub_1"}}
-	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"a", "b"}}})
+	service := NewService(Dependencies{
+		Provider:   &fakeProvider{},
+		Payments:   &fakePaymentRepo{},
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"a", "b"}},
+	})
 
 	_, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Purpose: money.PaymentPurposeStandardFull, AmountMinor: 0, CustomerEmail: "buyer@example.com",
+		Scope:         common.TenantScope{BusinessID: "business-1"},
+		Purpose:       money.PaymentPurposeStandardFull,
+		AmountMinor:   0,
+		CustomerEmail: "buyer@example.com",
 	})
 	if !errors.Is(err, ErrInvalidCharge) {
 		t.Fatalf("expected invalid charge for non-positive amount, got %v", err)
@@ -281,10 +320,19 @@ func TestLogManualTakingRecordsOffPlatformSale(t *testing.T) {
 
 	payments := &fakePaymentRepo{}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "b1", CommissionBps: 300}}
-	service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+	service := NewService(Dependencies{
+		Provider:   &fakeProvider{},
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"taking-1"}},
+	})
 
 	result, err := service.LogManualTaking(context.Background(), LogManualTakingCommand{
-		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleAdmin, AmountMinor: 5000, Method: "cash", WhatFor: "  alteration  ",
+		Scope:       common.TenantScope{BusinessID: "b1"},
+		ActorRole:   business.UserRoleAdmin,
+		AmountMinor: 5000,
+		Method:      "cash",
+		WhatFor:     "  alteration  ",
 	})
 	if err != nil {
 		t.Fatalf("log manual taking: %v", err)
@@ -316,7 +364,12 @@ func TestLogManualTakingRejectsInvalidInput(t *testing.T) {
 	}
 	for _, cmd := range cases {
 		payments := &fakePaymentRepo{}
-		service := NewService(Dependencies{Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{}, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+		service := NewService(Dependencies{
+			Provider:   &fakeProvider{},
+			Payments:   payments,
+			Businesses: &fakeChargeRepo{},
+			IDs:        &sequenceIDs{ids: []common.ID{"taking-1"}},
+		})
 		if _, err := service.LogManualTaking(context.Background(), cmd); !errors.Is(err, ErrInvalidTaking) {
 			t.Fatalf("expected ErrInvalidTaking for %+v, got %v", cmd, err)
 		}
@@ -332,7 +385,12 @@ func TestMoneyManagementRequiresOwnerOrAdmin(t *testing.T) {
 	provider := &fakeProvider{subaccountRef: "sub_new"}
 	payments := &fakePaymentRepo{}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
-	service := NewService(Dependencies{Provider: provider, Payments: payments, Businesses: businesses, IDs: &sequenceIDs{ids: []common.ID{"taking-1"}}})
+	service := NewService(Dependencies{
+		Provider:   provider,
+		Payments:   payments,
+		Businesses: businesses,
+		IDs:        &sequenceIDs{ids: []common.ID{"taking-1"}},
+	})
 
 	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -373,7 +431,10 @@ func TestMoneyManagementRequiresOwnerOrAdmin(t *testing.T) {
 		t.Fatalf("expected staff protected checkout to be forbidden, got %v", err)
 	}
 	if provider.initCalled || len(payments.created) != 0 {
-		t.Fatalf("expected staff protected checkout to stop before provider/repository, provider=%v payments=%d", provider.initCalled, len(payments.created))
+		t.Fatalf(
+			"expected staff protected checkout to stop before provider/repository, provider=%v payments=%d",
+			provider.initCalled, len(payments.created),
+		)
 	}
 }
 
@@ -440,7 +501,11 @@ func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeProvider{}
-	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true, SubaccountRef: "sub_existing"}}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID:    "business-1",
+		Verified:      true,
+		SubaccountRef: "sub_existing",
+	}}
 	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
@@ -469,18 +534,27 @@ type fakeProvider struct {
 	initInput         ports.InitializeTransactionInput
 }
 
-func (p *fakeProvider) CreateBusinessSubaccount(_ context.Context, _ ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
+func (p *fakeProvider) CreateBusinessSubaccount(
+	_ context.Context,
+	_ ports.CreateBusinessSubaccountInput,
+) (ports.CreateBusinessSubaccountResult, error) {
 	p.subaccountCreated = true
 	return ports.CreateBusinessSubaccountResult{ProviderReference: p.subaccountRef}, nil
 }
 
-func (p *fakeProvider) InitializeTransaction(_ context.Context, input ports.InitializeTransactionInput) (ports.InitializeTransactionResult, error) {
+func (p *fakeProvider) InitializeTransaction(
+	_ context.Context,
+	input ports.InitializeTransactionInput,
+) (ports.InitializeTransactionResult, error) {
 	p.initCalled = true
 	p.initInput = input
 	return p.initResult, nil
 }
 
-func (p *fakeProvider) InitializeAuthorization(context.Context, ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (p *fakeProvider) InitializeAuthorization(
+	context.Context,
+	ports.InitializeAuthorizationInput,
+) (ports.InitializeAuthorizationResult, error) {
 	return ports.InitializeAuthorizationResult{}, nil
 }
 

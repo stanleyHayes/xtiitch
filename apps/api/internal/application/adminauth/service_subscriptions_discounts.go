@@ -361,6 +361,7 @@ func normalizeSubscriptionDiscountCode(value string) string {
 	return strings.ToUpper(strings.TrimSpace(value))
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func validSubscriptionDiscountCode(value string) bool {
 	if len(value) < 3 || len(value) > 32 {
 		return false
@@ -373,7 +374,7 @@ func validSubscriptionDiscountCode(value string) bool {
 		if !valid {
 			return false
 		}
-		if index == 0 && !((char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')) {
+		if index == 0 && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
 			return false
 		}
 	}

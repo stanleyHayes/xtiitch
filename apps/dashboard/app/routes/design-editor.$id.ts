@@ -120,7 +120,7 @@ async function variationWriteError(response: Response): Promise<string> {
   return payload?.error ?? "variation_write_failed";
 }
 
-export async function action({ request, params }: ActionFunctionArgs) {
+export async function action({ request, params }: ActionFunctionArgs) { // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   const designID = String(params.id ?? "");
   if (!designID) {
     return Response.json({ error: "invalid_request" }, { status: 400 });

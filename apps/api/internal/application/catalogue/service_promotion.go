@@ -95,6 +95,8 @@ func (s Service) ArchiveBusinessPromotion(
 	}
 	return s.promotions.ArchiveBusinessPromotion(ctx, cmd.Scope, cmd.PromotionID)
 }
+
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func normalizeBusinessPromotionInput(cmd BusinessPromotionCommand) (ports.BusinessPromotionInput, error) {
 	code := strings.ToUpper(strings.TrimSpace(cmd.Code))
 	if !businessPromotionCodePattern.MatchString(code) {

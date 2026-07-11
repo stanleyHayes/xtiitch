@@ -44,7 +44,6 @@ jobs:
         with:
           version: v2.12.2
           working-directory: apps/api
-          args: --issues-exit-code=0
 
       - name: Check workspace
         run: pnpm check

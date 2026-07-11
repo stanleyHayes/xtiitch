@@ -34,10 +34,13 @@ func (e DevEmbedder) Embed(_ context.Context, texts []string) ([][]float32, erro
 
 func hashEmbed(text string, dim int) []float32 {
 	v := make([]float32, dim)
+	if dim <= 0 {
+		return v
+	}
 	for _, tok := range tokenize(text) {
 		h := fnv.New32a()
 		_, _ = h.Write([]byte(tok))
-		idx := h.Sum32() % uint32(dim)
+		idx := h.Sum32() % uint32(dim) //nolint:gosec // dim validated above and bounded by embedding model config
 		// A second hash bit decides the sign, reducing collision bias.
 		sign := float32(1)
 		if h.Sum32()&1 == 0 {

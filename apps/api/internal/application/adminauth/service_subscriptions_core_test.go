@@ -46,6 +46,7 @@ func TestListSubscriptionsRequiresSubscriptionPermission(t *testing.T) {
 	}
 }
 
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
 func TestUpdateSubscriptionRequiresPermissionAndAudits(t *testing.T) {
 	t.Parallel()
 

@@ -150,7 +150,13 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 	})
 }
 
-func (repo CatalogueRepository) SetDesignStatus(ctx context.Context, scope common.TenantScope, designID common.ID, status catalogue.Status) error {
+//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
+func (repo CatalogueRepository) SetDesignStatus(
+	ctx context.Context,
+	scope common.TenantScope,
+	designID common.ID,
+	status catalogue.Status,
+) error {
 	return repo.inTenantTx(ctx, scope, func(tx pgx.Tx) error {
 		if status == catalogue.StatusActive {
 			var currentStatus string

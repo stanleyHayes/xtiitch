@@ -60,7 +60,12 @@ func (repo MeasurementRepository) ListFields(ctx context.Context, scope common.T
 	return fields, nil
 }
 
-func (repo MeasurementRepository) CreateField(ctx context.Context, scope common.TenantScope, input ports.CreateMeasurementFieldInput) (ports.BusinessMeasurementField, error) {
+func (repo MeasurementRepository) CreateField(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.CreateMeasurementFieldInput) (ports.BusinessMeasurementField,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessMeasurementField{}, err
@@ -89,7 +94,13 @@ func (repo MeasurementRepository) CreateField(ctx context.Context, scope common.
 	return field, nil
 }
 
-func (repo MeasurementRepository) UpdateField(ctx context.Context, scope common.TenantScope, fieldID common.ID, input ports.UpdateMeasurementFieldInput) (ports.BusinessMeasurementField, error) {
+func (repo MeasurementRepository) UpdateField(
+	ctx context.Context,
+	scope common.TenantScope,
+	fieldID common.ID,
+	input ports.UpdateMeasurementFieldInput) (ports.BusinessMeasurementField,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.BusinessMeasurementField{}, err
@@ -108,7 +119,13 @@ func (repo MeasurementRepository) UpdateField(ctx context.Context, scope common.
 			updated_at = now()
 		where field_id = $1 and business_id = $2
 		returning field_id::text, label, unit, sequence, created_at, updated_at
-	`, fieldID.String(), scope.BusinessID.String(), nullableStringArg(input.Label), nullableStringArg(input.Unit), nullableIntArg(input.Sequence)))
+	`,
+		fieldID.String(),
+		scope.BusinessID.String(),
+		nullableStringArg(input.Label),
+		nullableStringArg(input.Unit),
+		nullableIntArg(input.Sequence),
+	))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessMeasurementField{}, ports.ErrNotFound
@@ -149,7 +166,12 @@ func (repo MeasurementRepository) DeleteField(ctx context.Context, scope common.
 	return tx.Commit(ctx)
 }
 
-func (repo MeasurementRepository) RecordOrderMeasurements(ctx context.Context, scope common.TenantScope, input ports.RecordOrderMeasurementsInput) (ports.OrderMeasurement, error) {
+func (repo MeasurementRepository) RecordOrderMeasurements(
+	ctx context.Context,
+	scope common.TenantScope,
+	input ports.RecordOrderMeasurementsInput) (ports.OrderMeasurement,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.OrderMeasurement{}, err
