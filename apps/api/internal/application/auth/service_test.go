@@ -2076,7 +2076,9 @@ func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmedi
 			QuarterlyRenewalMinor: 59700,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	// verifyNotSucceeded so the upgrade's recovery pre-verify reports the ref as
+	// not-yet-charged (first attempt), letting the proration charge proceed.
+	payments := &fakeSubscriptionPayments{chargeStatus: "success", verifyNotSucceeded: true}
 	service := newPlanChangeTestService(businesses, payments, now)
 
 	result, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{

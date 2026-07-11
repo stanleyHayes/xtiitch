@@ -5069,6 +5069,7 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 	var record ports.AdminMoneyReversalRecord
 	var paymentStatus string
 	var orderID pgtype.Text
+	var paymentSettleMinor int64
 	if err := tx.QueryRow(ctx, `
 		select
 			p.payment_id::text,
@@ -5077,6 +5078,7 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 			coalesce(b.name, ''),
 			p.order_id::text,
 			p.status,
+			coalesce(p.settle_amount_minor, p.amount_minor),
 			now()
 		from payments p
 		join businesses b on b.business_id = p.business_id
@@ -5089,6 +5091,7 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 		&record.BusinessName,
 		&orderID,
 		&paymentStatus,
+		&paymentSettleMinor,
 		&record.ReversedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -5190,24 +5193,39 @@ func (repo AdminAuthRepository) ReverseAdminMoneyPayment(
 					)
 					and p.status <> 'archived'
 				returning 1
+			),
+			-- Reflect the reversal on the ORDER so the ledger and the order's
+			-- settlement agree: back the reversed payment's settled portion out of
+			-- settled_minor (floored at 0). Order status/fulfilment is left for the
+			-- operator to decide (goods may already be in production); a Paystack
+			-- refund/clawback remains a manual step outside this bookkeeping action.
+			reversed_order as (
+				update orders
+				set settled_minor = greatest(0, settled_minor - $6::bigint),
+					updated_at = now()
+				where business_id = $1::uuid and order_id = $2::uuid
+				returning 1
 			)
 			select
 				(select count(*)::int from voided_redemptions),
 				(select count(*)::int from reversed_affiliates),
 				(select count(*)::int from voided_referrals),
 				(select count(*)::int from voided_rewards),
-				(select count(*)::int from archived_generated_promotions)
+				(select count(*)::int from archived_generated_promotions),
+				(select count(*)::int from reversed_order)
 		`, record.BusinessID.String(),
 			record.OrderID.String(),
 			record.Reason,
 			input.ActorAdminUser.String(),
 			record.ProviderReference,
+			paymentSettleMinor,
 		).Scan(
 			&record.PromotionRedemptionCount,
 			&record.AffiliateConversionCount,
 			&record.ReferralCount,
 			&record.ReferralRewardCount,
 			&record.GeneratedPromotionCount,
+			new(int),
 		); err != nil {
 			return ports.AdminMoneyReversalRecord{}, err
 		}

@@ -36,14 +36,18 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 	if input.Method != "" {
 		method = input.Method
 	}
+	var settleAmount any
+	if input.SettleAmountMinor > 0 {
+		settleAmount = input.SettleAmountMinor
+	}
 
 	if _, err := tx.Exec(ctx, `
 		insert into payments (
 			payment_id, business_id, order_id, booking_id, purpose, amount_minor, currency, method,
-			provider_reference, status, through_platform, commission_minor
+			provider_reference, status, through_platform, commission_minor, settle_amount_minor
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10)
-	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), nullableIDArg(input.BookingID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor); err != nil {
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10, $11)
+	`, input.PaymentID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID), nullableIDArg(input.BookingID), input.Purpose, input.AmountMinor, input.Currency, method, input.ProviderReference, input.CommissionMinor, settleAmount); err != nil {
 		// A second in-flight balance charge for the same order is rejected by the
 		// partial unique index; surface it as the dedicated sentinel so callers
 		// can refuse cleanly rather than double-charging the customer.
@@ -176,7 +180,11 @@ type scopedPayment struct {
 	orderID     sql.NullString
 	bookingID   sql.NullString
 	amountMinor int64
-	purpose     string
+	// settleAmountMinor is the order portion (net of any buyer-borne fee) that
+	// counts toward settled_minor; it equals amountMinor for legacy/absorbed-fee
+	// payments and is what the settlement path must credit.
+	settleAmountMinor int64
+	purpose           string
 }
 
 type subscriptionInvoiceProviderMatch struct {
@@ -215,9 +223,10 @@ func recordProviderEvent(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaym
 func lookupPaymentByReference(ctx context.Context, tx pgx.Tx, providerReference string) (scopedPayment, bool, error) {
 	var payment scopedPayment
 	err := tx.QueryRow(ctx, `
-		select payment_id::text, business_id::text, order_id::text, booking_id::text, amount_minor, purpose
+		select payment_id::text, business_id::text, order_id::text, booking_id::text,
+			amount_minor, coalesce(settle_amount_minor, amount_minor), purpose
 		from payments where provider_reference = $1
-	`, providerReference).Scan(&payment.paymentID, &payment.businessID, &payment.orderID, &payment.bookingID, &payment.amountMinor, &payment.purpose)
+	`, providerReference).Scan(&payment.paymentID, &payment.businessID, &payment.orderID, &payment.bookingID, &payment.amountMinor, &payment.settleAmountMinor, &payment.purpose)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return scopedPayment{}, false, nil
 	}
@@ -657,8 +666,18 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 		return err
 	}
 
+	// Defense-in-depth amount reconciliation: a provider "success" that reports
+	// collecting LESS than the payment's expected amount must NOT settle the order in
+	// full. Standard checkout locks the amount server-side so this should never
+	// happen, but an underpayment / provider-side discrepancy is treated as a failure
+	// rather than trusted. A zero reported amount means "not reported" — skip.
+	succeeded := input.Succeeded
+	if succeeded && input.PaidAmountMinor > 0 && input.PaidAmountMinor < payment.amountMinor {
+		succeeded = false
+	}
+
 	newStatus := "failed"
-	if input.Succeeded {
+	if succeeded {
 		newStatus = "succeeded"
 	}
 	tag, err := tx.Exec(ctx, `
@@ -678,7 +697,7 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 	if tag.RowsAffected() != 1 || !payment.orderID.Valid {
 		return nil
 	}
-	if input.Succeeded {
+	if succeeded {
 		return applyPaymentSuccess(ctx, tx, payment)
 	}
 	return applyPaymentFailure(ctx, tx, payment)
@@ -692,13 +711,15 @@ func applyPaymentSuccess(ctx context.Context, tx pgx.Tx, payment scopedPayment) 
 	case "booking_deposit":
 		return confirmBookingOnPayment(ctx, tx, payment)
 	case "balance":
-		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.paymentID, payment.amountMinor)
+		// Settle by the order portion (settleAmountMinor), NOT the gross charge: a
+		// buyer-borne platform fee is not part of the order's balance.
+		return creditOrderBalance(ctx, tx, payment.businessID, payment.orderID.String, payment.paymentID, payment.settleAmountMinor)
 	case "cart_full":
 		// One combined charge anchored on the first order: confirm every order in
 		// its checkout group, each settled by its own line total.
 		return confirmOrderGroupOnPayment(ctx, tx, payment.businessID, payment.orderID.String)
 	default:
-		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.amountMinor)
+		return confirmOrderOnPayment(ctx, tx, payment.businessID, payment.orderID.String, payment.settleAmountMinor)
 	}
 }
 

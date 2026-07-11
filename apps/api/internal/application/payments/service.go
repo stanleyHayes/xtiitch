@@ -174,6 +174,10 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		Method:            string(cmd.Method),
 		ProviderReference: providerReference,
 		CommissionMinor:   commission,
+		// Settle the order by its own amount, never the buyer-borne fee: with
+		// pass-to-buyer, chargeAmount = order + commission, but only the order
+		// counts toward the balance (the commission routes to the platform).
+		SettleAmountMinor: cmd.AmountMinor,
 	}); err != nil {
 		return ChargeResult{}, err
 	}
@@ -310,6 +314,7 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 		EventType:         event.EventType,
 		ProviderReference: event.ProviderReference,
 		Succeeded:         event.Succeeded,
+		PaidAmountMinor:   event.AmountMinor,
 	})
 	return err
 }

@@ -1024,18 +1024,25 @@ func (s Service) upgradeSubscriptionPlan(ctx context.Context, sub ports.Business
 	// insert no-ops — mirroring the activation charge's idempotency.
 	ref := "xtsub_upgrade_" + sub.SubscriptionID.String() + "_" + target.Code + "_" + strconv.FormatInt(sub.CurrentPeriodStart.Unix(), 10)
 
-	charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
-		BusinessID:        sub.BusinessID,
-		AuthorizationCode: strings.TrimSpace(sub.ProviderSubscriptionRef),
-		CustomerEmail:     strings.TrimSpace(sub.OwnerEmail),
-		AmountMinor:       grossProration,
-		Currency:          "GHS",
-		Reference:         ref,
-	})
-	if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
-		// Do not switch the plan on a non-success charge: entitlements never go
-		// unpaid. The deterministic ref lets the owner safely retry.
-		return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
+	// RECOVERY: a prior attempt may have charged the card but then failed to switch
+	// the plan (leaving the tenant paid-but-not-upgraded). Because charge_authorization
+	// REJECTS a duplicate reference, a naive retry would be stuck forever. So first
+	// verify the deterministic ref: if it already succeeded, skip the (duplicate)
+	// charge and go straight to applying the upgrade, which is idempotent on the ref.
+	if verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: ref}); verifyErr != nil || !verify.Succeeded {
+		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
+			BusinessID:        sub.BusinessID,
+			AuthorizationCode: strings.TrimSpace(sub.ProviderSubscriptionRef),
+			CustomerEmail:     strings.TrimSpace(sub.OwnerEmail),
+			AmountMinor:       grossProration,
+			Currency:          "GHS",
+			Reference:         ref,
+		})
+		if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
+			// Do not switch the plan on a non-success charge: entitlements never go
+			// unpaid. The deterministic ref lets the owner safely retry.
+			return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
+		}
 	}
 
 	if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{

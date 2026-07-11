@@ -823,12 +823,20 @@ func (s Service) buildMarketplaceStoreGroup(ctx context.Context, st MarketplaceS
 		}
 	}
 
+	// Apply this shop's fee choice, consistent with single-store checkout: when the
+	// merchant passes the fee to the buyer they net the FULL goods total and the
+	// buyer pays the commission on top (storeTotal = net + commission); otherwise the
+	// merchant absorbs it (net = goods - commission, buyer pays only the goods).
+	netMinor := total - commission
+	if charge.FeePassToBuyer {
+		netMinor = total
+	}
 	return builtStoreGroup{
 		scope:         scope,
 		subaccountRef: charge.SubaccountRef,
 		groupID:       groupID,
 		anchorOrderID: anchorOrderID,
-		netMinor:      total - commission,
+		netMinor:      netMinor,
 		commission:    commission,
 	}, nil
 }

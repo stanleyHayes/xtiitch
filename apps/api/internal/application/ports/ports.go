@@ -797,6 +797,11 @@ type CreatePaymentInput struct {
 	Method            string
 	ProviderReference string
 	CommissionMinor   int64
+	// SettleAmountMinor is the portion of this payment that counts toward the
+	// order's settled_minor: the order amount WITHOUT any buyer-borne platform fee
+	// (equals AmountMinor when the merchant absorbs the fee). 0 falls back to
+	// AmountMinor at settlement, so a buyer-borne fee never inflates the balance.
+	SettleAmountMinor int64
 }
 
 // MarketplaceChargeInput records one combined multi-store split charge: the
@@ -825,6 +830,11 @@ type ConfirmPaymentInput struct {
 	EventType         string
 	ProviderReference string
 	Succeeded         bool
+	// PaidAmountMinor is the amount the provider reports it actually collected, used
+	// as a defense-in-depth reconciliation against the payment's expected amount so
+	// an underpayment never settles an order in full. 0 means "not reported" (skip
+	// the check), preserving behaviour for events without an amount.
+	PaidAmountMinor int64
 }
 
 type ConfirmPaymentResult struct {

@@ -2459,6 +2459,23 @@ func (s Service) RunSubscriptionRecurringSweep(
 			Reference:         invoiceRef,
 		})
 		if err != nil {
+			// A transport/timeout error is AMBIGUOUS — Paystack may have already
+			// debited the card. Verify the invoice reference before deciding: if the
+			// charge actually succeeded, mark it PAID so the next sweep cycle cannot
+			// issue a fresh invoice and charge the card a second time. Only when the
+			// verify is reachable and confirms the money did NOT move do we mark it
+			// failed (the previous, double-charge-prone behaviour).
+			if verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: invoiceRef}); verifyErr == nil && verify.Succeeded {
+				if _, markErr := s.businesses.MarkAdminSubscriptionInvoicePaid(ctx, ports.MarkAdminSubscriptionInvoicePaidInput{
+					InvoiceID:      invoiceID,
+					ActorAdminUser: cmd.ActorUserID,
+					Reason:         "Recovered a timed-out recurring charge that had actually succeeded.",
+				}); markErr != nil {
+					return ports.AdminSubscriptionRecurringSweepRecord{}, markErr
+				}
+				record.ChargesPaid++
+				continue
+			}
 			failed, markErr := s.businesses.MarkAdminSubscriptionInvoiceFailed(ctx, ports.MarkAdminSubscriptionInvoiceFailedInput{
 				InvoiceID:      invoiceID,
 				ActorAdminUser: cmd.ActorUserID,
