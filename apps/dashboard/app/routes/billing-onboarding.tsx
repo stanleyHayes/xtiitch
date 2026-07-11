@@ -196,7 +196,7 @@ async function submitPlanChange(
     },
   );
   if (!response.ok) {
-    let code = "";
+    let code: string;
     try {
       const body = (await response.json()) as { error?: string };
       code = body.error ?? "";
@@ -426,7 +426,7 @@ export default function BillingOnboarding({
     changeResult?: PlanChangeResult;
   };
   const [photoName, setPhotoName] = useState("");
-  const isPaidPlan = !!plan && plan.monthly_fee_minor > 0;
+  const isPaidPlan = plan !== null && plan.monthly_fee_minor > 0;
   const [cadence, setCadence] = useState<BillingCadence>("yearly");
 
   // Management mode: no activation target in the URL and the business is already on
@@ -434,7 +434,7 @@ export default function BillingOnboarding({
   // flow. Activation (with the ?plan= target, Ghana Card, cadence and discount UI)
   // is left untouched below.
   const managementMode =
-    !plan && !!currentPlan && currentPlan.monthly_fee_minor > 0;
+    !plan && currentPlan !== null && currentPlan.monthly_fee_minor > 0;
   if (managementMode) {
     return (
       <ChangePlanView

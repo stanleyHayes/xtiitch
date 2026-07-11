@@ -2,6 +2,7 @@ import {
   Form,
   Link as RouterLink,
   redirect,
+  useFetcher,
   useNavigation,
   useSubmit,
 } from "react-router";
@@ -50,7 +51,9 @@ import { alpha, styled, type SxProps, type Theme } from "@mui/material/styles";
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import ArrowDownwardRounded from "@mui/icons-material/ArrowDownwardRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import ArrowUpwardRounded from "@mui/icons-material/ArrowUpwardRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import ContentCopyRounded from "@mui/icons-material/ContentCopyRounded";
@@ -63,6 +66,7 @@ import DarkModeRounded from "@mui/icons-material/DarkModeRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import EventAvailableRounded from "@mui/icons-material/EventAvailableRounded";
+import EventBusyRounded from "@mui/icons-material/EventBusyRounded";
 import KeyboardArrowDownRounded from "@mui/icons-material/KeyboardArrowDownRounded";
 import KeyboardArrowRightRounded from "@mui/icons-material/KeyboardArrowRightRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
@@ -98,7 +102,7 @@ import type { Route } from "./+types/dashboard";
 import { apiFetch, logOut } from "../lib/auth";
 import TextField from "../components/form-text-field";
 import AiAssistField from "../components/ai-assist";
-import type { BandPrice, Design } from "../lib/api";
+import type { BandPrice, Design, DesignVariation } from "../lib/api";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
 import { HelpDrawer } from "../help-center";
@@ -240,6 +244,17 @@ type OrderSummary = {
   created_at: string;
 };
 
+// One production stage in a business's flow — a board column. GET /stages returns
+// these ordered by flow then sequence, so the board can draw every stage column
+// (even the empty ones) rather than only the stages live orders sit in.
+type Stage = {
+  name: string;
+  colour: string;
+  // "ready_made" (standard orders) or "bespoke" (custom orders).
+  flow: string;
+  sequence: number;
+};
+
 type MeasurementField = {
   field_id: string;
   label: string;
@@ -317,6 +332,8 @@ type AvailabilityWindow = {
   // to "weekly".
   recurrence: string;
   day_of_month?: number | null;
+  // Present only on recurrence "date" windows — a one-off day's hours ("YYYY-MM-DD").
+  specific_date?: string | null;
 };
 
 type RevenueBucket = {
@@ -400,6 +417,8 @@ type DashboardActionData = {
   settingsSuccess?: string;
   verificationError?: string;
   verificationSuccess?: string;
+  payoutError?: string;
+  payoutSuccess?: string;
   collectionError?: string;
   sizeBandError?: string;
   priceError?: string;
@@ -828,6 +847,8 @@ const dashboardActionIntents = new Set([
   "advance_handover",
   "cancel_handover",
   "save_availability",
+  "mark_blackout",
+  "clear_blackout",
   "create_measurement_field",
   "update_measurement_field",
   "delete_measurement_field",
@@ -841,6 +862,7 @@ const dashboardActionIntents = new Set([
   "update_delivery_zone",
   "delete_delivery_zone",
   "submit_identity_verification",
+  "setup_payout",
   "create_collection",
   "retire_collection",
   "restore_collection",
@@ -979,6 +1001,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
 
   const [
     ordersResult,
+    stagesResult,
     fieldsResult,
     bookingsResult,
     handoversResult,
@@ -989,6 +1012,12 @@ export async function loader({ request, params }: Route.LoaderArgs) {
       "/orders",
       { orders: [] },
       "Orders could not be loaded right now.",
+    ),
+    loadDashboardJSON<{ stages: Stage[] }>(
+      request,
+      "/stages",
+      { stages: [] },
+      "Production stages could not be loaded right now.",
     ),
     loadDashboardJSON<{ fields: MeasurementField[] }>(
       request,
@@ -1016,6 +1045,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     ),
   ]);
   const ordersData = readResult(ordersResult);
+  const stagesData = readResult(stagesResult);
   const fieldsData = readResult(fieldsResult);
   const bookingsData = readResult(bookingsResult);
   const handoversData = readResult(handoversResult);
@@ -1025,6 +1055,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   let moneySummary: MoneySummary = defaultMoneySummary;
   let manualTakings: ManualTaking[] = [];
   let availabilityWindows: AvailabilityWindow[] = [];
+  let blackoutDates: string[] = [];
   let businessUsers: BusinessUser[] = [];
   let storeSettings = defaultStoreSettings;
   let collections: CollectionSummary[] = [];
@@ -1035,11 +1066,18 @@ export async function loader({ request, params }: Route.LoaderArgs) {
   const orders = ordersData.orders ?? [];
 
   if (canManage) {
+    // Blackout days are read for a rolling window from today so the availability
+    // panel can list upcoming marked-unavailable days.
+    const blackoutFrom = new Date();
+    const blackoutTo = new Date(
+      blackoutFrom.getTime() + 120 * 24 * 60 * 60 * 1000,
+    );
     const [
       designsResult,
       moneySummaryResult,
       takingsResult,
       availabilityResult,
+      blackoutsResult,
       businessUsersResult,
       settingsResult,
       collectionsResult,
@@ -1071,6 +1109,14 @@ export async function loader({ request, params }: Route.LoaderArgs) {
         "/availability",
         { windows: [] },
         "Availability windows could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ dates: string[] }>(
+        request,
+        `/availability/blackouts?from=${encodeURIComponent(
+          blackoutFrom.toISOString(),
+        )}&to=${encodeURIComponent(blackoutTo.toISOString())}`,
+        { dates: [] },
+        "Blocked-out days could not be loaded right now.",
       ),
       loadDashboardJSON<{ users: BusinessUser[] }>(
         request,
@@ -1119,6 +1165,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     const moneySummaryData = readResult(moneySummaryResult);
     const takingsData = readResult(takingsResult);
     const availabilityData = readResult(availabilityResult);
+    const blackoutsData = readResult(blackoutsResult);
     const businessUsersData = readResult(businessUsersResult);
     const settingsData = readResult(settingsResult);
     const collectionsData = readResult(collectionsResult);
@@ -1157,6 +1204,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     };
     manualTakings = takingsData.takings ?? [];
     availabilityWindows = availabilityData.windows ?? [];
+    blackoutDates = blackoutsData.dates ?? [];
     businessUsers = businessUsersData.users ?? [];
     storeSettings = settingsData;
     collections = collectionsData.collections ?? [];
@@ -1171,6 +1219,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     currentUser,
     designs,
     orders: canManage ? orders : stripStaffMoneyDetails(orders),
+    stages: stagesData.stages ?? [],
     measurementFields: fieldsData.fields ?? [],
     moneySummary,
     manualTakings,
@@ -1178,6 +1227,7 @@ export async function loader({ request, params }: Route.LoaderArgs) {
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
     availabilityWindows,
+    blackoutDates,
     businessUsers,
     storeSettings,
     collections,
@@ -1546,6 +1596,42 @@ export async function action({ request }: Route.ActionArgs) {
     return { availabilitySuccess: "Visit hours saved." };
   }
 
+  if (intent === "mark_blackout") {
+    const date = String(form.get("date") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { availabilityError: "Pick a valid day to block out." };
+    }
+    const response = await apiFetch(request, "/availability/blackouts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date }),
+    });
+    if (!response.ok) {
+      return {
+        availabilityError: "Could not block out that day. Try again.",
+      };
+    }
+    return { availabilitySuccess: "Day blocked out." };
+  }
+
+  if (intent === "clear_blackout") {
+    const date = String(form.get("date") ?? "").trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return { availabilityError: "That blocked-out day could not be found." };
+    }
+    const response = await apiFetch(
+      request,
+      `/availability/blackouts/${encodeURIComponent(date)}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      return {
+        availabilityError: "Could not reopen that day. Try again.",
+      };
+    }
+    return { availabilitySuccess: "Day reopened." };
+  }
+
   if (intent === "create_measurement_field") {
     const sequence = parseSequence(form.get("sequence"));
     if (sequence === null) {
@@ -1775,6 +1861,31 @@ export async function action({ request }: Route.ActionArgs) {
     return {
       verificationSuccess:
         "Verification submitted. We'll review your Ghana Card shortly.",
+    };
+  }
+
+  if (intent === "setup_payout") {
+    // The settlement account is the MoMo/number payouts are sent to. The API's
+    // /businesses/me/verify records it and marks the business verified.
+    const settlementAccount = String(form.get("settlement_account") ?? "").trim();
+    if (!settlementAccount) {
+      return {
+        payoutError: "Enter the mobile money number payouts should go to.",
+      };
+    }
+    const response = await apiFetch(request, "/businesses/me/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ settlement_account: settlementAccount }),
+    });
+    if (!response.ok) {
+      return {
+        payoutError:
+          "Could not save those payout details. Check the number and try again.",
+      };
+    }
+    return {
+      payoutSuccess: "Payout details saved. You're set to receive settlements.",
     };
   }
 
@@ -2131,6 +2242,9 @@ export async function action({ request }: Route.ActionArgs) {
     const designID = String(form.get("design_id") ?? "").trim();
     const sequence = parseSequence(form.get("sequence"));
     const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    // Indicative "from" price for a bespoke design (pesewas); 0 when cleared.
+    const bespokeDisplayMinor =
+      parseOptionalMoneyMinor(form.get("bespoke_display_ghs")) ?? 0;
     if (!designID || sequence === null) {
       return {
         designError: "Could not update that design. Check the display order.",
@@ -2170,6 +2284,7 @@ export async function action({ request }: Route.ActionArgs) {
           description: String(form.get("description") ?? "").trim(),
           customisation_allowed: form.get("customisation") === "on",
           deposit_override_minor: depositOverrideMinor,
+          bespoke_display_minor: bespokeDisplayMinor,
           sequence,
           images: [...keptImages, ...uploaded],
         }),
@@ -2206,6 +2321,8 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "create") {
     const sequence = parseSequence(form.get("sequence"));
     const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    const bespokeDisplayMinor =
+      parseOptionalMoneyMinor(form.get("bespoke_display_ghs")) ?? 0;
     const requestedImageLimit = Number.parseInt(
       String(form.get("image_limit") ?? ""),
       10,
@@ -2264,6 +2381,7 @@ export async function action({ request }: Route.ActionArgs) {
         description: String(form.get("description") ?? "").trim(),
         customisation_allowed: customisationAllowed,
         deposit_override_minor: depositOverrideMinor,
+        bespoke_display_minor: bespokeDisplayMinor,
         sequence: sequence ?? 0,
         images,
       }),
@@ -2965,12 +3083,19 @@ function parseTimeToMinutes(value: string): number | null {
   return hours * 60 + minutes;
 }
 
-const AVAILABILITY_RECURRENCES = ["daily", "weekly", "monthly", "ongoing"];
+const AVAILABILITY_RECURRENCES = [
+  "daily",
+  "weekly",
+  "monthly",
+  "ongoing",
+  "date",
+];
 
 function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
   const recurrences = form.getAll("recurrence");
   const weekdays = form.getAll("weekday");
   const daysOfMonth = form.getAll("day_of_month");
+  const specificDates = form.getAll("specific_date");
   const starts = form.getAll("start");
   const ends = form.getAll("end");
   const slots = form.getAll("slot_minutes");
@@ -2978,6 +3103,7 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
     recurrences.length,
     weekdays.length,
     daysOfMonth.length,
+    specificDates.length,
     starts.length,
     ends.length,
     slots.length,
@@ -2998,6 +3124,7 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
       String(daysOfMonth[index] ?? "").trim(),
       10,
     );
+    const specificDate = String(specificDates[index] ?? "").trim();
     const startMinute = parseTimeToMinutes(startValue);
     const endMinute = parseTimeToMinutes(endValue);
     const slotMinutes = Number.parseInt(slotValue, 10);
@@ -3026,6 +3153,10 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
     ) {
       return null;
     }
+    // A one-off "date" window needs a valid ISO date (YYYY-MM-DD).
+    if (recurrence === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(specificDate)) {
+      return null;
+    }
     const safeWeekday =
       Number.isInteger(weekday) && weekday >= 0 && weekday <= 6 ? weekday : 0;
     windows.push({
@@ -3035,6 +3166,7 @@ function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null {
       slot_minutes: slotMinutes,
       recurrence,
       day_of_month: recurrence === "monthly" ? dayOfMonth : null,
+      specific_date: recurrence === "date" ? specificDate : undefined,
     });
   }
 
@@ -6708,35 +6840,90 @@ function orderBoardRank(order: OrderSummary): number {
 // can move forward one stage via its "Advance" control or by dragging it onto a
 // later column; the API's single-step advance stays authoritative (a drop only
 // ever advances one stage, and the board revalidates to the order's real stage).
+// An order's production flow: standard orders run the ready-made flow, custom
+// (bespoke) orders run the bespoke flow — matching the API's stage flows.
+function orderFlow(order: OrderSummary): string {
+  return order.order_type === "custom" ? "bespoke" : "ready_made";
+}
+
 function OrdersKanban({
   orders,
+  stages,
   returnTo,
   showMoneyDetails,
 }: {
   orders: OrderSummary[];
+  stages: Stage[];
   returnTo: string;
   showMoneyDetails: boolean;
 }) {
   const submit = useSubmit();
   const [dragging, setDragging] = useState<OrderSummary | null>(null);
+  const hasStageColumns = stages.length > 0;
+  // A business runs one stage set per flow; only offer the flow switch when both
+  // flows are configured. Default to whichever flow the visible orders sit in.
+  const flowsWithStages = Array.from(new Set(stages.map((stage) => stage.flow)));
+  const orderFlows = new Set(orders.map(orderFlow));
+  const defaultFlow =
+    flowsWithStages.find((candidate) => orderFlows.has(candidate)) ??
+    flowsWithStages[0] ??
+    "ready_made";
+  const [flow, setFlow] = useState<string>(defaultFlow);
+  const activeFlow = flowsWithStages.includes(flow) ? flow : defaultFlow;
+
+  // Seed one column per stage of the active flow (in sequence order) so even
+  // empty stages render as columns — the board reads as the full pipeline, not
+  // only the stages live orders happen to sit in.
+  const flowStages = stages
+    .filter((stage) => stage.flow === activeFlow)
+    .sort((a, b) => a.sequence - b.sequence);
+  const stageRankByName = new Map<string, number>();
+  flowStages.forEach((stage) => stageRankByName.set(stage.name, 10 + stage.sequence));
+  // The column a given order sits in: confirmed orders use their stage's rank so
+  // drag-to-advance compares columns consistently; others keep their lifecycle rank.
+  const orderColumnRank = (order: OrderSummary): number =>
+    stageRankByName.get(orderBoardKey(order)) ?? orderBoardRank(order);
 
   const columnsMap = new Map<
     string,
-    { rank: number; orders: OrderSummary[] }
+    { key: string; rank: number; colour?: string; orders: OrderSummary[] }
   >();
-  for (const order of orders) {
+  const seededKeys = new Set<string>();
+  if (hasStageColumns) {
+    for (const stage of flowStages) {
+      columnsMap.set(stage.name, {
+        key: stage.name,
+        rank: 10 + stage.sequence,
+        colour: stage.colour,
+        orders: [],
+      });
+      seededKeys.add(stage.name);
+    }
+  }
+  // When stages are known, only show the active flow's orders; otherwise fall
+  // back to the previous behaviour of grouping every order by its board key.
+  const boardOrders = hasStageColumns
+    ? orders.filter((order) => orderFlow(order) === activeFlow)
+    : orders;
+  for (const order of boardOrders) {
     const key = orderBoardKey(order);
     const existing = columnsMap.get(key);
     if (existing) {
       existing.orders.push(order);
-      existing.rank = Math.min(existing.rank, orderBoardRank(order));
+      if (!seededKeys.has(key)) {
+        existing.rank = Math.min(existing.rank, orderBoardRank(order));
+      }
     } else {
-      columnsMap.set(key, { rank: orderBoardRank(order), orders: [order] });
+      columnsMap.set(key, {
+        key,
+        rank: orderBoardRank(order),
+        orders: [order],
+      });
     }
   }
-  const columns = Array.from(columnsMap.entries())
-    .map(([key, value]) => ({ key, ...value }))
-    .sort((a, b) => a.rank - b.rank);
+  const columns = Array.from(columnsMap.values()).sort(
+    (a, b) => a.rank - b.rank || a.key.localeCompare(b.key),
+  );
 
   const advance = (orderID: string) => {
     const data = new FormData();
@@ -6747,16 +6934,38 @@ function OrdersKanban({
   };
 
   return (
-    <Box
-      sx={{
-        display: "flex",
-        gap: 1.5,
-        overflowX: "auto",
-        pb: 1,
-        alignItems: "flex-start",
-      }}
-    >
-      {columns.map((column) => (
+    <Stack spacing={1.25}>
+      {flowsWithStages.length > 1 ? (
+        <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+          {(
+            [
+              { value: "ready_made", label: "Made-to-wear" },
+              { value: "bespoke", label: "Bespoke" },
+            ] as const
+          )
+            .filter((option) => flowsWithStages.includes(option.value))
+            .map((option) => (
+              <Button
+                key={option.value}
+                size="small"
+                variant={activeFlow === option.value ? "contained" : "outlined"}
+                onClick={() => setFlow(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+        </Stack>
+      ) : null}
+      <Box
+        sx={{
+          display: "flex",
+          gap: 1.5,
+          overflowX: "auto",
+          pb: 1,
+          alignItems: "flex-start",
+        }}
+      >
+        {columns.map((column) => (
         <Box
           key={column.key}
           onDragOver={(event) => {
@@ -6770,7 +6979,7 @@ function OrdersKanban({
             if (
               dragging &&
               dragging.status === "confirmed" &&
-              column.rank > orderBoardRank(dragging)
+              column.rank > orderColumnRank(dragging)
             ) {
               advance(dragging.order_id);
             }
@@ -6791,6 +7000,18 @@ function OrdersKanban({
             spacing={1}
             sx={{ alignItems: "center", mb: 1 }}
           >
+            {column.colour ? (
+              <Box
+                aria-hidden
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  flexShrink: 0,
+                  bgcolor: column.colour,
+                }}
+              />
+            ) : null}
             <Typography sx={{ fontWeight: 900, fontSize: 14 }} noWrap>
               {column.key}
             </Typography>
@@ -6858,8 +7079,9 @@ function OrdersKanban({
             })}
           </Stack>
         </Box>
-      ))}
-    </Box>
+        ))}
+      </Box>
+    </Stack>
   );
 }
 
@@ -6867,11 +7089,13 @@ function OrdersKanban({
 // pipeline board, and renders the empty state when there are no orders.
 function OrdersWorkspace({
   orders,
+  stages,
   returnTo,
   measurementFields,
   showMoneyDetails,
 }: {
   orders: OrderSummary[];
+  stages: Stage[];
   returnTo: string;
   measurementFields: MeasurementField[];
   showMoneyDetails: boolean;
@@ -6916,6 +7140,7 @@ function OrdersWorkspace({
       ) : (
         <OrdersKanban
           orders={orders}
+          stages={stages}
           returnTo={returnTo}
           showMoneyDetails={showMoneyDetails}
         />
@@ -7659,7 +7884,8 @@ function OrderCard({
             <Button
               component="a"
               href={
-                whatsappHref(order.customer_whatsapp, order.customer_phone)!
+                whatsappHref(order.customer_whatsapp, order.customer_phone) ??
+                undefined
               }
               target="_blank"
               rel="noopener noreferrer"
@@ -8297,6 +8523,14 @@ function DesignCard({
             {design.customisation_allowed ? (
               <Chip size="small" variant="outlined" label="Bespoke" />
             ) : null}
+            {design.customisation_allowed &&
+            (design.bespoke_display_minor ?? 0) > 0 ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`From ${formatGHS(design.bespoke_display_minor ?? 0)}`}
+              />
+            ) : null}
           </Stack>
         </Box>
       </ButtonBase>
@@ -8507,6 +8741,518 @@ function DesignPricesSection({
   );
 }
 
+type DesignSizeBandOverride = {
+  size_band_id: string;
+  label: string | null;
+  chart: SizeChartItem[];
+  chart_set: boolean;
+};
+
+// Shape returned by the /design-editor/:id resource route (its loader and each
+// successful write). `ok`/`error` are present on write responses only.
+type DesignExtrasData = {
+  variations?: DesignVariation[];
+  overrides?: DesignSizeBandOverride[];
+  ok?: boolean;
+  error?: string;
+};
+
+// DesignExtrasEditor manages a design's colour variations and per-design
+// size-band overrides. It loads current state from the /design-editor/:id
+// resource route when the modal opens and posts mutations back to it; each
+// successful write returns the fresh state, so the panels re-render in place
+// without a follow-up reload. One write fetcher is shared across the sub-forms,
+// so a submit anywhere refreshes the whole editor.
+function DesignExtrasEditor({
+  designId,
+  open,
+  isFreePlan,
+  sizeBands,
+}: {
+  designId: string;
+  open: boolean;
+  isFreePlan: boolean;
+  sizeBands: SizeBand[];
+}) {
+  const url = `/design-editor/${encodeURIComponent(designId)}`;
+  const data = useFetcher<DesignExtrasData>();
+  const write = useFetcher<DesignExtrasData>();
+  const [addVariationOpen, setAddVariationOpen] = useState(false);
+  // Free plan caps images per variation at 2; paid plans at 5.
+  const perVariationImageLimit = isFreePlan ? 2 : 5;
+
+  // Load the current variations/overrides once the editor is opened. `data.data`
+  // becomes defined after the load settles, so this fires exactly once per open.
+  useEffect(() => {
+    if (open && data.state === "idle" && data.data === undefined) {
+      data.load(url);
+    }
+  }, [open, url, data]);
+
+  // A successful write returns the freshest state; fall back to the load.
+  const source = write.data?.ok ? write.data : data.data;
+  const variations = [...(source?.variations ?? [])].sort(
+    (a, b) => a.sequence - b.sequence,
+  );
+  const overrides = source?.overrides ?? [];
+  const overrideByBand = new Map(
+    overrides.map((override) => [override.size_band_id, override]),
+  );
+  const limitReached = write.data?.error === "variation_limit_reached";
+
+  // Close the add-variation form after a successful create.
+  const writeState = write.state;
+  const writeOk = write.data?.ok;
+  const writeOp = write.formData?.get("op");
+  useEffect(() => {
+    if (writeState === "idle" && writeOk && writeOp === "create_variation") {
+      setAddVariationOpen(false);
+    }
+  }, [writeState, writeOk, writeOp]);
+
+  const reorder = (index: number, direction: -1 | 1) => {
+    const ids = variations.map((variation) => variation.variation_id);
+    const target = index + direction;
+    const current = ids[index];
+    const swap = ids[target];
+    if (current === undefined || swap === undefined) {
+      return;
+    }
+    ids[index] = swap;
+    ids[target] = current;
+    const body = new FormData();
+    body.set("op", "reorder_variations");
+    body.set("ordered_ids", ids.join(","));
+    write.submit(body, { method: "post", action: url });
+  };
+
+  return (
+    <>
+      <Divider sx={{ my: 2 }} />
+      <Box>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}
+        >
+          <Box>
+            <Typography sx={{ fontWeight: 900 }}>Colour variations</Typography>
+            <Typography variant="body2" sx={{ color: "text.secondary" }}>
+              The design&apos;s own images are variation 1. Add more colourways,
+              each with its own images.
+            </Typography>
+          </Box>
+          <Button
+            type="button"
+            size="small"
+            variant="outlined"
+            startIcon={<AddRounded />}
+            onClick={() => setAddVariationOpen((current) => !current)}
+          >
+            Add variation
+          </Button>
+        </Stack>
+
+        {limitReached ? (
+          <Alert severity="info" sx={{ mb: 1.5 }}>
+            You&apos;ve reached the colour-variation limit on your plan.{" "}
+            <MuiLink component={RouterLink} to="/onboarding/billing">
+              Upgrade
+            </MuiLink>{" "}
+            to add more colourways.
+          </Alert>
+        ) : null}
+        {write.data?.error === "image_limit_exceeded" ? (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            That variation has too many images for your plan (max{" "}
+            {perVariationImageLimit}).
+          </Alert>
+        ) : null}
+
+        {addVariationOpen ? (
+          <write.Form
+            method="post"
+            action={url}
+            encType="multipart/form-data"
+            style={{ marginBottom: 12 }}
+          >
+            <input type="hidden" name="op" value="create_variation" />
+            <Stack
+              spacing={1.25}
+              sx={{
+                p: 1.5,
+                border: "1px dashed",
+                borderColor: "divider",
+                borderRadius: 2,
+              }}
+            >
+              <TextField
+                name="name"
+                label="Colour / variation name"
+                size="small"
+                required
+              />
+              <DesignImagesField
+                images={[]}
+                imageLimit={perVariationImageLimit}
+                isFreePlan={isFreePlan}
+              />
+              <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+                <Button
+                  type="button"
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setAddVariationOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" variant="contained" size="small">
+                  Add variation
+                </Button>
+              </Stack>
+            </Stack>
+          </write.Form>
+        ) : null}
+
+        {data.state === "loading" && source === undefined ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Loading variations…
+          </Typography>
+        ) : variations.length === 0 ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            No extra colour variations yet.
+          </Typography>
+        ) : (
+          <Stack spacing={1.25}>
+            {variations.map((variation, index) => (
+              <VariationRow
+                key={variation.variation_id}
+                variation={variation}
+                index={index}
+                total={variations.length}
+                actionUrl={url}
+                write={write}
+                imageLimit={perVariationImageLimit}
+                isFreePlan={isFreePlan}
+                onReorder={reorder}
+              />
+            ))}
+          </Stack>
+        )}
+      </Box>
+
+      {sizeBands.length > 0 ? (
+        <>
+          <Divider sx={{ my: 2 }} />
+          <Box>
+            <Typography sx={{ fontWeight: 900, mb: 0.5 }}>
+              Size-band overrides
+            </Typography>
+            <Typography
+              variant="body2"
+              sx={{ color: "text.secondary", mb: 1.5 }}
+            >
+              Rename a band or tweak its measurement chart for this design only.
+              Leave a field blank to inherit the master band.
+            </Typography>
+            <Stack spacing={1.25}>
+              {sizeBands.map((band) => (
+                <SizeBandOverrideForm
+                  key={band.size_band_id}
+                  band={band}
+                  override={overrideByBand.get(band.size_band_id)}
+                  actionUrl={url}
+                  write={write}
+                />
+              ))}
+            </Stack>
+          </Box>
+        </>
+      ) : null}
+    </>
+  );
+}
+
+// One editable colour variation: rename, manage its images, reorder, or delete.
+function VariationRow({
+  variation,
+  index,
+  total,
+  actionUrl,
+  write,
+  imageLimit,
+  isFreePlan,
+  onReorder,
+}: {
+  variation: DesignVariation;
+  index: number;
+  total: number;
+  actionUrl: string;
+  write: ReturnType<typeof useFetcher<DesignExtrasData>>;
+  imageLimit: number;
+  isFreePlan: boolean;
+  onReorder: (index: number, direction: -1 | 1) => void;
+}) {
+  const deleteVariation = () => {
+    const body = new FormData();
+    body.set("op", "delete_variation");
+    body.set("variation_id", variation.variation_id);
+    write.submit(body, { method: "post", action: actionUrl });
+  };
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
+      }}
+    >
+      <write.Form method="post" action={actionUrl} encType="multipart/form-data">
+        <input type="hidden" name="op" value="update_variation" />
+        <input
+          type="hidden"
+          name="variation_id"
+          value={variation.variation_id}
+        />
+        <Stack spacing={1.25}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center" }}
+          >
+            <TextField
+              name="name"
+              label="Colour / variation name"
+              defaultValue={variation.name}
+              size="small"
+              required
+              sx={{ flex: 1 }}
+            />
+            <Tooltip title="Move up">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={index === 0}
+                  onClick={() => onReorder(index, -1)}
+                >
+                  <ArrowUpwardRounded fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Move down">
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={index === total - 1}
+                  onClick={() => onReorder(index, 1)}
+                >
+                  <ArrowDownwardRounded fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </Stack>
+          <DesignImagesField
+            key={variation.images.join("|")}
+            images={variation.images}
+            imageLimit={imageLimit}
+            isFreePlan={isFreePlan}
+          />
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            <Button
+              type="button"
+              size="small"
+              color="error"
+              variant="outlined"
+              startIcon={<DeleteOutlineRounded />}
+              onClick={deleteVariation}
+            >
+              Delete
+            </Button>
+            <Button type="submit" size="small" variant="contained">
+              Save variation
+            </Button>
+          </Stack>
+        </Stack>
+      </write.Form>
+    </Box>
+  );
+}
+
+// Per-design override for one size band: an optional label and an editable
+// measurement chart, or reset back to the master band.
+function SizeBandOverrideForm({
+  band,
+  override,
+  actionUrl,
+  write,
+}: {
+  band: SizeBand;
+  override: DesignSizeBandOverride | undefined;
+  actionUrl: string;
+  write: ReturnType<typeof useFetcher<DesignExtrasData>>;
+}) {
+  const startChart =
+    override?.chart_set && override.chart.length > 0
+      ? override.chart
+      : band.chart;
+  // Rows carry a stable client id so React keys survive add/remove/reorder of
+  // the editable measurement chart without falling back to array-index keys.
+  const nextRowId = useRef(0);
+  const [rows, setRows] = useState<(SizeChartItem & { id: number })[]>(() => {
+    const seed =
+      startChart.length > 0 ? startChart : [{ name: "", value: "", unit: "in" }];
+    return seed.map((item) => ({ ...item, id: nextRowId.current++ }));
+  });
+
+  const updateRow = (id: number, patch: Partial<SizeChartItem>) => {
+    setRows((current) =>
+      current.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const clearOverride = () => {
+    const body = new FormData();
+    body.set("op", "clear_override");
+    body.set("band_id", band.size_band_id);
+    write.submit(body, { method: "post", action: actionUrl });
+  };
+
+  const overridden = Boolean(override && (override.label || override.chart_set));
+
+  return (
+    <Box
+      sx={{
+        p: 1.5,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 2,
+      }}
+    >
+      <write.Form method="post" action={actionUrl}>
+        <input type="hidden" name="op" value="set_override" />
+        <input type="hidden" name="band_id" value={band.size_band_id} />
+        <input type="hidden" name="chart_set" value="1" />
+        <Stack spacing={1.25}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 900 }}>
+              {band.label}
+            </Typography>
+            {overridden ? (
+              <ToneChip label="Overridden" tone={tokens.burgundy} />
+            ) : null}
+          </Stack>
+          <TextField
+            name="label"
+            label="Label for this design"
+            placeholder={band.label}
+            defaultValue={override?.label ?? ""}
+            size="small"
+            helperText="Leave blank to use the master band label."
+          />
+          <Box>
+            <Typography variant="caption" sx={{ color: "text.secondary" }}>
+              Measurement chart
+            </Typography>
+            <Stack spacing={0.75} sx={{ mt: 0.5 }}>
+              {rows.map((row) => (
+                <Stack
+                  key={row.id}
+                  direction="row"
+                  spacing={0.75}
+                  sx={{ alignItems: "center" }}
+                >
+                  <TextField
+                    name="chart_name"
+                    label="Part"
+                    value={row.name}
+                    onChange={(event) =>
+                      updateRow(row.id, { name: event.target.value })
+                    }
+                    size="small"
+                    sx={{ flex: 1 }}
+                  />
+                  <TextField
+                    name="chart_value"
+                    label="Value"
+                    value={row.value}
+                    onChange={(event) =>
+                      updateRow(row.id, { value: event.target.value })
+                    }
+                    size="small"
+                    sx={{ width: 96 }}
+                  />
+                  <TextField
+                    name="chart_unit"
+                    label="Unit"
+                    select
+                    value={row.unit || "in"}
+                    onChange={(event) =>
+                      updateRow(row.id, { unit: event.target.value })
+                    }
+                    size="small"
+                    sx={{ width: 90 }}
+                  >
+                    {SIZE_CHART_UNITS.map((unit) => (
+                      <MenuItem key={unit} value={unit}>
+                        {unit}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                  <IconButton
+                    size="small"
+                    aria-label="Remove row"
+                    onClick={() =>
+                      setRows((current) =>
+                        current.filter((item) => item.id !== row.id),
+                      )
+                    }
+                  >
+                    <DeleteOutlineRounded fontSize="small" />
+                  </IconButton>
+                </Stack>
+              ))}
+              <Button
+                type="button"
+                size="small"
+                startIcon={<AddRounded />}
+                onClick={() =>
+                  setRows((current) => [
+                    ...current,
+                    { name: "", value: "", unit: "in", id: nextRowId.current++ },
+                  ])
+                }
+                sx={{ alignSelf: "flex-start" }}
+              >
+                Add measurement
+              </Button>
+            </Stack>
+          </Box>
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            {overridden ? (
+              <Button
+                type="button"
+                size="small"
+                variant="outlined"
+                onClick={clearOverride}
+              >
+                Reset to master
+              </Button>
+            ) : null}
+            <Button type="submit" size="small" variant="contained">
+              Save override
+            </Button>
+          </Stack>
+        </Stack>
+      </write.Form>
+    </Box>
+  );
+}
+
 function DesignRow({
   design,
   collections,
@@ -8621,6 +9367,14 @@ function DesignRow({
             <Chip size="small" variant="outlined" label={priceSummary} />
             {design.customisation_allowed ? (
               <Chip size="small" variant="outlined" label="Customisable" />
+            ) : null}
+            {design.customisation_allowed &&
+            (design.bespoke_display_minor ?? 0) > 0 ? (
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`From ${formatGHS(design.bespoke_display_minor ?? 0)}`}
+              />
             ) : null}
           </Stack>
         </Box>
@@ -8809,6 +9563,27 @@ function DesignRow({
                       }}
                     />
                   ) : null}
+                  {customisation ? (
+                    <TextField
+                      name="bespoke_display_ghs"
+                      label="Display 'from' price"
+                      helperText="Indicative price shown to shoppers (optional)"
+                      defaultValue={moneyInputValue(
+                        design.bespoke_display_minor ?? null,
+                      )}
+                      size="small"
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              GHS
+                            </InputAdornment>
+                          ),
+                        },
+                        htmlInput: { inputMode: "decimal" },
+                      }}
+                    />
+                  ) : null}
                 </Box>
               </Box>
               <Stack
@@ -8841,6 +9616,13 @@ function DesignRow({
               error={priceError}
             />
           ) : null}
+
+          <DesignExtrasEditor
+            designId={design.design_id}
+            open={editOpen}
+            isFreePlan={isFreePlan}
+            sizeBands={sizeBands}
+          />
 
           <Divider sx={{ my: 2 }} />
           <Stack
@@ -11237,6 +12019,81 @@ function StorefrontImageUploadField({
   );
 }
 
+// PayoutSetupPanel collects the business's mobile-money settlement number and
+// submits it to POST /businesses/me/verify (setup_payout). Payouts must be set
+// up before settlements can be released.
+function PayoutSetupPanel({
+  provisioned,
+  error,
+  success,
+}: {
+  provisioned: boolean;
+  error?: string;
+  success?: string;
+}) {
+  return (
+    <Panel id="payouts" sx={{ mt: 2 }}>
+      <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{ alignItems: "center", justifyContent: "space-between" }}
+        >
+          <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+            <Box sx={{ color: "primary.main" }}>
+              <PaymentsRounded />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 900 }}>Payout details</Typography>
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                The mobile money number your settlements are paid out to.
+              </Typography>
+            </Box>
+          </Stack>
+          <ToneChip
+            label={provisioned ? "Set up" : "Needs setup"}
+            tone={provisioned ? "#1b7f4d" : tokens.burgundy}
+          />
+        </Stack>
+        {success ? (
+          <Alert severity="success" sx={{ mt: 2 }}>
+            {success}
+          </Alert>
+        ) : null}
+        {error ? (
+          <Alert severity="warning" sx={{ mt: 2 }}>
+            {error}
+          </Alert>
+        ) : null}
+        <Form method="post">
+          <input type="hidden" name="intent" value="setup_payout" />
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.5}
+            sx={{ mt: 2, alignItems: { sm: "center" } }}
+          >
+            <TextField
+              name="settlement_account"
+              label="Mobile money number"
+              placeholder="024 000 0000"
+              required
+              fullWidth
+            />
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<SaveRounded />}
+              sx={{ alignSelf: { xs: "stretch", sm: "auto" }, flexShrink: 0 }}
+            >
+              Save payout details
+            </Button>
+          </Stack>
+        </Form>
+      </Box>
+    </Panel>
+  );
+}
+
 function BusinessVerificationPanel({
   status,
   error,
@@ -12278,7 +13135,8 @@ function CatalogueSetupPanel({
               {collectionError}
             </Alert>
           ) : null}
-          <Form method="post">
+          {/* Re-key on the collection count so the inputs clear after an add. */}
+          <Form method="post" key={collections.length}>
             <input type="hidden" name="intent" value="create_collection" />
             <Box
               sx={{
@@ -12452,7 +13310,8 @@ function CatalogueSetupPanel({
               {sizeBandError}
             </Alert>
           ) : null}
-          <Form method="post">
+          {/* Re-key on the size-band count so the inputs clear after an add. */}
+          <Form method="post" key={sizeBands.length}>
             <input type="hidden" name="intent" value="create_size_band" />
             <Box
               sx={{
@@ -14898,14 +15757,21 @@ function HandoverPanel({
 
 function AvailabilityPanel({
   windows,
+  blackouts,
   error,
 }: {
   windows: AvailabilityWindow[];
+  blackouts: string[];
   error?: string;
 }) {
-  const sortedWindows = [...windows].sort(
-    (a, b) => a.weekday - b.weekday || a.start_minute - b.start_minute,
-  );
+  // Recurring windows sort by weekday/time; one-off "date" windows sort by their
+  // date so upcoming special hours read in order.
+  const sortedWindows = [...windows].sort((a, b) => {
+    if (a.recurrence === "date" || b.recurrence === "date") {
+      return (a.specific_date ?? "").localeCompare(b.specific_date ?? "");
+    }
+    return a.weekday - b.weekday || a.start_minute - b.start_minute;
+  });
 
   return (
     <Panel id="availability">
@@ -14917,7 +15783,8 @@ function AvailabilityPanel({
           <Box>
             <Typography sx={{ fontWeight: 900 }}>Visit hours</Typography>
             <Typography variant="body2" sx={{ color: "text.secondary" }}>
-              Weekly windows that produce customer home-visit slots.
+              Recurring windows and one-off dates that produce customer
+              home-visit slots.
             </Typography>
           </Box>
         </Stack>
@@ -14931,11 +15798,13 @@ function AvailabilityPanel({
           <Stack spacing={1.25} sx={{ mt: 2 }}>
             {sortedWindows.map((window, index) => (
               <AvailabilityWindowFields
-                key={`${window.weekday}-${window.start_minute}-${index}`}
+                key={`${window.recurrence}-${window.specific_date ?? ""}-${window.weekday}-${window.start_minute}-${index}`}
                 window={window}
               />
             ))}
-            <AvailabilityWindowFields />
+            {/* Re-key the blank add-row on the window count so it clears after
+                a successful save. */}
+            <AvailabilityWindowFields key={`add-${windows.length}`} />
             <Button
               type="submit"
               variant="contained"
@@ -14946,8 +15815,95 @@ function AvailabilityPanel({
             </Button>
           </Stack>
         </Form>
+        <Divider sx={{ my: 2.5 }} />
+        <BlackoutDaysSection blackouts={blackouts} />
       </Box>
     </Panel>
+  );
+}
+
+// Mark-a-day-unavailable (blackout): the owner can close a specific day so no
+// home-visit slots are offered, and reopen it later. Backed by
+// /availability/blackouts (GET list / POST mark / DELETE clear).
+function BlackoutDaysSection({ blackouts }: { blackouts: string[] }) {
+  const sorted = [...blackouts].sort((a, b) => a.localeCompare(b));
+  return (
+    <Box>
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+        <Box sx={{ color: "primary.main" }}>
+          <EventBusyRounded />
+        </Box>
+        <Box>
+          <Typography sx={{ fontWeight: 900 }}>Blocked-out days</Typography>
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Close a specific day so no home visits can be booked on it.
+          </Typography>
+        </Box>
+      </Stack>
+      <Form method="post">
+        <input type="hidden" name="intent" value="mark_blackout" />
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          spacing={1}
+          sx={{ mt: 2, alignItems: { sm: "center" } }}
+        >
+          <TextField
+            name="date"
+            label="Day to block"
+            type="date"
+            size="small"
+            required
+            slotProps={{ inputLabel: { shrink: true } }}
+          />
+          <Button
+            type="submit"
+            variant="outlined"
+            startIcon={<EventBusyRounded />}
+            sx={{ alignSelf: { xs: "stretch", sm: "auto" } }}
+          >
+            Block this day
+          </Button>
+        </Stack>
+      </Form>
+      {sorted.length > 0 ? (
+        <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mt: 2 }}>
+          {sorted.map((date) => (
+            <Stack
+              key={date}
+              direction="row"
+              spacing={0.5}
+              sx={{
+                alignItems: "center",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 999,
+                pl: 1.25,
+                pr: 0.5,
+                py: 0.25,
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {date}
+              </Typography>
+              <Form method="post">
+                <input type="hidden" name="intent" value="clear_blackout" />
+                <input type="hidden" name="date" value={date} />
+                <Button type="submit" size="small" color="inherit">
+                  Reopen
+                </Button>
+              </Form>
+            </Stack>
+          ))}
+        </Stack>
+      ) : (
+        <Typography
+          variant="body2"
+          sx={{ mt: 2, color: "text.secondary" }}
+        >
+          No days are blocked out in the next few months.
+        </Typography>
+      )}
+    </Box>
   );
 }
 
@@ -15002,9 +15958,11 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
           <MenuItem value="weekly">Weekly</MenuItem>
           <MenuItem value="monthly">Monthly</MenuItem>
           <MenuItem value="ongoing">Ongoing</MenuItem>
+          <MenuItem value="date">One-off date</MenuItem>
         </TextField>
-        {/* Weekday (weekly) and day-of-month (monthly) stay mounted but hidden
-            when not in use, so the submitted field arrays stay aligned by row. */}
+        {/* Weekday (weekly), day-of-month (monthly), and specific date (one-off)
+            stay mounted but hidden when not in use, so the submitted field arrays
+            stay aligned by row. */}
         <TextField
           name="weekday"
           label="Day of week"
@@ -15027,6 +15985,15 @@ function AvailabilityWindowFields({ window }: { window?: AvailabilityWindow }) {
           defaultValue={window?.day_of_month ?? 1}
           slotProps={{ htmlInput: { min: 1, max: 31 } }}
           sx={{ display: recurrence === "monthly" ? "block" : "none" }}
+        />
+        <TextField
+          name="specific_date"
+          label="Date"
+          type="date"
+          size="small"
+          defaultValue={window?.specific_date ?? ""}
+          slotProps={{ inputLabel: { shrink: true } }}
+          sx={{ display: recurrence === "date" ? "block" : "none" }}
         />
         <TextField
           name="slot_minutes"
@@ -15169,6 +16136,7 @@ export default function Dashboard({
     currentUser,
     designs,
     orders,
+    stages,
     measurementFields,
     moneySummary,
     manualTakings,
@@ -15176,6 +16144,7 @@ export default function Dashboard({
     handovers,
     notifications,
     availabilityWindows,
+    blackoutDates,
     businessUsers,
     storeSettings,
     collections,
@@ -16084,6 +17053,7 @@ export default function Dashboard({
                         ) : null}
                         <OrdersWorkspace
                           orders={filteredOrders}
+                          stages={stages}
                           returnTo={returnTo}
                           measurementFields={measurementFields}
                           showMoneyDetails={canManage}
@@ -16250,7 +17220,13 @@ export default function Dashboard({
                                 </Typography>
                               </Box>
                             </Stack>
-                            <Form method="post" encType="multipart/form-data">
+                            {/* Re-key on the design count so the add-design
+                                fields and image picker clear after a publish. */}
+                            <Form
+                              method="post"
+                              encType="multipart/form-data"
+                              key={designs.length}
+                            >
                               <input
                                 type="hidden"
                                 name="intent"
@@ -16429,6 +17405,23 @@ export default function Dashboard({
                                     <TextField
                                       name="deposit_ghs"
                                       label="Deposit amount"
+                                      slotProps={{
+                                        input: {
+                                          startAdornment: (
+                                            <InputAdornment position="start">
+                                              GHS
+                                            </InputAdornment>
+                                          ),
+                                        },
+                                        htmlInput: { inputMode: "decimal" },
+                                      }}
+                                    />
+                                  ) : null}
+                                  {addCustomisation ? (
+                                    <TextField
+                                      name="bespoke_display_ghs"
+                                      label="Display 'from' price"
+                                      helperText="Indicative price shown to shoppers (optional)"
                                       slotProps={{
                                         input: {
                                           startAdornment: (
@@ -16721,7 +17714,8 @@ export default function Dashboard({
                           {action.fieldError}
                         </Alert>
                       ) : null}
-                      <Form method="post">
+                      {/* Re-key on the field count so inputs clear after an add. */}
+                      <Form method="post" key={measurementFields.length}>
                         <input
                           type="hidden"
                           name="intent"
@@ -16812,12 +17806,18 @@ export default function Dashboard({
                 {canManage && section === "availability" ? (
                   <AvailabilityPanel
                     windows={availabilityWindows}
+                    blackouts={blackoutDates}
                     error={action.availabilityError}
                   />
                 ) : null}
 
                 {canManage && section === "settings" ? (
                   <>
+                    <PayoutSetupPanel
+                      provisioned={profile.verification_status === "verified"}
+                      error={action.payoutError}
+                      success={action.payoutSuccess}
+                    />
                     <BusinessVerificationPanel
                       status={profile.verification_status}
                       error={action.verificationError}
@@ -16855,6 +17855,26 @@ export default function Dashboard({
 
                 {canManage && section === "overview" ? (
                   <>
+                    {profile.verification_status !== "verified" ? (
+                      <Alert
+                        severity="warning"
+                        icon={<PaymentsRounded />}
+                        action={
+                          <Button
+                            component={RouterLink}
+                            to="/dashboard/settings#payouts"
+                            color="inherit"
+                            size="small"
+                            variant="outlined"
+                          >
+                            Set up payouts
+                          </Button>
+                        }
+                      >
+                        Add your mobile money payout details so we can release
+                        your settlements.
+                      </Alert>
+                    ) : null}
                     <StoreReadinessPanel
                       steps={setupSteps}
                       storefrontURL={storefrontURL}

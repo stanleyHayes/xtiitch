@@ -29,6 +29,14 @@ export type BandPrice = {
   price_minor: number;
 };
 
+export type DesignVariation = {
+  variation_id: string;
+  name: string;
+  images: string[];
+  is_default: boolean;
+  sequence: number;
+};
+
 export type Design = {
   design_id: string;
   collection_id: string | null;
@@ -37,10 +45,14 @@ export type Design = {
   images: string[];
   customisation_allowed: boolean;
   deposit_override_minor: number | null;
+  // Indicative "from" price shown for a bespoke/customisation design (minor
+  // units / pesewas), distinct from the deposit. 0 when not set.
+  bespoke_display_minor?: number;
   handle: string;
   status: string;
   sequence: number;
   prices: BandPrice[];
+  variations?: DesignVariation[];
   store?: StoreSummary;
 };
 

@@ -22,6 +22,10 @@ export default [
   ),
   route("security", "routes/security.tsx"),
   route("dashboard/:section?", "routes/dashboard.tsx"),
+  // Resource route backing the design editor's colour-variation and per-design
+  // size-band-override panels (GET current state; POST create/update/delete/
+  // reorder variations and set/clear an override). See design-editor.$id.ts.
+  route("design-editor/:id", "routes/design-editor.$id.ts"),
   // Resource route for the ✨ AI writing assistant (no UI; proxies to the API
   // with the session token). See routes/ai-assist.ts.
   route("ai/assist", "routes/ai-assist.ts"),
