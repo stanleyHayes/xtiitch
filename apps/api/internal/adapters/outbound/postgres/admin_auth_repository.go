@@ -2163,7 +2163,10 @@ func (repo AdminAuthRepository) IssueAdminSubscriptionInvoice(
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.AdminSubscriptionRecord{}, ports.ErrSubscriptionBillingUnavailable
 		}
-		if subscriptionInvoiceOpen(err) {
+		// Either an invoice is already open for this period, or this exact invoice_ref
+		// was already booked (a replayed activation-verify) — both mean "already
+		// booked; do not issue again."
+		if subscriptionInvoiceOpen(err) || subscriptionInvoiceRefTaken(err) {
 			return ports.AdminSubscriptionRecord{}, ports.ErrSubscriptionInvoiceOpen
 		}
 		return ports.AdminSubscriptionRecord{}, err
@@ -7908,6 +7911,18 @@ func subscriptionInvoiceOpen(err error) bool {
 	return errors.As(err, &pgErr) &&
 		pgErr.Code == pgUniqueViolation &&
 		pgErr.ConstraintName == "business_subscription_invoices_one_open_idx"
+}
+
+// subscriptionInvoiceRefTaken reports a duplicate invoice_ref insert. The admin
+// authorization-verify derives a DETERMINISTIC invoice_ref from the Paystack
+// checkout reference, so a replayed callback (refresh / double-click / callback +
+// manual verify) collides here and must be treated as already-booked rather than
+// issuing a second invoice and advancing the period twice.
+func subscriptionInvoiceRefTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "business_subscription_invoices_invoice_ref_key"
 }
 
 func adminEntitlementInvalid(err error) bool {

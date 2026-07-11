@@ -149,7 +149,16 @@ async function startPaystackBilling(
         "We couldn't start billing setup right now. You can finish this later from your dashboard.",
     };
   }
-  const body = (await response.json()) as { redirect_url?: string };
+  const body = (await response.json()) as {
+    redirect_url?: string;
+    activated?: boolean;
+  };
+  // A free-period / full (100%) discount collects nothing and a period already paid
+  // needs nothing, so the API activates immediately with no Paystack checkout. Land
+  // the owner on the same success page the paid-checkout callback redirects to.
+  if (body.activated) {
+    return redirect("/dashboard?billing=active");
+  }
   if (!body.redirect_url) {
     return {
       error: "Billing setup is not available yet. You can finish this later.",

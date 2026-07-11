@@ -222,6 +222,11 @@ type ActivateRecurringBillingInput struct {
 	BusinessID              common.ID
 	ProviderCustomerRef     string
 	ProviderSubscriptionRef string
+	// ProviderChannel is the Paystack authorization channel ('card', 'mobile_money',
+	// …). It MUST be stored so the recurring sweep can tell a silently-chargeable
+	// card from a mobile-money authorization that has to be reminder-driven. Empty
+	// is treated as card-like (silent auto-charge), preserving legacy behaviour.
+	ProviderChannel string
 }
 
 // RecordSubscriptionActivationPaymentInput books the first recurring charge.
@@ -647,9 +652,17 @@ type InitializeTransactionResult struct {
 	ProviderReference string
 }
 
+// InitializeAuthorizationInput opens a STANDARD Paystack checkout that charges
+// the first period AND (for a card) yields a reusable authorization for later
+// recurring charges. It replaces the old direct-debit "mandate" link, which was
+// a dead page for this MoMo-first account. AmountMinor is the first-period
+// charge (already discount-adjusted by the caller).
 type InitializeAuthorizationInput struct {
 	BusinessID    common.ID
 	CustomerEmail string
+	AmountMinor   int64
+	Currency      string
+	Reference     string
 	CallbackURL   string
 }
 
@@ -663,13 +676,22 @@ type VerifyAuthorizationInput struct {
 	Reference string
 }
 
+// VerifyAuthorizationResult reads back the checkout transaction: whether it was
+// paid (Succeeded), the amount, and the reusable authorization captured for
+// recurring (AuthorizationCode + Reusable; MoMo authorizations are typically not
+// reusable, so the renewal sweep re-prompts instead of silently charging).
 type VerifyAuthorizationResult struct {
+	Succeeded         bool
+	AmountMinor       int64
 	AuthorizationCode string
 	CustomerCode      string
 	CustomerEmail     string
 	Channel           string
 	Bank              string
-	Active            bool
+	Reusable          bool
+	// Active is true when the transaction succeeded and a reusable authorization
+	// came back; retained for callers that only check that an authorization exists.
+	Active bool
 }
 
 type ChargeAuthorizationInput struct {

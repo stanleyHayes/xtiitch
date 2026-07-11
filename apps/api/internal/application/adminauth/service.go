@@ -2159,10 +2159,24 @@ func (s Service) InitializeSubscriptionAuthorization(
 		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
 	}
 
+	// Charge the cadence RENEWAL figure at a STANDARD Paystack checkout (the old
+	// direct-debit mandate link is dead for this account). The business pays this
+	// period now; a card also yields a reusable authorization the recurring sweep
+	// charges thereafter (mobile money yields none — the sweep sends re-pay
+	// reminders). VAT is applied once so the checkout amount matches the invoice
+	// booked on verify, mirroring the recurring sweep.
+	amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+	if amountMinor <= 0 {
+		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
+	}
+	reference := "xtsubadm_" + s.ids.NewID().String()
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID:    subscription.BusinessID,
 		CustomerEmail: ownerEmail,
 		CallbackURL:   callbackURL,
+		AmountMinor:   amountMinor,
+		Currency:      "GHS",
+		Reference:     reference,
 	})
 	if err != nil {
 		return SubscriptionAuthorizationLinkResult{}, err
@@ -2236,22 +2250,65 @@ func (s Service) VerifySubscriptionAuthorization(
 	if err != nil {
 		return ports.AdminSubscriptionRecord{}, err
 	}
-	if !result.Active ||
-		strings.TrimSpace(result.AuthorizationCode) == "" ||
-		strings.TrimSpace(result.CustomerCode) == "" {
+	// The standard checkout already PAID this period; confirm it succeeded (a card
+	// yields a reusable authorization for the sweep, mobile money yields none) and
+	// never re-charge here (that would double-bill).
+	if !result.Succeeded {
 		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
 	}
+	customerRef := strings.TrimSpace(result.CustomerCode)
+	authRef := strings.TrimSpace(result.AuthorizationCode)
 
 	reason := normalizeOperatorNote(cmd.Reason)
 	if reason == "" {
 		reason = "Verified Paystack recurring authorization."
 	}
+
+	// Book the period the checkout paid for as a PAID invoice so the recurring sweep
+	// advances from HERE (never re-charging the just-paid period). The amount and
+	// period length come from the same cadence source as the checkout and the sweep.
+	// If an invoice is already open for this period (a prior verify/sweep), leave it
+	// and only (re)capture the authorization — the operator-driven verify is not a
+	// retrying webhook, so this stays effectively idempotent.
+	amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+	invoiceID := s.ids.NewID()
+	// DETERMINISTIC invoice_ref keyed to the checkout reference so a replayed verify
+	// (refresh / double-click / callback + manual verify) collides on the invoice_ref
+	// unique constraint and is caught below as "already booked" — never a second
+	// invoice + a second period advance for one payment.
+	invoiceRef := "xtsubadm_inv_" + reference
+	_, issueErr := s.businesses.IssueAdminSubscriptionInvoice(ctx, ports.IssueAdminSubscriptionInvoiceInput{
+		InvoiceID:          invoiceID,
+		BusinessID:         subscription.BusinessID,
+		InvoiceRef:         invoiceRef,
+		ProviderInvoiceRef: reference,
+		DueAt:              s.clock.Now().Add(72 * time.Hour),
+		ActorAdminUser:     cmd.ActorUserID,
+		Reason:             reason,
+		AmountMinor:        amountMinor,
+		PeriodMonths:       cadenceMonths(subscription.BillingCadence),
+	})
+	switch {
+	case errors.Is(issueErr, ports.ErrSubscriptionInvoiceOpen), errors.Is(issueErr, ports.ErrSubscriptionBillingUnavailable):
+		// Already booked for this period; skip to (re)capturing the authorization.
+	case issueErr != nil:
+		return ports.AdminSubscriptionRecord{}, issueErr
+	default:
+		if _, err := s.businesses.MarkAdminSubscriptionInvoicePaid(ctx, ports.MarkAdminSubscriptionInvoicePaidInput{
+			InvoiceID:      invoiceID,
+			ActorAdminUser: cmd.ActorUserID,
+			Reason:         "Paid at Paystack checkout.",
+		}); err != nil {
+			return ports.AdminSubscriptionRecord{}, err
+		}
+	}
+
 	record, err := s.businesses.UpdateAdminSubscription(ctx, ports.UpdateAdminSubscriptionInput{
 		BusinessID:              subscription.BusinessID,
 		Status:                  subscription.Status,
 		BillingMode:             "recurring",
-		ProviderCustomerRef:     strings.TrimSpace(result.CustomerCode),
-		ProviderSubscriptionRef: strings.TrimSpace(result.AuthorizationCode),
+		ProviderCustomerRef:     customerRef,
+		ProviderSubscriptionRef: authRef,
 		// Persist the authorization channel so the recurring sweep knows whether it
 		// can silently auto-charge (card) or must fall back to a re-pay reminder
 		// (mobile money, which cannot be silently debited).

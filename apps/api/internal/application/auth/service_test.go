@@ -837,6 +837,7 @@ type fakeBusinessIdentityRepository struct {
 	subscription          ports.BusinessSubscriptionRecord
 	subscriptionUpgraded  ports.BusinessSubscriptionRecord
 	activationPayment     ports.RecordSubscriptionActivationPaymentInput
+	recurringActivated    *ports.ActivateRecurringBillingInput
 	activationAlreadyPaid bool
 	cadenceSet            string
 	setCadenceErr         error
@@ -893,7 +894,8 @@ func (repo *fakeBusinessIdentityRepository) SchedulePlanDowngrade(_ context.Cont
 	return nil
 }
 
-func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling(_ context.Context, _ ports.ActivateRecurringBillingInput) error {
+func (repo *fakeBusinessIdentityRepository) ActivateRecurringBilling(_ context.Context, input ports.ActivateRecurringBillingInput) error {
+	repo.recurringActivated = &input
 	return nil
 }
 
@@ -920,11 +922,20 @@ func (repo *fakeBusinessIdentityRepository) SubmitIdentityDocument(_ context.Con
 }
 
 // fakeSubscriptionPayments is a minimal PaymentProvider for the subscription
-// first-charge tests: a verified authorization plus a configurable charge status.
+// checkout tests. It records the standard-checkout it was asked to open and
+// returns a verified, PAID transaction on verify (the amount echoes what the
+// checkout was priced at). The recurring sweep still uses ChargeAuthorization.
 type fakeSubscriptionPayments struct {
-	chargeStatus string
-	chargeInput  ports.ChargeAuthorizationInput
-	chargeErr    error
+	initInput ports.InitializeAuthorizationInput
+	// verifyNotSucceeded makes VerifyAuthorization report an unpaid/abandoned
+	// checkout; verifyNoAuth makes it report a mobile-money payment (no reusable
+	// authorization). Both default to the paid-card happy path.
+	verifyNotSucceeded bool
+	verifyNoAuth       bool
+	verifyChannel      string
+	chargeStatus       string
+	chargeInput        ports.ChargeAuthorizationInput
+	chargeErr          error
 }
 
 func (f *fakeSubscriptionPayments) CreateBusinessSubaccount(_ context.Context, _ ports.CreateBusinessSubaccountInput) (ports.CreateBusinessSubaccountResult, error) {
@@ -935,16 +946,30 @@ func (f *fakeSubscriptionPayments) InitializeTransaction(_ context.Context, _ po
 	return ports.InitializeTransactionResult{}, nil
 }
 
-func (f *fakeSubscriptionPayments) InitializeAuthorization(_ context.Context, _ ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
-	return ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: "ref"}, nil
+func (f *fakeSubscriptionPayments) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	f.initInput = input
+	return ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: input.Reference}, nil
 }
 
 func (f *fakeSubscriptionPayments) VerifyAuthorization(_ context.Context, _ ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	if f.verifyNotSucceeded {
+		return ports.VerifyAuthorizationResult{Succeeded: false}, nil
+	}
+	authCode := "AUTH_x"
+	customerCode := "CUS_x"
+	if f.verifyNoAuth {
+		authCode = ""
+		customerCode = ""
+	}
 	return ports.VerifyAuthorizationResult{
-		Active:            true,
-		AuthorizationCode: "AUTH_x",
-		CustomerCode:      "CUS_x",
+		Succeeded:         true,
+		AmountMinor:       f.initInput.AmountMinor,
+		AuthorizationCode: authCode,
+		CustomerCode:      customerCode,
 		CustomerEmail:     "owner@example.com",
+		Channel:           f.verifyChannel,
+		Reusable:          !f.verifyNoAuth,
+		Active:            !f.verifyNoAuth,
 	}, nil
 }
 
@@ -1071,38 +1096,54 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 			YearlyFirstMinor: 89100,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newSubscriptionTestService(businesses, payments)
 
-	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+	// Initialize prices the STANDARD checkout at the first-period figure (the yearly
+	// INTRO here, not the monthly fee) — the customer pays it at checkout.
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
+	if payments.initInput.AmountMinor != 89100 || payments.initInput.Currency != "GHS" {
+		t.Fatalf("expected the yearly intro figure at checkout, got %+v", payments.initInput)
+	}
+	if link.RedirectURL == "" || link.Activated {
+		t.Fatalf("expected a redirect checkout link, got %+v", link)
+	}
+
+	// Verify confirms the paid checkout and BOOKS it (never re-charges), storing the
+	// reusable authorization for the recurring sweep.
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: link.Reference,
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
 	}
 	if result.Status != "active" || result.BillingMode != "recurring" {
 		t.Fatalf("expected active recurring subscription, got %+v", result)
 	}
-	// First purchase on a yearly cadence bills the INTRO figure, not the monthly fee.
-	if payments.chargeInput.AmountMinor != 89100 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
-		t.Fatalf("expected first charge of the yearly intro figure on the stored authorization, got %+v", payments.chargeInput)
+	if result.ProviderSubscriptionRef != "AUTH_x" {
+		t.Fatalf("expected the reusable authorization stored, got %q", result.ProviderSubscriptionRef)
+	}
+	if payments.chargeInput.AuthorizationCode != "" {
+		t.Fatalf("the first period must NOT be re-charged, but ChargeAuthorization ran: %+v", payments.chargeInput)
 	}
 	if businesses.activationPayment.AmountMinor != 89100 || businesses.activationPayment.ChargeRef == "" {
-		t.Fatalf("expected the activation payment to be booked, got %+v", businesses.activationPayment)
+		t.Fatalf("expected the activation payment booked at the paid amount, got %+v", businesses.activationPayment)
 	}
 	if businesses.activationPayment.BillingCadence != "yearly" {
 		t.Fatalf("expected the activation payment to carry the yearly cadence, got %q", businesses.activationPayment.BillingCadence)
 	}
-	if businesses.activationPayment.ChargeRef != payments.chargeInput.Reference {
-		t.Fatalf("invoice ref must equal the charge reference for webhook idempotency: %q vs %q",
-			businesses.activationPayment.ChargeRef, payments.chargeInput.Reference)
-	}
 }
 
-// When the first charge does not succeed, the authorization is still stored
-// (recurring) but the subscription is not reported active and no payment booked.
-func TestVerifySubscriptionAuthorizationLeavesAuthorizedWhenChargeNotSuccessful(t *testing.T) {
+// A MOBILE-MONEY checkout succeeds but yields NO reusable authorization. The
+// subscription must STILL be flipped to recurring so the renewal sweep picks it up,
+// with the channel stored as mobile_money so the sweep re-prompts (rather than
+// leaving it billing_mode='manual', which the sweep skips forever — a renewal leak).
+func TestVerifySubscriptionAuthorizationMobileMoneyActivatesRecurringWithoutAuth(t *testing.T) {
 	t.Parallel()
 
 	businesses := &fakeBusinessIdentityRepository{
@@ -1116,9 +1157,62 @@ func TestVerifySubscriptionAuthorizationLeavesAuthorizedWhenChargeNotSuccessful(
 			YearlyFirstMinor: 89100,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "failed"}
+	payments := &fakeSubscriptionPayments{verifyNoAuth: true, verifyChannel: "mobile_money"}
 	service := newSubscriptionTestService(businesses, payments)
 
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly",
+	})
+	if err != nil {
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: link.Reference,
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
+	}
+	if result.Status != "active" || result.BillingMode != "recurring" {
+		t.Fatalf("a paid MoMo signup must activate as recurring, got %+v", result)
+	}
+	if businesses.recurringActivated == nil {
+		t.Fatal("ActivateRecurringBilling must be called for MoMo so the sweep picks it up")
+	}
+	if businesses.recurringActivated.ProviderChannel != "mobile_money" {
+		t.Fatalf("expected the mobile_money channel stored, got %q", businesses.recurringActivated.ProviderChannel)
+	}
+	if businesses.recurringActivated.ProviderSubscriptionRef != "" {
+		t.Fatalf("a MoMo authorization has no reusable code, got %q", businesses.recurringActivated.ProviderSubscriptionRef)
+	}
+	if businesses.activationPayment.AmountMinor != 89100 {
+		t.Fatalf("the paid period must still be booked, got %+v", businesses.activationPayment)
+	}
+}
+
+// When the checkout was not completed/paid, the subscription is not reported active
+// and no payment is booked (the tenant can retry).
+func TestVerifySubscriptionAuthorizationLeavesUnactivatedWhenCheckoutNotPaid(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@adwoa.test",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
+		},
+	}
+	payments := &fakeSubscriptionPayments{verifyNotSucceeded: true}
+	service := newSubscriptionTestService(businesses, payments)
+
+	if _, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly",
+	}); err != nil {
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
 		Reference: "paystack-ref",
@@ -1127,10 +1221,10 @@ func TestVerifySubscriptionAuthorizationLeavesAuthorizedWhenChargeNotSuccessful(
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if result.Status == "active" {
-		t.Fatal("a non-success charge must not report the subscription active")
+		t.Fatal("an unpaid/abandoned checkout must not report the subscription active")
 	}
 	if businesses.activationPayment.ChargeRef != "" {
-		t.Fatal("no activation payment should be booked when the charge did not succeed")
+		t.Fatal("no activation payment should be booked when the checkout was not paid")
 	}
 }
 
@@ -1152,7 +1246,7 @@ func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testin
 			YearlyRenewalMinor:    118800,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
@@ -1192,21 +1286,27 @@ func TestVerifySubscriptionAuthorizationFirstPurchaseChargesQuarterlyIntro(t *te
 			QuarterlyRenewalMinor: 14700,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newSubscriptionTestService(businesses, payments)
 
-	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
+	if payments.initInput.AmountMinor != 11800 {
+		t.Fatalf("first purchase must price the checkout at the quarterly INTRO figure (11800), got %d", payments.initInput.AmountMinor)
+	}
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: link.Reference,
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
 	}
 	if result.Status != "active" {
-		t.Fatalf("expected active subscription after successful first charge, got %q", result.Status)
-	}
-	if payments.chargeInput.AmountMinor != 11800 {
-		t.Fatalf("first purchase must charge the quarterly INTRO figure (11800), got %d", payments.chargeInput.AmountMinor)
+		t.Fatalf("expected active subscription after a paid checkout, got %q", result.Status)
 	}
 	if businesses.activationPayment.AmountMinor != 11800 || businesses.activationPayment.BillingCadence != "quarterly" {
 		t.Fatalf("expected the intro payment booked with the quarterly cadence, got %+v", businesses.activationPayment)
@@ -1231,17 +1331,23 @@ func TestVerifySubscriptionAuthorizationConsumedAccountChargesRenewal(t *testing
 			QuarterlyRenewalMinor: 14700,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newSubscriptionTestService(businesses, payments)
 
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly",
+	})
+	if err != nil {
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
+	if payments.initInput.AmountMinor != 14700 {
+		t.Fatalf("a consumed account must price the checkout at the quarterly RENEWAL figure (14700), got %d", payments.initInput.AmountMinor)
+	}
 	if _, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+		Reference: link.Reference,
 	}); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if payments.chargeInput.AmountMinor != 14700 {
-		t.Fatalf("a consumed account must charge the quarterly RENEWAL figure (14700), got %d", payments.chargeInput.AmountMinor)
+		t.Fatalf("verify: unexpected error: %v", err)
 	}
 	if businesses.activationPayment.AmountMinor != 14700 {
 		t.Fatalf("expected the renewal figure booked, got %d", businesses.activationPayment.AmountMinor)
@@ -1289,11 +1395,12 @@ func TestInitializeSubscriptionAuthorizationValidatesAndPersistsCadence(t *testi
 	newRepo := func() *fakeBusinessIdentityRepository {
 		return &fakeBusinessIdentityRepository{
 			subscription: ports.BusinessSubscriptionRecord{
-				SubscriptionID:  "sub-1",
-				BusinessID:      "business-1",
-				OwnerEmail:      "owner@adwoa.test",
-				MonthlyFeeMinor: 4900,
-				Status:          "trialing",
+				SubscriptionID:      "sub-1",
+				BusinessID:          "business-1",
+				OwnerEmail:          "owner@adwoa.test",
+				MonthlyFeeMinor:     4900,
+				Status:              "trialing",
+				QuarterlyFirstMinor: 11800,
 			},
 		}
 	}
@@ -1552,6 +1659,13 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 		},
 	}
 	discounts := &fakeDiscountRepository{
+		code: ports.SubscriptionDiscountCode{
+			DiscountCodeID: "code-1",
+			Code:           "SAVE20",
+			DiscountType:   "percentage",
+			DiscountValue:  20,
+			MaxPerAccount:  1,
+		},
 		hasPending: true,
 		pending: ports.PendingDiscountRedemption{
 			RedemptionID:  "redemption-1",
@@ -1561,22 +1675,34 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 			Cadence:       "quarterly",
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newDiscountTestService(businesses, payments, discounts)
 
-	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+	// Initialize prices the checkout at the DISCOUNTED figure (a code REPLACES the
+	// intro): 20% off the 14700 renewal = 2940 → charge 11760 (NOT the 11800 intro).
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly", Code: "SAVE20",
 	})
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("initialize: unexpected error: %v", err)
+	}
+	if payments.initInput.AmountMinor != 11760 {
+		t.Fatalf("expected the discounted checkout amount 11760, got %d", payments.initInput.AmountMinor)
+	}
+
+	// Verify books the paid discounted amount and flips the redemption to applied.
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: link.Reference,
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
 	}
 	if result.Status != "active" {
 		t.Fatalf("expected active subscription, got %q", result.Status)
 	}
-	// 20% off the 14700 renewal = 2940 discount → charge 11760 (NOT the 11800 intro).
-	if payments.chargeInput.AmountMinor != 11760 {
-		t.Fatalf("expected discounted charge 11760 off the renewal figure, got %d", payments.chargeInput.AmountMinor)
+	if payments.chargeInput.AuthorizationCode != "" {
+		t.Fatalf("the discounted first period must NOT be re-charged, got %+v", payments.chargeInput)
 	}
 	if businesses.activationPayment.AmountMinor != 11760 {
 		t.Fatalf("expected the activation payment booked at the discounted amount, got %d", businesses.activationPayment.AmountMinor)
@@ -1609,6 +1735,13 @@ func TestVerifySubscriptionAuthorizationAppliesFreePeriodDiscount(t *testing.T) 
 		},
 	}
 	discounts := &fakeDiscountRepository{
+		code: ports.SubscriptionDiscountCode{
+			DiscountCodeID: "code-1",
+			Code:           "FREE3",
+			DiscountType:   "free_period",
+			DiscountValue:  3,
+			MaxPerAccount:  1,
+		},
 		hasPending: true,
 		pending: ports.PendingDiscountRedemption{
 			RedemptionID:  "redemption-1",
@@ -1618,26 +1751,87 @@ func TestVerifySubscriptionAuthorizationAppliesFreePeriodDiscount(t *testing.T) 
 			Cadence:       "yearly",
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
+	payments := &fakeSubscriptionPayments{}
 	service := newDiscountTestService(businesses, payments, discounts)
 
-	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+	// A free-period code collects nothing, so initialize activates it immediately
+	// with NO Paystack checkout (a zero-amount checkout would be rejected) and marks
+	// the redemption applied — there is no verify step to run.
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly", Code: "FREE3",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if result.Status != "active" {
-		t.Fatalf("expected active subscription, got %q", result.Status)
+	if !link.Activated || link.RedirectURL != "" {
+		t.Fatalf("a free-period code must activate immediately with no checkout link, got %+v", link)
 	}
-	if payments.chargeInput.AuthorizationCode != "" {
-		t.Fatalf("a free-period code must not charge the card, but charged %+v", payments.chargeInput)
+	if payments.initInput.AmountMinor != 0 {
+		t.Fatalf("a free-period code must not open a checkout, but priced %d", payments.initInput.AmountMinor)
 	}
 	if len(discounts.freePeriods) != 1 || discounts.freePeriods[0].FreeMonths != 3 {
 		t.Fatalf("expected a 3-month free-period activation, got %+v", discounts.freePeriods)
 	}
 	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 118800 {
+		t.Fatalf("expected the redemption marked applied with the full renewal as discount, got %+v", discounts.marked)
+	}
+}
+
+// A FULL (100% / fixed >= renewal) discount collects nothing, so it activates like a
+// free period covering exactly this cadence (quarterly = 3 months) — NOT a zero paid
+// invoice, which the amount_minor > 0 DB check would reject.
+func TestVerifySubscriptionAuthorizationAppliesFullDiscountAsFreeWindow(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:        "sub-1",
+			BusinessID:            "business-1",
+			OwnerEmail:            "owner@adwoa.test",
+			PlanCode:              "growth",
+			MonthlyFeeMinor:       4900,
+			Status:                "trialing",
+			BillingCadence:        "quarterly",
+			QuarterlyRenewalMinor: 14700,
+		},
+	}
+	discounts := &fakeDiscountRepository{
+		code: ports.SubscriptionDiscountCode{
+			DiscountCodeID: "code-1",
+			Code:           "FREEQ",
+			DiscountType:   "percentage",
+			DiscountValue:  100,
+			MaxPerAccount:  1,
+		},
+		hasPending: true,
+		pending: ports.PendingDiscountRedemption{
+			RedemptionID:  "redemption-1",
+			DiscountType:  "percentage",
+			DiscountValue: 100,
+			PlanCode:      "growth",
+			Cadence:       "quarterly",
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	service := newDiscountTestService(businesses, payments, discounts)
+
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly", Code: "FREEQ",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !link.Activated || payments.initInput.AmountMinor != 0 {
+		t.Fatalf("a full discount must activate with no checkout, got link=%+v amount=%d", link, payments.initInput.AmountMinor)
+	}
+	// Activated as a free window covering the quarterly period — never a zero invoice.
+	if len(discounts.freePeriods) != 1 || discounts.freePeriods[0].FreeMonths != 3 {
+		t.Fatalf("expected a 3-month (one quarter) free window, got %+v", discounts.freePeriods)
+	}
+	if businesses.activationPayment.ChargeRef != "" {
+		t.Fatalf("a full discount must NOT book a (zero) paid invoice, got %+v", businesses.activationPayment)
+	}
+	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 14700 {
 		t.Fatalf("expected the redemption marked applied with the full renewal as discount, got %+v", discounts.marked)
 	}
 }

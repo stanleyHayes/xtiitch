@@ -476,9 +476,10 @@ func (repo BusinessIdentityRepository) ActivateRecurringBilling(ctx context.Cont
 			provider = 'paystack',
 			provider_customer_ref = $2,
 			provider_subscription_ref = $3,
+			provider_channel = $4,
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.ProviderCustomerRef, input.ProviderSubscriptionRef); err != nil {
+	`, input.BusinessID.String(), input.ProviderCustomerRef, input.ProviderSubscriptionRef, input.ProviderChannel); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)

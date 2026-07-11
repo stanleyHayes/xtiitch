@@ -167,9 +167,11 @@ type CheckoutLink struct {
 	Reference   string
 }
 
-// InitializeCheckout starts a Paystack direct-debit authorization for the AI
-// Assistant add-on and returns the redirect link. The business is charged on
-// VerifyCheckout (and monthly thereafter), never here.
+// InitializeCheckout opens a STANDARD Paystack checkout for the AI Assistant
+// add-on's first month and returns the redirect link. The customer pays the first
+// month at checkout (MoMo or card); a card also yields a reusable authorization
+// that the monthly sweep charges thereafter. VerifyCheckout confirms and books that
+// first payment — it never re-charges (which would double-bill).
 func (s Service) InitializeCheckout(ctx context.Context, scope common.TenantScope, callbackURL string) (CheckoutLink, error) {
 	if scope.BusinessID.IsZero() || s.payments == nil || s.priceMinor <= 0 {
 		return CheckoutLink{}, ErrBillingUnavailable
@@ -182,10 +184,14 @@ func (s Service) InitializeCheckout(ctx context.Context, scope common.TenantScop
 	if email == "" {
 		return CheckoutLink{}, ErrBillingUnavailable
 	}
+	reference := addonChargeRef(s.ids.NewID())
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID:    scope.BusinessID,
 		CustomerEmail: email,
 		CallbackURL:   strings.TrimSpace(callbackURL),
+		AmountMinor:   s.priceMinor,
+		Currency:      s.currency,
+		Reference:     reference,
 	})
 	if err != nil {
 		return CheckoutLink{}, err
@@ -202,10 +208,11 @@ type CheckoutResult struct {
 	BillingStatus string
 }
 
-// VerifyCheckout confirms the Paystack authorization the business completed,
-// charges the first month, and — on a charge that activates (success/pending) —
-// turns the add-on on and stores the reusable authorization for the monthly
-// renewal sweep. A hard charge failure leaves the add-on off.
+// VerifyCheckout confirms the standard checkout the business completed — which
+// already PAID the first month — and turns the add-on on, storing any reusable
+// authorization for the monthly renewal sweep (a card yields one; MoMo yields none,
+// so the sweep re-prompts). It never re-charges (that would double-bill). A checkout
+// that was not completed/paid leaves the add-on off.
 func (s Service) VerifyCheckout(ctx context.Context, scope common.TenantScope, reference string) (CheckoutResult, error) {
 	if scope.BusinessID.IsZero() || s.payments == nil || s.priceMinor <= 0 {
 		return CheckoutResult{}, ErrBillingUnavailable
@@ -219,39 +226,16 @@ func (s Service) VerifyCheckout(ctx context.Context, scope common.TenantScope, r
 	if err != nil {
 		return CheckoutResult{}, err
 	}
+	if !verify.Succeeded {
+		return CheckoutResult{}, ErrCheckoutNotConfirmed
+	}
 	authCode := strings.TrimSpace(verify.AuthorizationCode)
 	customerCode := strings.TrimSpace(verify.CustomerCode)
-	if !verify.Active || authCode == "" || customerCode == "" {
-		return CheckoutResult{}, ErrCheckoutNotConfirmed
-	}
-
-	email := strings.TrimSpace(verify.CustomerEmail)
-	if email == "" {
-		ownerEmail, emailErr := s.addons.GetBusinessOwnerEmail(ctx, scope)
-		if emailErr != nil {
-			return CheckoutResult{}, emailErr
-		}
-		email = strings.TrimSpace(ownerEmail)
-	}
 
 	now := s.clock.Now().UTC()
-	chargeRef := addonChargeRef(s.ids.NewID())
-	charge, err := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
-		BusinessID:        scope.BusinessID,
-		AuthorizationCode: authCode,
-		CustomerEmail:     email,
-		AmountMinor:       s.priceMinor,
-		Currency:          s.currency,
-		Reference:         chargeRef,
-	})
-	if err != nil {
-		return CheckoutResult{}, err
-	}
-	if !chargeActivates(charge.Status) {
-		return CheckoutResult{}, ErrCheckoutNotConfirmed
-	}
-
 	nextCharge := now.AddDate(0, 1, 0)
+	// The first month is paid at checkout; UpsertAddonBilling is idempotent on
+	// (business, addon), so a replayed callback re-confirms the same active add-on.
 	if err := s.addons.UpsertAddonBilling(ctx, ports.UpsertAddonBillingInput{
 		BusinessID:       scope.BusinessID,
 		Addon:            business.AddonAIAssistant,
@@ -263,7 +247,7 @@ func (s Service) VerifyCheckout(ctx context.Context, scope common.TenantScope, r
 		Currency:         s.currency,
 		NextChargeAt:     &nextCharge,
 		LastChargedAt:    &now,
-		LastReference:    chargeRef,
+		LastReference:    reference,
 	}); err != nil {
 		return CheckoutResult{}, err
 	}

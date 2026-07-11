@@ -185,12 +185,27 @@ Before a shop can take online payments, Xtiitch verifies the owner with a **Ghan
 
 Paid plans are billed through **Paystack**.
 
-1. On the **Set up billing** screen you'll see the plan and its price (e.g. *"Authorize GHS 99/month with Paystack to activate your plan. You can manage or cancel anytime."*).
+1. On the **Set up billing** screen you'll see the plan and its price (billed **quarterly** or **yearly**).
 2. Provide your Ghana Card if it isn't already on file (see 3.2).
-3. Press **Continue to payment** (or **Save & continue to payment**). You are redirected to **Paystack** to authorize the recurring charge, then returned to your dashboard.
-4. You can **Skip for now — I'll do this later** and finish from the dashboard.
+3. Press **Continue to payment** (or **Save & continue to payment**). You are redirected to **Paystack checkout**, where you **pay the first period now** by **mobile money or card**, then you're returned to your dashboard with the plan active.
+4. If you paid by **card**, renewals are charged automatically each period. If you paid by **mobile money**, we can't auto-charge it, so we'll send you a one-tap reminder to pay each renewal.
+5. You can **Skip for now — I'll do this later** and finish from the dashboard.
+6. If you entered a promo code that makes the first period free, the plan activates immediately with no payment page.
 
-Behind the scenes, joining sets up your **Paystack subaccount** so customer payments settle directly to you; you never navigate Paystack yourself.
+Billing (paying Xtiitch for your plan) is **separate** from payouts (customers paying **you**). Setting up billing does **not** set up how you get paid — do that next.
+
+### 3.3a Set up payouts — how you get paid (required)
+
+**Until you set up payouts, customers can't check out from your store** — the storefront shows *"We couldn't start that payment"*, because there's nowhere to send your money. This is a one-time, ~30-second step.
+
+1. Go to **Settings → Payout details** (or tap **Set up payouts** on the Overview banner / your setup checklist).
+2. Choose your **mobile money network** — **MTN MoMo**, **Telecel (Vodafone) Cash**, or **AT (AirtelTigo) Money**.
+3. Enter your **mobile money number** (the one that receives the money — it must be a real number registered to you).
+4. Press **Save payout details**.
+
+That's it. From then on, when a customer pays, **your share goes straight to that MoMo number** and Xtiitch keeps only its commission — Xtiitch never holds your money. You never log in to Paystack; you only enter your MoMo number here. The "Payouts set up" step on your Overview checklist turns green once it's done.
+
+> Your first settlement may take a little longer while the payment provider confirms the account, but customers can pay you right away.
 
 ### 3.4 Getting around the dashboard
 
@@ -379,7 +394,7 @@ Still under **Subscriptions**, operators see revenue tiles (**Estimated base MRR
 - **Run sweep** — fail overdue invoices and cancel subscriptions whose grace window has expired.
 - **Run charges** — charge due recurring subscriptions through saved Paystack authorizations.
 
-Per business, **Manage billing** lets you set the **Status** (Active / Trialing / Past due / Grace period / Cancel at period end / Canceled) and **Mode** (Manual / Payment link / Recurring), manage the **Recurring authorization** (**Create auth** / **Verify auth**), and control invoices — **Issue invoice**, **Mark paid**, or **Mark failed** (statuses: Issued / Paid / Failed / Void). No funds move until a charge or invoice action explicitly triggers it.
+Per business, **Manage billing** lets you set the **Status** (Active / Trialing / Past due / Grace period / Cancel at period end / Canceled) and **Mode** (Manual / Payment link / Recurring), manage the **Recurring authorization** (**Create auth** opens a Paystack checkout where the business pays the current period and — if they pay by card — leaves a reusable authorization for future renewals; **Verify auth** confirms that payment and books the paid period), and control invoices — **Issue invoice**, **Mark paid**, or **Mark failed** (statuses: Issued / Paid / Failed / Void). Aside from the first-period checkout that **Create auth** starts, no funds move until a charge or invoice action explicitly triggers it.
 
 ### 5.6 Launch-readiness checks
 

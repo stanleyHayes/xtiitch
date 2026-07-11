@@ -77,6 +77,7 @@ func (a *upperAssistant) Assist(_ context.Context, input ports.AssistInput) (str
 type stubPayments struct {
 	initResult   ports.InitializeAuthorizationResult
 	initErr      error
+	initInput    ports.InitializeAuthorizationInput
 	verifyResult ports.VerifyAuthorizationResult
 	verifyErr    error
 	chargeResult ports.ChargeAuthorizationResult
@@ -84,7 +85,8 @@ type stubPayments struct {
 	charges      []ports.ChargeAuthorizationInput
 }
 
-func (p *stubPayments) InitializeAuthorization(_ context.Context, _ ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+func (p *stubPayments) InitializeAuthorization(_ context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
+	p.initInput = input
 	return p.initResult, p.initErr
 }
 
@@ -204,13 +206,16 @@ func TestInitializeCheckoutReturnsRedirect(t *testing.T) {
 	if link.RedirectURL != "https://pay.test/abc" || link.Reference != "ref-1" {
 		t.Fatalf("unexpected link: %+v", link)
 	}
+	// The standard checkout must be priced at the add-on's first month.
+	if payments.initInput.AmountMinor != 5000 || payments.initInput.Currency != "GHS" {
+		t.Fatalf("expected the checkout priced at the 5000 add-on fee, got %+v", payments.initInput)
+	}
 }
 
 func TestVerifyCheckoutActivatesOnSuccess(t *testing.T) {
 	addons := newStubAddons()
 	payments := &stubPayments{
-		verifyResult: ports.VerifyAuthorizationResult{Active: true, AuthorizationCode: "AUTH", CustomerCode: "CUS"},
-		chargeResult: ports.ChargeAuthorizationResult{Status: "success"},
+		verifyResult: ports.VerifyAuthorizationResult{Succeeded: true, AuthorizationCode: "AUTH", CustomerCode: "CUS"},
 	}
 	svc := newBillingService(addons, payments)
 
@@ -222,8 +227,9 @@ func TestVerifyCheckoutActivatesOnSuccess(t *testing.T) {
 	if !result.Active || result.BillingStatus != "active" {
 		t.Fatalf("expected active result, got %+v", result)
 	}
-	if len(payments.charges) != 1 || payments.charges[0].AmountMinor != 5000 {
-		t.Fatalf("expected one 5000 charge, got %+v", payments.charges)
+	// The first month was PAID at checkout; verify must NOT re-charge.
+	if len(payments.charges) != 0 {
+		t.Fatalf("verify must not re-charge a standard checkout, got %+v", payments.charges)
 	}
 	if len(addons.billing) != 1 || !addons.billing[0].Active || addons.billing[0].AuthorizationRef != "AUTH" {
 		t.Fatalf("expected active billing upsert with stored authorization, got %+v", addons.billing)
@@ -233,12 +239,34 @@ func TestVerifyCheckoutActivatesOnSuccess(t *testing.T) {
 	}
 }
 
-func TestVerifyCheckoutFailsWhenChargeFails(t *testing.T) {
+// A mobile-money checkout succeeds but yields NO reusable authorization; the add-on
+// still activates (the monthly sweep re-prompts, as it cannot silently debit MoMo).
+func TestVerifyCheckoutActivatesMobileMoneyWithoutAuthorization(t *testing.T) {
 	addons := newStubAddons()
 	payments := &stubPayments{
-		verifyResult: ports.VerifyAuthorizationResult{Active: true, AuthorizationCode: "AUTH", CustomerCode: "CUS"},
-		chargeResult: ports.ChargeAuthorizationResult{Status: "failed"},
+		verifyResult: ports.VerifyAuthorizationResult{Succeeded: true, Channel: "mobile_money"},
 	}
+	svc := newBillingService(addons, payments)
+
+	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
+	result, err := svc.VerifyCheckout(context.Background(), scope, "ref-1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Active || result.BillingStatus != "active" {
+		t.Fatalf("expected active result for a paid MoMo checkout, got %+v", result)
+	}
+	if len(payments.charges) != 0 {
+		t.Fatalf("verify must not charge, got %+v", payments.charges)
+	}
+	if len(addons.billing) != 1 || addons.billing[0].AuthorizationRef != "" {
+		t.Fatalf("expected active billing with no reusable authorization, got %+v", addons.billing)
+	}
+}
+
+func TestVerifyCheckoutRejectsUnpaidCheckout(t *testing.T) {
+	addons := newStubAddons()
+	payments := &stubPayments{verifyResult: ports.VerifyAuthorizationResult{Succeeded: false}}
 	svc := newBillingService(addons, payments)
 
 	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
@@ -246,21 +274,10 @@ func TestVerifyCheckoutFailsWhenChargeFails(t *testing.T) {
 		t.Fatalf("expected ErrCheckoutNotConfirmed, got %v", err)
 	}
 	if len(addons.billing) != 0 {
-		t.Fatal("must not activate billing when the charge fails")
-	}
-}
-
-func TestVerifyCheckoutRejectsUnverifiedAuthorization(t *testing.T) {
-	addons := newStubAddons()
-	payments := &stubPayments{verifyResult: ports.VerifyAuthorizationResult{Active: false}}
-	svc := newBillingService(addons, payments)
-
-	scope := common.TenantScope{BusinessID: common.ID("biz-1")}
-	if _, err := svc.VerifyCheckout(context.Background(), scope, "ref-1"); !errors.Is(err, ErrCheckoutNotConfirmed) {
-		t.Fatalf("expected ErrCheckoutNotConfirmed, got %v", err)
+		t.Fatal("must not activate billing when the checkout was not paid")
 	}
 	if len(payments.charges) != 0 {
-		t.Fatal("must not charge when the authorization is not active")
+		t.Fatal("must not charge when the checkout was not paid")
 	}
 }
 

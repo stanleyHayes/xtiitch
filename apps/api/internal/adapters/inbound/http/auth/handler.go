@@ -358,6 +358,10 @@ type subscriptionAuthorizationLinkResponse struct {
 	RedirectURL  string `json:"redirect_url"`
 	AccessCode   string `json:"access_code"`
 	Reference    string `json:"reference"`
+	// Activated is true when the plan went live immediately with no Paystack
+	// checkout (a free_period/full discount, or a period already paid). The
+	// dashboard then shows success instead of redirecting to a payment page.
+	Activated bool `json:"activated"`
 }
 
 func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
@@ -390,6 +394,7 @@ func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter
 		RedirectURL:  result.RedirectURL,
 		AccessCode:   result.AccessCode,
 		Reference:    result.Reference,
+		Activated:    result.Activated,
 	})
 }
 

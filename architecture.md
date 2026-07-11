@@ -80,6 +80,25 @@ holding sessions in httpOnly cookies (`xt_dashboard`, `xt_customer`, `xt_cart`,
 
 ---
 
+## 1b. Recent additions (July 2026 — Xtiitch Updates spec)
+
+Shipped on top of the base system; details live in the relevant sections and in `agent_plan.md`.
+
+- **Marketplace multi-store "pay once" (P0.4)** + **payout-provisioning gate (P0.5)** + Paystack fixes (`settlement_bank` on subaccount creation; webhook secret defaults to the secret key) — see the **payments** section. Validated live against Paystack test (real payment + webhook).
+- **Subscription / AI-add-on billing → standard Paystack checkout** — replaced the dead direct-debit **mandate** link (a 404 for this merchant account) with a normal `checkout.paystack.com` payment: the tenant/operator pays the first period (MoMo or card) at checkout, and the callback only **confirms + books** it (never re-charges). A card yields a reusable authorization that the recurring sweep charges each renewal; MoMo yields none, so the sweep re-prompts. Free-period / full (≥100%) discounts activate immediately with **no** checkout (a zero-amount checkout would be rejected). Subscription upgrade from the free plan now switches `plan_id` at billing setup so the fee gate passes. See the **payments** section.
+- **Colour variations** (`design_variations`, plan-capped) — a design carries named colour/fabric swatches, each an ordered image set; the storefront swaps the gallery, price/flow unchanged. Dashboard editor + `GET/POST/PATCH/DELETE /designs/{id}/variations(+/reorder)`.
+- **Per-design size-band overrides** (`design_size_band_overrides`) — a single design overrides a shared band's label/chart without touching the master; resolved on dashboard + storefront reads. `PUT/DELETE /designs/{id}/size-bands/{bandId}/override`.
+- **Bespoke display amount** (`designs.bespoke_display_minor`) — an indicative "from" price on customisation designs, distinct from the deposit.
+- **Per-day availability** (`availability_windows.specific_date` recurrence `date`; `availability_blackouts`) — one-off day hours + mark-a-day-unavailable alongside daily/weekly/monthly. `GET/POST /availability/blackouts`, `DELETE /availability/blackouts/{date}`.
+- **Per-stage-change customer notifications** (`order_stage_advanced` kind, deduped per `order@stage`; worker composes per-stage SMS) + a business `GET /stages` read so the dashboard renders the full four-stage board.
+- **Two-phone customer identity** (`customers.whatsapp_phone`) — a WhatsApp contact number distinct from the OTP-verified login phone.
+- **Account-gate before pay** — storefront checkout + bespoke-deposit flows require a verified customer session (prefilled from the profile); the API endpoints remain public and are gated server-side by the storefront actions.
+- **Unified multi-store basket** — the cart accumulates across shops grouped by store; per-store checkout on the proven single-store rail, plus the P0.4 "pay for all studios at once" split path.
+- Storefront **share-link fix** (`/design`,`/collection` → `/d`,`/c` redirects + graceful not-found), longer sessions (access 3h / refresh 90d / customer 90d), and cart-first buying (contact collected at checkout, not on the design page).
+- Migrations advanced to **`000080`**; ordering rule reaffirmed (always number above the highest ever committed — golang-migrate silently skips lower numbers).
+
+---
+
 ## 2. Technology stack
 
 | Layer | Technology |
@@ -800,7 +819,7 @@ Money movement for through-platform sales via Paystack split charges, plus off-p
 - `money.Commission(amountMinor, basisPoints) int64` — `amount*bps/10000`, floored to whole pesewa, never rounds in the platform's favour; ≤0 inputs → 0 — `commission.go:10`.
 - `money.DepositFloorMinor = 10000` (GHS 100 hard floor) + `ValidateDepositConfig` + `ResolveDeposit(designOverride, storeDefault)` — `deposit.go:8`,`:14`,`:26`.
 - `money.PaymentStatus` (`initiated`/`succeeded`/`failed`/`reversed`) — `payment.go:5`.
-- `money.PaymentPurpose` (`standard_full`/`deposit`/`balance`/`booking_deposit`/`cart_full`) + `Valid()` — `payment.go:14`,`:27`.
+- `money.PaymentPurpose` (`standard_full`/`deposit`/`balance`/`booking_deposit`/`cart_full`/`marketplace_split`) + `Valid()` — `payment.go:14`,`:27`.
 - `money.PaymentMethod` (`momo`/`card`) + `Valid()` — `payment.go:36`,`:43`.
 - `money.Payment` struct (ID/BusinessID/OrderID/Purpose/Amount/Method/ProviderReference/Status/ThroughPlatform/CommissionAmount) — `payment.go:52`.
 
@@ -821,7 +840,7 @@ Money movement for through-platform sales via Paystack split charges, plus off-p
 - `ProviderChargeEvent` carries an idempotency `Signature` (provider+type+reference) — `:489`.
 
 **Outbound Paystack adapter** (`apps/api/internal/adapters/outbound/paystack/`)
-- `Client` (live) — `NewClient(secretKey, webhookSecret)`; `CreateBusinessSubaccount` (POST `/subaccount`, `percentage_charge:0`), `InitializeTransaction` (POST `/transaction/initialize`; when a subaccount is present sends `subaccount`+`transaction_charge`+`bearer:"subaccount"`), `InitializeAuthorization` (POST `/customer/authorization/initialize`, `channel:"direct_debit"`), `VerifyAuthorization` (GET `/customer/authorization/verify/{ref}`), `ChargeAuthorization` (POST `/transaction/charge_authorization`) — `client.go:22`,`:46`,`:64`,`:95`,`:121`,`:148`.
+- `Client` (live) — `NewClient(secretKey, webhookSecret)`; `CreateBusinessSubaccount` (POST `/subaccount`, sends **`settlement_bank`** — the MoMo network code MTN/VOD/ATL or a bank code — which Paystack **requires**, plus `account_number`+`percentage_charge:0`), `InitializeTransaction` (POST `/transaction/initialize`; single-store sends `subaccount`+`transaction_charge`+`bearer:"subaccount"`, **marketplace** sends a flat multi-subaccount `split` object — see P0.4 below), `InitializeAuthorization` (POST `/transaction/initialize` — a **standard checkout** priced at the first-period `amount`, returns `authorization_url` = checkout.paystack.com; replaced the old `/customer/authorization/initialize` direct-debit **mandate** link, which resolved to a dead 404 page for this merchant account), `VerifyAuthorization` (GET `/transaction/verify/{ref}` — returns `Succeeded` (data.status=="success"), `AmountMinor` (data.amount), and the reusable `authorization.{authorization_code,channel,bank,reusable}` + `customer.{code,email}`), `ChargeAuthorization` (POST `/transaction/charge_authorization` — used ONLY by the recurring renewal sweeps for period 2+, never for the first period) — `client.go`.
 - `DevProvider` — used when no live secret is configured; stubs HTTP deterministically but runs **real** webhook verification + event parsing so the money path is exercised as in prod — `dev.go:14`.
 - `verifyWebhookSignature(secret, payload, signature)` — HMAC-**SHA512** of the raw body keyed by the webhook secret, **constant-time** compare; empty secret/sig → false — `signature.go:18`.
 - `parseChargeEvent(payload)` — `Succeeded` only for `charge.success` with data `status=="success"`; dedupe `Signature = "paystack:"+event+":"+reference` — `signature.go:42`.
@@ -846,6 +865,15 @@ The protected group (`:44`) reuses the business `authhttp.Authenticator`. The we
 - **Commission is floored** so the business always nets ≥ amount − commission − provider fee (`commission.go`); the service allows a bounded per-charge override only within `0..amount` (`service.go:126`).
 - **Offline takings are fee-free:** manual takings carry zero commission / `not_applicable` (`service.go:250`); `MoneySummary` net income = through-platform succeeded − platform commission + manual takings − offline commission due (`payment_repository.go:1139`).
 - **Signature over raw bytes:** verification always runs on the exact bytes the provider signed (never a decoded value), with HMAC-SHA512 constant-time compare (`signature.go`).
+
+**Payout provisioning (P0.5) & multi-store marketplace split (P0.4) — July 2026**
+- **Subaccount = the merchant's MoMo.** A store is payment-ready only once it has a provisioned Paystack subaccount (`businesses.settlement_provider_subaccount`). `VerifyBusinessCommand` carries a `SettlementBank` (MoMo network) alongside the number; without the bank code Paystack rejects the subaccount (`"Bank code is required"`). The dashboard payout panel collects Network + MoMo number → `POST /businesses/me/verify {settlement_bank, settlement_account}`. `GET /businesses/me` exposes **`payout_ready`** (subaccount non-empty) so the dashboard prompts setup on the real signal, not identity verification.
+- **Marketplace listing gate (P0.5):** `StorefrontRepository.ListPublicShops` lists only stores with a provisioned subaccount, so every marketplace-shoppable store can actually receive money. A store's own `<handle>.xtiitch.com` storefront is unaffected (resolved by handle, not the directory).
+- **"Pay once" split (P0.4):** a unified basket across N shops settles in ONE Paystack transaction. `paymentsapp.InitiateMarketplaceCharge` builds `InitializeTransactionInput.Splits` → a flat `split` object (`type:flat`, `bearer_type:all-proportional`, `subaccounts:[{subaccount,share}]`); each shop's **net** (order total − its per-design-capped commission) settles to its own subaccount, the platform's summed commission to the main account. When `Splits` is empty the single-subaccount path is byte-for-byte unchanged (zero regression).
+- **Cross-tenant settlement model:** migration `000080` adds **platform-level** (not tenant-scoped, like `payment_provider_events`) `marketplace_charges` (parent, keyed by provider reference) + `marketplace_charge_members` (one per shop: business, checkout group, anchor order, net, commission). `checkout.PlaceMarketplaceOrder` creates a per-shop group, computes each net/commission, then raises one combined charge; any failure discards every committed group (all-or-nothing). Endpoint: `POST /public/marketplace/orders` (pickup only).
+- **Isolated webhook branch:** `reconcileMarketplaceChargeFromProvider` fires only when no single-store payment matches the reference; gated once by the charge's `initiated→succeeded` transition, it confirms **each shop's group under that shop's own tenant scope** and writes a per-shop `marketplace_split` money-tracker row (synthetic `<ref>::<businessID>` reference). Idempotent on re-delivery. The existing single-store settlement path is untouched.
+- **Webhook secret:** Paystack signs webhooks with the **secret key**, so bootstrap defaults `PAYSTACK_WEBHOOK_SECRET` to `PAYSTACK_SECRET_KEY` when unset (`bootstrap/app.go`) — otherwise every signature check fails and nothing settles.
+- **Validated live** against the Paystack test API (2026-07-11): subaccount creation, the split-object shape, a real browser payment + genuine Paystack webhook confirming both shops' groups, and idempotency. See `agent_plan.md`.
 
 ---
 
@@ -1618,7 +1646,7 @@ Shared hook
 
 - **`login.tsx`** — `action` (`:42`) branches on intent: `mfa` (verify second factor against the stashed `mfaChallenge`, `:49`), `otp-request` (ask API to WhatsApp a code, `:94`), `otp-verify` (redeem code → session, may re-stash an MFA challenge, `:116`), default password login. Component (`:255`) has a **method toggle** password | WhatsApp (`method` state `:268`) plus a distinct MFA form when `mfaRequired`.
 - **`register.tsx`** — 3-step wizard (`step` state `:170`, `goNext`/`goBack` `:276`): **Step 1** store identity with live handle-availability (`/handle-check`, `handleStatus` `:224`), **Step 2** owner account + **WhatsApp code verify** (fetches `/business-otp` `:205`, then a code field), **Step 3** plan pick. `loader` (`:53`) loads plans; `action` (`:66`) submits registration incl. `whatsapp_number`/`whatsapp_code`.
-- **`billing-onboarding.tsx`** — `loader` (`:103`) reads plan + verification status; `action` (`:131`) requires a Ghana Card on file (number + front photo, uploaded via `lib/media`) unless already verified, then `startPaystackBilling` (`:66`) gets a recurring-authorization link and redirects to Paystack. `isIdentityOnFile` (`:42`).
+- **`billing-onboarding.tsx`** — `loader` (`:103`) reads plan + verification status; `action` (`:131`) requires a Ghana Card on file (number + front photo, uploaded via `lib/media`) unless already verified, then `startPaystackBilling` (`:105`) gets a **standard checkout** link (priced at the first period) and redirects to Paystack; if the API returns `activated:true` (free-period/full-discount/already-paid — no checkout needed) it redirects straight to `/dashboard?billing=active`. `isIdentityOnFile` (`:42`).
 - **Resource routes** — `handle-check.ts` (GET proxy → `/auth/business/handle-availability`, returns `{handle, available, reason}`) and `business-otp.ts` (POST proxy → `/auth/business[/register]/otp/request`; always resolves `{ok:true}` to keep account existence opaque). `ai-assist.ts` proxies the writing assistant with the session token.
 
 #### Notable patterns

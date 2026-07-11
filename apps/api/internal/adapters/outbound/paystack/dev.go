@@ -43,12 +43,21 @@ func (p DevProvider) InitializeAuthorization(_ context.Context, input ports.Init
 }
 
 func (p DevProvider) VerifyAuthorization(_ context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
+	// The dev checkout always "succeeds" and returns a reusable card authorization,
+	// so the subscription/add-on activation path runs end-to-end locally. AmountMinor
+	// is a positive PLACEHOLDER (the stub is stateless and never saw the checkout
+	// amount): the booked invoice must satisfy the amount_minor > 0 DB check, and the
+	// exact figure is irrelevant offline — real runs use the live Paystack client,
+	// whose /transaction/verify returns the actual amount collected.
 	return ports.VerifyAuthorizationResult{
+		Succeeded:         true,
+		AmountMinor:       10000,
 		AuthorizationCode: "AUTH_" + input.Reference,
 		CustomerCode:      "CUS_" + input.Reference,
 		CustomerEmail:     "owner@example.com",
-		Channel:           "direct_debit",
+		Channel:           "card",
 		Bank:              "Dev Bank",
+		Reusable:          true,
 		Active:            true,
 	}, nil
 }

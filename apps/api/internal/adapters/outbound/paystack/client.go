@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -116,56 +117,75 @@ func (c Client) InitializeTransaction(ctx context.Context, input ports.Initializ
 	}, nil
 }
 
+// InitializeAuthorization opens a STANDARD Paystack checkout (checkout.paystack.com)
+// for the first-period charge. The customer pays by MoMo or card; a card payment
+// also yields a reusable authorization (read back in VerifyAuthorization) for
+// later recurring charges. This replaces the old direct-debit mandate link, which
+// resolved to a dead page for this account.
 func (c Client) InitializeAuthorization(ctx context.Context, input ports.InitializeAuthorizationInput) (ports.InitializeAuthorizationResult, error) {
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {
-			RedirectURL string `json:"redirect_url"`
-			AccessCode  string `json:"access_code"`
-			Reference   string `json:"reference"`
+			AuthorizationURL string `json:"authorization_url"`
+			AccessCode       string `json:"access_code"`
+			Reference        string `json:"reference"`
 		} `json:"data"`
 	}
 	body := map[string]any{
-		"email":   input.CustomerEmail,
-		"channel": "direct_debit",
+		"email":     input.CustomerEmail,
+		"amount":    input.AmountMinor,
+		"currency":  input.Currency,
+		"reference": input.Reference,
 	}
 	if input.CallbackURL != "" {
 		body["callback_url"] = input.CallbackURL
 	}
-	if err := c.post(ctx, "/customer/authorization/initialize", body, &response); err != nil {
+	if err := c.post(ctx, "/transaction/initialize", body, &response); err != nil {
 		return ports.InitializeAuthorizationResult{}, err
 	}
 	return ports.InitializeAuthorizationResult{
-		RedirectURL: response.Data.RedirectURL,
+		RedirectURL: response.Data.AuthorizationURL,
 		AccessCode:  response.Data.AccessCode,
 		Reference:   response.Data.Reference,
 	}, nil
 }
 
+// VerifyAuthorization reads back the checkout transaction created by
+// InitializeAuthorization: whether it was paid, the amount, and the reusable
+// authorization captured for recurring charges.
 func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {
-			AuthorizationCode string `json:"authorization_code"`
-			Channel           string `json:"channel"`
-			Bank              string `json:"bank"`
-			Active            bool   `json:"active"`
-			Customer          struct {
+			Status   string `json:"status"`
+			Amount   int64  `json:"amount"`
+			Customer struct {
 				Code  string `json:"code"`
 				Email string `json:"email"`
 			} `json:"customer"`
+			Authorization struct {
+				AuthorizationCode string `json:"authorization_code"`
+				Bank              string `json:"bank"`
+				Channel           string `json:"channel"`
+				Reusable          bool   `json:"reusable"`
+			} `json:"authorization"`
 		} `json:"data"`
 	}
-	if err := c.get(ctx, "/customer/authorization/verify/"+url.PathEscape(input.Reference), &response); err != nil {
+	if err := c.get(ctx, "/transaction/verify/"+url.PathEscape(input.Reference), &response); err != nil {
 		return ports.VerifyAuthorizationResult{}, err
 	}
+	succeeded := response.Data.Status == "success"
+	authCode := strings.TrimSpace(response.Data.Authorization.AuthorizationCode)
 	return ports.VerifyAuthorizationResult{
-		AuthorizationCode: response.Data.AuthorizationCode,
+		Succeeded:         succeeded,
+		AmountMinor:       response.Data.Amount,
+		AuthorizationCode: authCode,
 		CustomerCode:      response.Data.Customer.Code,
 		CustomerEmail:     response.Data.Customer.Email,
-		Channel:           response.Data.Channel,
-		Bank:              response.Data.Bank,
-		Active:            response.Data.Active,
+		Channel:           response.Data.Authorization.Channel,
+		Bank:              response.Data.Authorization.Bank,
+		Reusable:          response.Data.Authorization.Reusable,
+		Active:            succeeded && authCode != "",
 	}, nil
 }
 

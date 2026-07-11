@@ -1580,7 +1580,9 @@ func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits(t *testin
 		&fakeAdminSessions{},
 		businesses,
 		now,
-		[]common.ID{"audit-init", "audit-verify"},
+		// Init consumes an ID for the checkout reference then one for its audit;
+		// verify consumes one for the paid invoice then one for its audit.
+		[]common.ID{"ref-init", "audit-init", "invoice-1", "audit-verify"},
 	)
 	provider := &fakePaymentProvider{
 		authorizationInitResult: ports.InitializeAuthorizationResult{
@@ -1589,10 +1591,12 @@ func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits(t *testin
 			Reference:   "ref_123",
 		},
 		authorizationVerifyResult: ports.VerifyAuthorizationResult{
+			Succeeded:         true,
+			AmountMinor:       12000,
 			AuthorizationCode: "AUTH_123",
 			CustomerCode:      "CUS_123",
 			CustomerEmail:     "owner@example.com",
-			Channel:           "direct_debit",
+			Channel:           "card",
 			Bank:              "Test Bank",
 			Active:            true,
 		},
