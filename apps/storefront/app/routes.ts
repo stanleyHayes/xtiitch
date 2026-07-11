@@ -10,6 +10,10 @@ export default [
   route("store/:handle", "routes/store.tsx"),
   route("d/:handle", "routes/design.tsx"),
   route("c/:handle", "routes/collection.tsx"),
+  // Canonicalise the long share paths the dashboard produces onto the short
+  // storefront routes above, so shared design/collection links resolve.
+  route("design/:handle", "routes/design-redirect.tsx"),
+  route("collection/:handle", "routes/collection-redirect.tsx"),
   route("cart", "routes/cart.tsx"),
   route("checkout", "routes/checkout.tsx"),
   route("track", "routes/track-lookup.tsx"),

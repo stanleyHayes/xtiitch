@@ -1,6 +1,7 @@
 import {
   Form,
   Link as RouterLink,
+  data,
   redirect,
   useNavigation,
 } from "react-router";
@@ -45,7 +46,7 @@ import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import { addToCart } from "../lib/cart";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
-import { DesignCard } from "../components/storefront";
+import { DesignCard, StoreNotice } from "../components/storefront";
 
 type RewardCodes = {
   promoCode: string;
@@ -58,7 +59,9 @@ type RewardCodes = {
 export async function loader({ params, request }: Route.LoaderArgs) {
   const design = await api.design(params.handle);
   if (!design) {
-    throw new Response("Design not found", { status: 404 });
+    // Deleted or unpublished: render a friendly in-store notice (below) rather
+    // than a hard error page. The 404 status keeps it out of search results.
+    return data({ notFound: true } as const, { status: 404 });
   }
   const rewardCodes = await rewardCodesFromRequest(request);
   const availabilityRange = availabilityRangeForRequest();
@@ -115,13 +118,20 @@ function relatedDesignsFor(current: Design, designs: Design[]): Design[] {
     .slice(0, 3);
 }
 
-export function meta({ data }: Route.MetaArgs) {
-  const title = data?.design.title ?? "Design";
+export function meta({ data: loaded }: Route.MetaArgs) {
+  const design = loaded && "design" in loaded ? loaded.design : null;
+  if (!design) {
+    return [
+      { title: "Piece unavailable · Xtiitch" },
+      { name: "robots", content: "noindex" },
+    ];
+  }
+  const title = design.title;
   return [
     { title: `${title} · Xtiitch` },
     {
       name: "description",
-      content: data?.design.description || `View ${title} on Xtiitch.`,
+      content: design.description || `View ${title} on Xtiitch.`,
     },
   ];
 }
@@ -2510,6 +2520,14 @@ export default function DesignPage({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
+  if ("notFound" in loaderData) {
+    return (
+      <StoreNotice
+        title="This piece is no longer available"
+        message="The design you're looking for has been removed or unpublished. Browse the rest of the store to find something you love."
+      />
+    );
+  }
   const { design } = loaderData;
   const rewardCodes = actionData?.rewardCodes ?? loaderData.rewardCodes;
   const referralPreview = loaderData.referralPreview;

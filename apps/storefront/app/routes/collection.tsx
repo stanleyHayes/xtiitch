@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, data } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -10,30 +10,47 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
 import type { Route } from "./+types/collection";
 import { api } from "../lib/api";
-import { DesignGrid } from "../components/storefront";
+import { DesignGrid, StoreNotice } from "../components/storefront";
 import { tokens } from "../theme";
 
 export async function loader({ params }: Route.LoaderArgs) {
   const page = await api.collection(params.handle);
   if (!page) {
-    throw new Response("Collection not found", { status: 404 });
+    // Deleted or unpublished: render a friendly in-store notice (below) rather
+    // than a hard error page. The 404 status keeps it out of search results.
+    return data({ notFound: true } as const, { status: 404 });
   }
   return { collection: page.collection, designs: page.designs };
 }
 
-export function meta({ data }: Route.MetaArgs) {
-  const name = data?.collection.name ?? "Collection";
+export function meta({ data: loaded }: Route.MetaArgs) {
+  const collection =
+    loaded && "collection" in loaded ? loaded.collection : null;
+  if (!collection) {
+    return [
+      { title: "Collection unavailable · Xtiitch" },
+      { name: "robots", content: "noindex" },
+    ];
+  }
+  const name = collection.name;
   return [
     { title: `${name} · Xtiitch` },
     {
       name: "description",
-      content:
-        data?.collection.theme || `Browse the ${name} collection on Xtiitch.`,
+      content: collection.theme || `Browse the ${name} collection on Xtiitch.`,
     },
   ];
 }
 
 export default function CollectionPage({ loaderData }: Route.ComponentProps) {
+  if ("notFound" in loaderData) {
+    return (
+      <StoreNotice
+        title="This collection is no longer available"
+        message="The collection you're looking for has been removed or unpublished. Head back to the store to browse everything on offer."
+      />
+    );
+  }
   const { collection, designs } = loaderData;
   const store = designs.find((design) => design.store)?.store;
 
