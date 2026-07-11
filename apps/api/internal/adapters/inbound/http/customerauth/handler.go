@@ -21,7 +21,7 @@ type Service interface {
 	VerifyEmailOTP(ctx context.Context, email string, code string) (customerauthapp.CustomerAuthResult, error)
 	ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error)
 	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
-	UpdateProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error)
+	UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error)
 }
 
 type Handler struct {
@@ -70,10 +70,11 @@ func isEmailChannel(channel string) bool {
 }
 
 type meResponse struct {
-	CustomerID  string `json:"customer_id"`
-	Phone       string `json:"phone"`
-	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
+	CustomerID    string `json:"customer_id"`
+	Phone         string `json:"phone"`
+	DisplayName   string `json:"display_name"`
+	Email         string `json:"email"`
+	WhatsAppPhone string `json:"whatsapp_phone"`
 }
 
 func (handler Handler) requestOTP(w http.ResponseWriter, r *http.Request) {
@@ -154,6 +155,7 @@ func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 	if profile, err := handler.service.GetProfile(r.Context(), verified.CustomerID); err == nil {
 		response.DisplayName = profile.DisplayName
 		response.Email = profile.Email
+		response.WhatsAppPhone = profile.WhatsAppPhone
 		if profile.Phone != "" {
 			response.Phone = profile.Phone
 		}
@@ -162,8 +164,9 @@ func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateProfileRequest struct {
-	DisplayName string `json:"display_name"`
-	Email       string `json:"email"`
+	DisplayName   string `json:"display_name"`
+	Email         string `json:"email"`
+	WhatsAppPhone string `json:"whatsapp_phone"`
 }
 
 func (handler Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
@@ -176,16 +179,17 @@ func (handler Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_request")
 		return
 	}
-	profile, err := handler.service.UpdateProfile(r.Context(), verified.CustomerID, request.DisplayName, request.Email)
+	profile, err := handler.service.UpdateProfile(r.Context(), verified.CustomerID, request.DisplayName, request.Email, request.WhatsAppPhone)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
 	writeJSON(w, http.StatusOK, meResponse{
-		CustomerID:  profile.CustomerID.String(),
-		Phone:       profile.Phone,
-		DisplayName: profile.DisplayName,
-		Email:       profile.Email,
+		CustomerID:    profile.CustomerID.String(),
+		Phone:         profile.Phone,
+		DisplayName:   profile.DisplayName,
+		Email:         profile.Email,
+		WhatsAppPhone: profile.WhatsAppPhone,
 	})
 }
 

@@ -125,6 +125,7 @@ export async function action({ request }: Route.ActionArgs) {
     const updated = await updateCustomerProfile(token, {
       display_name: String(form.get("display_name") ?? "").trim(),
       email: String(form.get("email") ?? "").trim(),
+      whatsapp_phone: String(form.get("whatsapp_phone") ?? "").trim(),
     });
     return {
       step: "identify",
@@ -384,6 +385,26 @@ function AccountHub({
                       startAdornment: (
                         <InputAdornment position="start">
                           <AlternateEmailRounded fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+                <TextField
+                  name="whatsapp_phone"
+                  label="WhatsApp number"
+                  type="tel"
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="024 000 0000"
+                  defaultValue={profile?.whatsapp_phone ?? ""}
+                  fullWidth
+                  helperText="Where the studio reaches you about an order. Separate from your login number."
+                  slotProps={{
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PhoneIphoneRounded fontSize="small" />
                         </InputAdornment>
                       ),
                     },

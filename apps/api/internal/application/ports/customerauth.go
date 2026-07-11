@@ -38,9 +38,10 @@ type CustomerAuthRepository interface {
 	// (cross-tenant, RLS bypass), newest first.
 	ListCustomerOrders(ctx context.Context, customerID common.ID) ([]CustomerOrderSummary, error)
 	// GetCustomerProfile / UpdateCustomerProfile read and edit the global customer
-	// identity (name, email). Phone is immutable (it's the verified login).
+	// identity (name, email, WhatsApp contact number). The login Phone is immutable
+	// (it's the verified login); WhatsAppPhone is a separate editable contact.
 	GetCustomerProfile(ctx context.Context, customerID common.ID) (CustomerProfile, error)
-	UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName string, email string) (CustomerProfile, error)
+	UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (CustomerProfile, error)
 }
 
 type CustomerOrderSummary struct {
@@ -54,10 +55,11 @@ type CustomerOrderSummary struct {
 }
 
 type CustomerProfile struct {
-	CustomerID  common.ID
-	DisplayName string
-	Phone       string
-	Email       string
+	CustomerID    common.ID
+	DisplayName   string
+	Phone         string
+	Email         string
+	WhatsAppPhone string
 }
 
 type CreateOTPChallengeInput struct {

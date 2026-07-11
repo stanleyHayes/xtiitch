@@ -110,6 +110,9 @@ export type CustomerProfile = {
   phone: string;
   display_name: string;
   email: string;
+  // A separate WhatsApp contact number the shopper can set, distinct from the
+  // OTP-verified login `phone`. The store owner uses it to chat about an order.
+  whatsapp_phone: string;
 };
 
 export async function fetchCustomerProfile(
@@ -143,7 +146,7 @@ export async function fetchCustomerOrders(
 
 export async function updateCustomerProfile(
   token: string,
-  input: { display_name: string; email: string },
+  input: { display_name: string; email: string; whatsapp_phone: string },
 ): Promise<CustomerProfile | null> {
   try {
     const response = await fetch(`${API_BASE}/v1/customer/me`, {

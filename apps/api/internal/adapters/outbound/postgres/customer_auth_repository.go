@@ -91,10 +91,10 @@ func (repo CustomerAuthRepository) GetCustomerProfile(ctx context.Context, custo
 
 	var p ports.CustomerProfile
 	if err := tx.QueryRow(ctx, `
-		select customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, '')
+		select customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, ''), coalesce(whatsapp_phone, '')
 		from customers
 		where customer_id = $1 and erased_at is null
-	`, customerID.String()).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email); err != nil {
+	`, customerID.String()).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email, &p.WhatsAppPhone); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.CustomerProfile{}, ErrNotFound
 		}
@@ -106,7 +106,7 @@ func (repo CustomerAuthRepository) GetCustomerProfile(ctx context.Context, custo
 	return p, nil
 }
 
-func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error) {
+func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.CustomerProfile{}, err
@@ -119,10 +119,10 @@ func (repo CustomerAuthRepository) UpdateCustomerProfile(ctx context.Context, cu
 	var p ports.CustomerProfile
 	if err := tx.QueryRow(ctx, `
 		update customers
-		set display_name = $2, email = $3
+		set display_name = $2, email = $3, whatsapp_phone = $4
 		where customer_id = $1 and erased_at is null
-		returning customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, '')
-	`, customerID.String(), displayName, email).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email); err != nil {
+		returning customer_id, coalesce(display_name, ''), coalesce(phone, ''), coalesce(email, ''), coalesce(whatsapp_phone, '')
+	`, customerID.String(), displayName, email, whatsAppPhone).Scan(&p.CustomerID, &p.DisplayName, &p.Phone, &p.Email, &p.WhatsAppPhone); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.CustomerProfile{}, ErrNotFound
 		}

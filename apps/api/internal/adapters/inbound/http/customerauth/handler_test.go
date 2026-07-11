@@ -168,7 +168,7 @@ func (s *fakeService) GetProfile(_ context.Context, _ common.ID) (ports.Customer
 	return ports.CustomerProfile{}, nil
 }
 
-func (s *fakeService) UpdateProfile(_ context.Context, _ common.ID, _ string, _ string) (ports.CustomerProfile, error) {
+func (s *fakeService) UpdateProfile(_ context.Context, _ common.ID, _, _, _ string) (ports.CustomerProfile, error) {
 	return ports.CustomerProfile{}, nil
 }
 

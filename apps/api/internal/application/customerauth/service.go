@@ -252,10 +252,19 @@ func (s Service) GetProfile(ctx context.Context, customerID common.ID) (ports.Cu
 	return s.repo.GetCustomerProfile(ctx, customerID)
 }
 
-// UpdateProfile edits the customer's display name and email. Phone is immutable
-// (it's the verified login).
-func (s Service) UpdateProfile(ctx context.Context, customerID common.ID, displayName string, email string) (ports.CustomerProfile, error) {
-	return s.repo.UpdateCustomerProfile(ctx, customerID, strings.TrimSpace(displayName), strings.TrimSpace(email))
+// UpdateProfile edits the customer's display name, email, and WhatsApp contact
+// number. The login Phone is immutable (it's the verified login). A WhatsApp
+// number is canonicalised to E.164 when it parses as a Ghana number, and kept
+// as entered otherwise (lenient — it's a contact detail, not an identity key);
+// an empty value clears it.
+func (s Service) UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error) {
+	whatsapp := strings.TrimSpace(whatsAppPhone)
+	if whatsapp != "" {
+		if canonical, err := normalizeGhanaPhone(whatsapp); err == nil {
+			whatsapp = canonical
+		}
+	}
+	return s.repo.UpdateCustomerProfile(ctx, customerID, strings.TrimSpace(displayName), strings.TrimSpace(email), whatsapp)
 }
 
 // normalizeEmail lowercases and trims, and validates a basic x@y.z shape. It

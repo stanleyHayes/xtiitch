@@ -252,7 +252,7 @@ func (r *fakeRepo) GetCustomerProfile(_ context.Context, _ common.ID) (ports.Cus
 	return ports.CustomerProfile{}, nil
 }
 
-func (r *fakeRepo) UpdateCustomerProfile(_ context.Context, _ common.ID, _ string, _ string) (ports.CustomerProfile, error) {
+func (r *fakeRepo) UpdateCustomerProfile(_ context.Context, _ common.ID, _, _, _ string) (ports.CustomerProfile, error) {
 	return ports.CustomerProfile{}, nil
 }
 
