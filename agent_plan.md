@@ -1497,7 +1497,19 @@ Shipped & pushed to main this session (backend-first; dashboard UI in flight):
 - `3be39ea` migrations renumbered 000072-74 → 000076-78 (were BELOW applied 000075 → would be skipped by golang-migrate); made idempotent. See [[migration-numbering-golang-migrate]].
 - `9c35bff` `GET /stages` (business stage templates) for the §9 four-stage board.
 
-IN FLIGHT (background agents): dashboard.tsx Wave-3 UI (§9 board, §11 per-day, §1b editor, §1c field, §1a/6 override, §8 forms reset, P0.5 payout setup UI); storefront §7 share-link 404 fix.
+Also shipped after the list above:
+- `bedbde2` §7 storefront share-link 404 fix (redirect /design,/collection → /d,/c; graceful not-found).
+- `0ad1374` §3c two-phone customer identity (migration 000079 customers.whatsapp_phone; GET/PATCH /customer/me + storefront account field).
+- `8140f22` §3b account-gate before pay (checkout + bespoke-deposit flows require a verified customer session; prefill from profile).
+- `2ea681c` §4(d) marketplace design click opens /d/:handle (stays on marketplace).
+
+IN FLIGHT: dashboard.tsx Wave-3 UI agent (§9 board, §11 per-day, §1b editor, §1c field, §1a/6 override, §8 forms reset, P0.5 payout setup UI) — integrate + commit on completion.
+
+REMAINING (item 4 core + P0.4) — deliberately NOT rushed; it changes the money path + webhook/settlement:
+- item 4 (a,b,c): multi-store UNIFIED cart on the apex/marketplace context, grouped by store, kept SEPARATE from the subdomain single-shop cart (two cart cookies / host-keyed, "don't merge"); cart UI grouped by store with per-store subtotals; per-store checkout.
+- P0.4: Paystack DYNAMIC split (N subaccounts + platform 1.95% share) in the provider client + ports.InitializeTransactionInput, so one marketplace charge settles across N stores; the webhook must confirm all per-store order groups idempotently. Depends on every store having a provisioned subaccount (P0.5).
+- SAFE INCREMENT if not doing P0.4: multi-store cart + PER-STORE checkout reusing the proven single-store split charge (no webhook change), deferring the single-charge multi-split.
+- Current checkout is strictly per-store: checkout/service.PlaceCartOrder resolves ONE store, one checkout group, one split charge to that store's single subaccount (payments/service.InitiateCharge → InitializeTransaction with one SubaccountRef). Cart is single-store today (cart.ts replaces on cross-store add).
 
 DECISION — P0.5 marketplace gate NOT applied: `ListPublicShops` deliberately lists ALL active stores regardless of payout verification (documented §4 / v1-review decision: "newly created stores must appear automatically"). Gating the LISTING on a provisioned subaccount would reverse that. Reconciliation: keep the directory open; the money path is already gated server-side (online_ordering benefit + Paystack init fails without a subaccount). Only the payout SETUP UI + onboarding banner is built (dashboard). Revisit only if the user wants unverified stores hidden.
 
