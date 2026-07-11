@@ -11,10 +11,41 @@ import (
 )
 
 func newService(repo *fakeCatalogueRepo) Service {
+	return newServiceWithSettings(repo, &fakeStoreSettingsRepo{})
+}
+
+// newServiceWithSettings wires an explicit store-settings fake so a test can drive
+// the subscription-status activation gate (a zero-value fake reports an empty
+// status ⇒ activated, leaving all existing tests unaffected).
+func newServiceWithSettings(repo *fakeCatalogueRepo, settings *fakeStoreSettingsRepo) Service {
 	return NewService(Dependencies{
 		Catalogue: repo,
+		Settings:  settings,
 		IDs:       &sequenceIDs{ids: []common.ID{"design-id", "token-source"}},
 	})
+}
+
+// fakeStoreSettingsRepo is a minimal StoreSettingsRepository for catalogue tests.
+// GetProfile returns the configured profile (empty SubscriptionStatus ⇒ activated).
+type fakeStoreSettingsRepo struct {
+	profile       ports.StoreProfile
+	settings      ports.StoreSettings
+	updated       *ports.StoreSettings
+	getProfileErr error
+}
+
+func (r *fakeStoreSettingsRepo) Get(_ context.Context, _ common.TenantScope) (ports.StoreSettings, error) {
+	return r.settings, nil
+}
+
+func (r *fakeStoreSettingsRepo) Update(_ context.Context, _ common.TenantScope, settings ports.StoreSettings) error {
+	updated := settings
+	r.updated = &updated
+	return nil
+}
+
+func (r *fakeStoreSettingsRepo) GetProfile(_ context.Context, _ common.TenantScope) (ports.StoreProfile, error) {
+	return r.profile, r.getProfileErr
 }
 func TestVariationCapForPlanMatchesPricingBook(t *testing.T) {
 	t.Parallel()
