@@ -15,7 +15,7 @@ jobs:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7
 
       - name: Setup Go
         uses: actions/setup-go@v6
@@ -26,14 +26,14 @@ jobs:
       # pnpm must be installed BEFORE setup-node so Node's pnpm cache can resolve
       # the `pnpm` executable (otherwise: "Unable to locate executable file: pnpm").
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
         with:
-          version: 11.0.0
+          version: 11.12.0
 
       - name: Setup Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@v6
         with:
-          node-version: 26
+          node-version: 26.3.1
           cache: pnpm
 
       - name: Install Node dependencies
@@ -41,7 +41,7 @@ jobs:
 
       # Enforced gate: the curated linter set (.golangci.yml) must be clean.
       - name: Go lint (curated, blocking)
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: apps/api
@@ -51,7 +51,7 @@ jobs:
       # build failure. Promote linters into the curated .golangci.yml as the code
       # is cleaned up.
       - name: Go lint (all linters, report-only)
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
           working-directory: apps/api
