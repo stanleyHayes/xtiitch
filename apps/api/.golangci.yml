@@ -2,31 +2,24 @@ version: "2"
 
 run:
   tests: true
+  go: "1.25"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# EVERY linter shipped with golangci-lint v2.8.0 is enabled (`default: all`,
+# 111 linters). This is a deliberate product-owner directive: leave none out.
+#
+# Noisy / highly-opinionated linters are TUNED via `settings` and SCOPED away
+# from test files via `exclusions.rules` — but every linter still runs against
+# production code. To relax something, prefer tuning its settings or adding a
+# targeted exclusion here; do NOT add a top-level `disable:` list, and never
+# remove a linter from the enabled set.
+#
+# During the refactor the gate is report-only (CI uses --issues-exit-code=0),
+# so a full clean-up can happen incrementally without blocking deploys.
+# ─────────────────────────────────────────────────────────────────────────────
 linters:
-  default: none
-  enable:
-    - bodyclose
-    - errcheck
-    - funlen
-    - gocognit
-    - gocyclo
-    - gofmt
-    - goimports
-    - gosec
-    - gosimple
-    - govet
-    - ineffassign
-    - lll
-    - misspell
-    - nakedret
-    - revive
-    - rowserrcheck
-    - sqlclosecheck
-    - staticcheck
-    - unconvert
-    - unparam
-    - unused
+  default: all
+  # No `disable:` — zero linters left out.
 
   settings:
     funlen:
@@ -36,6 +29,10 @@ linters:
       min-complexity: 15
     gocyclo:
       min-complexity: 15
+    cyclop:
+      max-complexity: 15
+    nestif:
+      min-complexity: 5
     lll:
       line-length: 140
     revive:
@@ -51,11 +48,27 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      - linters:
+      # Test files: relax size/complexity/strictness linters that fight
+      # table-driven tests and fixtures. These linters remain fully enabled for
+      # all production (non-test) code.
+      - path: _test\.go
+        linters:
           - funlen
           - gocognit
           - gocyclo
-        path: _integration_test\.go
+          - cyclop
+          - maintidx
+          - nestif
+          - dupl
+          - mnd
+          - exhaustruct
+          - err113
+          - wrapcheck
+          - varnamelen
+          - gochecknoglobals
+          - containedctx
+          - forcetypeassert
+          - gosec
     paths:
       - third_party$
       - builtin$
@@ -65,9 +78,15 @@ issues:
   max-issues-per-linter: 0
   max-same-issues: 0
 
+# Formatters are a separate v2 category from linters. gofmt + gofumpt (a strict
+# superset of gofmt) + goimports form a coherent, non-conflicting set. `gci`
+# and `golines` are intentionally omitted because they fight goimports' import
+# grouping / the lll line-length policy respectively; enable them only if you
+# also drop the conflicting counterpart.
 formatters:
   enable:
     - gofmt
+    - gofumpt
     - goimports
   exclusions:
     generated: lax
