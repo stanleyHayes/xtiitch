@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Form } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -5,10 +6,10 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
+import { CardDropzone } from "../../components/ui/CardDropzone";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 
@@ -21,6 +22,8 @@ export function BusinessVerificationPanel({
   error?: string;
   success?: string;
 }) {
+  const [photoName, setPhotoName] = useState("");
+  const [photoBackName, setPhotoBackName] = useState("");
   const verified = status === "verified";
   const pending = status === "pending";
   const rejected = status === "rejected";
@@ -100,27 +103,30 @@ export function BusinessVerificationPanel({
                 required
                 fullWidth
               />
-              <Box>
-                <Button
-                  component="label"
-                  variant="outlined"
-                  startIcon={<CloudUploadRounded />}
-                >
-                  Upload Ghana Card photo
-                  <input
-                    type="file"
-                    name="id_photo_file"
-                    accept="image/*"
-                    hidden
-                  />
-                </Button>
-                <Typography
-                  variant="caption"
-                  sx={{ display: "block", color: "text.secondary", mt: 0.5 }}
-                >
-                  A clear photo of the front of your Ghana Card.
-                </Typography>
-              </Box>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+              >
+                <CardDropzone
+                  name="id_photo_file"
+                  side="Front"
+                  fileName={photoName}
+                  onFile={setPhotoName}
+                />
+                <CardDropzone
+                  name="id_photo_back_file"
+                  side="Back"
+                  fileName={photoBackName}
+                  onFile={setPhotoBackName}
+                />
+              </Stack>
+              <Typography
+                variant="caption"
+                sx={{ display: "block", color: "text.secondary" }}
+              >
+                Clear photos of the front and back of your Ghana Card (both
+                required).
+              </Typography>
               <Button type="submit" variant="contained">
                 {rejected || pending
                   ? "Resubmit for review"

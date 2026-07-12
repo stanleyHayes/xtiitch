@@ -129,8 +129,8 @@ if (intent === "submit_identity_verification") {
     if (!cardNumber) {
       return { verificationError: "Enter your Ghana Card number." };
     }
-    // The photo is uploaded to Cloudinary first (same path as logos/designs);
-    // the API stores the resulting URL and moves the business to 'pending'.
+    // Both photos are uploaded to Cloudinary first (same path as logos/designs);
+    // the API stores the resulting URLs and moves the business to 'pending'.
     let photoURL = String(form.get("id_photo_url_existing") ?? "").trim();
     const photoFile = form.get("id_photo_file");
     if (photoFile instanceof File && photoFile.size > 0) {
@@ -141,7 +141,22 @@ if (intent === "submit_identity_verification") {
     }
     if (!photoURL) {
       return {
-        verificationError: "Upload a clear photo of your Ghana Card.",
+        verificationError: "Upload a clear photo of the front of your Ghana Card.",
+      };
+    }
+    let photoBackURL = String(
+      form.get("id_photo_back_url_existing") ?? "",
+    ).trim();
+    const photoBackFile = form.get("id_photo_back_file");
+    if (photoBackFile instanceof File && photoBackFile.size > 0) {
+      const uploaded = await uploadDesignImage(request, photoBackFile);
+      if (uploaded) {
+        photoBackURL = uploaded;
+      }
+    }
+    if (!photoBackURL) {
+      return {
+        verificationError: "Upload a clear photo of the back of your Ghana Card.",
       };
     }
     const response = await apiFetch(
@@ -153,6 +168,7 @@ if (intent === "submit_identity_verification") {
         body: JSON.stringify({
           card_number: cardNumber,
           id_photo_url: photoURL,
+          id_photo_back_url: photoBackURL,
         }),
       },
     );
