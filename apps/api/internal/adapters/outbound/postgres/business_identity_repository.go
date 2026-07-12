@@ -222,11 +222,18 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(
 	// Every business needs a subscription row on its chosen plan (the admin
 	// console and the recurring-billing sweep read it). The migration only
 	// backfilled pre-existing tenants, so create one here for new signups.
+	//
+	// A FREE plan (no monthly fee) is active immediately; a PAID plan starts
+	// 'trialing' = Pending Activation, and only becomes 'active' once its first
+	// invoice is paid (ActivateRecurringBilling). This is the source-of-truth
+	// behind the activation gate: paid entitlements are not granted until paid.
 	if _, err := tx.Exec(ctx, `
 		insert into business_subscriptions (business_id, plan_id, status)
-		select business_id, plan_id, 'active'
-		from businesses
-		where business_id = $1
+		select b.business_id, b.plan_id,
+			case when p.monthly_fee_minor = 0 then 'active' else 'trialing' end
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1
 		on conflict (business_id) do nothing
 	`, input.BusinessID.String()); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
