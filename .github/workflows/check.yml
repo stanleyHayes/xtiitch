@@ -49,10 +49,12 @@ jobs:
           working-directory: apps/api
 
       # Visibility only: the full linter set (all linters, .golangci.full.yml).
-      # --issues-exit-code=0 keeps it non-blocking — a burn-down report, never a
-      # build failure. Promote linters into the curated .golangci.yml as the code
-      # is cleaned up.
+      # A burn-down report, never a build failure. golangci-lint-action@v9 fails
+      # the STEP whenever it surfaces issues (regardless of --issues-exit-code),
+      # so continue-on-error is what actually keeps it non-blocking. Promote
+      # linters into the curated .golangci.yml as the code is cleaned up.
       - name: Go lint (all linters, report-only)
+        continue-on-error: true
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.12.2
