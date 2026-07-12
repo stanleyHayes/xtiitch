@@ -25,10 +25,12 @@ jobs:
 
       # pnpm must be installed BEFORE setup-node so Node's pnpm cache can resolve
       # the `pnpm` executable (otherwise: "Unable to locate executable file: pnpm").
-      # action-setup@v4 (standalone @pnpm/exe download) — v6's headless-lockfile
-      # self-install crashes on 11.12.0 ("Cannot use 'in' operator ... integrity").
+      # Pinned to v4.4.0 specifically: the v4 line's standalone @pnpm/exe download
+      # avoids v6's headless-lockfile self-install crash on 11.12.0 ("Cannot use
+      # 'in' operator ... integrity"), and v4.4.0 runs on node24 (the floating
+      # @v4 tag still points at a node20 build, which GitHub is deprecating).
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v4.4.0
         with:
           version: 11.12.0
 
