@@ -12,6 +12,7 @@ import { RailFooter } from "./RailFooter";
 
 export function WorkspaceRail({
   profile,
+  verified,
   workspaceGroups,
   section,
   storefrontURL,
@@ -89,6 +90,7 @@ export function WorkspaceRail({
           profile={profile}
           storefrontURL={storefrontURL}
           compact={compact}
+          verified={verified}
           pendingActivation={pendingActivation}
         />
       </Stack>

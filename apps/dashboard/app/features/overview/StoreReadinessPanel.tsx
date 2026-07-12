@@ -12,19 +12,24 @@ import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import { tokens } from "../../theme";
 import { SetupStep } from "../shared/types";
-import { ACTIVATION_PATH } from "../../lib/activation";
+import { storefrontGate } from "../../lib/activation";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 
 export function StoreReadinessPanel({
   steps,
   storefrontURL,
+  verified,
   pendingActivation,
-}: {
+}: Readonly<{
   steps: SetupStep[];
   storefrontURL: string;
+  verified: boolean;
   pendingActivation: boolean;
-}) {
+}>) {
+  // The storefront isn't live until the store is verified and activated; until
+  // then the CTA routes to the blocking step instead of a not-yet-live page.
+  const gate = storefrontGate(verified, !pendingActivation);
   const completed = steps.filter((step) => step.done).length;
   const progress = steps.length === 0 ? 0 : (completed / steps.length) * 100;
 
@@ -145,12 +150,12 @@ export function StoreReadinessPanel({
         ))}
       </Stack>
 
-      {pendingActivation ? (
-        // The storefront isn't live until the plan is activated, so point the
-        // owner at activation instead of a not-yet-live page.
+      {gate.locked ? (
+        // The storefront isn't live yet, so point the owner at the blocking step
+        // (verify or activate) instead of a not-yet-live page.
         <Button
           component={RouterLink}
-          to={ACTIVATION_PATH}
+          to={gate.href}
           fullWidth
           variant="contained"
           startIcon={<BoltRounded />}
@@ -162,7 +167,7 @@ export function StoreReadinessPanel({
             "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
           }}
         >
-          Activate to open storefront
+          {gate.cta}
         </Button>
       ) : (
         <Button

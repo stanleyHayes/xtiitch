@@ -16,6 +16,7 @@ import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import type { Profile, CurrentUser } from "../../../shared/types";
 import { roleLabel } from "../../../shared/utils";
+import { storefrontGate } from "../../../../lib/activation";
 
 export function UserMenuItems({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   profile,
@@ -36,6 +37,8 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
   onStartTour: () => void;
   onClose: () => void;
 }) {
+  // The storefront isn't live until the business is verified and activated.
+  const gate = storefrontGate(verified, !pendingActivation);
   return (
     <>
       {/* Identity band */}
@@ -165,10 +168,10 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
           </MenuItem>
         ))}
         <MenuItem
-          // The public storefront isn't live until the plan is activated, so the
-          // link is disabled (and its helper explains why) rather than opening a
-          // not-yet-live page. The activation CTA lives in the banner and rail.
-          {...(pendingActivation
+          // The public storefront isn't live until the store is verified and
+          // activated, so the link is disabled (and its helper explains why)
+          // rather than opening a not-yet-live page.
+          {...(gate.locked
             ? { disabled: true }
             : {
                 component: MuiLink,
@@ -214,9 +217,7 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
               sx={{ color: "text.secondary" }}
               noWrap
             >
-              {pendingActivation
-                ? "Activate your plan to open it"
-                : "Open your public store"}
+              {gate.locked ? gate.hint : "Open your public store"}
             </Typography>
           </Box>
         </MenuItem>

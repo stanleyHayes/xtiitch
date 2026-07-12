@@ -377,6 +377,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
               <StoreReadinessPanel
                 steps={overview.setupSteps}
                 storefrontURL={`https://${profile.handle}.xtiitch.com`}
+                verified={profile.verification_status === "verified"}
                 pendingActivation={pendingActivation}
               />
               <TodayFocusPanel

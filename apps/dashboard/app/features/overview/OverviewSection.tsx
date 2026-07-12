@@ -23,6 +23,7 @@ export function OverviewSection({
   setupSteps,
   storefrontURL,
   payoutReady,
+  verified,
   pendingActivation,
 }: {
   liveOrders: OrderSummary[];
@@ -37,6 +38,7 @@ export function OverviewSection({
   setupSteps: SetupStep[];
   storefrontURL: string;
   payoutReady: boolean;
+  verified: boolean;
   pendingActivation: boolean;
 }) {
   return (
@@ -99,6 +101,7 @@ export function OverviewSection({
           <StoreReadinessPanel
             steps={setupSteps}
             storefrontURL={storefrontURL}
+            verified={verified}
             pendingActivation={pendingActivation}
           />
           <TodayFocusPanel

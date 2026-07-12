@@ -85,3 +85,47 @@ export function activationPlanLabel(status: {
 export function activationPromptMessage(planLabel: string): string {
   return `Activate your ${planLabel} plan to start using Xtiitch`;
 }
+
+// Deep link to the settings "Business verification" panel (Panel id="verification").
+export const VERIFICATION_PATH = "/dashboard/settings#verification";
+
+// The public storefront is only live once the business is VERIFIED and (for paid
+// plans) its plan is ACTIVATED. Until then, every "view storefront" control is
+// locked so owners aren't sent to a not-yet-live (404) page. Verification is
+// surfaced first because it's the gate every store — free or paid — must clear;
+// a free plan is always `activated`, so for it the gate is purely verification.
+export type StorefrontGate = {
+  locked: boolean;
+  reason: "verify" | "activate" | null;
+  // Short copy for tooltips / helper text explaining why it's locked.
+  hint: string;
+  // Where the owner should go to clear the block (used by CTA buttons).
+  href: string;
+  // Label for a CTA button that routes to `href`.
+  cta: string;
+};
+
+export function storefrontGate(
+  verified: boolean,
+  activated: boolean,
+): StorefrontGate {
+  if (!verified) {
+    return {
+      locked: true,
+      reason: "verify",
+      hint: "Verify your business to open your storefront",
+      href: VERIFICATION_PATH,
+      cta: "Verify to open storefront",
+    };
+  }
+  if (!activated) {
+    return {
+      locked: true,
+      reason: "activate",
+      hint: "Activate your plan to open your storefront",
+      href: ACTIVATION_PATH,
+      cta: "Activate to open storefront",
+    };
+  }
+  return { locked: false, reason: null, hint: "", href: "", cta: "" };
+}

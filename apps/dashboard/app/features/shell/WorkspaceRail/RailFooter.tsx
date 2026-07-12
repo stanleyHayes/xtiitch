@@ -10,32 +10,30 @@ import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import { tokens } from "../../../theme";
-import { ACTIVATION_PATH } from "../../../lib/activation";
+import { ACTIVATION_PATH, storefrontGate } from "../../../lib/activation";
 import type { Profile } from "../../shared/types";
 
 export function RailFooter({ // eslint-disable-line max-lines-per-function -- large presentational footer with compact/expanded button variants; refactor in follow-up
   profile,
   storefrontURL,
   compact,
+  verified,
   pendingActivation,
-}: {
+}: Readonly<{
   profile: Profile;
   storefrontURL: string;
   compact: boolean;
+  verified: boolean;
   pendingActivation: boolean;
-}) {
-  // Until the store is activated, its public storefront isn't live yet, so the
-  // "View storefront" control is disabled with a tooltip pointing at activation
-  // (the adjacent "Activate plan" button below is the way forward) rather than
-  // opening a not-yet-live page.
-  const storefrontHint = "Activate your plan to open your storefront";
+}>) {
+  // The public storefront isn't live until the business is verified AND its plan
+  // is activated, so the "View storefront" control is disabled with a tooltip
+  // pointing at the blocking step rather than opening a not-yet-live page.
+  const gate = storefrontGate(verified, !pendingActivation);
   return (
     <Box sx={{ mt: "auto" }}>
-      {pendingActivation ? (
-        <Tooltip
-          title={storefrontHint}
-          placement={compact ? "right" : "top"}
-        >
+      {gate.locked ? (
+        <Tooltip title={gate.hint} placement={compact ? "right" : "top"}>
           <Box component="span" sx={{ display: "block", width: "100%" }}>
             {compact ? (
               <IconButton
