@@ -45,6 +45,13 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return "", err
 	}
+	profile, err := s.settings.GetProfile(ctx, cmd.Scope)
+	if err != nil {
+		return "", err
+	}
+	if activationPending(profile.SubscriptionStatus) {
+		return "", ErrActivationRequired
+	}
 	title, err := cmd.validate()
 	if err != nil {
 		return "", err
@@ -88,6 +95,13 @@ func (cmd DesignCommand) displayForMode() int64 {
 func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
 	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return err
+	}
+	profile, err := s.settings.GetProfile(ctx, cmd.Scope)
+	if err != nil {
+		return err
+	}
+	if activationPending(profile.SubscriptionStatus) {
+		return ErrActivationRequired
 	}
 	title, err := cmd.validate()
 	if err != nil {

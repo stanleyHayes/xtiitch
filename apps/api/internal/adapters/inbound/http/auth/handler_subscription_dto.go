@@ -58,6 +58,17 @@ type subscriptionAuthorizationVerifyResponse struct {
 	ProviderSubscriptionRef string `json:"provider_subscription_ref"`
 }
 
+// subscriptionActivationResponse is the dashboard activation banner/page payload:
+// whether the paid plan has activated (paid its first invoice), its status, plan
+// code/name, and the first-purchase amount due to activate.
+type subscriptionActivationResponse struct {
+	Activated      bool   `json:"activated"`
+	Status         string `json:"status"`
+	PlanCode       string `json:"plan_code"`
+	PlanName       string `json:"plan_name"`
+	AmountDueMinor int    `json:"amount_due_minor"`
+}
+
 type changeSubscriptionPlanRequest struct {
 	PlanCode string `json:"plan_code"`
 }
