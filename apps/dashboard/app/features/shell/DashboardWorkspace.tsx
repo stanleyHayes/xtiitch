@@ -305,6 +305,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
             darkChrome={darkChrome}
             notificationCount={overview.pendingMessages}
             storefrontURL={storefrontURL}
+            pendingActivation={!activation.activated}
             onOpenMobileNav={() => setMobileNavOpen(true)}
             onToggleCollapsed={() => setRailCollapsed((value) => !value)}
             onToggleDarkChrome={toggleMode}

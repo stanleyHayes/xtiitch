@@ -13,12 +13,14 @@ export function UserMenu({
   currentUser,
   verified,
   storefrontURL,
+  pendingActivation,
   onStartTour,
 }: {
   profile: Profile;
   currentUser: CurrentUser;
   verified: boolean;
   storefrontURL: string;
+  pendingActivation: boolean;
   onStartTour: () => void;
 }) {
   const [profileAnchor, setProfileAnchor] = useState<null | HTMLElement>(null);
@@ -90,6 +92,7 @@ export function UserMenu({
           currentUser={currentUser}
           verified={verified}
           storefrontURL={storefrontURL}
+          pendingActivation={pendingActivation}
           avatarLabel={avatarLabel}
           onStartTour={onStartTour}
           onClose={closeProfileMenu}

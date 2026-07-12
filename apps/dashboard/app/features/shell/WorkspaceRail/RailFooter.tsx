@@ -24,9 +24,52 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
   compact: boolean;
   pendingActivation: boolean;
 }) {
+  // Until the store is activated, its public storefront isn't live yet, so the
+  // "View storefront" control is disabled with a tooltip pointing at activation
+  // (the adjacent "Activate plan" button below is the way forward) rather than
+  // opening a not-yet-live page.
+  const storefrontHint = "Activate your plan to open your storefront";
   return (
     <Box sx={{ mt: "auto" }}>
-      {compact ? (
+      {pendingActivation ? (
+        <Tooltip
+          title={storefrontHint}
+          placement={compact ? "right" : "top"}
+        >
+          <Box component="span" sx={{ display: "block", width: "100%" }}>
+            {compact ? (
+              <IconButton
+                disabled
+                aria-label="View storefront"
+                sx={{
+                  width: "100%",
+                  height: 48,
+                  border: "1px solid",
+                  borderColor: alpha(tokens.white, 0.1),
+                  bgcolor: alpha(tokens.burgundy, 0.3),
+                  borderRadius: 1.5,
+                  "&.Mui-disabled": { color: alpha(tokens.white, 0.4) },
+                }}
+              >
+                <VisibilityRounded />
+              </IconButton>
+            ) : (
+              <Button
+                disabled
+                variant="contained"
+                startIcon={<VisibilityRounded />}
+                fullWidth
+                sx={{
+                  bgcolor: alpha(tokens.burgundy, 0.3),
+                  "&.Mui-disabled": { color: alpha(tokens.white, 0.5) },
+                }}
+              >
+                View storefront
+              </Button>
+            )}
+          </Box>
+        </Tooltip>
+      ) : compact ? (
         <Tooltip title="View storefront" placement="right">
           <IconButton
             component="a"

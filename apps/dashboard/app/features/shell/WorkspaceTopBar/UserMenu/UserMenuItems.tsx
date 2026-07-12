@@ -22,6 +22,7 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
   currentUser,
   verified,
   storefrontURL,
+  pendingActivation,
   avatarLabel,
   onStartTour,
   onClose,
@@ -30,6 +31,7 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
   currentUser: CurrentUser;
   verified: boolean;
   storefrontURL: string;
+  pendingActivation: boolean;
   avatarLabel: string;
   onStartTour: () => void;
   onClose: () => void;
@@ -163,11 +165,18 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
           </MenuItem>
         ))}
         <MenuItem
-          component={MuiLink}
-          href={storefrontURL}
-          target="_blank"
-          rel="noreferrer"
-          onClick={onClose}
+          // The public storefront isn't live until the plan is activated, so the
+          // link is disabled (and its helper explains why) rather than opening a
+          // not-yet-live page. The activation CTA lives in the banner and rail.
+          {...(pendingActivation
+            ? { disabled: true }
+            : {
+                component: MuiLink,
+                href: storefrontURL,
+                target: "_blank",
+                rel: "noreferrer",
+                onClick: onClose,
+              })}
           sx={{
             px: 2,
             py: 1.1,
@@ -205,7 +214,9 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
               sx={{ color: "text.secondary" }}
               noWrap
             >
-              Open your public store
+              {pendingActivation
+                ? "Activate your plan to open it"
+                : "Open your public store"}
             </Typography>
           </Box>
         </MenuItem>

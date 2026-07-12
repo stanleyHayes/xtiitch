@@ -21,6 +21,7 @@ export function WorkspaceTopBar({
   darkChrome,
   notificationCount,
   storefrontURL,
+  pendingActivation,
   onOpenMobileNav,
   onToggleCollapsed,
   onToggleDarkChrome,
@@ -35,6 +36,7 @@ export function WorkspaceTopBar({
   darkChrome: boolean;
   notificationCount: number;
   storefrontURL: string;
+  pendingActivation: boolean;
   onOpenMobileNav: () => void;
   onToggleCollapsed: () => void;
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
@@ -140,6 +142,7 @@ export function WorkspaceTopBar({
             currentUser={currentUser}
             verified={verified}
             storefrontURL={storefrontURL}
+            pendingActivation={pendingActivation}
             onStartTour={onStartTour}
           />
         </Stack>

@@ -6,20 +6,24 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import BoltRounded from "@mui/icons-material/BoltRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import { tokens } from "../../theme";
 import { SetupStep } from "../shared/types";
+import { ACTIVATION_PATH } from "../../lib/activation";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 
 export function StoreReadinessPanel({
   steps,
   storefrontURL,
+  pendingActivation,
 }: {
   steps: SetupStep[];
   storefrontURL: string;
+  pendingActivation: boolean;
 }) {
   const completed = steps.filter((step) => step.done).length;
   const progress = steps.length === 0 ? 0 : (completed / steps.length) * 100;
@@ -141,17 +145,38 @@ export function StoreReadinessPanel({
         ))}
       </Stack>
 
-      <Button
-        href={storefrontURL}
-        target="_blank"
-        rel="noreferrer"
-        fullWidth
-        variant="outlined"
-        startIcon={<StorefrontRounded />}
-        sx={{ mt: 1.5 }}
-      >
-        Open storefront
-      </Button>
+      {pendingActivation ? (
+        // The storefront isn't live until the plan is activated, so point the
+        // owner at activation instead of a not-yet-live page.
+        <Button
+          component={RouterLink}
+          to={ACTIVATION_PATH}
+          fullWidth
+          variant="contained"
+          startIcon={<BoltRounded />}
+          sx={{
+            mt: 1.5,
+            bgcolor: tokens.gold,
+            color: tokens.charcoal,
+            fontWeight: 800,
+            "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
+          }}
+        >
+          Activate to open storefront
+        </Button>
+      ) : (
+        <Button
+          href={storefrontURL}
+          target="_blank"
+          rel="noreferrer"
+          fullWidth
+          variant="outlined"
+          startIcon={<StorefrontRounded />}
+          sx={{ mt: 1.5 }}
+        >
+          Open storefront
+        </Button>
+      )}
     </Panel>
   );
 }

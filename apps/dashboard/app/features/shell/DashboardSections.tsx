@@ -377,6 +377,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
               <StoreReadinessPanel
                 steps={overview.setupSteps}
                 storefrontURL={`https://${profile.handle}.xtiitch.com`}
+                pendingActivation={pendingActivation}
               />
               <TodayFocusPanel
                 pendingPayments={overview.pendingPayments}
