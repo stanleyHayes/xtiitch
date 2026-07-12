@@ -18,7 +18,11 @@ func (repo BusinessIdentityRepository) ListActivePlans(ctx context.Context) ([]p
 			quarterly_first_minor, quarterly_renewal_minor, yearly_first_minor, yearly_renewal_minor
 		from plans
 		where is_active = true
-		order by monthly_fee_minor asc, name asc
+		-- Order by real tier price, cheapest first (free, starter, growth, studio).
+		-- NOT monthly_fee_minor: monthly billing isn't sold and that field is a
+		-- nominal placeholder (starter & growth both GHS 1), which tied and flipped
+		-- their order. yearly_first_minor is distinct and correctly tier-ordered.
+		order by yearly_first_minor asc, monthly_fee_minor asc, code asc
 	`)
 	if err != nil {
 		return nil, err

@@ -259,6 +259,20 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
           ) : null}
 
           <Form method="post">
+            {/* Each step renders conditionally, so a step's inputs are unmounted
+                while it isn't visible — and the submit happens on the LAST step,
+                where the store/account fields no longer exist in the DOM. These
+                hidden inputs (bound to state) carry every value into the submit so
+                nothing is dropped (previously the password/email/name arrived
+                empty, e.g. "choose a password with at least 8 characters"). */}
+            <input type="hidden" name="business_name" value={businessName} />
+            <input type="hidden" name="business_handle" value={handle} />
+            <input type="hidden" name="owner_display_name" value={ownerName} />
+            <input type="hidden" name="owner_email" value={email} />
+            <input type="hidden" name="owner_password" value={password} />
+            <input type="hidden" name="owner_phone" value={ownerPhone} />
+            <input type="hidden" name="whatsapp_number" value={whatsappNumber} />
+            <input type="hidden" name="whatsapp_code" value={whatsappCode} />
             {step === 0 ? (
               <RegisterStepStore
                 businessName={businessName}
