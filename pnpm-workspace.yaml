@@ -2,12 +2,14 @@ packages:
   - "apps/*"
   - "packages/*"
 
-# pnpm 10+/11 blocks dependency build scripts by default (supply-chain safety),
-# emitting ERR_PNPM_IGNORED_BUILDS. Allowlist the packages that legitimately need
-# their native / postinstall build to run, otherwise the worker (and any esbuild
-# consumer) ships without its binary and the Render build fails:
+# pnpm 11 defaults to strictDepBuilds: dependency build scripts are blocked
+# (ERR_PNPM_IGNORED_BUILDS) unless listed here. NOTE: v11 REMOVED the v10
+# `onlyBuiltDependencies` list and replaced it with `allowBuilds` (a
+# package -> bool map). Allow the packages that legitimately need their native /
+# postinstall build, otherwise the worker (and esbuild consumers) ship without a
+# binary and the Render build fails.
 #   - esbuild: links its platform binary (used by vite + tsx across the workspace)
 #   - msgpackr-extract: native msgpack addon used by the worker
-onlyBuiltDependencies:
-  - esbuild
-  - msgpackr-extract
+allowBuilds:
+  esbuild: true
+  msgpackr-extract: true
