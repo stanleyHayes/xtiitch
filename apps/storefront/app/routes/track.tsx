@@ -17,4 +17,11 @@ export function meta({ data }: Route.MetaArgs) {
   ];
 }
 
-export { default } from "../features/track/track-page";
+// React Router injects loaderData/actionData props only into a route module's
+// LOCALLY-declared default export, not a bare re-export — wrap the moved
+// component so the props are injected here and forwarded on.
+import TrackPage from "../features/track/track-page";
+
+export default function TrackRoute(props: Route.ComponentProps) {
+  return <TrackPage {...props} />;
+}

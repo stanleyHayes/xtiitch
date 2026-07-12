@@ -307,4 +307,13 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
   );
 }
 
-export { default } from "../features/design/design-page";
+// React Router only injects loaderData/actionData props into a route module's
+// LOCALLY-declared default export — a bare `export { default } from …` re-export
+// does NOT receive them (the component sees undefined loaderData and crashes).
+// Wrap the moved component in a local default so the props are injected here and
+// forwarded on.
+import DesignPage from "../features/design/design-page";
+
+export default function DesignRoute(props: Route.ComponentProps) {
+  return <DesignPage {...props} />;
+}

@@ -157,4 +157,11 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   return { step: "identify" } as ActionResult;
 }
 
-export { default } from "../features/account/account-page";
+// React Router injects loaderData/actionData props only into a route module's
+// LOCALLY-declared default export, not a bare re-export — wrap the moved
+// component so the props are injected here and forwarded on.
+import AccountPage from "../features/account/account-page";
+
+export default function AccountRoute(props: Route.ComponentProps) {
+  return <AccountPage {...props} />;
+}
