@@ -26,7 +26,7 @@ func newServiceWithSettings(repo *fakeCatalogueRepo, settings *fakeStoreSettings
 }
 
 // fakeStoreSettingsRepo is a minimal StoreSettingsRepository for catalogue tests.
-// GetProfile returns the configured profile (empty SubscriptionStatus ⇒ activated).
+// GetProfile returns the configured profile (zero-value ActivationRequired=false ⇒ activated).
 type fakeStoreSettingsRepo struct {
 	profile       ports.StoreProfile
 	settings      ports.StoreSettings

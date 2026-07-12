@@ -43,12 +43,14 @@ type StoreProfile struct {
 	// Entitlements is the business's resolved benefit set from its plan's features,
 	// so the dashboard knows which storefront customizations to unlock.
 	Entitlements map[string]bool
-	// SubscriptionStatus is the business's current business_subscriptions.status
-	// ('trialing' for a paid plan that has never paid its first invoice; 'active'
-	// for a free plan or a paid plan that has paid). Empty when no subscription row
-	// is joined. The catalogue paid-feature activation gate reads it: a 'trialing'
-	// paid plan cannot use core paid write-actions until it activates.
-	SubscriptionStatus string
+	// ActivationRequired is true when a PAID plan has not yet paid its first
+	// invoice — i.e. monthly_fee_minor > 0 AND the subscription has never been
+	// charged (first_purchase_consumed is false). This covers both a brand-new
+	// 'trialing' signup and a grandfathered 'active' account that never set up
+	// billing. It is false for a free plan or a paid plan that has paid. The
+	// catalogue paid-feature gate blocks core write-actions while it is true, so
+	// nobody uses paid features without activating (paying) first.
+	ActivationRequired bool
 }
 
 type CollectionInput struct {

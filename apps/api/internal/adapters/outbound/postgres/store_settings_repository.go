@@ -82,7 +82,9 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 		select b.name, b.handle, b.verification_status,
 			coalesce(b.settlement_provider_subaccount, '') <> '' as payout_ready,
 			p.code, coalesce(p.features, '{}'::jsonb),
-			coalesce(s.status, '')
+			-- Activation required: a PAID plan that has never been charged (a fresh
+			-- 'trialing' signup OR a grandfathered 'active' account with no billing).
+			(p.monthly_fee_minor > 0 and not coalesce(s.first_purchase_consumed, false))
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		left join business_subscriptions s on s.business_id = b.business_id
@@ -90,7 +92,7 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 	`, scope.BusinessID.String()).Scan(
 		&profile.Name, &profile.Handle, &profile.VerificationStatus,
 		&profile.PayoutReady, &profile.PlanCode, &featuresRaw,
-		&profile.SubscriptionStatus,
+		&profile.ActivationRequired,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.StoreProfile{}, ErrNotFound

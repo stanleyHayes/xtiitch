@@ -15,15 +15,10 @@ import (
 var ErrInvalidInput = errors.New("invalid catalogue input")
 
 // ErrActivationRequired is returned when a paid-plan business tries to use a core
-// paid write-action before it has paid (activated) its first invoice. Its
-// subscription is still 'trialing'; the HTTP layer maps this to 402.
+// paid write-action before it has paid (activated) its first invoice — whether a
+// fresh 'trialing' signup or a grandfathered 'active' account that never set up
+// billing. The HTTP layer maps this to 402.
 var ErrActivationRequired = errors.New("plan activation required")
-
-// activationPending reports whether a subscription status blocks paid features.
-// A 'trialing' paid plan has never paid its first invoice, so it is gated. An
-// empty/unknown status (free plans, or no subscription row) counts as activated
-// (fail-open), leaving existing tests and free plans unaffected.
-func activationPending(status string) bool { return status == "trialing" }
 
 // ErrPricingModeConflict is returned when a size-band price is set on a design
 // in customisation (deposit) mode. It aliases the port-level error so the
@@ -120,7 +115,7 @@ func (s Service) UpdateSettings(ctx context.Context, cmd UpdateSettingsCommand) 
 	if err != nil {
 		return err
 	}
-	if activationPending(profile.SubscriptionStatus) {
+	if profile.ActivationRequired {
 		return ErrActivationRequired
 	}
 	settings := coerceStoreCustomization(business.Entitlements(profile.Entitlements), cmd.Settings)

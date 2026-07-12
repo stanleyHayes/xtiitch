@@ -49,7 +49,7 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 	if err != nil {
 		return "", err
 	}
-	if activationPending(profile.SubscriptionStatus) {
+	if profile.ActivationRequired {
 		return "", ErrActivationRequired
 	}
 	title, err := cmd.validate()
@@ -100,7 +100,7 @@ func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
 	if err != nil {
 		return err
 	}
-	if activationPending(profile.SubscriptionStatus) {
+	if profile.ActivationRequired {
 		return ErrActivationRequired
 	}
 	title, err := cmd.validate()

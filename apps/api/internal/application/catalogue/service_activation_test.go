@@ -10,17 +10,18 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// activationCases exercise the paid-plan activation gate. A 'trialing' paid plan
-// (never paid its first invoice) is blocked; 'active' and an empty/unknown status
-// (free plans, no subscription row) are activated and proceed.
+// activationCases exercise the paid-plan activation gate. A paid plan that has
+// not paid (ActivationRequired true — a fresh 'trialing' signup OR a grandfathered
+// 'active' account with no billing) is blocked; an activated business (free plan,
+// or a paid plan that has paid) proceeds. The zero value is false, so an unset
+// profile fails open (allowed).
 var activationCases = []struct {
-	name    string
-	status  string
-	blocked bool
+	name               string
+	activationRequired bool
+	blocked            bool
 }{
-	{name: "trialing is blocked", status: "trialing", blocked: true},
-	{name: "active is allowed", status: "active", blocked: false},
-	{name: "empty status is allowed (fail-open)", status: "", blocked: false},
+	{name: "activation required (paid, never paid) is blocked", activationRequired: true, blocked: true},
+	{name: "activated (free, or paid+billed) is allowed", activationRequired: false, blocked: false},
 }
 
 func TestCreateDesignActivationGate(t *testing.T) {
@@ -31,7 +32,7 @@ func TestCreateDesignActivationGate(t *testing.T) {
 			t.Parallel()
 			repo := &fakeCatalogueRepo{}
 			service := newServiceWithSettings(repo, &fakeStoreSettingsRepo{
-				profile: ports.StoreProfile{SubscriptionStatus: tc.status},
+				profile: ports.StoreProfile{ActivationRequired: tc.activationRequired},
 			})
 
 			_, err := service.CreateDesign(context.Background(), DesignCommand{
@@ -67,7 +68,7 @@ func TestUpdateDesignActivationGate(t *testing.T) {
 			t.Parallel()
 			repo := &fakeCatalogueRepo{}
 			service := newServiceWithSettings(repo, &fakeStoreSettingsRepo{
-				profile: ports.StoreProfile{SubscriptionStatus: tc.status},
+				profile: ports.StoreProfile{ActivationRequired: tc.activationRequired},
 			})
 
 			err := service.UpdateDesign(context.Background(), DesignCommand{
@@ -104,7 +105,7 @@ func TestUpdateSettingsActivationGate(t *testing.T) {
 			t.Parallel()
 			repo := &fakeCatalogueRepo{}
 			settings := &fakeStoreSettingsRepo{
-				profile: ports.StoreProfile{SubscriptionStatus: tc.status},
+				profile: ports.StoreProfile{ActivationRequired: tc.activationRequired},
 			}
 			service := newServiceWithSettings(repo, settings)
 

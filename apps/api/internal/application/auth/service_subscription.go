@@ -57,7 +57,11 @@ func (s Service) GetSubscriptionActivation(ctx context.Context, scope common.Ten
 		return SubscriptionActivation{}, err
 	}
 	return SubscriptionActivation{
-		Activated: sub.Status != "trialing",
+		// Activated = a free plan, or a paid plan that has actually been charged
+		// at least once. A paid plan that has never paid (a fresh 'trialing' signup
+		// OR a grandfathered 'active' account that never set up billing) is NOT
+		// activated: it sees the banner and is blocked from paid write-actions.
+		Activated: sub.MonthlyFeeMinor == 0 || sub.FirstPurchaseConsumed,
 		Status:    sub.Status,
 		PlanCode:  sub.PlanCode,
 		// The subscription record carries the plan code, not its display name; the
