@@ -81,7 +81,11 @@ func firstPurchaseAmountDue(sub ports.BusinessSubscriptionRecord) int {
 	case "yearly":
 		return sub.YearlyFirstMinor
 	default:
-		return sub.MonthlyFeeMinor
+		// Monthly billing is not offered under the Pricing Book, and the legacy
+		// monthly_fee_minor is a nominal placeholder (e.g. GHS 1). Before the owner
+		// picks a cadence on the billing screen, show the quarterly first-purchase
+		// price — the lower of the two real activation options — not the placeholder.
+		return sub.QuarterlyFirstMinor
 	}
 }
 
