@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Form } from "react-router";
 import Alert from "@mui/material/Alert";
 import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Link from "@mui/material/Link";
 import Stack from "@mui/material/Stack";
@@ -12,6 +14,8 @@ import LoginRounded from "@mui/icons-material/LoginRounded";
 import SmsRounded from "@mui/icons-material/SmsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
+import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import TextField from "../../../components/form-text-field";
 import { tokens } from "../../../theme";
 import { LoadingButtonLabel } from "./index";
@@ -81,6 +85,7 @@ export function PasswordForm({
   result: { error?: string };
   isSubmitting: boolean;
 }) {
+  const [showPassword, setShowPassword] = useState(false);
   return (
     <Form method="post" key="login">
       <input type="hidden" name="intent" value="login" />
@@ -124,7 +129,7 @@ export function PasswordForm({
         <TextField
           name="password"
           label="Password"
-          type="password"
+          type={showPassword ? "text" : "password"}
           required
           autoComplete="current-password"
           fullWidth
@@ -133,6 +138,24 @@ export function PasswordForm({
               startAdornment: (
                 <InputAdornment position="start">
                   <LockRounded fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={
+                      showPassword ? "Hide password" : "Show password"
+                    }
+                    onClick={() => setShowPassword((v) => !v)}
+                    edge="end"
+                    size="small"
+                  >
+                    {showPassword ? (
+                      <VisibilityOffRounded fontSize="small" />
+                    ) : (
+                      <VisibilityRounded fontSize="small" />
+                    )}
+                  </IconButton>
                 </InputAdornment>
               ),
             },

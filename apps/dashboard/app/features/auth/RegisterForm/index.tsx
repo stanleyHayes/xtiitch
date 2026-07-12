@@ -116,15 +116,20 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
     handleStatus === "taken" || handleStatus === "reserved";
   const step0Valid =
     businessName.trim().length > 1 && handleOk && !handleUnavailable;
+  // WhatsApp is OPTIONAL (the API accepts signup without it). Only require the
+  // verification code when the owner actually entered a WhatsApp number —
+  // otherwise the forced OTP (valid ~5 min) blocked/expired mid-signup.
+  const whatsappProvided = whatsappNumber.trim().length > 0;
+  const whatsappStepOk =
+    !whatsappProvided ||
+    (whatsappOk && otpRequested && whatsappCode.trim().length > 0);
   const step1Valid =
     ownerName.trim().length > 0 &&
     emailOk &&
     passwordOk &&
     confirmPassword.length > 0 &&
     passwordsMatch &&
-    whatsappOk &&
-    otpRequested &&
-    whatsappCode.trim().length > 0;
+    whatsappStepOk;
   const step2Valid = plans.length === 0 || selectedPlan !== "";
 
   const goNext = () => setStep((s) => Math.min(s + 1, 2));

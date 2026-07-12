@@ -83,9 +83,17 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
         error: "An account with that email already exists. Try signing in.",
       };
     }
+    // WhatsApp OTP expired or was wrong (the code is only valid ~5 minutes). Show
+    // the real reason instead of a generic "handle" message so the owner knows to
+    // request a fresh code — this was surfacing as a confusing handle error.
+    if (code === "code_expired" || code === "invalid_token") {
+      return {
+        error:
+          "Your WhatsApp code expired or was incorrect. Go back to “Your account”, tap “Send code” again, and enter the new code — or leave WhatsApp blank to skip it.",
+      };
+    }
     return {
-      error:
-        "We couldn't create your store. Handles must be lowercase letters, numbers and dashes — check your details and try again.",
+      error: "We couldn't create your store. Please check your details and try again.",
     };
   }
 

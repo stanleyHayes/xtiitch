@@ -131,8 +131,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
       <Box>
         <TextField
           name="whatsapp_number"
-          label="WhatsApp number"
-          required
+          label="WhatsApp number (optional)"
           autoComplete="tel"
           inputMode="tel"
           fullWidth
@@ -143,7 +142,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           helperText={
             whatsappNumber.length > 0 && !whatsappOk
               ? "Enter a valid WhatsApp number."
-              : "We'll send a one-time code to confirm this number."
+              : "Optional — add it to confirm your number with a one-time code, or leave it blank."
           }
           slotProps={{
             input: {
