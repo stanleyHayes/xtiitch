@@ -35,6 +35,7 @@ func (repo AdminAuthRepository) ListAdminVerificationCases(ctx context.Context) 
 			coalesce(b.settlement_mobile_money_number, ''),
 			coalesce(d.card_number, ''),
 			coalesce(d.id_photo_url, ''),
+			coalesce(d.id_photo_back_url, ''),
 			b.created_at,
 			b.updated_at
 		from businesses b
@@ -119,6 +120,7 @@ func (repo AdminAuthRepository) DecideAdminBusinessVerification(
 			coalesce(b.settlement_mobile_money_number, ''),
 			coalesce(d.card_number, ''),
 			coalesce(d.id_photo_url, ''),
+			coalesce(d.id_photo_back_url, ''),
 			b.created_at,
 			b.updated_at
 		from updated b
@@ -163,6 +165,7 @@ func scanAdminVerificationCaseRecord(row pgx.Row) (ports.AdminVerificationCaseRe
 		&record.SettlementAccountHint,
 		&record.IDCardNumber,
 		&record.IDPhotoURL,
+		&record.IDPhotoBackURL,
 		&record.SubmittedAt,
 		&record.UpdatedAt,
 	); err != nil {

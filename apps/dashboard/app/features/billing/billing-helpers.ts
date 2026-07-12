@@ -198,6 +198,65 @@ export async function submitPlanChange(
   return { changeResult: (await response.json()) as PlanChangeResult };
 }
 
+// Upload a single Ghana Card photo and return its URL, or "" if none was
+// provided (so the caller can surface a precise "upload the front/back" error).
+async function uploadCardPhoto(
+  request: Request,
+  form: FormData,
+  field: string,
+): Promise<string> {
+  const file = form.get(field);
+  if (file instanceof File && file.size > 0) {
+    return (await uploadImage(request, file)) ?? "";
+  }
+  return "";
+}
+
+// Capture the Ghana Card (number + front & back photos) and submit it for
+// review. Returns null on success, or an { error } to show without proceeding
+// to payment. Assumes identity is not yet on file (checked by the caller).
+async function captureIdentity(
+  request: Request,
+  form: FormData,
+): Promise<{ error: string } | null> {
+  const cardNumber = String(form.get("card_number") ?? "").trim();
+  if (!cardNumber) {
+    return { error: "Enter your Ghana Card number (e.g. GHA-123456789-0)." };
+  }
+
+  const photoURL = await uploadCardPhoto(request, form, "id_photo_file");
+  if (!photoURL) {
+    return { error: "Upload a clear photo of the front of your Ghana Card." };
+  }
+
+  const photoBackURL = await uploadCardPhoto(request, form, "id_photo_back_file");
+  if (!photoBackURL) {
+    return { error: "Upload a clear photo of the back of your Ghana Card." };
+  }
+
+  const identityResponse = await apiFetch(
+    request,
+    "/auth/business/identity-verification",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        card_number: cardNumber,
+        id_photo_url: photoURL,
+        id_photo_back_url: photoBackURL,
+      }),
+    },
+  );
+  if (!identityResponse.ok) {
+    // Stay on the page (do NOT proceed to payment) so the owner can fix it.
+    return {
+      error:
+        "We couldn't verify that Ghana Card. Check the number (format GHA-123456789-0) and photo, then try again.",
+    };
+  }
+  return null;
+}
+
 export async function verifyIdentityAndStartBilling(
   request: Request,
   form: FormData,
@@ -214,42 +273,9 @@ export async function verifyIdentityAndStartBilling(
   // Card is not yet on file we must capture it before starting billing.
   const status = (await fetchProfile(request)).verificationStatus;
   if (!isIdentityOnFile(status)) {
-    const cardNumber = String(form.get("card_number") ?? "").trim();
-    if (!cardNumber) {
-      return {
-        error: "Enter your Ghana Card number (e.g. GHA-123456789-0).",
-      };
-    }
-
-    let photoURL = "";
-    const photoFile = form.get("id_photo_file");
-    if (photoFile instanceof File && photoFile.size > 0) {
-      photoURL = (await uploadImage(request, photoFile)) ?? "";
-    }
-    if (!photoURL) {
-      return {
-        error: "Upload a clear photo of the front of your Ghana Card.",
-      };
-    }
-
-    const identityResponse = await apiFetch(
-      request,
-      "/auth/business/identity-verification",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          card_number: cardNumber,
-          id_photo_url: photoURL,
-        }),
-      },
-    );
-    if (!identityResponse.ok) {
-      // Stay on the page (do NOT proceed to payment) so the owner can fix it.
-      return {
-        error:
-          "We couldn't verify that Ghana Card. Check the number (format GHA-123456789-0) and photo, then try again.",
-      };
+    const identityError = await captureIdentity(request, form);
+    if (identityError) {
+      return identityError;
     }
   }
 

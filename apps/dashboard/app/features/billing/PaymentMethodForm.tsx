@@ -15,12 +15,82 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
+
+// A dashed-border upload dropzone for one side of the Ghana Card. Shows an icon,
+// a prompt, and the size/format hint; flips to a "selected" state with the file
+// name once a photo is chosen. The whole box is the file <label>.
+function CardDropzone({
+  name,
+  side,
+  fileName,
+  onFile,
+}: {
+  name: string;
+  side: "Front" | "Back";
+  fileName: string;
+  onFile: (value: string) => void;
+}) {
+  const chosen = fileName.length > 0;
+  return (
+    <Box
+      component="label"
+      sx={{
+        flex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 0.5,
+        textAlign: "center",
+        px: 2,
+        py: 2.5,
+        cursor: "pointer",
+        borderRadius: 2,
+        border: "2px dashed",
+        borderColor: chosen ? tokens.burgundy : alpha(tokens.ink, 0.28),
+        bgcolor: chosen ? alpha(tokens.burgundy, 0.06) : alpha(tokens.ink, 0.015),
+        transition: "border-color .15s ease, background-color .15s ease",
+        "&:hover": {
+          borderColor: tokens.burgundy,
+          bgcolor: alpha(tokens.burgundy, 0.06),
+        },
+      }}
+    >
+      {chosen ? (
+        <CheckCircleRounded sx={{ color: tokens.burgundy, fontSize: 30 }} />
+      ) : (
+        <CloudUploadRounded
+          sx={{ color: alpha(tokens.ink, 0.55), fontSize: 30 }}
+        />
+      )}
+      <Typography
+        sx={{
+          fontWeight: 700,
+          color: chosen ? tokens.burgundy : tokens.ink,
+          wordBreak: "break-word",
+        }}
+      >
+        {chosen ? fileName : `${side} of Ghana Card`}
+      </Typography>
+      <Typography variant="caption" sx={{ color: alpha(tokens.ink, 0.55) }}>
+        {chosen ? "Tap to replace" : "PNG or JPG · up to 5 MB"}
+      </Typography>
+      <input
+        type="file"
+        name={name}
+        accept="image/png,image/jpeg"
+        hidden
+        onChange={(event) => onFile(event.target.files?.[0]?.name ?? "")}
+      />
+    </Box>
+  );
+}
 
 type VATPolicy = { vat_rate_bps: number; vat_inclusive: boolean };
 
@@ -100,6 +170,7 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
   isSubmitting: boolean;
 }) {
   const [photoName, setPhotoName] = useState("");
+  const [photoBackName, setPhotoBackName] = useState("");
   const isPaidPlan = plan !== null && plan.monthly_fee_minor > 0;
   const [cadence, setCadence] = useState<BillingCadence>("yearly");
 
@@ -124,6 +195,34 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
             textAlign: "center",
             bgcolor: alpha(tokens.white, 0.98),
             color: tokens.ink,
+            // Force light inputs on this white card. Without these the fields fall
+            // back to the theme's (dark-mode) input styling — a near-black Ghana
+            // Card field with an unreadable label. Mirrors the register card.
+            "& .MuiInputLabel-root": {
+              color: alpha(tokens.ink, 0.68),
+              bgcolor: alpha(tokens.white, 0.98),
+              px: 0.75,
+              ml: -0.75,
+              borderRadius: 1,
+              "&.Mui-focused": { color: tokens.burgundy },
+            },
+            "& .MuiOutlinedInput-root": {
+              bgcolor: tokens.white,
+              color: tokens.ink,
+              borderRadius: 2,
+              "& .MuiOutlinedInput-notchedOutline": {
+                borderColor: alpha(tokens.ink, 0.22),
+              },
+              "&:hover .MuiOutlinedInput-notchedOutline": {
+                borderColor: alpha(tokens.burgundy, 0.5),
+              },
+              "&.Mui-focused": {
+                boxShadow: `0 0 0 4px ${alpha(tokens.burgundy, 0.12)}`,
+                "& .MuiOutlinedInput-notchedOutline": {
+                  borderColor: tokens.burgundy,
+                },
+              },
+            },
           }}
         >
           <Box
@@ -303,36 +402,30 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
                       required
                       fullWidth
                     />
-                    <Box>
-                      <Button
-                        component="label"
-                        variant="outlined"
-                        startIcon={<CloudUploadRounded />}
-                        fullWidth
-                      >
-                        {photoName || "Upload Ghana Card photo"}
-                        <input
-                          type="file"
-                          name="id_photo_file"
-                          accept="image/*"
-                          hidden
-                          onChange={(event) =>
-                            setPhotoName(event.target.files?.[0]?.name ?? "")
-                          }
-                        />
-                      </Button>
-                      <Typography
-                        variant="caption"
-                        sx={{
-                          display: "block",
-                          color: alpha(tokens.ink, 0.6),
-                          mt: 0.5,
-                        }}
-                      >
-                        A clear photo of the front of your Ghana Card
-                        (required).
-                      </Typography>
-                    </Box>
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      spacing={1.5}
+                    >
+                      <CardDropzone
+                        name="id_photo_file"
+                        side="Front"
+                        fileName={photoName}
+                        onFile={setPhotoName}
+                      />
+                      <CardDropzone
+                        name="id_photo_back_file"
+                        side="Back"
+                        fileName={photoBackName}
+                        onFile={setPhotoBackName}
+                      />
+                    </Stack>
+                    <Typography
+                      variant="caption"
+                      sx={{ display: "block", color: alpha(tokens.ink, 0.6) }}
+                    >
+                      Clear photos of the front and back of your Ghana Card
+                      (both required).
+                    </Typography>
                   </Stack>
                 </Box>
               )}

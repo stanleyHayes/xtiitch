@@ -17,22 +17,23 @@ type businessVerificationDecisionRequest struct {
 }
 
 type businessVerificationResponse struct {
-	BusinessID   string   `json:"business_id"`
-	BusinessName string   `json:"business_name"`
-	Handle       string   `json:"handle"`
-	OwnerName    string   `json:"owner_name"`
-	OwnerEmail   string   `json:"owner_email"`
-	SubmittedAt  string   `json:"submitted_at"`
-	UpdatedAt    string   `json:"updated_at"`
-	Plan         string   `json:"plan"`
-	Status       string   `json:"status"`
-	RiskLevel    string   `json:"risk_level"`
-	Documents    []string `json:"documents"`
-	Checks       []string `json:"checks"`
-	Evidence     []string `json:"evidence"`
-	Notes        string   `json:"notes"`
-	IDCardNumber string   `json:"id_card_number"`
-	IDPhotoURL   string   `json:"id_photo_url"`
+	BusinessID     string   `json:"business_id"`
+	BusinessName   string   `json:"business_name"`
+	Handle         string   `json:"handle"`
+	OwnerName      string   `json:"owner_name"`
+	OwnerEmail     string   `json:"owner_email"`
+	SubmittedAt    string   `json:"submitted_at"`
+	UpdatedAt      string   `json:"updated_at"`
+	Plan           string   `json:"plan"`
+	Status         string   `json:"status"`
+	RiskLevel      string   `json:"risk_level"`
+	Documents      []string `json:"documents"`
+	Checks         []string `json:"checks"`
+	Evidence       []string `json:"evidence"`
+	Notes          string   `json:"notes"`
+	IDCardNumber   string   `json:"id_card_number"`
+	IDPhotoURL     string   `json:"id_photo_url"`
+	IDPhotoBackURL string   `json:"id_photo_back_url"`
 }
 
 func (handler Handler) businessVerifications(w http.ResponseWriter, r *http.Request) {
@@ -91,22 +92,23 @@ func (handler Handler) decideBusinessVerification(w http.ResponseWriter, r *http
 
 func newBusinessVerificationResponse(record ports.AdminVerificationCaseRecord) businessVerificationResponse {
 	return businessVerificationResponse{
-		BusinessID:   record.BusinessID.String(),
-		BusinessName: record.BusinessName,
-		Handle:       record.Handle,
-		OwnerName:    fallbackText(record.OwnerName, "Owner pending"),
-		OwnerEmail:   fallbackText(record.OwnerEmail, "owner email pending"),
-		SubmittedAt:  record.SubmittedAt.Format(time.RFC3339),
-		UpdatedAt:    record.UpdatedAt.Format(time.RFC3339),
-		Plan:         fallbackText(record.PlanName, record.PlanCode),
-		Status:       string(record.VerificationStatus),
-		RiskLevel:    verificationRiskLevel(record),
-		Documents:    verificationDocuments(record),
-		Checks:       verificationChecks(record),
-		Evidence:     verificationEvidence(record),
-		Notes:        verificationNotes(record),
-		IDCardNumber: record.IDCardNumber,
-		IDPhotoURL:   record.IDPhotoURL,
+		BusinessID:     record.BusinessID.String(),
+		BusinessName:   record.BusinessName,
+		Handle:         record.Handle,
+		OwnerName:      fallbackText(record.OwnerName, "Owner pending"),
+		OwnerEmail:     fallbackText(record.OwnerEmail, "owner email pending"),
+		SubmittedAt:    record.SubmittedAt.Format(time.RFC3339),
+		UpdatedAt:      record.UpdatedAt.Format(time.RFC3339),
+		Plan:           fallbackText(record.PlanName, record.PlanCode),
+		Status:         string(record.VerificationStatus),
+		RiskLevel:      verificationRiskLevel(record),
+		Documents:      verificationDocuments(record),
+		Checks:         verificationChecks(record),
+		Evidence:       verificationEvidence(record),
+		Notes:          verificationNotes(record),
+		IDCardNumber:   record.IDCardNumber,
+		IDPhotoURL:     record.IDPhotoURL,
+		IDPhotoBackURL: record.IDPhotoBackURL,
 	}
 }
 

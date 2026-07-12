@@ -48,6 +48,7 @@ type transferBusinessOwnerRequest struct {
 }
 
 type identityVerificationRequest struct {
-	CardNumber string `json:"card_number"`
-	IDPhotoURL string `json:"id_photo_url"`
+	CardNumber     string `json:"card_number"`
+	IDPhotoURL     string `json:"id_photo_url"`
+	IDPhotoBackURL string `json:"id_photo_back_url"`
 }

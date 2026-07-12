@@ -168,11 +168,13 @@ type SubscriptionActivationCharge struct {
 	ShouldCharge bool
 }
 
-// SubmitIdentityDocumentInput carries a business's Ghana Card submission.
+// SubmitIdentityDocumentInput carries a business's Ghana Card submission (both
+// the front and back of the card).
 type SubmitIdentityDocumentInput struct {
-	BusinessID common.ID
-	CardNumber string
-	IDPhotoURL string
+	BusinessID     common.ID
+	CardNumber     string
+	IDPhotoURL     string
+	IDPhotoBackURL string
 }
 
 // SubscriptionDiscountCode is a discount code as needed at checkout validation.

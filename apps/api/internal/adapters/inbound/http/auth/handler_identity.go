@@ -197,10 +197,11 @@ func (handler Handler) submitIdentityVerification(w http.ResponseWriter, r *http
 		return
 	}
 	if err := handler.service.SubmitIdentityVerification(r.Context(), authapp.SubmitIdentityVerificationCommand{
-		Scope:      principal.TenantScope(),
-		ActorRole:  principal.Role,
-		CardNumber: request.CardNumber,
-		IDPhotoURL: request.IDPhotoURL,
+		Scope:          principal.TenantScope(),
+		ActorRole:      principal.Role,
+		CardNumber:     request.CardNumber,
+		IDPhotoURL:     request.IDPhotoURL,
+		IDPhotoBackURL: request.IDPhotoBackURL,
 	}); err != nil {
 		status, code := authError(err)
 		writeError(w, status, code)
