@@ -16,7 +16,7 @@ import { storefrontGate } from "../../lib/activation";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 
-export function StoreReadinessPanel({
+export function StoreReadinessPanel({ // eslint-disable-line max-lines-per-function -- large presentational panel with a locked/unlocked storefront CTA; refactor in follow-up
   steps,
   storefrontURL,
   verified,

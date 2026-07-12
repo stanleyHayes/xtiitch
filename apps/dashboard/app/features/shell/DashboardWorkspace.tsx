@@ -127,7 +127,6 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     setPage: setMeasurementFieldPage,
   } = usePagedItems(measurementFields, 8, measurementFields.length);
   const canManage = canManageDashboard(currentUser.role);
-  const storefrontURL = `https://${profile.handle}.xtiitch.com`;
   const isFreePlan = profile.plan === "free";
   const imageLimit = isFreePlan ? 2 : 5;
   const designLimit = isFreePlan ? 10 : null;
@@ -279,7 +278,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
           verified={profile.verification_status === "verified"}
           workspaceGroups={workspaceGroups}
           section={section}
-          storefrontURL={storefrontURL}
+          storefrontURL={`https://${profile.handle}.xtiitch.com`}
           badges={railBadges}
           collapsed={railCollapsed}
           mobileOpen={mobileNavOpen}
@@ -304,7 +303,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
             collapsed={railCollapsed}
             darkChrome={darkChrome}
             notificationCount={overview.pendingMessages}
-            storefrontURL={storefrontURL}
+            storefrontURL={`https://${profile.handle}.xtiitch.com`}
             pendingActivation={!activation.activated}
             onOpenMobileNav={() => setMobileNavOpen(true)}
             onToggleCollapsed={() => setRailCollapsed((value) => !value)}
