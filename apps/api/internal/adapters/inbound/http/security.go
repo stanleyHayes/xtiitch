@@ -26,6 +26,12 @@ type SecurityOptions struct {
 	RateLimitRPS int
 	// MaxBodyBytes caps request bodies. <= 0 uses defaultMaxBodyBytes.
 	MaxBodyBytes int64
+	// TrustedProxyHops is the number of trusted reverse proxies in front of the
+	// service (Render = 1). The client IP is taken from the hops-th
+	// X-Forwarded-For entry counted from the right (the value the outermost
+	// trusted proxy appended); 0 trusts no forwarding header and uses the direct
+	// connection address. See trustedClientIP.
+	TrustedProxyHops int
 }
 
 const defaultMaxBodyBytes = 2 << 20 // 2 MiB

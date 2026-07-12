@@ -312,11 +312,20 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	aiAssistService := buildAIAssistService(cfg, logger, db, paymentProvider)
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
+	production := strings.EqualFold(cfg.Environment, "production")
+	// In production the API sits behind Render's single reverse proxy, so the
+	// genuine client IP is the last X-Forwarded-For hop; locally there is no
+	// trusted proxy, so trust none and use the direct connection address.
+	trustedProxyHops := 0
+	if production {
+		trustedProxyHops = 1
+	}
 	router := httpadapter.NewRouter(logger, db.Ping,
 		httpadapter.SecurityOptions{
-			Production:     strings.EqualFold(cfg.Environment, "production"),
-			AllowedOrigins: cfg.CORSAllowedOrigins,
-			RateLimitRPS:   cfg.RateLimitRPS,
+			Production:       production,
+			AllowedOrigins:   cfg.CORSAllowedOrigins,
+			RateLimitRPS:     cfg.RateLimitRPS,
+			TrustedProxyHops: trustedProxyHops,
 		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
 		marketinghttp.NewHandler(marketingWaitlistService, adminAuthenticator),

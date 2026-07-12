@@ -28,10 +28,15 @@ func NewRouter(
 ) http.Handler {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
-	//nolint:staticcheck // kept for existing reverse-proxy behaviour; migrate to trusted-header allowlist in Phase 2
-	router.Use(middleware.RealIP)
-	// Structured access log for every request (after RealIP/RequestID so it has
-	// the real client IP + request id). This is the baseline visibility the
+	// Client IP resolution. chi's middleware.RealIP is deprecated: it trusts the
+	// spoofable leftmost X-Forwarded-For / X-Real-IP / True-Client-IP, letting a
+	// client forge its IP and evade rate limiting + lockout. trustedClientIP
+	// instead takes the value the trusted proxy appended (see SecurityOptions).
+	if security.TrustedProxyHops > 0 {
+		router.Use(trustedClientIP(security.TrustedProxyHops))
+	}
+	// Structured access log for every request (after client-IP/RequestID so it
+	// has the real client IP + request id). This is the baseline visibility the
 	// backend was missing — every sign-up, OTP, and checkout call now logs.
 	router.Use(requestLogger(logger))
 	router.Use(middleware.Recoverer)
