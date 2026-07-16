@@ -208,28 +208,38 @@ func ensureDesignExists(ctx context.Context, tx pgx.Tx, designID common.ID, busi
 }
 
 func ensureDesignCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	// Lock first, count second, in two statements. Counting inside the locking
+	// statement does not serialise: under READ COMMITTED the statement runs on a
+	// snapshot taken before the lock is granted, so a waiter would count as of
+	// before the previous holder committed and both would pass the cap.
 	var limit sql.NullInt64
-	var activeCount int64
 	err := tx.QueryRow(ctx, `
-		select p.design_limit::bigint,
-			(
-				select count(*)::bigint
-				from designs d
-				where d.business_id = b.business_id
-					and d.status = 'active'
-			) as active_designs
+		select p.design_limit::bigint
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
 		for update of b
-	`, businessID.String()).Scan(&limit, &activeCount)
+	`, businessID.String()).Scan(&limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	if limit.Valid && activeCount >= limit.Int64 {
+	if !limit.Valid {
+		// NULL is unlimited.
+		return nil
+	}
+
+	var activeCount int64
+	if err := tx.QueryRow(ctx, `
+		select count(*)::bigint
+		from designs d
+		where d.business_id = $1 and d.status = 'active'
+	`, businessID.String()).Scan(&activeCount); err != nil {
+		return err
+	}
+	if activeCount >= limit.Int64 {
 		return ports.ErrPlanLimitExceeded
 	}
 	return nil

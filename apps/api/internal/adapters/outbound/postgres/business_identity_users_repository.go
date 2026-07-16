@@ -71,8 +71,8 @@ func (repo BusinessIdentityRepository) ListBusinessUsers(
 }
 
 // ensureStaffCapacity caps a business's ACTIVE dashboard users at its plan's
-// staff_limit (NULL = unlimited). It locks the business row so two concurrent
-// invites cannot both pass the check and land one seat over.
+// staff_limit (NULL = unlimited), serialising concurrent callers on the business
+// row so two seat-taking writes cannot both pass the check and land one over.
 //
 // The cap was sold per plan (Free 1 / Starter 1 / Growth 3 / Studio 10) and
 // enforced nowhere, so every plan had unlimited seats until migration 000088 gave
@@ -82,27 +82,41 @@ func (repo BusinessIdentityRepository) ListBusinessUsers(
 // already over the cap when this shipped keep their existing users -- this blocks
 // the next create rather than retroactively locking anyone out.
 func ensureStaffCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	// Take the lock FIRST, on its own. Folding the seat count into this statement
+	// would not serialise it: under READ COMMITTED the whole statement runs on a
+	// snapshot taken when it STARTS, i.e. before the lock is granted, so a waiter
+	// would count seats as of before the previous holder committed and both would
+	// pass the cap.
 	var limit sql.NullInt64
-	var activeCount int
 	err := tx.QueryRow(ctx, `
-		select p.staff_limit,
-			(
-				select count(*)::int
-				from business_users u
-				where u.business_id = b.business_id and u.is_active
-			) as active_users
+		select p.staff_limit
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
 		for update of b
-	`, businessID.String()).Scan(&limit, &activeCount)
+	`, businessID.String()).Scan(&limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	if limit.Valid && int64(activeCount) >= limit.Int64 {
+	if !limit.Valid {
+		// NULL is unlimited: no count needed.
+		return nil
+	}
+
+	// A SEPARATE statement, so it runs on a snapshot taken AFTER the lock was
+	// granted and therefore sees the previous holder's committed seat.
+	var activeCount int
+	if err := tx.QueryRow(ctx, `
+		select count(*)::int
+		from business_users u
+		where u.business_id = $1 and u.is_active
+	`, businessID.String()).Scan(&activeCount); err != nil {
+		return err
+	}
+	if int64(activeCount) >= limit.Int64 {
 		return ports.ErrPlanLimitExceeded
 	}
 	return nil
@@ -188,9 +202,12 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(
 	// buttons the team page already offers.
 	if input.IsActive {
 		var currentlyActive bool
+		// The same `role <> 'owner'` filter the UPDATE below uses. Without it the
+		// two disagree about which rows exist, and a request targeting the owner
+		// would answer "plan limit reached" where it used to answer "not found".
 		switch err := tx.QueryRow(ctx, `
 			select is_active from business_users
-			where business_user_id = $1 and business_id = $2
+			where business_user_id = $1 and business_id = $2 and role <> 'owner'
 		`, input.UserID.String(), scope.BusinessID.String()).Scan(&currentlyActive); {
 		case errors.Is(err, pgx.ErrNoRows):
 			return ports.BusinessUserRecord{}, ports.ErrNotFound

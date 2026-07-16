@@ -13,11 +13,13 @@ import { NETWORKS, looksLikeGhanaNumber } from "./payout-networks";
 // code sent to it before the details can be saved.
 export function PayoutForm({
   provisioned,
+  verified,
   settlementBank,
   settlementAccount,
   onCancel,
 }: {
   provisioned: boolean;
+  verified: boolean;
   settlementBank?: string;
   settlementAccount?: string;
   onCancel?: () => void;
@@ -32,10 +34,15 @@ export function PayoutForm({
   const [otpSending, setOtpSending] = useState(false);
   const [otpError, setOtpError] = useState<string | undefined>(undefined);
 
-  // This predicate MUST mirror the API's no-op condition (account AND bank both
-  // unchanged). Anything else and the form and the server disagree about whether
-  // a code is needed — the server wins, and the owner is stranded on an error
-  // telling them to enter a code with no field to enter it in.
+  // This predicate MUST mirror the API's no-op condition TERM FOR TERM:
+  // verified AND a subaccount exists AND the number is unchanged AND the network
+  // is unchanged. Miss any one and the form and the server disagree about
+  // whether a code is needed — the server wins, and the owner is stranded on an
+  // error telling them to enter a code with no field to enter it in.
+  //
+  // `verified` is its own term because an admin can reject a business that
+  // already has a payout subaccount: the subaccount survives, so `provisioned`
+  // stays true while the server stops treating a resubmit as a no-op.
   //
   // Comparing against `settlementBank ?? ""` rather than the "MTN" default is
   // deliberate: a business set up before the network was recorded has none, so
@@ -43,7 +50,7 @@ export function PayoutForm({
   // lets that first resubmit record the network at last.
   const numberChanged = account.trim() !== (settlementAccount ?? "").trim();
   const bankChanged = bank !== (settlementBank ?? "");
-  const needsCode = !provisioned || numberChanged || bankChanged;
+  const needsCode = !provisioned || !verified || numberChanged || bankChanged;
 
   async function requestCode() {
     setOtpSending(true);

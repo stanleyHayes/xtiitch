@@ -13,12 +13,17 @@ import { useCloseOnSuccess } from "./useCloseOnSuccess";
 
 export function PayoutSetupPanel({
   provisioned,
+  verified,
   settlementBank,
   settlementAccount,
   error,
   success,
 }: {
   provisioned: boolean;
+  // Whether the business is identity-verified. Distinct from `provisioned`: an
+  // admin can reject a business that already has a payout subaccount, and the
+  // API stops treating a resubmit as a no-op when it does.
+  verified: boolean;
   settlementBank?: string;
   settlementAccount?: string;
   error?: string;
@@ -83,6 +88,7 @@ export function PayoutSetupPanel({
             // half-finished edit into the next open.
             key={editing ? "editing" : "closed"}
             provisioned={provisioned}
+            verified={verified}
             settlementBank={settlementBank}
             settlementAccount={settlementAccount}
             onCancel={provisioned ? () => setEditing(false) : undefined}

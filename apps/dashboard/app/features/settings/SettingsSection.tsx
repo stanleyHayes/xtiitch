@@ -24,6 +24,7 @@ export function SettingsSection({
     <>
       <PayoutSetupPanel
         provisioned={profile.payout_ready ?? false}
+        verified={profile.verification_status === "verified"}
         settlementBank={profile.settlement_bank}
         settlementAccount={profile.settlement_account}
         error={action.payoutError}

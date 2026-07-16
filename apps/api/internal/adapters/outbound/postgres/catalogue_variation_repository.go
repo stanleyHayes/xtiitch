@@ -165,32 +165,39 @@ func resolveVariationSequence(ctx context.Context, tx pgx.Tx, designID common.ID
 // implicit default variation. It locks the business row so a concurrent create
 // cannot race past the cap.
 func ensureVariationCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID, designID common.ID) error {
+	// Lock first, count second, in two statements. Counting inside the locking
+	// statement does not serialise: under READ COMMITTED the statement runs on a
+	// snapshot taken before the lock is granted, so a waiter would count as of
+	// before the previous holder committed and both would pass the cap.
 	var limit sql.NullInt64
-	var storedCount int
 	err := tx.QueryRow(ctx, `
-		select p.variation_limit,
-			(
-				select count(*)::int
-				from design_variations dv
-				where dv.design_id = $2 and dv.business_id = b.business_id
-			) as stored_variations
+		select p.variation_limit
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
 		for update of b
-	`, businessID.String(), designID.String()).Scan(&limit, &storedCount)
+	`, businessID.String()).Scan(&limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	var cap *int
-	if limit.Valid {
-		value := int(limit.Int64)
-		cap = &value
+	if !limit.Valid {
+		// NULL is unlimited, so there is nothing to count against.
+		return nil
 	}
-	if !catalogue.VariationCreateAllowed(cap, storedCount) {
+
+	var storedCount int
+	if err := tx.QueryRow(ctx, `
+		select count(*)::int
+		from design_variations dv
+		where dv.design_id = $1 and dv.business_id = $2
+	`, designID.String(), businessID.String()).Scan(&storedCount); err != nil {
+		return err
+	}
+	value := int(limit.Int64)
+	if !catalogue.VariationCreateAllowed(&value, storedCount) {
 		return ports.ErrVariationLimitReached
 	}
 	return nil
