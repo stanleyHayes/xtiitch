@@ -45,14 +45,16 @@ export function DesignGrid({
     <>
       <Box
         sx={{
+          // Two-up on phones, matching the marketplace grid. The tighter gap on
+          // xs keeps both cards legible at ~360px viewport widths.
           display: "grid",
-          gap: 3,
+          gap: { xs: 1.5, sm: 3 },
           gridTemplateColumns: {
-            xs: "minmax(0, min(100%, 430px))",
+            xs: "repeat(2, minmax(0, 1fr))",
             sm: "repeat(2, minmax(0, 1fr))",
             lg: "repeat(auto-fill, minmax(280px, 360px))",
           },
-          justifyContent: { xs: "center", sm: "start" },
+          justifyContent: "start",
         }}
       >
         {pagedDesigns.map((design, index) => {

@@ -24,6 +24,7 @@ export type AdminVerificationCase = {
   notes: string;
   idCardNumber: string;
   idPhotoURL: string;
+  idPhotoBackURL: string;
 };
 
 type AdminVerificationCasePayload = {
@@ -43,6 +44,7 @@ type AdminVerificationCasePayload = {
   notes: string;
   id_card_number: string;
   id_photo_url: string;
+  id_photo_back_url: string;
 };
 function mapVerificationCase(
   payload: AdminVerificationCasePayload,
@@ -64,6 +66,8 @@ function mapVerificationCase(
     notes: payload.notes,
     idCardNumber: payload.id_card_number ?? "",
     idPhotoURL: payload.id_photo_url ?? "",
+    // Older submissions predate back-photo capture, so this can be empty.
+    idPhotoBackURL: payload.id_photo_back_url ?? "",
   };
 }
 

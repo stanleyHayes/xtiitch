@@ -22,7 +22,45 @@ import { Panel } from "../../components/ui/Panel";
 import { RiskChip } from "../shared/RiskChip";
 import { StatusChip } from "../shared/StatusChip";
 
-
+// One side of the submitted Ghana Card, captioned so the reviewer can tell front
+// from back. Renders nothing when the URL is absent (submissions made before
+// back-photo capture have no back image).
+function GhanaCardPhoto({
+  url,
+  side,
+}: Readonly<{ url: string; side: "Front" | "Back" }>) {
+  if (!url) {
+    return null;
+  }
+  return (
+    <Box sx={{ flexShrink: 0 }}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
+        {side}
+      </Typography>
+      <Box
+        component="a"
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        sx={{ display: "block" }}
+      >
+        <Box
+          component="img"
+          src={url}
+          alt={`Ghana Card ${side.toLowerCase()}`}
+          sx={{
+            width: 180,
+            height: 114,
+            objectFit: "cover",
+            borderRadius: 1.5,
+            border: "1px solid",
+            borderColor: alpha(tokens.ink, 0.12),
+          }}
+        />
+      </Box>
+    </Box>
+  );
+}
 
 export function VerificationCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   item,
@@ -94,7 +132,7 @@ export function VerificationCard({ // eslint-disable-line max-lines-per-function
               <Typography sx={{ color: "text.secondary" }}>
                 {item.notes}
               </Typography>
-              {item.idCardNumber || item.idPhotoURL ? (
+              {item.idCardNumber || item.idPhotoURL || item.idPhotoBackURL ? (
                 <Box
                   sx={{
                     p: 1.5,
@@ -112,29 +150,10 @@ export function VerificationCard({ // eslint-disable-line max-lines-per-function
                     spacing={2}
                     sx={{ alignItems: { sm: "center" } }}
                   >
-                    {item.idPhotoURL ? (
-                      <Box
-                        component="a"
-                        href={item.idPhotoURL}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        sx={{ flexShrink: 0 }}
-                      >
-                        <Box
-                          component="img"
-                          src={item.idPhotoURL}
-                          alt="Ghana Card"
-                          sx={{
-                            width: 180,
-                            height: 114,
-                            objectFit: "cover",
-                            borderRadius: 1.5,
-                            border: "1px solid",
-                            borderColor: alpha(tokens.ink, 0.12),
-                          }}
-                        />
-                      </Box>
-                    ) : null}
+                    {/* Both sides are captured at submission; the back is absent
+                        on submissions that predate back-photo capture. */}
+                    <GhanaCardPhoto url={item.idPhotoURL} side="Front" />
+                    <GhanaCardPhoto url={item.idPhotoBackURL} side="Back" />
                     <Box>
                       <Typography
                         variant="caption"

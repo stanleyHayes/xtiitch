@@ -246,6 +246,7 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
           setCatalogueToolsOpen={setCatalogueToolsOpen}
           publishedCollections={publishedCollections}
           cataloguePriceCount={cataloguePriceCount}
+          pendingActivation={pendingActivation}
         />
       )}
     </Box>

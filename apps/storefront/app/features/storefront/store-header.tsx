@@ -41,6 +41,19 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
 }) {
   const brand = store.brand_color || "#800020";
   const onBrand = contrastText(brand);
+  // Header actions shrink (rather than disappear) on phones, and never wrap
+  // their label mid-button.
+  const compactActionSx = {
+    fontSize: { xs: 12, sm: 14 },
+    px: { xs: 1.25, sm: 2 },
+    whiteSpace: "nowrap",
+  };
+  const outlinedActionSx = {
+    ...compactActionSx,
+    color: onBrand,
+    borderColor: alpha(onBrand, 0.32),
+    "&:hover": { borderColor: alpha(onBrand, 0.58) },
+  };
   // Plan-gated storefront customizations (the API only returns these for entitled
   // plans; otherwise they fall back to the Xtiitch defaults below).
   const logoURL = store.settings.logo_url?.trim() ?? "";
@@ -150,13 +163,22 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
         <Stack
           direction="row"
           spacing={1}
-          sx={{ display: { xs: "none", sm: "flex" }, alignItems: "center" }}
+          useFlexGap
+          sx={{
+            // Mobile-first: these actions (Cart especially) stay visible on
+            // phones and wrap onto another row rather than being hidden.
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            justifyContent: { xs: "flex-start", sm: "flex-end" },
+          }}
         >
           <ThemeModeToggle sx={{ color: onBrand }} />
           <Button
             href="#designs"
             variant="contained"
             sx={{
+              ...compactActionSx,
               bgcolor: alpha(onBrand, 0.92),
               color: brand,
               "&:hover": { bgcolor: onBrand },
@@ -169,24 +191,11 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
             to="/cart"
             variant="outlined"
             startIcon={<ShoppingBagRounded />}
-            sx={{
-              color: onBrand,
-              borderColor: alpha(onBrand, 0.32),
-              "&:hover": { borderColor: alpha(onBrand, 0.58) },
-            }}
+            sx={outlinedActionSx}
           >
             Cart
           </Button>
-          <Button
-            component={RouterLink}
-            to="/track"
-            variant="outlined"
-            sx={{
-              color: onBrand,
-              borderColor: alpha(onBrand, 0.32),
-              "&:hover": { borderColor: alpha(onBrand, 0.58) },
-            }}
-          >
+          <Button component={RouterLink} to="/track" variant="outlined" sx={outlinedActionSx}>
             Track order
           </Button>
           <Button
@@ -194,11 +203,7 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
             to="/account"
             variant="outlined"
             startIcon={<AccountCircleRounded />}
-            sx={{
-              color: onBrand,
-              borderColor: alpha(onBrand, 0.32),
-              "&:hover": { borderColor: alpha(onBrand, 0.58) },
-            }}
+            sx={outlinedActionSx}
           >
             Account
           </Button>
@@ -207,11 +212,7 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
             target="_blank"
             rel="noopener noreferrer"
             variant="outlined"
-            sx={{
-              color: onBrand,
-              borderColor: alpha(onBrand, 0.32),
-              "&:hover": { borderColor: alpha(onBrand, 0.58) },
-            }}
+            sx={outlinedActionSx}
           >
             About Xtiitch
           </Button>

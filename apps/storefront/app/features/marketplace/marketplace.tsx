@@ -16,6 +16,7 @@ import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
+import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
@@ -103,6 +104,25 @@ export function Marketplace({ // eslint-disable-line complexity, max-lines-per-f
               label="Marketplace"
               sx={{ ml: 0.5, bgcolor: alpha(tokens.white, 0.12), color: tokens.white, fontWeight: 800, letterSpacing: 0.4 }}
             />
+            {/* Cart sits next to Account on every viewport: the marketplace is
+                shoppable, so a customer must always be able to reach their bag. */}
+            <Button
+              component={RouterLink}
+              to="/cart"
+              variant="outlined"
+              size="small"
+              startIcon={<ShoppingBagRounded />}
+              sx={{
+                ml: "auto",
+                color: tokens.white,
+                borderColor: alpha(tokens.white, 0.4),
+                fontWeight: 800,
+                whiteSpace: "nowrap",
+                "&:hover": { borderColor: tokens.white, bgcolor: alpha(tokens.white, 0.08) },
+              }}
+            >
+              Cart
+            </Button>
             <Button
               component={RouterLink}
               to="/account"
@@ -110,10 +130,10 @@ export function Marketplace({ // eslint-disable-line complexity, max-lines-per-f
               size="small"
               startIcon={<AccountCircleRounded />}
               sx={{
-                ml: "auto",
                 color: tokens.white,
                 borderColor: alpha(tokens.white, 0.4),
                 fontWeight: 800,
+                whiteSpace: "nowrap",
                 "&:hover": { borderColor: tokens.white, bgcolor: alpha(tokens.white, 0.08) },
               }}
             >

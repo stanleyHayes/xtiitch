@@ -1,13 +1,17 @@
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
+import Tooltip from "@mui/material/Tooltip";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import AddRounded from "@mui/icons-material/AddRounded";
+import LockRounded from "@mui/icons-material/LockRounded";
+import { ACTIVATION_PATH } from "../../lib/activation";
 import { Panel } from "../../components/ui/Panel";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { InlineEmptyState } from "../../components/ui/InlineEmptyState";
@@ -42,6 +46,7 @@ export function CatalogueDesignGrid({ // eslint-disable-line max-lines-per-funct
   setCatalogueToolsOpen,
   publishedCollections,
   cataloguePriceCount,
+  pendingActivation,
 }: {
   designs: Design[];
   collections: CollectionSummary[];
@@ -61,6 +66,7 @@ export function CatalogueDesignGrid({ // eslint-disable-line max-lines-per-funct
   setCatalogueToolsOpen: (mode: "collections" | "sizeBands" | null) => void;
   publishedCollections: number;
   cataloguePriceCount: number;
+  pendingActivation: boolean;
 }) {
   return (
     <Box sx={{ mt: 2 }}>
@@ -140,13 +146,29 @@ export function CatalogueDesignGrid({ // eslint-disable-line max-lines-per-funct
               justifyContent: "center",
             }}
           >
-            <Button
-              variant="contained"
-              startIcon={<AddRounded />}
-              onClick={() => setCatalogueView("add")}
-            >
-              Add a design
-            </Button>
+            {pendingActivation ? (
+              // Same gate as the toolbar's "Add design": a paid plan pending
+              // activation routes to activation instead of opening the form
+              // (the API rejects the save with 402 anyway).
+              <Tooltip title="Activate your plan to add designs">
+                <Button
+                  component={RouterLink}
+                  to={ACTIVATION_PATH}
+                  variant="contained"
+                  startIcon={<LockRounded />}
+                >
+                  Add a design
+                </Button>
+              </Tooltip>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<AddRounded />}
+                onClick={() => setCatalogueView("add")}
+              >
+                Add a design
+              </Button>
+            )}
           </Box>
         </Panel>
       ) : (
