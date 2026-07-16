@@ -4,6 +4,7 @@ import IconButton from "@mui/material/IconButton";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import LockRounded from "@mui/icons-material/LockRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
@@ -12,6 +13,7 @@ import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import VisibilityOffRounded from "@mui/icons-material/VisibilityOffRounded";
 import WhatsApp from "@mui/icons-material/WhatsApp";
 import TextField from "../../components/form-text-field";
+import { tokens } from "../../theme";
 
 export function RegisterStepAccount({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   ownerName,
@@ -165,6 +167,16 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
             size="small"
             onClick={onRequestOtp}
             disabled={!whatsappOk || otpSending}
+            // The disabled state must stay clearly visible: it previously faded
+            // into the white card, so on mobile the button looked absent until a
+            // number made it enabled — while desktop appeared to show it all
+            // along. It is always rendered; only its enablement changes.
+            sx={{
+              "&.Mui-disabled": {
+                color: alpha(tokens.ink, 0.42),
+                borderColor: alpha(tokens.ink, 0.24),
+              },
+            }}
           >
             {otpSending
               ? "Sending…"
