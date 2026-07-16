@@ -13,6 +13,10 @@ export default [
   // Resource route: same-origin proxy for the WhatsApp one-time-code "Send code"
   // buttons on sign-in / sign-up (forwards to the opaque OTP-request endpoints).
   route("business-otp", "routes/business-otp.ts"),
+  // Resource route: same-origin proxy for the payout panel's "Verify number"
+  // button. Separate from business-otp because this one is authenticated — the
+  // owner is proving a payout destination, not signing in.
+  route("payout-otp", "routes/payout-otp.ts"),
   route("onboarding/billing", "routes/billing-onboarding.tsx"),
   route("onboarding/billing/callback", "routes/billing-callback.tsx"),
   // Canonical paid-plan activation page. The banner, blocked primary actions and

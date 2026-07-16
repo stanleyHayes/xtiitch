@@ -1,26 +1,42 @@
-import { Form } from "react-router";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
-import SaveRounded from "@mui/icons-material/SaveRounded";
-import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
+import { PayoutForm } from "./PayoutForm";
+import { PayoutSummary } from "./PayoutSummary";
 
 export function PayoutSetupPanel({
   provisioned,
+  settlementBank,
+  settlementAccount,
   error,
   success,
 }: {
   provisioned: boolean;
+  settlementBank?: string;
+  settlementAccount?: string;
   error?: string;
   success?: string;
 }) {
+  // Payouts already set up collapses to a summary (§3.2/§3.3); "Update payout
+  // details" reopens the form. Editing is the exception, so the form starts
+  // closed for anyone who has already set payouts up.
+  const [editing, setEditing] = useState(!provisioned);
+
+  // Collapse back to the summary once a save succeeds. Keyed on `success`
+  // changing rather than on `provisioned`, which is already true for someone
+  // editing details they had set up before.
+  useEffect(() => {
+    if (success) {
+      setEditing(false);
+    }
+  }, [success]);
+
   return (
     <Panel id="payouts" sx={{ mt: 2 }}>
       <Box sx={{ p: { xs: 2, md: 2.5 } }}>
@@ -55,43 +71,25 @@ export function PayoutSetupPanel({
             {error}
           </Alert>
         ) : null}
-        <Form method="post">
-          <input type="hidden" name="intent" value="setup_payout" />
-          <Stack
-            direction={{ xs: "column", sm: "row" }}
-            spacing={1.5}
-            sx={{ mt: 2, alignItems: { sm: "center" } }}
-          >
-            <TextField
-              name="settlement_bank"
-              label="Network"
-              select
-              required
-              defaultValue="MTN"
-              sx={{ minWidth: { sm: 160 } }}
-              fullWidth
-            >
-              <MenuItem value="MTN">MTN MoMo</MenuItem>
-              <MenuItem value="VOD">Telecel (Vodafone) Cash</MenuItem>
-              <MenuItem value="ATL">AT (AirtelTigo) Money</MenuItem>
-            </TextField>
-            <TextField
-              name="settlement_account"
-              label="Mobile money number"
-              placeholder="024 000 0000"
-              required
-              fullWidth
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              startIcon={<SaveRounded />}
-              sx={{ alignSelf: { xs: "stretch", sm: "auto" }, flexShrink: 0 }}
-            >
-              Save payout details
-            </Button>
-          </Stack>
-        </Form>
+
+        {provisioned && !editing ? (
+          <PayoutSummary
+            settlementBank={settlementBank}
+            settlementAccount={settlementAccount}
+            onEdit={() => setEditing(true)}
+          />
+        ) : (
+          <PayoutForm
+            // Remount on cancel so the form's own draft state (typed number,
+            // requested code) resets to what is saved rather than persisting a
+            // half-finished edit into the next open.
+            key={editing ? "editing" : "closed"}
+            provisioned={provisioned}
+            settlementBank={settlementBank}
+            settlementAccount={settlementAccount}
+            onCancel={provisioned ? () => setEditing(false) : undefined}
+          />
+        )}
       </Box>
     </Panel>
   );

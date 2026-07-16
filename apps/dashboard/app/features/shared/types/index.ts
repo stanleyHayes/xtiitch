@@ -15,6 +15,12 @@ export type Profile = {
   // a store can be identity-verified yet unable to take orders until payouts are
   // set up. Drives the "set up payouts" prompt.
   payout_ready?: boolean;
+  // The payout details as saved: the network code (MTN / VOD / ATL) and the
+  // mobile money number settlements are paid to. Both empty until payouts are set
+  // up; settlement_bank is also empty for stores set up before the network was
+  // recorded locally, so treat it as "unknown", not "none".
+  settlement_bank?: string;
+  settlement_account?: string;
   plan: string;
   // Resolved plan benefits, e.g. { custom_logo: true }. Drives which storefront
   // customizations the dashboard unlocks; the API enforces the same set.

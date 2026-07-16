@@ -33,6 +33,8 @@ func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 		"handle":              profile.Handle,
 		"verification_status": profile.VerificationStatus,
 		"payout_ready":        profile.PayoutReady,
+		"settlement_bank":     profile.SettlementBank,
+		"settlement_account":  profile.SettlementAccount,
 		"plan":                profile.PlanCode,
 		"entitlements":        entitlements,
 	})

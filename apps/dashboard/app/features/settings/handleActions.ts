@@ -2,6 +2,40 @@ import { apiFetch } from "../../lib/auth";
 import { tokens } from "../../theme";
 import { uploadDesignImage } from "../studio/utils";
 
+async function payoutErrorCode(response: Response): Promise<string> {
+  try {
+    const body = (await response.json()) as { error?: unknown };
+    return typeof body.error === "string" ? body.error : "";
+  } catch {
+    return "";
+  }
+}
+
+// Turn the API's payout error codes into something the owner can act on. Each
+// case implies a different next step — retype the code, request a fresh one,
+// wait, or fix the number — so they must not collapse into one message.
+async function payoutErrorMessage(response: Response): Promise<string> {
+  const code = await payoutErrorCode(response);
+  switch (code) {
+    case "invalid_code":
+      return "That code doesn't match. Check it and try again.";
+    case "code_expired":
+      return "That code has expired. Send a new one to your number.";
+    case "too_many_attempts":
+      return "Too many incorrect codes. Send a new one to try again.";
+    case "invalid_phone":
+      return "That doesn't look like a Ghana mobile money number.";
+    case "delivery_failed":
+      return "We couldn't deliver the code to that number. Check it and retry.";
+    case "whatsapp_unavailable":
+      return "Number verification is unavailable right now. Try again shortly.";
+    case "forbidden":
+      return "You don't have permission to change payout details.";
+    default:
+      return "Could not save those payout details. Check the number and try again.";
+  }
+}
+
 export async function handleSettingsActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
@@ -191,6 +225,7 @@ if (intent === "setup_payout") {
     // both and marks the business verified.
     const settlementAccount = String(form.get("settlement_account") ?? "").trim();
     const settlementBank = String(form.get("settlement_bank") ?? "").trim();
+    const otpCode = String(form.get("otp_code") ?? "").trim();
     if (!settlementAccount || !settlementBank) {
       return {
         payoutError:
@@ -203,13 +238,14 @@ if (intent === "setup_payout") {
       body: JSON.stringify({
         settlement_account: settlementAccount,
         settlement_bank: settlementBank,
+        otp_code: otpCode,
       }),
     });
     if (!response.ok) {
-      return {
-        payoutError:
-          "Could not save those payout details. Check the number and try again.",
-      };
+      // The API distinguishes a wrong code from an expired one from a lockout.
+      // Collapsing them into one message would leave the owner retrying the same
+      // dead code, so each maps to the action it actually calls for.
+      return { payoutError: await payoutErrorMessage(response) };
     }
     return {
       payoutSuccess: "Payout details saved. You're set to receive settlements.",

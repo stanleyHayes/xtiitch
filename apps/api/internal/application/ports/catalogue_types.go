@@ -40,6 +40,13 @@ type StoreProfile struct {
 	// identity-verified yet still have no subaccount, in which case checkout is
 	// refused. The dashboard prompts the owner to set up payouts on !PayoutReady.
 	PayoutReady bool
+	// SettlementBank / SettlementAccount are the payout details as saved, so the
+	// settings page can show the owner what is on file instead of rendering an
+	// empty form over saved values (Testing Report §3.2). Both are empty until
+	// payouts are set up; SettlementBank is also empty for businesses provisioned
+	// before migration 000087 mirrored the network locally.
+	SettlementBank    string
+	SettlementAccount string
 	// Entitlements is the business's resolved benefit set from its plan's features,
 	// so the dashboard knows which storefront customizations to unlock.
 	Entitlements map[string]bool

@@ -81,6 +81,8 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 	if err := tx.QueryRow(ctx, `
 		select b.name, b.handle, b.verification_status,
 			coalesce(b.settlement_provider_subaccount, '') <> '' as payout_ready,
+			coalesce(b.settlement_bank, ''),
+			coalesce(b.settlement_mobile_money_number, ''),
 			p.code, coalesce(p.features, '{}'::jsonb),
 			-- Activation required: a PAID plan that has never been charged (a fresh
 			-- 'trialing' signup OR a grandfathered 'active' account with no billing).
@@ -91,7 +93,8 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 		where b.business_id = $1
 	`, scope.BusinessID.String()).Scan(
 		&profile.Name, &profile.Handle, &profile.VerificationStatus,
-		&profile.PayoutReady, &profile.PlanCode, &featuresRaw,
+		&profile.PayoutReady, &profile.SettlementBank, &profile.SettlementAccount,
+		&profile.PlanCode, &featuresRaw,
 		&profile.ActivationRequired,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
