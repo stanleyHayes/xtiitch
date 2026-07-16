@@ -19,6 +19,7 @@ import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import TextField from "../../components/form-text-field";
 import { CardDropzone } from "../../components/ui/CardDropzone";
+import { XCreativsPaymentNotice } from "../../components/ui/XCreativsPaymentNotice";
 import { tokens } from "../../theme";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
 
@@ -372,6 +373,9 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
                     ? "Continue to payment"
                     : "Save & continue to payment"}
               </Button>
+              {/* The owner is about to be sent to Paystack, where the merchant
+                  reads "XCreativs" rather than Xtiitch. */}
+              <XCreativsPaymentNotice />
               <MuiLink
                 component={RouterLink}
                 to="/dashboard"

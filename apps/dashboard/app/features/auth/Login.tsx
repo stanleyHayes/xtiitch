@@ -10,7 +10,6 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TimelineRounded from "@mui/icons-material/TimelineRounded";
 import { LoginForm } from "./LoginForm";
 import { tokens } from "../../theme";
@@ -264,19 +263,22 @@ export default function Login(_props: Route.ComponentProps) { // eslint-disable-
                   }}
                 />
               ) : (
+                // Same fallback as the desktop panel: the real Xtiitch mark.
+                // This used to be a generic StorefrontRounded icon, so with no
+                // brandLogoUrl configured mobile showed a stock shop glyph while
+                // desktop showed the actual logo.
                 <Box
+                  component="img"
+                  src="/favicon.svg"
+                  alt="Xtiitch"
                   sx={{
                     width: 40,
                     height: 40,
                     borderRadius: 1.5,
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: tokens.burgundy,
-                    color: tokens.white,
+                    flexShrink: 0,
+                    display: "block",
                   }}
-                >
-                  <StorefrontRounded />
-                </Box>
+                />
               )}
               <Box>
                 {brandLogoUrl ? null : (

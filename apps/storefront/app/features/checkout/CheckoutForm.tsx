@@ -14,6 +14,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import LockRounded from "@mui/icons-material/LockRounded";
 import { tokens } from "../../theme";
+import { XCreativsPaymentNotice } from "../../components/xcreativs-payment-notice";
 import { formatGHS } from "../../lib/format";
 import type { CartItem } from "../../lib/cart";
 import type { CustomerProfile } from "../../lib/discovery";
@@ -177,6 +178,10 @@ export default function CheckoutForm({
             ? "Starting payment…"
             : `Pay ${formatGHS(grandTotal)} with Paystack`}
         </Button>
+        {/* "XCreativs" is the name that appears at payment, which is unfamiliar
+            to a shopper who only knows Xtiitch — say so here, at the moment of
+            payment, so it reads as expected rather than as a wrong charge. */}
+        <XCreativsPaymentNotice />
       </Stack>
     </Form>
   );
