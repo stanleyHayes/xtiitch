@@ -1,4 +1,7 @@
 export type Plan = {
+  // Joins this marketing copy to the live plan from GET /v1/plans, so the
+  // displayed prices are the ones actually charged.
+  code: string;
   name: string;
   badge?: string;
   monthlyPrice: string;
@@ -15,8 +18,14 @@ export type Plan = {
 
 // Confirmed four-plan pricing (Xtiitch-Pricing-Section.pdf). Quarterly saves
 // ~20%; yearly gives ~3 months free. The Free plan is always GHS 0.
+//
+// The prices here are only a FALLBACK for when GET /v1/plans is unreachable —
+// the pricing route overlays the live figures (see lib/pricing.ts). Keep them in
+// step with the plans table: advertising a price the platform does not charge is
+// exactly the drift this fallback previously caused (GHS 119 vs 118 charged).
 export const plans: Plan[] = [
   {
+    code: "free",
     name: "Free — Get Online",
     monthlyPrice: "GHS 0",
     yearlyPrice: "GHS 0",
@@ -34,9 +43,10 @@ export const plans: Plan[] = [
     ],
   },
   {
+    code: "starter",
     name: "Starter — Start Selling",
     monthlyPrice: "GHS 49",
-    quarterlyPrice: "GHS 119 / quarter",
+    quarterlyPrice: "GHS 118 / quarter",
     yearlyPrice: "GHS 441",
     yearlySaving: "3 months free",
     available: true,
@@ -55,10 +65,11 @@ export const plans: Plan[] = [
     ],
   },
   {
+    code: "growth",
     name: "Growth — Run the Business",
     badge: "Most popular",
     monthlyPrice: "GHS 99",
-    quarterlyPrice: "GHS 239 / quarter",
+    quarterlyPrice: "GHS 238 / quarter",
     yearlyPrice: "GHS 891",
     yearlySaving: "3 months free",
     available: true,
@@ -78,10 +89,11 @@ export const plans: Plan[] = [
     ],
   },
   {
+    code: "studio",
     name: "Studio — Scale Up",
     badge: "Best for scale",
     monthlyPrice: "GHS 199",
-    quarterlyPrice: "GHS 479 / quarter",
+    quarterlyPrice: "GHS 478 / quarter",
     yearlyPrice: "GHS 1,791",
     yearlySaving: "3 months free",
     available: true,

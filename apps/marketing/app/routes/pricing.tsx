@@ -1,4 +1,5 @@
 import type { MetaDescriptor } from "react-router";
+import { useLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
@@ -13,6 +14,7 @@ import {
   SectionHeading,
 } from "../components/ui";
 import { growthProgrammes, plans, pricingNotes } from "../content";
+import { loadLivePlanPricing, withLivePricing } from "../lib/pricing";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
@@ -23,7 +25,16 @@ export function meta(): MetaDescriptor[] {
   });
 }
 
+// Prices come from the API so an admin price change shows here without a
+// deploy. loadLivePlanPricing fails open, in which case the copy's own figures
+// are used.
+export async function loader() {
+  return { livePricing: await loadLivePlanPricing() };
+}
+
 export default function Pricing() {
+  const { livePricing } = useLoaderData<typeof loader>();
+  const livePlans = withLivePricing(plans, livePricing);
   return (
     <>
       <PageHero
@@ -33,7 +44,7 @@ export default function Pricing() {
       />
 
       <Section>
-        <PlanCards items={plans} />
+        <PlanCards items={livePlans} />
       </Section>
 
       <Section alt>
