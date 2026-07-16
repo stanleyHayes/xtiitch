@@ -13,6 +13,7 @@ import type {
   AdminRiskReviewStatus,
   AdminSupportTicketStatus,
   AdminSupportAssignment,
+  PlanCadencePricing,
 } from "../types";
 import { readGhsPesewas, readNumber, readInt } from "../validation";
 
@@ -152,4 +153,16 @@ export function readSupportAssignment(
     return assignment;
   }
   return "unchanged";
+}
+
+// The plan prices that are actually CHARGED: per quarter / per year, discounted
+// first cycle vs standard renewal. (The monthly fee is a reference rate only,
+// so it is read separately alongside the other plan economics.)
+export function readPlanCadence(form: FormData): PlanCadencePricing {
+  return {
+    quarterlyFirstMinor: readGhsPesewas(form.get("quarterly_first_ghs")),
+    quarterlyRenewalMinor: readGhsPesewas(form.get("quarterly_renewal_ghs")),
+    yearlyFirstMinor: readGhsPesewas(form.get("yearly_first_ghs")),
+    yearlyRenewalMinor: readGhsPesewas(form.get("yearly_renewal_ghs")),
+  };
 }

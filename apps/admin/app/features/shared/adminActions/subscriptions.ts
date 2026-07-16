@@ -10,6 +10,7 @@ import {
   readNumber,
   readOptionalInteger,
   readOptionalDateTime,
+  readPlanCadence,
 } from "../formReaders";
 import {
   adminSubscriptionActionError,
@@ -212,6 +213,8 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
     const selectedFeatures = new Set(
       form.getAll("features").map((value) => String(value)),
     );
+    const planCadence = readPlanCadence(form);
+
     const planFeatures = Object.fromEntries(
       PLAN_BENEFITS.map((benefit) => [
         benefit.key,
@@ -226,6 +229,7 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
           name: String(form.get("name") ?? ""),
           monthlyFeeMinor: readGhsPesewas(form.get("monthly_fee_ghs")),
           yearlyFeeMinor: readGhsPesewas(form.get("yearly_fee_ghs")),
+          cadence: planCadence,
           commissionBps: Math.trunc(readNumber(form.get("commission_bps"), 0)),
           designLimit: readOptionalInteger(form.get("design_limit")),
           features: planFeatures,
@@ -245,6 +249,7 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
             name: String(form.get("name") ?? ""),
             monthlyFeeMinor: readGhsPesewas(form.get("monthly_fee_ghs")),
             yearlyFeeMinor: readGhsPesewas(form.get("yearly_fee_ghs")),
+            cadence: planCadence,
             commissionBps: Math.trunc(
               readNumber(form.get("commission_bps"), 0),
             ),

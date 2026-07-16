@@ -23,11 +23,12 @@ type CreatePlanCommand struct {
 	Name            string
 	MonthlyFeeMinor int64
 	YearlyFeeMinor  int64
-	CommissionBPS   int
-	DesignLimit     *int
-	Features        map[string]bool
-	UserAgent       string
-	IPAddress       string
+	ports.PlanCadencePricing
+	CommissionBPS int
+	DesignLimit   *int
+	Features      map[string]bool
+	UserAgent     string
+	IPAddress     string
 }
 
 type UpdatePlanCommand struct {
@@ -37,12 +38,13 @@ type UpdatePlanCommand struct {
 	Name            string
 	MonthlyFeeMinor int64
 	YearlyFeeMinor  int64
-	CommissionBPS   int
-	DesignLimit     *int
-	Features        map[string]bool
-	IsActive        bool
-	UserAgent       string
-	IPAddress       string
+	ports.PlanCadencePricing
+	CommissionBPS int
+	DesignLimit   *int
+	Features      map[string]bool
+	IsActive      bool
+	UserAgent     string
+	IPAddress     string
 }
 
 type ArchivePlanCommand struct {
@@ -296,17 +298,19 @@ func normalizeCreatePlanInput(cmd CreatePlanCommand) (ports.CreateAdminPlanInput
 	if name == "" {
 		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
-	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) ||
+		!validPlanCadencePricing(cmd.PlanCadencePricing) {
 		return ports.CreateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
 	return ports.CreateAdminPlanInput{
-		Code:            code,
-		Name:            name,
-		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
-		YearlyFeeMinor:  cmd.YearlyFeeMinor,
-		CommissionBPS:   cmd.CommissionBPS,
-		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
-		Features:        business.SanitizeFeatures(cmd.Features),
+		Code:               code,
+		Name:               name,
+		MonthlyFeeMinor:    cmd.MonthlyFeeMinor,
+		YearlyFeeMinor:     cmd.YearlyFeeMinor,
+		PlanCadencePricing: cmd.PlanCadencePricing,
+		CommissionBPS:      cmd.CommissionBPS,
+		DesignLimit:        copyOptionalInt(cmd.DesignLimit),
+		Features:           business.SanitizeFeatures(cmd.Features),
 	}, nil
 }
 
@@ -315,18 +319,20 @@ func normalizeUpdatePlanInput(cmd UpdatePlanCommand) (ports.UpdateAdminPlanInput
 	if name == "" {
 		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
-	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) {
+	if !validPlanEconomics(cmd.MonthlyFeeMinor, cmd.YearlyFeeMinor, cmd.CommissionBPS, cmd.DesignLimit) ||
+		!validPlanCadencePricing(cmd.PlanCadencePricing) {
 		return ports.UpdateAdminPlanInput{}, authdomain.ErrInvalidInput
 	}
 	return ports.UpdateAdminPlanInput{
-		PlanID:          cmd.PlanID,
-		Name:            name,
-		MonthlyFeeMinor: cmd.MonthlyFeeMinor,
-		YearlyFeeMinor:  cmd.YearlyFeeMinor,
-		CommissionBPS:   cmd.CommissionBPS,
-		DesignLimit:     copyOptionalInt(cmd.DesignLimit),
-		Features:        business.SanitizeFeatures(cmd.Features),
-		IsActive:        cmd.IsActive,
+		PlanID:             cmd.PlanID,
+		Name:               name,
+		MonthlyFeeMinor:    cmd.MonthlyFeeMinor,
+		YearlyFeeMinor:     cmd.YearlyFeeMinor,
+		PlanCadencePricing: cmd.PlanCadencePricing,
+		CommissionBPS:      cmd.CommissionBPS,
+		DesignLimit:        copyOptionalInt(cmd.DesignLimit),
+		Features:           business.SanitizeFeatures(cmd.Features),
+		IsActive:           cmd.IsActive,
 	}, nil
 }
 
@@ -431,6 +437,15 @@ func validPlanEconomics(monthlyFeeMinor int64, yearlyFeeMinor int64, commissionB
 		return false
 	}
 	return true
+}
+
+// validPlanCadencePricing guards the figures that are actually charged. Zero is
+// allowed (a free plan bills nothing on either cadence); negative is not.
+func validPlanCadencePricing(pricing ports.PlanCadencePricing) bool {
+	return pricing.QuarterlyFirstMinor >= 0 &&
+		pricing.QuarterlyRenewalMinor >= 0 &&
+		pricing.YearlyFirstMinor >= 0 &&
+		pricing.YearlyRenewalMinor >= 0
 }
 
 func planAuditSummary(record ports.AdminPlanRecord) string {

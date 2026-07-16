@@ -26,6 +26,15 @@ export function fallbackAdminPlans(): AdminPlan[] {
     name: plan.name,
     monthlyFeeMinor: plan.monthlyFeeMinor,
     yearlyFeeMinor: plan.yearlyFeeMinor,
+    // Zeroed deliberately: this fallback only renders when /admin/plans is
+    // unreachable, and the cadence figures are what actually bill — inventing
+    // them here would show an admin a price the platform does not charge.
+    cadence: {
+      quarterlyFirstMinor: 0,
+      quarterlyRenewalMinor: 0,
+      yearlyFirstMinor: 0,
+      yearlyRenewalMinor: 0,
+    },
     commissionBps: plan.commissionBps,
     designLimit: plan.code === "free" ? 10 : undefined,
     features: Object.fromEntries(

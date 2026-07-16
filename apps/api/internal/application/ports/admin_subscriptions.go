@@ -176,12 +176,26 @@ type EnqueueSubscriptionRenewalReminderInput struct {
 type SubscriptionRenewalReminderResult struct {
 	Enqueued bool
 }
+// PlanCadencePricing carries the figures a plan actually BILLS. Xtiitch charges
+// per quarter or per year only, each with a discounted first cycle and a
+// standard renewal; MonthlyFeeMinor is a display/reference rate (and drives
+// upgrade-vs-downgrade classification) — nothing is ever charged monthly.
+// These were migration-only for a long time, which meant an admin editing a
+// price changed the displayed rate while the charged amount stayed frozen.
+type PlanCadencePricing struct {
+	QuarterlyFirstMinor   int64
+	QuarterlyRenewalMinor int64
+	YearlyFirstMinor      int64
+	YearlyRenewalMinor    int64
+}
+
 type AdminPlanRecord struct {
-	PlanID                  common.ID
-	Code                    string
-	Name                    string
-	MonthlyFeeMinor         int64
-	YearlyFeeMinor          int64
+	PlanID          common.ID
+	Code            string
+	Name            string
+	MonthlyFeeMinor int64
+	YearlyFeeMinor  int64
+	PlanCadencePricing
 	CommissionBPS           int
 	DesignLimit             *int
 	Features                map[string]bool
@@ -197,19 +211,21 @@ type CreateAdminPlanInput struct {
 	Name            string
 	MonthlyFeeMinor int64
 	YearlyFeeMinor  int64
-	CommissionBPS   int
-	DesignLimit     *int
-	Features        map[string]bool
+	PlanCadencePricing
+	CommissionBPS int
+	DesignLimit   *int
+	Features      map[string]bool
 }
 type UpdateAdminPlanInput struct {
 	PlanID          common.ID
 	Name            string
 	MonthlyFeeMinor int64
 	YearlyFeeMinor  int64
-	CommissionBPS   int
-	DesignLimit     *int
-	Features        map[string]bool
-	IsActive        bool
+	PlanCadencePricing
+	CommissionBPS int
+	DesignLimit   *int
+	Features      map[string]bool
+	IsActive      bool
 }
 type ArchiveAdminPlanInput struct {
 	PlanID common.ID

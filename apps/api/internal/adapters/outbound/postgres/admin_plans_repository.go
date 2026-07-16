@@ -73,12 +73,16 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 				name,
 				monthly_fee_minor,
 				yearly_fee_minor,
+				quarterly_first_minor,
+				quarterly_renewal_minor,
+				yearly_first_minor,
+				yearly_renewal_minor,
 				commission_bps,
 				design_limit,
 				features,
 				is_active
 			)
-			values ($1, $2, $3, $4, $5, $6, $7::jsonb, true)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, true)
 			returning *
 		)
 		`+adminPlanSelect("inserted")+`
@@ -86,6 +90,10 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 		input.Name,
 		input.MonthlyFeeMinor,
 		input.YearlyFeeMinor,
+		input.QuarterlyFirstMinor,
+		input.QuarterlyRenewalMinor,
+		input.YearlyFirstMinor,
+		input.YearlyRenewalMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
 		planFeaturesArg(input.Features),
@@ -124,10 +132,14 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 			set name = $2,
 				monthly_fee_minor = $3,
 				yearly_fee_minor = $4,
-				commission_bps = $5,
-				design_limit = $6,
-				features = $7::jsonb,
-				is_active = $8,
+				quarterly_first_minor = $5,
+				quarterly_renewal_minor = $6,
+				yearly_first_minor = $7,
+				yearly_renewal_minor = $8,
+				commission_bps = $9,
+				design_limit = $10,
+				features = $11::jsonb,
+				is_active = $12,
 				updated_at = now()
 			where plan_id = $1::uuid
 			returning *
@@ -137,6 +149,10 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 		input.Name,
 		input.MonthlyFeeMinor,
 		input.YearlyFeeMinor,
+		input.QuarterlyFirstMinor,
+		input.QuarterlyRenewalMinor,
+		input.YearlyFirstMinor,
+		input.YearlyRenewalMinor,
 		input.CommissionBPS,
 		nullableIntArg(input.DesignLimit),
 		planFeaturesArg(input.Features),
@@ -284,6 +300,10 @@ func scanAdminPlanRecord(row pgx.Row) (ports.AdminPlanRecord, error) {
 		&record.Name,
 		&record.MonthlyFeeMinor,
 		&record.YearlyFeeMinor,
+		&record.QuarterlyFirstMinor,
+		&record.QuarterlyRenewalMinor,
+		&record.YearlyFirstMinor,
+		&record.YearlyRenewalMinor,
 		&record.CommissionBPS,
 		&designLimit,
 		&features,
@@ -443,6 +463,10 @@ func adminPlanSelect(source string) string {
 			p.name,
 			p.monthly_fee_minor::bigint,
 			p.yearly_fee_minor::bigint,
+			p.quarterly_first_minor::bigint,
+			p.quarterly_renewal_minor::bigint,
+			p.yearly_first_minor::bigint,
+			p.yearly_renewal_minor::bigint,
 			p.commission_bps::int,
 			p.design_limit,
 			coalesce(p.features, '{}'::jsonb),

@@ -48,17 +48,18 @@ func (handler Handler) createPlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record, err := handler.service.CreatePlan(r.Context(), adminauthapp.CreatePlanCommand{
-		ActorUserID:     principal.AdminUserID,
-		ActorRole:       principal.Role,
-		Code:            request.Code,
-		Name:            request.Name,
-		MonthlyFeeMinor: request.MonthlyFeeMinor,
-		YearlyFeeMinor:  request.YearlyFeeMinor,
-		CommissionBPS:   request.CommissionBPS,
-		DesignLimit:     request.DesignLimit,
-		Features:        request.Features,
-		UserAgent:       r.UserAgent(),
-		IPAddress:       requestIP(r),
+		ActorUserID:        principal.AdminUserID,
+		ActorRole:          principal.Role,
+		Code:               request.Code,
+		Name:               request.Name,
+		MonthlyFeeMinor:    request.MonthlyFeeMinor,
+		YearlyFeeMinor:     request.YearlyFeeMinor,
+		PlanCadencePricing: planCadence(request.planCadenceRequest),
+		CommissionBPS:      request.CommissionBPS,
+		DesignLimit:        request.DesignLimit,
+		Features:           request.Features,
+		UserAgent:          r.UserAgent(),
+		IPAddress:          requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -83,18 +84,19 @@ func (handler Handler) updatePlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record, err := handler.service.UpdatePlan(r.Context(), adminauthapp.UpdatePlanCommand{
-		ActorUserID:     principal.AdminUserID,
-		ActorRole:       principal.Role,
-		PlanID:          common.ID(chi.URLParam(r, "id")),
-		Name:            request.Name,
-		MonthlyFeeMinor: request.MonthlyFeeMinor,
-		YearlyFeeMinor:  request.YearlyFeeMinor,
-		CommissionBPS:   request.CommissionBPS,
-		DesignLimit:     request.DesignLimit,
-		Features:        request.Features,
-		IsActive:        request.IsActive,
-		UserAgent:       r.UserAgent(),
-		IPAddress:       requestIP(r),
+		ActorUserID:        principal.AdminUserID,
+		ActorRole:          principal.Role,
+		PlanID:             common.ID(chi.URLParam(r, "id")),
+		Name:               request.Name,
+		MonthlyFeeMinor:    request.MonthlyFeeMinor,
+		YearlyFeeMinor:     request.YearlyFeeMinor,
+		PlanCadencePricing: planCadence(request.planCadenceRequest),
+		CommissionBPS:      request.CommissionBPS,
+		DesignLimit:        request.DesignLimit,
+		Features:           request.Features,
+		IsActive:           request.IsActive,
+		UserAgent:          r.UserAgent(),
+		IPAddress:          requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -196,13 +198,30 @@ func (handler Handler) updatePlanEntitlements(w http.ResponseWriter, r *http.Req
 	})
 }
 
+// planCadence maps the wire cadence figures onto the shared pricing struct. These
+// are the amounts actually charged at checkout and renewal.
+func planCadence(request planCadenceRequest) ports.PlanCadencePricing {
+	return ports.PlanCadencePricing{
+		QuarterlyFirstMinor:   request.QuarterlyFirstMinor,
+		QuarterlyRenewalMinor: request.QuarterlyRenewalMinor,
+		YearlyFirstMinor:      request.YearlyFirstMinor,
+		YearlyRenewalMinor:    request.YearlyRenewalMinor,
+	}
+}
+
 func newPlanResponse(record ports.AdminPlanRecord) planResponse {
 	return planResponse{
-		PlanID:                  record.PlanID.String(),
-		Code:                    record.Code,
-		Name:                    record.Name,
-		MonthlyFeeMinor:         record.MonthlyFeeMinor,
-		YearlyFeeMinor:          record.YearlyFeeMinor,
+		PlanID:          record.PlanID.String(),
+		Code:            record.Code,
+		Name:            record.Name,
+		MonthlyFeeMinor: record.MonthlyFeeMinor,
+		YearlyFeeMinor:  record.YearlyFeeMinor,
+		planCadenceRequest: planCadenceRequest{
+			QuarterlyFirstMinor:   record.QuarterlyFirstMinor,
+			QuarterlyRenewalMinor: record.QuarterlyRenewalMinor,
+			YearlyFirstMinor:      record.YearlyFirstMinor,
+			YearlyRenewalMinor:    record.YearlyRenewalMinor,
+		},
 		CommissionBPS:           record.CommissionBPS,
 		DesignLimit:             record.DesignLimit,
 		Features:                sanitizedPlanFeatures(record.Features),

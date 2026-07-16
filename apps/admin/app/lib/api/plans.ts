@@ -45,12 +45,23 @@ export const PLAN_BENEFITS: readonly {
 
 export type PlanFeatures = Record<string, boolean>;
 
+// The cadence figures are what Xtiitch actually CHARGES (per quarter / per year,
+// discounted first cycle vs standard renewal). monthlyFeeMinor is a reference
+// rate for display and upgrade classification only — nothing bills it.
+export type PlanCadencePricing = {
+  quarterlyFirstMinor: number;
+  quarterlyRenewalMinor: number;
+  yearlyFirstMinor: number;
+  yearlyRenewalMinor: number;
+};
+
 export type AdminPlan = {
   planId: string;
   code: string;
   name: string;
   monthlyFeeMinor: number;
   yearlyFeeMinor: number;
+  cadence: PlanCadencePricing;
   commissionBps: number;
   designLimit?: number;
   features: PlanFeatures;
@@ -89,6 +100,10 @@ type AdminPlanPayload = {
   name: string;
   monthly_fee_minor: number;
   yearly_fee_minor: number;
+  quarterly_first_minor?: number;
+  quarterly_renewal_minor?: number;
+  yearly_first_minor?: number;
+  yearly_renewal_minor?: number;
   commission_bps: number;
   design_limit?: number;
   features?: Record<string, boolean> | null;
@@ -128,6 +143,12 @@ function mapPlan(payload: AdminPlanPayload): AdminPlan {
     name: payload.name,
     monthlyFeeMinor: payload.monthly_fee_minor,
     yearlyFeeMinor: payload.yearly_fee_minor ?? 0,
+    cadence: {
+      quarterlyFirstMinor: payload.quarterly_first_minor ?? 0,
+      quarterlyRenewalMinor: payload.quarterly_renewal_minor ?? 0,
+      yearlyFirstMinor: payload.yearly_first_minor ?? 0,
+      yearlyRenewalMinor: payload.yearly_renewal_minor ?? 0,
+    },
     commissionBps: payload.commission_bps,
     designLimit: payload.design_limit,
     features: payload.features ?? {},
@@ -182,6 +203,7 @@ export const plansApi = {
       name: string;
       monthlyFeeMinor: number;
       yearlyFeeMinor: number;
+      cadence: PlanCadencePricing;
       commissionBps: number;
       designLimit?: number;
       features?: Record<string, boolean>;
@@ -195,6 +217,10 @@ export const plansApi = {
         name: input.name,
         monthly_fee_minor: input.monthlyFeeMinor,
         yearly_fee_minor: input.yearlyFeeMinor,
+        quarterly_first_minor: input.cadence.quarterlyFirstMinor,
+        quarterly_renewal_minor: input.cadence.quarterlyRenewalMinor,
+        yearly_first_minor: input.cadence.yearlyFirstMinor,
+        yearly_renewal_minor: input.cadence.yearlyRenewalMinor,
         commission_bps: input.commissionBps,
         design_limit: input.designLimit,
         features: input.features ?? {},
@@ -207,6 +233,7 @@ export const plansApi = {
       name: string;
       monthlyFeeMinor: number;
       yearlyFeeMinor: number;
+      cadence: PlanCadencePricing;
       commissionBps: number;
       designLimit?: number;
       features?: Record<string, boolean>;
@@ -222,6 +249,10 @@ export const plansApi = {
           name: input.name,
           monthly_fee_minor: input.monthlyFeeMinor,
           yearly_fee_minor: input.yearlyFeeMinor,
+          quarterly_first_minor: input.cadence.quarterlyFirstMinor,
+          quarterly_renewal_minor: input.cadence.quarterlyRenewalMinor,
+          yearly_first_minor: input.cadence.yearlyFirstMinor,
+          yearly_renewal_minor: input.cadence.yearlyRenewalMinor,
           commission_bps: input.commissionBps,
           design_limit: input.designLimit,
           features: input.features ?? {},

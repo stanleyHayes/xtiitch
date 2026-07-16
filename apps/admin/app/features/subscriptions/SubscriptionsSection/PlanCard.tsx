@@ -21,11 +21,11 @@ import { formatGHS } from "../../shared/formatting";
 import { Panel } from "../../../components/ui/Panel";
 import { PlanStatTile } from "../../plans/PlanStatTile";
 import { PlanBenefitsField } from "../../plans/PlanBenefitsField";
+import { PlanCadenceFields } from "../../plans/PlanCadenceFields";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
 import {
   grantedPlanBenefitKeys,
   planDesignLimitLabel,
-  planMonthlyFeeDefault,
   planVisualFor,
   planYearlyFeeDefault,
 } from "../../plans/utils";
@@ -246,27 +246,11 @@ export function PlanCard({ // eslint-disable-line max-lines-per-function -- larg
                         gridTemplateColumns: {
                           xs: "1fr",
                           sm: "repeat(2, minmax(0, 1fr))",
-                          lg: "repeat(5, minmax(0, 1fr))",
+                          lg: "repeat(4, minmax(0, 1fr))",
                         },
                       }}
                     >
-                      <TextField
-                        label="Monthly fee"
-                        name="monthly_fee_ghs"
-                        type="number"
-                        size="small"
-                        defaultValue={planMonthlyFeeDefault(plan)}
-                        slotProps={{
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                GHS
-                              </InputAdornment>
-                            ),
-                          },
-                          htmlInput: { min: 0, step: "0.01" },
-                        }}
-                      />
+                      <PlanCadenceFields plan={plan} />
                       <TextField
                         label="Yearly fee"
                         name="yearly_fee_ghs"
