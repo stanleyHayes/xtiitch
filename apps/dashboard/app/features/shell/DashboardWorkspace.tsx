@@ -128,8 +128,16 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
   } = usePagedItems(measurementFields, 8, measurementFields.length);
   const canManage = canManageDashboard(currentUser.role);
   const isFreePlan = profile.plan === "free";
+  // Still mirrors the API's hardcoded free=2/paid=5 image cap
+  // (ensureImageCapacity). Unlike the design limit there is no plan column to
+  // read yet, so this stays a guess until one exists.
   const imageLimit = isFreePlan ? 2 : 5;
-  const designLimit = isFreePlan ? 10 : null;
+  // Read the real cap rather than inferring one from the plan slug. This used to
+  // be `isFreePlan ? 10 : null`, which told every paid plan it was unlimited --
+  // so a Starter merchant (capped at 50) got no warning and hit an unexplained
+  // refusal on design 51. undefined (an older API) means unlimited, matching the
+  // column's own NULL semantics.
+  const designLimit = profile.design_limit ?? null;
   const atDesignLimit = designLimit !== null && designs.length >= designLimit;
   const workspaceGroups = canManage
     ? managementWorkspaceGroups

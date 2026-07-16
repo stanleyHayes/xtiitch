@@ -25,6 +25,10 @@ export type Profile = {
   // Resolved plan benefits, e.g. { custom_logo: true }. Drives which storefront
   // customizations the dashboard unlocks; the API enforces the same set.
   entitlements: Record<string, boolean>;
+  // The plan's cap on active designs, straight from the plan. null or absent
+  // means unlimited — do NOT coerce it to a number. Admin-editable, so the
+  // dashboard must read it rather than infer a cap from the plan name.
+  design_limit?: number | null;
 };
 
 export type UserRole = "owner" | "admin" | "staff";

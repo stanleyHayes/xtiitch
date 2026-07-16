@@ -135,7 +135,7 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
           <Tooltip
             title={
               atDesignLimit
-                ? `You've reached the ${designLimit}-design limit on the Free plan`
+                ? `You've reached your plan's ${designLimit}-design limit`
                 : ""
             }
           >
@@ -211,7 +211,12 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
               defaultOpen
               priceError={action.priceError}
               imageLimit={imageLimit}
-              isFreePlan={designLimit !== null}
+              // A real plan check. This was `designLimit !== null`, which only
+              // coincided with "free" while every paid plan was uncapped — the
+              // moment a paid plan carries a real limit (Starter is 50), that
+              // expression flips every capped paid merchant to the free tier's
+              // 2-image cap.
+              isFreePlan={profile.plan === "free"}
             />
           </Panel>
         </Box>

@@ -242,6 +242,10 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
       }
 
       if (intent === "admin-plan:update") {
+        // Benefits and the design limit are NOT sent: the entitlements matrix
+        // owns them. This used to post a full features object rebuilt from the
+        // dialog's checkboxes, so saving the dialog for any reason (even just a
+        // rename) silently overwrote whatever the matrix had set.
         await adminApi.updatePlan(
           accessToken,
           String(form.get("plan_id") ?? ""),
@@ -253,8 +257,6 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
             commissionBps: Math.trunc(
               readNumber(form.get("commission_bps"), 0),
             ),
-            designLimit: readOptionalInteger(form.get("design_limit")),
-            features: planFeatures,
             isActive: String(form.get("is_active") ?? "") === "true",
           },
         );

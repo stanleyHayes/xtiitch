@@ -45,9 +45,12 @@ export function DashboardDialogs({
       >
         <DialogTitle>Design limit reached</DialogTitle>
         <DialogContent>
+          {/* Any capped plan can reach this now that the real limit is read
+              from the plan instead of guessed from the slug — Starter is capped
+              at 50 — so the copy cannot assume the reader is on Free. */}
           <Typography sx={{ mb: 2, color: "text.secondary" }}>
-            You&apos;ve added the maximum {designLimit} designs allowed on the
-            Free plan. Upgrade to a paid plan to publish more designs.
+            You&apos;ve added the maximum {designLimit} designs allowed on your
+            plan. Upgrade to publish more designs.
           </Typography>
           <Stack
             direction="row"

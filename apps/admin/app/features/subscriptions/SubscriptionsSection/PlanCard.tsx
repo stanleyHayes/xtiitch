@@ -20,7 +20,6 @@ import { PLAN_BENEFITS } from "../../../lib/api";
 import { formatGHS } from "../../shared/formatting";
 import { Panel } from "../../../components/ui/Panel";
 import { PlanStatTile } from "../../plans/PlanStatTile";
-import { PlanBenefitsField } from "../../plans/PlanBenefitsField";
 import { PlanCadenceFields } from "../../plans/PlanCadenceFields";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
 import {
@@ -287,15 +286,6 @@ export function PlanCard({ // eslint-disable-line max-lines-per-function -- larg
                         }}
                       />
                       <TextField
-                        label="Design limit"
-                        name="design_limit"
-                        type="number"
-                        size="small"
-                        defaultValue={plan.designLimit ?? ""}
-                        placeholder="Unlimited"
-                        slotProps={{ htmlInput: { min: 0, step: 1 } }}
-                      />
-                      <TextField
                         select
                         label="Status"
                         name="is_active"
@@ -307,9 +297,15 @@ export function PlanCard({ // eslint-disable-line max-lines-per-function -- larg
                       </TextField>
                     </Box>
                   </Box>
-                  <PlanBenefitsField
-                    selected={grantedPlanBenefitKeys(plan.features)}
-                  />
+                  {/* Benefits and the design limit are edited in the feature
+                      entitlements matrix below, which is their source of truth.
+                      They used to be editable here too, and because this dialog
+                      always posted a full benefit set, saving it for any reason
+                      silently reset whatever the matrix had configured. */}
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    Benefits and limits for this plan are set in the feature
+                    entitlements matrix below.
+                  </Typography>
                   <Stack
                     direction={{ xs: "column", sm: "row" }}
                     spacing={1}

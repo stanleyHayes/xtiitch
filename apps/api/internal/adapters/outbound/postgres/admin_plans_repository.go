@@ -105,11 +105,51 @@ func (repo AdminAuthRepository) CreateAdminPlan(
 		return ports.AdminPlanRecord{}, err
 	}
 
+	// Seed the new plan's entitlement rows from the same input, in the same tx.
+	// plan_entitlement_values is the source of truth for features/design_limit, so
+	// a plan created without rows would be born with the matrix showing all-false
+	// while plans.features said otherwise — and the first matrix save would then
+	// "revert" settings the admin never made.
+	if err := seedAdminPlanEntitlementValues(ctx, tx, record.PlanID, input.Features, input.DesignLimit); err != nil {
+		return ports.AdminPlanRecord{}, err
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return ports.AdminPlanRecord{}, err
 	}
 
 	return record, nil
+}
+
+// seedAdminPlanEntitlementValues gives a new plan one row per active feature, so
+// it shows up complete in the admin matrix and mirrors consistently from birth.
+func seedAdminPlanEntitlementValues(
+	ctx context.Context,
+	tx pgx.Tx,
+	planID common.ID,
+	features map[string]bool,
+	designLimit *int,
+) error {
+	if _, err := tx.Exec(ctx, `
+		insert into plan_entitlement_values (plan_id, feature_key, enabled, limit_value)
+		select
+			$1::uuid,
+			f.feature_key,
+			case
+				-- Limit rows are granted by default; the CAP is what restricts them
+				-- (blank = unlimited). Defaulting them off would mirror design_limit
+				-- to 0, so a brand-new plan could not hold a single design.
+				when f.value_type = 'limit' then true
+				else coalesce(($2::jsonb ->> f.feature_key)::boolean, false)
+			end,
+			case when f.feature_key = 'designs' then $3::integer else null end
+		from plan_entitlement_features f
+		where f.is_active = true
+		on conflict (plan_id, feature_key) do nothing
+	`, planID.String(), planFeaturesArg(features), nullableIntArg(designLimit)); err != nil {
+		return err
+	}
+	return mirrorAdminPlanRuntimeEntitlements(ctx, tx, planID)
 }
 
 func (repo AdminAuthRepository) UpdateAdminPlan(
@@ -126,6 +166,13 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 		return ports.AdminPlanRecord{}, err
 	}
 
+	// design_limit and features are deliberately NOT set here. They are projections
+	// of plan_entitlement_values, written only by the entitlements matrix mirror.
+	// This statement used to write them too, from the plan dialog's own fields --
+	// two writers, one column set, no cross-reference. Saving the dialog after a
+	// matrix edit silently reset both (the dialog always posted a full features
+	// object, never a patch), and the next matrix save silently reverted the
+	// dialog. Whoever clicked last won, with a success toast either way.
 	record, err := scanAdminPlanRecord(tx.QueryRow(ctx, `
 		with updated as (
 			update plans
@@ -137,9 +184,7 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 				yearly_first_minor = $7,
 				yearly_renewal_minor = $8,
 				commission_bps = $9,
-				design_limit = $10,
-				features = $11::jsonb,
-				is_active = $12,
+				is_active = $10,
 				updated_at = now()
 			where plan_id = $1::uuid
 			returning *
@@ -154,8 +199,6 @@ func (repo AdminAuthRepository) UpdateAdminPlan(
 		input.YearlyFirstMinor,
 		input.YearlyRenewalMinor,
 		input.CommissionBPS,
-		nullableIntArg(input.DesignLimit),
-		planFeaturesArg(input.Features),
 		input.IsActive,
 	))
 	if err != nil {
@@ -437,13 +480,27 @@ func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID c
 			group by v.plan_id
 		),
 		designs as (
-			select limit_value
+			-- (plan_id, feature_key) is the primary key, so this is at most one row.
+			select enabled, limit_value
 			from plan_entitlement_values
-			where plan_id = $1::uuid and feature_key = 'designs' and enabled = true
+			where plan_id = $1::uuid and feature_key = 'designs'
 		)
 		update plans p
 		set features = coalesce(runtime.features, '{}'::jsonb),
-			design_limit = (select limit_value from designs),
+			design_limit = case
+				-- No 'designs' row for this plan (e.g. a plan created before its
+				-- entitlements were seeded): we know nothing about its cap, so keep
+				-- whatever is set. Falling through to NULL would read as "unlimited"
+				-- and silently uncap the plan.
+				when not exists (select 1 from designs) then p.design_limit
+				-- Withheld. This MUST NOT fall through to NULL: NULL means unlimited,
+				-- so turning the entitlement OFF would grant strictly more than
+				-- leaving it on -- which is what happened before this case existed.
+				when not (select enabled from designs) then 0
+				-- Granted: the configured cap, where blank (NULL) means unlimited --
+				-- the promise the matrix's "Unlimited" placeholder makes.
+				else (select limit_value from designs)
+			end,
 			updated_at = now()
 		from runtime
 		where p.plan_id = runtime.plan_id
