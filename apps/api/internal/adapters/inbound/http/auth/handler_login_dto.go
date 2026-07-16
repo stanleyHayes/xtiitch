@@ -7,13 +7,12 @@ type registerBusinessRequest struct {
 	OwnerEmail       string `json:"owner_email"`
 	OwnerPassword    string `json:"owner_password"`
 	PlanCode         string `json:"plan_code"`
-	// OwnerPhone is the store owner's contact phone number for order and account
-	// notifications. Optional; not a sign-in identity.
-	OwnerPhone string `json:"owner_phone"`
-	// Optional WhatsApp identity: when a number is supplied, the code proving it
-	// must accompany the request.
+	// OwnerPhone is the number Xtiitch SMSes, so it is the one proven at signup:
+	// when supplied, owner_phone_code must be a valid one-time code for it.
+	OwnerPhone     string `json:"owner_phone"`
+	OwnerPhoneCode string `json:"owner_phone_code"`
+	// WhatsApp is chat-only and is stored unproven, so it carries no code.
 	WhatsAppNumber string `json:"whatsapp_number"`
-	WhatsAppCode   string `json:"whatsapp_code"`
 }
 
 type loginBusinessRequest struct {

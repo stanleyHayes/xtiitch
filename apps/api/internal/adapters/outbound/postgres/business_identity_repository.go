@@ -253,14 +253,20 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(
 			role,
 			is_active,
 			phone,
+			phone_verified_at,
 			whatsapp_number,
 			whatsapp_verified_at
 		)
-		values ($1, $2, $3, $4, $5, 'owner', true, $6, $7, case when $8 then now() else null end)
+		values (
+			$1, $2, $3, $4, $5, 'owner', true,
+			$6, case when $7 then now() else null end,
+			$8, case when $9 then now() else null end
+		)
 	`,
 		input.OwnerUserID.String(), input.BusinessID.String(),
 		input.OwnerEmail, input.OwnerDisplayName, input.OwnerPassword,
-		nullIfEmpty(input.Phone), nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified,
+		nullIfEmpty(input.Phone), input.PhoneVerified,
+		nullIfEmpty(input.WhatsAppNumber), input.WhatsAppVerified,
 	); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}

@@ -22,7 +22,7 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 		PlanCode:         request.PlanCode,
 		OwnerPhone:       request.OwnerPhone,
 		WhatsAppNumber:   request.WhatsAppNumber,
-		WhatsAppCode:     request.WhatsAppCode,
+		OwnerPhoneCode:   request.OwnerPhoneCode,
 		UserAgent:        r.UserAgent(),
 		IPAddress:        requestIP(r),
 	})

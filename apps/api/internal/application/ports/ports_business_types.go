@@ -44,6 +44,10 @@ type CreateBusinessWithOwnerInput struct {
 	// Phone is the store owner's contact phone number captured at signup, stored
 	// for order and account notifications. Optional; not a sign-in identity.
 	Phone string
+	// PhoneVerified records that the phone was proven with an OTP at signup. The
+	// phone is the number Xtiitch sends SMS to, so it is the number worth proving
+	// (signup used to prove the WhatsApp number instead, which is chat-only).
+	PhoneVerified bool
 	// WhatsApp identity is optional and additive to email + password: when
 	// WhatsAppNumber is set the owner can also sign in with a WhatsApp code, and
 	// WhatsAppVerified records that the number was proven (via OTP) at signup.

@@ -51,9 +51,11 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   const passwordOk = password.length >= 8;
   const passwordsMatch = password === confirmPassword;
   const whatsappOk = whatsappNumber.replace(/[^0-9]/g, "").length >= 9;
+  const phoneOk = ownerPhone.replace(/[^0-9]/g, "").length >= 9;
 
-  const sendWhatsappCode = () => {
-    if (!whatsappOk || otpSending) {
+  // Verifies the PHONE number: it is what receives our SMS notifications.
+  const sendPhoneCode = () => {
+    if (!phoneOk || otpSending) {
       return;
     }
     setOtpSending(true);
@@ -63,7 +65,9 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         intent: "register",
-        whatsapp_number: whatsappNumber.trim(),
+        // The OTP endpoint just SMSes whatever Ghana number it is given; the
+        // field name is historical.
+        whatsapp_number: ownerPhone.trim(),
       }),
     })
       .then((response) => (response.ok ? response.json() : Promise.reject()))
@@ -116,19 +120,21 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
     handleStatus === "taken" || handleStatus === "reserved";
   const step0Valid =
     businessName.trim().length > 1 && handleOk && !handleUnavailable;
-  // WhatsApp is OPTIONAL (the API accepts signup without it). Only require the
-  // verification code when the owner actually entered a WhatsApp number —
-  // otherwise the forced OTP (valid ~5 min) blocked/expired mid-signup.
-  const whatsappProvided = whatsappNumber.trim().length > 0;
-  const whatsappStepOk =
-    !whatsappProvided ||
-    (whatsappOk && otpRequested && whatsappCode.trim().length > 0);
+  // The phone is OPTIONAL (the API accepts signup without one). Only require the
+  // code when a number was actually entered — otherwise the forced OTP (valid
+  // ~5 min) blocked/expired mid-signup. WhatsApp is chat-only: no code at all.
+  const phoneProvided = ownerPhone.trim().length > 0;
+  const phoneStepOk =
+    !phoneProvided ||
+    (phoneOk && otpRequested && whatsappCode.trim().length > 0);
+  const whatsappStepOk = !whatsappNumber.trim() || whatsappOk;
   const step1Valid =
     ownerName.trim().length > 0 &&
     emailOk &&
     passwordOk &&
     confirmPassword.length > 0 &&
     passwordsMatch &&
+    phoneStepOk &&
     whatsappStepOk;
   const step2Valid = plans.length === 0 || selectedPlan !== "";
 
@@ -277,7 +283,7 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
             <input type="hidden" name="owner_password" value={password} />
             <input type="hidden" name="owner_phone" value={ownerPhone} />
             <input type="hidden" name="whatsapp_number" value={whatsappNumber} />
-            <input type="hidden" name="whatsapp_code" value={whatsappCode} />
+            <input type="hidden" name="owner_phone_code" value={whatsappCode} />
             {step === 0 ? (
               <RegisterStepStore
                 businessName={businessName}
@@ -308,7 +314,7 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
                 otpRequested={otpRequested}
                 otpSending={otpSending}
                 otpError={otpError}
-                onRequestOtp={sendWhatsappCode}
+                onRequestOtp={sendPhoneCode}
                 password={password}
                 onPasswordChange={setPassword}
                 confirmPassword={confirmPassword}
@@ -319,6 +325,7 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
                 passwordOk={passwordOk}
                 passwordsMatch={passwordsMatch}
                 whatsappOk={whatsappOk}
+                phoneOk={phoneOk}
               />
             ) : null}
             {step === 2 ? (

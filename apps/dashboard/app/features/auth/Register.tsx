@@ -48,8 +48,10 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     owner_email: String(form.get("owner_email") ?? "").trim(),
     owner_password: String(form.get("owner_password") ?? ""),
     owner_phone: String(form.get("owner_phone") ?? "").trim(),
+    // The phone is the number we SMS, so it is the one proven at signup.
+    // WhatsApp is chat-only and carries no code.
+    owner_phone_code: String(form.get("owner_phone_code") ?? "").trim(),
     whatsapp_number: String(form.get("whatsapp_number") ?? "").trim(),
-    whatsapp_code: String(form.get("whatsapp_code") ?? "").trim(),
     plan_code: String(form.get("plan_code") ?? "free"),
   };
 

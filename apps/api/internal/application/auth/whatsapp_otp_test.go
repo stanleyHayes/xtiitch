@@ -264,7 +264,7 @@ func TestVerifySignInOTPTooManyAttempts(t *testing.T) {
 	}
 }
 
-func TestRegisterBusinessStoresVerifiedWhatsApp(t *testing.T) {
+func TestRegisterBusinessVerifiesOwnerPhone(t *testing.T) {
 	t.Parallel()
 	wa := &fakeWhatsAppAuth{}
 	delivery := &fakeOTPDelivery{}
@@ -283,24 +283,33 @@ func TestRegisterBusinessStoresVerifiedWhatsApp(t *testing.T) {
 		OwnerDisplayName: "Ama",
 		OwnerEmail:       "ama@example.com",
 		OwnerPassword:    "strong-password",
+		OwnerPhone:       "0244000111",
+		OwnerPhoneCode:   "123456",
 		WhatsAppNumber:   "0244000111",
-		WhatsAppCode:     "123456",
 	})
 	if err != nil {
 		t.Fatalf("register: %v", err)
 	}
-	if businesses.created.WhatsAppNumber != "233244000111" || !businesses.created.WhatsAppVerified {
+	// The PHONE is what we SMS, so it is the number proven at signup.
+	if businesses.created.Phone != "233244000111" || !businesses.created.PhoneVerified {
 		t.Fatalf(
-			"expected a verified WhatsApp number persisted, got %q verified=%v",
-			businesses.created.WhatsAppNumber, businesses.created.WhatsAppVerified,
+			"expected a verified phone persisted, got %q verified=%v",
+			businesses.created.Phone, businesses.created.PhoneVerified,
 		)
+	}
+	// WhatsApp is chat-only: stored (normalized) but never marked verified.
+	if businesses.created.WhatsAppNumber != "233244000111" {
+		t.Fatalf("expected the WhatsApp number stored, got %q", businesses.created.WhatsAppNumber)
+	}
+	if businesses.created.WhatsAppVerified {
+		t.Fatal("WhatsApp is chat-only and must not be marked verified at signup")
 	}
 	if !wa.challenges[0].consumed {
 		t.Fatal("expected the registration challenge to be consumed")
 	}
 }
 
-func TestRegisterBusinessRejectsBadWhatsAppCode(t *testing.T) {
+func TestRegisterBusinessRejectsBadPhoneCode(t *testing.T) {
 	t.Parallel()
 	wa := &fakeWhatsAppAuth{}
 	delivery := &fakeOTPDelivery{}
@@ -318,8 +327,8 @@ func TestRegisterBusinessRejectsBadWhatsAppCode(t *testing.T) {
 		OwnerDisplayName: "Ama",
 		OwnerEmail:       "ama@example.com",
 		OwnerPassword:    "strong-password",
-		WhatsAppNumber:   "0244000111",
-		WhatsAppCode:     "000000",
+		OwnerPhone:       "0244000111",
+		OwnerPhoneCode:   "000000",
 	})
 	if !errors.Is(err, ErrInvalidCode) {
 		t.Fatalf("expected ErrInvalidCode, got %v", err)

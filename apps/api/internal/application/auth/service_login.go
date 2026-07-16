@@ -84,15 +84,15 @@ type RegisterBusinessCommand struct {
 	PlanCode         string
 	UserAgent        string
 	IPAddress        string
-	// OwnerPhone is the store owner's contact phone number captured at signup.
-	// Unlike WhatsAppNumber it is not a sign-in identity and needs no verification;
-	// it is stored for order and account notifications. Optional.
-	OwnerPhone string
-	// Optional WhatsApp identity captured at signup. When WhatsAppNumber is set,
-	// WhatsAppCode must be a valid one-time code (proving control of the number);
-	// the number is then stored as a verified alternative sign-in identity.
+	// OwnerPhone is the number Xtiitch sends SMS notifications to, so it is the
+	// number we prove at signup: when it is supplied, OwnerPhoneCode must be a
+	// valid one-time code for it. Optional (an owner may sign up without one).
+	OwnerPhone     string
+	OwnerPhoneCode string
+	// WhatsAppNumber is used for owner<->customer chat, not as an identity, so it
+	// is stored as given and NOT verified. (Signup used to demand an OTP for this
+	// number instead of the phone, which is what actually receives our SMS.)
 	WhatsAppNumber string
-	WhatsAppCode   string
 }
 
 type LoginBusinessCommand struct {
@@ -128,25 +128,36 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		return AuthResult{}, err
 	}
 
-	// Optional WhatsApp identity: when the signup supplied a number, it must be
-	// proven with a valid one-time code before the account is created, and it is
-	// then stored as verified. No number → register with email + password only
-	// (fully backward compatible).
-	var whatsAppNumber string
-	var whatsAppVerified bool
-	if strings.TrimSpace(cmd.WhatsAppNumber) != "" {
+	// The PHONE is the number we send SMS to, so it is the one proven at signup:
+	// when supplied it must carry a valid one-time code. No phone → register with
+	// email + password only (backward compatible).
+	var ownerPhone string
+	var phoneVerified bool
+	if strings.TrimSpace(cmd.OwnerPhone) != "" {
 		if !s.whatsAppOTPEnabled() {
 			return AuthResult{}, ErrWhatsAppOTPUnavailable
 		}
+		number, err := normalizeGhanaPhone(cmd.OwnerPhone)
+		if err != nil {
+			return AuthResult{}, err
+		}
+		if err := s.verifyBusinessOTP(ctx, number, cmd.OwnerPhoneCode); err != nil {
+			return AuthResult{}, err
+		}
+		ownerPhone = number
+		phoneVerified = true
+	}
+
+	// WhatsApp is chat-only: normalized for a consistent wa.me link, stored as
+	// given, never proven. It remains usable for OTP sign-in, which proves the
+	// number at sign-in time anyway.
+	var whatsAppNumber string
+	if strings.TrimSpace(cmd.WhatsAppNumber) != "" {
 		number, err := normalizeGhanaPhone(cmd.WhatsAppNumber)
 		if err != nil {
 			return AuthResult{}, err
 		}
-		if err := s.verifyBusinessOTP(ctx, number, cmd.WhatsAppCode); err != nil {
-			return AuthResult{}, err
-		}
 		whatsAppNumber = number
-		whatsAppVerified = true
 	}
 
 	identity, err := s.businesses.CreateBusinessWithOwner(ctx, ports.CreateBusinessWithOwnerInput{
@@ -158,9 +169,10 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		OwnerEmail:       normalized.OwnerEmail,
 		OwnerPassword:    passwordHash,
 		PlanCode:         normalized.PlanCode,
-		Phone:            strings.TrimSpace(cmd.OwnerPhone),
+		Phone:            ownerPhone,
+		PhoneVerified:    phoneVerified,
 		WhatsAppNumber:   whatsAppNumber,
-		WhatsAppVerified: whatsAppVerified,
+		WhatsAppVerified: false,
 	})
 	if err != nil {
 		return AuthResult{}, err

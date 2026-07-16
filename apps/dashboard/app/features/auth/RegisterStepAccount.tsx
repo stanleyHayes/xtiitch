@@ -40,6 +40,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
   passwordOk,
   passwordsMatch,
   whatsappOk,
+  phoneOk,
 }: {
   ownerName: string;
   onOwnerNameChange: (value: string) => void;
@@ -65,6 +66,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
   passwordOk: boolean;
   passwordsMatch: boolean;
   whatsappOk: boolean;
+  phoneOk: boolean;
 }) {
   return (
     <Stack spacing={2.5}>
@@ -111,46 +113,26 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           },
         }}
       />
-      <TextField
-        name="owner_phone"
-        label="Phone number"
-        autoComplete="tel"
-        inputMode="tel"
-        fullWidth
-        value={ownerPhone}
-        onChange={(e) => onOwnerPhoneChange(e.target.value)}
-        helperText="For SMS order and account notifications."
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <PhoneRounded fontSize="small" />
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
       <Box>
         <TextField
-          name="whatsapp_number"
-          label="WhatsApp number (optional)"
+          name="owner_phone"
+          label="Phone number"
           autoComplete="tel"
           inputMode="tel"
           fullWidth
-          placeholder="0244 000 111 or +233…"
-          value={whatsappNumber}
-          onChange={(e) => onWhatsappNumberChange(e.target.value)}
-          error={whatsappNumber.length > 0 && !whatsappOk}
+          value={ownerPhone}
+          onChange={(e) => onOwnerPhoneChange(e.target.value)}
+          error={ownerPhone.length > 0 && !phoneOk}
           helperText={
-            whatsappNumber.length > 0 && !whatsappOk
-              ? "Enter a valid WhatsApp number."
-              : "Optional — add it to confirm your number with a one-time code, or leave it blank."
+            ownerPhone.length > 0 && !phoneOk
+              ? "Enter a valid phone number."
+              : "For SMS order and account notifications — verify it with a one-time code."
           }
           slotProps={{
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <WhatsApp fontSize="small" />
+                  <PhoneRounded fontSize="small" />
                 </InputAdornment>
               ),
             },
@@ -166,11 +148,10 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
             variant="outlined"
             size="small"
             onClick={onRequestOtp}
-            disabled={!whatsappOk || otpSending}
-            // The disabled state must stay clearly visible: it previously faded
-            // into the white card, so on mobile the button looked absent until a
-            // number made it enabled — while desktop appeared to show it all
-            // along. It is always rendered; only its enablement changes.
+            disabled={!phoneOk || otpSending}
+            // Keep the disabled state clearly visible: it used to fade into the
+            // white card, so on mobile the button read as absent until a number
+            // enabled it. It is always rendered; only its enablement changes.
             sx={{
               "&.Mui-disabled": {
                 color: alpha(tokens.ink, 0.42),
@@ -182,7 +163,7 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
               ? "Sending…"
               : otpRequested
                 ? "Resend code"
-                : "Send code"}
+                : "Verify phone number"}
           </Button>
           {otpRequested ? (
             <Typography
@@ -202,9 +183,34 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           </Typography>
         ) : null}
       </Box>
+      <TextField
+        name="whatsapp_number"
+        label="WhatsApp number (optional)"
+        autoComplete="tel"
+        inputMode="tel"
+        fullWidth
+        placeholder="0244 000 111 or +233…"
+        value={whatsappNumber}
+        onChange={(e) => onWhatsappNumberChange(e.target.value)}
+        error={whatsappNumber.length > 0 && !whatsappOk}
+        helperText={
+          whatsappNumber.length > 0 && !whatsappOk
+            ? "Enter a valid WhatsApp number."
+            : "Optional — used to chat with customers about their orders."
+        }
+        slotProps={{
+          input: {
+            startAdornment: (
+              <InputAdornment position="start">
+                <WhatsApp fontSize="small" />
+              </InputAdornment>
+            ),
+          },
+        }}
+      />
       {otpRequested ? (
         <TextField
-          name="whatsapp_code"
+          name="owner_phone_code"
           label="SMS code"
           required
           autoComplete="one-time-code"
@@ -213,11 +219,12 @@ export function RegisterStepAccount({ // eslint-disable-line complexity, max-lin
           placeholder="123456"
           value={whatsappCode}
           onChange={(e) => onWhatsappCodeChange(e.target.value)}
+          helperText="The code we sent to your phone number."
           slotProps={{
             input: {
               startAdornment: (
                 <InputAdornment position="start">
-                  <WhatsApp fontSize="small" />
+                  <PhoneRounded fontSize="small" />
                 </InputAdornment>
               ),
             },
