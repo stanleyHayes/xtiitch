@@ -98,9 +98,10 @@ function readPreferredMode(): AppThemeMode {
     return storedMode;
   }
 
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  // Light is the product default on every Xtiitch surface. We deliberately do
+  // NOT fall back to the OS `prefers-color-scheme`: dark is opt-in, and only
+  // ever via the theme toggle (which writes `storageKey` above).
+  return "light";
 }
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {

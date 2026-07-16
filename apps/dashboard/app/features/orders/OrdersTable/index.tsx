@@ -11,7 +11,6 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -165,7 +164,11 @@ export function OrdersTable({ // eslint-disable-line complexity, max-lines-per-f
           ))}
         </Stack>
       </Stack>
-      <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
+      {/* Panel hard-sets `overflow: hidden`. Via `component={Panel}` the
+          `overflowX: auto` landed in a separate emotion class and lost to it, so
+          the table was clipped with no way to scroll on phones. Passing the
+          override through Panel's own sx (spread last) makes it win. */}
+      <Panel sx={{ overflowX: "auto" }}>
         <Table sx={{ minWidth: 760 }}>
           <TableHead>
             <TableRow>
@@ -194,7 +197,7 @@ export function OrdersTable({ // eslint-disable-line complexity, max-lines-per-f
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
+      </Panel>
       <PaginationFooter
         count={orderPageCount}
         label="orders"

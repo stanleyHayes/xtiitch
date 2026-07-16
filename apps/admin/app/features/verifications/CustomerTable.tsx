@@ -1,7 +1,6 @@
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Avatar from "@mui/material/Avatar";
@@ -32,7 +31,9 @@ export function CustomerTable({
   onInspect: (customer: AdminCustomer) => void;
 }) {
   return (
-    <TableContainer component={Panel} sx={{ overflowX: "auto" }}>
+    // Panel hard-sets `overflow: hidden`; the override only wins when passed
+    // through Panel's own sx, so the table can actually scroll on phones.
+    <Panel sx={{ overflowX: "auto" }}>
       <Table sx={{ minWidth: 760 }}>
         <TableHead>
           <TableRow>
@@ -122,6 +123,6 @@ export function CustomerTable({
           })}
         </TableBody>
       </Table>
-    </TableContainer>
+    </Panel>
   );
 }
