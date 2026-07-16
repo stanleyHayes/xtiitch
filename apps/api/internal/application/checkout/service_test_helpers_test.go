@@ -195,7 +195,7 @@ func (f fakeCharge) GetChargeContext(context.Context, common.TenantScope) (ports
 	return f.ctx, nil
 }
 
-func (f fakeCharge) ProvisionSubaccount(context.Context, common.ID, string, string) error {
+func (f fakeCharge) ProvisionSubaccount(context.Context, ports.ProvisionSubaccountInput) error {
 	return nil
 }
 

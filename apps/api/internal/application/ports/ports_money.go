@@ -8,6 +8,10 @@ import (
 
 type PaymentProvider interface {
 	CreateBusinessSubaccount(ctx context.Context, input CreateBusinessSubaccountInput) (CreateBusinessSubaccountResult, error)
+	// UpdateBusinessSubaccount repoints an existing subaccount at new payout
+	// details, so changing them moves the money rather than creating a second
+	// subaccount alongside the old one.
+	UpdateBusinessSubaccount(ctx context.Context, input UpdateBusinessSubaccountInput) error
 	InitializeTransaction(ctx context.Context, input InitializeTransactionInput) (InitializeTransactionResult, error)
 	InitializeAuthorization(ctx context.Context, input InitializeAuthorizationInput) (InitializeAuthorizationResult, error)
 	VerifyAuthorization(ctx context.Context, input VerifyAuthorizationInput) (VerifyAuthorizationResult, error)
@@ -43,5 +47,5 @@ type PaymentRepository interface {
 
 type BusinessChargeRepository interface {
 	GetChargeContext(ctx context.Context, scope common.TenantScope) (BusinessChargeContext, error)
-	ProvisionSubaccount(ctx context.Context, businessID common.ID, subaccountRef string, settlementAccount string) error
+	ProvisionSubaccount(ctx context.Context, input ProvisionSubaccountInput) error
 }

@@ -67,6 +67,24 @@ func (c Client) CreateBusinessSubaccount(
 	return ports.CreateBusinessSubaccountResult{ProviderReference: response.Data.SubaccountCode}, nil
 }
 
+// UpdateBusinessSubaccount repoints an EXISTING subaccount at new payout details.
+// An owner changing their payout destination must not mint a second subaccount:
+// Paystack would keep settling to whichever one later charges name, so the old
+// details would stay live and the change would appear to work while the money
+// went to the previous number.
+func (c Client) UpdateBusinessSubaccount(
+	ctx context.Context,
+	input ports.UpdateBusinessSubaccountInput,
+) error {
+	var response struct {
+		Status bool `json:"status"`
+	}
+	return c.put(ctx, "/subaccount/"+url.PathEscape(input.SubaccountRef), map[string]any{
+		"settlement_bank": input.SettlementBank,
+		"account_number":  input.SettlementAccount,
+	}, &response)
+}
+
 func (c Client) InitializeTransaction(
 	ctx context.Context,
 	input ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
@@ -260,12 +278,20 @@ func (c Client) get(ctx context.Context, path string, out any) error {
 }
 
 func (c Client) post(ctx context.Context, path string, body any, out any) error {
+	return c.send(ctx, http.MethodPost, path, body, out)
+}
+
+func (c Client) put(ctx context.Context, path string, body any, out any) error {
+	return c.send(ctx, http.MethodPut, path, body, out)
+}
+
+func (c Client) send(ctx context.Context, method string, path string, body any, out any) error {
 	encoded, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+path, bytes.NewReader(encoded))
+	request, err := http.NewRequestWithContext(ctx, method, c.baseURL+path, bytes.NewReader(encoded))
 	if err != nil {
 		return err
 	}

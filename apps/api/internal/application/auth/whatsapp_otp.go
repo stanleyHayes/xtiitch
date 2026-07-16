@@ -60,14 +60,40 @@ func (s Service) RequestSignInOTP(ctx context.Context, handle string, rawWhatsAp
 // form collected, before the account exists. Opaque and side-effect free beyond
 // the code send.
 func (s Service) RequestRegistrationOTP(ctx context.Context, rawWhatsApp string) error {
+	return s.RequestBusinessPhoneOTP(ctx, rawWhatsApp)
+}
+
+// RequestBusinessPhoneOTP sends a verification code to any Ghana phone number,
+// proving nothing about the caller by itself. Callers decide who may ask: signup
+// exposes it publicly (the account does not exist yet), while the payout flow
+// wraps it behind an authenticated route, because there the number being proved
+// is a payout destination.
+func (s Service) RequestBusinessPhoneOTP(ctx context.Context, rawNumber string) error {
 	if !s.whatsAppOTPEnabled() {
 		return ErrWhatsAppOTPUnavailable
 	}
-	number, err := normalizeGhanaPhone(rawWhatsApp)
+	number, err := normalizeGhanaPhone(rawNumber)
 	if err != nil {
 		return err
 	}
 	return s.deliverBusinessOTP(ctx, number)
+}
+
+// VerifyBusinessPhoneOTP proves that whoever supplies the code received it at
+// this number, and consumes the challenge so it cannot be replayed.
+//
+// It deliberately does NOT issue a session — that is VerifySignInOTP's job. A
+// caller needing only the proof (payments, verifying a payout number) must use
+// this: VerifySignInOTP would mint a business session as a side effect.
+func (s Service) VerifyBusinessPhoneOTP(ctx context.Context, rawNumber string, code string) error {
+	if !s.whatsAppOTPEnabled() {
+		return ErrWhatsAppOTPUnavailable
+	}
+	number, err := normalizeGhanaPhone(rawNumber)
+	if err != nil {
+		return err
+	}
+	return s.verifyBusinessOTP(ctx, number, code)
 }
 
 // VerifySignInOTPCommand carries a WhatsApp sign-in attempt.

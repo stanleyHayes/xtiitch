@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
@@ -109,6 +110,87 @@ func TestVerifyBusinessPassesPrincipalRole(t *testing.T) {
 	}
 }
 
+func TestVerifyBusinessPassesOTPCode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "owner-1", BusinessID: "business-1", Role: business.UserRoleOwner}}
+	router := newRouter(service, verifier)
+	body := `{"settlement_account":"0240000000","settlement_bank":"MTN","otp_code":"123456"}`
+	request := httptest.NewRequest(http.MethodPost, "/businesses/me/verify", bytes.NewReader([]byte(body)))
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	// decodeJSON rejects unknown fields, so an unwired otp_code would 400 here
+	// rather than being quietly ignored.
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.verifyCommand.OTPCode != "123456" {
+		t.Fatalf("expected the OTP code to reach the service, got %q", service.verifyCommand.OTPCode)
+	}
+}
+
+func TestRequestPayoutOTPRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	router := newRouter(&fakeService{}, fakeVerifier{err: errTest})
+	request := httptest.NewRequest(http.MethodPost, "/businesses/me/payout-otp", bytes.NewReader([]byte(`{"settlement_account":"0240000000"}`)))
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for an unauthenticated payout OTP, got %d", response.Code)
+	}
+}
+
+// Each OTP failure must reach the dashboard as its own code. Collapsed to a 500,
+// a wrong or expired code looks like a server fault and the owner cannot tell
+// what to fix.
+func TestVerifyBusinessMapsOTPErrors(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"invalid code", authapp.ErrInvalidCode, http.StatusUnauthorized, "invalid_code"},
+		{"expired code", authapp.ErrCodeExpired, http.StatusUnauthorized, "code_expired"},
+		{"too many attempts", authapp.ErrTooManyAttempts, http.StatusTooManyRequests, "too_many_attempts"},
+		{"invalid phone", authapp.ErrInvalidPhone, http.StatusBadRequest, "invalid_phone"},
+		{"delivery failed", authapp.ErrOTPDeliveryFailed, http.StatusBadGateway, "delivery_failed"},
+		{"verifier unwired", paymentsapp.ErrOTPUnavailable, http.StatusServiceUnavailable, "whatsapp_unavailable"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			service := &fakeService{verifyErr: testCase.err}
+			verifier := fakeVerifier{principal: ports.VerifiedAccessToken{BusinessID: "business-1", Role: business.UserRoleOwner}}
+			router := newRouter(service, verifier)
+			body := `{"settlement_account":"0240000000","settlement_bank":"MTN","otp_code":"000000"}`
+			request := httptest.NewRequest(http.MethodPost, "/businesses/me/verify", bytes.NewReader([]byte(body)))
+			request.Header.Set("Authorization", "Bearer token")
+			response := httptest.NewRecorder()
+
+			router.ServeHTTP(response, request)
+
+			if response.Code != testCase.wantStatus {
+				t.Fatalf("expected %d, got %d (%s)", testCase.wantStatus, response.Code, response.Body.String())
+			}
+			if !bytes.Contains(response.Body.Bytes(), []byte(testCase.wantCode)) {
+				t.Fatalf("expected error code %q, got %s", testCase.wantCode, response.Body.String())
+			}
+		})
+	}
+}
+
 func TestLogTakingMapsForbidden(t *testing.T) {
 	t.Parallel()
 
@@ -152,18 +234,26 @@ func (v fakeVerifier) VerifyAccessToken(_ context.Context, _ string) (ports.Veri
 }
 
 type fakeService struct {
-	handleErr     error
-	handleCalled  bool
-	verifyCommand paymentsapp.VerifyBusinessCommand
-	charge        paymentsapp.ChargeResult
-	chargeCommand paymentsapp.InitiateChargeCommand
-	takingCommand paymentsapp.LogManualTakingCommand
-	takingErr     error
+	handleErr        error
+	handleCalled     bool
+	verifyCommand    paymentsapp.VerifyBusinessCommand
+	verifyErr        error
+	payoutOTPCommand paymentsapp.RequestPayoutOTPCommand
+	payoutOTPErr     error
+	charge           paymentsapp.ChargeResult
+	chargeCommand    paymentsapp.InitiateChargeCommand
+	takingCommand    paymentsapp.LogManualTakingCommand
+	takingErr        error
 }
 
 func (s *fakeService) VerifyBusiness(_ context.Context, command paymentsapp.VerifyBusinessCommand) error {
 	s.verifyCommand = command
-	return nil
+	return s.verifyErr
+}
+
+func (s *fakeService) RequestPayoutOTP(_ context.Context, command paymentsapp.RequestPayoutOTPCommand) error {
+	s.payoutOTPCommand = command
+	return s.payoutOTPErr
 }
 
 func (s *fakeService) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {

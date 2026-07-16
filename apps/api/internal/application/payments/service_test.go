@@ -479,34 +479,99 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 
 	provider := &fakeProvider{subaccountRef: "sub_new"}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
 		ActorRole:         business.UserRoleOwner,
 		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
+		OTPCode:           "123456",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
 	if !provider.subaccountCreated {
 		t.Fatal("expected provider subaccount creation")
 	}
-	if businesses.provisionRef != "sub_new" || businesses.provisionAccount != "0240000000" {
-		t.Fatalf("unexpected provisioning: ref=%q account=%q", businesses.provisionRef, businesses.provisionAccount)
+	if otp.verifiedNumber != "0240000000" || otp.verifiedCode != "123456" {
+		t.Fatalf("expected the payout number to be proved, got number=%q code=%q", otp.verifiedNumber, otp.verifiedCode)
+	}
+	// Assert each field individually: bank and account are both strings, so a
+	// transposition would still "provision" and only show up as a swapped pair.
+	if businesses.provisionedAs.SubaccountRef != "sub_new" {
+		t.Fatalf("unexpected subaccount ref: %q", businesses.provisionedAs.SubaccountRef)
+	}
+	if businesses.provisionedAs.SettlementAccount != "0240000000" {
+		t.Fatalf("unexpected settlement account: %q", businesses.provisionedAs.SettlementAccount)
+	}
+	if businesses.provisionedAs.SettlementBank != "MTN" {
+		t.Fatalf("unexpected settlement bank: %q", businesses.provisionedAs.SettlementBank)
 	}
 }
 
-func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
+func TestVerifyBusinessRequiresOTPBeforeSavingPayoutDetails(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_new"}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	otp := &fakeMoMoOTP{verifyErr: errors.New("bad code")}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+		OTPCode:           "wrong",
+	}); err == nil {
+		t.Fatal("expected a failed OTP to reject the payout details")
+	}
+	if provider.subaccountCreated {
+		t.Fatal("expected no subaccount for an unproved number")
+	}
+	if businesses.provisioned {
+		t.Fatal("expected unproved payout details NOT to be saved")
+	}
+}
+
+// A nil OTP dependency must reject rather than skip the gate: silently saving
+// unproven payout details is the exact failure the gate exists to prevent.
+func TestVerifyBusinessFailsClosedWithoutOTPVerifier(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_new"}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
+
+	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+		OTPCode:           "123456",
+	})
+	if !errors.Is(err, ErrOTPUnavailable) {
+		t.Fatalf("expected ErrOTPUnavailable, got %v", err)
+	}
+	if businesses.provisioned {
+		t.Fatal("expected no payout details saved without a verifier")
+	}
+}
+
+func TestVerifyBusinessIsIdempotentWhenDetailsAreUnchanged(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeProvider{}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
-		BusinessID:    "business-1",
-		Verified:      true,
-		SubaccountRef: "sub_existing",
+		BusinessID:        "business-1",
+		Verified:          true,
+		SubaccountRef:     "sub_existing",
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
 	}}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -516,17 +581,98 @@ func TestVerifyBusinessIsIdempotentWhenAlreadyVerified(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
-	if provider.subaccountCreated {
-		t.Fatal("expected no new subaccount for already-verified business")
+	if provider.subaccountCreated || provider.subaccountUpdated {
+		t.Fatal("expected no provider call for unchanged details")
 	}
 	if businesses.provisioned {
-		t.Fatal("expected no re-provisioning for already-verified business")
+		t.Fatal("expected no re-provisioning for unchanged details")
+	}
+	if otp.verifiedNumber != "" {
+		t.Fatal("expected no OTP demanded for a repeat submit that changes nothing")
+	}
+}
+
+// Changing the payout destination must REPOINT the existing subaccount. Creating
+// a second one would leave Paystack settling to the old number while the UI
+// showed the new one.
+func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_should_not_be_used"}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID:        "business-1",
+		Verified:          true,
+		SubaccountRef:     "sub_existing",
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+	}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "VOD",
+		SettlementAccount: "0500000000",
+		OTPCode:           "123456",
+	}); err != nil {
+		t.Fatalf("verify business: %v", err)
+	}
+	if provider.subaccountCreated {
+		t.Fatal("expected the existing subaccount to be repointed, not a second one created")
+	}
+	if !provider.subaccountUpdated {
+		t.Fatal("expected the existing subaccount to be repointed")
+	}
+	if provider.updateInput.SubaccountRef != "sub_existing" {
+		t.Fatalf("expected the existing ref to be repointed, got %q", provider.updateInput.SubaccountRef)
+	}
+	if otp.verifiedNumber != "0500000000" {
+		t.Fatalf("expected the NEW number to be proved, got %q", otp.verifiedNumber)
+	}
+	if businesses.provisionedAs.SettlementBank != "VOD" || businesses.provisionedAs.SettlementAccount != "0500000000" {
+		t.Fatalf("unexpected saved details: %+v", businesses.provisionedAs)
+	}
+	if businesses.provisionedAs.SubaccountRef != "sub_existing" {
+		t.Fatalf("expected the subaccount ref to be preserved, got %q", businesses.provisionedAs.SubaccountRef)
+	}
+}
+
+// A business provisioned before migration 000087 has no saved network, so its
+// first resubmit must fall through and backfill it rather than no-op.
+func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID:        "business-1",
+		Verified:          true,
+		SubaccountRef:     "sub_existing",
+		SettlementBank:    "",
+		SettlementAccount: "0240000000",
+	}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+		OTPCode:           "123456",
+	}); err != nil {
+		t.Fatalf("verify business: %v", err)
+	}
+	if !businesses.provisioned || businesses.provisionedAs.SettlementBank != "MTN" {
+		t.Fatalf("expected the network to be backfilled, got %+v", businesses.provisionedAs)
 	}
 }
 
 type fakeProvider struct {
 	subaccountRef     string
 	subaccountCreated bool
+	subaccountUpdated bool
+	updateInput       ports.UpdateBusinessSubaccountInput
 	initCalled        bool
 	verifySig         bool
 	event             ports.ProviderChargeEvent
@@ -540,6 +686,34 @@ func (p *fakeProvider) CreateBusinessSubaccount(
 ) (ports.CreateBusinessSubaccountResult, error) {
 	p.subaccountCreated = true
 	return ports.CreateBusinessSubaccountResult{ProviderReference: p.subaccountRef}, nil
+}
+
+func (p *fakeProvider) UpdateBusinessSubaccount(_ context.Context, input ports.UpdateBusinessSubaccountInput) error {
+	p.subaccountUpdated = true
+	p.updateInput = input
+	return nil
+}
+
+type fakeMoMoOTP struct {
+	requestedNumber string
+	verifiedNumber  string
+	verifiedCode    string
+	requestErr      error
+	verifyErr       error
+}
+
+func (f *fakeMoMoOTP) RequestBusinessPhoneOTP(_ context.Context, number string) error {
+	f.requestedNumber = number
+	return f.requestErr
+}
+
+func (f *fakeMoMoOTP) VerifyBusinessPhoneOTP(_ context.Context, number string, code string) error {
+	if f.verifyErr != nil {
+		return f.verifyErr
+	}
+	f.verifiedNumber = number
+	f.verifiedCode = code
+	return nil
 }
 
 func (p *fakeProvider) InitializeTransaction(
@@ -616,20 +790,18 @@ func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope) 
 }
 
 type fakeChargeRepo struct {
-	context          ports.BusinessChargeContext
-	provisioned      bool
-	provisionRef     string
-	provisionAccount string
+	context       ports.BusinessChargeContext
+	provisioned   bool
+	provisionedAs ports.ProvisionSubaccountInput
 }
 
 func (r *fakeChargeRepo) GetChargeContext(_ context.Context, _ common.TenantScope) (ports.BusinessChargeContext, error) {
 	return r.context, nil
 }
 
-func (r *fakeChargeRepo) ProvisionSubaccount(_ context.Context, _ common.ID, subaccountRef string, settlementAccount string) error {
+func (r *fakeChargeRepo) ProvisionSubaccount(_ context.Context, input ports.ProvisionSubaccountInput) error {
 	r.provisioned = true
-	r.provisionRef = subaccountRef
-	r.provisionAccount = settlementAccount
+	r.provisionedAs = input
 	return nil
 }
 

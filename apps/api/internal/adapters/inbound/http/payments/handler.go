@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
+	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
@@ -21,6 +22,7 @@ const maxBodyBytes = 1 << 20
 
 type Service interface {
 	VerifyBusiness(ctx context.Context, command paymentsapp.VerifyBusinessCommand) error
+	RequestPayoutOTP(ctx context.Context, command paymentsapp.RequestPayoutOTPCommand) error
 	InitiateCharge(ctx context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error)
 	HandleProviderEvent(ctx context.Context, payload []byte, signature string) error
 	ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error)
@@ -44,6 +46,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Post("/businesses/me/verify", handler.verify)
+		protected.Post("/businesses/me/payout-otp", handler.requestPayoutOTP)
 		protected.Post("/payments/checkout", handler.checkout)
 		protected.Get("/payments", handler.listPayments)
 		protected.Post("/money/takings", handler.logTaking)
@@ -56,6 +59,12 @@ type verifyRequest struct {
 	// SettlementBank is the mobile-money network code (MTN / VOD / ATL) or bank
 	// code Paystack settles the subaccount to; required alongside the number.
 	SettlementBank    string `json:"settlement_bank"`
+	SettlementAccount string `json:"settlement_account"`
+	// OTPCode proves SettlementAccount, from the code sent by payout-otp.
+	OTPCode string `json:"otp_code"`
+}
+
+type payoutOTPRequest struct {
 	SettlementAccount string `json:"settlement_account"`
 }
 
@@ -101,6 +110,7 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 		ActorRole:         principal.Role,
 		SettlementBank:    request.SettlementBank,
 		SettlementAccount: request.SettlementAccount,
+		OTPCode:           request.OTPCode,
 	}); err != nil {
 		status, code := paymentError(err)
 		writeError(w, status, code)
@@ -108,6 +118,35 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"verification_status": "verified"})
+}
+
+// requestPayoutOTP sends a code to a candidate payout number so the owner can
+// prove it. Always 202 on success, mirroring the signup code-send: the response
+// says a code was sent, never whether the number was interesting.
+func (handler Handler) requestPayoutOTP(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request payoutOTPRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	if err := handler.service.RequestPayoutOTP(r.Context(), paymentsapp.RequestPayoutOTPCommand{
+		BusinessID:        principal.BusinessID,
+		ActorRole:         principal.Role,
+		SettlementAccount: request.SettlementAccount,
+	}); err != nil {
+		status, code := paymentError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	w.WriteHeader(http.StatusAccepted)
 }
 
 func (handler Handler) checkout(w http.ResponseWriter, r *http.Request) {
@@ -302,6 +341,23 @@ func paymentError(err error) (int, string) {
 		return http.StatusBadRequest, "invalid_charge"
 	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):
 		return http.StatusConflict, "business_not_verified"
+	// The payout OTP errors originate in authapp and reach here through the
+	// MoMoOTP port. Without these cases a wrong or expired code would surface as
+	// a generic 500 and the owner could not tell what to fix. The status/string
+	// vocabulary is kept identical to authhttp's and customerauth's mappers so
+	// one code means one thing across the API.
+	case errors.Is(err, paymentsapp.ErrOTPUnavailable), errors.Is(err, authapp.ErrWhatsAppOTPUnavailable):
+		return http.StatusServiceUnavailable, "whatsapp_unavailable"
+	case errors.Is(err, authapp.ErrInvalidPhone):
+		return http.StatusBadRequest, "invalid_phone"
+	case errors.Is(err, authapp.ErrInvalidCode):
+		return http.StatusUnauthorized, "invalid_code"
+	case errors.Is(err, authapp.ErrCodeExpired):
+		return http.StatusUnauthorized, "code_expired"
+	case errors.Is(err, authapp.ErrTooManyAttempts):
+		return http.StatusTooManyRequests, "too_many_attempts"
+	case errors.Is(err, authapp.ErrOTPDeliveryFailed):
+		return http.StatusBadGateway, "delivery_failed"
 	default:
 		return http.StatusInternalServerError, "internal_error"
 	}

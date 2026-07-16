@@ -17,6 +17,28 @@ type CreateBusinessSubaccountInput struct {
 	SettlementAccount string
 }
 
+// UpdateBusinessSubaccountInput repoints an existing subaccount at new payout
+// details, for an owner changing where their money lands.
+type UpdateBusinessSubaccountInput struct {
+	BusinessID common.ID
+	// SubaccountRef is the provider's code for the subaccount to repoint.
+	SubaccountRef     string
+	SettlementBank    string
+	SettlementAccount string
+}
+
+// ProvisionSubaccountInput carries the payout facts to mirror onto the business
+// row after the provider accepted the subaccount. It is a struct rather than
+// positional arguments because SettlementBank and SettlementAccount are both
+// strings: transposing them would write the network into the mobile-money-number
+// column and corrupt the payout destination silently.
+type ProvisionSubaccountInput struct {
+	BusinessID        common.ID
+	SubaccountRef     string
+	SettlementBank    string
+	SettlementAccount string
+}
+
 type CreateBusinessSubaccountResult struct {
 	ProviderReference string
 }
@@ -230,7 +252,15 @@ type BusinessChargeContext struct {
 	Name          string
 	Verified      bool
 	SubaccountRef string
-	CommissionBps int
+	// SettlementBank / SettlementAccount are the payout details as last saved.
+	// VerifyBusiness compares against them to tell a genuine change of payout
+	// destination from a repeat submit of the same details, so the former is not
+	// swallowed by the idempotent early return. SettlementBank is empty for
+	// businesses provisioned before the network was mirrored locally
+	// (migration 000087).
+	SettlementBank    string
+	SettlementAccount string
+	CommissionBps     int
 	// FeePassToBuyer: when true the buyer pays the platform fee on top of the
 	// order total and the merchant nets the full total (Pricing Book §3).
 	FeePassToBuyer bool

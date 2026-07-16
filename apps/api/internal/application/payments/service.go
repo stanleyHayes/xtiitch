@@ -17,13 +17,31 @@ var (
 	ErrInvalidCharge       = errors.New("invalid charge request")
 	ErrInvalidSignature    = errors.New("invalid webhook signature")
 	ErrInvalidTaking       = errors.New("invalid manual taking")
+	// ErrOTPUnavailable means payout-number verification is not wired, so a payout
+	// number cannot be proved. VerifyBusiness fails closed on it rather than
+	// saving unproven details: the OTP is the evidence that settles payment
+	// disputes, and silently skipping it would leave that evidence missing exactly
+	// when it is needed.
+	ErrOTPUnavailable = errors.New("payout number verification is not available")
 )
+
+// MoMoOTP sends and checks the one-time code that proves a payout mobile-money
+// number. It is satisfied by the auth service, which owns the challenge store
+// and the TTL / attempt-cap / consume rules; payments delegates rather than
+// reimplementing them so every OTP flow shares one set of rules. Declared here,
+// in the consumer, to keep the dependency narrow (same shape as
+// adminauth.PlanChangeApplier).
+type MoMoOTP interface {
+	RequestBusinessPhoneOTP(ctx context.Context, number string) error
+	VerifyBusinessPhoneOTP(ctx context.Context, number string, code string) error
+}
 
 type Service struct {
 	provider   ports.PaymentProvider
 	payments   ports.PaymentRepository
 	businesses ports.BusinessChargeRepository
 	ids        ports.IDGenerator
+	otp        MoMoOTP
 }
 
 type Dependencies struct {
@@ -31,6 +49,11 @@ type Dependencies struct {
 	Payments   ports.PaymentRepository
 	Businesses ports.BusinessChargeRepository
 	IDs        ports.IDGenerator
+	// OTP verifies the payout number before payout details are saved. Unlike the
+	// other optional dependencies in this codebase, a nil OTP does NOT disable the
+	// step — VerifyBusiness rejects with ErrOTPUnavailable. A misconfiguration must
+	// not quietly turn the gate off.
+	OTP MoMoOTP
 }
 
 func NewService(deps Dependencies) Service {
@@ -39,7 +62,36 @@ func NewService(deps Dependencies) Service {
 		payments:   deps.Payments,
 		businesses: deps.Businesses,
 		ids:        deps.IDs,
+		otp:        deps.OTP,
 	}
+}
+
+// RequestPayoutOTPCommand asks for a code to be sent to a candidate payout
+// number, so the owner can prove it before saving it.
+type RequestPayoutOTPCommand struct {
+	BusinessID        common.ID
+	ActorRole         business.UserRole
+	SettlementAccount string
+}
+
+// RequestPayoutOTP sends a one-time code to a candidate payout number.
+//
+// This exists rather than reusing the signup code-send because that route is
+// public by necessity (no account exists yet), and pointing an authenticated
+// payout flow at it would widen an unauthenticated path that already sends paid
+// SMS to any Ghana number. Here the caller must hold a session AND the
+// money-management role, which bounds the abuse to authenticated owners.
+func (s Service) RequestPayoutOTP(ctx context.Context, cmd RequestPayoutOTPCommand) error {
+	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
+		return err
+	}
+	if strings.TrimSpace(cmd.SettlementAccount) == "" {
+		return ErrInvalidCharge
+	}
+	if s.otp == nil {
+		return ErrOTPUnavailable
+	}
+	return s.otp.RequestBusinessPhoneOTP(ctx, cmd.SettlementAccount)
 }
 
 type VerifyBusinessCommand struct {
@@ -47,12 +99,20 @@ type VerifyBusinessCommand struct {
 	ActorRole         business.UserRole
 	SettlementBank    string
 	SettlementAccount string
+	// OTPCode is the one-time code sent to SettlementAccount. It proves the payout
+	// number is live and belongs to the owner submitting it — the evidence that
+	// settles a later "I never gave you that number" dispute (Testing Report §3.1).
+	OTPCode string
 }
 
-// VerifyBusiness provisions the business's payment-provider subaccount from its
-// settlement details and marks it verified. It is idempotent: an
-// already-provisioned business is left as-is. Until this runs, charging is
-// gated (Technical Specification sections 5.2, 10.2).
+// VerifyBusiness saves the business's payout details, provisions or repoints its
+// payment-provider subaccount, and marks it verified. Until this runs, charging
+// is gated (Technical Specification sections 5.2, 10.2).
+//
+// Resubmitting UNCHANGED details is a no-op. Submitting CHANGED details repoints
+// the existing subaccount rather than creating a second one, and requires a fresh
+// OTP on the new number: changing where money lands is exactly the action worth
+// proving.
 func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) error {
 	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
 		return err
@@ -66,21 +126,57 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	if err != nil {
 		return err
 	}
-	if info.Verified && info.SubaccountRef != "" {
+
+	// Compare the submitted details against the saved ones, rather than returning
+	// early on "verified" alone. A business that is already provisioned may still
+	// be CHANGING its payout destination, and that change has to reach both the
+	// provider and the businesses row. Note settlement_bank is empty for
+	// businesses provisioned before migration 000087 mirrored it locally, so their
+	// first resubmit falls through and backfills it.
+	if info.Verified && info.SubaccountRef != "" &&
+		info.SettlementAccount == cmd.SettlementAccount &&
+		info.SettlementBank == cmd.SettlementBank {
 		return nil
 	}
 
-	result, err := s.provider.CreateBusinessSubaccount(ctx, ports.CreateBusinessSubaccountInput{
-		BusinessID:        cmd.BusinessID,
-		BusinessName:      info.Name,
-		SettlementBank:    cmd.SettlementBank,
-		SettlementAccount: cmd.SettlementAccount,
-	})
-	if err != nil {
+	// Fail closed: without a verifier we cannot prove the number, and saving
+	// unproven payout details is the failure this gate exists to prevent.
+	if s.otp == nil {
+		return ErrOTPUnavailable
+	}
+	if err := s.otp.VerifyBusinessPhoneOTP(ctx, cmd.SettlementAccount, cmd.OTPCode); err != nil {
 		return err
 	}
 
-	return s.businesses.ProvisionSubaccount(ctx, cmd.BusinessID, result.ProviderReference, cmd.SettlementAccount)
+	subaccountRef := info.SubaccountRef
+	if subaccountRef == "" {
+		result, err := s.provider.CreateBusinessSubaccount(ctx, ports.CreateBusinessSubaccountInput{
+			BusinessID:        cmd.BusinessID,
+			BusinessName:      info.Name,
+			SettlementBank:    cmd.SettlementBank,
+			SettlementAccount: cmd.SettlementAccount,
+		})
+		if err != nil {
+			return err
+		}
+		subaccountRef = result.ProviderReference
+	} else if err := s.provider.UpdateBusinessSubaccount(ctx, ports.UpdateBusinessSubaccountInput{
+		BusinessID:        cmd.BusinessID,
+		SubaccountRef:     subaccountRef,
+		SettlementBank:    cmd.SettlementBank,
+		SettlementAccount: cmd.SettlementAccount,
+	}); err != nil {
+		return err
+	}
+
+	// Persist only after the provider accepted the details, so a provider failure
+	// never leaves the row claiming a payout destination that will not settle.
+	return s.businesses.ProvisionSubaccount(ctx, ports.ProvisionSubaccountInput{
+		BusinessID:        cmd.BusinessID,
+		SubaccountRef:     subaccountRef,
+		SettlementBank:    cmd.SettlementBank,
+		SettlementAccount: cmd.SettlementAccount,
+	})
 }
 
 type InitiateChargeCommand struct {

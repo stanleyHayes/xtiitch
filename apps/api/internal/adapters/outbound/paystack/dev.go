@@ -29,6 +29,12 @@ func (p DevProvider) CreateBusinessSubaccount(
 	}, nil
 }
 
+// UpdateBusinessSubaccount accepts any repoint. The stub keeps no subaccount
+// state, so there is nothing to mutate — the caller's own row is the record.
+func (p DevProvider) UpdateBusinessSubaccount(_ context.Context, _ ports.UpdateBusinessSubaccountInput) error {
+	return nil
+}
+
 func (p DevProvider) InitializeTransaction(
 	_ context.Context,
 	input ports.InitializeTransactionInput) (ports.InitializeTransactionResult,

@@ -214,6 +214,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Payments:   postgres.NewPaymentRepository(db),
 		Businesses: postgres.NewBusinessChargeRepository(db),
 		IDs:        ids.UUIDGenerator{},
+		// Sends and checks the code that proves a payout mobile-money number
+		// before payout details are saved (Testing Report §3.1). The auth service
+		// owns the OTP rules; payments borrows them rather than copying them.
+		OTP: authService,
 	})
 
 	promotionRepository := postgres.NewPromotionRepository(db)

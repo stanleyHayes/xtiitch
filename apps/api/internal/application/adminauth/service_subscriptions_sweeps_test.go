@@ -702,6 +702,10 @@ func (fakePaymentProvider) CreateBusinessSubaccount(
 	return ports.CreateBusinessSubaccountResult{}, nil
 }
 
+func (fakePaymentProvider) UpdateBusinessSubaccount(context.Context, ports.UpdateBusinessSubaccountInput) error {
+	return nil
+}
+
 func (provider *fakePaymentProvider) InitializeTransaction(
 	_ context.Context,
 	input ports.InitializeTransactionInput,

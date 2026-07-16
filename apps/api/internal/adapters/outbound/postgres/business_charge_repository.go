@@ -36,6 +36,8 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 			b.name,
 			b.verification_status = 'verified',
 			coalesce(b.settlement_provider_subaccount, ''),
+			coalesce(b.settlement_bank, ''),
+			coalesce(b.settlement_mobile_money_number, ''),
 			p.commission_bps,
 			coalesce(s.fee_pass_to_buyer, false)
 		from businesses b
@@ -47,6 +49,8 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 		&context.Name,
 		&context.Verified,
 		&context.SubaccountRef,
+		&context.SettlementBank,
+		&context.SettlementAccount,
 		&context.CommissionBps,
 		&context.FeePassToBuyer,
 	); err != nil {
@@ -63,11 +67,14 @@ func (repo BusinessChargeRepository) GetChargeContext(ctx context.Context, scope
 	return context, nil
 }
 
+// ProvisionSubaccount mirrors the accepted payout details onto the business row
+// and marks it verified. settlement_momo_verified_at is stamped here rather than
+// passed in because the only caller reaches this line having just proved the
+// number by OTP — the timestamp attests to that proof, so it is written in the
+// same statement as the number it describes.
 func (repo BusinessChargeRepository) ProvisionSubaccount(
 	ctx context.Context,
-	businessID common.ID,
-	subaccountRef string,
-	settlementAccount string,
+	input ports.ProvisionSubaccountInput,
 ) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -75,7 +82,7 @@ func (repo BusinessChargeRepository) ProvisionSubaccount(
 	}
 	defer rollbackBusinessChargeUnlessCommitted(ctx, tx)
 
-	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, businessID.String()); err != nil {
+	if _, err := tx.Exec(ctx, `select set_config('xtiitch.current_business_id', $1, true)`, input.BusinessID.String()); err != nil {
 		return err
 	}
 
@@ -83,11 +90,18 @@ func (repo BusinessChargeRepository) ProvisionSubaccount(
 		update businesses
 		set settlement_provider = 'paystack',
 			settlement_provider_subaccount = $2,
-			settlement_mobile_money_number = $3,
+			settlement_bank = $3,
+			settlement_mobile_money_number = $4,
+			settlement_momo_verified_at = now(),
 			verification_status = 'verified',
 			updated_at = now()
 		where business_id = $1
-	`, businessID.String(), subaccountRef, settlementAccount); err != nil {
+	`,
+		input.BusinessID.String(),
+		input.SubaccountRef,
+		input.SettlementBank,
+		input.SettlementAccount,
+	); err != nil {
 		return err
 	}
 

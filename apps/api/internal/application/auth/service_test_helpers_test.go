@@ -200,6 +200,10 @@ func (f *fakeSubscriptionPayments) CreateBusinessSubaccount(
 	return ports.CreateBusinessSubaccountResult{}, nil
 }
 
+func (f *fakeSubscriptionPayments) UpdateBusinessSubaccount(_ context.Context, _ ports.UpdateBusinessSubaccountInput) error {
+	return nil
+}
+
 func (f *fakeSubscriptionPayments) InitializeTransaction(
 	_ context.Context,
 	_ ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
