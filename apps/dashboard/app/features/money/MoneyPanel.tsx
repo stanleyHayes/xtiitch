@@ -17,6 +17,7 @@ import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
+import SavingsRounded from "@mui/icons-material/SavingsRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import TextField from "../../components/form-text-field";
 import { formatGHS } from "../../lib/format";
@@ -45,6 +46,10 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
   error?: string;
 }) {
   const linkableOrders = orders.filter((order) => order.status !== "cancelled");
+  // What the store actually took in, before any fee: checkout + logged cash/momo.
+  // The API returns the two streams separately and never a combined figure.
+  const grossSalesMinor =
+    summary.through_platform_minor + summary.manual_takings_minor;
   const [logOpen, setLogOpen] = useState(false);
   useCloseOnSuccess(setLogOpen, "log_taking", Boolean(error));
   const {
@@ -106,6 +111,13 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
           }}
         >
           <MiniStat
+            icon={<SavingsRounded fontSize="small" />}
+            label="Gross sales"
+            value={formatGHS(grossSalesMinor)}
+            helper="Everything you took in — online + manual"
+            tone={tokens.success}
+          />
+          <MiniStat
             icon={<PaymentsRounded fontSize="small" />}
             label="Platform"
             value={formatGHS(summary.through_platform_minor)}
@@ -119,11 +131,16 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             helper="Logged cash or momo"
             tone={tokens.info}
           />
+          {/* This figure is the XTIITCH commission (the plan's commission_bps
+              share of online sales). It was labelled "Paystack fee", which is a
+              different charge entirely — Paystack's own ~1.95% is borne by the
+              owner and deducted by Paystack at settlement, so the mislabelled
+              card could never reconcile against the Paystack dashboard. */}
           <MiniStat
             icon={<ReceiptLongRounded fontSize="small" />}
-            label="Paystack fee"
+            label="Xtiitch fee"
             value={formatGHS(summary.commission_minor)}
-            helper="Already split online"
+            helper="Our share, already split online"
             tone={tokens.warning}
           />
           <MiniStat
