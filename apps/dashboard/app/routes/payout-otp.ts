@@ -50,7 +50,19 @@ export async function action({ request }: ActionFunctionArgs) {
   });
 
   if (!response.ok) {
-    return Response.json({ error: "otp_request_failed" }, { status: 502 });
+    // Pass the API's reason through. The owner already holds this account, so
+    // there is nothing to stay opaque about, and "a code was just sent" needs a
+    // different response from them than "that number is unreachable".
+    let code = "otp_request_failed";
+    try {
+      const body = (await response.json()) as { error?: unknown };
+      if (typeof body.error === "string" && body.error) {
+        code = body.error;
+      }
+    } catch {
+      // Keep the generic code when the body is not the shape we expect.
+    }
+    return Response.json({ error: code }, { status: 502 });
   }
 
   return Response.json({ ok: true });

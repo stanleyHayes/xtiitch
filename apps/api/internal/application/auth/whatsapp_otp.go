@@ -15,6 +15,18 @@ import (
 const (
 	businessOTPTTL         = 5 * time.Minute
 	maxBusinessOTPAttempts = 5
+	// businessOTPResendCooldown throttles sends PER NUMBER.
+	//
+	// Every send bills a real SMS, and the request endpoints are public by
+	// necessity (at signup no account exists to authenticate against). The only
+	// other brake is a per-IP rate limiter, which caps requests per CALLER and so
+	// does nothing to stop one caller — or many — driving unlimited paid messages
+	// at a chosen number. Throttling the RECIPIENT is what bounds both the bill
+	// and the nuisance to whoever owns that number.
+	//
+	// Shorter than businessOTPTTL, so an outstanding code is always still valid
+	// when the cooldown lifts and a resend is never the only way forward.
+	businessOTPResendCooldown = 60 * time.Second
 )
 
 var (
@@ -29,6 +41,9 @@ var (
 	// rejected the send. Surfaced as a clear delivery_failed rather than an opaque
 	// internal_error; the underlying provider error is logged.
 	ErrOTPDeliveryFailed = errors.New("could not deliver the verification code")
+	// ErrOTPResendTooSoon means a code was sent to this number moments ago and is
+	// still valid, so another send would only cost a second SMS.
+	ErrOTPResendTooSoon = errors.New("a code was just sent to this number; wait before requesting another")
 )
 
 // RequestSignInOTP sends a sign-in code to the WhatsApp number of the owner of a
@@ -53,14 +68,14 @@ func (s Service) RequestSignInOTP(ctx context.Context, handle string, rawWhatsAp
 			slog.Bool("lookup_error", err != nil))
 		return nil
 	}
-	return s.deliverBusinessOTP(ctx, number)
+	return s.deliverBusinessOTP(ctx, number, ports.BusinessOTPPurposeSignIn)
 }
 
 // RequestRegistrationOTP sends a verification code to a WhatsApp number a signup
 // form collected, before the account exists. Opaque and side-effect free beyond
 // the code send.
 func (s Service) RequestRegistrationOTP(ctx context.Context, rawWhatsApp string) error {
-	return s.RequestBusinessPhoneOTP(ctx, rawWhatsApp)
+	return s.requestBusinessPhoneOTP(ctx, rawWhatsApp, ports.BusinessOTPPurposeRegister)
 }
 
 // RequestBusinessPhoneOTP sends a verification code to any Ghana phone number,
@@ -69,6 +84,10 @@ func (s Service) RequestRegistrationOTP(ctx context.Context, rawWhatsApp string)
 // wraps it behind an authenticated route, because there the number being proved
 // is a payout destination.
 func (s Service) RequestBusinessPhoneOTP(ctx context.Context, rawNumber string) error {
+	return s.requestBusinessPhoneOTP(ctx, rawNumber, ports.BusinessOTPPurposePayout)
+}
+
+func (s Service) requestBusinessPhoneOTP(ctx context.Context, rawNumber string, purpose string) error {
 	if !s.whatsAppOTPEnabled() {
 		return ErrWhatsAppOTPUnavailable
 	}
@@ -76,7 +95,7 @@ func (s Service) RequestBusinessPhoneOTP(ctx context.Context, rawNumber string) 
 	if err != nil {
 		return err
 	}
-	return s.deliverBusinessOTP(ctx, number)
+	return s.deliverBusinessOTP(ctx, number, purpose)
 }
 
 // VerifyBusinessPhoneOTP proves that whoever supplies the code received it at
@@ -93,7 +112,7 @@ func (s Service) VerifyBusinessPhoneOTP(ctx context.Context, rawNumber string, c
 	if err != nil {
 		return err
 	}
-	return s.verifyBusinessOTP(ctx, number, code)
+	return s.verifyBusinessOTP(ctx, number, code, ports.BusinessOTPPurposePayout)
 }
 
 // VerifySignInOTPCommand carries a WhatsApp sign-in attempt.
@@ -121,7 +140,7 @@ func (s Service) VerifySignInOTP(ctx context.Context, cmd VerifySignInOTPCommand
 		return AuthResult{}, ErrInvalidPhone
 	}
 
-	if err := s.verifyBusinessOTP(ctx, number, cmd.Code); err != nil {
+	if err := s.verifyBusinessOTP(ctx, number, cmd.Code, ports.BusinessOTPPurposeSignIn); err != nil {
 		return AuthResult{}, err
 	}
 
@@ -167,17 +186,26 @@ func (s Service) VerifySignInOTP(ctx context.Context, cmd VerifySignInOTPCommand
 }
 
 // deliverBusinessOTP mints, stores (hashed), and sends a one-time code.
-func (s Service) deliverBusinessOTP(ctx context.Context, number string) error {
+//
+// It is the single choke point for every code send (sign-in, registration, and
+// payout-number verification), so the per-number cooldown lives here rather than
+// in each caller: a throttle that any request path can skip is not a throttle.
+func (s Service) deliverBusinessOTP(ctx context.Context, number string, purpose string) error {
+	now := s.clock.Now()
+	if err := s.ensureOTPResendAllowed(ctx, number, purpose, now); err != nil {
+		return err
+	}
+
 	code, err := s.otpGen.NewCode()
 	if err != nil {
 		return err
 	}
-	now := s.clock.Now()
 	if err := s.whatsAppAuth.CreateSignInOTPChallenge(ctx, ports.CreateSignInOTPChallengeInput{
 		ChallengeID:    s.ids.NewID(),
 		WhatsAppNumber: number,
 		CodeHash:       s.otpGen.HashCode(code),
 		ExpiresAt:      now.Add(businessOTPTTL),
+		Purpose:        purpose,
 	}); err != nil {
 		s.logger.Error("business OTP challenge persist failed", slog.String("whatsapp", maskWhatsApp(number)), slog.String("error", err.Error()))
 		return err
@@ -188,6 +216,30 @@ func (s Service) deliverBusinessOTP(ctx context.Context, number string) error {
 		return ErrOTPDeliveryFailed
 	}
 	s.logger.Info("business OTP delivery accepted", slog.String("whatsapp", maskWhatsApp(number)))
+	return nil
+}
+
+// ensureOTPResendAllowed refuses a second code to the same number inside the
+// cooldown. It looks only at ACTIVE challenges, which is sufficient because the
+// cooldown is shorter than the TTL: anything expired is necessarily older than
+// the cooldown.
+//
+// A challenge is consumed on successful verification, so a caller who genuinely
+// completed a flow is never throttled on their next one.
+func (s Service) ensureOTPResendAllowed(ctx context.Context, number string, purpose string, now time.Time) error {
+	existing, err := s.whatsAppAuth.LatestActiveSignInOTPChallenge(ctx, number, purpose, now)
+	if err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			// No live code for this number: nothing to throttle.
+			return nil
+		}
+		return err
+	}
+	if now.Sub(existing.CreatedAt) < businessOTPResendCooldown {
+		s.logger.Info("business OTP resend throttled",
+			slog.String("whatsapp", maskWhatsApp(number)))
+		return ErrOTPResendTooSoon
+	}
 	return nil
 }
 
@@ -202,9 +254,9 @@ func maskWhatsApp(number string) string {
 
 // verifyBusinessOTP resolves the active challenge for a number, enforces the
 // attempt cap, checks the code, and consumes the challenge on a match.
-func (s Service) verifyBusinessOTP(ctx context.Context, number string, code string) error {
+func (s Service) verifyBusinessOTP(ctx context.Context, number string, code string, purpose string) error {
 	now := s.clock.Now()
-	challenge, err := s.whatsAppAuth.LatestActiveSignInOTPChallenge(ctx, number, now)
+	challenge, err := s.whatsAppAuth.LatestActiveSignInOTPChallenge(ctx, number, purpose, now)
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {
 			return ErrCodeExpired

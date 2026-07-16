@@ -55,6 +55,12 @@ type StoreProfile struct {
 	// used to guess the cap from the plan slug and told every paid plan it was
 	// unlimited, so a Starter merchant hit an unexplained refusal at design 51.
 	DesignLimit *int
+	// ImageLimit / VariationLimit are the plan's per-design caps on images and
+	// colour variations; nil means unlimited. Admin-editable, so the dashboard
+	// reads them instead of re-deriving them from the plan code — its copy of
+	// those constants could drift from the API's, and did.
+	ImageLimit     *int
+	VariationLimit *int
 	// ActivationRequired is true when a PAID plan has not yet paid its first
 	// invoice — i.e. monthly_fee_minor > 0 AND the subscription has never been
 	// charged (first_purchase_consumed is false). This covers both a brand-new

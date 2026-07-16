@@ -150,7 +150,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   measurementFieldPageCount: number;
   setMeasurementFieldPage: (page: number) => void;
   nextFieldSequence: number;
-  imageLimit: number;
+  imageLimit: number | null;
   designLimit: number | null;
   atDesignLimit: boolean;
   profile: Profile;

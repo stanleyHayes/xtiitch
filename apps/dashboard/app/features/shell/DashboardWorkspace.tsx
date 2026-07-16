@@ -127,11 +127,11 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     setPage: setMeasurementFieldPage,
   } = usePagedItems(measurementFields, 8, measurementFields.length);
   const canManage = canManageDashboard(currentUser.role);
-  const isFreePlan = profile.plan === "free";
-  // Still mirrors the API's hardcoded free=2/paid=5 image cap
-  // (ensureImageCapacity). Unlike the design limit there is no plan column to
-  // read yet, so this stays a guess until one exists.
-  const imageLimit = isFreePlan ? 2 : 5;
+  // Every limit here comes from the plan, so an admin changing one in the
+  // entitlements matrix takes effect without a deploy. Nothing derives a limit
+  // from the plan NAME any more; components that need "is this the free tier"
+  // for upgrade copy read profile.plan themselves.
+  const imageLimit = profile.image_limit ?? null;
   // Read the real cap rather than inferring one from the plan slug. This used to
   // be `isFreePlan ? 10 : null`, which told every paid plan it was unlimited --
   // so a Starter merchant (capped at 50) got no warning and hit an unexplained

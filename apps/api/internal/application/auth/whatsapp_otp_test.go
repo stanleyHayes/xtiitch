@@ -18,6 +18,8 @@ type fakeOTPChallenge struct {
 	attempts  int
 	consumed  bool
 	expiresAt time.Time
+	createdAt time.Time
+	purpose   string
 }
 
 type fakeWhatsAppAuth struct {
@@ -42,29 +44,38 @@ func (f *fakeWhatsAppAuth) FindBusinessUserByHandleAndWhatsApp(
 func (f *fakeWhatsAppAuth) CreateSignInOTPChallenge(_ context.Context, input ports.CreateSignInOTPChallengeInput) error {
 	f.created = append(f.created, input)
 	f.challenges = append(f.challenges, &fakeOTPChallenge{
-		id:        input.ChallengeID,
-		number:    input.WhatsAppNumber,
-		codeHash:  input.CodeHash,
+		id:       input.ChallengeID,
+		number:   input.WhatsAppNumber,
+		codeHash: input.CodeHash,
+		// The real table defaults created_at to now() while the service sets
+		// expires_at to now()+TTL, so the same relationship holds here.
+		createdAt: input.ExpiresAt.Add(-businessOTPTTL),
 		expiresAt: input.ExpiresAt,
+		purpose:   input.Purpose,
 	})
 	return nil
 }
 
+// Filters on purpose exactly as the real query does: a challenge issued for one
+// flow must be invisible to another, so the fake cannot paper over a missing
+// purpose filter in the service.
 func (f *fakeWhatsAppAuth) LatestActiveSignInOTPChallenge(
 	_ context.Context,
 	number string,
+	purpose string,
 	now time.Time) (ports.BusinessOTPChallengeRecord,
 	error,
 ) {
 	for i := len(f.challenges) - 1; i >= 0; i-- {
 		c := f.challenges[i]
-		if c.number == number && !c.consumed && c.expiresAt.After(now) {
+		if c.number == number && c.purpose == purpose && !c.consumed && c.expiresAt.After(now) {
 			return ports.BusinessOTPChallengeRecord{
 				ChallengeID:    c.id,
 				WhatsAppNumber: c.number,
 				CodeHash:       c.codeHash,
 				Attempts:       c.attempts,
 				ExpiresAt:      c.expiresAt,
+				CreatedAt:      c.createdAt,
 			}, nil
 		}
 	}
@@ -172,6 +183,131 @@ func TestRequestSignInOTPOpaqueForUnknownOwner(t *testing.T) {
 	}
 }
 
+// Every send bills a real SMS on a public endpoint, so a second code to the same
+// number inside the cooldown must not go out.
+func TestRequestOTPThrottlesResendToTheSameNumber(t *testing.T) {
+	t.Parallel()
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-1", "chal-2"})
+
+	if err := svc.RequestRegistrationOTP(context.Background(), "0244000111"); err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+	err := svc.RequestRegistrationOTP(context.Background(), "0244000111")
+	if !errors.Is(err, ErrOTPResendTooSoon) {
+		t.Fatalf("expected ErrOTPResendTooSoon on an immediate resend, got %v", err)
+	}
+	if delivery.calls != 1 {
+		t.Fatalf("expected exactly one SMS billed, got %d", delivery.calls)
+	}
+	if len(wa.created) != 1 {
+		t.Fatalf("expected no second challenge stored, got %d", len(wa.created))
+	}
+}
+
+// The throttle is per NUMBER, so it must not block a different number: one
+// person signing up cannot lock out the next.
+func TestRequestOTPThrottleIsPerNumber(t *testing.T) {
+	t.Parallel()
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-1", "chal-2"})
+
+	if err := svc.RequestRegistrationOTP(context.Background(), "0244000111"); err != nil {
+		t.Fatalf("first request: %v", err)
+	}
+	if err := svc.RequestRegistrationOTP(context.Background(), "0209999888"); err != nil {
+		t.Fatalf("a different number must not be throttled: %v", err)
+	}
+	if delivery.calls != 2 {
+		t.Fatalf("expected both numbers to receive a code, got %d sends", delivery.calls)
+	}
+}
+
+// Once the cooldown has passed a resend is allowed again — a stuck user must not
+// be locked out of a fresh code.
+func TestRequestOTPAllowsResendAfterCooldown(t *testing.T) {
+	t.Parallel()
+	now := fixedOTPClock.now
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	// A live challenge older than the cooldown but not yet expired.
+	wa.challenges = append(wa.challenges, &fakeOTPChallenge{
+		id:        "chal-old",
+		number:    "233244000111",
+		codeHash:  "hash:000000",
+		createdAt: now.Add(-businessOTPResendCooldown - time.Second),
+		expiresAt: now.Add(time.Minute),
+		purpose:   ports.BusinessOTPPurposeRegister,
+	})
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-2"})
+
+	if err := svc.RequestRegistrationOTP(context.Background(), "0244000111"); err != nil {
+		t.Fatalf("expected a resend after the cooldown to be allowed, got %v", err)
+	}
+	if delivery.calls != 1 {
+		t.Fatalf("expected the resend to be sent, got %d", delivery.calls)
+	}
+}
+
+// A code is only good for the flow that issued it. The challenge store is keyed
+// on a phone number shared across flows, so without this a code the owner
+// requested to SIGN IN would equally authorise redirecting their payouts —
+// turning "read me the code you just got" into a payout-redirection attack.
+func TestOTPCodeCannotBeReplayedAcrossFlows(t *testing.T) {
+	t.Parallel()
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-1"})
+
+	// A code issued for sign-in...
+	if err := svc.RequestSignInOTP(context.Background(), "ama-stitch", "0244000111"); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	// ...must not prove a payout number.
+	err := svc.VerifyBusinessPhoneOTP(context.Background(), "0244000111", "123456")
+	if !errors.Is(err, ErrCodeExpired) {
+		t.Fatalf("expected a sign-in code to be invisible to the payout flow, got %v", err)
+	}
+}
+
+// The converse: a payout code must not sign anyone in.
+func TestPayoutOTPCodeCannotSignIn(t *testing.T) {
+	t.Parallel()
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-1"})
+
+	if err := svc.RequestBusinessPhoneOTP(context.Background(), "0244000111"); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	_, err := svc.VerifySignInOTP(context.Background(), VerifySignInOTPCommand{
+		BusinessHandle: "ama-stitch",
+		WhatsAppNumber: "0244000111",
+		Code:           "123456",
+	})
+	if !errors.Is(err, ErrCodeExpired) {
+		t.Fatalf("expected a payout code to be invisible to sign-in, got %v", err)
+	}
+}
+
+// The code issued for a flow still works for THAT flow — the discriminator must
+// scope codes, not break them.
+func TestPayoutOTPCodeVerifiesItsOwnFlow(t *testing.T) {
+	t.Parallel()
+	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
+	delivery := &fakeOTPDelivery{}
+	svc, _, _ := newWhatsAppOTPService(wa, delivery, []common.ID{"chal-1"})
+
+	if err := svc.RequestBusinessPhoneOTP(context.Background(), "0244000111"); err != nil {
+		t.Fatalf("request: %v", err)
+	}
+	if err := svc.VerifyBusinessPhoneOTP(context.Background(), "0244000111", "123456"); err != nil {
+		t.Fatalf("expected the payout code to verify its own flow: %v", err)
+	}
+}
+
 func TestVerifySignInOTPIssuesSession(t *testing.T) {
 	t.Parallel()
 	wa := &fakeWhatsAppAuth{credentials: activeOwner()}
@@ -275,6 +411,7 @@ func TestRegisterBusinessVerifiesOwnerPhone(t *testing.T) {
 		number:    "233244000111",
 		codeHash:  "hash:123456",
 		expiresAt: fixedOTPClock.now.Add(5 * time.Minute),
+		purpose:   ports.BusinessOTPPurposeRegister,
 	})
 
 	_, err := svc.RegisterBusiness(context.Background(), RegisterBusinessCommand{
@@ -319,6 +456,7 @@ func TestRegisterBusinessRejectsBadPhoneCode(t *testing.T) {
 		number:    "233244000111",
 		codeHash:  "hash:123456",
 		expiresAt: fixedOTPClock.now.Add(5 * time.Minute),
+		purpose:   ports.BusinessOTPPurposeRegister,
 	})
 
 	_, err := svc.RegisterBusiness(context.Background(), RegisterBusinessCommand{

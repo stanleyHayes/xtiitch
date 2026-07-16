@@ -151,7 +151,10 @@ type SubscriptionDiscountRepository interface {
 type BusinessWhatsAppAuthRepository interface {
 	FindBusinessUserByHandleAndWhatsApp(ctx context.Context, handle string, whatsAppNumber string) (BusinessUserCredentials, error)
 	CreateSignInOTPChallenge(ctx context.Context, input CreateSignInOTPChallengeInput) error
-	LatestActiveSignInOTPChallenge(ctx context.Context, whatsAppNumber string, now time.Time) (BusinessOTPChallengeRecord, error)
+	// LatestActiveSignInOTPChallenge returns the newest live challenge for a
+	// number AND purpose. Purpose is part of the lookup, not a post-hoc check, so
+	// a code issued for another flow simply is not found.
+	LatestActiveSignInOTPChallenge(ctx context.Context, whatsAppNumber string, purpose string, now time.Time) (BusinessOTPChallengeRecord, error)
 	IncrementSignInOTPAttempts(ctx context.Context, challengeID common.ID) error
 	ConsumeSignInOTPChallenge(ctx context.Context, challengeID common.ID) error
 }

@@ -86,6 +86,8 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 			p.code, coalesce(p.features, '{}'::jsonb),
 			-- NULL means unlimited; the dashboard must not turn that into a cap.
 			p.design_limit,
+			p.image_limit,
+			p.variation_limit,
 			-- Activation required: a PAID plan that has never been charged (a fresh
 			-- 'trialing' signup OR a grandfathered 'active' account with no billing).
 			(p.monthly_fee_minor > 0 and not coalesce(s.first_purchase_consumed, false))
@@ -97,6 +99,7 @@ func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common
 		&profile.Name, &profile.Handle, &profile.VerificationStatus,
 		&profile.PayoutReady, &profile.SettlementBank, &profile.SettlementAccount,
 		&profile.PlanCode, &featuresRaw, &profile.DesignLimit,
+		&profile.ImageLimit, &profile.VariationLimit,
 		&profile.ActivationRequired,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

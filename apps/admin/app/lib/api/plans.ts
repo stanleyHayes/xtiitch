@@ -90,6 +90,10 @@ export type AdminPlanEntitlementFeature = {
   unit: string;
   sortOrder: number;
   isActive: boolean;
+  // Whether the API actually gates on this key. Several keys are stored and
+  // editable but enforced nowhere; the matrix says so rather than presenting
+  // them as live controls.
+  enforced: boolean;
   values: AdminPlanEntitlementValue[];
   createdAt: string;
   updatedAt: string;
@@ -132,6 +136,7 @@ type AdminPlanEntitlementFeaturePayload = {
   unit: string;
   sort_order: number;
   is_active: boolean;
+  enforced: boolean;
   values: AdminPlanEntitlementValuePayload[];
   created_at: string;
   updated_at: string;
@@ -173,6 +178,7 @@ function mapPlanEntitlementFeature(
     unit: payload.unit,
     sortOrder: payload.sort_order,
     isActive: payload.is_active,
+    enforced: payload.enforced ?? false,
     values: payload.values.map((value) => ({
       planId: value.plan_id,
       planCode: value.plan_code,

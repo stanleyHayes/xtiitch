@@ -47,38 +47,45 @@ func (r *fakeStoreSettingsRepo) Update(_ context.Context, _ common.TenantScope, 
 func (r *fakeStoreSettingsRepo) GetProfile(_ context.Context, _ common.TenantScope) (ports.StoreProfile, error) {
 	return r.profile, r.getProfileErr
 }
-func TestVariationCapForPlanMatchesPricingBook(t *testing.T) {
-	t.Parallel()
-	// Caps count the design's implicit default variation as the first slot.
-	cases := map[string]int{
-		"free":    2,
-		"starter": 3,
-		"growth":  5,
-		"studio":  10,
-		"":        2, // unknown/blank falls back to the most restrictive cap
-		"bogus":   2,
-	}
-	for plan, want := range cases {
-		if got := catalogue.VariationCapForPlan(plan); got != want {
-			t.Fatalf("VariationCapForPlan(%q) = %d, want %d", plan, got, want)
-		}
-	}
-}
 func TestVariationCreateAllowedCountsImplicitDefault(t *testing.T) {
 	t.Parallel()
-	// Free cap 2 = 1 implicit default + at most 1 stored variation.
-	if !catalogue.VariationCreateAllowed("free", 0) {
-		t.Fatal("free plan must allow the first stored variation")
+	capOf := func(value int) *int { return &value }
+
+	// A cap of 2 (the seeded Free value) = 1 implicit default + 1 stored.
+	if !catalogue.VariationCreateAllowed(capOf(2), 0) {
+		t.Fatal("a cap of 2 must allow the first stored variation")
 	}
-	if catalogue.VariationCreateAllowed("free", 1) {
-		t.Fatal("free plan must reject a second stored variation (default + 1 = cap of 2)")
+	if catalogue.VariationCreateAllowed(capOf(2), 1) {
+		t.Fatal("a cap of 2 must reject a second stored variation (default + 1 = 2)")
 	}
-	// Studio cap 10 = 1 implicit default + at most 9 stored variations.
-	if !catalogue.VariationCreateAllowed("studio", 8) {
-		t.Fatal("studio plan must allow the ninth stored variation")
+	// A cap of 10 (the seeded Studio value) = 1 implicit default + 9 stored.
+	if !catalogue.VariationCreateAllowed(capOf(10), 8) {
+		t.Fatal("a cap of 10 must allow the ninth stored variation")
 	}
-	if catalogue.VariationCreateAllowed("studio", 9) {
-		t.Fatal("studio plan must reject the tenth stored variation")
+	if catalogue.VariationCreateAllowed(capOf(10), 9) {
+		t.Fatal("a cap of 10 must reject the tenth stored variation")
+	}
+}
+
+// nil is unlimited, matching plans.variation_limit's NULL. An admin clearing the
+// limit must not be read as a cap of zero.
+func TestVariationCreateAllowedTreatsNilCapAsUnlimited(t *testing.T) {
+	t.Parallel()
+	if !catalogue.VariationCreateAllowed(nil, 0) {
+		t.Fatal("a blank limit must allow the first stored variation")
+	}
+	if !catalogue.VariationCreateAllowed(nil, 9999) {
+		t.Fatal("a blank limit must impose no cap at all")
+	}
+}
+
+// A cap of 0 withholds the feature: the mirror writes 0 for a DISABLED
+// entitlement, and that must not permit the default-plus-one slot.
+func TestVariationCreateAllowedTreatsZeroCapAsWithheld(t *testing.T) {
+	t.Parallel()
+	zero := 0
+	if catalogue.VariationCreateAllowed(&zero, 0) {
+		t.Fatal("a cap of 0 must reject every stored variation")
 	}
 }
 

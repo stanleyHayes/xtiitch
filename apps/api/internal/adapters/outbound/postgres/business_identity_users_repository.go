@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -69,6 +70,44 @@ func (repo BusinessIdentityRepository) ListBusinessUsers(
 	return users, nil
 }
 
+// ensureStaffCapacity caps a business's ACTIVE dashboard users at its plan's
+// staff_limit (NULL = unlimited). It locks the business row so two concurrent
+// invites cannot both pass the check and land one seat over.
+//
+// The cap was sold per plan (Free 1 / Starter 1 / Growth 3 / Studio 10) and
+// enforced nowhere, so every plan had unlimited seats until migration 000088 gave
+// it a column to read.
+//
+// Only ACTIVE users count, so deactivating a user frees their seat. Businesses
+// already over the cap when this shipped keep their existing users -- this blocks
+// the next create rather than retroactively locking anyone out.
+func ensureStaffCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) error {
+	var limit sql.NullInt64
+	var activeCount int
+	err := tx.QueryRow(ctx, `
+		select p.staff_limit,
+			(
+				select count(*)::int
+				from business_users u
+				where u.business_id = b.business_id and u.is_active
+			) as active_users
+		from businesses b
+		join plans p on p.plan_id = b.plan_id
+		where b.business_id = $1
+		for update of b
+	`, businessID.String()).Scan(&limit, &activeCount)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if limit.Valid && int64(activeCount) >= limit.Int64 {
+		return ports.ErrPlanLimitExceeded
+	}
+	return nil
+}
+
 func (repo BusinessIdentityRepository) CreateBusinessUser(
 	ctx context.Context,
 	scope common.TenantScope,
@@ -81,6 +120,10 @@ func (repo BusinessIdentityRepository) CreateBusinessUser(
 	defer rollbackUnlessCommitted(ctx, tx)
 
 	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.BusinessUserRecord{}, err
+	}
+
+	if err := ensureStaffCapacity(ctx, tx, scope.BusinessID); err != nil {
 		return ports.BusinessUserRecord{}, err
 	}
 

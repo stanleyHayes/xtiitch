@@ -29,6 +29,11 @@ export type Profile = {
   // means unlimited — do NOT coerce it to a number. Admin-editable, so the
   // dashboard must read it rather than infer a cap from the plan name.
   design_limit?: number | null;
+  // Per-design caps on images and colour variations; null/absent means
+  // unlimited. Same rule as design_limit: read them, never re-derive them from
+  // the plan name — the API enforces exactly these numbers.
+  image_limit?: number | null;
+  variation_limit?: number | null;
 };
 
 export type UserRole = "owner" | "admin" | "staff";

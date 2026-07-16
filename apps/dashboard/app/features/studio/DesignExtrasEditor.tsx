@@ -20,19 +20,24 @@ export function DesignExtrasEditor({ // eslint-disable-line complexity, max-line
   designId,
   open,
   isFreePlan,
+  imageLimit,
   sizeBands,
 }: {
   designId: string;
   open: boolean;
   isFreePlan: boolean;
+  // The plan's image cap (null = unlimited). The API applies the same cap to a
+  // variation's images as to a design's, so this is passed in rather than
+  // re-derived: this file used to hardcode `isFreePlan ? 2 : 5`, a private copy
+  // of the API's constants that could drift from them.
+  imageLimit: number | null;
   sizeBands: SizeBand[];
 }) {
   const url = `/design-editor/${encodeURIComponent(designId)}`;
   const data = useFetcher<DesignExtrasData>();
   const write = useFetcher<DesignExtrasData>();
   const [addVariationOpen, setAddVariationOpen] = useState(false);
-  // Free plan caps images per variation at 2; paid plans at 5.
-  const perVariationImageLimit = isFreePlan ? 2 : 5;
+  const perVariationImageLimit = imageLimit;
 
   // Load the current variations/overrides once the editor is opened. `data.data`
   // becomes defined after the load settles, so this fires exactly once per open.

@@ -44,9 +44,23 @@ export function PayoutForm({
       });
       if (response.ok) {
         setOtpRequested(true);
-      } else {
-        setOtpError("Could not send a code to that number. Check it and retry.");
+        return;
       }
+      const body = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+      if (body.error === "resend_too_soon") {
+        // A code is already out and still valid, so move to the code field
+        // rather than stranding the owner on a button that looks broken.
+        setOtpRequested(true);
+        setOtpError("A code was just sent. Check your phone before resending.");
+        return;
+      }
+      setOtpError(
+        body.error === "invalid_phone"
+          ? "That doesn't look like a Ghana mobile money number."
+          : "Could not send a code to that number. Check it and retry.",
+      );
     } catch {
       setOtpError("Could not send a code right now. Try again in a moment.");
     } finally {

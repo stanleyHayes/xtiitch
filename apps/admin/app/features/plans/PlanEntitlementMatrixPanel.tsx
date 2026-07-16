@@ -135,6 +135,19 @@ export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-pe
                               }
                               variant="outlined"
                             />
+                            {/* Say plainly when a row changes nothing. Editing a
+                                key the API does not read looks identical to
+                                editing one it does — same toggle, same success
+                                toast — so without this the console invents
+                                control it does not have. */}
+                            {!feature.enforced ? (
+                              <Chip
+                                size="small"
+                                color="warning"
+                                label="Not enforced yet"
+                                variant="outlined"
+                              />
+                            ) : null}
                           </Stack>
                         </TableCell>
                         {plans.map((plan) => {

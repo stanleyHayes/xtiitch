@@ -16,13 +16,16 @@ export function DesignImagesField({
   isFreePlan,
 }: {
   images: string[];
-  imageLimit: number;
+  // null means unlimited, matching the plan's image_limit. Do not coerce it to a
+  // number — a stand-in "big" cap would surface in the counter as a real one.
+  imageLimit: number | null;
   isFreePlan: boolean;
 }) {
   const [kept, setKept] = useState<string[]>(images);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
-  const full = kept.length >= imageLimit;
-  const overLimit = kept.length + pendingNames.length > imageLimit;
+  const full = imageLimit !== null && kept.length >= imageLimit;
+  const overLimit =
+    imageLimit !== null && kept.length + pendingNames.length > imageLimit;
   return (
     <Box>
       <Stack
@@ -34,8 +37,8 @@ export function DesignImagesField({
         </Typography>
         <Typography variant="caption" sx={{ color: "text.secondary" }}>
           {kept.length}
-          {pendingNames.length ? ` + ${pendingNames.length} new` : ""} of{" "}
-          {imageLimit} on your plan
+          {pendingNames.length ? ` + ${pendingNames.length} new` : ""}
+          {imageLimit !== null ? ` of ${imageLimit} on your plan` : ""}
         </Typography>
       </Stack>
       <input type="hidden" name="image_urls" value={kept.join("\n")} />

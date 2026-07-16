@@ -30,7 +30,7 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
   designs: Design[];
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
-  imageLimit: number;
+  imageLimit: number | null;
   addCustomisation: boolean;
   setAddCustomisation: (value: boolean) => void;
   designError?: string;
@@ -71,10 +71,13 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
           key={designs.length}
         >
           <input type="hidden" name="intent" value="create" />
+          {/* Empty when the plan is uncapped; the action treats that as no
+              limit. Only a pre-upload courtesy check either way — the API is
+              the authority and re-checks. */}
           <input
             type="hidden"
             name="image_limit"
-            value={imageLimit}
+            value={imageLimit ?? ""}
           />
           <Stack spacing={1.75}>
             {designError ? (
@@ -123,8 +126,12 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
               <ImageDropzone
                 name="image_files"
                 multiple
-                maxFiles={imageLimit}
-                helper={`JPG, PNG, or WebP up to 10 MB each — up to ${imageLimit} images on your plan.`}
+                maxFiles={imageLimit ?? undefined}
+                helper={
+                  imageLimit !== null
+                    ? `JPG, PNG, or WebP up to 10 MB each — up to ${imageLimit} images on your plan.`
+                    : "JPG, PNG, or WebP up to 10 MB each."
+                }
               />
             </Box>
             <FormControlLabel

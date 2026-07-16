@@ -264,7 +264,20 @@ type CreateSignInOTPChallengeInput struct {
 	WhatsAppNumber string
 	CodeHash       string
 	ExpiresAt      time.Time
+	// Purpose scopes the challenge to the flow that issued it, so a code obtained
+	// for one flow cannot be replayed into another (see BusinessOTPPurpose).
+	Purpose string
 }
+
+// The flows that may issue a business one-time code. A challenge is only valid
+// for the purpose it was issued under: the store is keyed on the phone number,
+// which is shared across flows, so without this a code the owner requested to
+// sign in would equally authorise redirecting their payouts.
+const (
+	BusinessOTPPurposeSignIn   = "signin"
+	BusinessOTPPurposeRegister = "register"
+	BusinessOTPPurposePayout   = "payout"
+)
 
 // BusinessOTPChallengeRecord is an active business sign-in OTP challenge.
 type BusinessOTPChallengeRecord struct {
@@ -273,6 +286,9 @@ type BusinessOTPChallengeRecord struct {
 	CodeHash       string
 	Attempts       int
 	ExpiresAt      time.Time
+	// CreatedAt is when the code was sent, used to throttle resends to the same
+	// number. Each send costs a real SMS.
+	CreatedAt time.Time
 }
 
 type BusinessUserRecord struct {

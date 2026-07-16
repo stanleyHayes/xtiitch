@@ -235,28 +235,29 @@ func ensureDesignCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID) 
 	return nil
 }
 
-// ensureImageCapacity caps the number of images a design may carry by plan: the
-// free plan allows 2, any paid plan allows 5 (Version-one review §"Adding a
-// design" 4). Runs under tenant scope.
+// ensureImageCapacity caps the number of images a design may carry, from the
+// plan's admin-editable image_limit (NULL = unlimited). Runs under tenant scope.
+//
+// This used to compare the plan CODE against the literal "free" and hardcode
+// 2-or-5, which meant an admin could not change it without a deploy (Testing
+// Report §7.3) and any plan code other than "free" -- including every
+// operator-created plan -- silently got the paid cap.
 func ensureImageCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID, imageCount int) error {
-	var planCode string
+	var limit sql.NullInt64
 	err := tx.QueryRow(ctx, `
-		select p.code
+		select p.image_limit
 		from businesses b
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
-	`, businessID.String()).Scan(&planCode)
+	`, businessID.String()).Scan(&limit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	limit := 5
-	if planCode == "free" {
-		limit = 2
-	}
-	if imageCount > limit {
+	// NULL is unlimited, so an unset limit imposes no cap.
+	if limit.Valid && int64(imageCount) > limit.Int64 {
 		return ports.ErrImageLimitExceeded
 	}
 	return nil

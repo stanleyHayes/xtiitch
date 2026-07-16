@@ -46,7 +46,7 @@ export function DesignRow({ // eslint-disable-line max-lines-per-function -- lar
   storeHandle: string;
   defaultOpen?: boolean;
   priceError?: string;
-  imageLimit: number;
+  imageLimit: number | null;
   isFreePlan: boolean;
 }) {
   const image = design.images[0] || fallbackDesignImage(design);
@@ -354,6 +354,7 @@ export function DesignRow({ // eslint-disable-line max-lines-per-function -- lar
             designId={design.design_id}
             open={editOpen}
             isFreePlan={isFreePlan}
+            imageLimit={imageLimit}
             sizeBands={sizeBands}
           />
 

@@ -27,7 +27,7 @@ export function VariationRow({
   total: number;
   actionUrl: string;
   write: ReturnType<typeof useFetcher<DesignExtrasData>>;
-  imageLimit: number;
+  imageLimit: number | null;
   isFreePlan: boolean;
   onReorder: (index: number, direction: -1 | 1) => void;
 }) {

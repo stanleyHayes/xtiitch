@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -394,6 +396,7 @@ func listAdminPlanEntitlements(
 			f.unit,
 			f.sort_order,
 			f.is_active,
+			f.enforced,
 			f.created_at,
 			f.updated_at,
 			p.plan_id::text,
@@ -429,6 +432,7 @@ func listAdminPlanEntitlements(
 			&feature.Unit,
 			&feature.SortOrder,
 			&feature.IsActive,
+			&feature.Enforced,
 			&feature.CreatedAt,
 			&feature.UpdatedAt,
 			&value.PlanID,
@@ -456,8 +460,52 @@ func listAdminPlanEntitlements(
 	return records, nil
 }
 
+// mirroredLimitColumns maps each limit-type entitlement key to the plans column
+// that projects it. plan_entitlement_values is the source of truth; these columns
+// are the runtime read model the product gates on.
+var mirroredLimitColumns = []struct{ featureKey, column string }{
+	{"designs", "design_limit"},
+	{"images_per_design", "image_limit"},
+	{"variations_per_design", "variation_limit"},
+	{"staff_accounts", "staff_limit"},
+}
+
+// mirroredLimitClause renders one column's projection.
+//
+// The three cases are all load-bearing and must not be simplified into a
+// coalesce: absent, withheld, and "granted, no cap" are three different facts
+// that a coalesce would collapse into one.
+func mirroredLimitClause(featureKey, column string) string {
+	return fmt.Sprintf(`%[2]s = case
+				-- No row for this plan (e.g. created before its entitlements were
+				-- seeded): we know nothing about its cap, so keep what is set.
+				-- Falling through to NULL would read as "unlimited" and silently
+				-- uncap the plan.
+				when not exists (select 1 from lim where feature_key = '%[1]s') then p.%[2]s
+				-- Withheld. MUST NOT fall through to NULL: NULL means unlimited, so
+				-- turning the entitlement OFF would grant strictly more than leaving
+				-- it on -- which is exactly what happened before this case existed.
+				when not (select enabled from lim where feature_key = '%[1]s') then 0
+				-- Granted: the configured cap, where blank (NULL) means unlimited --
+				-- the promise the matrix's "Unlimited" placeholder makes.
+				else (select limit_value from lim where feature_key = '%[1]s')
+			end`, featureKey, column)
+}
+
 func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID common.ID) error {
-	_, err := tx.Exec(ctx, `
+	_, err := tx.Exec(ctx, mirrorAdminPlanEntitlementsSQL(), planID.String())
+	return err
+}
+
+// mirrorAdminPlanEntitlementsSQL builds the projection statement. Split out so it
+// can be inspected and exercised directly against a database.
+func mirrorAdminPlanEntitlementsSQL() string {
+	clauses := make([]string, 0, len(mirroredLimitColumns))
+	for _, limit := range mirroredLimitColumns {
+		clauses = append(clauses, mirroredLimitClause(limit.featureKey, limit.column))
+	}
+
+	return `
 		with runtime as (
 			select
 				v.plan_id,
@@ -479,33 +527,19 @@ func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID c
 			where v.plan_id = $1::uuid
 			group by v.plan_id
 		),
-		designs as (
-			-- (plan_id, feature_key) is the primary key, so this is at most one row.
-			select enabled, limit_value
+		lim as (
+			-- (plan_id, feature_key) is the primary key, so each key is at most one row.
+			select feature_key, enabled, limit_value
 			from plan_entitlement_values
-			where plan_id = $1::uuid and feature_key = 'designs'
+			where plan_id = $1::uuid
 		)
 		update plans p
 		set features = coalesce(runtime.features, '{}'::jsonb),
-			design_limit = case
-				-- No 'designs' row for this plan (e.g. a plan created before its
-				-- entitlements were seeded): we know nothing about its cap, so keep
-				-- whatever is set. Falling through to NULL would read as "unlimited"
-				-- and silently uncap the plan.
-				when not exists (select 1 from designs) then p.design_limit
-				-- Withheld. This MUST NOT fall through to NULL: NULL means unlimited,
-				-- so turning the entitlement OFF would grant strictly more than
-				-- leaving it on -- which is what happened before this case existed.
-				when not (select enabled from designs) then 0
-				-- Granted: the configured cap, where blank (NULL) means unlimited --
-				-- the promise the matrix's "Unlimited" placeholder makes.
-				else (select limit_value from designs)
-			end,
+			`+strings.Join(clauses, ",\n\t\t\t")+`,
 			updated_at = now()
 		from runtime
 		where p.plan_id = runtime.plan_id
-	`, planID.String())
-	return err
+	`
 }
 
 func adminPlansQuery() string {

@@ -161,6 +161,11 @@ func authError(err error) (int, string) {
 		return http.StatusUnauthorized, "invalid_credentials"
 	case errors.Is(err, authdomain.ErrForbidden):
 		return http.StatusForbidden, "forbidden"
+	// The plan's staff-account cap. 409 + plan_limit_exceeded matches how the
+	// catalogue reports its design/image/variation caps, so the dashboard can
+	// prompt an upgrade rather than show a generic failure.
+	case errors.Is(err, ports.ErrPlanLimitExceeded):
+		return http.StatusConflict, "plan_limit_exceeded"
 	case errors.Is(err, authdomain.ErrInvalidMFACode):
 		return http.StatusUnauthorized, "invalid_mfa_code"
 	case errors.Is(err, authapp.ErrWhatsAppOTPUnavailable):
@@ -173,6 +178,8 @@ func authError(err error) (int, string) {
 		return http.StatusUnauthorized, "code_expired"
 	case errors.Is(err, authapp.ErrTooManyAttempts):
 		return http.StatusTooManyRequests, "too_many_attempts"
+	case errors.Is(err, authapp.ErrOTPResendTooSoon):
+		return http.StatusTooManyRequests, "resend_too_soon"
 	case errors.Is(err, authapp.ErrOTPDeliveryFailed):
 		return http.StatusBadGateway, "delivery_failed"
 	case errors.Is(err, authapp.ErrDiscountCodeInvalid):

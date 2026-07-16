@@ -73,9 +73,12 @@ type planEntitlementFeatureResponse struct {
 	Unit        string                         `json:"unit"`
 	SortOrder   int                            `json:"sort_order"`
 	IsActive    bool                           `json:"is_active"`
-	Values      []planEntitlementValueResponse `json:"values"`
-	CreatedAt   string                         `json:"created_at"`
-	UpdatedAt   string                         `json:"updated_at"`
+	// Enforced is false for keys the API stores and lets you edit but does not
+	// gate on, so the console can label them instead of implying they work.
+	Enforced  bool                           `json:"enforced"`
+	Values    []planEntitlementValueResponse `json:"values"`
+	CreatedAt string                         `json:"created_at"`
+	UpdatedAt string                         `json:"updated_at"`
 }
 
 type planEntitlementValueResponse struct {

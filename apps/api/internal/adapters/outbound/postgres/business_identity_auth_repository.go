@@ -179,19 +179,20 @@ func (repo BusinessIdentityRepository) CreateSignInOTPChallenge(ctx context.Cont
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
-		insert into business_signin_otp_challenges (challenge_id, whatsapp_number, code_hash, expires_at)
-		values ($1, $2, $3, $4)
-	`, input.ChallengeID.String(), input.WhatsAppNumber, input.CodeHash, input.ExpiresAt); err != nil {
+		insert into business_signin_otp_challenges (challenge_id, whatsapp_number, code_hash, expires_at, purpose)
+		values ($1, $2, $3, $4, $5)
+	`, input.ChallengeID.String(), input.WhatsAppNumber, input.CodeHash, input.ExpiresAt, input.Purpose); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
 }
 
-// LatestActiveSignInOTPChallenge returns the newest unconsumed, unexpired sign-in
-// challenge for a WhatsApp number.
+// LatestActiveSignInOTPChallenge returns the newest unconsumed, unexpired
+// challenge for a WhatsApp number AND purpose.
 func (repo BusinessIdentityRepository) LatestActiveSignInOTPChallenge(
 	ctx context.Context,
 	whatsAppNumber string,
+	purpose string,
 	now time.Time,
 ) (ports.BusinessOTPChallengeRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
@@ -204,13 +205,13 @@ func (repo BusinessIdentityRepository) LatestActiveSignInOTPChallenge(
 	}
 	var record ports.BusinessOTPChallengeRecord
 	if err := tx.QueryRow(ctx, `
-		select challenge_id::text, whatsapp_number, code_hash, attempts, expires_at
+		select challenge_id::text, whatsapp_number, code_hash, attempts, expires_at, created_at
 		from business_signin_otp_challenges
-		where whatsapp_number = $1 and consumed_at is null and expires_at > $2
+		where whatsapp_number = $1 and purpose = $2 and consumed_at is null and expires_at > $3
 		order by created_at desc
 		limit 1
-	`, whatsAppNumber, now).Scan(
-		&record.ChallengeID, &record.WhatsAppNumber, &record.CodeHash, &record.Attempts, &record.ExpiresAt,
+	`, whatsAppNumber, purpose, now).Scan(
+		&record.ChallengeID, &record.WhatsAppNumber, &record.CodeHash, &record.Attempts, &record.ExpiresAt, &record.CreatedAt,
 	); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessOTPChallengeRecord{}, ErrNotFound

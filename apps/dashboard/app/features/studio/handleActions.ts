@@ -161,10 +161,14 @@ if (intent === "create") {
       String(form.get("image_limit") ?? ""),
       10,
     );
+    // Absent or unparseable means the plan is uncapped. This used to fall back
+    // to 5, a copy of a constant the API no longer holds: once a plan can be
+    // given any cap from the admin matrix, that fallback would block an uncapped
+    // merchant at 5 with a message citing a limit nothing enforces.
     const imageLimit =
       Number.isFinite(requestedImageLimit) && requestedImageLimit > 0
         ? requestedImageLimit
-        : 5;
+        : null;
 
     // Catalogue images are uploaded from the user's device to Cloudinary (no
     // link pasting); only the resulting URLs are stored. The API still enforces
@@ -180,7 +184,7 @@ if (intent === "create") {
     ) {
       imageFiles.push(legacyFile);
     }
-    if (imageFiles.length > imageLimit) {
+    if (imageLimit !== null && imageFiles.length > imageLimit) {
       return {
         designError: `You can upload up to ${imageLimit} images on your plan.`,
       };

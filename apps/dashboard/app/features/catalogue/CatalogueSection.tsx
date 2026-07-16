@@ -60,7 +60,7 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
   sizeBands: SizeBand[];
   profile: Profile;
   action: DashboardActionData;
-  imageLimit: number;
+  imageLimit: number | null;
   designLimit: number | null;
   atDesignLimit: boolean;
   catalogueView: "all" | "add";

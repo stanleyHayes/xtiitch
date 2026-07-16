@@ -37,8 +37,10 @@ func (handler Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 		"settlement_account":  profile.SettlementAccount,
 		"plan":                profile.PlanCode,
 		"entitlements":        entitlements,
-		// null means unlimited, matching plans.design_limit.
-		"design_limit": profile.DesignLimit,
+		// null means unlimited in all three, matching the plans columns.
+		"design_limit":    profile.DesignLimit,
+		"image_limit":     profile.ImageLimit,
+		"variation_limit": profile.VariationLimit,
 	})
 }
 

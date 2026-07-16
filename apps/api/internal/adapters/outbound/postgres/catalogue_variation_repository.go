@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 
 	"github.com/jackc/pgx/v5"
@@ -159,15 +160,15 @@ func resolveVariationSequence(ctx context.Context, tx pgx.Tx, designID common.ID
 	return next, err
 }
 
-// ensureVariationCapacity enforces the per-design colour-variation plan cap
-// (Free 2 / Starter 3 / Growth 5 / Studio 10, counting the design's implicit
-// default variation). It locks the business row so a concurrent create cannot
-// race past the cap.
+// ensureVariationCapacity enforces the per-design colour-variation cap from the
+// plan's admin-editable variation_limit (NULL = unlimited), counting the design's
+// implicit default variation. It locks the business row so a concurrent create
+// cannot race past the cap.
 func ensureVariationCapacity(ctx context.Context, tx pgx.Tx, businessID common.ID, designID common.ID) error {
-	var planCode string
+	var limit sql.NullInt64
 	var storedCount int
 	err := tx.QueryRow(ctx, `
-		select p.code,
+		select p.variation_limit,
 			(
 				select count(*)::int
 				from design_variations dv
@@ -177,14 +178,19 @@ func ensureVariationCapacity(ctx context.Context, tx pgx.Tx, businessID common.I
 		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
 		for update of b
-	`, businessID.String(), designID.String()).Scan(&planCode, &storedCount)
+	`, businessID.String(), designID.String()).Scan(&limit, &storedCount)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ErrNotFound
 	}
 	if err != nil {
 		return err
 	}
-	if !catalogue.VariationCreateAllowed(planCode, storedCount) {
+	var cap *int
+	if limit.Valid {
+		value := int(limit.Int64)
+		cap = &value
+	}
+	if !catalogue.VariationCreateAllowed(cap, storedCount) {
 		return ports.ErrVariationLimitReached
 	}
 	return nil

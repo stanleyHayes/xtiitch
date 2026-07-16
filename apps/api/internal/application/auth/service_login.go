@@ -141,7 +141,7 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		if err != nil {
 			return AuthResult{}, err
 		}
-		if err := s.verifyBusinessOTP(ctx, number, cmd.OwnerPhoneCode); err != nil {
+		if err := s.verifyBusinessOTP(ctx, number, cmd.OwnerPhoneCode, ports.BusinessOTPPurposeRegister); err != nil {
 			return AuthResult{}, err
 		}
 		ownerPhone = number

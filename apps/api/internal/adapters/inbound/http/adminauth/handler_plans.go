@@ -256,6 +256,7 @@ func newPlanEntitlementFeatureResponses(
 			Category:    record.Category,
 			ValueType:   record.ValueType,
 			Unit:        record.Unit,
+			Enforced:    record.Enforced,
 			SortOrder:   record.SortOrder,
 			IsActive:    record.IsActive,
 			Values:      values,

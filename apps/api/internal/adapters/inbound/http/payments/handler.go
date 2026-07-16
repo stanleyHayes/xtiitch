@@ -356,6 +356,8 @@ func paymentError(err error) (int, string) {
 		return http.StatusUnauthorized, "code_expired"
 	case errors.Is(err, authapp.ErrTooManyAttempts):
 		return http.StatusTooManyRequests, "too_many_attempts"
+	case errors.Is(err, authapp.ErrOTPResendTooSoon):
+		return http.StatusTooManyRequests, "resend_too_soon"
 	case errors.Is(err, authapp.ErrOTPDeliveryFailed):
 		return http.StatusBadGateway, "delivery_failed"
 	default:

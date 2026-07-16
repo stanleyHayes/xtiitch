@@ -50,29 +50,21 @@ type DesignVariation struct {
 	Sequence   int
 }
 
-// VariationCapForPlan returns the maximum number of colour variations a single
-// design may have on the given plan, COUNTING the implicit default variation
-// (the design itself) as the first: Free 2 / Starter 3 / Growth 5 / Studio 10.
-// An unknown or blank plan code falls back to the most restrictive Free cap.
-func VariationCapForPlan(planCode string) int {
-	switch planCode {
-	case "starter":
-		return 3
-	case "growth":
-		return 5
-	case "studio":
-		return 10
-	default:
-		return 2
+// VariationCreateAllowed reports whether a business may store one more colour
+// variation for a design that already has existingStored rows, given its plan's
+// cap. The design's implicit default occupies one slot, so a new row is allowed
+// only while the stored count plus that default stays below the cap.
+//
+// cap is the plan's variation_limit; nil means unlimited. It used to be derived
+// from the plan CODE by a hardcoded switch (Free 2 / Starter 3 / Growth 5 /
+// Studio 10), which an admin could not change without a deploy and which gave
+// any unrecognised plan code the most restrictive cap. The numbers now live in
+// the plan, so only the rule -- that the default takes a slot -- stays here.
+func VariationCreateAllowed(cap *int, existingStored int) bool {
+	if cap == nil {
+		return true
 	}
-}
-
-// VariationCreateAllowed reports whether a business on planCode may store one
-// more colour variation for a design that already has existingStored rows. The
-// design's implicit default occupies one slot, so a new row is allowed only
-// while the stored count plus that default stays below the plan cap.
-func VariationCreateAllowed(planCode string, existingStored int) bool {
-	return existingStored+1 < VariationCapForPlan(planCode)
+	return existingStored+1 < *cap
 }
 
 type SizeBand struct {

@@ -23,6 +23,8 @@ async function payoutErrorMessage(response: Response): Promise<string> {
       return "That code has expired. Send a new one to your number.";
     case "too_many_attempts":
       return "Too many incorrect codes. Send a new one to try again.";
+    case "resend_too_soon":
+      return "A code was just sent to that number. Wait a minute, then retry.";
     case "invalid_phone":
       return "That doesn't look like a Ghana mobile money number.";
     case "delivery_failed":

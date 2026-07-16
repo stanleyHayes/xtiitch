@@ -240,9 +240,14 @@ type AdminPlanEntitlementFeatureRecord struct {
 	Unit        string
 	SortOrder   int
 	IsActive    bool
-	Values      []AdminPlanEntitlementValueRecord
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Enforced reports whether the API actually gates on this key. Several keys
+	// are stored and editable but enforced nowhere, so the admin console must be
+	// able to say which controls are live: a toggle that silently does nothing is
+	// worse than an absent one, because it reads as configuration that took.
+	Enforced  bool
+	Values    []AdminPlanEntitlementValueRecord
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 type AdminPlanEntitlementValueRecord struct {
 	PlanID     common.ID
