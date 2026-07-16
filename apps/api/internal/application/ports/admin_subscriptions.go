@@ -176,6 +176,7 @@ type EnqueueSubscriptionRenewalReminderInput struct {
 type SubscriptionRenewalReminderResult struct {
 	Enqueued bool
 }
+
 // PlanCadencePricing carries the figures a plan actually BILLS. Xtiitch charges
 // per quarter or per year only, each with a discounted first cycle and a
 // standard renewal; MonthlyFeeMinor is a display/reference rate (and drives
