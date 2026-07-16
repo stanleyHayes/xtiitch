@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -9,6 +9,7 @@ import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
 import { PayoutForm } from "./PayoutForm";
 import { PayoutSummary } from "./PayoutSummary";
+import { useCloseOnSuccess } from "./useCloseOnSuccess";
 
 export function PayoutSetupPanel({
   provisioned,
@@ -28,14 +29,11 @@ export function PayoutSetupPanel({
   // closed for anyone who has already set payouts up.
   const [editing, setEditing] = useState(!provisioned);
 
-  // Collapse back to the summary once a save succeeds. Keyed on `success`
-  // changing rather than on `provisioned`, which is already true for someone
-  // editing details they had set up before.
-  useEffect(() => {
-    if (success) {
-      setEditing(false);
-    }
-  }, [success]);
+  // Collapse once the save settles. This watches the SUBMISSION, not the success
+  // message: every save returns the same success string, so an effect keyed on
+  // that text fires once and never again, leaving the form open on every save
+  // after the first.
+  useCloseOnSuccess(setEditing, "setup_payout", Boolean(error));
 
   return (
     <Panel id="payouts" sx={{ mt: 2 }}>

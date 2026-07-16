@@ -1,6 +1,6 @@
 import { apiFetch } from "../../lib/auth";
 import { redirect } from "react-router";
-import { businessUserErrorMessage } from "../shared/utils";
+import { apiErrorCode, businessUserErrorMessage } from "../shared/utils";
 
 export async function handleTeamActions( // eslint-disable-line complexity -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
@@ -20,7 +20,16 @@ if (intent === "create_business_user") {
       }),
     });
     if (!response.ok) {
-      return { teamError: businessUserErrorMessage(response.status, "create") };
+      // Read the code: the plan's seat cap and a duplicate email both answer
+      // 409, and telling an owner at their seat limit to change the email sends
+      // them round a loop no email can break.
+      return {
+        teamError: businessUserErrorMessage(
+          response.status,
+          "create",
+          await apiErrorCode(response),
+        ),
+      };
     }
     return redirect("/dashboard/team");
   }
@@ -45,7 +54,15 @@ if (intent === "update_business_user") {
       },
     );
     if (!response.ok) {
-      return { teamError: businessUserErrorMessage(response.status, "update") };
+      // Reactivating a user can now hit the plan's seat cap, so this path needs
+      // the code too.
+      return {
+        teamError: businessUserErrorMessage(
+          response.status,
+          "update",
+          await apiErrorCode(response),
+        ),
+      };
     }
     return redirect("/dashboard/team");
   }

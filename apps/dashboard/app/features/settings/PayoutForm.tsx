@@ -23,15 +23,27 @@ export function PayoutForm({
   onCancel?: () => void;
 }) {
   const [account, setAccount] = useState(settlementAccount ?? "");
+  // Controlled, because the network is half of what the API treats as "the
+  // payout details": leaving it uncontrolled hid a network change from the
+  // check below, and the server then demanded a code this form never offered.
+  const [bank, setBank] = useState(settlementBank || "MTN");
   const [code, setCode] = useState("");
   const [otpRequested, setOtpRequested] = useState(false);
   const [otpSending, setOtpSending] = useState(false);
   const [otpError, setOtpError] = useState<string | undefined>(undefined);
 
+  // This predicate MUST mirror the API's no-op condition (account AND bank both
+  // unchanged). Anything else and the form and the server disagree about whether
+  // a code is needed — the server wins, and the owner is stranded on an error
+  // telling them to enter a code with no field to enter it in.
+  //
+  // Comparing against `settlementBank ?? ""` rather than the "MTN" default is
+  // deliberate: a business set up before the network was recorded has none, so
+  // the default reads as a change and correctly asks for a code, which is what
+  // lets that first resubmit record the network at last.
   const numberChanged = account.trim() !== (settlementAccount ?? "").trim();
-  // A saved number that has not changed was already proved, so re-proving it to
-  // switch network alone would be busywork. A new number always needs proof.
-  const needsCode = numberChanged || !provisioned;
+  const bankChanged = bank !== (settlementBank ?? "");
+  const needsCode = !provisioned || numberChanged || bankChanged;
 
   async function requestCode() {
     setOtpSending(true);
@@ -84,7 +96,14 @@ export function PayoutForm({
           label="Network"
           select
           required
-          defaultValue={settlementBank || "MTN"}
+          value={bank}
+          onChange={(event) => {
+            setBank(event.target.value);
+            // A code proves one specific number-and-network pair, so switching
+            // network invalidates one already sent — same rule as the number.
+            setOtpRequested(false);
+            setCode("");
+          }}
           sx={{ minWidth: { sm: 160 } }}
           fullWidth
         >

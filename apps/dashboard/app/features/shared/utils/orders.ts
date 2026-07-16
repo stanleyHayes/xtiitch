@@ -60,6 +60,10 @@ export function rolePermissionMessage(role: string): string {
 export function businessUserErrorMessage(
   status: number,
   action: "create" | "update" | "reset" | "transfer",
+  // The API's error code. Two different failures now answer 409, so status alone
+  // cannot tell them apart: a duplicate email and the plan's seat cap. Callers
+  // that do not pass it keep the previous duplicate-email wording.
+  code?: string,
 ): string {
   if (status === 403) {
     return action === "transfer"
@@ -67,6 +71,9 @@ export function businessUserErrorMessage(
       : "Only owners and admins can manage team access.";
   }
   if (status === 409) {
+    if (code === "plan_limit_exceeded") {
+      return "You've reached your plan's limit on team members. Upgrade your plan to add more.";
+    }
     return "That email is already attached to this business.";
   }
   if (status === 404) {

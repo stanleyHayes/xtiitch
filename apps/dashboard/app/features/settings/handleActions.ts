@@ -1,21 +1,13 @@
 import { apiFetch } from "../../lib/auth";
+import { apiErrorCode } from "../shared/utils";
 import { tokens } from "../../theme";
 import { uploadDesignImage } from "../studio/utils";
-
-async function payoutErrorCode(response: Response): Promise<string> {
-  try {
-    const body = (await response.json()) as { error?: unknown };
-    return typeof body.error === "string" ? body.error : "";
-  } catch {
-    return "";
-  }
-}
 
 // Turn the API's payout error codes into something the owner can act on. Each
 // case implies a different next step — retype the code, request a fresh one,
 // wait, or fix the number — so they must not collapse into one message.
 async function payoutErrorMessage(response: Response): Promise<string> {
-  const code = await payoutErrorCode(response);
+  const code = await apiErrorCode(response);
   switch (code) {
     case "invalid_code":
       return "That code doesn't match. Check it and try again.";

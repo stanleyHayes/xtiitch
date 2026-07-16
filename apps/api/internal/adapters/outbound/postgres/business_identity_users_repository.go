@@ -182,6 +182,30 @@ func (repo BusinessIdentityRepository) UpdateBusinessUser(
 		return ports.BusinessUserRecord{}, err
 	}
 
+	// Reactivating a user takes a seat exactly as creating one does, so it faces
+	// the same cap. Without this, deactivate-then-create-then-reactivate walks a
+	// business past its plan's seat limit one user at a time, using only the
+	// buttons the team page already offers.
+	if input.IsActive {
+		var currentlyActive bool
+		switch err := tx.QueryRow(ctx, `
+			select is_active from business_users
+			where business_user_id = $1 and business_id = $2
+		`, input.UserID.String(), scope.BusinessID.String()).Scan(&currentlyActive); {
+		case errors.Is(err, pgx.ErrNoRows):
+			return ports.BusinessUserRecord{}, ports.ErrNotFound
+		case err != nil:
+			return ports.BusinessUserRecord{}, err
+		}
+		// Only a transition costs a seat; saving an already-active user's name
+		// must not be refused because the business is legitimately at its cap.
+		if !currentlyActive {
+			if err := ensureStaffCapacity(ctx, tx, scope.BusinessID); err != nil {
+				return ports.BusinessUserRecord{}, err
+			}
+		}
+	}
+
 	user, err := scanBusinessUserRecord(tx.QueryRow(ctx, `
 		update business_users
 		set display_name = $3,

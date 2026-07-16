@@ -638,6 +638,45 @@ func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
 	}
 }
 
+// Changing ONLY the network is a change of payout destination like any other:
+// it must reach the provider and demand a fresh code. The client's "does this
+// need a code" check has to agree with this condition or the form and the server
+// disagree about what is being asked for.
+func TestVerifyBusinessTreatsNetworkOnlyChangeAsAChange(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID:        "business-1",
+		Verified:          true,
+		SubaccountRef:     "sub_existing",
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+	}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+
+	// Same number, different network.
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "VOD",
+		SettlementAccount: "0240000000",
+		OTPCode:           "123456",
+	}); err != nil {
+		t.Fatalf("verify business: %v", err)
+	}
+	if !provider.subaccountUpdated {
+		t.Fatal("expected a network-only change to reach the provider, not be swallowed")
+	}
+	if businesses.provisionedAs.SettlementBank != "VOD" {
+		t.Fatalf("expected the new network to be saved, got %q", businesses.provisionedAs.SettlementBank)
+	}
+	if otp.verifiedCode != "123456" {
+		t.Fatal("expected a network-only change to still demand a code")
+	}
+}
+
 // A business provisioned before migration 000087 has no saved network, so its
 // first resubmit must fall through and backfill it rather than no-op.
 func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {

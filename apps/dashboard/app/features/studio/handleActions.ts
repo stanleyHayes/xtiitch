@@ -165,10 +165,14 @@ if (intent === "create") {
     // to 5, a copy of a constant the API no longer holds: once a plan can be
     // given any cap from the admin matrix, that fallback would block an uncapped
     // merchant at 5 with a message citing a limit nothing enforces.
-    const imageLimit =
-      Number.isFinite(requestedImageLimit) && requestedImageLimit > 0
-        ? requestedImageLimit
-        : null;
+    //
+    // Zero is a REAL cap, not a missing one: the mirror writes 0 for a withheld
+    // entitlement, and the API rejects every image at 0. Accepting it only when
+    // `> 0` would read "no images allowed" as "unlimited" — the same inversion,
+    // in the opposite direction, that the mirror's CASE exists to prevent.
+    const imageLimit = Number.isFinite(requestedImageLimit)
+      ? Math.max(requestedImageLimit, 0)
+      : null;
 
     // Catalogue images are uploaded from the user's device to Cloudinary (no
     // link pasting); only the resulting URLs are stored. The API still enforces

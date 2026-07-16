@@ -1,15 +1,10 @@
 import { apiFetch } from "../../lib/auth";
 import type { Design } from "../../lib/api";
 import { UploadSignature, CloudinaryUploadResult } from "../shared/types";
+import { apiErrorCode } from "../shared/utils";
 
 export async function designWriteErrorMessage(response: Response): Promise<string> {
-  let code: string;
-  try {
-    const body = (await response.json()) as { error?: string };
-    code = body.error ?? "";
-  } catch {
-    code = "";
-  }
+  const code = await apiErrorCode(response);
   if (code === "image_limit_exceeded") {
     return "You've reached your plan's image limit. Upgrade your plan to add more images per design.";
   }
