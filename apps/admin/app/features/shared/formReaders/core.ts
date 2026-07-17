@@ -125,7 +125,14 @@ export function readSubscriptionDiscountValue(
 ): number {
   const discountType = readSubscriptionDiscountType(discountTypeValue);
   if (discountType === "percentage") {
-    return Math.round(readNumber(value, 0) * 100);
+    // WHOLE PERCENT: 20 means 20% off, matching the field's own "Percent, GHS,
+    // or months" helper and the API, which computes renewal * value / 100.
+    //
+    // This used to scale by 100 like a cedi amount, storing 20 as 2000. The
+    // admin's display divided it back, so the console looked right, but the API
+    // read 2000 as 2000 PERCENT -- past the renewal figure, clamped to it, and
+    // every percentage code silently gave the plan away free.
+    return Math.round(readNumber(value, 0));
   }
   if (discountType === "fixed") {
     return readGhsPesewas(value);

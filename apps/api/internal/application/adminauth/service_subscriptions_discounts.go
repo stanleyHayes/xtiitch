@@ -382,10 +382,18 @@ func validSubscriptionDiscountCode(value string) bool {
 	return (last >= 'A' && last <= 'Z') || (last >= '0' && last <= '9')
 }
 
+// validSubscriptionDiscountValue checks a discount's value against the units its
+// TYPE implies: percentage is whole percent (1-100), free_period is months, fixed
+// is pesewas. The column is discount_value, not discount_value_bps -- this
+// codebase names basis points explicitly where it means them (plans.commission_bps).
+//
+// The percentage ceiling used to be 10000, a basis-points bound, while the charge
+// maths read the value as whole percent. Nothing rejected 2000, and 2000 percent
+// off clamps to the full renewal: every percentage code gave the plan away free.
 func validSubscriptionDiscountValue(discountType string, value int) bool {
 	switch discountType {
 	case "percentage":
-		return value > 0 && value <= 10000
+		return value > 0 && value <= 100
 	case "free_period":
 		return value > 0 && value <= 36
 	case "fixed":

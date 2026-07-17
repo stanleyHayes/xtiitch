@@ -321,7 +321,12 @@ func (s Service) VerifySubscriptionAuthorization(
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, err
 	}
-	if subscription.MonthlyFeeMinor <= 0 || subscription.Status == "canceled" {
+	// Canceled is NOT refused here, for the same reason it is not refused at
+	// initialize: "Re-subscribe restores access" (Pricing Book §7). These are the
+	// two halves of one payment flow, and refusing only the second half is the
+	// worst of both -- initialize opens a live Paystack checkout, the owner pays,
+	// and then verify throws their money away without activating anything.
+	if subscription.MonthlyFeeMinor <= 0 {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
 	// The cadence was persisted when the authorization link was created; a paid

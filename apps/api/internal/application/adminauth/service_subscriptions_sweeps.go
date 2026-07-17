@@ -215,6 +215,18 @@ func (s Service) VerifySubscriptionAuthorization(
 	// and only (re)capture the authorization — the operator-driven verify is not a
 	// retrying webhook, so this stays effectively idempotent.
 	amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+	periodMonths := cadenceMonths(subscription.BillingCadence)
+	// No cadence means there is no renewal figure and no period length to book.
+	//
+	// Zero is the helpers' "do not charge" signal, but IssueAdminSubscriptionInvoice's
+	// SQL reads a zero amount/period as "unset" and substitutes the MONTHLY fee over
+	// ONE month -- the exact billing migration 000091 abolishes. So a zero must be
+	// refused here rather than passed down: this path would otherwise book a
+	// GHS 49 invoice against a GHS 118 quarterly payment and advance the period by
+	// a month instead of a quarter.
+	if amountMinor <= 0 || periodMonths <= 0 {
+		return ports.AdminSubscriptionRecord{}, authdomain.ErrInvalidInput
+	}
 	invoiceID := s.ids.NewID()
 	// DETERMINISTIC invoice_ref keyed to the checkout reference so a replayed verify
 	// (refresh / double-click / callback + manual verify) collides on the invoice_ref
@@ -230,7 +242,7 @@ func (s Service) VerifySubscriptionAuthorization(
 		ActorAdminUser:     cmd.ActorUserID,
 		Reason:             reason,
 		AmountMinor:        amountMinor,
-		PeriodMonths:       cadenceMonths(subscription.BillingCadence),
+		PeriodMonths:       periodMonths,
 	})
 	switch {
 	case errors.Is(issueErr, ports.ErrSubscriptionInvoiceOpen), errors.Is(issueErr, ports.ErrSubscriptionBillingUnavailable):
@@ -338,6 +350,16 @@ func (s Service) RunSubscriptionRecurringSweep(
 			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalUpcoming, nil, &record); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
+		}
+
+		// A subscription that should renew but has no cadence cannot be billed:
+		// there is no figure to charge and no period to advance. It is skipped
+		// rather than billed at a price nobody chose, but skipping it SILENTLY is
+		// how a business quietly stops paying and nobody notices -- so say so.
+		// Loudly enough to find, once per sweep per subscription, not per attempt.
+		if subscriptionAwaitingCadence(subscription) {
+			record.SubscriptionsAwaitingCadence++
+			continue
 		}
 
 		if !subscriptionDueForRecurringCharge(subscription, now) {
@@ -504,12 +526,15 @@ func (s Service) RunSubscriptionRecurringSweep(
 			", and enqueued " + strconv.Itoa(record.RemindersEnqueued) + " renewal reminders.",
 		Severity: severity,
 		Metadata: map[string]string{
-			"due_subscriptions":  strconv.Itoa(record.DueSubscriptions),
-			"charges_attempted":  strconv.Itoa(record.ChargesAttempted),
-			"charges_paid":       strconv.Itoa(record.ChargesPaid),
-			"charges_pending":    strconv.Itoa(record.ChargesPending),
-			"charges_failed":     strconv.Itoa(record.ChargesFailed),
-			"charges_skipped":    strconv.Itoa(record.ChargesSkipped),
+			"due_subscriptions": strconv.Itoa(record.DueSubscriptions),
+			"charges_attempted": strconv.Itoa(record.ChargesAttempted),
+			"charges_paid":      strconv.Itoa(record.ChargesPaid),
+			"charges_pending":   strconv.Itoa(record.ChargesPending),
+			"charges_failed":    strconv.Itoa(record.ChargesFailed),
+			"charges_skipped":   strconv.Itoa(record.ChargesSkipped),
+			// Surfaced in the audit trail so a subscription that silently stopped
+			// billing for want of a cadence is discoverable, not just absent.
+			"awaiting_cadence":   strconv.Itoa(record.SubscriptionsAwaitingCadence),
 			"reminders_enqueued": strconv.Itoa(record.RemindersEnqueued),
 			"reason":             reason,
 		},

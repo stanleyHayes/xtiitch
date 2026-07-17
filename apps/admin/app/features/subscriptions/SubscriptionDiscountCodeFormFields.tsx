@@ -83,8 +83,23 @@ export function SubscriptionDiscountCodeFormFields({ // eslint-disable-line comp
                   ? "1"
                   : "0"
             }
-            helperText="Percent, GHS, or months"
-            slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
+            helperText={
+              discountType === "percentage"
+                ? "Whole percent off, 1-100"
+                : discountType === "fixed"
+                  ? "GHS off the first purchase"
+                  : "Free months"
+            }
+            slotProps={{
+              htmlInput: {
+                min: 0,
+                // Only a FIXED amount is a cedi value with pesewas. A percentage
+                // and a month count are whole numbers, and offering 0.01 steps on
+                // them invites a value the integer column cannot hold.
+                step: discountType === "fixed" ? "0.01" : "1",
+                max: discountType === "percentage" ? 100 : undefined,
+              },
+            }}
             required
           />
         </Box>

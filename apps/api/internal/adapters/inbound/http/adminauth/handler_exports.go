@@ -352,6 +352,7 @@ func (handler Handler) exportDatasetRows(
 			"WhatsApp",
 			"Plan",
 			"Billing cadence",
+			"Billing mode",
 			"Status",
 			"Signup date",
 			"Renewal date",
@@ -373,6 +374,11 @@ func (handler Handler) exportDatasetRows(
 				record.OwnerEmail,
 				record.OwnerWhatsApp,
 				record.PlanName,
+				// The CADENCE column must carry the cadence. It used to emit
+				// BillingMode, so a quarterly and a yearly subscriber both exported
+				// as "recurring" -- and this CSV exists to build renewal-outreach
+				// lists (§6.2), which is exactly the segmentation that broke.
+				cadenceCSV(record.BillingCadence),
 				record.BillingMode,
 				record.Status,
 				timeCSV(record.SignupAt),
@@ -592,5 +598,21 @@ func (handler Handler) exportDatasetRows(
 		return rows, nil
 	default:
 		return nil, ports.ErrNotFound
+	}
+}
+
+// cadenceCSV renders billing_cadence for export. ” is the coalesced NULL: the
+// owner has not chosen a cadence yet, which is a real state worth seeing in an
+// outreach list rather than an empty cell that reads as missing data.
+func cadenceCSV(cadence string) string {
+	switch cadence {
+	case "quarterly":
+		return "Quarterly"
+	case "yearly":
+		return "Yearly"
+	case "":
+		return "Not set"
+	default:
+		return cadence
 	}
 }

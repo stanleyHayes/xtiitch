@@ -98,7 +98,10 @@ export function subscriptionDiscountValueDefault(
   >,
 ): string {
   if (discount.discountType === "percentage") {
-    return (discount.discountValue / 100).toString();
+    // Stored as whole percent, so it displays as-is. It used to be stored x100
+    // and divided back here, which round-tripped in the console and hid that the
+    // API was reading the raw value as a percentage.
+    return String(discount.discountValue);
   }
   if (discount.discountType === "fixed") {
     return (discount.discountValue / 100).toFixed(2);

@@ -122,8 +122,10 @@ func (s Service) activateDiscountedWithoutCharge(
 	}
 	// A free_period covers the code's month count; a full (100% / fixed >= renewal)
 	// discount covers exactly this cadence's period. Both collect NOTHING, so both
-	// start a free window via ActivateFreePeriodBilling — never a zero paid invoice,
-	// which the business_subscription_invoices amount_minor > 0 check would reject.
+	// start a free window via ActivateFreePeriodBilling, which books a ZERO
+	// already-paid invoice as the receipt for that window (migration 000092 admits
+	// it; the table used to require amount_minor > 0, so every free-period
+	// redemption failed on the CHECK).
 	freeMonths := outcome.FreeMonths
 	if !outcome.FreePeriod {
 		freeMonths = cadenceMonths(cadence)
@@ -232,9 +234,17 @@ func computeDiscountOutcome(discountType string, value int, renewalMinor int64) 
 		}
 		return discountOutcome{ChargeMinor: charge, DiscountMinor: renewalMinor - charge}
 	case "fixed":
-		charge := renewalMinor - int64(value)
+		// Rounded for the same reason as the percentage branch: the admin's field
+		// takes GHS with pesewas, so a code entered as GHS 12.50 off a charm-priced
+		// renewal bills GHS 134.50 -- a pesewa figure the book forbids ("no pesewa
+		// decimals anywhere", §1/§7). The discount is then derived from the rounded
+		// charge so the two reconcile to the renewal exactly.
+		charge := money.RoundToWholeCedi(renewalMinor - int64(value))
 		if charge < 0 {
 			charge = 0
+		}
+		if charge > renewalMinor {
+			charge = renewalMinor
 		}
 		return discountOutcome{ChargeMinor: charge, DiscountMinor: renewalMinor - charge}
 	case "free_period":

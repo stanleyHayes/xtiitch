@@ -141,14 +141,20 @@ type AdminSubscriptionBillingSweepRecord struct {
 	RanAt                 time.Time
 }
 type AdminSubscriptionRecurringSweepRecord struct {
-	DueSubscriptions  int
-	ChargesAttempted  int
-	ChargesPaid       int
-	ChargesPending    int
-	ChargesFailed     int
-	ChargesSkipped    int
-	RemindersEnqueued int
-	RanAt             time.Time
+	// SubscriptionsAwaitingCadence counts rows that should renew but have no
+	// billing cadence, so there is no figure to charge and no period to advance.
+	// They are skipped, never billed at a price nobody chose -- but a business
+	// that quietly stops paying must be countable, so this is reported and
+	// audited rather than passed over in silence.
+	SubscriptionsAwaitingCadence int
+	DueSubscriptions             int
+	ChargesAttempted             int
+	ChargesPaid                  int
+	ChargesPending               int
+	ChargesFailed                int
+	ChargesSkipped               int
+	RemindersEnqueued            int
+	RanAt                        time.Time
 }
 
 // EnqueueSubscriptionRenewalReminderInput carries everything the outbox row and

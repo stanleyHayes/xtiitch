@@ -244,6 +244,19 @@ func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecor
 	return true
 }
 
+// subscriptionAwaitingCadence reports a subscription that is set up to renew but
+// has never had a cadence chosen, so nothing about it is billable: cadenceRenewalMinor
+// yields no figure and cadenceMonths no period. Only meaningful for rows that
+// would otherwise be due -- a free plan or a canceled one is not "awaiting"
+// anything.
+func subscriptionAwaitingCadence(subscription ports.AdminSubscriptionRecord) bool {
+	return subscription.BillingMode == "recurring" &&
+		subscription.Status != "canceled" &&
+		subscription.Status != "cancel_at_period_end" &&
+		subscription.NextBillingAt != nil &&
+		cadenceMonths(subscription.BillingCadence) <= 0
+}
+
 func subscriptionRecurringChargeReady(subscription ports.AdminSubscriptionRecord) bool {
 	return strings.TrimSpace(subscription.OwnerEmail) != "" &&
 		strings.TrimSpace(subscription.ProviderSubscriptionRef) != ""
