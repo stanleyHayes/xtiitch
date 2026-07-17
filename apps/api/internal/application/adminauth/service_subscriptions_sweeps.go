@@ -359,8 +359,19 @@ func (s Service) RunSubscriptionRecurringSweep(
 			continue
 		}
 
+		// Due, but there is nothing to charge against: no card authorization (a
+		// free-period code activates without a checkout, so it never yields one) or
+		// no owner email. Silently skipping left a free-period subscription running
+		// on a paid plan forever once its free window elapsed. Remind instead, the
+		// same as MoMo above -- paying through the billing flow converts it to the
+		// full renewal figure, which is what §4 asks for at free-period expiry.
 		if !subscriptionRecurringChargeReady(subscription) {
 			record.ChargesSkipped++
+			if err := s.emitRenewalReminder(
+				ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record,
+			); err != nil {
+				return ports.AdminSubscriptionRecurringSweepRecord{}, err
+			}
 			continue
 		}
 

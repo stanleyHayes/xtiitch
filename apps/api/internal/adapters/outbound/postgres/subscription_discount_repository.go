@@ -445,6 +445,19 @@ func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
 	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set status = 'active',
+			-- The subscription RENEWS at the end of the free window, so it has to be
+			-- recurring for the sweep to see it: the sweep only considers rows in
+			-- recurring mode, and this used to leave the mode untouched. The result
+			-- was a paid plan that went free-period and then simply never renewed --
+			-- the free window elapsed, next_billing_at passed, and nothing looked at
+			-- it again ("On free-period expiry -> convert to full renewal or allow
+			-- cancel", Book §4).
+			--
+			-- Recurring does NOT claim we can charge it: no card was authorised (a
+			-- free period takes no checkout), so the sweep finds it due but not
+			-- chargeable and reminds the owner to pay, exactly as it does for mobile
+			-- money. Paying converts it to the full renewal figure.
+			billing_mode = 'recurring',
 			failed_payment_count = 0,
 			grace_ends_at = null,
 			cancel_at_period_end = false,

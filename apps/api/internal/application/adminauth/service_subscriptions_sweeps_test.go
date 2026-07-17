@@ -85,21 +85,25 @@ func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testin
 				BusinessID:              "business-1",
 				BusinessName:            "Ama Stitches",
 				OwnerEmail:              "owner@example.com",
-				MonthlyFeeMinor:         12000,
+				MonthlyFeeMinor:         12000, // display basis only; never charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   36000,
 				Status:                  "active",
 				BillingMode:             "recurring",
 				ProviderSubscriptionRef: "AUTH_123",
 				NextBillingAt:           &dueAt,
 			},
 			{
-				SubscriptionID:  "subscription-2",
-				BusinessID:      "business-2",
-				BusinessName:    "Missing Auth",
-				OwnerEmail:      "",
-				MonthlyFeeMinor: 12000,
-				Status:          "active",
-				BillingMode:     "recurring",
-				NextBillingAt:   &dueAt,
+				SubscriptionID:        "subscription-2",
+				BusinessID:            "business-2",
+				BusinessName:          "Missing Auth",
+				OwnerEmail:            "",
+				MonthlyFeeMinor:       12000,
+				BillingCadence:        "quarterly",
+				QuarterlyRenewalMinor: 36000,
+				Status:                "active",
+				BillingMode:           "recurring",
+				NextBillingAt:         &dueAt,
 			},
 			{
 				SubscriptionID:          "subscription-3",
@@ -145,16 +149,16 @@ func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testin
 	if len(provider.charged) != 1 ||
 		provider.charged[0].AuthorizationCode != "AUTH_123" ||
 		provider.charged[0].CustomerEmail != "owner@example.com" ||
-		provider.charged[0].AmountMinor != 12000 ||
+		provider.charged[0].AmountMinor != 36000 ||
 		provider.charged[0].Reference != businesses.issuedSubscriptionInvoice.InvoiceRef {
 		t.Fatalf("unexpected recurring charge input: %+v", provider.charged)
 	}
-	// A monthly (default cadence) subscription stays on the monthly fee and a
-	// one-month period.
+	// Bills the cadence RENEWAL figure over the cadence's own length -- never the
+	// monthly rate, which is a display basis only ("no monthly billing", Book §2).
 	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
 		!businesses.issuedSubscriptionInvoice.DueAt.Equal(now.Add(72*time.Hour)) ||
-		businesses.issuedSubscriptionInvoice.AmountMinor != 12000 ||
-		businesses.issuedSubscriptionInvoice.PeriodMonths != 1 ||
+		businesses.issuedSubscriptionInvoice.AmountMinor != 36000 ||
+		businesses.issuedSubscriptionInvoice.PeriodMonths != 3 ||
 		businesses.paidSubscriptionInvoice.InvoiceID != "invoice-recurring" {
 		t.Fatalf("expected issued and paid invoice inputs, got issue=%+v paid=%+v",
 			businesses.issuedSubscriptionInvoice, businesses.paidSubscriptionInvoice)
@@ -187,7 +191,9 @@ func TestRunSubscriptionRecurringSweepMarksProviderFailure(t *testing.T) {
 				BusinessID:              "business-1",
 				BusinessName:            "Ama Stitches",
 				OwnerEmail:              "owner@example.com",
-				MonthlyFeeMinor:         12000,
+				MonthlyFeeMinor:         12000, // display basis only; never charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   36000,
 				Status:                  "active",
 				BillingMode:             "recurring",
 				ProviderSubscriptionRef: "AUTH_123",
@@ -316,7 +322,9 @@ func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T)
 				PlanName:                "Growth",
 				OwnerEmail:              "owner@example.com",
 				OwnerWhatsApp:           "233555000111",
-				MonthlyFeeMinor:         12000,
+				MonthlyFeeMinor:         12000, // display basis only; never charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   36000,
 				Status:                  "active",
 				BillingMode:             "recurring",
 				ProviderSubscriptionRef: "AUTH_123",
@@ -356,7 +364,7 @@ func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T)
 	if reminder.Kind != string(notification.KindSubscriptionRenewalUpcoming) ||
 		reminder.Channel != string(notification.ChannelWhatsApp) ||
 		reminder.Recipient != "233555000111" ||
-		reminder.RenewalAmountMinor != 12000 ||
+		reminder.RenewalAmountMinor != 36000 ||
 		reminder.RepayURL != defaultRenewalRepayURL ||
 		!reminder.RenewalAt.Equal(upcoming) {
 		t.Fatalf("unexpected upcoming reminder input: %+v", reminder)
@@ -393,7 +401,9 @@ func TestRunSubscriptionRecurringSweepEnqueuesRepayReminderOnCardFailure(t *test
 				PlanName:                "Growth",
 				OwnerEmail:              "owner@example.com",
 				OwnerWhatsApp:           "233555000222",
-				MonthlyFeeMinor:         12000,
+				MonthlyFeeMinor:         12000, // display basis only; never charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   36000,
 				Status:                  "active",
 				BillingMode:             "recurring",
 				ProviderSubscriptionRef: "AUTH_123",
@@ -434,7 +444,7 @@ func TestRunSubscriptionRecurringSweepEnqueuesRepayReminderOnCardFailure(t *test
 	reminder := businesses.renewalReminders[0]
 	if reminder.Kind != string(notification.KindSubscriptionRenewalPastDue) ||
 		reminder.Recipient != "233555000222" ||
-		reminder.RenewalAmountMinor != 12000 ||
+		reminder.RenewalAmountMinor != 36000 ||
 		reminder.RepayURL != defaultRenewalRepayURL {
 		t.Fatalf("unexpected re-pay reminder input: %+v", reminder)
 	}
@@ -454,7 +464,9 @@ func TestRunSubscriptionRecurringSweepMoMoIsReminderDrivenNotCharged(t *testing.
 				PlanName:                "Growth",
 				OwnerEmail:              "owner@example.com",
 				OwnerWhatsApp:           "233555000333",
-				MonthlyFeeMinor:         12000,
+				MonthlyFeeMinor:         12000, // display basis only; never charged
+				BillingCadence:          "quarterly",
+				QuarterlyRenewalMinor:   36000,
 				Status:                  "active",
 				BillingMode:             "recurring",
 				ProviderSubscriptionRef: "AUTH_MOMO",
@@ -502,6 +514,58 @@ func TestRunSubscriptionRecurringSweepMoMoIsReminderDrivenNotCharged(t *testing.
 	}
 }
 
+// A subscription that never picked a cadence must not be billed. Before this,
+// the helpers defaulted such a row to "charge the monthly fee, advance one
+// month", so a recurring subscription predating the cadence column was billed
+// monthly -- the one model the Pricing Book rules out. The row is skipped
+// instead: we cannot know whether the owner wanted quarterly or yearly, and
+// guessing bills a price they never agreed to.
+func TestRunSubscriptionRecurringSweepNeverBillsASubscriptionWithNoCadence(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	dueAt := now.Add(-time.Minute)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Legacy Monthly",
+				OwnerEmail:              "owner@example.com",
+				MonthlyFeeMinor:         12000,
+				BillingCadence:          "", // never chose one
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_LEGACY",
+				NextBillingAt:           &dueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"invoice-x", "audit-x"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	if len(provider.charged) != 0 {
+		t.Fatalf("expected no charge for a subscription with no cadence, got %+v", provider.charged)
+	}
+	if record.ChargesAttempted != 0 || record.DueSubscriptions != 0 {
+		t.Fatalf("expected the subscription not to be due at all, got %+v", record)
+	}
+}
+
 func TestCadenceRenewalMinorAndCadenceMonths(t *testing.T) {
 	t.Parallel()
 
@@ -515,10 +579,20 @@ func TestCadenceRenewalMinorAndCadenceMonths(t *testing.T) {
 		wantAmount int64
 		wantMonths int
 	}{
-		{"monthly", 9900, 1},
-		{"", 9900, 1}, // legacy rows default to the monthly fee and one month
 		{"quarterly", 29700, 3},
 		{"yearly", 118800, 12},
+		// The only two billable cadences. Anything else yields a zero renewal
+		// figure -- the "do not charge" signal subscriptionDueForRecurringCharge
+		// honours -- and a zero period, so such a row is skipped, never billed.
+		//
+		// These used to return the MONTHLY fee on a one-month period, which is
+		// precisely the billing the Pricing Book rules out ("no monthly billing --
+		// billed quarterly or yearly only", rule 1 / §2 / checklist #1). The
+		// monthly rate is the display unit and the basis for calculating the
+		// figures above; it is never itself charged.
+		{"monthly", 0, 0},
+		{"", 0, 0},
+		{"weekly", 0, 0},
 	}
 	for _, tc := range cases {
 		sub := base
@@ -541,20 +615,25 @@ func TestSubscriptionAuthorizationLifecycleRequiresPermissionAndAudits(t *testin
 	businesses := &fakeAdminBusinesses{
 		subscriptions: []ports.AdminSubscriptionRecord{
 			{
-				SubscriptionID:     "subscription-1",
-				BusinessID:         "business-1",
-				BusinessName:       "Ama Stitches",
-				Handle:             "ama-stitches",
-				OwnerEmail:         "Owner <Owner@Example.COM>",
-				PlanCode:           "growth",
-				PlanName:           "Growth",
-				MonthlyFeeMinor:    12000,
-				Status:             "active",
-				BillingMode:        "payment_link",
-				NextBillingAt:      &nextBilling,
-				CurrentPeriodStart: now,
-				CurrentPeriodEnd:   nextBilling,
-				UpdatedAt:          now,
+				SubscriptionID:  "subscription-1",
+				BusinessID:      "business-1",
+				BusinessName:    "Ama Stitches",
+				Handle:          "ama-stitches",
+				OwnerEmail:      "Owner <Owner@Example.COM>",
+				PlanCode:        "growth",
+				PlanName:        "Growth",
+				MonthlyFeeMinor: 12000, // display basis only; never charged
+				// An admin authorization link charges the cadence RENEWAL figure. A
+				// subscription with no cadence has nothing to charge, so the link is
+				// refused rather than falling back to the monthly rate.
+				BillingCadence:        "quarterly",
+				QuarterlyRenewalMinor: 36000,
+				Status:                "active",
+				BillingMode:           "payment_link",
+				NextBillingAt:         &nextBilling,
+				CurrentPeriodStart:    now,
+				CurrentPeriodEnd:      nextBilling,
+				UpdatedAt:             now,
 			},
 		},
 	}

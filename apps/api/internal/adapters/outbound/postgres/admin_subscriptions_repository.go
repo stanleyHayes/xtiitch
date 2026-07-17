@@ -528,7 +528,9 @@ func listAdminSubscriptionCadences(
 	rows, err := tx.Query(ctx, `
 		select
 			s.business_id::text,
-			s.billing_cadence,
+			-- '' = no cadence chosen yet (NULL). Never billable: the cadence helpers
+			-- map it to a zero renewal figure, which is the "do not charge" signal.
+			coalesce(s.billing_cadence, ''),
 			coalesce(p.quarterly_renewal_minor, 0)::bigint,
 			coalesce(p.yearly_renewal_minor, 0)::bigint,
 			s.provider_channel

@@ -8,6 +8,11 @@ export type AdminSubscriptionStatus =
   | "cancel_at_period_end"
   | "canceled";
 
+// The two cadences Xtiitch bills on ("no monthly billing — billed quarterly or
+// yearly only", Pricing Book rule 1). '' means the owner has not chosen yet, so
+// nothing is billable.
+export type AdminSubscriptionCadence = "" | "quarterly" | "yearly";
+
 export type AdminSubscriptionBillingMode =
   | "manual"
   | "payment_link"
@@ -65,6 +70,10 @@ export type AdminSubscription = {
   designCount: number;
   status: AdminSubscriptionStatus;
   billingMode: AdminSubscriptionBillingMode;
+  // How often the subscription RENEWS. '' when the owner has not chosen yet.
+  // Distinct from billingMode, which is how it is COLLECTED — the CRM's cadence
+  // column and filter mean this one (Pricing Book §6.2).
+  billingCadence: AdminSubscriptionCadence;
   provider: string;
   providerCustomerRef: string;
   providerSubscriptionRef: string;
@@ -137,6 +146,7 @@ export type AdminSubscriptionPayload = {
   design_count?: number;
   status: AdminSubscriptionStatus;
   billing_mode: AdminSubscriptionBillingMode;
+  billing_cadence?: string;
   provider: string;
   provider_customer_ref: string;
   provider_subscription_ref: string;
@@ -181,6 +191,7 @@ export function mapSubscription(payload: AdminSubscriptionPayload): AdminSubscri
     designCount: payload.design_count ?? 0,
     status: payload.status,
     billingMode: payload.billing_mode,
+    billingCadence: (payload.billing_cadence ?? "") as AdminSubscriptionCadence,
     provider: payload.provider,
     providerCustomerRef: payload.provider_customer_ref,
     providerSubscriptionRef: payload.provider_subscription_ref,

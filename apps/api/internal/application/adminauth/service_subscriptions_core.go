@@ -186,8 +186,19 @@ func subscriptionUpdateSeverity(status string) admindomain.AuditSeverity {
 // cadenceRenewalMinor is the single source of truth for the amount (GHS minor
 // units) a recurring charge must bill for one billing cycle, chosen by the
 // subscription's cadence. Quarterly and yearly bill their fixed Pricing-Book
-// renewal figures; monthly (legacy/back-compat) bills the monthly fee. It also
-// backs the free-plan skip guard: a zero renewal figure means "do not charge".
+// renewal figures.
+//
+// There is NO monthly branch, by rule: "there is no monthly billing — billed
+// quarterly or yearly only" (Pricing Book rule 1, §2, checklist #1). The monthly
+// rate is a display unit and the basis for calculating those figures; it is
+// never itself charged. This used to default to MonthlyFeeMinor, which meant any
+// subscription still carrying the legacy 'monthly' cadence was billed GHS
+// 49/99/199 every month -- the exact billing the book forbids.
+//
+// An unrecognised cadence returns 0, which is already the documented "do not
+// charge" signal that subscriptionDueForRecurringCharge honours, so such a row is
+// skipped rather than billed at a figure nobody specified. Migration 000091
+// leaves no such rows and constrains the column, so this is a backstop.
 func cadenceRenewalMinor(subscription ports.AdminSubscriptionRecord) int64 {
 	switch subscription.BillingCadence {
 	case "quarterly":
@@ -195,13 +206,17 @@ func cadenceRenewalMinor(subscription ports.AdminSubscriptionRecord) int64 {
 	case "yearly":
 		return subscription.YearlyRenewalMinor
 	default:
-		return subscription.MonthlyFeeMinor
+		return 0
 	}
 }
 
 // cadenceMonths is the single source of truth for how many months one billing
-// cycle covers, so the SUCCESS-path period advance moves by the right length
-// (quarterly 3, yearly 12, monthly/legacy 1).
+// cycle covers, so the SUCCESS-path period advance moves by the right length.
+//
+// Returns 0 for an unrecognised cadence rather than defaulting to 1 month: a
+// silent 1 is what let a legacy row advance monthly. Callers pair it with
+// cadenceRenewalMinor, which returns 0 for the same input, so such a row is never
+// charged and never advanced.
 func cadenceMonths(cadence string) int {
 	switch cadence {
 	case "quarterly":
@@ -209,7 +224,7 @@ func cadenceMonths(cadence string) int {
 	case "yearly":
 		return 12
 	default:
-		return 1
+		return 0
 	}
 }
 func subscriptionDueForRecurringCharge(subscription ports.AdminSubscriptionRecord, now time.Time) bool {

@@ -152,3 +152,17 @@ export function invoiceStatusLabel(status: string): string {
       return status;
   }
 }
+
+// How often a subscription renews, for display. '' is a real state -- a store
+// that has not chosen a cadence yet -- and nothing is billable until it does, so
+// it reads as "Not set" rather than being blanked out.
+export function cadenceLabel(cadence: string): string {
+  switch (cadence) {
+    case "quarterly":
+      return "Quarterly";
+    case "yearly":
+      return "Yearly";
+    default:
+      return "Not set";
+  }
+}

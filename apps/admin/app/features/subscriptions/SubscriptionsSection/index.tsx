@@ -63,6 +63,12 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
   const [subscriberStatusFilter, setSubscriberStatusFilter] = useState("all");
   const [subscriberInstitutionFilter, setSubscriberInstitutionFilter] =
     useState("all");
+  const [subscriberBillingModeFilter, setSubscriberBillingModeFilter] =
+    useState("all");
+  // How often the subscription RENEWS. The state above drives the "Billing mode"
+  // control and was misnamed "cadence": it filtered subscription.billingMode
+  // (manual / payment_link / recurring), so the CRM had no cadence filter at all
+  // despite §6.2 requiring one.
   const [subscriberCadenceFilter, setSubscriberCadenceFilter] = useState("all");
 
   const billableSubscriptions = subscriptions.filter(
@@ -229,14 +235,20 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
     const matchesInstitution =
       subscriberInstitutionFilter === "all" ||
       subscription.discountInstitution === subscriberInstitutionFilter;
+    const matchesBillingMode =
+      subscriberBillingModeFilter === "all" ||
+      subscription.billingMode === subscriberBillingModeFilter;
     const matchesCadence =
       subscriberCadenceFilter === "all" ||
-      subscription.billingMode === subscriberCadenceFilter;
+      (subscriberCadenceFilter === "none"
+        ? !subscription.billingCadence
+        : subscription.billingCadence === subscriberCadenceFilter);
     return (
       matchesQuery &&
       matchesPlan &&
       matchesStatus &&
       matchesInstitution &&
+      matchesBillingMode &&
       matchesCadence
     );
   });
@@ -271,7 +283,7 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
   } = usePagedItems(
     filteredSubscriberRows,
     8,
-    `${subscriberQuery}:${subscriberPlanFilter}:${subscriberStatusFilter}:${subscriberInstitutionFilter}:${subscriberCadenceFilter}`,
+    `${subscriberQuery}:${subscriberPlanFilter}:${subscriberStatusFilter}:${subscriberInstitutionFilter}:${subscriberBillingModeFilter}:${subscriberCadenceFilter}`,
   );
 
   return (
@@ -364,7 +376,9 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
         planFilter={subscriberPlanFilter}
         statusFilter={subscriberStatusFilter}
         institutionFilter={subscriberInstitutionFilter}
-        billingModeFilter={subscriberCadenceFilter}
+        billingModeFilter={subscriberBillingModeFilter}
+        cadenceFilter={subscriberCadenceFilter}
+        onOpenSubscriber={setManageBusinessId}
         plans={visiblePlans}
         institutionOptions={subscriberInstitutionOptions}
         page={subscriberPage}
@@ -373,7 +387,8 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
         onPlanFilterChange={setSubscriberPlanFilter}
         onStatusFilterChange={setSubscriberStatusFilter}
         onInstitutionFilterChange={setSubscriberInstitutionFilter}
-        onBillingModeFilterChange={setSubscriberCadenceFilter}
+        onBillingModeFilterChange={setSubscriberBillingModeFilter}
+        onCadenceFilterChange={setSubscriberCadenceFilter}
         onPageChange={setSubscriberPage}
       />
 

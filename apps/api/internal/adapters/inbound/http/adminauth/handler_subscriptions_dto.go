@@ -38,22 +38,28 @@ type subscriptionAuthorizationVerifyRequest struct {
 }
 
 type subscriptionResponse struct {
-	SubscriptionID          string                        `json:"subscription_id,omitempty"`
-	BusinessID              string                        `json:"business_id"`
-	BusinessName            string                        `json:"business_name"`
-	Handle                  string                        `json:"handle"`
-	OwnerName               string                        `json:"owner_name"`
-	OwnerPhone              string                        `json:"owner_phone"`
-	OwnerEmail              string                        `json:"owner_email"`
-	OwnerWhatsApp           string                        `json:"owner_whatsapp"`
-	PlanCode                string                        `json:"plan_code"`
-	PlanName                string                        `json:"plan_name"`
-	MonthlyFeeMinor         int64                         `json:"monthly_fee_minor"`
-	CommissionBPS           int                           `json:"commission_bps"`
-	DesignLimit             *int                          `json:"design_limit,omitempty"`
-	DesignCount             int                           `json:"design_count"`
-	Status                  string                        `json:"status"`
-	BillingMode             string                        `json:"billing_mode"`
+	SubscriptionID  string `json:"subscription_id,omitempty"`
+	BusinessID      string `json:"business_id"`
+	BusinessName    string `json:"business_name"`
+	Handle          string `json:"handle"`
+	OwnerName       string `json:"owner_name"`
+	OwnerPhone      string `json:"owner_phone"`
+	OwnerEmail      string `json:"owner_email"`
+	OwnerWhatsApp   string `json:"owner_whatsapp"`
+	PlanCode        string `json:"plan_code"`
+	PlanName        string `json:"plan_name"`
+	MonthlyFeeMinor int64  `json:"monthly_fee_minor"`
+	CommissionBPS   int    `json:"commission_bps"`
+	DesignLimit     *int   `json:"design_limit,omitempty"`
+	DesignCount     int    `json:"design_count"`
+	Status          string `json:"status"`
+	BillingMode     string `json:"billing_mode"`
+	// BillingCadence is how often this subscription RENEWS ('quarterly'/'yearly',
+	// or '' when the owner has not chosen yet). Distinct from BillingMode, which is
+	// HOW it is collected (manual / payment_link / recurring). The CRM lists and
+	// filters by cadence (Pricing Book §6.2), so it must not read billing_mode for
+	// it — they answer different questions.
+	BillingCadence          string                        `json:"billing_cadence"`
 	Provider                string                        `json:"provider"`
 	ProviderCustomerRef     string                        `json:"provider_customer_ref"`
 	ProviderSubscriptionRef string                        `json:"provider_subscription_ref"`

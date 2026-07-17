@@ -114,7 +114,10 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 			s.billing_mode,
 			s.provider_customer_ref,
 			s.provider_subscription_ref,
-			s.billing_cadence,
+			-- '' means no cadence chosen yet (NULL in the column): a subscription
+			-- exists from signup, before the owner picks one at billing onboarding.
+			-- Nothing is billable until it is set.
+			coalesce(s.billing_cadence, ''),
 			s.first_purchase_consumed,
 			p.quarterly_first_minor,
 			p.quarterly_renewal_minor,
@@ -295,6 +298,10 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 			failed_payment_count = 0,
 			grace_ends_at = null,
 			cancel_at_period_end = false,
+			-- Clear the cancellation: a re-subscribe restores access (Pricing Book
+			-- §7), so a live subscription must not still carry the timestamp that
+			-- says it is canceled.
+			canceled_at = null,
 			billing_cadence = $4,
 			first_purchase_consumed = true,
 			last_invoice_ref = $2,
@@ -334,7 +341,7 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 	var subscriptionID, billingCadence string
 	var periodStart time.Time
 	if err := tx.QueryRow(ctx, `
-		select subscription_id::text, current_period_start, billing_cadence
+		select subscription_id::text, current_period_start, coalesce(billing_cadence, '')
 		from business_subscriptions where business_id = $1
 	`, businessID.String()).Scan(&subscriptionID, &periodStart, &billingCadence); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

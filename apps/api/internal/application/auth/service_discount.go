@@ -7,6 +7,7 @@ import (
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
 // Subscription discount-code checkout errors. They are distinct sentinels so the
@@ -220,7 +221,15 @@ func computeDiscountOutcome(discountType string, value int, renewalMinor int64) 
 		if reduction > renewalMinor {
 			reduction = renewalMinor
 		}
-		charge := renewalMinor - reduction
+		// Round the CHARGE to a whole cedi, then derive the discount from it, so
+		// the two always reconcile to the renewal figure exactly. Xtiitch bills
+		// whole cedis only ("no pesewa decimals anywhere", Pricing Book §1/§7), and
+		// a percentage of a charm-priced figure lands on a pesewa more often than
+		// not: 20% off GHS 297 is GHS 237.60.
+		charge := money.RoundToWholeCedi(renewalMinor - reduction)
+		if charge > renewalMinor {
+			charge = renewalMinor
+		}
 		return discountOutcome{ChargeMinor: charge, DiscountMinor: renewalMinor - charge}
 	case "fixed":
 		charge := renewalMinor - int64(value)

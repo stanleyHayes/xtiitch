@@ -33,16 +33,16 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 	discounts := &fakeDiscountRepository{
 		code: ports.SubscriptionDiscountCode{
 			DiscountCodeID: "code-1",
-			Code:           "SAVE20",
+			Code:           "SAVE10",
 			DiscountType:   "percentage",
-			DiscountValue:  20,
+			DiscountValue:  10,
 			MaxPerAccount:  1,
 		},
 		hasPending: true,
 		pending: ports.PendingDiscountRedemption{
 			RedemptionID:  "redemption-1",
 			DiscountType:  "percentage",
-			DiscountValue: 20,
+			DiscountValue: 10,
 			PlanCode:      "growth",
 			Cadence:       "quarterly",
 		},
@@ -51,15 +51,16 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 	service := newDiscountTestService(businesses, payments, discounts)
 
 	// Initialize prices the checkout at the DISCOUNTED figure (a code REPLACES the
-	// intro): 20% off the 14700 renewal = 2940 → charge 11760 (NOT the 11800 intro).
+	// intro): 10% off the 14700 renewal is 13230, rounded to the whole cedi 13200
+	// ("no pesewa decimals anywhere", Pricing Book §1/§7) — and NOT the 11800 intro.
 	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly", Code: "SAVE20",
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "quarterly", Code: "SAVE10",
 	})
 	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
-	if payments.initInput.AmountMinor != 11760 {
-		t.Fatalf("expected the discounted checkout amount 11760, got %d", payments.initInput.AmountMinor)
+	if payments.initInput.AmountMinor != 13200 {
+		t.Fatalf("expected the discounted checkout amount 13200, got %d", payments.initInput.AmountMinor)
 	}
 
 	// Verify books the paid discounted amount and flips the redemption to applied.
@@ -76,11 +77,11 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 	if payments.chargeInput.AuthorizationCode != "" {
 		t.Fatalf("the discounted first period must NOT be re-charged, got %+v", payments.chargeInput)
 	}
-	if businesses.activationPayment.AmountMinor != 11760 {
+	if businesses.activationPayment.AmountMinor != 13200 {
 		t.Fatalf("expected the activation payment booked at the discounted amount, got %d", businesses.activationPayment.AmountMinor)
 	}
-	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 2940 {
-		t.Fatalf("expected the redemption marked applied with a 2940 discount, got %+v", discounts.marked)
+	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 1500 {
+		t.Fatalf("expected the redemption marked applied with a 1500 discount, got %+v", discounts.marked)
 	}
 	if discounts.marked[0].RedemptionID != "redemption-1" {
 		t.Fatalf("expected the captured redemption flipped to applied, got %q", discounts.marked[0].RedemptionID)
@@ -260,8 +261,10 @@ func TestInitializeSubscriptionAuthorizationCapturesValidDiscountAsPending(t *te
 	if captured.Status != "pending" {
 		t.Fatalf("expected a pending capture, got %q", captured.Status)
 	}
-	// 20% off 14700 renewal = 2940 discount recorded for attribution.
-	if captured.DiscountMinor != 2940 || captured.Cadence != "quarterly" || captured.PlanCode != "growth" {
+	// The discount is derived from the ROUNDED charge so the two always reconcile to
+	// the renewal figure exactly: 20% off 14700 is 11760, the charge rounds to the
+	// whole cedi 11800, so the discount recorded for attribution is 2900.
+	if captured.DiscountMinor != 2900 || captured.Cadence != "quarterly" || captured.PlanCode != "growth" {
 		t.Fatalf("unexpected captured redemption: %+v", captured)
 	}
 	if captured.SubscriptionID != "sub-1" || captured.DiscountCodeID != "code-1" {

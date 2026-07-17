@@ -159,9 +159,16 @@ func (s Service) InitializeSubscriptionAuthorization(
 	if err != nil {
 		return SubscriptionAuthorizationLink{}, err
 	}
-	if subscription.Status == "canceled" {
-		return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
-	}
+	// A canceled subscription may re-subscribe here: "Re-subscribe restores access"
+	// (Pricing Book §7 dunning). Dunning downgrades a lapsed business to Free and
+	// keeps its store, orders and customers, so coming back is a supported path,
+	// not an error -- and this is the "normal flow" that ChangeSubscriptionPlan
+	// points a canceled subscription at, so refusing here left it with nowhere to
+	// go at all.
+	//
+	// It costs the full renewal figure, never the intro: first_purchase_consumed
+	// was set when they first paid and is never un-set, which is exactly what §7's
+	// "After cancel + resubscribe, do not re-grant intro" asks for.
 	// Target plan: when the owner is activating/upgrading to a specific plan (e.g. a
 	// FREE store choosing a paid plan), switch the subscription onto that plan first
 	// so the fee gate and the callback's first charge use the target plan's figures.

@@ -11,6 +11,7 @@ import (
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
 // Self-serve plan-change errors (Pricing Book §7). Distinct sentinels so the
@@ -241,7 +242,12 @@ func prorationChargeMinor(currentRenewal, newRenewal int64, periodStart, periodE
 	if remainingDays > totalDays {
 		remainingDays = totalDays
 	}
-	// ceil(diff * remainingDays / totalDays) with integer math.
+	// ceil(diff * remainingDays / totalDays) with integer math, then up to a whole
+	// cedi: Xtiitch bills whole cedis only ("Whole cedis in all display and
+	// billing", Pricing Book §7; checklist #14 names proration specifically). The
+	// stored figures are already whole; a proration is computed, so it is one of
+	// the few places a pesewa can appear. Ceil rather than nearest so a genuine
+	// upgrade of a few hours still bills a cedi instead of rounding to nothing.
 	numerator := diff * remainingDays
-	return (numerator + totalDays - 1) / totalDays
+	return money.CeilToWholeCedi((numerator + totalDays - 1) / totalDays)
 }

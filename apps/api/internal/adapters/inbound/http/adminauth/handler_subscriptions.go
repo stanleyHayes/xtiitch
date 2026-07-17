@@ -338,6 +338,7 @@ func newSubscriptionResponse(record ports.AdminSubscriptionRecord) subscriptionR
 		DesignCount:             record.DesignCount,
 		Status:                  record.Status,
 		BillingMode:             record.BillingMode,
+		BillingCadence:          record.BillingCadence,
 		Provider:                record.Provider,
 		ProviderCustomerRef:     record.ProviderCustomerRef,
 		ProviderSubscriptionRef: record.ProviderSubscriptionRef,
