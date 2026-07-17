@@ -41,6 +41,12 @@ export const PLAN_BENEFITS: readonly {
     description:
       "Let customers place and pay for orders from the storefront. Without it the store is a catalogue and customers order off-platform.",
   },
+  {
+    key: "remove_powered_by_badge",
+    label: 'Remove the "Powered by Xtiitch" badge',
+    description:
+      "Hide the Xtiitch badge from the public storefront. Granting it removes the badge; without it the badge shows.",
+  },
 ];
 
 export type PlanFeatures = Record<string, boolean>;

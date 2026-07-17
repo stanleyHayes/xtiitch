@@ -14,6 +14,11 @@ const (
 	// storefront. Without it a store is a catalogue/showcase only and customers
 	// arrange orders off-platform.
 	FeatureOnlineOrdering = "online_ordering"
+	// FeatureRemovePoweredByBadge hides the "Powered by Xtiitch" badge from the
+	// public storefront. Inverted by design: the badge shows unless a plan grants
+	// its REMOVAL, so a store with no entitlements carries the badge rather than
+	// quietly getting the paid treatment (Pricing Book §5: Free on, paid off).
+	FeatureRemovePoweredByBadge = "remove_powered_by_badge"
 )
 
 // Defaults applied when a business is not entitled to (or has not set) a
@@ -78,6 +83,12 @@ func FeatureCatalogue() []Feature {
 			Label: "Online ordering & checkout",
 			Description: "Let customers place and pay for orders directly from the storefront. " +
 				"Without it the store is a catalogue and customers arrange orders off-platform.",
+		},
+		{
+			Key:   FeatureRemovePoweredByBadge,
+			Label: "Remove the \"Powered by Xtiitch\" badge",
+			Description: "Hide the Xtiitch badge from the public storefront. " +
+				"Granting it removes the badge; without it the badge shows.",
 		},
 	}
 }

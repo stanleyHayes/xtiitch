@@ -203,6 +203,15 @@ type Storefront struct {
 	// online_ordering benefit. When false the storefront is a catalogue only and
 	// checkout is refused server-side.
 	OnlineOrderingEnabled bool
+	// ShowPoweredByBadge is true when the storefront must carry the "Powered by
+	// Xtiitch" badge -- i.e. when the plan does NOT grant remove_powered_by_badge
+	// (Pricing Book §5: Free on, paid off).
+	//
+	// Carried as SHOW rather than the entitlement's own "remove" sense so the
+	// inversion is resolved once, here, next to the entitlement it derives from,
+	// instead of at each render site where getting it backwards would either bill
+	// paying merchants a badge or give it away free.
+	ShowPoweredByBadge bool
 	// PlanCode is the business's current plan code (e.g. "free", "starter").
 	// The storefront uses it to gate plan-specific surfaces such as the
 	// "Discover other studios" strip, which only shows for free-plan stores.

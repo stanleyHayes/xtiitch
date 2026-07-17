@@ -9,6 +9,7 @@ import { tokens } from "../../theme";
 import { CollectionStrip } from "./collection-strip";
 import { DesignGrid } from "./design-grid";
 import { MarketplaceStrip } from "./marketplace-strip";
+import { PoweredByBadge } from "./powered-by-badge";
 import { StoreHeader } from "./store-header";
 import { StoreOrderGuide } from "./store-order-guide";
 import { StoreServiceBand } from "./store-service-band";
@@ -116,6 +117,14 @@ export function StoreView({
 
       {showDiscover && !query && otherShops.length > 0 ? (
         <MarketplaceStrip shops={otherShops} brand={brand} />
+      ) : null}
+
+      {/* Last on the page, below the store's own content and the discovery rail.
+          The API resolves this from the plan's entitlement, so an older payload
+          that omits it shows the badge — the safe default is attribution, not a
+          free upgrade. */}
+      {store.show_powered_by_badge !== false ? (
+        <PoweredByBadge brand={brand} />
       ) : null}
     </Box>
   );

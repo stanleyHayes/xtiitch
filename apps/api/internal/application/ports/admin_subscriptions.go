@@ -240,10 +240,11 @@ type AdminPlanEntitlementFeatureRecord struct {
 	Unit        string
 	SortOrder   int
 	IsActive    bool
-	// Enforced reports whether the API actually gates on this key. Several keys
-	// are stored and editable but enforced nowhere, so the admin console must be
-	// able to say which controls are live: a toggle that silently does nothing is
-	// worse than an absent one, because it reads as configuration that took.
+	// Enforced reports whether the API actually READS AND ACTS ON this key --
+	// usually a gate, but for the internal order-volume threshold an alert. Several
+	// keys are stored and editable and do nothing at all, so the console must be
+	// able to say which controls are live: one that silently does nothing is worse
+	// than an absent one, because it reads as configuration that took.
 	Enforced  bool
 	Values    []AdminPlanEntitlementValueRecord
 	CreatedAt time.Time

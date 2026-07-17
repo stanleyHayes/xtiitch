@@ -201,6 +201,10 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 			coalesce(ss.logo_url, ''), coalesce(ss.banner_url, ''), ss.layout_variant,
 			coalesce((p.features->>'design_waitlist')::boolean, false),
 			coalesce((p.features->>'online_ordering')::boolean, false),
+			-- Inverted on purpose: the badge SHOWS unless the plan grants its
+			-- removal, so a plan with no features carries it rather than quietly
+			-- getting the paid treatment (Pricing Book §5: Free on, paid off).
+			not coalesce((p.features->>'remove_powered_by_badge')::boolean, false),
 			p.code
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
@@ -213,6 +217,7 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.Settings.LogoURL, &store.Settings.BannerURL, &store.Settings.LayoutVariant,
 		&store.WaitlistEnabled,
 		&store.OnlineOrderingEnabled,
+		&store.ShowPoweredByBadge,
 		&store.PlanCode,
 	)
 	if err != nil {

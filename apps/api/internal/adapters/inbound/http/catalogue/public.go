@@ -16,7 +16,11 @@ type storeSummary struct {
 	Settings              settingsBody              `json:"settings"`
 	WaitlistEnabled       bool                      `json:"waitlist_enabled"`
 	OnlineOrderingEnabled bool                      `json:"online_ordering_enabled"`
-	PlanCode              string                    `json:"plan_code"`
+	// ShowPoweredByBadge: the storefront renders the Xtiitch badge when true.
+	// Already resolved from the plan's remove_powered_by_badge entitlement, so the
+	// client never has to invert it.
+	ShowPoweredByBadge bool   `json:"show_powered_by_badge"`
+	PlanCode           string `json:"plan_code"`
 }
 
 type measurementFieldSummary struct {
@@ -36,6 +40,7 @@ func toStoreSummary(store ports.Storefront) storeSummary {
 		Settings:              toSettingsBody(store.Settings),
 		WaitlistEnabled:       store.WaitlistEnabled,
 		OnlineOrderingEnabled: store.OnlineOrderingEnabled,
+		ShowPoweredByBadge:    store.ShowPoweredByBadge,
 		PlanCode:              store.PlanCode,
 	}
 }

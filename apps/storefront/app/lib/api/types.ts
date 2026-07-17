@@ -31,6 +31,10 @@ export type StoreSummary = {
   // True when the store's plan grants the online_ordering benefit. When false the
   // storefront is a catalogue only and checkout is refused server-side.
   online_ordering_enabled?: boolean;
+  // True when the storefront must carry the "Powered by Xtiitch" badge — i.e.
+  // the plan does not grant its removal. Already resolved from the entitlement,
+  // so never invert it here and never re-derive it from plan_code.
+  show_powered_by_badge?: boolean;
   // The store's current plan code (e.g. "free", "starter", "growth", "studio").
   // The "Discover other studios" strip only shows for free-plan stores.
   plan_code?: string;

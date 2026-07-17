@@ -462,34 +462,50 @@ func listAdminPlanEntitlements(
 
 // mirroredLimitColumns maps each limit-type entitlement key to the plans column
 // that projects it. plan_entitlement_values is the source of truth; these columns
-// are the runtime read model the product gates on.
-var mirroredLimitColumns = []struct{ featureKey, column string }{
-	{"designs", "design_limit"},
-	{"images_per_design", "image_limit"},
-	{"variations_per_design", "variation_limit"},
-	{"staff_accounts", "staff_limit"},
+// are the runtime read model the product reads.
+var mirroredLimitColumns = []struct {
+	featureKey string
+	column     string
+	// disabledMeansZero says what switching the entitlement OFF projects to.
+	//
+	// For a CAP it is 0: off withholds the feature. For a monitoring THRESHOLD it
+	// is false -> NULL, because 0 would flag EVERY store -- the exact opposite of
+	// off. Same column type, same matrix control, opposite meaning, so each key
+	// has to state which it is.
+	disabledMeansZero bool
+}{
+	{"designs", "design_limit", true},
+	{"images_per_design", "image_limit", true},
+	{"variations_per_design", "variation_limit", true},
+	{"staff_accounts", "staff_limit", true},
+	// Not a cap: orders are uncapped on every tier (Pricing Book §5). This is the
+	// internal review threshold only.
+	{"orders_per_month", "order_review_threshold", false},
 }
 
 // mirroredLimitClause renders one column's projection.
 //
 // The three cases are all load-bearing and must not be simplified into a
-// coalesce: absent, withheld, and "granted, no cap" are three different facts
+// coalesce: absent, withheld, and "granted, no number" are three different facts
 // that a coalesce would collapse into one.
-func mirroredLimitClause(featureKey, column string) string {
+func mirroredLimitClause(featureKey, column string, disabledMeansZero bool) string {
+	disabled := "null"
+	if disabledMeansZero {
+		// Withheld. MUST NOT fall through to NULL: NULL means unlimited, so turning
+		// the entitlement OFF would grant strictly MORE than leaving it on -- which
+		// is exactly what happened before this case existed.
+		disabled = "0"
+	}
 	return fmt.Sprintf(`%[2]s = case
 				-- No row for this plan (e.g. created before its entitlements were
-				-- seeded): we know nothing about its cap, so keep what is set.
-				-- Falling through to NULL would read as "unlimited" and silently
-				-- uncap the plan.
+				-- seeded): we know nothing, so keep what is set. Falling through to
+				-- NULL would read as "unlimited" and silently uncap the plan.
 				when not exists (select 1 from lim where feature_key = '%[1]s') then p.%[2]s
-				-- Withheld. MUST NOT fall through to NULL: NULL means unlimited, so
-				-- turning the entitlement OFF would grant strictly more than leaving
-				-- it on -- which is exactly what happened before this case existed.
-				when not (select enabled from lim where feature_key = '%[1]s') then 0
-				-- Granted: the configured cap, where blank (NULL) means unlimited --
-				-- the promise the matrix's "Unlimited" placeholder makes.
+				when not (select enabled from lim where feature_key = '%[1]s') then %[3]s
+				-- Granted: the configured number, where blank (NULL) means unlimited
+				-- (caps) or never-flag (thresholds).
 				else (select limit_value from lim where feature_key = '%[1]s')
-			end`, featureKey, column)
+			end`, featureKey, column, disabled)
 }
 
 func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID common.ID) error {
@@ -502,7 +518,7 @@ func mirrorAdminPlanRuntimeEntitlements(ctx context.Context, tx pgx.Tx, planID c
 func mirrorAdminPlanEntitlementsSQL() string {
 	clauses := make([]string, 0, len(mirroredLimitColumns))
 	for _, limit := range mirroredLimitColumns {
-		clauses = append(clauses, mirroredLimitClause(limit.featureKey, limit.column))
+		clauses = append(clauses, mirroredLimitClause(limit.featureKey, limit.column, limit.disabledMeansZero))
 	}
 
 	return `
@@ -518,7 +534,8 @@ func mirrorAdminPlanEntitlementsSQL() string {
 							  'custom_banner',
 							  'custom_layout',
 							  'design_waitlist',
-							  'online_ordering'
+							  'online_ordering',
+							  'remove_powered_by_badge'
 						  )
 					),
 					'{}'::jsonb

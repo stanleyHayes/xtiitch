@@ -140,6 +140,15 @@ func queryAdminRiskReviews(
 			from admin_settlement_review_holds
 			where is_active
 		),
+		order_volume as (
+			select
+				business_id,
+				count(*)::int as orders_30d,
+				max(created_at) as last_order_at
+			from orders
+			where created_at >= now() - interval '30 days'
+			group by business_id
+		),
 		signals as (
 			select
 				'payment_failures:' || b.business_id::text as review_key,
@@ -225,6 +234,36 @@ func queryAdminRiskReviews(
 			from businesses b
 			where b.verification_status = 'verified'
 				and coalesce(b.settlement_provider_subaccount, '') = ''
+
+			union all
+
+			-- Order volume past the plan's review threshold. MONITORING ONLY: the
+			-- Pricing Book is explicit that orders are uncapped on every tier and
+			-- that this alert "must never notify, throttle, or limit the merchant"
+			-- (§5) -- every sale earns a per-design fee, so throttling a busy store
+			-- would cap Xtiitch's own revenue. It exists to surface an abnormal
+			-- spike on a free store as a fraud/abuse signal for a human to look at.
+			--
+			-- 'low' because a busy store is usually just a good store; it belongs in
+			-- the queue to be read, not acted on. A NULL threshold (the paid tiers)
+			-- never flags: volume there is the business working.
+			select
+				'order_volume:' || b.business_id::text as review_key,
+				b.business_id,
+				'Order volume above review threshold' as title,
+				b.name as business_name,
+				'low' as level,
+				ov.orders_30d::text || ' orders in the last 30 days on the '
+					|| p.name || ' plan, above its review threshold of '
+					|| p.order_review_threshold::text
+					|| '. Monitoring only -- the store is not capped or throttled.' as reason,
+				'Trust review' as owner,
+				coalesce(ov.last_order_at, b.updated_at) as signal_at
+			from businesses b
+			join plans p on p.plan_id = b.plan_id
+			join order_volume ov on ov.business_id = b.business_id
+			where p.order_review_threshold is not null
+				and ov.orders_30d > p.order_review_threshold
 		)
 		select
 			s.review_key,
