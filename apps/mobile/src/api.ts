@@ -14,29 +14,55 @@ export type StoreSettings = {
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
   brand_color: string;
+  logo_url: string;
+  banner_url: string;
+  layout_variant: string;
 };
 
+export type MeasurementField = {
+  field_id: string;
+  label: string;
+  unit: string;
+  sequence: number;
+};
+
+// Mirrors the API's storeSummary (catalogue/public.go) — the same shape serves
+// the storefront page and the store embedded in a design response.
 export type StoreSummary = {
   name: string;
   handle: string;
   brand_color: string;
+  default_deposit_minor: number;
+  measurement_fields: MeasurementField[];
   settings: StoreSettings;
+  waitlist_enabled: boolean;
+  online_ordering_enabled: boolean;
+  // Already resolved server-side from the plan entitlement: render the badge
+  // unless this is explicitly false (an older payload defaults to showing it —
+  // attribution is the safe failure).
+  show_powered_by_badge?: boolean;
+  plan_code: string;
 };
 
 export type BandPrice = {
   size_band_id: string;
   label: string;
   price_minor: number;
+  chart?: SizeChartItem[];
 };
 
-// The store object embedded in a design response carries deposit + measurement
-// context rather than the storefront settings block, so it is typed separately
-// from StoreSummary.
-export type DesignStore = {
+export type SizeChartItem = {
   name: string;
-  handle: string;
-  brand_color: string;
-  default_deposit_minor?: number;
+  value: string;
+  unit: string;
+};
+
+export type DesignVariation = {
+  variation_id: string;
+  name: string;
+  images: string[];
+  is_default: boolean;
+  sequence: number;
 };
 
 export type Design = {
@@ -51,7 +77,8 @@ export type Design = {
   status: string;
   sequence: number;
   prices: BandPrice[];
-  store?: DesignStore;
+  variations?: DesignVariation[];
+  store?: StoreSummary;
 };
 
 export type Collection = {
@@ -77,6 +104,17 @@ export type TrackingStage = {
   is_complete: boolean;
 };
 
+export type TrackingHandover = {
+  method: string;
+  status: string;
+  recipient_name: string;
+  recipient_phone: string;
+  address: string;
+  courier: string;
+  note: string;
+  updated_at: string;
+};
+
 export type Tracking = {
   order_id: string;
   design_title: string;
@@ -85,6 +123,7 @@ export type Tracking = {
   stage_name: string;
   colour: string;
   stages: TrackingStage[];
+  handover?: TrackingHandover;
 };
 
 export type PlaceOrderInput = {
@@ -93,7 +132,9 @@ export type PlaceOrderInput = {
   customer_name: string;
   customer_phone: string;
   customer_email: string;
+  customer_whatsapp?: string;
   method: "momo" | "card";
+  note?: string;
   promo_code?: string;
   affiliate_code?: string;
   affiliate_click_id?: string;

@@ -10,7 +10,7 @@ export const mobileSurfaces = Object.freeze([
     id: "business",
     title: "Xtiitch Business",
     authRealm: "business",
-    defaultRoute: "/business/home",
+    defaultRoute: "/business",
     routePrefixes: ["/business", "/dashboard", "/orders", "/catalogue", "/team"],
   },
 ]);
@@ -71,10 +71,14 @@ export function resolveLaunchRoute(input = {}) {
  * @returns {string}
  */
 export function resolveApiBaseUrl(env = process.env) {
+  // The API mounts every route under /v1 (apps/api .../http/router.go), so the
+  // fallback must include it too — without it a fresh checkout 404s every call.
+  // Note .env.example sets XTIITCH_API_URL WITHOUT /v1 (correct for the SSR
+  // apps, which append it themselves); for mobile it must carry the prefix.
   const raw =
     env.EXPO_PUBLIC_XTIITCH_API_URL ??
     env.XTIITCH_API_URL ??
-    "http://localhost:8080";
+    "http://localhost:8080/v1";
   const parsed = new URL(raw);
   parsed.pathname = parsed.pathname.replace(/\/+$/, "");
   parsed.search = "";

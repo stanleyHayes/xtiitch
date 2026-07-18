@@ -110,7 +110,8 @@ export default function OrderPaymentActions({
         <Pressable
           style={styles.actionRow}
           onPress={() => {
-            setTotalInput((order.agreed_total_minor / 100).toFixed(2));
+            const minor = order.agreed_total_minor;
+            setTotalInput(minor === null ? "" : (minor / 100).toFixed(2));
             onSetError(null);
             setEditingTotal(true);
           }}

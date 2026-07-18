@@ -29,7 +29,14 @@ export function OrderRow({
         {order.customer_name} · {order.channel}
       </Text>
       <View style={styles.orderBottom}>
-        <Text style={styles.orderTotal}>{formatGHS(order.agreed_total_minor)}</Text>
+        <Text style={styles.orderTotal}>
+          {order.agreed_total_minor === null &&
+          order.payment_amount_minor === null
+            ? "Not set"
+            : formatGHS(
+                (order.agreed_total_minor ?? order.payment_amount_minor) as number,
+              )}
+        </Text>
         <Text style={styles.orderSettled}>
           {formatGHS(order.settled_minor)} settled
         </Text>

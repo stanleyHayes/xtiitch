@@ -16,7 +16,13 @@ export type BusinessOrder = {
   customer_name: string;
   customer_phone: string;
   customer_email: string;
-  agreed_total_minor: number;
+  customer_whatsapp: string;
+  // Null for a bespoke order whose total has not been negotiated yet — never
+  // render it as GH₵0.00. payment_amount_minor carries the checkout target for
+  // online orders, so the effective target is agreed ?? payment (see web
+  // dashboard features/orders/utils.ts).
+  agreed_total_minor: number | null;
+  payment_amount_minor: number | null;
   settled_minor: number;
   status: string;
   stage_name: string;

@@ -18,6 +18,22 @@ function atFinalStage(tracking: Tracking | null): boolean {
   return last.is_current || last.is_complete;
 }
 
+// The effective money target of an order: the negotiated total for bespoke,
+// the checkout amount for online orders (web dashboard features/orders/utils.ts).
+function orderTargetMinor(order: BusinessOrder): number | null {
+  return order.agreed_total_minor ?? order.payment_amount_minor;
+}
+
+function balanceDueMinor(order: BusinessOrder): number {
+  const target = orderTargetMinor(order);
+  return target === null ? 0 : Math.max(target - order.settled_minor, 0);
+}
+
+function formatOrderTotal(order: BusinessOrder): string {
+  const target = orderTargetMinor(order);
+  return target === null ? "Not set" : formatGHS(target);
+}
+
 export default function OrderDetailScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -100,7 +116,7 @@ export default function OrderDetailScreen() {
 
   const tone = orderTone(order.status);
   const final = atFinalStage(tracking);
-  const balanceMinor = Math.max(order.agreed_total_minor - order.settled_minor, 0);
+  const balanceMinor = balanceDueMinor(order);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -125,11 +141,7 @@ export default function OrderDetailScreen() {
 
       <Text style={styles.sectionLabel}>Payment</Text>
       <View style={styles.card}>
-        <OrderDetailRow
-          label="Agreed total"
-          value={formatGHS(order.agreed_total_minor)}
-          strong
-        />
+        <OrderDetailRow label="Agreed total" value={formatOrderTotal(order)} strong />
         <OrderDetailRow label="Settled" value={formatGHS(order.settled_minor)} />
         <OrderDetailRow
           label="Balance due"

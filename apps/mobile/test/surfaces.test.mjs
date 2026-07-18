@@ -28,7 +28,7 @@ test("launch routing maps customer and business paths to the correct shell", () 
   });
   assert.deepEqual(resolveLaunchRoute({ surface: "business" }), {
     surface: "business",
-    route: "/business/home",
+    route: "/business",
   });
 });
 
@@ -56,5 +56,5 @@ test("API base URL prefers Expo public config and strips route/search fragments"
     }),
     "https://api.xtiitch.test/api",
   );
-  assert.equal(resolveApiBaseUrl({}), "http://localhost:8080");
+  assert.equal(resolveApiBaseUrl({}), "http://localhost:8080/v1");
 });
