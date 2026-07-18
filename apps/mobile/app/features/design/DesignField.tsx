@@ -8,7 +8,7 @@ type DesignFieldProps = {
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
-  keyboardType?: "phone-pad" | "email-address";
+  keyboardType?: "phone-pad" | "email-address" | "decimal-pad";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   multiline?: boolean;
 };

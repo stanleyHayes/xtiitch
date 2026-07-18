@@ -18,9 +18,18 @@ export default function DesignOrderConfirmation({
   return (
     <View style={styles.confirm}>
       <Text style={styles.confirmTitle}>Order placed</Text>
-      <Text style={styles.confirmBody}>
-        Reference {order.reference} · {formatGHS(order.amount_minor)} due.
-      </Text>
+      {order.reference ? (
+        <Text style={styles.confirmBody}>
+          Reference {order.reference} · {formatGHS(order.amount_minor)} due.
+        </Text>
+      ) : (
+        // No charge was raised (e.g. a come-to-shop reservation, which the API
+        // confirms at once) — nothing to pay or reference online.
+        <Text style={styles.confirmBody}>
+          Nothing to pay online — the store will confirm the details with you
+          directly.
+        </Text>
+      )}
       {order.discount_minor && order.discount_minor > 0 ? (
         <Text style={styles.discountApplied}>
           Reward applied: {formatGHS(order.discount_minor)} off this order.

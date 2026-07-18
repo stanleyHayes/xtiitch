@@ -13,23 +13,29 @@ export type RewardFieldValues = {
 type DesignRewardFieldsProps = {
   values: RewardFieldValues;
   onChange: (field: keyof RewardFieldValues, next: string) => void;
+  // Home-visit bookings have no promo route in the API, so that form hides the
+  // promo field (the web does the same via includePromo).
+  includePromo?: boolean;
 };
 
 export default function DesignRewardFields({
   values,
   onChange,
+  includePromo = true,
 }: DesignRewardFieldsProps) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <View style={styles.form}>
-      <DesignField
-        label="Promo code"
-        value={values.promoCode}
-        onChange={(next) => onChange("promoCode", next)}
-        placeholder="WELCOME10"
-        autoCapitalize="characters"
-      />
+      {includePromo ? (
+        <DesignField
+          label="Promo code"
+          value={values.promoCode}
+          onChange={(next) => onChange("promoCode", next)}
+          placeholder="WELCOME10"
+          autoCapitalize="characters"
+        />
+      ) : null}
       <DesignField
         label="Referral code"
         value={values.referralCode}

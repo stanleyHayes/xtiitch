@@ -1,27 +1,111 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
-  api,
   formatGHS,
   orderErrorMessage,
+  api,
+  type ApiResult,
   type Design,
+  type DeliveryZone,
   type PlaceOrderResult,
   type StoreSummary,
 } from "../../../src/api";
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import DesignContactFields, { type ContactFields } from "./DesignContactFields";
+import DesignDeliveryFields, {
+  type DeliveryValues,
+} from "./DesignDeliveryFields";
 import DesignOrderingDisabled from "./DesignOrderingDisabled";
 import DesignPaymentNotice from "./DesignPaymentNotice";
 import DesignRewardFields, {
   type RewardFieldValues,
 } from "./DesignRewardFields";
 import DesignSizeBandSelector from "./DesignSizeBandSelector";
+import { useDeliveryZones } from "./useDeliveryZones";
 
 function cleanRewardCode(value: string): string | undefined {
   const code = value.trim();
   return code.length > 0 ? code : undefined;
+}
+
+// Pickup keeps the original single-order route; delivery must go through the
+// cart route — the only one whose body carries zone + address (verified
+// against the Go checkout handler).
+function submitPickupOrder(
+  store: StoreSummary,
+  design: Design,
+  bandId: string,
+  contact: ContactFields,
+  rewards: RewardFieldValues,
+): Promise<ApiResult<PlaceOrderResult>> {
+  return api.placeOrder(store.handle, {
+    design_handle: design.handle,
+    size_band_id: bandId,
+    customer_name: contact.name.trim(),
+    customer_phone: contact.phone.trim(),
+    customer_email: contact.email.trim(),
+    customer_whatsapp: cleanRewardCode(contact.whatsapp),
+    note: cleanRewardCode(contact.note),
+    method: "momo",
+    promo_code: cleanRewardCode(rewards.promoCode),
+    referral_code: cleanRewardCode(rewards.referralCode),
+    affiliate_code: cleanRewardCode(rewards.affiliateCode),
+  });
+}
+
+function submitDeliveryOrder(
+  store: StoreSummary,
+  design: Design,
+  bandId: string,
+  contact: ContactFields,
+  delivery: DeliveryValues,
+): Promise<ApiResult<PlaceOrderResult>> {
+  // The cart body has no reward-code fields, so codes are intentionally not
+  // sent here (the rewards section is hidden when delivery is chosen).
+  return api.placeCartOrder(store.handle, {
+    items: [
+      {
+        design_handle: design.handle,
+        size_band_id: bandId,
+        kind: "made_to_wear",
+        note: cleanRewardCode(contact.note),
+      },
+    ],
+    customer_name: contact.name.trim(),
+    customer_phone: contact.phone.trim(),
+    customer_email: contact.email.trim(),
+    customer_whatsapp: cleanRewardCode(contact.whatsapp),
+    method: "momo",
+    delivery_zone_id: delivery.zoneId || undefined,
+    delivery_address: delivery.address.trim(),
+  });
+}
+
+function deliveryFeeMinor(
+  delivery: DeliveryValues,
+  zones: DeliveryZone[] | null,
+): number {
+  if (delivery.fulfilment !== "delivery") return 0;
+  const zone = zones?.find((entry) => entry.zone_id === delivery.zoneId);
+  return zone?.fee_minor ?? 0;
+}
+
+function canSubmitOrder(
+  bandId: string | null,
+  contact: ContactFields,
+  delivery: DeliveryValues,
+  submitting: boolean,
+): boolean {
+  const contactReady =
+    contact.name.trim().length > 1 &&
+    contact.phone.trim().length >= 7 &&
+    /.+@.+\..+/.test(contact.email.trim());
+  const deliveryReady =
+    delivery.fulfilment === "pickup" ||
+    (Boolean(delivery.zoneId) && delivery.address.trim().length > 4);
+  return Boolean(bandId) && contactReady && deliveryReady && !submitting;
 }
 
 type DesignOrderFormProps = {
@@ -53,6 +137,21 @@ export default function DesignOrderForm({
     referralCode: "",
     affiliateCode: "",
   });
+  const [delivery, setDelivery] = useState<DeliveryValues>({
+    fulfilment: "pickup",
+    zoneId: "",
+    address: "",
+  });
+  const onDeliveryChange = useCallback(
+    (field: keyof DeliveryValues, next: string) =>
+      setDelivery((prev) => ({ ...prev, [field]: next })),
+    [],
+  );
+  const { offered: deliveryOffered, zones } = useDeliveryZones(
+    store,
+    delivery,
+    onDeliveryChange,
+  );
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -63,40 +162,28 @@ export default function DesignOrderForm({
   }
 
   const selectedBand = design.prices.find((p) => p.size_band_id === bandId);
-  const canSubmit =
-    Boolean(bandId) &&
-    contact.name.trim().length > 1 &&
-    contact.phone.trim().length >= 7 &&
-    /.+@.+\..+/.test(contact.email.trim()) &&
-    !submitting;
+  const totalMinor =
+    (selectedBand?.price_minor ?? 0) + deliveryFeeMinor(delivery, zones);
+  const canSubmit = canSubmitOrder(bandId, contact, delivery, submitting);
 
   const submit = async () => {
     if (!bandId) return;
     setSubmitting(true);
     setOrderError(null);
-    const result = await api.placeOrder(store.handle, {
-      design_handle: design.handle,
-      size_band_id: bandId,
-      customer_name: contact.name.trim(),
-      customer_phone: contact.phone.trim(),
-      customer_email: contact.email.trim(),
-      customer_whatsapp: cleanRewardCode(contact.whatsapp),
-      note: cleanRewardCode(contact.note),
-      method: "momo",
-      promo_code: cleanRewardCode(rewards.promoCode),
-      referral_code: cleanRewardCode(rewards.referralCode),
-      affiliate_code: cleanRewardCode(rewards.affiliateCode),
-    });
+    const result =
+      delivery.fulfilment === "delivery"
+        ? await submitDeliveryOrder(store, design, bandId, contact, delivery)
+        : await submitPickupOrder(store, design, bandId, contact, rewards);
     setSubmitting(false);
     if (result.ok) {
       onOrdered(result.data);
-    } else {
-      setOrderError(
-        result.status === 0
-          ? "Network error — please try again."
-          : orderErrorMessage(result.error),
-      );
+      return;
     }
+    setOrderError(
+      result.status === 0
+        ? "Network error — please try again."
+        : orderErrorMessage(result.error),
+    );
   };
 
   return (
@@ -108,6 +195,17 @@ export default function DesignOrderForm({
         onSelect={setBandId}
       />
 
+      {deliveryOffered ? (
+        <View>
+          <Text style={styles.sectionLabel}>How would you like it?</Text>
+          <DesignDeliveryFields
+            zones={zones}
+            values={delivery}
+            onChange={onDeliveryChange}
+          />
+        </View>
+      ) : null}
+
       <Text style={styles.sectionLabel}>Your details</Text>
       <DesignContactFields
         values={contact}
@@ -116,13 +214,17 @@ export default function DesignOrderForm({
         }
       />
 
-      <Text style={styles.sectionLabel}>Rewards</Text>
-      <DesignRewardFields
-        values={rewards}
-        onChange={(field, next) =>
-          setRewards((prev) => ({ ...prev, [field]: next }))
-        }
-      />
+      {delivery.fulfilment === "pickup" ? (
+        <View>
+          <Text style={styles.sectionLabel}>Rewards</Text>
+          <DesignRewardFields
+            values={rewards}
+            onChange={(field, next) =>
+              setRewards((prev) => ({ ...prev, [field]: next }))
+            }
+          />
+        </View>
+      ) : null}
 
       <Text style={styles.sectionLabel}>Payment</Text>
       <DesignPaymentNotice />
@@ -138,7 +240,7 @@ export default function DesignOrderForm({
           {submitting
             ? "Placing order…"
             : selectedBand
-              ? `Place order · ${formatGHS(selectedBand.price_minor)}`
+              ? `Place order · ${formatGHS(totalMinor)}`
               : "Place order"}
         </Text>
       </Pressable>
