@@ -85,6 +85,8 @@ export default function HomeScreen() {
         </Text>
       </View>
 
+      <MarketplaceEntry onPress={() => router.push("/marketplace")} />
+
       <HomeSection label="Open a store">
         <View style={styles.inlineRow}>
           <TextInput
@@ -172,6 +174,30 @@ export default function HomeScreen() {
         </Pressable>
       </View>
     </ScrollView>
+  );
+}
+
+// Entry card to the marketplace directory. Kept as its own component so the
+// HomeScreen function stays within the max-lines-per-function budget.
+function MarketplaceEntry({ onPress }: { onPress: () => void }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeMarketStyles(palette), [palette]);
+  return (
+    <View style={styles.section}>
+      <Pressable
+        style={({ pressed }) => [styles.marketCard, pressed && styles.cardPressed]}
+        onPress={onPress}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={styles.marketKicker}>MARKETPLACE</Text>
+          <Text style={styles.marketTitle}>Browse the marketplace</Text>
+          <Text style={styles.marketHint}>
+            Studios and designs from across Ghana — no account needed to look.
+          </Text>
+        </View>
+        <Text style={styles.marketArrow}>›</Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -288,6 +314,54 @@ const makeStyles = (palette: Palette) =>
     },
     studioArrow: {
       color: palette.gold,
+      fontSize: 30,
+      fontWeight: "700",
+    },
+  });
+
+// MarketplaceEntry gets its own factory so makeStyles stays within the
+// max-lines-per-function budget.
+const makeMarketStyles = (palette: Palette) =>
+  StyleSheet.create({
+    section: {
+      paddingHorizontal: spacing(3),
+      marginTop: spacing(3.5),
+    },
+    marketCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: spacing(1.5),
+      backgroundColor: palette.white,
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      borderRadius: radius.md,
+      padding: spacing(2.5),
+      ...shadow.card,
+    },
+    cardPressed: { opacity: 0.85 },
+    marketKicker: {
+      color: palette.burgundy,
+      fontFamily: fonts.body,
+      fontSize: 11,
+      fontWeight: "800",
+      letterSpacing: 1.5,
+    },
+    marketTitle: {
+      color: palette.ink,
+      fontFamily: fonts.display,
+      fontSize: 19,
+      fontWeight: "700",
+      marginTop: spacing(0.5),
+    },
+    marketHint: {
+      color: palette.mutedText,
+      fontFamily: fonts.body,
+      fontSize: 13,
+      marginTop: spacing(0.5),
+      lineHeight: 19,
+    },
+    marketArrow: {
+      color: palette.burgundy,
       fontSize: 30,
       fontWeight: "700",
     },
