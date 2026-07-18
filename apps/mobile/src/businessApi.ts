@@ -1,7 +1,7 @@
 // Authenticated business-surface client. Every call goes through authedFetch,
 // which handles the Bearer header and one silent token refresh. A
 // session_expired result means the caller should route back to login.
-import { type Tracking } from "./api";
+import { type MeasurementField, type Tracking } from "./api";
 import { authedFetch, SessionExpiredError } from "./auth";
 
 export type BusinessProfile = {
@@ -86,6 +86,22 @@ export type CreateWalkInInput = {
   agreed_total_minor?: number;
 };
 
+// The staff-taken measurement routes the API accepts (measurementapp
+// SourceVisit/SourceShop). "self_measure" orders arrive with values already.
+export type MeasurementSource = "visit" | "shop";
+
+// What POST /orders/{id}/measurements returns (201). values maps field_id to
+// the entered string, validated against the studio's template server-side.
+export type OrderMeasurement = {
+  measurement_id: string;
+  order_id: string;
+  customer_id: string;
+  source: string;
+  values: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+};
+
 export const businessApi = {
   me: () => request<BusinessProfile>("/auth/business/me"),
   orders: () => request<{ orders: BusinessOrder[] }>("/orders"),
@@ -118,6 +134,24 @@ export const businessApi = {
   // The studio's own catalogue + size bands, for composing a walk-in order.
   designs: () => request<{ designs: BusinessDesign[] }>("/designs"),
   sizeBands: () => request<{ size_bands: SizeBand[] }>("/size-bands"),
+  // The studio's measurement template — the fields the record form renders.
+  measurementFields: () =>
+    request<{ fields: MeasurementField[] }>("/measurement-fields"),
+  // Save staff-taken measurements for a bespoke order. The API requires at
+  // least one non-empty value and field IDs from the studio's template.
+  recordMeasurements: (
+    orderId: string,
+    source: MeasurementSource,
+    values: Record<string, string>,
+  ) =>
+    request<OrderMeasurement>(
+      `/orders/${encodeURIComponent(orderId)}/measurements`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source, values }),
+      },
+    ),
   // Record an in-person (walk-in) order against one of the studio's designs.
   createWalkIn: (input: CreateWalkInInput) =>
     request<{ order_id: string }>("/orders", {
@@ -134,6 +168,24 @@ const TERMINAL_STATUSES = new Set(["fulfilled", "cancelled"]);
 
 export function isOrderOpen(order: BusinessOrder): boolean {
   return !TERMINAL_STATUSES.has(order.status.toLowerCase());
+}
+
+// Mirrors the web dashboard's measurementSourceFor (features/orders/utils.ts):
+// staff record measurements only for bespoke orders in production whose size
+// route is a home visit or a shop appointment.
+export function measurementSourceFor(
+  order: BusinessOrder,
+): MeasurementSource | null {
+  if (order.order_type !== "custom" || order.status !== "confirmed") {
+    return null;
+  }
+  if (order.size_mode === "home_visit") {
+    return "visit";
+  }
+  if (order.size_mode === "come_to_shop") {
+    return "shop";
+  }
+  return null;
 }
 
 // Map an order's status to one of the brand tones. The API also returns a

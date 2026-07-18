@@ -14,6 +14,7 @@ import { loadSession } from "../../../../src/auth";
 import {
   businessApi,
   formatOrderDate,
+  measurementSourceFor,
   orderTone,
   paymentStatusLabel,
   type BusinessOrder,
@@ -23,6 +24,8 @@ import { CenterState, StageTimeline } from "../../../../src/ui";
 import { fonts, radius, shadow, spacing, type Palette } from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
 import OrderDetailRow from "./OrderDetailRow";
+import OrderHandoverCard from "./OrderHandoverCard";
+import OrderMeasurementsCard from "./OrderMeasurementsCard";
 import OrderPaymentActions from "./OrderPaymentActions";
 
 // The effective money target of an order: the negotiated total for bespoke,
@@ -46,6 +49,49 @@ function whatsappNumber(order: BusinessOrder): string {
   return order.customer_whatsapp || order.customer_phone;
 }
 
+// Advance-to-next-stage flow. On success the API returns the updated tracking;
+// the order row is refetched so status/settled reflect the new stage. An
+// expired session routes back to login without clearing the advancing flag —
+// the screen unmounts anyway.
+function useOrderAdvance({
+  id,
+  onTracking,
+  onOrder,
+  onError,
+  onExpired,
+}: {
+  id: string | undefined;
+  onTracking: (tracking: Tracking) => void;
+  onOrder: (order: BusinessOrder) => void;
+  onError: (message: string | null) => void;
+  onExpired: () => void;
+}) {
+  const [advancing, setAdvancing] = useState(false);
+
+  const advance = async () => {
+    if (!id) return;
+    setAdvancing(true);
+    onError(null);
+    const result = await businessApi.advanceOrder(id);
+    if (result.ok) {
+      onTracking(result.data);
+      const orders = await businessApi.orders();
+      if (orders.ok) {
+        const match = orders.data.orders.find((o) => o.order_id === id);
+        if (match) onOrder(match);
+      }
+    } else if (result.expired) {
+      onExpired();
+      return;
+    } else {
+      onError("Couldn't advance this order right now. Pull to refresh and try again.");
+    }
+    setAdvancing(false);
+  };
+
+  return { advancing, advance };
+}
+
 export default function OrderDetailScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -58,10 +104,16 @@ export default function OrderDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [fetchError, setFetchError] = useState(false);
-  const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const toLogin = useCallback(() => router.replace("/business/login"), [router]);
+  const { advancing, advance } = useOrderAdvance({
+    id,
+    onTracking: setTracking,
+    onOrder: setOrder,
+    onError: setError,
+    onExpired: toLogin,
+  });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -118,27 +170,6 @@ export default function OrderDetailScreen() {
     void load().finally(() => setLoading(false));
   };
 
-  const advance = async () => {
-    if (!id) return;
-    setAdvancing(true);
-    setError(null);
-    const result = await businessApi.advanceOrder(id);
-    if (result.ok) {
-      setTracking(result.data);
-      // Refresh the order row so status/settled reflect the new stage.
-      const orders = await businessApi.orders();
-      if (orders.ok) {
-        setOrder(orders.data.orders.find((o) => o.order_id === id) ?? order);
-      }
-    } else if (result.expired) {
-      toLogin();
-      return;
-    } else {
-      setError("Couldn't advance this order right now. Pull to refresh and try again.");
-    }
-    setAdvancing(false);
-  };
-
   if (loading) return <CenterState loading />;
   if (fetchError && !order) {
     return (
@@ -158,7 +189,7 @@ export default function OrderDetailScreen() {
     );
   }
 
-  const tone = orderTone(order.status);
+  const measurementSource = measurementSourceFor(order);
 
   return (
     <ScrollView
@@ -174,15 +205,7 @@ export default function OrderDetailScreen() {
     >
       <Stack.Screen options={{ title: "Order" }} />
 
-      <View style={styles.headerCard}>
-        <Text style={styles.design}>{order.design_title}</Text>
-        <View style={[styles.statusPill, { backgroundColor: tone }]}>
-          <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
-        </View>
-        <Text style={styles.meta}>
-          {order.order_type} · {order.channel} · {formatOrderDate(order.created_at)}
-        </Text>
-      </View>
+      <OrderHeaderCard order={order} />
 
       <Text style={styles.sectionLabel}>Customer</Text>
       <CustomerCard order={order} />
@@ -201,6 +224,18 @@ export default function OrderDetailScreen() {
         onSetError={setError}
       />
 
+      {measurementSource ? (
+        <>
+          <Text style={styles.sectionLabel}>Measurements</Text>
+          <OrderMeasurementsCard
+            orderId={id}
+            source={measurementSource}
+            onLoad={load}
+            onExpired={toLogin}
+          />
+        </>
+      ) : null}
+
       {tracking ? (
         <>
           <Text style={styles.sectionLabel}>Fulfilment</Text>
@@ -208,10 +243,34 @@ export default function OrderDetailScreen() {
         </>
       ) : null}
 
+      {tracking?.handover ? (
+        <>
+          <Text style={styles.sectionLabel}>Handover</Text>
+          <OrderHandoverCard handover={tracking.handover} />
+        </>
+      ) : null}
+
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       <AdvanceFooter status={order.status} advancing={advancing} onAdvance={advance} />
     </ScrollView>
+  );
+}
+
+function OrderHeaderCard({ order }: { order: BusinessOrder }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const tone = orderTone(order.status);
+  return (
+    <View style={styles.headerCard}>
+      <Text style={styles.design}>{order.design_title}</Text>
+      <View style={[styles.statusPill, { backgroundColor: tone }]}>
+        <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
+      </View>
+      <Text style={styles.meta}>
+        {order.order_type} · {order.channel} · {formatOrderDate(order.created_at)}
+      </Text>
+    </View>
   );
 }
 

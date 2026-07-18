@@ -1,28 +1,24 @@
 import { useEffect, useState, useMemo } from "react";
-import {
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
 import { loadSession, login, verifyMfaLogin } from "../../src/auth";
-import { fonts, radius, spacing, type Palette } from "../../src/theme";
+import { radius } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
 import { LoadingButtonLabel, SkeletonBlock } from "../../src/ui";
+import { LoginField, makeLoginStyles } from "./login-ui";
+import OtpLoginForm from "./otp-login-form";
 
 export default function BusinessLoginScreen() {
   const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const styles = useMemo(() => makeLoginStyles(palette), [palette]);
   const router = useRouter();
   const [handle, setHandle] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
   const [code, setCode] = useState("");
+  const [method, setMethod] = useState<"password" | "code">("password");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
@@ -71,6 +67,7 @@ export default function BusinessLoginScreen() {
     setMfaChallenge(null);
     setCode("");
     setError(null);
+    setMethod("password");
   };
 
   const canSubmit =
@@ -109,6 +106,17 @@ export default function BusinessLoginScreen() {
     );
   }
 
+  if (method === "code") {
+    return (
+      <OtpLoginForm
+        handle={handle}
+        onHandleChange={setHandle}
+        onMfaChallenge={setMfaChallenge}
+        onBack={() => setMethod("password")}
+      />
+    );
+  }
+
   return (
     <PasswordForm
       handle={handle}
@@ -121,6 +129,7 @@ export default function BusinessLoginScreen() {
       submitting={submitting}
       canSubmit={canSubmit}
       onSubmit={submit}
+      onUseCode={() => setMethod("code")}
     />
   );
 }
@@ -136,6 +145,7 @@ function PasswordForm({
   submitting,
   canSubmit,
   onSubmit,
+  onUseCode,
 }: {
   handle: string;
   email: string;
@@ -147,9 +157,10 @@ function PasswordForm({
   submitting: boolean;
   canSubmit: boolean;
   onSubmit: () => void;
+  onUseCode: () => void;
 }) {
   const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const styles = useMemo(() => makeLoginStyles(palette), [palette]);
   return (
     <ScrollView
       style={styles.screen}
@@ -165,14 +176,14 @@ function PasswordForm({
       </View>
 
       <View style={styles.form}>
-        <Field
+        <LoginField
           label="Studio handle"
           value={handle}
           onChange={onHandleChange}
           placeholder="demoatelier"
           autoCapitalize="none"
         />
-        <Field
+        <LoginField
           label="Owner email"
           value={email}
           onChange={onEmailChange}
@@ -180,7 +191,7 @@ function PasswordForm({
           autoCapitalize="none"
           keyboardType="email-address"
         />
-        <Field
+        <LoginField
           label="Password"
           value={password}
           onChange={onPasswordChange}
@@ -200,6 +211,10 @@ function PasswordForm({
           ) : (
             <Text style={styles.ctaText}>Sign in</Text>
           )}
+        </Pressable>
+
+        <Pressable style={styles.link} onPress={onUseCode} disabled={submitting}>
+          <Text style={styles.linkText}>Sign in with a code instead</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -227,7 +242,7 @@ function MfaChallengeForm({
   onBack: () => void;
 }) {
   const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const styles = useMemo(() => makeLoginStyles(palette), [palette]);
   return (
     <ScrollView
       style={styles.screen}
@@ -244,7 +259,7 @@ function MfaChallengeForm({
       </View>
 
       <View style={styles.form}>
-        <Field
+        <LoginField
           label="Authentication code"
           value={code}
           onChange={onCodeChange}
@@ -273,133 +288,3 @@ function MfaChallengeForm({
     </ScrollView>
   );
 }
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  autoCapitalize,
-  keyboardType,
-  secureTextEntry,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  placeholder: string;
-  autoCapitalize?: "none" | "words";
-  keyboardType?: "email-address";
-  secureTextEntry?: boolean;
-}) {
-  const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
-  return (
-    <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={palette.mutedText}
-        autoCapitalize={autoCapitalize ?? "none"}
-        autoCorrect={false}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        style={styles.input}
-      />
-    </View>
-  );
-}
-
-const makeStyles = (palette: Palette) => StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.cream },
-  checking: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: palette.cream,
-    padding: spacing(3),
-    gap: spacing(1.25),
-  },
-  checkingPanel: {
-    width: "100%",
-    marginTop: spacing(2),
-    gap: spacing(1.25),
-  },
-  content: { paddingBottom: spacing(6) },
-  hero: {
-    backgroundColor: palette.burgundy,
-    paddingHorizontal: spacing(3),
-    paddingTop: spacing(3),
-    paddingBottom: spacing(4),
-    borderBottomLeftRadius: radius.lg,
-    borderBottomRightRadius: radius.lg,
-  },
-  kicker: {
-    color: palette.gold,
-    fontFamily: fonts.body,
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 2,
-  },
-  title: {
-    color: palette.onAccent,
-    fontFamily: fonts.display,
-    fontSize: 30,
-    fontWeight: "700",
-    marginTop: spacing(1),
-  },
-  lead: {
-    color: "rgba(255,255,255,0.85)",
-    fontFamily: fonts.body,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: spacing(1),
-  },
-  form: { padding: spacing(3), gap: spacing(1.75) },
-  fieldLabel: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: "700",
-    color: palette.ink,
-    marginBottom: spacing(0.75),
-  },
-  input: {
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1.75),
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: palette.ink,
-  },
-  error: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.danger,
-    marginTop: spacing(0.5),
-  },
-  cta: {
-    backgroundColor: palette.burgundy,
-    borderRadius: radius.pill,
-    paddingVertical: spacing(2),
-    alignItems: "center",
-    marginTop: spacing(1.5),
-  },
-  ctaDisabled: { backgroundColor: "rgba(128,0,32,0.4)" },
-  ctaText: {
-    color: palette.onAccent,
-    fontFamily: fonts.body,
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  link: { alignItems: "center", paddingVertical: spacing(1.5) },
-  linkText: {
-    color: palette.burgundy,
-    fontFamily: fonts.body,
-    fontSize: 14,
-    fontWeight: "700",
-  },
-});

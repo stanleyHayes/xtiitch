@@ -57,6 +57,14 @@ async function persist(session: BusinessSession | null): Promise<void> {
   }
 }
 
+// WhatsApp OTP sign-in (src/businessOtp.ts) is passwordless, so it cannot save
+// its verified token pair through login(). It must still go through this exact
+// path: the in-memory cache above is module-private, and writing AsyncStorage
+// directly would leave a stale null cache that bounces the user back to login.
+export async function persistSession(session: BusinessSession): Promise<void> {
+  await persist(session);
+}
+
 export type LoginInput = {
   business_handle: string;
   owner_email: string;
