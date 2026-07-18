@@ -15,9 +15,10 @@ import {
   type BusinessDesign,
   type SizeBand,
 } from "../../src/businessApi";
-import { CenterState, ImageTile, LoadingButtonLabel } from "../../src/ui";
+import { CenterState, LoadingButtonLabel } from "../../src/ui";
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
+import { DesignPicker } from "../features/business/new-order/DesignPicker";
 
 export default function NewOrderScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const { palette } = useTheme();
@@ -152,32 +153,7 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
       keyboardShouldPersistTaps="handled"
     >
       <Text style={styles.sectionLabel}>Design</Text>
-      <View style={styles.designList}>
-        {designs.map((design) => {
-          const active = design.design_id === designId;
-          return (
-            <Pressable
-              key={design.design_id}
-              onPress={() => setDesignId(design.design_id)}
-              style={[styles.designCard, active && styles.designCardActive]}
-            >
-              <ImageTile
-                uri={design.images[0]}
-                seed={design.handle}
-                style={styles.designThumb}
-                radiusOverride={radius.sm}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.designTitle} numberOfLines={1}>
-                  {design.title}
-                </Text>
-                <Text style={styles.designStatus}>{design.status}</Text>
-              </View>
-              <View style={[styles.radio, active && styles.radioActive]} />
-            </Pressable>
-          );
-        })}
-      </View>
+      <DesignPicker designs={designs} designId={designId} onSelect={setDesignId} />
 
       {bands.length > 0 ? (
         <>
@@ -308,41 +284,6 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     color: palette.mutedText,
     marginTop: spacing(2.5),
     marginBottom: spacing(1.5),
-  },
-  designList: { gap: spacing(1.25) },
-  designCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing(1.5),
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: palette.softBorder,
-    padding: spacing(1.5),
-  },
-  designCardActive: {
-    borderColor: palette.burgundy,
-    backgroundColor: "rgba(128,0,32,0.04)",
-  },
-  designThumb: { width: 52, height: 52 },
-  designTitle: { fontFamily: fonts.display, fontSize: 17, color: palette.ink },
-  designStatus: {
-    fontFamily: fonts.body,
-    fontSize: 12,
-    color: palette.mutedText,
-    textTransform: "capitalize",
-    marginTop: 2,
-  },
-  radio: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    borderColor: palette.softBorder,
-  },
-  radioActive: {
-    borderColor: palette.burgundy,
-    backgroundColor: palette.burgundy,
   },
   bandRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1) },
   band: {
