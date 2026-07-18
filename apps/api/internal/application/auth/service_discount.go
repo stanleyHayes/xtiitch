@@ -107,13 +107,15 @@ func (s Service) captureSubscriptionDiscount(
 // collects NOTHING at checkout — a free_period starts a free window, a full
 // (>=100%) discount books a zero paid invoice on the normal cadence — then flips
 // the pending redemption to 'applied'. Used at initialize so these codes never open
-// a zero-amount Paystack checkout (which Paystack would reject).
+// a zero-amount Paystack checkout (which Paystack would reject). The activation
+// carries BOTH the ref and the period anchor it was derived from, so the window's
+// start always matches the ref a re-entry re-derives.
 func (s Service) activateDiscountedWithoutCharge(
 	ctx context.Context,
 	scope common.TenantScope,
 	sub ports.BusinessSubscriptionRecord,
 	cadence string,
-	ref string,
+	activation ports.SubscriptionActivationCharge,
 	outcome discountOutcome,
 ) error {
 	pending, err := s.discounts.FindPendingRedemption(ctx, scope, sub.SubscriptionID)
@@ -131,10 +133,11 @@ func (s Service) activateDiscountedWithoutCharge(
 		freeMonths = cadenceMonths(cadence)
 	}
 	if err := s.discounts.ActivateFreePeriodBilling(ctx, scope, ports.ActivateFreePeriodInput{
-		BusinessID: sub.BusinessID,
-		ChargeRef:  ref,
-		Currency:   "GHS",
-		FreeMonths: freeMonths,
+		BusinessID:  sub.BusinessID,
+		ChargeRef:   activation.Ref,
+		PeriodStart: activation.PeriodStart,
+		Currency:    "GHS",
+		FreeMonths:  freeMonths,
 	}); err != nil {
 		return err
 	}
@@ -160,19 +163,22 @@ func cadenceMonths(cadence string) int {
 // (the customer already paid at checkout.paystack.com — never re-charged here) and
 // flips any captured discount to 'applied'. paidMinor is the amount Paystack
 // actually collected. Idempotent: the paid-invoice insert no-ops on a repeat ref.
+// The activation carries BOTH the ref and the period anchor it was derived from,
+// so the booked period always matches the ref a retried callback re-derives.
 func (s Service) bookFirstPeriodPaid(
 	ctx context.Context,
 	scope common.TenantScope,
 	sub ports.BusinessSubscriptionRecord,
 	cadence string,
-	ref string,
+	activation ports.SubscriptionActivationCharge,
 	paidMinor int64,
 ) error {
 	if err := s.businesses.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
 		BusinessID:     sub.BusinessID,
 		AmountMinor:    paidMinor,
 		Currency:       "GHS",
-		ChargeRef:      ref,
+		ChargeRef:      activation.Ref,
+		PeriodStart:    activation.PeriodStart,
 		BillingCadence: cadence,
 	}); err != nil {
 		return err

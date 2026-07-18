@@ -1,0 +1,6 @@
+-- Not reversed: the up migration divided the console's x100-scaled percentage
+-- values in place and the pre-migration values are not retained, so a stored 20
+-- that used to be 2000 cannot be told apart from a 20 that was always correct.
+-- Multiplying back by 100 would corrupt every legitimately-stored percentage
+-- code, so the way back is a targeted fix-up, not a blanket reverse (the same
+-- convention as the one-way data fix in 000057).

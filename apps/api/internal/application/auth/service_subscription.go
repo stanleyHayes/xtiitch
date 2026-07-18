@@ -252,7 +252,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 	chargeMinor := activationChargeMinor(subscription, cadence)
 	if outcome != nil {
 		if outcome.FreePeriod || outcome.ChargeMinor <= 0 {
-			if err := s.activateDiscountedWithoutCharge(ctx, cmd.Scope, subscription, cadence, activation.Ref, *outcome); err != nil {
+			if err := s.activateDiscountedWithoutCharge(ctx, cmd.Scope, subscription, cadence, activation, *outcome); err != nil {
 				return SubscriptionAuthorizationLink{}, err
 			}
 			return SubscriptionAuthorizationLink{
@@ -393,7 +393,7 @@ func (s Service) VerifySubscriptionAuthorization(
 		return SubscriptionAuthorizationResult{}, err
 	}
 	if activation.ShouldCharge {
-		if err := s.bookFirstPeriodPaid(ctx, cmd.Scope, subscription, cadence, activation.Ref, result.AmountMinor); err != nil {
+		if err := s.bookFirstPeriodPaid(ctx, cmd.Scope, subscription, cadence, activation, result.AmountMinor); err != nil {
 			return SubscriptionAuthorizationResult{}, err
 		}
 	}

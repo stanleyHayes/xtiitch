@@ -78,7 +78,7 @@ export async function handleSubscriptionsAction({ // eslint-disable-line complex
             result.chargesFailed > 0 || result.chargesSkipped > 0
               ? "warning"
               : "success",
-          message: `Recurring charge sweep complete: ${result.chargesPaid} paid, ${result.chargesPending} pending, ${result.chargesFailed} failed, ${result.chargesSkipped} skipped.`,
+          message: `Recurring charge sweep complete: ${result.chargesPaid} paid, ${result.chargesPending} pending, ${result.chargesFailed} failed, ${result.chargesSkipped} skipped, ${result.subscriptionsAwaitingCadence} awaiting cadence.`,
         };
       }
 

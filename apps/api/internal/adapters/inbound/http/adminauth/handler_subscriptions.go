@@ -382,13 +382,14 @@ func newSubscriptionRecurringSweepResponse(
 	record ports.AdminSubscriptionRecurringSweepRecord,
 ) subscriptionRecurringSweepResponse {
 	return subscriptionRecurringSweepResponse{
-		DueSubscriptions: record.DueSubscriptions,
-		ChargesAttempted: record.ChargesAttempted,
-		ChargesPaid:      record.ChargesPaid,
-		ChargesPending:   record.ChargesPending,
-		ChargesFailed:    record.ChargesFailed,
-		ChargesSkipped:   record.ChargesSkipped,
-		RanAt:            record.RanAt.Format(time.RFC3339),
+		DueSubscriptions:             record.DueSubscriptions,
+		ChargesAttempted:             record.ChargesAttempted,
+		ChargesPaid:                  record.ChargesPaid,
+		ChargesPending:               record.ChargesPending,
+		ChargesFailed:                record.ChargesFailed,
+		ChargesSkipped:               record.ChargesSkipped,
+		SubscriptionsAwaitingCadence: record.SubscriptionsAwaitingCadence,
+		RanAt:                        record.RanAt.Format(time.RFC3339),
 	}
 }
 

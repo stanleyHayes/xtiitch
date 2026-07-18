@@ -40,7 +40,6 @@ export const subscriptionDiscountTypeOptions: {
 
 export const subscriptionDiscountCadenceOptions: { value: string; label: string }[] =
   [
-    { value: "monthly", label: "Monthly" },
     { value: "quarterly", label: "Quarterly" },
     { value: "yearly", label: "Yearly" },
   ];
@@ -81,7 +80,10 @@ export function subscriptionDiscountValueLabel(
   >,
 ): string {
   if (discount.discountType === "percentage") {
-    return `${(discount.discountValue / 100).toFixed(1)}%`;
+    // Stored as whole percent, so it displays as-is. Dividing by 100 here made
+    // sense only while the API stored the value x100; see
+    // subscriptionDiscountValueDefault.
+    return `${discount.discountValue}%`;
   }
   if (discount.discountType === "fixed") {
     return formatGHS(discount.discountValue);

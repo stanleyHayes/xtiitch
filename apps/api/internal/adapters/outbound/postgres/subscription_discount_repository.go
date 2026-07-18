@@ -416,7 +416,9 @@ func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
 
 	// Book a zero, already-paid invoice for the free window. Keyed on the
 	// deterministic activation ref: a repeated verify reuses the same ref and this
-	// insert no-ops rather than granting a second free period.
+	// insert no-ops rather than granting a second free period. The receipt's
+	// period mirrors the window [anchor, anchor + freeMonths] the update below
+	// books, so the two never disagree about what was granted.
 	tag, err := tx.Exec(ctx, `
 		insert into business_subscription_invoices (
 			invoice_id, subscription_id, business_id, plan_id,
@@ -426,11 +428,11 @@ func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
 		values (
 			gen_random_uuid(), $1, $2, $3,
 			$4, $4, 'paid', 'recurring', 'paystack',
-			0, $5, now(), now() + make_interval(months => $6), now(), now()
+			0, $5, $7::timestamptz, $7::timestamptz + make_interval(months => $6), now(), now()
 		)
 		on conflict (invoice_ref) do nothing
 	`, subscriptionID, input.BusinessID.String(), planID,
-		input.ChargeRef, input.Currency, input.FreeMonths)
+		input.ChargeRef, input.Currency, input.FreeMonths, input.PeriodStart)
 	if err != nil {
 		return err
 	}
@@ -464,11 +466,18 @@ func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
 			first_purchase_consumed = true,
 			last_invoice_ref = $2,
 			last_payment_at = now(),
-			current_period_end = now() + make_interval(months => $3),
-			next_billing_at = now() + make_interval(months => $3),
+			-- The window's start is the anchor the activation ref was derived
+			-- from, stored VERBATIM: recomputing it here (a second now()) could
+			-- disagree with the ref's anchor and let a re-entry during the
+			-- window derive a DIFFERENT ref -- granting the period twice. The
+			-- window spans freeMonths FROM THAT ANCHOR, the same shape the paid
+			-- activation books.
+			current_period_start = $4,
+			current_period_end = $4::timestamptz + make_interval(months => $3),
+			next_billing_at = $4::timestamptz + make_interval(months => $3),
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.ChargeRef, input.FreeMonths); err != nil {
+	`, input.BusinessID.String(), input.ChargeRef, input.FreeMonths, input.PeriodStart); err != nil {
 		return err
 	}
 

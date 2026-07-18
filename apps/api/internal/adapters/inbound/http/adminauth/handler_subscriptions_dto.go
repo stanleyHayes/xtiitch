@@ -116,13 +116,14 @@ type subscriptionBillingSweepResponse struct {
 }
 
 type subscriptionRecurringSweepResponse struct {
-	DueSubscriptions int    `json:"due_subscriptions"`
-	ChargesAttempted int    `json:"charges_attempted"`
-	ChargesPaid      int    `json:"charges_paid"`
-	ChargesPending   int    `json:"charges_pending"`
-	ChargesFailed    int    `json:"charges_failed"`
-	ChargesSkipped   int    `json:"charges_skipped"`
-	RanAt            string `json:"ran_at"`
+	DueSubscriptions             int    `json:"due_subscriptions"`
+	ChargesAttempted             int    `json:"charges_attempted"`
+	ChargesPaid                  int    `json:"charges_paid"`
+	ChargesPending               int    `json:"charges_pending"`
+	ChargesFailed                int    `json:"charges_failed"`
+	ChargesSkipped               int    `json:"charges_skipped"`
+	SubscriptionsAwaitingCadence int    `json:"subscriptions_awaiting_cadence"`
+	RanAt                        string `json:"ran_at"`
 }
 
 type subscriptionAuthorizationLinkResponse struct {

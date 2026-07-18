@@ -241,17 +241,26 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 	}
 
 	var subscriptionID, planID string
-	var periodStart, periodEnd time.Time
+	var periodEnd time.Time
 	if err := tx.QueryRow(ctx, `
-		select subscription_id::text, plan_id::text, current_period_start, current_period_end
+		select subscription_id::text, plan_id::text, current_period_end
 		from business_subscriptions where business_id = $1
-	`, input.BusinessID.String()).Scan(&subscriptionID, &planID, &periodStart, &periodEnd); err != nil {
+	`, input.BusinessID.String()).Scan(&subscriptionID, &planID, &periodEnd); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrNotFound
 		}
 		return err
 	}
 
+	// Book the period at the anchor PrepareSubscriptionActivationCharge derived
+	// the charge ref from: the current period's start while it is still live (a
+	// first activation or a retry of it), or the payment moment once the period
+	// has lapsed — a resubscribe pays for a FRESH period, never one anchored at
+	// a stale start that would leave next_billing_at in the past (the recurring
+	// sweep then charged the card a second time within days). Using the passed-in
+	// anchor verbatim, rather than a second now() here, keeps the booked period
+	// and the ref in agreement so a retried verify re-derives the same ref.
+	periodStart := input.PeriodStart
 	// Advance the paid period by the chosen cadence: quarterly = 3 months,
 	// yearly = 12 months. This path is only reached with a cadence the service
 	// already validated; for any other value keep the stored period end so we
@@ -292,6 +301,9 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 	// Flip to active and record the first purchase: consume the one-time intro
 	// (so cancel+resubscribe bills the full renewal figure next time), store the
 	// chosen cadence, and advance the period + next_billing_at by that cadence.
+	// current_period_start must move to the new anchor too — it is what the next
+	// PrepareSubscriptionActivationCharge keys the ref on, so leaving it stale
+	// would make the NEXT period's ref collide with this one's paid invoice.
 	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set status = 'active',
@@ -306,11 +318,12 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 			first_purchase_consumed = true,
 			last_invoice_ref = $2,
 			last_payment_at = now(),
+			current_period_start = $5,
 			current_period_end = $3,
 			next_billing_at = $3,
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.ChargeRef, periodEnd, input.BillingCadence); err != nil {
+	`, input.BusinessID.String(), input.ChargeRef, periodEnd, input.BillingCadence, periodStart); err != nil {
 		return err
 	}
 
@@ -324,6 +337,17 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 // against retries and the verify-callback being hit twice: a repeated verify at
 // the same cadence reuses the same ref, so Paystack dedupes the charge and the
 // paid-invoice insert no-ops.
+//
+// The period anchor is the current period's start while that period is still
+// LIVE (current_period_end > now()), so retries of an in-flight or completed
+// activation collapse onto the one ref. Once the period has LAPSED the anchor
+// becomes now(): a resubscribe must buy a FRESH period, not collide with the
+// stale period's already-paid invoice (which reported "activated" while
+// collecting nothing) nor book a period anchored at the stale start (which left
+// next_billing_at in the past, so the recurring sweep charged the card again
+// within days). RecordSubscriptionActivationPayment books the period at the
+// anchor returned here and advances current_period_start to it, so the next
+// preparation re-derives this same ref.
 func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 	ctx context.Context,
 	businessID common.ID,
@@ -341,7 +365,9 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 	var subscriptionID, billingCadence string
 	var periodStart time.Time
 	if err := tx.QueryRow(ctx, `
-		select subscription_id::text, current_period_start, coalesce(billing_cadence, '')
+		select subscription_id::text,
+			case when current_period_end > now() then current_period_start else now() end,
+			coalesce(billing_cadence, '')
 		from business_subscriptions where business_id = $1
 	`, businessID.String()).Scan(&subscriptionID, &periodStart, &billingCadence); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -365,7 +391,7 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 	if err := tx.Commit(ctx); err != nil {
 		return ports.SubscriptionActivationCharge{}, err
 	}
-	return ports.SubscriptionActivationCharge{Ref: ref, ShouldCharge: !alreadyPaid}, nil
+	return ports.SubscriptionActivationCharge{Ref: ref, ShouldCharge: !alreadyPaid, PeriodStart: periodStart}, nil
 }
 
 // ApplyImmediatePlanUpgrade switches the tenant to a higher plan at once and, when

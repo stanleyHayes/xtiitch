@@ -159,6 +159,12 @@ type RecordSubscriptionActivationPaymentInput struct {
 	// ChargeRef is the Paystack charge reference; it becomes the invoice ref so the
 	// charge webhook reconciles to this already-paid invoice (a no-op).
 	ChargeRef string
+	// PeriodStart is the period anchor PrepareSubscriptionActivationCharge
+	// returned alongside ChargeRef. The booking must use it VERBATIM: the ref is
+	// derived from this anchor, so recomputing a start here (a second now())
+	// could disagree with the ref's anchor and let a retried verify book a
+	// duplicate paid invoice under a fresh ref.
+	PeriodStart time.Time
 	// BillingCadence ('quarterly' or 'yearly') drives the paid period length: on a
 	// fresh (first) charge the period end and next_billing_at advance by 3 or 12
 	// months, and first_purchase_consumed is set so the intro is never re-granted.
@@ -170,6 +176,12 @@ type RecordSubscriptionActivationPaymentInput struct {
 type SubscriptionActivationCharge struct {
 	Ref          string
 	ShouldCharge bool
+	// PeriodStart is the anchor Ref was derived from: the current period's start
+	// while that period is still live (a retry no-ops against it), or now() once
+	// the period has lapsed, so a resubscribe pays for a FRESH period instead of
+	// colliding with the stale period's already-paid invoice. Hand it back via
+	// RecordSubscriptionActivationPaymentInput so the booking matches the ref.
+	PeriodStart time.Time
 }
 
 // SubmitIdentityDocumentInput carries a business's Ghana Card submission (both
@@ -236,9 +248,15 @@ type ActivateFreePeriodInput struct {
 	BusinessID common.ID
 	// ChargeRef is the deterministic activation ref (the invoice ref), so the zero
 	// invoice is idempotent against re-verify and the charge webhook.
-	ChargeRef  string
-	Currency   string
-	FreeMonths int
+	ChargeRef string
+	// PeriodStart is the period anchor PrepareSubscriptionActivationCharge
+	// derived ChargeRef from. It must be stored VERBATIM as the window's
+	// current_period_start: recomputing a start here could disagree with the
+	// ref's anchor and let a re-entry during the window derive a DIFFERENT ref —
+	// granting the free period a second time.
+	PeriodStart time.Time
+	Currency    string
+	FreeMonths  int
 }
 
 type BusinessOwnerIdentity struct {

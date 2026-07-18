@@ -65,14 +65,14 @@ type planResponse struct {
 }
 
 type planEntitlementFeatureResponse struct {
-	FeatureKey  string                         `json:"feature_key"`
-	Label       string                         `json:"label"`
-	Description string                         `json:"description"`
-	Category    string                         `json:"category"`
-	ValueType   string                         `json:"value_type"`
-	Unit        string                         `json:"unit"`
-	SortOrder   int                            `json:"sort_order"`
-	IsActive    bool                           `json:"is_active"`
+	FeatureKey  string `json:"feature_key"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	ValueType   string `json:"value_type"`
+	Unit        string `json:"unit"`
+	SortOrder   int    `json:"sort_order"`
+	IsActive    bool   `json:"is_active"`
 	// Enforced is false for keys the API stores and lets you edit but never reads,
 	// so the console can label them instead of implying they work.
 	Enforced  bool                           `json:"enforced"`

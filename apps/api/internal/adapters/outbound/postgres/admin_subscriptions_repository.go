@@ -55,7 +55,7 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 			b.name,
 			b.handle,
 			coalesce(owner.display_name, ''),
-			coalesce(owner.whatsapp_number, ''),
+			coalesce(owner.phone, ''),
 			coalesce(owner.email, ''),
 			coalesce(owner.whatsapp_number, ''),
 			coalesce(sp.code, p.code),
@@ -111,7 +111,7 @@ func (repo AdminAuthRepository) ListAdminSubscriptions(ctx context.Context) ([]p
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.display_name, u.email, u.whatsapp_number
+			select u.display_name, u.email, u.phone, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
@@ -317,7 +317,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 			b.name,
 			b.handle,
 			coalesce(owner.display_name, ''),
-			coalesce(owner.whatsapp_number, ''),
+			coalesce(owner.phone, ''),
 			coalesce(owner.email, ''),
 			coalesce(owner.whatsapp_number, ''),
 			p.code,
@@ -362,7 +362,7 @@ func (repo AdminAuthRepository) UpdateAdminSubscription(
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.display_name, u.email, u.whatsapp_number
+			select u.display_name, u.email, u.phone, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at

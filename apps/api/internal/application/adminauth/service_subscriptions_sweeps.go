@@ -357,7 +357,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 		// rather than billed at a price nobody chose, but skipping it SILENTLY is
 		// how a business quietly stops paying and nobody notices -- so say so.
 		// Loudly enough to find, once per sweep per subscription, not per attempt.
-		if subscriptionAwaitingCadence(subscription) {
+		if subscriptionAwaitingCadence(subscription, now) {
 			record.SubscriptionsAwaitingCadence++
 			continue
 		}

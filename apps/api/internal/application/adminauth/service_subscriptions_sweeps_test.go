@@ -564,6 +564,60 @@ func TestRunSubscriptionRecurringSweepNeverBillsASubscriptionWithNoCadence(t *te
 	if record.ChargesAttempted != 0 || record.DueSubscriptions != 0 {
 		t.Fatalf("expected the subscription not to be due at all, got %+v", record)
 	}
+	// Due and cadence-less: counted as awaiting cadence, then skipped -- the
+	// metric exists so a business that quietly stops billing is discoverable.
+	if record.SubscriptionsAwaitingCadence != 1 {
+		t.Fatalf("expected the due no-cadence row to be counted awaiting cadence, got %+v", record)
+	}
+}
+
+// A no-cadence row whose next_billing_at is still in the FUTURE is a healthy
+// not-yet-due subscription, not one stuck for want of a cadence: counting it
+// would inflate the metric with rows nothing is wrong with.
+func TestRunSubscriptionRecurringSweepDoesNotCountANotYetDueNoCadenceRow(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
+	notDueAt := now.Add(30 * 24 * time.Hour)
+	businesses := &fakeAdminBusinesses{
+		subscriptions: []ports.AdminSubscriptionRecord{
+			{
+				SubscriptionID:          "subscription-1",
+				BusinessID:              "business-1",
+				BusinessName:            "Future Renewal",
+				OwnerEmail:              "owner@example.com",
+				MonthlyFeeMinor:         12000,
+				BillingCadence:          "", // never chose one
+				Status:                  "active",
+				BillingMode:             "recurring",
+				ProviderSubscriptionRef: "AUTH_FUTURE",
+				NextBillingAt:           &notDueAt,
+			},
+		},
+	}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		now,
+		[]common.ID{"audit-1", "audit-2"},
+	)
+	provider := &fakePaymentProvider{}
+	service.payments = provider
+
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+		ActorUserID: "operator-1",
+		ActorRole:   admindomain.RoleOperator,
+	})
+	if err != nil {
+		t.Fatalf("run recurring sweep: %v", err)
+	}
+	if record.SubscriptionsAwaitingCadence != 0 {
+		t.Fatalf("expected a not-yet-due no-cadence row not to be counted awaiting cadence, got %+v", record)
+	}
+	if len(provider.charged) != 0 {
+		t.Fatalf("expected no charge for a not-yet-due subscription, got %+v", provider.charged)
+	}
 }
 
 func TestCadenceRenewalMinorAndCadenceMonths(t *testing.T) {

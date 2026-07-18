@@ -432,7 +432,11 @@ func normalizeEligibleCadences(values []string) ([]string, error) {
 			continue
 		}
 		switch cadence {
-		case "monthly", "quarterly", "yearly":
+		// Monthly billing was abolished by migration 000091 (quarterly/yearly
+		// only), so it is no longer a cadence a code may be restricted TO. Stored
+		// legacy values are unaffected: the redemption path only matches against
+		// what is stored, it does not re-validate it.
+		case "quarterly", "yearly":
 		default:
 			return nil, authdomain.ErrInvalidInput
 		}

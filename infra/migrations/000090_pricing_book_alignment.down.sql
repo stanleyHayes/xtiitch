@@ -23,6 +23,18 @@ update plan_entitlement_features
 set is_active = true, updated_at = now()
 where feature_key = 'customer_records';
 
+-- Restore the seeded caps the up migration nulled (000067 seeded Free 25 /
+-- Starter 250) alongside the feature re-activated above.
+update plan_entitlement_values v
+set limit_value = 25, updated_at = now()
+from plans p
+where p.plan_id = v.plan_id and v.feature_key = 'customer_records' and p.code = 'free';
+
+update plan_entitlement_values v
+set limit_value = 250, updated_at = now()
+from plans p
+where p.plan_id = v.plan_id and v.feature_key = 'customer_records' and p.code = 'starter';
+
 update plans set staff_limit = 1 where code = 'starter';
 update plans set staff_limit = 3 where code = 'growth';
 

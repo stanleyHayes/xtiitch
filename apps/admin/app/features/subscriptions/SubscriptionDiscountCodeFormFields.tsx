@@ -1,3 +1,4 @@
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
@@ -5,7 +6,11 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import TextField from "../../components/form-text-field";
-import { AdminSubscriptionDiscountCode, AdminPlan } from "../shared/types";
+import {
+  AdminSubscriptionDiscountCode,
+  AdminSubscriptionDiscountType,
+  AdminPlan,
+} from "../shared/types";
 import {
   subscriptionDiscountCadenceOptions,
   subscriptionDiscountTypeOptions,
@@ -33,7 +38,12 @@ export function SubscriptionDiscountCodeFormFields({ // eslint-disable-line comp
       ? discountCode.eligibleCadences
       : subscriptionDiscountCadenceOptions.map((option) => option.value),
   );
-  const discountType = discountCode?.discountType ?? "percentage";
+  // Controlled so the Value field's step/max/helperText below follow the
+  // currently selected type; as an uncontrolled defaultValue they always
+  // validated as percentage in the create dialog.
+  const [discountType, setDiscountType] = useState<AdminSubscriptionDiscountType>(
+    discountCode?.discountType ?? "percentage",
+  );
 
   return (
     <Stack spacing={1.5}>
@@ -63,7 +73,10 @@ export function SubscriptionDiscountCodeFormFields({ // eslint-disable-line comp
             label="Discount type"
             name="discount_type"
             size="small"
-            defaultValue={discountType}
+            value={discountType}
+            onChange={(event) => {
+              setDiscountType(event.target.value as AdminSubscriptionDiscountType);
+            }}
           >
             {subscriptionDiscountTypeOptions.map((option) => (
               <MenuItem key={option.value} value={option.value}>

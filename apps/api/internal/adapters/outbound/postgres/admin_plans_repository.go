@@ -552,7 +552,7 @@ func mirrorAdminPlanEntitlementsSQL() string {
 		)
 		update plans p
 		set features = coalesce(runtime.features, '{}'::jsonb),
-			`+strings.Join(clauses, ",\n\t\t\t")+`,
+			` + strings.Join(clauses, ",\n\t\t\t") + `,
 			updated_at = now()
 		from runtime
 		where p.plan_id = runtime.plan_id

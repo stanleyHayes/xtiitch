@@ -16,6 +16,7 @@ export type AdminSubscriptionRecurringSweep = {
   chargesPending: number;
   chargesFailed: number;
   chargesSkipped: number;
+  subscriptionsAwaitingCadence: number;
   ranAt: string;
 };
 
@@ -41,6 +42,7 @@ type AdminSubscriptionRecurringSweepPayload = {
   charges_pending: number;
   charges_failed: number;
   charges_skipped: number;
+  subscriptions_awaiting_cadence: number;
   ran_at: string;
 };
 
@@ -73,6 +75,7 @@ function mapSubscriptionRecurringSweep(
     chargesPending: payload.charges_pending,
     chargesFailed: payload.charges_failed,
     chargesSkipped: payload.charges_skipped,
+    subscriptionsAwaitingCadence: payload.subscriptions_awaiting_cadence,
     ranAt: payload.ran_at,
   };
 }
