@@ -6,11 +6,26 @@ import { api, type Tracking } from "../../src/api";
 import { CenterState, StageTimeline } from "../../src/ui";
 import { fonts, radius, shadow, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
+import TrackHandoverPanel from "../features/track/TrackHandoverPanel";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; tracking: Tracking };
+
+// Mirrors the web track page's progress formula (features/track/track-page.tsx):
+// fulfilled pins the bar at 100%, otherwise completed stages plus half credit
+// for the current one.
+function progressPercent(tracking: Tracking): number {
+  if (tracking.status === "fulfilled") return 100;
+  if (tracking.stages.length === 0) return 0;
+  const completed = tracking.stages.filter((stage) => stage.is_complete).length;
+  const hasCurrent = tracking.stages.some((stage) => stage.is_current);
+  return Math.min(
+    100,
+    Math.round(((completed + (hasCurrent ? 0.5 : 0)) / tracking.stages.length) * 100),
+  );
+}
 
 export default function TrackScreen() {
   const { palette } = useTheme();
@@ -41,9 +56,22 @@ export default function TrackScreen() {
 
   if (state.phase === "loading") return <CenterState loading />;
   if (state.phase === "error")
-    return <CenterState title="Order not found" hint={state.message} />;
+    return (
+      <CenterState
+        title="Order not found"
+        hint={state.message}
+        onRetry={load}
+      />
+    );
 
   const { tracking } = state;
+  const fulfilled = tracking.status === "fulfilled";
+  const progress = progressPercent(tracking);
+  const pillColor = fulfilled
+    ? palette.success
+    : tracking.colour || palette.burgundy;
+  const pillLabel = fulfilled ? "Ready" : tracking.stage_name;
+  const shortCode = tracking.order_id.slice(0, 5).toUpperCase();
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -52,13 +80,31 @@ export default function TrackScreen() {
       <View style={styles.headerCard}>
         <Text style={styles.store}>{tracking.store_name}</Text>
         <Text style={styles.design}>{tracking.design_title}</Text>
-        <View style={[styles.statusPill, { backgroundColor: tracking.colour || palette.burgundy }]}>
-          <Text style={styles.statusPillText}>{tracking.stage_name}</Text>
+        <View style={[styles.statusPill, { backgroundColor: pillColor }]}>
+          <Text style={styles.statusPillText}>{pillLabel}</Text>
         </View>
-        <Text style={styles.orderId}>Order {tracking.order_id}</Text>
+        <Text style={styles.orderId}>Order #{shortCode}</Text>
       </View>
 
+      {tracking.handover ? (
+        <TrackHandoverPanel handover={tracking.handover} />
+      ) : null}
+
       <Text style={styles.sectionLabel}>Progress</Text>
+      <View style={styles.progressHeader}>
+        <Text style={styles.progressText}>{progress}% complete</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View
+          style={[
+            styles.progressBar,
+            {
+              width: `${progress}%`,
+              backgroundColor: fulfilled ? palette.success : palette.burgundy,
+            },
+          ]}
+        />
+      </View>
       <StageTimeline stages={tracking.stages} />
 
       <Pressable
@@ -118,6 +164,24 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     color: palette.mutedText,
     marginTop: spacing(3),
     marginBottom: spacing(1.5),
+  },
+  progressHeader: { marginBottom: spacing(1) },
+  progressText: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
+  },
+  progressTrack: {
+    height: 8,
+    borderRadius: radius.pill,
+    backgroundColor: palette.softBorder,
+    overflow: "hidden",
+    marginBottom: spacing(2),
+  },
+  progressBar: {
+    height: "100%",
+    borderRadius: radius.pill,
   },
   refresh: {
     borderWidth: 1.5,

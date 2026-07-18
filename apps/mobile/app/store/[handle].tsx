@@ -9,23 +9,20 @@ import {
 } from "react-native";
 import { Stack, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 
-import { api, formatGHS, type Design, type StorePage } from "../../src/api";
-import { CenterState, ImageTile } from "../../src/ui";
-import { fonts, radius, shadow, spacing, type Palette } from "../../src/theme";
+import { api, type StorePage } from "../../src/api";
+import { CenterState } from "../../src/ui";
+import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
+import StoreCollectionsStrip from "../features/store/StoreCollectionsStrip";
+import StoreDesignGrid from "../features/store/StoreDesignGrid";
+import StoreDiscoverStrip from "../features/store/StoreDiscoverStrip";
+import StoreHeader from "../features/store/StoreHeader";
+import StorePoweredByBadge from "../features/store/StorePoweredByBadge";
 
 type LoadState =
   | { phase: "loading" }
   | { phase: "error"; message: string }
   | { phase: "ready"; page: StorePage };
-
-function lowestPriceMinor(design: Design): number | null {
-  if (design.prices.length === 0) return null;
-  return design.prices.reduce(
-    (min, price) => Math.min(min, price.price_minor),
-    design.prices[0].price_minor,
-  );
-}
 
 export default function StoreScreen() {
   const { palette } = useTheme();
@@ -36,6 +33,8 @@ export default function StoreScreen() {
   const [state, setState] = useState<LoadState>({ phase: "loading" });
   const [query, setQuery] = useState("");
   const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [collectionId, setCollectionId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!handle) return;
@@ -72,11 +71,20 @@ export default function StoreScreen() {
     if (!handle) return;
     const clean = query.trim();
     setSearching(true);
+    setSearchError(null);
     const result = clean
       ? await api.search(handle, clean)
       : await api.store(handle);
-    if (result.ok) setState({ phase: "ready", page: result.data });
     setSearching(false);
+    if (result.ok) {
+      setState({ phase: "ready", page: result.data });
+    } else {
+      setSearchError(
+        result.status === 0
+          ? "Network error — search didn't go through. Try again."
+          : "Search didn't go through. Try again.",
+      );
+    }
   };
 
   if (state.phase === "loading") {
@@ -85,11 +93,23 @@ export default function StoreScreen() {
 
   if (state.phase === "error") {
     return (
-      <CenterState title="Store unavailable" hint={state.message} />
+      <CenterState
+        title="Store unavailable"
+        hint={state.message}
+        onRetry={load}
+      />
     );
   }
 
-  const { store, designs } = state.page;
+  const { store, collections, designs } = state.page;
+  const brandColor = store.brand_color || palette.burgundy;
+  const showCollections =
+    store.settings.collections_enabled && collections.length > 0;
+  const visibleDesigns = collectionId
+    ? designs.filter((design) => design.collection_id === collectionId)
+    : designs;
+  // Paid plans get a clean, distraction-free store with no cross-promotion.
+  const showDiscover = store.plan_code === "free";
 
   return (
     <ScrollView
@@ -99,21 +119,7 @@ export default function StoreScreen() {
     >
       <Stack.Screen options={{ title: store.name }} />
 
-      <View style={styles.storeHeader}>
-        <View
-          style={[
-            styles.brandDot,
-            { backgroundColor: store.brand_color || palette.burgundy },
-          ]}
-        />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.storeName}>{store.name}</Text>
-          <Text style={styles.storeHandle}>
-            {store.handle}.xtiitch.com · {designs.length} piece
-            {designs.length === 1 ? "" : "s"}
-          </Text>
-        </View>
-      </View>
+      <StoreHeader store={store} designCount={visibleDesigns.length} />
 
       <View style={styles.searchRow}>
         <TextInput
@@ -139,73 +145,38 @@ export default function StoreScreen() {
         </Pressable>
       </View>
 
-      {designs.length === 0 ? (
-        <View style={styles.emptyGrid}>
-          <Text style={styles.emptyTitle}>Nothing here yet</Text>
-          <Text style={styles.emptyHint}>
-            This studio hasn't published any pieces for this view.
-          </Text>
-        </View>
-      ) : (
-        <View style={styles.grid}>
-          {designs.map((design) => {
-            const minor = lowestPriceMinor(design);
-            return (
-              <Pressable
-                key={design.design_id}
-                style={({ pressed }) => [
-                  styles.card,
-                  pressed && { opacity: 0.85 },
-                ]}
-                onPress={() => router.push(`/design/${design.handle}`)}
-              >
-                <ImageTile
-                  uri={design.images[0]}
-                  seed={design.handle}
-                  style={styles.cardImage}
-                  radiusOverride={0}
-                />
-                <View style={styles.cardBody}>
-                  <Text style={styles.cardTitle} numberOfLines={2}>
-                    {design.title}
-                  </Text>
-                  <Text style={styles.cardPrice}>
-                    {minor === null ? "Ask for price" : `from ${formatGHS(minor)}`}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
+      {searchError ? <Text style={styles.searchError}>{searchError}</Text> : null}
+
+      {showCollections ? (
+        <StoreCollectionsStrip
+          collections={collections}
+          brandColor={brandColor}
+          selectedId={collectionId}
+          onSelect={setCollectionId}
+        />
+      ) : null}
+
+      <StoreDesignGrid
+        designs={visibleDesigns}
+        onOpen={(design) => router.push(`/design/${design.handle}`)}
+      />
+
+      {showDiscover ? (
+        <StoreDiscoverStrip onExplore={() => router.push("/")} />
+      ) : null}
+
+      {/* The API resolves this from the plan's entitlement, so an older payload
+          that omits it shows the badge — the safe default is attribution. */}
+      {store.show_powered_by_badge !== false ? (
+        <StorePoweredByBadge brand={brandColor} />
+      ) : null}
     </ScrollView>
   );
 }
 
-const CARD_GAP = spacing(2);
-
 const makeStyles = (palette: Palette) => StyleSheet.create({
   screen: { flex: 1, backgroundColor: palette.cream },
   content: { padding: spacing(3), paddingBottom: spacing(5) },
-  storeHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing(1.5),
-    marginBottom: spacing(2.5),
-  },
-  brandDot: { width: 44, height: 44, borderRadius: radius.pill },
-  storeName: {
-    fontFamily: fonts.display,
-    fontSize: 26,
-    color: palette.ink,
-    fontWeight: "700",
-  },
-  storeHandle: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    color: palette.mutedText,
-    marginTop: spacing(0.25),
-  },
   searchRow: {
     flexDirection: "row",
     gap: spacing(1.25),
@@ -235,54 +206,11 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     fontWeight: "800",
     fontSize: 15,
   },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: CARD_GAP,
-  },
-  card: {
-    flexGrow: 1,
-    flexBasis: "46%",
-    maxWidth: "48%",
-    backgroundColor: palette.white,
-    borderRadius: radius.md,
-    overflow: "hidden",
-    ...shadow.card,
-  },
-  cardImage: { width: "100%", height: 150 },
-  cardBody: { padding: spacing(1.5) },
-  cardTitle: {
-    fontFamily: fonts.display,
-    fontSize: 16,
-    color: palette.ink,
-    lineHeight: 21,
-  },
-  cardPrice: {
+  searchError: {
     fontFamily: fonts.body,
     fontSize: 13,
-    fontWeight: "700",
-    color: palette.burgundy,
-    marginTop: spacing(0.5),
-  },
-  emptyGrid: {
-    backgroundColor: palette.panel,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    padding: spacing(3),
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontFamily: fonts.display,
-    fontSize: 18,
-    color: palette.ink,
-  },
-  emptyHint: {
-    fontFamily: fonts.body,
-    fontSize: 14,
-    color: palette.mutedText,
-    textAlign: "center",
-    marginTop: spacing(0.75),
-    lineHeight: 20,
+    color: palette.danger,
+    marginTop: -spacing(1.25),
+    marginBottom: spacing(2),
   },
 });

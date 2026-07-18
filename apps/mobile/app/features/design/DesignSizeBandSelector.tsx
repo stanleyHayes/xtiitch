@@ -18,41 +18,41 @@ export default function DesignSizeBandSelector({
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
 
+  if (prices.length === 0) {
+    return <Text style={styles.muted}>Price on request</Text>;
+  }
+
   return (
     <View style={styles.bandRow}>
-      {prices.length === 0 ? (
-        <Text style={styles.muted}>
-          No public pricing — contact the studio.
-        </Text>
-      ) : (
-        prices.map((band) => {
-          const active = band.size_band_id === selectedBandId;
-          return (
-            <Pressable
-              key={band.size_band_id}
-              onPress={() => onSelect(band.size_band_id)}
-              style={[styles.band, active && styles.bandActive]}
-            >
-              <Text
-                style={[
-                  styles.bandLabel,
-                  active && styles.bandLabelActive,
-                ]}
-              >
-                {band.label}
-              </Text>
-              <Text
-                style={[
-                  styles.bandPrice,
-                  active && styles.bandLabelActive,
-                ]}
-              >
-                {formatGHS(band.price_minor)}
-              </Text>
-            </Pressable>
-          );
-        })
-      )}
+      {prices.map((band) => {
+        const active = band.size_band_id === selectedBandId;
+        const chart = band.chart ?? [];
+        return (
+          <Pressable
+            key={band.size_band_id}
+            onPress={() => onSelect(band.size_band_id)}
+            style={[styles.band, active && styles.bandActive]}
+          >
+            <Text style={[styles.bandLabel, active && styles.bandLabelActive]}>
+              {band.label}
+            </Text>
+            <Text style={[styles.bandPrice, active && styles.bandLabelActive]}>
+              {formatGHS(band.price_minor)}
+            </Text>
+            {chart.length > 0 ? (
+              <View style={styles.chartRow}>
+                {chart.map((item, index) => (
+                  <View key={`${item.name}-${index}`} style={styles.chartChip}>
+                    <Text style={styles.chartChipText}>
+                      {item.name}: {item.value} {item.unit}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
@@ -90,5 +90,23 @@ const makeStyles = (palette: Palette) =>
       fontSize: 13,
       color: palette.mutedText,
       marginTop: 2,
+    },
+    chartRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: spacing(0.75),
+      marginTop: spacing(1),
+    },
+    chartChip: {
+      borderWidth: 1,
+      borderColor: palette.softBorder,
+      borderRadius: radius.sm,
+      paddingHorizontal: spacing(0.75),
+      paddingVertical: 2,
+    },
+    chartChipText: {
+      fontFamily: fonts.body,
+      fontSize: 11,
+      color: palette.mutedText,
     },
   });

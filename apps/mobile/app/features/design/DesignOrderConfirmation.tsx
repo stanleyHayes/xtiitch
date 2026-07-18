@@ -26,15 +26,25 @@ export default function DesignOrderConfirmation({
           Reward applied: {formatGHS(order.discount_minor)} off this order.
         </Text>
       ) : null}
-      <Pressable
-        style={styles.cta}
-        onPress={() => Linking.openURL(order.authorization_url)}
-      >
-        <Text style={styles.ctaText}>Pay {formatGHS(order.amount_minor)}</Text>
-      </Pressable>
-      <Pressable style={styles.secondaryCta} onPress={onTrack}>
-        <Text style={styles.secondaryCtaText}>Track this order</Text>
-      </Pressable>
+      {order.authorization_url ? (
+        <Pressable
+          style={styles.cta}
+          onPress={() => Linking.openURL(order.authorization_url)}
+        >
+          <Text style={styles.ctaText}>Pay {formatGHS(order.amount_minor)}</Text>
+        </Pressable>
+      ) : (
+        // No Paystack URL (e.g. nothing to collect) — the web flow redirects
+        // straight to tracking, so the primary action does the same here.
+        <Pressable style={styles.cta} onPress={onTrack}>
+          <Text style={styles.ctaText}>Track this order</Text>
+        </Pressable>
+      )}
+      {order.authorization_url ? (
+        <Pressable style={styles.secondaryCta} onPress={onTrack}>
+          <Text style={styles.secondaryCtaText}>Track this order</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

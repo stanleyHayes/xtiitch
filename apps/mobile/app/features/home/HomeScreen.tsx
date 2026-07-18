@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-import { api, apiBaseUrl, type SponsoredPlacement } from "../../../src/api";
+import { api, type SponsoredPlacement } from "../../../src/api";
 import { useBranding } from "../../../src/branding";
 import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
@@ -18,10 +18,9 @@ import { SkeletonBlock, XtiitchMark } from "../../../src/ui";
 import HomeFeaturedCard from "./HomeFeaturedCard";
 import HomePrimaryButton from "./HomePrimaryButton";
 import HomeSection from "./HomeSection";
+import { trackingTarget } from "./trackingTarget";
 
-const SUGGESTED_STORE = "demo-atelier";
-
-export default function HomeScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export default function HomeScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
@@ -50,7 +49,8 @@ export default function HomeScreen() { // eslint-disable-line max-lines-per-func
   };
 
   const trackOrder = () => {
-    const clean = orderId.trim();
+    // Accepts a bare id, a `#`-prefixed id, or a pasted tracking link.
+    const clean = trackingTarget(orderId);
     if (!clean) return;
     router.push(`/track/${encodeURIComponent(clean)}`);
   };
@@ -100,16 +100,10 @@ export default function HomeScreen() { // eslint-disable-line max-lines-per-func
           />
           <HomePrimaryButton label="Open" onPress={() => openStore(storeHandle)} />
         </View>
-        <Pressable
-          style={styles.suggestChip}
-          onPress={() => openStore(SUGGESTED_STORE)}
-        >
-          <Text style={styles.suggestChipText}>Try {SUGGESTED_STORE}</Text>
-        </Pressable>
       </HomeSection>
 
-      <HomeSection label="Featured studios">
-        {loadingFeatured ? (
+      {loadingFeatured ? (
+        <HomeSection label="Featured studios">
           <View style={styles.featuredRow} accessibilityLabel="Loading featured studios">
             {[0, 1].map((item) => (
               <View key={item} style={styles.featuredSkeletonCard}>
@@ -122,17 +116,9 @@ export default function HomeScreen() { // eslint-disable-line max-lines-per-func
               </View>
             ))}
           </View>
-        ) : featured.length === 0 ? (
-          <Pressable
-            style={styles.emptyFeatured}
-            onPress={() => openStore(SUGGESTED_STORE)}
-          >
-            <Text style={styles.emptyFeaturedTitle}>No sponsored studios yet</Text>
-            <Text style={styles.emptyFeaturedHint}>
-              Featured placements appear here. Tap to explore {SUGGESTED_STORE}.
-            </Text>
-          </Pressable>
-        ) : (
+        </HomeSection>
+      ) : featured.length > 0 ? (
+        <HomeSection label="Featured studios">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -150,15 +136,15 @@ export default function HomeScreen() { // eslint-disable-line max-lines-per-func
               />
             ))}
           </ScrollView>
-        )}
-      </HomeSection>
+        </HomeSection>
+      ) : null}
 
       <HomeSection label="Track an order">
         <View style={styles.inlineRow}>
           <TextInput
             value={orderId}
             onChangeText={setOrderId}
-            placeholder="order id from your receipt"
+            placeholder="order id or tracking link"
             placeholderTextColor={palette.mutedText}
             autoCapitalize="none"
             autoCorrect={false}
@@ -185,13 +171,11 @@ export default function HomeScreen() { // eslint-disable-line max-lines-per-func
           <Text style={styles.studioArrow}>›</Text>
         </Pressable>
       </View>
-
-      <Text style={styles.footer}>Connected to {apiBaseUrl()}</Text>
     </ScrollView>
   );
 }
 
-const makeStyles = (palette: Palette) => // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+const makeStyles = (palette: Palette) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: palette.cream },
     content: { paddingBottom: spacing(5) },
@@ -263,20 +247,6 @@ const makeStyles = (palette: Palette) => // eslint-disable-line max-lines-per-fu
       fontSize: 15,
       color: palette.ink,
     },
-    suggestChip: {
-      alignSelf: "flex-start",
-      marginTop: spacing(1.5),
-      backgroundColor: "rgba(128,0,32,0.08)",
-      borderRadius: radius.pill,
-      paddingHorizontal: spacing(1.75),
-      paddingVertical: spacing(0.75),
-    },
-    suggestChipText: {
-      color: palette.burgundy,
-      fontFamily: fonts.body,
-      fontWeight: "700",
-      fontSize: 13,
-    },
     featuredSkeletonCard: {
       width: 220,
       backgroundColor: palette.white,
@@ -285,26 +255,6 @@ const makeStyles = (palette: Palette) => // eslint-disable-line max-lines-per-fu
       ...shadow.card,
     },
     featuredSkeletonBody: { padding: spacing(1.75), gap: spacing(1) },
-    emptyFeatured: {
-      backgroundColor: palette.panel,
-      borderRadius: radius.md,
-      borderWidth: 1,
-      borderColor: palette.softBorder,
-      padding: spacing(2.5),
-    },
-    emptyFeaturedTitle: {
-      fontFamily: fonts.display,
-      fontSize: 17,
-      color: palette.ink,
-      fontWeight: "700",
-    },
-    emptyFeaturedHint: {
-      fontFamily: fonts.body,
-      fontSize: 14,
-      color: palette.mutedText,
-      marginTop: spacing(0.75),
-      lineHeight: 20,
-    },
     featuredRow: { gap: spacing(1.75), paddingRight: spacing(3) },
     cardPressed: { opacity: 0.85 },
     studioCard: {
@@ -340,12 +290,5 @@ const makeStyles = (palette: Palette) => // eslint-disable-line max-lines-per-fu
       color: palette.gold,
       fontSize: 30,
       fontWeight: "700",
-    },
-    footer: {
-      textAlign: "center",
-      color: palette.mutedText,
-      fontFamily: fonts.body,
-      fontSize: 11,
-      marginTop: spacing(4),
     },
   });

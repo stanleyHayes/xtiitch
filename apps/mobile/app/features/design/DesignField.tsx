@@ -10,6 +10,7 @@ type DesignFieldProps = {
   placeholder: string;
   keyboardType?: "phone-pad" | "email-address";
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
+  multiline?: boolean;
 };
 
 export default function DesignField({
@@ -19,6 +20,7 @@ export default function DesignField({
   placeholder,
   keyboardType,
   autoCapitalize,
+  multiline,
 }: DesignFieldProps) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -35,7 +37,8 @@ export default function DesignField({
         }
         autoCorrect={false}
         keyboardType={keyboardType}
-        style={styles.input}
+        multiline={multiline}
+        style={[styles.input, multiline && styles.inputMultiline]}
       />
     </View>
   );
@@ -60,5 +63,9 @@ const makeStyles = (palette: Palette) =>
       fontFamily: fonts.body,
       fontSize: 15,
       color: palette.ink,
+    },
+    inputMultiline: {
+      minHeight: 96,
+      textAlignVertical: "top",
     },
   });

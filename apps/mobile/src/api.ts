@@ -255,6 +255,33 @@ export const api = {
   },
 };
 
+// Order-placement error codes → customer-friendly copy. Ports the web
+// storefront mapping (apps/storefront/app/features/design/utils.ts) and extends
+// it for the codes only the order route emits, so a failed checkout never shows
+// a raw code like `online_ordering_unavailable`.
+export function orderErrorMessage(code: string): string {
+  switch (code) {
+    case "store_not_verified":
+      return "This store needs to finish payment verification before it can take deposit payments.";
+    case "store_cannot_take_order":
+      return "This store has not enabled this order route yet.";
+    case "online_ordering_unavailable":
+      return "This store isn't taking online orders right now — reach out to the store directly to order.";
+    case "promotion_unavailable":
+      return "That promo code is not available for this order. Check the code, remove it, or try a different reward.";
+    case "delivery_unavailable":
+      return "Delivery isn't available for this order — contact the store to arrange handover.";
+    case "slot_unavailable":
+      return "That slot is no longer available. Please try again.";
+    case "invalid_order":
+      return "Check the size, contact details, and codes, then try again.";
+    case "not_found":
+      return "This piece is not available to order right now.";
+    default:
+      return "The order could not be placed. Please try again shortly.";
+  }
+}
+
 // Minor units are pesewas; GHS has 100 pesewas. Format without trailing zeros
 // noise but keep two decimals for the cedi amount.
 export function formatGHS(minor: number): string {
