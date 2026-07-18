@@ -466,12 +466,9 @@ func (repo SubscriptionDiscountRepository) ActivateFreePeriodBilling(
 			first_purchase_consumed = true,
 			last_invoice_ref = $2,
 			last_payment_at = now(),
-			-- The window's start is the anchor the activation ref was derived
-			-- from, stored VERBATIM: recomputing it here (a second now()) could
-			-- disagree with the ref's anchor and let a re-entry during the
-			-- window derive a DIFFERENT ref -- granting the period twice. The
-			-- window spans freeMonths FROM THAT ANCHOR, the same shape the paid
-			-- activation books.
+			-- The window's start is the ref's anchor, stored VERBATIM (see
+			-- PrepareSubscriptionActivationCharge): recomputing it here could
+			-- disagree with the ref and let a re-entry grant the period twice.
 			current_period_start = $4,
 			current_period_end = $4::timestamptz + make_interval(months => $3),
 			next_billing_at = $4::timestamptz + make_interval(months => $3),

@@ -72,3 +72,43 @@ jobs:
       - name: SonarQube scan
         if: ${{ env.SONAR_TOKEN != '' && env.SONAR_ORGANIZATION != '' }}
         run: pnpm sonar
+
+  # The migration chain is part of the deploy: a migration that only fails on a
+  # database with history (or one a previous forced version skipped) must turn
+  # CI red here, not the Render deploy. Applies the full chain on a fresh
+  # postgres, then reverses the last five and re-applies them (downs matter).
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: xtiitch
+          POSTGRES_PASSWORD: xtiitch
+          POSTGRES_DB: xtiitch
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U xtiitch -d xtiitch"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      MIGRATE_URL: postgres://xtiitch:xtiitch@localhost:5432/xtiitch?sslmode=disable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install golang-migrate
+        run: |
+          curl -fsSL https://github.com/golang-migrate/migrate/releases/download/v4.19.1/migrate.linux-amd64.tar.gz | tar -xz migrate
+          sudo mv migrate /usr/local/bin/migrate
+
+      - name: Apply the full chain on a fresh database
+        run: migrate -path infra/migrations -database "$MIGRATE_URL" up
+
+      - name: Reverse the last five migrations and re-apply
+        run: |
+          migrate -path infra/migrations -database "$MIGRATE_URL" down 5
+          migrate -path infra/migrations -database "$MIGRATE_URL" up
+          migrate -path infra/migrations -database "$MIGRATE_URL" version

@@ -137,7 +137,10 @@ func TestRequestPayoutOTPRequiresAuthentication(t *testing.T) {
 	t.Parallel()
 
 	router := newRouter(&fakeService{}, fakeVerifier{err: errTest})
-	request := httptest.NewRequest(http.MethodPost, "/businesses/me/payout-otp", bytes.NewReader([]byte(`{"settlement_account":"0240000000"}`)))
+	request := httptest.NewRequest(
+		http.MethodPost, "/businesses/me/payout-otp",
+		bytes.NewReader([]byte(`{"settlement_account":"0240000000"}`)),
+	)
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)

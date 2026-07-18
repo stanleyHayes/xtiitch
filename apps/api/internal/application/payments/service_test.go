@@ -480,7 +480,10 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	provider := &fakeProvider{subaccountRef: "sub_new"}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
 	otp := &fakeMoMoOTP{}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -516,7 +519,10 @@ func TestVerifyBusinessRequiresOTPBeforeSavingPayoutDetails(t *testing.T) {
 	provider := &fakeProvider{subaccountRef: "sub_new"}
 	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
 	otp := &fakeMoMoOTP{verifyErr: errors.New("bad code")}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -571,7 +577,10 @@ func TestVerifyBusinessIsIdempotentWhenDetailsAreUnchanged(t *testing.T) {
 		SettlementAccount: "0240000000",
 	}}
 	otp := &fakeMoMoOTP{}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -607,7 +616,10 @@ func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
 		SettlementAccount: "0240000000",
 	}}
 	otp := &fakeMoMoOTP{}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",
@@ -654,7 +666,10 @@ func TestVerifyBusinessTreatsNetworkOnlyChangeAsAChange(t *testing.T) {
 		SettlementAccount: "0240000000",
 	}}
 	otp := &fakeMoMoOTP{}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	// Same number, different network.
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
@@ -691,7 +706,10 @@ func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {
 		SettlementAccount: "0240000000",
 	}}
 	otp := &fakeMoMoOTP{}
-	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}, OTP: otp})
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
 		BusinessID:        "business-1",

@@ -154,7 +154,9 @@ type BusinessWhatsAppAuthRepository interface {
 	// LatestActiveSignInOTPChallenge returns the newest live challenge for a
 	// number AND purpose. Purpose is part of the lookup, not a post-hoc check, so
 	// a code issued for another flow simply is not found.
-	LatestActiveSignInOTPChallenge(ctx context.Context, whatsAppNumber string, purpose string, now time.Time) (BusinessOTPChallengeRecord, error)
+	LatestActiveSignInOTPChallenge(
+		ctx context.Context, whatsAppNumber string, purpose string, now time.Time,
+	) (BusinessOTPChallengeRecord, error)
 	IncrementSignInOTPAttempts(ctx context.Context, challengeID common.ID) error
 	ConsumeSignInOTPChallenge(ctx context.Context, challengeID common.ID) error
 }
