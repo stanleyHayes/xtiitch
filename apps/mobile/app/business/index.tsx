@@ -30,6 +30,7 @@ export default function BusinessDashboardScreen() {
   const [orders, setOrders] = useState<BusinessOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   const toLogin = useCallback(() => {
     router.replace("/business/login");
@@ -47,7 +48,12 @@ export default function BusinessDashboardScreen() {
       toLogin();
       return;
     }
-    if (ordersResult.ok) setOrders(ordersResult.data.orders);
+    if (ordersResult.ok) {
+      setFetchError(false);
+      setOrders(ordersResult.data.orders);
+    } else {
+      setFetchError(true);
+    }
     if (meResult.ok) setProfile(meResult.data);
   }, [toLogin]);
 
@@ -78,12 +84,27 @@ export default function BusinessDashboardScreen() {
     setRefreshing(false);
   };
 
+  const retry = () => {
+    setLoading(true);
+    void fetchData().finally(() => setLoading(false));
+  };
+
   const onLogout = async () => {
     await logout();
     toLogin();
   };
 
   if (loading) return <CenterState loading />;
+
+  if (fetchError && orders === null) {
+    return (
+      <CenterState
+        title="Couldn't load orders"
+        hint="Check your connection and try again."
+        onRetry={retry}
+      />
+    );
+  }
 
   const list = orders ?? [];
   const openCount = list.filter(isOrderOpen).length;
@@ -144,6 +165,17 @@ export default function BusinessDashboardScreen() {
         <Text style={styles.newOrderCtaText}>+ New walk-in order</Text>
       </Pressable>
 
+      <RecentOrders orders={recent} />
+    </ScrollView>
+  );
+}
+
+function RecentOrders({ orders }: { orders: BusinessOrder[] }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const router = useRouter();
+  return (
+    <>
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel}>Recent orders</Text>
         <Pressable onPress={() => router.push("/business/orders")}>
@@ -151,7 +183,7 @@ export default function BusinessDashboardScreen() {
         </Pressable>
       </View>
 
-      {recent.length === 0 ? (
+      {orders.length === 0 ? (
         <View style={styles.empty}>
           <Text style={styles.emptyTitle}>No orders yet</Text>
           <Text style={styles.emptyHint}>
@@ -160,7 +192,7 @@ export default function BusinessDashboardScreen() {
         </View>
       ) : (
         <View style={styles.orderList}>
-          {recent.map((order) => (
+          {orders.map((order) => (
             <OrderRow
               key={order.order_id}
               order={order}
@@ -169,7 +201,7 @@ export default function BusinessDashboardScreen() {
           ))}
         </View>
       )}
-    </ScrollView>
+    </>
   );
 }
 

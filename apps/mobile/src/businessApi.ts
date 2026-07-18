@@ -29,8 +29,10 @@ export type BusinessOrder = {
   colour: string;
   channel: string;
   order_type: string;
+  size_mode: string;
   created_at: string;
   payment_status: string;
+  payment_purpose: string;
 };
 
 export type AuthedResult<T> =
@@ -125,14 +127,10 @@ export const businessApi = {
     }),
 };
 
-const TERMINAL_STATUSES = new Set([
-  "completed",
-  "delivered",
-  "collected",
-  "cancelled",
-  "canceled",
-  "closed",
-]);
+// The real domain statuses are draft / awaiting_deposit / confirmed /
+// fulfilled / cancelled (apps/api/internal/domain/order/order.go). Only the
+// last two are terminal.
+const TERMINAL_STATUSES = new Set(["fulfilled", "cancelled"]);
 
 export function isOrderOpen(order: BusinessOrder): boolean {
   return !TERMINAL_STATUSES.has(order.status.toLowerCase());
@@ -142,14 +140,50 @@ export function isOrderOpen(order: BusinessOrder): boolean {
 // per-order `colour`, but that is a loose CSS-name hint; this keeps pills on
 // the brand palette.
 export function orderTone(status: string): string {
-  const value = status.toLowerCase();
-  if (["completed", "delivered", "collected"].includes(value)) return "#237a4b";
-  if (["cancelled", "canceled", "rejected"].includes(value)) return "#a92727";
-  if (["pending", "pending_review", "awaiting", "quote"].includes(value)) {
-    return "#315f8f";
+  switch (status.toLowerCase()) {
+    case "fulfilled":
+      return "#237a4b";
+    case "cancelled":
+      return "#a92727";
+    case "confirmed":
+      return "#b87914";
+    case "draft":
+    case "awaiting_deposit":
+      return "#315f8f";
+    default:
+      return "#800020";
   }
-  if (["confirmed", "preparing", "in_progress", "ready"].includes(value)) {
-    return "#b87914";
+}
+
+// Human payment-status label, mirroring the web dashboard's paymentLabel
+// (apps/dashboard/app/features/orders/utils.ts).
+export function paymentStatusLabel(order: BusinessOrder): string {
+  if (order.payment_status === "none") {
+    return order.channel === "walk_in" || order.size_mode === "come_to_shop"
+      ? "Offline arrangement"
+      : "No payment";
   }
-  return "#800020";
+  switch (order.payment_status) {
+    case "succeeded":
+      return order.payment_purpose === "deposit" ? "Deposit paid" : "Paid";
+    case "initiated":
+      return "Payment pending";
+    case "failed":
+      return "Payment failed";
+    case "reversed":
+      return "Reversed";
+    default:
+      return order.payment_status.replace(/_/g, " ");
+  }
+}
+
+// Short, locale-stable date for order cards (e.g. "18 Jul 2026").
+export function formatOrderDate(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }

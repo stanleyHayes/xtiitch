@@ -24,7 +24,7 @@ type Filter = "all" | "open" | "done";
 const FILTERS: { key: Filter; label: string }[] = [
   { key: "all", label: "All" },
   { key: "open", label: "Open" },
-  { key: "done", label: "Completed" },
+  { key: "done", label: "Fulfilled" },
 ];
 
 export default function BusinessOrdersScreen() {
@@ -34,14 +34,20 @@ export default function BusinessOrdersScreen() {
   const [orders, setOrders] = useState<BusinessOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [filter, setFilter] = useState<Filter>("all");
 
   const fetchOrders = useCallback(async () => {
     const result = await businessApi.orders();
     if (!result.ok) {
-      if (result.expired) router.replace("/business/login");
+      if (result.expired) {
+        router.replace("/business/login");
+        return;
+      }
+      setFetchError(true);
       return;
     }
+    setFetchError(false);
     setOrders(result.data.orders);
   }, [router]);
 
@@ -70,7 +76,22 @@ export default function BusinessOrdersScreen() {
     setRefreshing(false);
   };
 
+  const retry = () => {
+    setLoading(true);
+    void fetchOrders().finally(() => setLoading(false));
+  };
+
   if (loading) return <CenterState loading />;
+
+  if (fetchError && orders === null) {
+    return (
+      <CenterState
+        title="Couldn't load orders"
+        hint="Check your connection and try again."
+        onRetry={retry}
+      />
+    );
+  }
 
   const all = orders ?? [];
   const visible = all.filter((order) => {

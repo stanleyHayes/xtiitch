@@ -26,6 +26,7 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
   const [designs, setDesigns] = useState<BusinessDesign[]>([]);
   const [bands, setBands] = useState<SizeBand[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const [designId, setDesignId] = useState<string | null>(null);
   const [bandId, setBandId] = useState<string | null>(null);
@@ -41,6 +42,30 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
     [router],
   );
 
+  // Only active designs can take a walk-in order (web WalkInOrderPanel.tsx).
+  const loadCatalogue = useCallback(async () => {
+    const [designsResult, bandsResult] = await Promise.all([
+      businessApi.designs(),
+      businessApi.sizeBands(),
+    ]);
+    if (
+      (!designsResult.ok && designsResult.expired) ||
+      (!bandsResult.ok && bandsResult.expired)
+    ) {
+      toLogin();
+      return;
+    }
+    if (!designsResult.ok) {
+      setFetchError(true);
+      return;
+    }
+    setFetchError(false);
+    setDesigns(
+      designsResult.data.designs.filter((design) => design.status === "active"),
+    );
+    if (bandsResult.ok) setBands(bandsResult.data.size_bands);
+  }, [toLogin]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -50,27 +75,19 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
           toLogin();
           return;
         }
-        const [designsResult, bandsResult] = await Promise.all([
-          businessApi.designs(),
-          businessApi.sizeBands(),
-        ]);
-        if (!active) return;
-        if (
-          (!designsResult.ok && designsResult.expired) ||
-          (!bandsResult.ok && bandsResult.expired)
-        ) {
-          toLogin();
-          return;
-        }
-        if (designsResult.ok) setDesigns(designsResult.data.designs);
-        if (bandsResult.ok) setBands(bandsResult.data.size_bands);
-        setLoading(false);
+        await loadCatalogue();
+        if (active) setLoading(false);
       });
       return () => {
         active = false;
       };
-    }, [toLogin]),
+    }, [loadCatalogue, toLogin]),
   );
+
+  const retry = () => {
+    setLoading(true);
+    void loadCatalogue().finally(() => setLoading(false));
+  };
 
   const canSubmit = Boolean(designId) && name.trim().length > 1 && !submitting;
 
@@ -78,14 +95,17 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
     if (!designId) return;
     setSubmitting(true);
     setError(null);
-    const minor = total.trim()
+    const parsed = total.trim()
       ? Math.round(Number.parseFloat(total) * 100)
       : undefined;
-    if (minor !== undefined && (!Number.isFinite(minor) || minor < 0)) {
+    if (parsed !== undefined && (!Number.isFinite(parsed) || parsed < 0)) {
       setError("Enter a valid agreed total, or leave it blank.");
       setSubmitting(false);
       return;
     }
+    // Web parseMoneyMinor normalizes ≤0 to "no total yet"; the API 400s a zero
+    // agreed total, so send undefined instead.
+    const minor = parsed !== undefined && parsed > 0 ? parsed : undefined;
     const result = await businessApi.createWalkIn({
       design_id: designId,
       size_band_id: bandId ?? undefined,
@@ -106,11 +126,21 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
 
   if (loading) return <CenterState loading />;
 
+  if (fetchError) {
+    return (
+      <CenterState
+        title="Couldn't load your catalogue"
+        hint="Check your connection and try again."
+        onRetry={retry}
+      />
+    );
+  }
+
   if (designs.length === 0) {
     return (
       <CenterState
         title="No designs yet"
-        hint="Add a design to your catalogue before taking a walk-in order."
+        hint="Add an active design to your catalogue before taking a walk-in order."
       />
     );
   }

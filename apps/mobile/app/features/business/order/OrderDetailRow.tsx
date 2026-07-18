@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, StyleSheet, Text, View } from "react-native";
 import { fonts, spacing, type Palette } from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
 
@@ -8,6 +8,8 @@ type OrderDetailRowProps = {
   value: string;
   strong?: boolean;
   tone?: string;
+  // When set, the value renders as a tappable link (tel:/mailto:/https:).
+  href?: string;
 };
 
 export default function OrderDetailRow({
@@ -15,6 +17,7 @@ export default function OrderDetailRow({
   value,
   strong,
   tone,
+  href,
 }: OrderDetailRowProps) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -25,9 +28,12 @@ export default function OrderDetailRow({
         style={[
           styles.rowValue,
           strong && styles.rowValueStrong,
+          href ? { color: palette.burgundy, textDecorationLine: "underline" } : null,
           tone ? { color: tone } : null,
         ]}
         numberOfLines={1}
+        onPress={href ? () => void Linking.openURL(href) : undefined}
+        accessibilityRole={href ? "link" : undefined}
       >
         {value}
       </Text>

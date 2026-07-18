@@ -1,22 +1,29 @@
 import { useCallback, useState, useMemo } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 
 import { api, formatGHS, type Tracking } from "../../../../src/api";
 import { loadSession } from "../../../../src/auth";
-import { businessApi, orderTone, type BusinessOrder } from "../../../../src/businessApi";
+import {
+  businessApi,
+  formatOrderDate,
+  orderTone,
+  paymentStatusLabel,
+  type BusinessOrder,
+  type BusinessProfile,
+} from "../../../../src/businessApi";
 import { CenterState, StageTimeline } from "../../../../src/ui";
 import { fonts, radius, shadow, spacing, type Palette } from "../../../../src/theme";
 import { useTheme } from "../../../../src/theme-mode";
 import OrderDetailRow from "./OrderDetailRow";
 import OrderPaymentActions from "./OrderPaymentActions";
-
-function atFinalStage(tracking: Tracking | null): boolean {
-  if (!tracking || tracking.stages.length === 0) return false;
-  const ordered = [...tracking.stages].sort((a, b) => a.sequence - b.sequence);
-  const last = ordered[ordered.length - 1];
-  return last.is_current || last.is_complete;
-}
 
 // The effective money target of an order: the negotiated total for bespoke,
 // the checkout amount for online orders (web dashboard features/orders/utils.ts).
@@ -34,6 +41,11 @@ function formatOrderTotal(order: BusinessOrder): string {
   return target === null ? "Not set" : formatGHS(target);
 }
 
+// The web builds the wa.me link from customer_whatsapp, falling back to phone.
+function whatsappNumber(order: BusinessOrder): string {
+  return order.customer_whatsapp || order.customer_phone;
+}
+
 export default function OrderDetailScreen() {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -41,8 +53,11 @@ export default function OrderDetailScreen() {
   const router = useRouter();
   const [order, setOrder] = useState<BusinessOrder | null>(null);
   const [tracking, setTracking] = useState<Tracking | null>(null);
+  const [profile, setProfile] = useState<BusinessProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,18 +65,25 @@ export default function OrderDetailScreen() {
 
   const load = useCallback(async () => {
     if (!id) return;
-    const [ordersResult, trackingResult] = await Promise.all([
+    const [ordersResult, trackingResult, meResult] = await Promise.all([
       businessApi.orders(),
       api.tracking(id),
+      businessApi.me(),
     ]);
     if (!ordersResult.ok) {
-      if (ordersResult.expired) toLogin();
+      if (ordersResult.expired) {
+        toLogin();
+        return;
+      }
+      setFetchError(true);
       return;
     }
+    setFetchError(false);
     const match = ordersResult.data.orders.find((o) => o.order_id === id) ?? null;
     setOrder(match);
     setNotFound(!match);
     if (trackingResult.ok) setTracking(trackingResult.data);
+    if (meResult.ok) setProfile(meResult.data);
   }, [id, toLogin]);
 
   useFocusEffect(
@@ -83,6 +105,19 @@ export default function OrderDetailScreen() {
     }, [load, toLogin]),
   );
 
+  // Pull-to-refresh: the customer pays through the external Paystack page, so
+  // the merchant needs a way to re-check settlement without leaving.
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  };
+
+  const retry = () => {
+    setLoading(true);
+    void load().finally(() => setLoading(false));
+  };
+
   const advance = async () => {
     if (!id) return;
     setAdvancing(true);
@@ -99,12 +134,21 @@ export default function OrderDetailScreen() {
       toLogin();
       return;
     } else {
-      setError("Couldn't advance this order. It may already be complete.");
+      setError("Couldn't advance this order right now. Pull to refresh and try again.");
     }
     setAdvancing(false);
   };
 
   if (loading) return <CenterState loading />;
+  if (fetchError && !order) {
+    return (
+      <CenterState
+        title="Couldn't load this order"
+        hint="Check your connection and try again."
+        onRetry={retry}
+      />
+    );
+  }
   if (notFound || !order) {
     return (
       <CenterState
@@ -115,11 +159,19 @@ export default function OrderDetailScreen() {
   }
 
   const tone = orderTone(order.status);
-  const final = atFinalStage(tracking);
-  const balanceMinor = balanceDueMinor(order);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={palette.burgundy}
+        />
+      }
+    >
       <Stack.Screen options={{ title: "Order" }} />
 
       <View style={styles.headerCard}>
@@ -128,38 +180,22 @@ export default function OrderDetailScreen() {
           <Text style={styles.statusPillText}>{order.stage_name || order.status}</Text>
         </View>
         <Text style={styles.meta}>
-          {order.order_type} · {order.channel}
+          {order.order_type} · {order.channel} · {formatOrderDate(order.created_at)}
         </Text>
       </View>
 
       <Text style={styles.sectionLabel}>Customer</Text>
-      <View style={styles.card}>
-        <OrderDetailRow label="Name" value={order.customer_name} />
-        <OrderDetailRow label="Phone" value={order.customer_phone || "—"} />
-        <OrderDetailRow label="Email" value={order.customer_email || "—"} />
-      </View>
+      <CustomerCard order={order} />
 
       <Text style={styles.sectionLabel}>Payment</Text>
-      <View style={styles.card}>
-        <OrderDetailRow label="Agreed total" value={formatOrderTotal(order)} strong />
-        <OrderDetailRow label="Settled" value={formatGHS(order.settled_minor)} />
-        <OrderDetailRow
-          label="Balance due"
-          value={formatGHS(balanceMinor)}
-          strong={balanceMinor > 0}
-          tone={balanceMinor > 0 ? palette.warning : palette.success}
-        />
-        <OrderDetailRow
-          label="Payment status"
-          value={order.payment_status.replace(/_/g, " ")}
-        />
-      </View>
+      <PaymentCard order={order} />
 
       <Text style={styles.sectionLabel}>Money actions</Text>
       <OrderPaymentActions
         order={order}
         orderId={id}
-        balanceMinor={balanceMinor}
+        balanceMinor={balanceDueMinor(order)}
+        role={profile?.role ?? null}
         onLoad={load}
         onExpired={toLogin}
         onSetError={setError}
@@ -174,20 +210,98 @@ export default function OrderDetailScreen() {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
-      <Pressable
-        disabled={advancing || final}
-        onPress={advance}
-        style={[styles.cta, (advancing || final) && styles.ctaDisabled]}
-      >
-        <Text style={styles.ctaText}>
-          {final
-            ? "Order complete"
-            : advancing
-              ? "Advancing…"
-              : "Advance to next stage"}
-        </Text>
-      </Pressable>
+      <AdvanceFooter status={order.status} advancing={advancing} onAdvance={advance} />
     </ScrollView>
+  );
+}
+
+function CustomerCard({ order }: { order: BusinessOrder }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const whatsapp = whatsappNumber(order);
+  return (
+    <View style={styles.card}>
+      <OrderDetailRow label="Name" value={order.customer_name} />
+      <OrderDetailRow
+        label="Phone"
+        value={order.customer_phone || "—"}
+        href={
+          order.customer_phone
+            ? `tel:${order.customer_phone.replace(/\s+/g, "")}`
+            : undefined
+        }
+      />
+      <OrderDetailRow
+        label="Email"
+        value={order.customer_email || "—"}
+        href={order.customer_email ? `mailto:${order.customer_email}` : undefined}
+      />
+      {whatsapp ? (
+        <OrderDetailRow
+          label="WhatsApp"
+          value={whatsapp}
+          href={`https://wa.me/${whatsapp.replace(/[^\d]/g, "")}`}
+        />
+      ) : null}
+    </View>
+  );
+}
+
+function PaymentCard({ order }: { order: BusinessOrder }) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const target = orderTargetMinor(order);
+  const balance = balanceDueMinor(order);
+  const balanceTone = balance > 0 ? palette.warning : palette.success;
+  return (
+    <View style={styles.card}>
+      <OrderDetailRow label="Agreed total" value={formatOrderTotal(order)} strong />
+      <OrderDetailRow label="Settled" value={formatGHS(order.settled_minor)} />
+      <OrderDetailRow
+        label="Balance due"
+        value={target === null ? "—" : formatGHS(balance)}
+        strong={target !== null && balance > 0}
+        tone={target === null ? undefined : balanceTone}
+      />
+      <OrderDetailRow label="Payment status" value={paymentStatusLabel(order)} />
+    </View>
+  );
+}
+
+// The API fulfils an order by advancing it PAST its final stage, so advance
+// must stay enabled for the whole confirmed lifecycle. Every other status
+// hides the action — fulfilled gets a labelled disabled state, matching the
+// web dashboard's OrderActions gating.
+function AdvanceFooter({
+  status,
+  advancing,
+  onAdvance,
+}: {
+  status: string;
+  advancing: boolean;
+  onAdvance: () => void;
+}) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  const value = status.toLowerCase();
+  if (value === "fulfilled") {
+    return (
+      <View style={[styles.cta, styles.ctaDisabled]}>
+        <Text style={styles.ctaText}>Order complete</Text>
+      </View>
+    );
+  }
+  if (value !== "confirmed") return null;
+  return (
+    <Pressable
+      disabled={advancing}
+      onPress={onAdvance}
+      style={[styles.cta, advancing && styles.ctaDisabled]}
+    >
+      <Text style={styles.ctaText}>
+        {advancing ? "Advancing…" : "Advance to next stage"}
+      </Text>
+    </Pressable>
   );
 }
 

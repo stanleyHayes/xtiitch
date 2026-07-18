@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { fonts, radius, spacing, type Palette } from "../theme";
 import { useTheme } from "../theme-mode";
 import { SkeletonBlock } from "./SkeletonBlock";
@@ -8,10 +8,14 @@ export function CenterState({
   loading,
   title,
   hint,
+  retryLabel,
+  onRetry,
 }: {
   loading?: boolean;
   title?: string;
   hint?: string;
+  retryLabel?: string;
+  onRetry?: () => void;
 }) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
@@ -28,6 +32,11 @@ export function CenterState({
         <>
           <Text style={styles.title}>{title}</Text>
           {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+          {onRetry ? (
+            <Pressable onPress={onRetry} style={styles.retry} hitSlop={8}>
+              <Text style={styles.retryText}>{retryLabel ?? "Retry"}</Text>
+            </Pressable>
+          ) : null}
         </>
       )}
     </View>
@@ -60,5 +69,18 @@ const makeStyles = (palette: Palette) =>
       width: "100%",
       alignItems: "center",
       gap: spacing(1.25),
+    },
+    retry: {
+      marginTop: spacing(1.5),
+      backgroundColor: palette.burgundy,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing(3),
+      paddingVertical: spacing(1.25),
+    },
+    retryText: {
+      color: palette.onAccent,
+      fontFamily: fonts.body,
+      fontSize: 14,
+      fontWeight: "800",
     },
   });

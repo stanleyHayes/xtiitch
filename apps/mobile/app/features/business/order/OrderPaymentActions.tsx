@@ -16,15 +16,34 @@ type OrderPaymentActionsProps = {
   order: BusinessOrder;
   orderId: string;
   balanceMinor: number;
+  // The signed-in merchant's role from businessApi.me() — null while unknown.
+  role: string | null;
   onLoad: () => Promise<void>;
   onExpired: () => void;
   onSetError: (message: string | null) => void;
 };
 
+// The API 403s staff on money management and restricts set-agreed-total and
+// collect-balance to confirmed bespoke orders (apps/api
+// internal/application/order/service.go). Collect also needs an agreed total
+// and a customer email for the Paystack charge.
+function canManageMoney(role: string | null): boolean {
+  return role === "owner" || role === "admin";
+}
+
+function moneyActionHint(order: BusinessOrder, manage: boolean): string {
+  if (!manage) return "Only the owner or an admin can manage payments.";
+  if (order.order_type !== "custom") {
+    return "Standard orders are paid through the online checkout.";
+  }
+  return "Set an agreed total and add a customer email to collect the balance online.";
+}
+
 export default function OrderPaymentActions({
   order,
   orderId,
   balanceMinor,
+  role,
   onLoad,
   onExpired,
   onSetError,
@@ -34,17 +53,30 @@ export default function OrderPaymentActions({
   const [editingTotal, setEditingTotal] = useState(false);
   const [totalInput, setTotalInput] = useState("");
   const [savingTotal, setSavingTotal] = useState(false);
-  const [collectMethod, setCollectMethod] = useState<"momo" | "card">("momo");
-  const [collecting, setCollecting] = useState(false);
-  const [collectResult, setCollectResult] = useState<CollectBalanceResult | null>(
-    null,
-  );
+
+  const manage = canManageMoney(role);
+  const customConfirmed =
+    order.order_type === "custom" && order.status === "confirmed";
+  const canAdjustTotal = manage && customConfirmed;
+  const canCollect =
+    canAdjustTotal &&
+    order.agreed_total_minor !== null &&
+    order.customer_email.trim().length > 0;
+  const showSettled = order.agreed_total_minor !== null && balanceMinor <= 0;
+
+  const openEditor = () => {
+    const minor = order.agreed_total_minor;
+    setTotalInput(minor === null ? "" : (minor / 100).toFixed(2));
+    onSetError(null);
+    setEditingTotal(true);
+  };
 
   const saveTotal = async () => {
     if (!orderId) return;
     const minor = Math.round(Number.parseFloat(totalInput) * 100);
-    if (!Number.isFinite(minor) || minor < 0) {
-      onSetError("Enter a valid amount.");
+    // The API 400s a zero agreed total — a new total must be positive.
+    if (!Number.isFinite(minor) || minor <= 0) {
+      onSetError("Enter an amount greater than zero.");
       return;
     }
     setSavingTotal(true);
@@ -53,7 +85,6 @@ export default function OrderPaymentActions({
     setSavingTotal(false);
     if (result.ok) {
       setEditingTotal(false);
-      setCollectResult(null);
       await onLoad();
     } else if (result.expired) {
       onExpired();
@@ -61,6 +92,86 @@ export default function OrderPaymentActions({
       onSetError("Couldn't update the agreed total.");
     }
   };
+
+  return (
+    <View style={styles.card}>
+      {canAdjustTotal ? (
+        <>
+          {editingTotal ? (
+            <View style={styles.editBlock}>
+              <Text style={styles.editLabel}>New agreed total (GH₵)</Text>
+              <View style={styles.editRow}>
+                <TextInput
+                  value={totalInput}
+                  onChangeText={setTotalInput}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                  placeholderTextColor={palette.mutedText}
+                  style={styles.input}
+                />
+                <Pressable
+                  disabled={savingTotal}
+                  onPress={saveTotal}
+                  style={[styles.smallPrimary, savingTotal && styles.ctaDisabled]}
+                >
+                  <Text style={styles.smallPrimaryText}>
+                    {savingTotal ? "…" : "Save"}
+                  </Text>
+                </Pressable>
+              </View>
+              <Pressable onPress={() => setEditingTotal(false)}>
+                <Text style={styles.linkBtnText}>Cancel</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.actionRow} onPress={openEditor}>
+              <Text style={styles.actionTitle}>Adjust agreed total</Text>
+              <Text style={styles.actionArrow}>›</Text>
+            </Pressable>
+          )}
+          <View style={styles.divider} />
+        </>
+      ) : null}
+
+      {canCollect ? (
+        <CollectBalanceSection
+          key={order.agreed_total_minor ?? "unset"}
+          orderId={orderId}
+          balanceMinor={balanceMinor}
+          onLoad={onLoad}
+          onExpired={onExpired}
+          onSetError={onSetError}
+        />
+      ) : showSettled ? (
+        <Text style={styles.settled}>Balance fully settled.</Text>
+      ) : (
+        <Text style={styles.hint}>{moneyActionHint(order, manage)}</Text>
+      )}
+    </View>
+  );
+}
+
+// The key on usage remounts this when the agreed total changes, so a stale
+// payment link never survives a new total.
+function CollectBalanceSection({
+  orderId,
+  balanceMinor,
+  onLoad,
+  onExpired,
+  onSetError,
+}: {
+  orderId: string;
+  balanceMinor: number;
+  onLoad: () => Promise<void>;
+  onExpired: () => void;
+  onSetError: (message: string | null) => void;
+}) {
+  const { palette } = useTheme();
+  const styles = useMemoStyles(palette);
+  const [collectMethod, setCollectMethod] = useState<"momo" | "card">("momo");
+  const [collecting, setCollecting] = useState(false);
+  const [collectResult, setCollectResult] =
+    useState<CollectBalanceResult | null>(null);
 
   const collect = async () => {
     if (!orderId) return;
@@ -78,100 +189,59 @@ export default function OrderPaymentActions({
     }
   };
 
+  if (balanceMinor <= 0 && !collectResult) {
+    return <Text style={styles.settled}>Balance fully settled.</Text>;
+  }
+
+  if (collectResult) {
+    return (
+      <View style={styles.editBlock}>
+        <Text style={styles.linkRaised}>
+          Payment link raised · {formatGHS(collectResult.amount_minor)}
+        </Text>
+        <Text style={styles.reference}>Ref {collectResult.reference}</Text>
+        <Pressable
+          style={styles.smallPrimaryWide}
+          onPress={() => void Linking.openURL(collectResult.authorization_url)}
+        >
+          <Text style={styles.smallPrimaryText}>Open payment link</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.card}>
-      {editingTotal ? (
-        <View style={styles.editBlock}>
-          <Text style={styles.editLabel}>New agreed total (GH₵)</Text>
-          <View style={styles.editRow}>
-            <TextInput
-              value={totalInput}
-              onChangeText={setTotalInput}
-              keyboardType="decimal-pad"
-              placeholder="0.00"
-              placeholderTextColor={palette.mutedText}
-              style={styles.input}
-            />
+    <View style={styles.editBlock}>
+      <Text style={styles.editLabel}>
+        Collect balance · {formatGHS(balanceMinor)}
+      </Text>
+      <View style={styles.methodRow}>
+        {(["momo", "card"] as const).map((method) => {
+          const active = collectMethod === method;
+          return (
             <Pressable
-              disabled={savingTotal}
-              onPress={saveTotal}
-              style={[styles.smallPrimary, savingTotal && styles.ctaDisabled]}
+              key={method}
+              onPress={() => setCollectMethod(method)}
+              style={[styles.method, active && styles.methodActive]}
             >
-              <Text style={styles.smallPrimaryText}>
-                {savingTotal ? "…" : "Save"}
+              <Text
+                style={[styles.methodText, active && styles.methodTextActive]}
+              >
+                {method === "momo" ? "Mobile money" : "Card"}
               </Text>
             </Pressable>
-          </View>
-          <Pressable onPress={() => setEditingTotal(false)}>
-            <Text style={styles.linkBtnText}>Cancel</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Pressable
-          style={styles.actionRow}
-          onPress={() => {
-            const minor = order.agreed_total_minor;
-            setTotalInput(minor === null ? "" : (minor / 100).toFixed(2));
-            onSetError(null);
-            setEditingTotal(true);
-          }}
-        >
-          <Text style={styles.actionTitle}>Adjust agreed total</Text>
-          <Text style={styles.actionArrow}>›</Text>
-        </Pressable>
-      )}
-
-      <View style={styles.divider} />
-
-      {balanceMinor <= 0 ? (
-        <Text style={styles.settled}>Balance fully settled.</Text>
-      ) : collectResult ? (
-        <View style={styles.editBlock}>
-          <Text style={styles.linkRaised}>
-            Payment link raised · {formatGHS(collectResult.amount_minor)}
-          </Text>
-          <Text style={styles.reference}>Ref {collectResult.reference}</Text>
-          <Pressable
-            style={styles.smallPrimaryWide}
-            onPress={() => Linking.openURL(collectResult.authorization_url)}
-          >
-            <Text style={styles.smallPrimaryText}>Open payment link</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.editBlock}>
-          <Text style={styles.editLabel}>
-            Collect balance · {formatGHS(balanceMinor)}
-          </Text>
-          <View style={styles.methodRow}>
-            {(["momo", "card"] as const).map((method) => {
-              const active = collectMethod === method;
-              return (
-                <Pressable
-                  key={method}
-                  onPress={() => setCollectMethod(method)}
-                  style={[styles.method, active && styles.methodActive]}
-                >
-                  <Text
-                    style={[styles.methodText, active && styles.methodTextActive]}
-                  >
-                    {method === "momo" ? "Mobile money" : "Card"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-          <Pressable
-            disabled={collecting}
-            onPress={collect}
-            style={[styles.smallPrimaryWide, collecting && styles.ctaDisabled]}
-          >
-            <Text style={styles.smallPrimaryText}>
-              {collecting ? "Raising link…" : "Send payment link"}
-            </Text>
-          </Pressable>
-        </View>
-      )}
+          );
+        })}
+      </View>
+      <Pressable
+        disabled={collecting}
+        onPress={collect}
+        style={[styles.smallPrimaryWide, collecting && styles.ctaDisabled]}
+      >
+        <Text style={styles.smallPrimaryText}>
+          {collecting ? "Raising link…" : "Send payment link"}
+        </Text>
+      </Pressable>
     </View>
   );
 }
@@ -255,6 +325,13 @@ const makeStyles = (palette: Palette) =>
       fontSize: 14,
       color: palette.success,
       fontWeight: "700",
+      paddingVertical: spacing(1.75),
+    },
+    hint: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      color: palette.mutedText,
+      lineHeight: 19,
       paddingVertical: spacing(1.75),
     },
     linkRaised: {
