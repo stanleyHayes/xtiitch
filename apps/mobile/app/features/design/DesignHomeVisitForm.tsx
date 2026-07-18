@@ -18,6 +18,7 @@ import DesignRewardFields, {
   type RewardFieldValues,
 } from "./DesignRewardFields";
 import DesignVisitSlotPicker from "./DesignVisitSlotPicker";
+import { useContactPrefill, useCustomerGate } from "./useCustomerGate";
 
 function clean(value: string): string | undefined {
   const trimmed = value.trim();
@@ -62,6 +63,10 @@ export default function DesignHomeVisitForm({
   const [address, setAddress] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // §3b: the visit booking deposit is a payment, so it needs a verified
+  // customer session; the session also prefills the contact fields.
+  const { session, ensureSession } = useCustomerGate(design.handle);
+  useContactPrefill(session, setContact);
 
   const canSubmit =
     contact.name.trim().length > 1 &&
@@ -72,6 +77,8 @@ export default function DesignHomeVisitForm({
     !submitting;
 
   const submit = async () => {
+    // §3b gate: the booking deposit is a payment (web design.tsx:213-218).
+    if (!(await ensureSession())) return;
     setSubmitting(true);
     setError(null);
     const result = await api.placeBooking(store.handle, {

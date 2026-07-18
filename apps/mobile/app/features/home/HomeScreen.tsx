@@ -15,6 +15,7 @@ import { useBranding } from "../../../src/branding";
 import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import { SkeletonBlock, XtiitchMark } from "../../../src/ui";
+import HomeAccountEntry from "./HomeAccountEntry";
 import HomeFeaturedCard from "./HomeFeaturedCard";
 import HomePrimaryButton from "./HomePrimaryButton";
 import HomeSection from "./HomeSection";
@@ -86,6 +87,8 @@ export default function HomeScreen() {
       </View>
 
       <MarketplaceEntry onPress={() => router.push("/marketplace")} />
+
+      <HomeAccountEntry onPress={() => router.push("/account")} />
 
       <HomeSection label="Open a store">
         <View style={styles.inlineRow}>

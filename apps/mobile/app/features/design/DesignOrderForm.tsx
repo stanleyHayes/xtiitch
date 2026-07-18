@@ -23,6 +23,7 @@ import DesignRewardFields, {
   type RewardFieldValues,
 } from "./DesignRewardFields";
 import DesignSizeBandSelector from "./DesignSizeBandSelector";
+import { useContactPrefill, useCustomerGate } from "./useCustomerGate";
 import { useDeliveryZones } from "./useDeliveryZones";
 
 function cleanRewardCode(value: string): string | undefined {
@@ -154,6 +155,10 @@ export default function DesignOrderForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  // §3b: the pay moment needs a verified customer session; a session also
+  // prefills the contact fields from the profile (web checkout loader).
+  const { session, ensureSession } = useCustomerGate(design.handle);
+  useContactPrefill(session, setContact);
 
   // Mirrors the web storefront: when the store has online ordering switched
   // off, show an explanation instead of a form that would 409 on submit.
@@ -168,6 +173,9 @@ export default function DesignOrderForm({
 
   const submit = async () => {
     if (!bandId) return;
+    // §3b gate: no payment without a verified customer session. Guests are
+    // routed to sign in and return here (mirrors web checkout.tsx:46-53).
+    if (!(await ensureSession())) return;
     setSubmitting(true);
     setOrderError(null);
     const result =

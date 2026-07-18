@@ -11,6 +11,7 @@ import {
 import { fonts, radius, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 import DesignContactFields, { type ContactFields } from "./DesignContactFields";
+import { useContactPrefill, useCustomerGate } from "./useCustomerGate";
 
 function clean(value: string): string | undefined {
   const trimmed = value.trim();
@@ -44,6 +45,12 @@ export default function DesignShopReserveForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // §3b: the web gates the whole bespoke "custom" intent — including the
+  // come-to-shop route — before it branches on size mode (design.tsx:213-218),
+  // so this form gates too even though it raises no online charge. The session
+  // also prefills the contact fields from the profile.
+  const { session, ensureSession } = useCustomerGate(design.handle);
+  useContactPrefill(session, setContact);
 
   const canSubmit =
     contact.name.trim().length > 1 &&
@@ -52,6 +59,9 @@ export default function DesignShopReserveForm({
     !submitting;
 
   const submit = async () => {
+    // §3b gate: bespoke requests need a verified customer session, exactly as
+    // the web action checks before taking any "custom" intent.
+    if (!(await ensureSession())) return;
     setSubmitting(true);
     setError(null);
     // No method: the come-to-shop route raises no charge (mirrors the web

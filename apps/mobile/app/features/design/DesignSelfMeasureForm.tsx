@@ -16,6 +16,7 @@ import DesignMeasurementInputs from "./DesignMeasurementInputs";
 import DesignRewardFields, {
   type RewardFieldValues,
 } from "./DesignRewardFields";
+import { useContactPrefill, useCustomerGate } from "./useCustomerGate";
 
 function clean(value: string): string | undefined {
   const trimmed = value.trim();
@@ -58,6 +59,10 @@ export default function DesignSelfMeasureForm({
   const [measurements, setMeasurements] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // §3b: paying the bespoke deposit needs a verified customer session; the
+  // session also prefills the contact fields from the profile.
+  const { session, ensureSession } = useCustomerGate(design.handle);
+  useContactPrefill(session, setContact);
 
   const filledMeasurements = store.measurement_fields.filter(
     (field) => (measurements[field.field_id] ?? "").trim().length > 0,
@@ -70,6 +75,8 @@ export default function DesignSelfMeasureForm({
     !submitting;
 
   const submit = async () => {
+    // §3b gate: the bespoke deposit is a payment (web design.tsx:213-218).
+    if (!(await ensureSession())) return;
     setSubmitting(true);
     setError(null);
     const values: Record<string, string> = {};
