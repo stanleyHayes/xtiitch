@@ -65,7 +65,16 @@ export type LoginInput = {
 
 export type LoginOutcome =
   | { ok: true; session: BusinessSession }
+  | { ok: true; mfa: "required"; challenge_token: string }
   | { ok: false; error: string };
+
+// 200 from /auth/business/login is either a token pair or, for MFA-enabled
+// accounts, a short-lived challenge ({ mfa_required, mfa_challenge_token }) —
+// the challenge must never be persisted as a session.
+type LoginResponse = TokenResponse & {
+  mfa_required?: boolean;
+  mfa_challenge_token?: string;
+};
 
 export async function login(input: LoginInput): Promise<LoginOutcome> {
   try {
@@ -80,10 +89,49 @@ export async function login(input: LoginInput): Promise<LoginOutcome> {
         | null;
       return { ok: false, error: mapAuthError(response.status, payload?.error) };
     }
-    const data = (await response.json()) as TokenResponse;
+    const data = (await response.json()) as LoginResponse;
+    if (data.mfa_required && data.mfa_challenge_token) {
+      return { ok: true, mfa: "required", challenge_token: data.mfa_challenge_token };
+    }
     const session: BusinessSession = {
       ...data,
       business_handle: input.business_handle.trim().toLowerCase(),
+    };
+    await persist(session);
+    return { ok: true, session };
+  } catch {
+    return { ok: false, error: "Network error — check your connection and retry." };
+  }
+}
+
+// Second factor, mirroring the dashboard login action and the API's
+// VerifyMFALogin: redeem the challenge issued at password stage together with
+// the authenticator or backup code for a full session.
+export type MfaVerifyOutcome =
+  | { ok: true; session: BusinessSession }
+  | { ok: false; error: string };
+
+export async function verifyMfaLogin(
+  challengeToken: string,
+  code: string,
+  businessHandle: string,
+): Promise<MfaVerifyOutcome> {
+  try {
+    const response = await fetch(`${apiBaseUrl()}/auth/business/mfa/verify`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ mfa_challenge_token: challengeToken, code: code.trim() }),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { error?: string }
+        | null;
+      return { ok: false, error: mapMfaError(response.status, payload?.error) };
+    }
+    const data = (await response.json()) as TokenResponse;
+    const session: BusinessSession = {
+      ...data,
+      business_handle: businessHandle.trim().toLowerCase(),
     };
     await persist(session);
     return { ok: true, session };
@@ -125,6 +173,25 @@ async function refresh(session: BusinessSession): Promise<BusinessSession | null
   }
 }
 
+// The API rotates refresh tokens single-use: presenting a token revokes its
+// session. Concurrent 401s (e.g. Promise.all screens) must therefore share one
+// in-flight refresh — otherwise the loser presents the already-rotated token
+// and wipes the session the winner just saved.
+let refreshing: Promise<BusinessSession | null> | null = null;
+
+function refreshOnce(session: BusinessSession): Promise<BusinessSession | null> {
+  // A late 401 handler may hold a session whose refresh token a concurrent
+  // call already rotated — reuse the cached session rather than presenting
+  // the revoked token (which would revoke the fresh session too).
+  if (cached && cached.refresh_token !== session.refresh_token) {
+    return Promise.resolve(cached);
+  }
+  refreshing ??= refresh(session).finally(() => {
+    refreshing = null;
+  });
+  return refreshing;
+}
+
 export class SessionExpiredError extends Error {
   constructor() {
     super("session_expired");
@@ -154,7 +221,7 @@ export async function authedFetch(
 
   let response = await call(session.access_token);
   if (response.status === 401) {
-    const refreshed = await refresh(session);
+    const refreshed = await refreshOnce(session);
     if (!refreshed) {
       await persist(null);
       throw new SessionExpiredError();
@@ -177,4 +244,20 @@ function mapAuthError(status: number, code?: string): string {
     return "No studio found for that handle.";
   }
   return "Couldn't sign in. Please try again.";
+}
+
+// Codes from the API's authError mapping for /auth/business/mfa/verify:
+// invalid_mfa_code (wrong code — retry), invalid_credentials (expired or
+// already-redeemed challenge — restart sign-in), account_locked (back off).
+function mapMfaError(status: number, code?: string): string {
+  if (code === "invalid_mfa_code") {
+    return "That code didn't match. Try again, or use a backup code.";
+  }
+  if (code === "account_locked" || status === 429) {
+    return "Too many attempts — try again in a few minutes.";
+  }
+  if (status === 401 || status === 400) {
+    return "Your verification step expired. Please sign in again.";
+  }
+  return "Couldn't verify the code. Please try again.";
 }

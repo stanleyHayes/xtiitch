@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 
-import { loadSession, login } from "../../src/auth";
+import { loadSession, login, verifyMfaLogin } from "../../src/auth";
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
 import { LoadingButtonLabel, SkeletonBlock } from "../../src/ui";
@@ -21,6 +21,8 @@ export default function BusinessLoginScreen() {
   const [handle, setHandle] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mfaChallenge, setMfaChallenge] = useState<string | null>(null);
+  const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(true);
@@ -42,17 +44,33 @@ export default function BusinessLoginScreen() {
       owner_password: password,
     });
     setSubmitting(false);
-    if (outcome.ok) {
-      router.replace("/business");
-    } else {
+    if (!outcome.ok) {
       setError(outcome.error);
+      return;
     }
+    // MFA-enabled account: the API answered with a challenge instead of
+    // tokens — advance to the code step without navigating.
+    if ("mfa" in outcome) {
+      setMfaChallenge(outcome.challenge_token);
+      return;
+    }
+    router.replace("/business");
   };
 
-  const fillDemo = () => {
-    setHandle("demoatelier");
-    setEmail("owner@demoatelier.test");
-    setPassword("XtiitchDemo!2026");
+  const verify = async () => {
+    if (!mfaChallenge) return;
+    setError(null);
+    setSubmitting(true);
+    const outcome = await verifyMfaLogin(mfaChallenge, code, handle);
+    setSubmitting(false);
+    if (outcome.ok) router.replace("/business");
+    else setError(outcome.error);
+  };
+
+  const backToPassword = () => {
+    setMfaChallenge(null);
+    setCode("");
+    setError(null);
   };
 
   const canSubmit =
@@ -60,6 +78,7 @@ export default function BusinessLoginScreen() {
     /.+@.+\..+/.test(email.trim()) &&
     password.length >= 6 &&
     !submitting;
+  const canVerify = code.trim().length > 0 && !submitting;
 
   if (checking) {
     return (
@@ -76,6 +95,61 @@ export default function BusinessLoginScreen() {
     );
   }
 
+  if (mfaChallenge) {
+    return (
+      <MfaChallengeForm
+        code={code}
+        onCodeChange={setCode}
+        error={error}
+        submitting={submitting}
+        canVerify={canVerify}
+        onVerify={verify}
+        onBack={backToPassword}
+      />
+    );
+  }
+
+  return (
+    <PasswordForm
+      handle={handle}
+      email={email}
+      password={password}
+      onHandleChange={setHandle}
+      onEmailChange={setEmail}
+      onPasswordChange={setPassword}
+      error={error}
+      submitting={submitting}
+      canSubmit={canSubmit}
+      onSubmit={submit}
+    />
+  );
+}
+
+function PasswordForm({
+  handle,
+  email,
+  password,
+  onHandleChange,
+  onEmailChange,
+  onPasswordChange,
+  error,
+  submitting,
+  canSubmit,
+  onSubmit,
+}: {
+  handle: string;
+  email: string;
+  password: string;
+  onHandleChange: (next: string) => void;
+  onEmailChange: (next: string) => void;
+  onPasswordChange: (next: string) => void;
+  error: string | null;
+  submitting: boolean;
+  canSubmit: boolean;
+  onSubmit: () => void;
+}) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
   return (
     <ScrollView
       style={styles.screen}
@@ -94,14 +168,14 @@ export default function BusinessLoginScreen() {
         <Field
           label="Studio handle"
           value={handle}
-          onChange={setHandle}
+          onChange={onHandleChange}
           placeholder="demoatelier"
           autoCapitalize="none"
         />
         <Field
           label="Owner email"
           value={email}
-          onChange={setEmail}
+          onChange={onEmailChange}
           placeholder="owner@studio.test"
           autoCapitalize="none"
           keyboardType="email-address"
@@ -109,7 +183,7 @@ export default function BusinessLoginScreen() {
         <Field
           label="Password"
           value={password}
-          onChange={setPassword}
+          onChange={onPasswordChange}
           placeholder="••••••••"
           secureTextEntry
         />
@@ -118,7 +192,7 @@ export default function BusinessLoginScreen() {
 
         <Pressable
           disabled={!canSubmit}
-          onPress={submit}
+          onPress={onSubmit}
           style={[styles.cta, !canSubmit && styles.ctaDisabled]}
         >
           {submitting ? (
@@ -127,9 +201,73 @@ export default function BusinessLoginScreen() {
             <Text style={styles.ctaText}>Sign in</Text>
           )}
         </Pressable>
+      </View>
+    </ScrollView>
+  );
+}
 
-        <Pressable style={styles.demo} onPress={fillDemo}>
-          <Text style={styles.demoText}>Use demo studio credentials</Text>
+// Second factor, mirroring the dashboard MfaForm: redeem the login challenge
+// with the authenticator (or backup) code. Errors stay on this step so the
+// code can be retried; an expired challenge sends the user back to sign in.
+function MfaChallengeForm({
+  code,
+  onCodeChange,
+  error,
+  submitting,
+  canVerify,
+  onVerify,
+  onBack,
+}: {
+  code: string;
+  onCodeChange: (next: string) => void;
+  error: string | null;
+  submitting: boolean;
+  canVerify: boolean;
+  onVerify: () => void;
+  onBack: () => void;
+}) {
+  const { palette } = useTheme();
+  const styles = useMemo(() => makeStyles(palette), [palette]);
+  return (
+    <ScrollView
+      style={styles.screen}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+    >
+      <View style={styles.hero}>
+        <Text style={styles.kicker}>TWO-STEP VERIFICATION</Text>
+        <Text style={styles.title}>Enter your code</Text>
+        <Text style={styles.lead}>
+          Open your authenticator app and enter the 6-digit code, or use a
+          backup code.
+        </Text>
+      </View>
+
+      <View style={styles.form}>
+        <Field
+          label="Authentication code"
+          value={code}
+          onChange={onCodeChange}
+          placeholder="123456 or a backup code"
+          autoCapitalize="none"
+        />
+
+        {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <Pressable
+          disabled={!canVerify}
+          onPress={onVerify}
+          style={[styles.cta, !canVerify && styles.ctaDisabled]}
+        >
+          {submitting ? (
+            <LoadingButtonLabel label="Verifying" />
+          ) : (
+            <Text style={styles.ctaText}>Verify and continue</Text>
+          )}
+        </Pressable>
+
+        <Pressable style={styles.link} onPress={onBack} disabled={submitting}>
+          <Text style={styles.linkText}>Back to sign in</Text>
         </Pressable>
       </View>
     </ScrollView>
@@ -257,8 +395,8 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
   },
-  demo: { alignItems: "center", paddingVertical: spacing(1.5) },
-  demoText: {
+  link: { alignItems: "center", paddingVertical: spacing(1.5) },
+  linkText: {
     color: palette.burgundy,
     fontFamily: fonts.body,
     fontSize: 14,
