@@ -2,7 +2,7 @@ import type {
   AdminAffiliate,
   AdminAffiliateAttribution,
 } from "../../../lib/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
@@ -16,6 +16,7 @@ import { AdminActionFeedback } from "../../shared/types";
 import { formatGHS } from "../../shared/formatting";
 import { MetricCard } from "../../../components/ui/MetricCard";
 import { usePagedItems } from "../../shared/usePagedItems";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminAffiliateDetailForm } from "../AdminAffiliateDetailForm";
 import { AffiliateTable } from "./AffiliateTable";
@@ -34,6 +35,16 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
   actionData?: AdminActionFeedback;
 }) {
   const [detailID, setDetailID] = useState<string | null>(null);
+
+  // §1.2/§11.4: the affiliate dialog closes on any successful affiliates
+  // action (create, conversion, payout, edit, archive); errors stay open.
+  const actionSuccess = useActionSuccess("affiliates");
+  useEffect(() => {
+    if (actionSuccess) {
+      setDetailID(null);
+    }
+  }, [actionSuccess]);
+
   const pendingAffiliates = affiliates.filter(
     (affiliate) => affiliate.status === "pending_review",
   );

@@ -1,11 +1,13 @@
 import { apiFetch } from "../../lib/auth";
 import { apiErrorCode } from "../shared/utils";
+import { isValidGhanaCardNumber } from "../../lib/ghana-card";
 import { tokens } from "../../theme";
 import { uploadDesignImage } from "../studio/utils";
 
 // Turn the API's payout error codes into something the owner can act on. Each
 // case implies a different next step — retype the code, request a fresh one,
-// wait, or fix the number — so they must not collapse into one message.
+// wait, fix the number, or verify the business first — so they must not
+// collapse into one message.
 async function payoutErrorMessage(response: Response): Promise<string> {
   const code = await apiErrorCode(response);
   switch (code) {
@@ -19,6 +21,14 @@ async function payoutErrorMessage(response: Response): Promise<string> {
       return "A code was just sent to that number. Wait a minute, then retry.";
     case "invalid_phone":
       return "That doesn't look like a Ghana mobile money number.";
+    case "invalid_payout_number":
+      // §2.1: exactly 10 local digits — the same rule the form checks
+      // client-side, surfaced when the API is the one that catches it.
+      return "Enter the MoMo number in its 10-digit local form (e.g. 0240000000).";
+    case "identity_verification_required":
+      // §2.2: payout setup before admin-approved Ghana Card verification. The
+      // panel normally hides the form in this state; this is the fallback.
+      return "Complete your Ghana Card business verification first — payout details unlock after an admin approves it.";
     case "delivery_failed":
       return "We couldn't deliver the code to that number. Check it and retry.";
     case "whatsapp_unavailable":
@@ -66,7 +76,11 @@ if (intent === "save_store_settings") {
         collections_enabled: form.get("collections_enabled") === "on",
         delivery_enabled: form.get("delivery_enabled") === "on",
         dispatch_enabled: form.get("dispatch_enabled") === "on",
-        fee_pass_to_buyer: form.get("fee_pass_to_buyer") === "on",
+        // §4.4: three independent pass-down controls (all default off — the
+        // owner absorbs the fees). fee_pass_to_buyer is gone.
+        fee_pass_xtiitch_fee: form.get("fee_pass_xtiitch_fee") === "on",
+        fee_pass_tax: form.get("fee_pass_tax") === "on",
+        fee_pass_paystack_fee: form.get("fee_pass_paystack_fee") === "on",
         brand_color: brandColor || tokens.burgundy,
         logo_url: logoURL,
         banner_url: bannerURL,
@@ -153,9 +167,28 @@ if (intent === "delete_delivery_zone") {
   }
 
 if (intent === "submit_identity_verification") {
+    // §2.3: the owner's official name exactly as printed on the Ghana Card —
+    // required by the API (400 invalid_input when blank).
+    const fullLegalName = String(form.get("full_legal_name") ?? "").trim();
+    if (!fullLegalName) {
+      return {
+        verificationError:
+          "Enter your full legal name exactly as it appears on your Ghana Card.",
+      };
+    }
+    if (fullLegalName.length > 200) {
+      return {
+        verificationError: "That name is too long. Use the name on your Ghana Card.",
+      };
+    }
     const cardNumber = String(form.get("card_number") ?? "").trim();
-    if (!cardNumber) {
-      return { verificationError: "Enter your Ghana Card number." };
+    // Server-side re-check of the §2.3 format lock; the field formats as the
+    // owner types, but a bypassed client check must still not save garbage.
+    if (!isValidGhanaCardNumber(cardNumber)) {
+      return {
+        verificationError:
+          "Enter your Ghana Card number in the exact format GHA-123456789-0.",
+      };
     }
     // Both photos are uploaded to Cloudinary first (same path as logos/designs);
     // the API stores the resulting URLs and moves the business to 'pending'.
@@ -194,6 +227,7 @@ if (intent === "submit_identity_verification") {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          full_legal_name: fullLegalName,
           card_number: cardNumber,
           id_photo_url: photoURL,
           id_photo_back_url: photoBackURL,
@@ -203,7 +237,7 @@ if (intent === "submit_identity_verification") {
     if (!response.ok) {
       return {
         verificationError:
-          "Could not submit your verification. Check the details and try again.",
+          "Could not submit your verification. Check the name, card number (format GHA-123456789-0) and photos, then try again.",
       };
     }
     return {
@@ -216,14 +250,25 @@ if (intent === "setup_payout") {
     // The settlement account is the MoMo number payouts are sent to, and the
     // settlement bank is its network (MTN / VOD / ATL) — Paystack requires the
     // network code to create the payout subaccount. /businesses/me/verify records
-    // both and marks the business verified.
+    // them plus the MoMo-registered account name (§2.1: it becomes the
+    // subaccount's business name) and answers {"payout_status":"ready"} — a
+    // payout state, NOT a verification (§2.2).
     const settlementAccount = String(form.get("settlement_account") ?? "").trim();
     const settlementBank = String(form.get("settlement_bank") ?? "").trim();
+    const settlementAccountName = String(
+      form.get("settlement_account_name") ?? "",
+    ).trim();
     const otpCode = String(form.get("otp_code") ?? "").trim();
     if (!settlementAccount || !settlementBank) {
       return {
         payoutError:
           "Choose your mobile money network and enter the number payouts should go to.",
+      };
+    }
+    if (!settlementAccountName) {
+      return {
+        payoutError:
+          "Enter the exact legal name registered on this MoMo number.",
       };
     }
     const response = await apiFetch(request, "/businesses/me/verify", {
@@ -232,6 +277,7 @@ if (intent === "setup_payout") {
       body: JSON.stringify({
         settlement_account: settlementAccount,
         settlement_bank: settlementBank,
+        settlement_account_name: settlementAccountName,
         otp_code: otpCode,
       }),
     });

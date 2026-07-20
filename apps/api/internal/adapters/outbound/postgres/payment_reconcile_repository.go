@@ -291,11 +291,18 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 	if succeeded {
 		newStatus = "succeeded"
 	}
+	// §3.2: the provider-REPORTED fee is persisted with the status transition so
+	// the Money Desk never recomputes it. The row moves out of 'initiated' exactly
+	// once, so the fee is captured exactly once; an event without a fee (0) leaves
+	// any stored figure untouched.
 	tag, err := tx.Exec(ctx, `
 		update payments
-		set status = $2, updated_at = now()
+		set status = $2,
+			provider_fee_minor = case when $3 > 0 then $3 else provider_fee_minor end,
+			provider_fee_captured_at = case when $3 > 0 then now() else provider_fee_captured_at end,
+			updated_at = now()
 		where provider_reference = $1 and status = 'initiated'
-	`, input.ProviderReference, newStatus)
+	`, input.ProviderReference, newStatus, input.ProviderFeeMinor)
 	if err != nil {
 		return err
 	}
@@ -312,103 +319,6 @@ func applyConfirmation(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymen
 		return applyPaymentSuccess(ctx, tx, payment)
 	}
 	return applyPaymentFailure(ctx, tx, payment)
-}
-
-// reconcileMarketplaceChargeFromProvider settles a combined §4 marketplace split
-// charge (one Paystack transaction across several shops). It runs from the RLS
-// bypass (the tenant is unknown at lookup). The single status transition
-// initiated -> (succeeded|failed) is the settle-once gate; on success it
-// confirms every shop's checkout group under that shop's own tenant scope and
-// records a per-shop money-tracker payment row. On failure the draft orders are
-// left as-is (recoverable), matching the single-store cart failure. Returns
-// found=false when no marketplace charge matches the reference, so the other
-// non-order reconciles can try it.
-//
-//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
-func reconcileMarketplaceChargeFromProvider(ctx context.Context, tx pgx.Tx, input ports.ConfirmPaymentInput) (bool, error) {
-	var chargeID string
-	err := tx.QueryRow(ctx, `
-		select charge_id::text from marketplace_charges where provider_reference = $1
-	`, input.ProviderReference).Scan(&chargeID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-
-	newStatus := "failed"
-	if input.Succeeded {
-		newStatus = "succeeded"
-	}
-	tag, err := tx.Exec(ctx, `
-		update marketplace_charges set status = $2, updated_at = now()
-		where provider_reference = $1 and status = 'initiated'
-	`, input.ProviderReference, newStatus)
-	if err != nil {
-		return true, err
-	}
-	// Only the event that actually transitions the charge settles it (idempotent);
-	// a failure leaves the shops' drafts recoverable.
-	if tag.RowsAffected() != 1 || !input.Succeeded {
-		return true, nil
-	}
-
-	type member struct {
-		businessID      string
-		anchorOrderID   string
-		netMinor        int64
-		commissionMinor int64
-	}
-	rows, err := tx.Query(ctx, `
-		select business_id::text, anchor_order_id::text, net_minor, commission_minor
-		from marketplace_charge_members where charge_id = $1
-	`, chargeID)
-	if err != nil {
-		return true, err
-	}
-	var members []member
-	for rows.Next() {
-		var m member
-		if err := rows.Scan(&m.businessID, &m.anchorOrderID, &m.netMinor, &m.commissionMinor); err != nil {
-			rows.Close()
-			return true, err
-		}
-		members = append(members, m)
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return true, err
-	}
-
-	for _, m := range members {
-		// Narrow from the bypass to this shop for its tenant-scoped order/payment
-		// writes, then restore the bypass after the loop for the caller's commit.
-		if err := clearTenantBypass(ctx, tx); err != nil {
-			return true, err
-		}
-		if err := setTenantScope(ctx, tx, common.TenantScope{BusinessID: common.ID(m.businessID)}); err != nil {
-			return true, err
-		}
-		if err := confirmOrderGroupOnPayment(ctx, tx, m.businessID, m.anchorOrderID); err != nil {
-			return true, err
-		}
-		if _, err := tx.Exec(ctx, `
-			insert into payments (
-				payment_id, business_id, order_id, purpose, amount_minor, currency, method,
-				provider_reference, status, through_platform, commission_minor
-			)
-			values (gen_random_uuid(), $1, $2, 'marketplace_split', $3, 'GHS', 'momo', $4, 'succeeded', true, $5)
-			on conflict (provider_reference) do nothing
-		`, m.businessID, m.anchorOrderID, m.netMinor+m.commissionMinor,
-			input.ProviderReference+"::"+m.businessID, m.commissionMinor); err != nil {
-			return true, err
-		}
-	}
-	if err := setTenantBypass(ctx, tx); err != nil {
-		return true, err
-	}
-	return true, nil
 }
 
 // applyPaymentFailure releases a held home-visit slot when its booking deposit

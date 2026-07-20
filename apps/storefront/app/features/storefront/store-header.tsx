@@ -16,6 +16,7 @@ import type { Design, StoreSummary } from "../../lib/api";
 import TextField from "../../components/form-text-field";
 import { ThemeModeToggle } from "../../theme-mode";
 import { tokens } from "../../theme";
+import { StoreNavMenu } from "./store-nav-menu";
 
 // Readable text colour for an arbitrary brand background.
 function contrastText(hex: string): string {
@@ -165,10 +166,6 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
           spacing={1}
           useFlexGap
           sx={{
-            // Mobile-first: these actions (Cart especially) stay visible on
-            // phones and wrap onto another row rather than being hidden.
-            display: "flex",
-            flexWrap: "wrap",
             alignItems: "center",
             justifyContent: { xs: "flex-start", sm: "flex-end" },
           }}
@@ -186,36 +183,51 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
           >
             Browse pieces
           </Button>
-          <Button
-            component={RouterLink}
-            to="/cart"
-            variant="outlined"
-            startIcon={<ShoppingBagRounded />}
-            sx={outlinedActionSx}
+          {/* §10.3: Cart / Track order / Account / About Xtiitch stay as raw
+              buttons on desktop (sm+ would crowd, so desktop = md and up)… */}
+          <Stack
+            direction="row"
+            spacing={1}
+            useFlexGap
+            sx={{
+              display: { xs: "none", md: "flex" },
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
           >
-            Cart
-          </Button>
-          <Button component={RouterLink} to="/track" variant="outlined" sx={outlinedActionSx}>
-            Track order
-          </Button>
-          <Button
-            component={RouterLink}
-            to="/account"
-            variant="outlined"
-            startIcon={<AccountCircleRounded />}
-            sx={outlinedActionSx}
-          >
-            Account
-          </Button>
-          <Button
-            href="https://xtiitch.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            variant="outlined"
-            sx={outlinedActionSx}
-          >
-            About Xtiitch
-          </Button>
+            <Button
+              component={RouterLink}
+              to="/cart"
+              variant="outlined"
+              startIcon={<ShoppingBagRounded />}
+              sx={outlinedActionSx}
+            >
+              Cart
+            </Button>
+            <Button component={RouterLink} to="/track" variant="outlined" sx={outlinedActionSx}>
+              Track order
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/account"
+              variant="outlined"
+              startIcon={<AccountCircleRounded />}
+              sx={outlinedActionSx}
+            >
+              Account
+            </Button>
+            <Button
+              href="https://xtiitch.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              variant="outlined"
+              sx={outlinedActionSx}
+            >
+              About Xtiitch
+            </Button>
+          </Stack>
+          {/* …and collapse into a single menu icon on mobile. */}
+          <StoreNavMenu onBrand={onBrand} />
         </Stack>
       </Container>
 

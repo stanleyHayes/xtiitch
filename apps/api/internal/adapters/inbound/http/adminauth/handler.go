@@ -45,6 +45,8 @@ type Service interface {
 		command adminauthapp.DecideBusinessVerificationCommand,
 	) (ports.AdminVerificationCaseRecord, error)
 	ListBusinesses(ctx context.Context, command adminauthapp.ListBusinessesCommand) ([]ports.AdminBusinessRecord, error)
+	DeleteBusiness(ctx context.Context, command adminauthapp.DeleteBusinessCommand) (ports.AdminBusinessDeleteRecord, error)
+	ListBusinessActivity(ctx context.Context, command adminauthapp.ListBusinessActivityCommand) ([]ports.AdminBusinessActivityRecord, error)
 	ListCustomers(ctx context.Context, command adminauthapp.ListCustomersCommand) ([]ports.AdminCustomerRecord, error)
 	ExportCustomerData(ctx context.Context, command adminauthapp.ExportCustomerDataCommand) (ports.AdminCustomerExportRecord, error)
 	EraseCustomerData(ctx context.Context, command adminauthapp.EraseCustomerDataCommand) (ports.AdminCustomerErasureRecord, error)
@@ -77,6 +79,10 @@ type Service interface {
 		ctx context.Context,
 		command adminauthapp.RunSubscriptionRecurringSweepCommand,
 	) (ports.AdminSubscriptionRecurringSweepRecord, error)
+	RunSubscriptionReminderSweep(
+		ctx context.Context,
+		command adminauthapp.RunSubscriptionReminderSweepCommand,
+	) (ports.AdminSubscriptionReminderSweepRecord, error)
 	InitializeSubscriptionAuthorization(
 		ctx context.Context,
 		command adminauthapp.InitializeSubscriptionAuthorizationCommand,
@@ -162,6 +168,9 @@ type Service interface {
 		ctx context.Context,
 		command adminauthapp.SetSettlementReviewHoldCommand,
 	) (ports.AdminMoneyPayoutReviewRecord, error)
+	ListPayouts(ctx context.Context, command adminauthapp.ListPayoutsCommand) ([]ports.AdminPayoutRecord, error)
+	GetPayoutHistory(ctx context.Context, command adminauthapp.GetPayoutHistoryCommand) ([]ports.AdminPayoutHistoryRecord, error)
+	RunSettlementSync(ctx context.Context, command adminauthapp.RunSettlementSyncCommand) (ports.AdminSettlementSyncRecord, error)
 	ListRiskReviews(ctx context.Context, command adminauthapp.ListRiskReviewsCommand) ([]ports.AdminRiskReviewRecord, error)
 	SetRiskReviewStatus(ctx context.Context, command adminauthapp.SetRiskReviewStatusCommand) (ports.AdminRiskReviewRecord, error)
 	ListSupportTickets(ctx context.Context, command adminauthapp.ListSupportTicketsCommand) ([]ports.AdminSupportTicketRecord, error)
@@ -212,6 +221,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/subscriptions", handler.subscriptions)
 		protected.Post("/admin/subscriptions/billing-sweeps", handler.runSubscriptionBillingSweep)
 		protected.Post("/admin/subscriptions/recurring-charges", handler.runSubscriptionRecurringSweep)
+		protected.Post("/admin/subscriptions/renewal-reminders", handler.runSubscriptionReminderSweep)
 		protected.Patch("/admin/subscriptions/businesses/{id}", handler.updateSubscription)
 		protected.Post("/admin/subscriptions/businesses/{id}/authorization-link", handler.initializeSubscriptionAuthorization)
 		protected.Post("/admin/subscriptions/businesses/{id}/authorization-verifications", handler.verifySubscriptionAuthorization)
@@ -253,6 +263,9 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/admin/money-rails/replay-requests", handler.queueMoneyReplay)
 		protected.Post("/admin/money-rails/payment-reversals", handler.reverseMoneyPayment)
 		protected.Patch("/admin/money-rails/businesses/{id}/settlement-hold", handler.setSettlementReviewHold)
+		protected.Post("/admin/money-rails/settlement-sync", handler.settlementSync)
+		protected.Get("/admin/payouts", handler.payouts)
+		protected.Get("/admin/payouts/{id}/history", handler.payoutHistory)
 		protected.Get("/admin/risk-reviews", handler.riskReviews)
 		protected.Patch("/admin/risk-reviews/{key}", handler.updateRiskReviewStatus)
 		protected.Get("/admin/support-tickets", handler.supportTickets)
@@ -262,6 +275,8 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/customers/{id}/export", handler.exportCustomer)
 		protected.Post("/admin/customers/{id}/erase", handler.eraseCustomer)
 		protected.Patch("/admin/businesses/{id}/status", handler.updateBusinessStatus)
+		protected.Delete("/admin/businesses/{id}", handler.deleteBusiness)
+		protected.Get("/admin/businesses/{id}/activity", handler.businessActivity)
 		protected.Get("/admin/audit-events", handler.auditEvents)
 		protected.Get("/admin/exports/{dataset}.csv", handler.exportDatasetCSV)
 		protected.Get("/admin/roles", handler.roles)

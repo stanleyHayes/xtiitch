@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Typography from "@mui/material/Typography";
 import { SectionHeader, Panel, PaginationFooter } from "../../components/ui";
 import { usePagedItems } from "../shared/usePagedItems";
+import { useActionSuccess } from "../shared/useActionSuccess";
 import { AdminVerificationCase, AdminActionFeedback } from "../shared/types";
 import { VerificationCard } from "./VerificationCard";
 
@@ -19,6 +20,15 @@ export function VerificationsSection({
   const [verificationNotes, setVerificationNotes] = useState<
     Record<string, string>
   >({});
+  // §1.2/§11.4: once a decision lands, every operator note clears — the note
+  // was submitted with the decision, so leaving it in the box risks pasting a
+  // stale rationale onto the next case. Errors keep the notes intact.
+  const actionSuccess = useActionSuccess("verification");
+  useEffect(() => {
+    if (actionSuccess) {
+      setVerificationNotes({});
+    }
+  }, [actionSuccess]);
   const {
     page: verificationPage,
     pageCount: verificationPageCount,

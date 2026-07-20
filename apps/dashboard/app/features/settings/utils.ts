@@ -62,12 +62,30 @@ export function storeFeatureSwitches(
       helper: "Let the team manage pickup and delivery handovers.",
       checked: settings.dispatch_enabled,
     },
+    // §4.4: the three pass-down controls. Ticked, the fee is added to the
+    // customer's checkout; unticked (the default), it comes out of the store's
+    // share. At checkout the Xtiitch fee and the Paystack fee appear as ONE
+    // combined "Transaction fee" line; the tax is always its own line (§4.5).
     {
-      name: "fee_pass_to_buyer",
-      label: "Pass platform fee to buyer",
+      name: "fee_pass_xtiitch_fee",
+      label: "Pass down the Xtiitch fee",
       helper:
-        "Add the Xtiitch sales fee to the customer's total at checkout instead of absorbing it. Off = you absorb the fee.",
-      checked: settings.fee_pass_to_buyer,
+        "Ticked: added to the customer's checkout inside the combined “Transaction fee” line. Unticked: deducted from your share.",
+      checked: settings.fee_pass_xtiitch_fee,
+    },
+    {
+      name: "fee_pass_tax",
+      label: "Pass down the Tax (VAT)",
+      helper:
+        "Ticked: shown as its own Tax (VAT) line on the customer's checkout. Unticked: deducted from your share.",
+      checked: settings.fee_pass_tax,
+    },
+    {
+      name: "fee_pass_paystack_fee",
+      label: "Pass down the Transaction fee (Paystack)",
+      helper:
+        "Ticked: added to the customer's checkout inside the combined “Transaction fee” line. Unticked: borne by your share.",
+      checked: settings.fee_pass_paystack_fee,
     },
   ];
 }

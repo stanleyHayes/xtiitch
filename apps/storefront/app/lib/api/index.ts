@@ -21,7 +21,7 @@ export const api = {
   recordAffiliateClick: rewards.recordAffiliateClick,
   placeOrder: checkout.placeOrder,
   placeCartOrder: checkout.placeCartOrder,
-  placeMarketplaceOrder: checkout.placeMarketplaceOrder,
+  checkoutQuote: checkout.checkoutQuote,
   deliveryZones: checkout.deliveryZones,
   placeCustomOrder: custom.placeCustomOrder,
   placeBooking: custom.placeBooking,

@@ -29,7 +29,7 @@ export function SignInHero() {
             "&:hover": { bgcolor: "transparent", color: tokens.burgundy },
           }}
         >
-          Back to storefronts
+          Back to storefront
         </Button>
         <Typography
           variant="caption"

@@ -10,6 +10,7 @@ export * from "./subscriptions";
 export * from "./subscription-billing";
 export * from "./subscription-discounts";
 export * from "./money";
+export * from "./payouts";
 export * from "./support";
 export * from "./growth";
 
@@ -24,6 +25,7 @@ import { subscriptionsApi } from "./subscriptions";
 import { subscriptionBillingApi } from "./subscription-billing";
 import { subscriptionDiscountsApi } from "./subscription-discounts";
 import { moneyApi } from "./money";
+import { payoutsApi } from "./payouts";
 import { supportApi } from "./support";
 import { growthApi } from "./growth";
 
@@ -39,6 +41,7 @@ export const adminApi = {
   ...subscriptionBillingApi,
   ...subscriptionDiscountsApi,
   ...moneyApi,
+  ...payoutsApi,
   ...supportApi,
   ...growthApi,
 };

@@ -23,6 +23,15 @@ func nullableIDArg(id *common.ID) any {
 	return id.String()
 }
 
+// nullableUserIDArg binds a staff-attribution id (§14.1, 000109): the zero id
+// binds NULL so unattributed rows stay NULL instead of failing the FK.
+func nullableUserIDArg(id common.ID) any {
+	if id.IsZero() {
+		return nil
+	}
+	return id.String()
+}
+
 func nullableInt64Arg(value *int64) any {
 	if value == nil {
 		return nil

@@ -3,6 +3,7 @@ package email
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -50,17 +51,39 @@ func (sender ResendSender) Send(ctx context.Context, message ports.EmailMessage)
 		return errors.New("email sender is not configured")
 	}
 
-	payload, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"from":    sender.from,
 		"to":      []string{to},
 		"subject": subject,
 		"text":    body,
-	})
+	}
+	if len(message.Attachments) > 0 {
+		// Resend takes attachments as base64 content beside the filename (and an
+		// optional content type); the port carries raw bytes so callers never
+		// double-encode.
+		attachments := make([]map[string]any, 0, len(message.Attachments))
+		for _, attachment := range message.Attachments {
+			filename := strings.TrimSpace(attachment.Filename)
+			if filename == "" || len(attachment.Content) == 0 {
+				return errors.New("email attachment needs a filename and content")
+			}
+			entry := map[string]any{
+				"filename": filename,
+				"content":  base64.StdEncoding.EncodeToString(attachment.Content),
+			}
+			if contentType := strings.TrimSpace(attachment.ContentType); contentType != "" {
+				entry["content_type"] = contentType
+			}
+			attachments = append(attachments, entry)
+		}
+		payload["attachments"] = attachments
+	}
+	encoded, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, sender.baseURL+"/emails", bytes.NewReader(payload))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, sender.baseURL+"/emails", bytes.NewReader(encoded))
 	if err != nil {
 		return err
 	}

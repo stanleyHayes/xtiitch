@@ -16,7 +16,7 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "For customers",
     description:
-      "Why an Xtiitch tracking and payment link is trustworthy: see where your garment is, pay by mobile money or card, and collect or have it delivered.",
+      "Why a Xtiitch tracking and payment link is trustworthy: see where your garment is, pay by mobile money or card, and collect or have it delivered.",
     path: "/for-customers",
   });
 }

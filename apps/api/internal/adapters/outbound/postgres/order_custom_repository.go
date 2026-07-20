@@ -11,6 +11,10 @@ import (
 )
 
 func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.TenantScope, input ports.CreateCustomOrderInput) error {
+	phone, err := canonicalCustomerPhone(input.CustomerPhone)
+	if err != nil {
+		return err
+	}
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -36,7 +40,7 @@ func (repo OrderRepository) CreateCustomOrder(ctx context.Context, scope common.
 			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, phone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -151,6 +155,10 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(
 	scope common.TenantScope,
 	input ports.CreateCustomOrderConfirmedInput,
 ) error {
+	phone, err := canonicalCustomerPhone(input.CustomerPhone)
+	if err != nil {
+		return err
+	}
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -181,7 +189,7 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(
 			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, phone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -196,11 +204,12 @@ func (repo OrderRepository) CreateCustomOrderConfirmed(
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
 			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor,
-			status, current_stage_id
+			status, current_stage_id, created_by_business_user_id
 		)
-		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', $6, null, 0, 'confirmed', $7)
+		values ($1, $2, $3, $4, null, 'custom', $5, 'bespoke', $6, null, 0, 'confirmed', $7, $8)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(),
-		input.DesignID.String(), input.SizeMode, channel, stageID); err != nil {
+		input.DesignID.String(), input.SizeMode, channel, stageID,
+		nullableUserIDArg(input.CreatedByUserID)); err != nil {
 		return err
 	}
 

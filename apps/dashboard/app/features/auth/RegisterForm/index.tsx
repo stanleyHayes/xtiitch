@@ -9,12 +9,14 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { tokens } from "../../../theme";
+import { phoneStepComplete } from "../../../lib/phone-verification";
 import { RegisterStepAccount } from "../RegisterStepAccount";
 import { RegisterStepPlan } from "../RegisterStepPlan";
 import { RegisterStepStore } from "../RegisterStepStore";
 import { STEP_LABELS } from "../Register";
 import { RegisterActions } from "./RegisterActions";
 import { RegisterStepIndicator } from "./RegisterStepIndicator";
+import { usePhoneVerification } from "./use-phone-verification";
 
 export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   plans,
@@ -40,10 +42,6 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("");
-  const [whatsappCode, setWhatsappCode] = useState("");
-  const [otpRequested, setOtpRequested] = useState(false);
-  const [otpSending, setOtpSending] = useState(false);
-  const [otpError, setOtpError] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("");
 
   const handleOk = /^[a-z0-9-]{2,}$/.test(handle.trim().toLowerCase());
@@ -53,30 +51,17 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   const whatsappOk = whatsappNumber.replace(/[^0-9]/g, "").length >= 9;
   const phoneOk = ownerPhone.replace(/[^0-9]/g, "").length >= 9;
 
-  // Verifies the PHONE number: it is what receives our SMS notifications.
-  const sendPhoneCode = () => {
-    if (!phoneOk || otpSending) {
-      return;
-    }
-    setOtpSending(true);
-    setOtpError("");
-    fetch("/business-otp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        intent: "register",
-        // The OTP endpoint just SMSes whatever Ghana number it is given; the
-        // field name is historical.
-        whatsapp_number: ownerPhone.trim(),
-      }),
-    })
-      .then((response) => (response.ok ? response.json() : Promise.reject()))
-      .then(() => setOtpRequested(true))
-      .catch(() =>
-        setOtpError("We couldn't send a code. Check the number and try again."),
-      )
-      .finally(() => setOtpSending(false));
-  };
+  // §8 phone verification replaces the old fire-and-forget OTP bits
+  // (otpRequested / whatsappCode / otpError) with one reducer-driven state
+  // machine — the hook owns the send/auto-verify plumbing, the transitions
+  // live in app/lib/phone-verification.ts.
+  const {
+    verification,
+    sendPhoneCode,
+    handleOwnerPhoneChange,
+    handleCodeChange,
+    changePhone,
+  } = usePhoneVerification(ownerPhone, phoneOk, setOwnerPhone);
 
   const [handleStatus, setHandleStatus] = useState<
     "idle" | "checking" | "available" | "taken" | "reserved" | "error"
@@ -120,13 +105,12 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
     handleStatus === "taken" || handleStatus === "reserved";
   const step0Valid =
     businessName.trim().length > 1 && handleOk && !handleUnavailable;
-  // The phone is OPTIONAL (the API accepts signup without one). Only require the
-  // code when a number was actually entered — otherwise the forced OTP (valid
-  // ~5 min) blocked/expired mid-signup. WhatsApp is chat-only: no code at all.
+  // The phone is OPTIONAL (the API accepts signup without one) — but once a
+  // number IS entered, §8 makes verification the gate: the step only advances
+  // after the code verifies, not merely after a code was requested.
   const phoneProvided = ownerPhone.trim().length > 0;
   const phoneStepOk =
-    !phoneProvided ||
-    (phoneOk && otpRequested && whatsappCode.trim().length > 0);
+    !phoneProvided || (phoneOk && phoneStepComplete(verification));
   const whatsappStepOk = !whatsappNumber.trim() || whatsappOk;
   const step1Valid =
     ownerName.trim().length > 0 &&
@@ -283,7 +267,13 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
             <input type="hidden" name="owner_password" value={password} />
             <input type="hidden" name="owner_phone" value={ownerPhone} />
             <input type="hidden" name="whatsapp_number" value={whatsappNumber} />
-            <input type="hidden" name="owner_phone_code" value={whatsappCode} />
+            {/* Kept for backward compatibility: the API accepts a verified
+                phone with or without the code, and an unverified one with it. */}
+            <input
+              type="hidden"
+              name="owner_phone_code"
+              value={verification.code}
+            />
             {step === 0 ? (
               <RegisterStepStore
                 businessName={businessName}
@@ -302,19 +292,13 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
                 email={email}
                 onEmailChange={setEmail}
                 ownerPhone={ownerPhone}
-                onOwnerPhoneChange={setOwnerPhone}
+                onOwnerPhoneChange={handleOwnerPhoneChange}
                 whatsappNumber={whatsappNumber}
-                onWhatsappNumberChange={(value: string) => {
-                  setWhatsappNumber(value);
-                  setOtpRequested(false);
-                  setWhatsappCode("");
-                }}
-                whatsappCode={whatsappCode}
-                onWhatsappCodeChange={setWhatsappCode}
-                otpRequested={otpRequested}
-                otpSending={otpSending}
-                otpError={otpError}
+                onWhatsappNumberChange={setWhatsappNumber}
+                verification={verification}
+                onCodeChange={handleCodeChange}
                 onRequestOtp={sendPhoneCode}
+                onChangePhone={changePhone}
                 password={password}
                 onPasswordChange={setPassword}
                 confirmPassword={confirmPassword}

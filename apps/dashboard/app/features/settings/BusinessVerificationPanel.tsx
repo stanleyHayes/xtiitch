@@ -12,8 +12,13 @@ import { tokens } from "../../theme";
 import { CardDropzone } from "../../components/ui/CardDropzone";
 import { Panel } from "../../components/ui/Panel";
 import { ToneChip } from "../../components/ui/ToneChip";
+import {
+  formatGhanaCardNumber,
+  isValidGhanaCardNumber,
+} from "../../lib/ghana-card";
+import { useResetOnSuccess } from "./useResetOnSuccess";
 
-export function BusinessVerificationPanel({
+export function BusinessVerificationPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   status,
   error,
   success,
@@ -22,8 +27,30 @@ export function BusinessVerificationPanel({
   error?: string;
   success?: string;
 }) {
+  const [legalName, setLegalName] = useState("");
+  // Controlled + format-locked (§2.3): the value is rebuilt into the
+  // GHA-XXXXXXXXX-X shape on every keystroke so a wrong format cannot be
+  // entered, then validated against the full pattern before submit.
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardError, setCardError] = useState<string | undefined>(undefined);
   const [photoName, setPhotoName] = useState("");
   const [photoBackName, setPhotoBackName] = useState("");
+  // §1.2: after a successful submit the inline form resets itself. Remounting
+  // the Form drops every uncontrolled field (file inputs included); the
+  // callback clears the controlled pieces.
+  const [formKey, setFormKey] = useState(0);
+  useResetOnSuccess(
+    () => {
+      setLegalName("");
+      setCardNumber("");
+      setCardError(undefined);
+      setPhotoName("");
+      setPhotoBackName("");
+      setFormKey((key) => key + 1);
+    },
+    "submit_identity_verification",
+    Boolean(error),
+  );
   const verified = status === "verified";
   const pending = status === "pending";
   const rejected = status === "rejected";
@@ -83,7 +110,22 @@ export function BusinessVerificationPanel({
             Your business is verified. There's nothing more to do here.
           </Alert>
         ) : (
-          <Form method="post" encType="multipart/form-data">
+          <Form
+            key={formKey}
+            method="post"
+            encType="multipart/form-data"
+            onSubmit={(event) => {
+              // Client-side pattern check (§2.3); the action re-checks
+              // server-side, so a bypassed check still cannot save a
+              // malformed number.
+              if (!isValidGhanaCardNumber(cardNumber)) {
+                event.preventDefault();
+                setCardError(
+                  "Enter your Ghana Card number in the exact format GHA-123456789-0.",
+                );
+              }
+            }}
+          >
             <input
               type="hidden"
               name="intent"
@@ -97,11 +139,36 @@ export function BusinessVerificationPanel({
                 </Alert>
               ) : null}
               <TextField
+                name="full_legal_name"
+                label="Full Legal Name (on the Ghana Card)"
+                required
+                fullWidth
+                value={legalName}
+                onChange={(event) => setLegalName(event.target.value)}
+                helperText="Must match your official ID exactly — no shop names or nicknames."
+              />
+              <TextField
                 name="card_number"
                 label="Ghana Card number"
                 placeholder="GHA-000000000-0"
                 required
                 fullWidth
+                value={cardNumber}
+                onChange={(event) => {
+                  setCardNumber(formatGhanaCardNumber(event.target.value));
+                  if (cardError) {
+                    setCardError(undefined);
+                  }
+                }}
+                onBlur={() => {
+                  if (cardNumber && !isValidGhanaCardNumber(cardNumber)) {
+                    setCardError(
+                      "Enter your Ghana Card number in the exact format GHA-123456789-0.",
+                    );
+                  }
+                }}
+                error={Boolean(cardError)}
+                helperText={cardError}
               />
               <Stack
                 direction={{ xs: "column", sm: "row" }}

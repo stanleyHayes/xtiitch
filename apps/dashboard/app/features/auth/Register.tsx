@@ -85,13 +85,14 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
         error: "An account with that email already exists. Try signing in.",
       };
     }
-    // WhatsApp OTP expired or was wrong (the code is only valid ~5 minutes). Show
-    // the real reason instead of a generic "handle" message so the owner knows to
-    // request a fresh code — this was surfacing as a confusing handle error.
+    // Phone-code expired or wrong server-side (the code is only valid ~5
+    // minutes). Rare under §8 — the code is verified up front on the account
+    // step — but a stale challenge can still reach here when the form was left
+    // open. Show the real reason so the owner knows to re-verify.
     if (code === "code_expired" || code === "invalid_token") {
       return {
         error:
-          "Your WhatsApp code expired or was incorrect. Go back to “Your account”, tap “Send code” again, and enter the new code — or leave WhatsApp blank to skip it.",
+          "Your phone verification code expired or was incorrect. Go back to “Your account”, tap “Resend code”, and enter the new code.",
       };
     }
     return {

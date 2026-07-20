@@ -1,5 +1,5 @@
 import type { AdminReferralProgramme, AdminBusiness } from "../../../lib/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
@@ -12,6 +12,7 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import { AdminActionFeedback } from "../../shared/types";
 import { MetricCard } from "../../../components/ui/MetricCard";
 import { usePagedItems } from "../../shared/usePagedItems";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminReferralProgrammeDetailForm } from "../AdminReferralProgrammeDetailForm";
 import { ReferralProgrammeTable } from "./ReferralProgrammeTable";
@@ -28,6 +29,16 @@ export function ReferralsSection({
   actionData?: AdminActionFeedback;
 }) {
   const [detailID, setDetailID] = useState<string | null>(null);
+
+  // §1.2/§11.4: the programme dialog closes on any successful referrals
+  // action (create, code issue, edit, archive); errors stay open.
+  const actionSuccess = useActionSuccess("referrals");
+  useEffect(() => {
+    if (actionSuccess) {
+      setDetailID(null);
+    }
+  }, [actionSuccess]);
+
   const activeProgrammes = programmes.filter(
     (programme) => programme.status === "active",
   );

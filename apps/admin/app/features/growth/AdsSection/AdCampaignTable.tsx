@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -15,6 +15,7 @@ import TextField from "../../../components/form-text-field";
 import { Panel } from "../../../components/ui/Panel";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { StyledDateTimeField } from "../../shared/StyledDateTimeField";
 import { adCampaignStatusOptions, adPlacementOptions } from "../options";
 import { AdCampaignDetail } from "./AdCampaignDetail";
@@ -39,6 +40,16 @@ export function AdCampaignTable({ // eslint-disable-line max-lines-per-function 
   adCampaignsError: string | null;
 }) {
   const [adDialogOpen, setAdDialogOpen] = useState(false);
+
+  // §1.2/§11.4: the create panel closes on a successful submit; the
+  // Collapse unmounts the form, so the next open starts cleared.
+  const actionSuccess = useActionSuccess("ads");
+  useEffect(() => {
+    if (actionSuccess) {
+      setAdDialogOpen(false);
+    }
+  }, [actionSuccess]);
+
   const eligibleBusinesses = businesses.filter(
     (business) =>
       business.verificationStatus === "verified" &&

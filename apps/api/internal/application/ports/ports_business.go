@@ -74,6 +74,16 @@ type BusinessIdentityRepository interface {
 	ListBusinessUsers(ctx context.Context, scope common.TenantScope) ([]BusinessUserRecord, error)
 	CreateBusinessUser(ctx context.Context, scope common.TenantScope, input CreateBusinessUserInput) (BusinessUserRecord, error)
 	UpdateBusinessUser(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserInput) (BusinessUserRecord, error)
+	// FindBusinessUserProfileByID returns the caller's own profile row (§9),
+	// including the WhatsApp number and phone-verification marker that
+	// BusinessUserRecord does not carry. Tenant-scoped; ErrNotFound when no row
+	// with that id exists in the scope.
+	FindBusinessUserProfileByID(ctx context.Context, scope common.TenantScope, userID common.ID) (BusinessUserProfileRecord, error)
+	// UpdateOwnBusinessUserProfile writes the caller's own profile row. Unlike
+	// UpdateBusinessUser it may touch the owner row (self-service, §9) but has
+	// no role/is_active knobs, so a user can never promote or deactivate
+	// themselves through it.
+	UpdateOwnBusinessUserProfile(ctx context.Context, scope common.TenantScope, input UpdateOwnBusinessUserProfileInput) (BusinessUserProfileRecord, error)
 	UpdateBusinessUserPassword(ctx context.Context, scope common.TenantScope, input UpdateBusinessUserPasswordInput) error
 	// UpdateOwnPassword sets the password for the authenticated user themselves.
 	// Unlike UpdateBusinessUserPassword (the admin reset path, which refuses to
@@ -159,6 +169,17 @@ type BusinessWhatsAppAuthRepository interface {
 	) (BusinessOTPChallengeRecord, error)
 	IncrementSignInOTPAttempts(ctx context.Context, challengeID common.ID) error
 	ConsumeSignInOTPChallenge(ctx context.Context, challengeID common.ID) error
+	// MarkSignInOTPChallengeVerified stamps verified_at WITHOUT consuming the
+	// challenge (§8 verify-then-register): the proof is recorded so the flow's
+	// completion step can accept it, but the challenge stays live until that
+	// step consumes it or it expires.
+	MarkSignInOTPChallengeVerified(ctx context.Context, challengeID common.ID) error
+	// LatestVerifiedSignInOTPChallenge returns the newest verified-but-unconsumed,
+	// unexpired challenge for a number AND purpose — i.e. a proof completed
+	// earlier in the flow that the completion step may now redeem.
+	LatestVerifiedSignInOTPChallenge(
+		ctx context.Context, whatsAppNumber string, purpose string, now time.Time,
+	) (BusinessOTPChallengeRecord, error)
 }
 
 type AuthSessionRepository interface {

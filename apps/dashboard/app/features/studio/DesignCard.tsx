@@ -12,7 +12,7 @@ import { fallbackDesignImage } from "../shared/utils";
 import { CopyLinkButton } from "./CopyLinkButton";
 import { ToneChip } from "../../components/ui/ToneChip";
 
-export function DesignCard({
+export function DesignCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   design,
   collections,
   storeHandle,
@@ -105,19 +105,29 @@ export function DesignCard({
         </Box>
         <Box
           sx={{
-            p: 1.5,
+            // §10.2: on phones the catalogue grid is two-up, so the card copy
+            // is scaled down to sit cleanly in the narrower card (the
+            // storefront's clean card treatment). sm+ keeps the desktop type.
+            p: { xs: 1, sm: 1.5 },
             minWidth: 0,
             display: "flex",
             flex: 1,
             flexDirection: "column",
           }}
         >
-          <Typography sx={{ fontWeight: 800 }} noWrap>
+          <Typography
+            sx={{ fontWeight: 800, fontSize: { xs: "0.8125rem", sm: "1rem" } }}
+            noWrap
+          >
             {design.title}
           </Typography>
           <Typography
             variant="caption"
-            sx={{ color: "text.secondary", display: "block" }}
+            sx={{
+              color: "text.secondary",
+              display: "block",
+              fontSize: { xs: "0.625rem", sm: "0.75rem" },
+            }}
             noWrap
           >
             {collectionName}
@@ -131,6 +141,13 @@ export function DesignCard({
               alignItems: "center",
               flexWrap: "wrap",
               gap: 0.5,
+              "& .MuiChip-root": {
+                height: { xs: 20, sm: 24 },
+              },
+              "& .MuiChip-label": {
+                fontSize: { xs: "0.625rem", sm: "0.75rem" },
+                px: { xs: 0.75, sm: 1 },
+              },
             }}
           >
             <Chip size="small" variant="outlined" label={priceSummary} />

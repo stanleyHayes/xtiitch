@@ -30,14 +30,17 @@ const adornment = {
 // The prices an admin can set for a plan. Entering the monthly rate
 // auto-populates the quarterly first-cycle price (monthly x 3), but that value
 // stays editable — once the admin types their own quarterly figure we stop
-// overwriting it, so a deliberate override is never clobbered.
-export function PlanCadenceFields({ plan }: Readonly<{ plan: AdminPlan }>) {
-  const [monthly, setMonthly] = useState(ghs(plan.monthlyFeeMinor));
+// overwriting it, so a deliberate override is never clobbered. `plan` is
+// optional so the create-package form can reuse the same fields: absent a plan
+// every input starts blank (ghs(0) is ""), and the auto-fill starts from
+// whatever monthly rate the admin types.
+export function PlanCadenceFields({ plan }: Readonly<{ plan?: AdminPlan }>) {
+  const [monthly, setMonthly] = useState(ghs(plan?.monthlyFeeMinor ?? 0));
   const [quarterlyFirst, setQuarterlyFirst] = useState(
-    ghs(plan.cadence.quarterlyFirstMinor),
+    ghs(plan?.cadence.quarterlyFirstMinor ?? 0),
   );
   const [quarterlyOverridden, setQuarterlyOverridden] = useState(
-    plan.cadence.quarterlyFirstMinor > 0,
+    (plan?.cadence.quarterlyFirstMinor ?? 0) > 0,
   );
 
   return (
@@ -78,7 +81,7 @@ export function PlanCadenceFields({ plan }: Readonly<{ plan: AdminPlan }>) {
         name="quarterly_renewal_ghs"
         type="number"
         size="small"
-        defaultValue={ghs(plan.cadence.quarterlyRenewalMinor)}
+        defaultValue={ghs(plan?.cadence.quarterlyRenewalMinor ?? 0)}
         helperText="Charged from cycle 2"
         slotProps={adornment}
       />
@@ -87,7 +90,7 @@ export function PlanCadenceFields({ plan }: Readonly<{ plan: AdminPlan }>) {
         name="yearly_first_ghs"
         type="number"
         size="small"
-        defaultValue={ghs(plan.cadence.yearlyFirstMinor)}
+        defaultValue={ghs(plan?.cadence.yearlyFirstMinor ?? 0)}
         helperText="First year"
         slotProps={adornment}
       />
@@ -96,7 +99,7 @@ export function PlanCadenceFields({ plan }: Readonly<{ plan: AdminPlan }>) {
         name="yearly_renewal_ghs"
         type="number"
         size="small"
-        defaultValue={ghs(plan.cadence.yearlyRenewalMinor)}
+        defaultValue={ghs(plan?.cadence.yearlyRenewalMinor ?? 0)}
         helperText="Charged from year 2"
         slotProps={adornment}
       />

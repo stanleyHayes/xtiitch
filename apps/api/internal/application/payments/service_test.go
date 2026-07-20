@@ -55,75 +55,6 @@ func TestInitiateChargeComputesSplitAndRecordsPayment(t *testing.T) {
 	}
 }
 
-//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
-func TestInitiateMarketplaceChargeBuildsSplitAcrossShops(t *testing.T) {
-	t.Parallel()
-
-	provider := &fakeProvider{verifySig: true, initResult: ports.InitializeTransactionResult{AuthorizationURL: "https://pay/mp"}}
-	payments := &fakePaymentRepo{}
-	service := NewService(Dependencies{
-		Provider: provider, Payments: payments, Businesses: &fakeChargeRepo{},
-		IDs: &sequenceIDs{ids: []common.ID{"m1", "m2", "ref", "charge"}},
-	})
-
-	result, err := service.InitiateMarketplaceCharge(context.Background(), InitiateMarketplaceChargeCommand{
-		CustomerEmail: "buyer@example.com",
-		Method:        money.PaymentMethodMomo,
-		Stores: []MarketplaceStoreCharge{
-			{BusinessID: "b1", SubaccountRef: "sub_1", CheckoutGroupID: "g1", AnchorOrderID: "o1", NetMinor: 9700, CommissionMinor: 300},
-			{BusinessID: "b2", SubaccountRef: "sub_2", CheckoutGroupID: "g2", AnchorOrderID: "o2", NetMinor: 4850, CommissionMinor: 150},
-		},
-	})
-	if err != nil {
-		t.Fatalf("initiate marketplace charge: %v", err)
-	}
-	if result.AuthorizationURL != "https://pay/mp" {
-		t.Fatalf("expected auth url passthrough, got %q", result.AuthorizationURL)
-	}
-	// Total = each shop's (net + commission), summed: 10000 + 5000.
-	if provider.initInput.AmountMinor != 15000 {
-		t.Fatalf("expected charge total 15000, got %d", provider.initInput.AmountMinor)
-	}
-	// The single-subaccount fields must be unused; the split carries each shop's net.
-	if provider.initInput.SubaccountRef != "" {
-		t.Fatalf("marketplace split must not set a single subaccount, got %q", provider.initInput.SubaccountRef)
-	}
-	if len(provider.initInput.Splits) != 2 ||
-		provider.initInput.Splits[0].SubaccountRef != "sub_1" || provider.initInput.Splits[0].ShareMinor != 9700 ||
-		provider.initInput.Splits[1].SubaccountRef != "sub_2" || provider.initInput.Splits[1].ShareMinor != 4850 {
-		t.Fatalf("unexpected splits: %+v", provider.initInput.Splits)
-	}
-	if len(payments.marketplace) != 1 {
-		t.Fatalf("expected one marketplace charge recorded, got %d", len(payments.marketplace))
-	}
-	charge := payments.marketplace[0]
-	if charge.TotalMinor != 15000 || charge.ProviderReference != "xt_ref" || len(charge.Members) != 2 {
-		t.Fatalf("unexpected marketplace charge: %+v", charge)
-	}
-	if charge.Members[0].BusinessID != "b1" || charge.Members[0].NetMinor != 9700 || charge.Members[0].CommissionMinor != 300 {
-		t.Fatalf("unexpected member 0: %+v", charge.Members[0])
-	}
-}
-
-func TestInitiateMarketplaceChargeRejectsSingleShop(t *testing.T) {
-	t.Parallel()
-
-	service := NewService(Dependencies{
-		Provider: &fakeProvider{verifySig: true}, Payments: &fakePaymentRepo{}, Businesses: &fakeChargeRepo{},
-		IDs: &sequenceIDs{ids: []common.ID{"a", "b", "c", "d"}},
-	})
-	_, err := service.InitiateMarketplaceCharge(context.Background(), InitiateMarketplaceChargeCommand{
-		CustomerEmail: "buyer@example.com",
-		Method:        money.PaymentMethodMomo,
-		Stores: []MarketplaceStoreCharge{
-			{BusinessID: "b1", SubaccountRef: "sub_1", NetMinor: 1000, CommissionMinor: 0},
-		},
-	})
-	if !errors.Is(err, ErrInvalidCharge) {
-		t.Fatalf("expected a single-shop marketplace charge to be rejected, got %v", err)
-	}
-}
-
 func TestInitiateChargeCapsCommissionPerDesignLine(t *testing.T) {
 	t.Parallel()
 
@@ -478,7 +409,9 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeProvider{subaccountRef: "sub_new"}
-	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: false}}
+	// Verified here means ADMIN-APPROVED identity verification (§2.2) — the only
+	// state in which payout setup may run at all.
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Name: "Ama", Verified: true}}
 	otp := &fakeMoMoOTP{}
 	service := NewService(Dependencies{
 		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
@@ -486,11 +419,12 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "MTN",
-		SettlementAccount: "0240000000",
-		OTPCode:           "123456",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
@@ -499,6 +433,11 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	}
 	if otp.verifiedNumber != "0240000000" || otp.verifiedCode != "123456" {
 		t.Fatalf("expected the payout number to be proved, got number=%q code=%q", otp.verifiedNumber, otp.verifiedCode)
+	}
+	// §2.1: the subaccount is named after the MoMo-REGISTERED wallet name, not
+	// the shop's trading name — settlement resolves against the wallet's name.
+	if provider.createInput.BusinessName != "Ama Serwaa Mensah" {
+		t.Fatalf("expected the wallet name as the subaccount name, got %q", provider.createInput.BusinessName)
 	}
 	// Assert each field individually: bank and account are both strings, so a
 	// transposition would still "provision" and only show up as a swapped pair.
@@ -511,13 +450,183 @@ func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	if businesses.provisionedAs.SettlementBank != "MTN" {
 		t.Fatalf("unexpected settlement bank: %q", businesses.provisionedAs.SettlementBank)
 	}
+	if businesses.provisionedAs.SettlementAccountName != "Ama Serwaa Mensah" {
+		t.Fatalf("unexpected settlement account name: %q", businesses.provisionedAs.SettlementAccountName)
+	}
+}
+
+// §2.2: payout setup must REJECT a business with no admin-approved Ghana Card
+// verification — before any OTP is checked, any provider is called, or anything
+// is saved. Verification comes only from the approved Ghana Card check.
+func TestVerifyBusinessRejectsWithoutIdentityVerification(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_new"}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
+
+	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
+	})
+	if !errors.Is(err, ErrIdentityVerificationRequired) {
+		t.Fatalf("expected ErrIdentityVerificationRequired, got %v", err)
+	}
+	if otp.verifiedNumber != "" || provider.subaccountCreated || provider.subaccountUpdated || businesses.provisioned {
+		t.Fatalf("expected payout setup to stop at the identity gate, otp=%q created=%v updated=%v provisioned=%v",
+			otp.verifiedNumber, provider.subaccountCreated, provider.subaccountUpdated, businesses.provisioned)
+	}
+}
+
+// §2.2: the OTP request rejects the same way, so the UI cannot even send a code
+// to an unverified business.
+func TestRequestPayoutOTPRejectsWithoutIdentityVerification(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
+
+	err := service.RequestPayoutOTP(context.Background(), RequestPayoutOTPCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementAccount: "0240000000",
+	})
+	if !errors.Is(err, ErrIdentityVerificationRequired) {
+		t.Fatalf("expected ErrIdentityVerificationRequired, got %v", err)
+	}
+	if otp.requestedNumber != "" {
+		t.Fatalf("expected no code sent to an unverified business, got %q", otp.requestedNumber)
+	}
+}
+
+// §2.1: the payout number must normalize to EXACTLY 10 local digits
+// (0XXXXXXXXX). The bare 9-digit form sign-in tolerates is not good enough for
+// a payout destination.
+func TestVerifyBusinessRejectsNonTenDigitPayoutNumber(t *testing.T) {
+	t.Parallel()
+
+	for _, number := range []string{"", "024000000", "02400000001", "1234567890", "23324000", "abc"} {
+		businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
+		otp := &fakeMoMoOTP{}
+		service := NewService(Dependencies{
+			Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses,
+			IDs: &sequenceIDs{}, OTP: otp,
+		})
+		err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+			BusinessID:            "business-1",
+			ActorRole:             business.UserRoleOwner,
+			SettlementBank:        "MTN",
+			SettlementAccount:     number,
+			SettlementAccountName: "Ama Serwaa Mensah",
+			OTPCode:               "123456",
+		})
+		if !errors.Is(err, ErrInvalidPayoutNumber) {
+			t.Fatalf("expected ErrInvalidPayoutNumber for %q, got %v", number, err)
+		}
+		if otp.verifiedNumber != "" || businesses.provisioned {
+			t.Fatalf("expected an invalid number to stop before OTP/save: otp=%q provisioned=%v", otp.verifiedNumber, businesses.provisioned)
+		}
+	}
+}
+
+func TestRequestPayoutOTPRejectsNonTenDigitPayoutNumber(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
+
+	err := service.RequestPayoutOTP(context.Background(), RequestPayoutOTPCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementAccount: "024000000",
+	})
+	if !errors.Is(err, ErrInvalidPayoutNumber) {
+		t.Fatalf("expected ErrInvalidPayoutNumber, got %v", err)
+	}
+	if otp.requestedNumber != "" {
+		t.Fatalf("expected no code sent for an invalid number, got %q", otp.requestedNumber)
+	}
+}
+
+// The international form (233XXXXXXXXX) normalizes to the 10-digit local form
+// and is accepted; the normalized local number is what gets proved and stored.
+func TestVerifyBusinessNormalizesInternationalPayoutNumber(t *testing.T) {
+	t.Parallel()
+
+	provider := &fakeProvider{subaccountRef: "sub_new"}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
+
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "+233 24 000 0000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
+	}); err != nil {
+		t.Fatalf("verify business: %v", err)
+	}
+	if otp.verifiedNumber != "0240000000" {
+		t.Fatalf("expected the normalized local number to be proved, got %q", otp.verifiedNumber)
+	}
+	if businesses.provisionedAs.SettlementAccount != "0240000000" {
+		t.Fatalf("expected the normalized local number to be stored, got %q", businesses.provisionedAs.SettlementAccount)
+	}
+}
+
+// §2.1: the MoMo account name is collected alongside network + number and is
+// required — the subaccount is built from these fields.
+func TestVerifyBusinessRequiresSettlementAccountName(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
+
+	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+		OTPCode:           "123456",
+	})
+	if !errors.Is(err, ErrInvalidCharge) {
+		t.Fatalf("expected ErrInvalidCharge for a missing account name, got %v", err)
+	}
+	if otp.verifiedNumber != "" || businesses.provisioned {
+		t.Fatal("expected a missing account name to stop before OTP/save")
+	}
 }
 
 func TestVerifyBusinessRequiresOTPBeforeSavingPayoutDetails(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeProvider{subaccountRef: "sub_new"}
-	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
 	otp := &fakeMoMoOTP{verifyErr: errors.New("bad code")}
 	service := NewService(Dependencies{
 		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
@@ -525,11 +634,12 @@ func TestVerifyBusinessRequiresOTPBeforeSavingPayoutDetails(t *testing.T) {
 	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "MTN",
-		SettlementAccount: "0240000000",
-		OTPCode:           "wrong",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "wrong",
 	}); err == nil {
 		t.Fatal("expected a failed OTP to reject the payout details")
 	}
@@ -547,15 +657,16 @@ func TestVerifyBusinessFailsClosedWithoutOTPVerifier(t *testing.T) {
 	t.Parallel()
 
 	provider := &fakeProvider{subaccountRef: "sub_new"}
-	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: false}}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
 	service := NewService(Dependencies{Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses, IDs: &sequenceIDs{}})
 
 	err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "MTN",
-		SettlementAccount: "0240000000",
-		OTPCode:           "123456",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
 	})
 	if !errors.Is(err, ErrOTPUnavailable) {
 		t.Fatalf("expected ErrOTPUnavailable, got %v", err)
@@ -575,6 +686,7 @@ func TestVerifyBusinessIsIdempotentWhenDetailsAreUnchanged(t *testing.T) {
 		SubaccountRef:     "sub_existing",
 		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
+		MoMoAccountName:   "Ama Serwaa Mensah",
 	}}
 	otp := &fakeMoMoOTP{}
 	service := NewService(Dependencies{
@@ -583,10 +695,11 @@ func TestVerifyBusinessIsIdempotentWhenDetailsAreUnchanged(t *testing.T) {
 	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleAdmin,
-		SettlementBank:    "MTN",
-		SettlementAccount: "0240000000",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleAdmin,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
@@ -614,6 +727,7 @@ func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
 		SubaccountRef:     "sub_existing",
 		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
+		MoMoAccountName:   "Ama Serwaa Mensah",
 	}}
 	otp := &fakeMoMoOTP{}
 	service := NewService(Dependencies{
@@ -622,11 +736,12 @@ func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
 	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "VOD",
-		SettlementAccount: "0500000000",
-		OTPCode:           "123456",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "VOD",
+		SettlementAccount:     "0500000000",
+		SettlementAccountName: "Ama S Mensah",
+		OTPCode:               "123456",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
@@ -639,11 +754,18 @@ func TestVerifyBusinessRepointsExistingSubaccountOnChange(t *testing.T) {
 	if provider.updateInput.SubaccountRef != "sub_existing" {
 		t.Fatalf("expected the existing ref to be repointed, got %q", provider.updateInput.SubaccountRef)
 	}
+	// §2.1: a repoint also re-names the subaccount after the NEW wallet name.
+	if provider.updateInput.BusinessName != "Ama S Mensah" {
+		t.Fatalf("expected the repoint to carry the new wallet name, got %q", provider.updateInput.BusinessName)
+	}
 	if otp.verifiedNumber != "0500000000" {
 		t.Fatalf("expected the NEW number to be proved, got %q", otp.verifiedNumber)
 	}
 	if businesses.provisionedAs.SettlementBank != "VOD" || businesses.provisionedAs.SettlementAccount != "0500000000" {
 		t.Fatalf("unexpected saved details: %+v", businesses.provisionedAs)
+	}
+	if businesses.provisionedAs.SettlementAccountName != "Ama S Mensah" {
+		t.Fatalf("expected the new wallet name to be saved, got %q", businesses.provisionedAs.SettlementAccountName)
 	}
 	if businesses.provisionedAs.SubaccountRef != "sub_existing" {
 		t.Fatalf("expected the subaccount ref to be preserved, got %q", businesses.provisionedAs.SubaccountRef)
@@ -664,6 +786,7 @@ func TestVerifyBusinessTreatsNetworkOnlyChangeAsAChange(t *testing.T) {
 		SubaccountRef:     "sub_existing",
 		SettlementBank:    "MTN",
 		SettlementAccount: "0240000000",
+		MoMoAccountName:   "Ama Serwaa Mensah",
 	}}
 	otp := &fakeMoMoOTP{}
 	service := NewService(Dependencies{
@@ -673,11 +796,12 @@ func TestVerifyBusinessTreatsNetworkOnlyChangeAsAChange(t *testing.T) {
 
 	// Same number, different network.
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "VOD",
-		SettlementAccount: "0240000000",
-		OTPCode:           "123456",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "VOD",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
@@ -704,6 +828,7 @@ func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {
 		SubaccountRef:     "sub_existing",
 		SettlementBank:    "",
 		SettlementAccount: "0240000000",
+		MoMoAccountName:   "Ama Serwaa Mensah",
 	}}
 	otp := &fakeMoMoOTP{}
 	service := NewService(Dependencies{
@@ -712,11 +837,12 @@ func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {
 	})
 
 	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
-		BusinessID:        "business-1",
-		ActorRole:         business.UserRoleOwner,
-		SettlementBank:    "MTN",
-		SettlementAccount: "0240000000",
-		OTPCode:           "123456",
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
 	}); err != nil {
 		t.Fatalf("verify business: %v", err)
 	}
@@ -725,149 +851,66 @@ func TestVerifyBusinessBackfillsMissingNetworkForLegacyBusiness(t *testing.T) {
 	}
 }
 
-type fakeProvider struct {
-	subaccountRef     string
-	subaccountCreated bool
-	subaccountUpdated bool
-	updateInput       ports.UpdateBusinessSubaccountInput
-	initCalled        bool
-	verifySig         bool
-	event             ports.ProviderChargeEvent
-	initResult        ports.InitializeTransactionResult
-	initInput         ports.InitializeTransactionInput
-}
+// Same backfill pattern for the §2.1 wallet name: a business provisioned before
+// migration 000098 has no saved MoMo account name, so an otherwise-unchanged
+// resubmit must still repoint (re-naming the subaccount after the wallet) and
+// store the name rather than no-op.
+func TestVerifyBusinessBackfillsMissingAccountNameForLegacyBusiness(t *testing.T) {
+	t.Parallel()
 
-func (p *fakeProvider) CreateBusinessSubaccount(
-	_ context.Context,
-	_ ports.CreateBusinessSubaccountInput,
-) (ports.CreateBusinessSubaccountResult, error) {
-	p.subaccountCreated = true
-	return ports.CreateBusinessSubaccountResult{ProviderReference: p.subaccountRef}, nil
-}
+	provider := &fakeProvider{}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID:        "business-1",
+		Verified:          true,
+		SubaccountRef:     "sub_existing",
+		SettlementBank:    "MTN",
+		SettlementAccount: "0240000000",
+		MoMoAccountName:   "",
+	}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
-func (p *fakeProvider) UpdateBusinessSubaccount(_ context.Context, input ports.UpdateBusinessSubaccountInput) error {
-	p.subaccountUpdated = true
-	p.updateInput = input
-	return nil
-}
-
-type fakeMoMoOTP struct {
-	requestedNumber string
-	verifiedNumber  string
-	verifiedCode    string
-	requestErr      error
-	verifyErr       error
-}
-
-func (f *fakeMoMoOTP) RequestBusinessPhoneOTP(_ context.Context, number string) error {
-	f.requestedNumber = number
-	return f.requestErr
-}
-
-func (f *fakeMoMoOTP) VerifyBusinessPhoneOTP(_ context.Context, number string, code string) error {
-	if f.verifyErr != nil {
-		return f.verifyErr
+	if err := service.VerifyBusiness(context.Background(), VerifyBusinessCommand{
+		BusinessID:            "business-1",
+		ActorRole:             business.UserRoleOwner,
+		SettlementBank:        "MTN",
+		SettlementAccount:     "0240000000",
+		SettlementAccountName: "Ama Serwaa Mensah",
+		OTPCode:               "123456",
+	}); err != nil {
+		t.Fatalf("verify business: %v", err)
 	}
-	f.verifiedNumber = number
-	f.verifiedCode = code
-	return nil
+	if !provider.subaccountUpdated || provider.updateInput.BusinessName != "Ama Serwaa Mensah" {
+		t.Fatalf("expected the subaccount to be re-named after the wallet, got %+v", provider.updateInput)
+	}
+	if !businesses.provisioned || businesses.provisionedAs.SettlementAccountName != "Ama Serwaa Mensah" {
+		t.Fatalf("expected the wallet name to be backfilled, got %+v", businesses.provisionedAs)
+	}
 }
 
-func (p *fakeProvider) InitializeTransaction(
-	_ context.Context,
-	input ports.InitializeTransactionInput,
-) (ports.InitializeTransactionResult, error) {
-	p.initCalled = true
-	p.initInput = input
-	return p.initResult, nil
-}
+// §2.1, happy path: an admin-verified business gets its code sent to the
+// normalized 10-digit local number.
+func TestRequestPayoutOTPSendsCodeToNormalizedNumber(t *testing.T) {
+	t.Parallel()
 
-func (p *fakeProvider) InitializeAuthorization(
-	context.Context,
-	ports.InitializeAuthorizationInput,
-) (ports.InitializeAuthorizationResult, error) {
-	return ports.InitializeAuthorizationResult{}, nil
-}
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{BusinessID: "business-1", Verified: true}}
+	otp := &fakeMoMoOTP{}
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{}, Payments: &fakePaymentRepo{}, Businesses: businesses,
+		IDs: &sequenceIDs{}, OTP: otp,
+	})
 
-func (p *fakeProvider) VerifyAuthorization(context.Context, ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
-	return ports.VerifyAuthorizationResult{}, nil
-}
-
-func (p *fakeProvider) ChargeAuthorization(context.Context, ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
-	return ports.ChargeAuthorizationResult{}, nil
-}
-
-func (p *fakeProvider) VerifyWebhookSignature(_ []byte, _ string) bool { return p.verifySig }
-
-func (p *fakeProvider) ParseChargeEvent(_ []byte) (ports.ProviderChargeEvent, error) {
-	return p.event, nil
-}
-
-type fakePaymentRepo struct {
-	created       []ports.CreatePaymentInput
-	marketplace   []ports.MarketplaceChargeInput
-	confirmCalled bool
-	confirmInput  ports.ConfirmPaymentInput
-	confirmResult ports.ConfirmPaymentResult
-	list          []ports.PaymentRecord
-	taking        ports.ManualTakingInput
-}
-
-func (r *fakePaymentRepo) Create(_ context.Context, input ports.CreatePaymentInput) error {
-	r.created = append(r.created, input)
-	return nil
-}
-
-func (r *fakePaymentRepo) CreateMarketplaceCharge(_ context.Context, input ports.MarketplaceChargeInput) error {
-	r.marketplace = append(r.marketplace, input)
-	return nil
-}
-
-func (r *fakePaymentRepo) ConfirmFromProvider(_ context.Context, input ports.ConfirmPaymentInput) (ports.ConfirmPaymentResult, error) {
-	r.confirmCalled = true
-	r.confirmInput = input
-	return r.confirmResult, nil
-}
-
-func (r *fakePaymentRepo) ListByBusiness(_ context.Context, _ common.TenantScope) ([]ports.PaymentRecord, error) {
-	return r.list, nil
-}
-
-func (r *fakePaymentRepo) RecordManualTaking(_ context.Context, _ common.TenantScope, input ports.ManualTakingInput) error {
-	r.taking = input
-	return nil
-}
-
-func (r *fakePaymentRepo) ListManualTakings(_ context.Context, _ common.TenantScope) ([]ports.ManualTakingRecord, error) {
-	return nil, nil
-}
-
-func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
-	return ports.MoneySummary{}, nil
-}
-
-type fakeChargeRepo struct {
-	context       ports.BusinessChargeContext
-	provisioned   bool
-	provisionedAs ports.ProvisionSubaccountInput
-}
-
-func (r *fakeChargeRepo) GetChargeContext(_ context.Context, _ common.TenantScope) (ports.BusinessChargeContext, error) {
-	return r.context, nil
-}
-
-func (r *fakeChargeRepo) ProvisionSubaccount(_ context.Context, input ports.ProvisionSubaccountInput) error {
-	r.provisioned = true
-	r.provisionedAs = input
-	return nil
-}
-
-type sequenceIDs struct {
-	ids []common.ID
-}
-
-func (s *sequenceIDs) NewID() common.ID {
-	id := s.ids[0]
-	s.ids = s.ids[1:]
-	return id
+	if err := service.RequestPayoutOTP(context.Background(), RequestPayoutOTPCommand{
+		BusinessID:        "business-1",
+		ActorRole:         business.UserRoleOwner,
+		SettlementAccount: "+233 24 000 0000",
+	}); err != nil {
+		t.Fatalf("request payout otp: %v", err)
+	}
+	if otp.requestedNumber != "0240000000" {
+		t.Fatalf("expected the normalized local number to receive the code, got %q", otp.requestedNumber)
+	}
 }

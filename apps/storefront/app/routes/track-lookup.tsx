@@ -32,7 +32,7 @@ export function meta() {
     {
       name: "description",
       content:
-        "Paste an Xtiitch order ID or tracking link to see the latest status.",
+        "Paste a Xtiitch order ID or tracking link to see the latest status.",
     },
     { name: "robots", content: "noindex" },
   ];
@@ -151,7 +151,7 @@ export default function TrackLookup() { // eslint-disable-line max-lines-per-fun
                   },
                 }}
               >
-                Back to storefronts
+                Back to storefront
               </Button>
               <Typography
                 variant="caption"
@@ -184,7 +184,7 @@ export default function TrackLookup() { // eslint-disable-line max-lines-per-fun
                 fontSize: { xs: "2.6rem", md: "4rem" },
               }}
             >
-              Track an Xtiitch order
+              Track a Xtiitch order
             </Typography>
             <Typography
               sx={{

@@ -19,7 +19,42 @@ import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
 import type { AdminPlan, AdminPlanEntitlementFeature } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
+import { useFormResetKey } from "../shared/useActionSuccess";
 import { entitlementValueLabel, planEntitlementValue } from "./utils";
+
+
+
+// Legend so operators are not guessing at numeric conventions (§11.1). Renders
+// only the parts whose keys actually exist in the matrix — a legend for an
+// absent key reads like a control the console does not have.
+function EntitlementLegend({
+  features,
+}: {
+  features: AdminPlanEntitlementFeature[];
+}) {
+  const parts: string[] = [];
+  if (features.some((feature) => feature.featureKey.endsWith("_level"))) {
+    parts.push(
+      "Level keys (analytics_level, crm_level): 0 = basic · 1 = standard · 2 = full · 3 = advanced.",
+    );
+  }
+  if (features.some((feature) => feature.featureKey === "scheduled_reports")) {
+    parts.push("scheduled_reports: 0 = off · 1 = monthly · 2 = any schedule.");
+  }
+  if (features.some((feature) => feature.valueType === "limit")) {
+    parts.push(
+      "A blank limit submits NULL (unlimited — e.g. full analytics history), never 0.",
+    );
+  }
+  if (parts.length === 0) {
+    return null;
+  }
+  return (
+    <Typography variant="caption" sx={{ color: "text.secondary" }}>
+      {parts.join(" ")}
+    </Typography>
+  );
+}
 
 
 
@@ -32,6 +67,11 @@ export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-pe
   featuresError: string | null;
   plans: AdminPlan[];
 }) {
+  // §1.2/§11.4: after a successful save the matrix re-mounts, so every
+  // checkbox and limit input re-seeds from the freshly saved entitlements
+  // instead of the operator's pre-submit state.
+  const formResetKey = useFormResetKey("subscriptions");
+
   return (
     <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
       <Stack spacing={2}>
@@ -62,6 +102,7 @@ export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-pe
         {featuresError ? (
           <Alert severity="warning">{featuresError}</Alert>
         ) : null}
+        {!featuresError ? <EntitlementLegend features={features} /> : null}
         {!featuresError && plans.length === 0 ? (
           <Alert severity="info">
             Create or load plan packages before editing entitlements.
@@ -74,7 +115,7 @@ export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-pe
         ) : null}
 
         {!featuresError && features.length > 0 && plans.length > 0 ? (
-          <Form method="post">
+          <Form key={formResetKey} method="post">
             <input
               type="hidden"
               name="intent"
@@ -180,6 +221,11 @@ export function PlanEntitlementMatrixPanel({ // eslint-disable-line max-lines-pe
                                   label={entitlementValueLabel(feature, plan)}
                                 />
                                 {feature.valueType === "limit" ? (
+                                  /* Blank means NULL on submit: the action
+                                     reads the empty string as "no limit" and
+                                     omits limit_value entirely (e.g. a blank
+                                     analytics_lookback_days = full history).
+                                     A literal 0 would clamp the feature off. */
                                   <TextField
                                     name={`limit:${inputId}`}
                                     type="number"

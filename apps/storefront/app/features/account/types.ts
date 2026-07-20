@@ -10,4 +10,7 @@ export type ActionResult = {
   error?: string;
   profileSaved?: boolean;
   profileError?: string;
+  // Feedback for the §5.3.2 mark-received actions on the orders panel.
+  orderNotice?: string;
+  orderError?: string;
 };

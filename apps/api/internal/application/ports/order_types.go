@@ -37,6 +37,9 @@ type CreateWalkInOrderInput struct {
 	CustomerWhatsApp string
 	CustomerEmail    string
 	AgreedTotalMinor *int64
+	// CreatedByUserID is the staff member logging the order (§14.1 team
+	// analytics, 000109). Zero = unattributed.
+	CreatedByUserID common.ID
 }
 
 type CreateOnlineOrderInput struct {
@@ -109,6 +112,9 @@ type CreateCustomOrderConfirmedInput struct {
 	// field ids to entered values. Stored against the order with source 'shop'.
 	MeasurementID common.ID
 	Measurements  map[string]string
+	// CreatedByUserID is the staff member logging the order (§14.1 team
+	// analytics, 000109). Zero = unattributed.
+	CreatedByUserID common.ID
 }
 
 type OrderSummary struct {

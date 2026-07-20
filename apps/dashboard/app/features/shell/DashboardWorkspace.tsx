@@ -18,6 +18,7 @@ import { WorkspaceTopBar } from "./WorkspaceTopBar";
 import { WorkspaceHeader } from "./WorkspaceHeader";
 import { ActivationBanner } from "../billing/ActivationBanner";
 import { DashboardSections } from "./DashboardSections";
+import { dashboardFeedback } from "./feedback";
 import { DashboardDialogs } from "./DashboardDialogs";
 import { DashboardSnackbar } from "./DashboardSnackbar";
 import { DashboardAlerts } from "./DashboardAlerts";
@@ -48,6 +49,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     measurementFields,
     moneySummary,
     manualTakings,
+    payouts,
     bookings,
     handovers,
     notifications,
@@ -60,20 +62,14 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     promotions,
     waitlistEntries,
     deliveryZones,
+    analytics,
+    crm,
     section,
     orderFilter,
     dataWarnings,
   } = loaderData;
   const action = actionData;
-  const settingsFeedback = action.settingsSuccess
-    ? { message: action.settingsSuccess, severity: "success" as const }
-    : action.settingsError
-      ? { message: action.settingsError, severity: "error" as const }
-      : action.availabilitySuccess
-        ? { message: action.availabilitySuccess, severity: "success" as const }
-        : action.availabilityError
-          ? { message: action.availabilityError, severity: "error" as const }
-          : null;
+  const settingsFeedback = dashboardFeedback(action);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -352,6 +348,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               measurementFields={measurementFields}
               moneySummary={moneySummary}
               manualTakings={manualTakings}
+              payouts={payouts}
               bookings={bookings}
               handovers={handovers}
               notifications={notifications}
@@ -399,6 +396,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               atDesignLimit={atDesignLimit}
               profile={profile}
               pendingActivation={!activation.activated}
+              planData={{ analytics, crm }}
             />
           </Box>
         </Box>

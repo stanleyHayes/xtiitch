@@ -101,6 +101,32 @@ func TestOrderOperationsRequireKnownBusinessRole(t *testing.T) {
 	}
 }
 
+func TestCreateWalkInOrderCanonicalizesCustomerPhone(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeOrderRepo{}
+	service := NewService(Dependencies{Orders: repo, IDs: &seqIDs{ids: []common.ID{"order-1", "customer-1"}}})
+
+	if _, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
+		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner,
+		DesignID: "d1", CustomerName: "Ama", CustomerPhone: " 024 350 3670 ",
+	}); err != nil {
+		t.Fatalf("create walk-in order: %v", err)
+	}
+	// §5.3.4: the counter-typed local form is stored canonical, so the person's
+	// later OTP login (which looks up 233…) resolves this same identity.
+	if repo.input.CustomerPhone != "233243503670" {
+		t.Fatalf("expected canonical phone 233243503670, got %q", repo.input.CustomerPhone)
+	}
+
+	if _, err := service.CreateWalkInOrder(context.Background(), CreateWalkInOrderCommand{
+		Scope: common.TenantScope{BusinessID: "b1"}, ActorRole: business.UserRoleOwner,
+		DesignID: "d1", CustomerName: "Ama", CustomerPhone: "not-a-phone",
+	}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input for an unusable phone, got %v", err)
+	}
+}
+
 type fakeOrderRepo struct {
 	input          ports.CreateWalkInOrderInput
 	createCalled   bool

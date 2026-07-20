@@ -13,7 +13,7 @@ func (handler Handler) listPlans(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
-	vatRateBps, vatInclusive := handler.service.SubscriptionVATPolicy()
+	vatRateBps, vatInclusive := handler.service.SubscriptionVATPolicy(r.Context())
 	response := make([]publicPlanResponse, 0, len(plans))
 	for _, plan := range plans {
 		response = append(response, publicPlanResponse{

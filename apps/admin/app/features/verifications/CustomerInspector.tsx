@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -21,6 +21,7 @@ import { formatGHS } from "../shared/formatting";
 import { shortID, shortTime } from "../shared/dates";
 import { Panel } from "../../components/ui/Panel";
 import { DetailLine } from "../shared/DetailLine";
+import { useActionSuccess } from "../shared/useActionSuccess";
 
 
 
@@ -33,6 +34,17 @@ export function CustomerInspector({ // eslint-disable-line max-lines-per-functio
 }) {
   const [eraseOpen, setEraseOpen] = useState(false);
   const [eraseConfirm, setEraseConfirm] = useState("");
+
+  // §1.2/§11.4: close the erase dialog only after the erase actually
+  // succeeds — an error keeps it open with the typed confirmation intact.
+  // The confirmation field is controlled, so clear it here too.
+  const actionSuccess = useActionSuccess("customers");
+  useEffect(() => {
+    if (actionSuccess) {
+      setEraseOpen(false);
+      setEraseConfirm("");
+    }
+  }, [actionSuccess]);
   if (!customer) {
     return (
       <Panel sx={{ p: 3, position: { xl: "sticky" }, top: 88 }}>
@@ -145,7 +157,7 @@ export function CustomerInspector({ // eslint-disable-line max-lines-per-functio
         <DialogTitle sx={{ color: "error.main", fontWeight: 800 }}>
           Erase customer data?
         </DialogTitle>
-        <Form method="post" onSubmit={() => setEraseOpen(false)}>
+        <Form method="post">
           <DialogContent>
             <input type="hidden" name="intent" value="admin-customer:erase" />
             <input type="hidden" name="customer_id" value={customer.id} />

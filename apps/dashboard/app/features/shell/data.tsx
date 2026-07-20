@@ -1,6 +1,8 @@
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import ContactPhoneRounded from "@mui/icons-material/ContactPhoneRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
+import InsightsRounded from "@mui/icons-material/InsightsRounded";
 import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
@@ -31,6 +33,13 @@ export const managementWorkspaceNav: WorkspaceNavItem[] = [
     icon: <QueryStatsRounded />,
   },
   {
+    href: "/dashboard/analytics",
+    section: "analytics",
+    label: "Analytics",
+    helper: "Plan-tiered insight",
+    icon: <InsightsRounded />,
+  },
+  {
     href: "/dashboard/orders",
     section: "orders",
     label: "Orders",
@@ -43,6 +52,13 @@ export const managementWorkspaceNav: WorkspaceNavItem[] = [
     label: "Money",
     helper: "Tracked income",
     icon: <AccountBalanceWalletRounded />,
+  },
+  {
+    href: "/dashboard/customers",
+    section: "customers",
+    label: "Customers",
+    helper: "Auto-built CRM",
+    icon: <ContactPhoneRounded />,
   },
   {
     href: "/dashboard/visits",
@@ -179,6 +195,7 @@ export const managementWorkspaceGroups: WorkspaceNavGroup[] = [
     items: workspaceNavItems(managementWorkspaceNav, [
       "orders",
       "money",
+      "customers",
       "visits",
       "handovers",
       "messages",
@@ -208,7 +225,7 @@ export const managementWorkspaceGroups: WorkspaceNavGroup[] = [
     id: "command",
     label: "Command",
     icon: <TuneRounded />,
-    items: workspaceNavItems(managementWorkspaceNav, ["reports"]),
+    items: workspaceNavItems(managementWorkspaceNav, ["reports", "analytics"]),
   },
 ];
 
@@ -231,7 +248,7 @@ export const staffWorkspaceGroups: WorkspaceNavGroup[] = [
   },
 ];
 
-export function dashboardPageMeta(section: DashboardSection): DashboardPageMeta {
+export function dashboardPageMeta(section: DashboardSection): DashboardPageMeta { // eslint-disable-line complexity -- per-section meta switch; the §14/§15 cases extend it
   switch (section) {
     case "tasks":
       return {
@@ -249,6 +266,24 @@ export function dashboardPageMeta(section: DashboardSection): DashboardPageMeta 
         helper:
           "Read revenue movement, collection health, production status, and follow-up pressure without digging through every order.",
         icon: <QueryStatsRounded />,
+        tone: tokens.info,
+      };
+    case "analytics":
+      return {
+        eyebrow: "Analytics",
+        title: "Store analytics",
+        helper:
+          "Totals, trends, breakdowns and exports — depth ladders with your plan, and every gated tier says what upgrade unlocks it.",
+        icon: <InsightsRounded />,
+        tone: tokens.gold,
+      };
+    case "customers":
+      return {
+        eyebrow: "CRM",
+        title: "Customer list",
+        helper:
+          "Every customer who orders lands here automatically — call or WhatsApp them, review their orders and measurements, and annotate by plan.",
+        icon: <ContactPhoneRounded />,
         tone: tokens.info,
       };
     case "orders":

@@ -58,6 +58,10 @@ type PlaceCartOrderCommand struct {
 	// An empty zone id means pickup (no fee).
 	DeliveryZoneID  common.ID
 	DeliveryAddress string
+	// CallbackURL is where the payment provider returns the customer after they
+	// pay this basket (§5.2: back to the cart, or home when no baskets remain).
+	// Optional; validated by cleanCallbackURL.
+	CallbackURL string
 }
 
 type PlaceCartOrderResult struct {
@@ -66,6 +70,9 @@ type PlaceCartOrderResult struct {
 	Reference        string
 	AuthorizationURL string
 	AmountMinor      int64
+	// Quote is the §4.2–§4.6 fee breakdown behind the combined charge, so the
+	// checkout response renders exactly what the customer pays.
+	Quote money.StoreSaleQuote
 }
 
 // PlaceCartOrder records several cart lines for one customer and raises a single
@@ -87,6 +94,10 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	}
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceCartOrderResult{}, ErrInvalidInput
+	}
+	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	if err != nil {
+		return PlaceCartOrderResult{}, err
 	}
 	hasMadeToWear := false
 	for _, line := range cmd.Lines {
@@ -140,7 +151,10 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	}
 
 	groupID := s.ids.NewID()
-	customerID, customerCreated := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	if err != nil {
+		return PlaceCartOrderResult{}, err
+	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {
 		cleanupCustomerID = customerID
@@ -265,6 +279,7 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 		LineAmountsMinor: lineAmounts,
 		Method:           method,
 		CustomerEmail:    email,
+		CallbackURL:      callbackURL,
 	})
 	if err != nil {
 		// The group is committed but no payment was raised, so it could never be
@@ -279,5 +294,6 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 		Reference:        chargeResult.Reference,
 		AuthorizationURL: chargeResult.AuthorizationURL,
 		AmountMinor:      total,
+		Quote:            chargeResult.Quote,
 	}, nil
 }

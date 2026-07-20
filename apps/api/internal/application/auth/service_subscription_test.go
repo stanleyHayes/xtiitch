@@ -120,8 +120,8 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
-	if payments.initInput.AmountMinor != 89100 || payments.initInput.Currency != "GHS" {
-		t.Fatalf("expected the yearly intro figure at checkout, got %+v", payments.initInput)
+	if payments.initInput.AmountMinor != 90872 || payments.initInput.Currency != "GHS" {
+		t.Fatalf("expected the yearly intro figure plus the §4.1 VAT/Transaction-fee lines at checkout, got %+v", payments.initInput)
 	}
 	if link.RedirectURL == "" || link.Activated {
 		t.Fatalf("expected a redirect checkout link, got %+v", link)
@@ -144,7 +144,7 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	if payments.chargeInput.AuthorizationCode != "" {
 		t.Fatalf("the first period must NOT be re-charged, but ChargeAuthorization ran: %+v", payments.chargeInput)
 	}
-	if businesses.activationPayment.AmountMinor != 89100 || businesses.activationPayment.ChargeRef == "" {
+	if businesses.activationPayment.AmountMinor != 90872 || businesses.activationPayment.ChargeRef == "" {
 		t.Fatalf("expected the activation payment booked at the paid amount, got %+v", businesses.activationPayment)
 	}
 	if businesses.activationPayment.BillingCadence != "yearly" {
@@ -197,7 +197,7 @@ func TestVerifySubscriptionAuthorizationMobileMoneyActivatesRecurringWithoutAuth
 	if businesses.recurringActivated.ProviderSubscriptionRef != "" {
 		t.Fatalf("a MoMo authorization has no reusable code, got %q", businesses.recurringActivated.ProviderSubscriptionRef)
 	}
-	if businesses.activationPayment.AmountMinor != 89100 {
+	if businesses.activationPayment.AmountMinor != 90872 {
 		t.Fatalf("the paid period must still be booked, got %+v", businesses.activationPayment)
 	}
 }
@@ -308,8 +308,8 @@ func TestVerifySubscriptionAuthorizationFirstPurchaseChargesQuarterlyIntro(t *te
 	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
-	if payments.initInput.AmountMinor != 11800 {
-		t.Fatalf("first purchase must price the checkout at the quarterly INTRO figure (11800), got %d", payments.initInput.AmountMinor)
+	if payments.initInput.AmountMinor != 12035 {
+		t.Fatalf("first purchase must price the checkout at the quarterly INTRO figure plus §4.1 fees (11800 -> 12035), got %d", payments.initInput.AmountMinor)
 	}
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
@@ -321,7 +321,7 @@ func TestVerifySubscriptionAuthorizationFirstPurchaseChargesQuarterlyIntro(t *te
 	if result.Status != "active" {
 		t.Fatalf("expected active subscription after a paid checkout, got %q", result.Status)
 	}
-	if businesses.activationPayment.AmountMinor != 11800 || businesses.activationPayment.BillingCadence != "quarterly" {
+	if businesses.activationPayment.AmountMinor != 12035 || businesses.activationPayment.BillingCadence != "quarterly" {
 		t.Fatalf("expected the intro payment booked with the quarterly cadence, got %+v", businesses.activationPayment)
 	}
 }
@@ -353,8 +353,8 @@ func TestVerifySubscriptionAuthorizationConsumedAccountChargesRenewal(t *testing
 	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
-	if payments.initInput.AmountMinor != 14700 {
-		t.Fatalf("a consumed account must price the checkout at the quarterly RENEWAL figure (14700), got %d", payments.initInput.AmountMinor)
+	if payments.initInput.AmountMinor != 14992 {
+		t.Fatalf("a consumed account must price the checkout at the quarterly RENEWAL figure plus §4.1 fees (14700 -> 14992), got %d", payments.initInput.AmountMinor)
 	}
 	if _, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
@@ -362,7 +362,7 @@ func TestVerifySubscriptionAuthorizationConsumedAccountChargesRenewal(t *testing
 	}); err != nil {
 		t.Fatalf("verify: unexpected error: %v", err)
 	}
-	if businesses.activationPayment.AmountMinor != 14700 {
+	if businesses.activationPayment.AmountMinor != 14992 {
 		t.Fatalf("expected the renewal figure booked, got %d", businesses.activationPayment.AmountMinor)
 	}
 }

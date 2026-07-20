@@ -3,6 +3,7 @@ import type { Route } from "./+types/design";
 import { api } from "../lib/api";
 import { addToCart } from "../lib/cart";
 import { getSession } from "../lib/session";
+import { requestTenant } from "../lib/tenant";
 import {
   actionFailure,
   attributionPayload,
@@ -16,9 +17,12 @@ import {
   toCustomSizeMode,
 } from "../features/design/utils";
 
-export async function loader({ params, request }: Route.LoaderArgs) {
-  const design = await api.design(params.handle);
-  if (!design) {
+export async function loader({ params, request }: Route.LoaderArgs) { // eslint-disable-line complexity -- route loader with several conditional branches; refactor in follow-up
+  const tenant = requestTenant(request);
+  const design = await api.design(params.handle, tenant);
+  // §6: inside a tenant store, another store's design does not exist. The
+  // public design payload always carries its store, so the check is exact.
+  if (!design || (tenant && design.store?.handle !== tenant)) {
     // Deleted or unpublished: render a friendly in-store notice (below) rather
     // than a hard error page. The 404 status keeps it out of search results.
     return data({ notFound: true } as const, { status: 404 });
@@ -27,17 +31,17 @@ export async function loader({ params, request }: Route.LoaderArgs) {
   const availabilityRange = availabilityRangeForRequest();
   const [referralPreview, availability, storePage] = await Promise.all([
     rewardCodes.referralCode
-      ? api.referral(rewardCodes.referralCode).catch(() => null)
+      ? api.referral(rewardCodes.referralCode, tenant).catch(() => null)
       : Promise.resolve(null),
     design.store?.handle &&
     design.customisation_allowed &&
     design.store.settings.bespoke_enabled
       ? api
-          .availability(design.store.handle, availabilityRange)
+          .availability(design.store.handle, availabilityRange, tenant)
           .catch(() => null)
       : Promise.resolve(null),
     design.store?.handle
-      ? api.store(design.store.handle).catch(() => null)
+      ? api.store(design.store.handle, tenant).catch(() => null)
       : Promise.resolve(null),
   ]);
   return {
@@ -77,6 +81,17 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
   const method =
     String(form.get("method") ?? "momo") === "card" ? "card" : "momo";
   const rewardCodes = rewardCodesFromForm(form);
+  // §6: on a tenant host nothing may be added to the cart or ordered for a
+  // different store, no matter what the posted form claims (the header the
+  // calls below carry would 403 it upstream anyway — refuse early and clean).
+  const tenant = requestTenant(request);
+  if (tenant && storeHandle && storeHandle !== tenant) {
+    return actionFailure(
+      rewardCodes,
+      "That piece doesn't belong to this store.",
+      null,
+    );
+  }
 
   if (intent === "add_to_cart" || intent === "buy_now") {
     const designHandle = params.handle ?? "";
@@ -181,11 +196,16 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
         waitlistSuccess: false,
       };
     }
-    const response = await api.joinWaitlist(storeHandle, params.handle, {
-      customer_name: customerName,
-      customer_contact: contact,
-      note,
-    });
+    const response = await api.joinWaitlist(
+      storeHandle,
+      params.handle,
+      {
+        customer_name: customerName,
+        customer_contact: contact,
+        note,
+      },
+      tenant,
+    );
     if (!response.ok) {
       return {
         customError: null,
@@ -237,17 +257,21 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
         );
       }
 
-      const response = await api.placeBooking(storeHandle, {
-        design_handle: params.handle,
-        customer_name: customerName,
-        customer_phone: customerPhone,
-        customer_email: customerEmail,
-        method,
-        ...attributionPayload(rewardCodes),
-        slot_start: slotStart,
-        address,
-        note: note || undefined,
-      });
+      const response = await api.placeBooking(
+        storeHandle,
+        {
+          design_handle: params.handle,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_email: customerEmail,
+          method,
+          ...attributionPayload(rewardCodes),
+          slot_start: slotStart,
+          address,
+          note: note || undefined,
+        },
+        tenant,
+      );
 
       if (!response.ok) {
         return actionFailure(
@@ -272,17 +296,21 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
       );
     }
 
-    const response = await api.placeCustomOrder(storeHandle, {
-      design_handle: params.handle,
-      size_mode: sizeMode,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      customer_email: customerEmail,
-      method: sizeMode === "come_to_shop" ? undefined : method,
-      ...rewardPayload(rewardCodes),
-      measurements: sizeMode === "self_measure" ? measurements : undefined,
-      note: note || undefined,
-    });
+    const response = await api.placeCustomOrder(
+      storeHandle,
+      {
+        design_handle: params.handle,
+        size_mode: sizeMode,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_email: customerEmail,
+        method: sizeMode === "come_to_shop" ? undefined : method,
+        ...rewardPayload(rewardCodes),
+        measurements: sizeMode === "self_measure" ? measurements : undefined,
+        note: note || undefined,
+      },
+      tenant,
+    );
 
     if (!response.ok) {
       return actionFailure(

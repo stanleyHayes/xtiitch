@@ -18,6 +18,7 @@ import { VerificationsSection } from "../verifications/VerificationsSection";
 import { BusinessesSection } from "../businesses/BusinessesSection";
 import { CustomersSection } from "../customers/CustomersSection";
 import { MoneySection } from "../money/MoneySection";
+import { PayoutsSection } from "../payouts/PayoutsSection";
 import { RiskSection } from "../risk/RiskSection";
 import { SupportTicketsSection } from "../support/SupportTicketsSection";
 import { AuditSection } from "../audit/AuditSection";
@@ -309,6 +310,7 @@ export function AdminDashboardBody({ // eslint-disable-line complexity, max-line
                   moneyRailsError={moneyRailsError}
                 />
               ) : null}
+              {section === "payouts" ? <PayoutsSection /> : null}
               {section === "risk" ? (
                 <RiskSection
                   riskReviews={riskReviews}

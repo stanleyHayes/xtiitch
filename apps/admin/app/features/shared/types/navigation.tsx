@@ -11,6 +11,7 @@ import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
+import RequestQuoteRounded from "@mui/icons-material/RequestQuoteRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -38,6 +39,7 @@ export type Section =
   | "businesses"
   | "customers"
   | "money"
+  | "payouts"
   | "risk"
   | "support"
   | "settings"
@@ -62,6 +64,7 @@ export const KNOWN_SECTIONS: readonly Section[] = [
   "businesses",
   "customers",
   "money",
+  "payouts",
   "risk",
   "support",
   "settings",
@@ -110,6 +113,7 @@ export const navItems: AdminNavItem[] = [
   { id: "businesses", label: "Businesses", helper: "Tenant control", icon: <StorefrontRounded /> },
   { id: "customers", label: "Customers", helper: "Client directory", icon: <PeopleAltRounded /> },
   { id: "money", label: "Money rails", helper: "Paystack watch", icon: <PaymentsRounded /> },
+  { id: "payouts", label: "Payouts", helper: "Store payout records", icon: <RequestQuoteRounded /> },
   { id: "risk", label: "Risk", helper: "Trust review", icon: <ShieldRounded /> },
   { id: "support", label: "Support", helper: "Customer issues", icon: <SupportAgentRounded /> },
   { id: "settings", label: "Settings", helper: "Profile and alerts", icon: <SettingsRounded /> },
@@ -148,7 +152,7 @@ export const adminNavGroups: AdminNavGroup[] = [
     id: "operations",
     label: "Operations",
     icon: <ShieldRounded />,
-    items: adminNavItems(["money", "risk", "support", "settings", "waitlist", "audit"]),
+    items: adminNavItems(["money", "payouts", "risk", "support", "settings", "waitlist", "audit"]),
   },
   {
     id: "command",

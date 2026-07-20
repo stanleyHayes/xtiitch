@@ -1,8 +1,12 @@
-import { enc, getJSON, postJSON } from "./core";
+import { enc, getJSON, postJSON, type TenantScope } from "./core";
 import type { AffiliateClick, AffiliateClickInput, ReferralCode } from "./types";
 
-export const referral = (code: string) =>
-  getJSON<ReferralCode>(`/public/referrals/${enc(code)}`);
+export const referral = (code: string, tenant?: TenantScope) =>
+  getJSON<ReferralCode>(`/public/referrals/${enc(code)}`, tenant);
 
-export const recordAffiliateClick = (code: string, input: AffiliateClickInput) =>
-  postJSON<AffiliateClick>(`/public/affiliates/${enc(code)}/clicks`, input);
+export const recordAffiliateClick = (
+  code: string,
+  input: AffiliateClickInput,
+  tenant?: TenantScope,
+) =>
+  postJSON<AffiliateClick>(`/public/affiliates/${enc(code)}/clicks`, input, tenant);

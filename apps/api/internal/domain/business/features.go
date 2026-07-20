@@ -14,6 +14,17 @@ const (
 	// storefront. Without it a store is a catalogue/showcase only and customers
 	// arrange orders off-platform.
 	FeatureOnlineOrdering = "online_ordering"
+	// FeaturePromotions gates creating and managing storefront discount
+	// promotions (§13.4: "Free-plan stores cannot run promotions"). Paid plans
+	// only; the catalogue promotion service rejects writes without it.
+	FeaturePromotions = "promotions"
+	// FeatureExportCSV / PDF / DOCX / XLSX are the report-export formats the
+	// plan may use (§14.4: Starter CSV; Growth CSV+PDF; Studio any format).
+	// Which format is on per plan is a matrix setting, not code.
+	FeatureExportCSV  = "export_csv"
+	FeatureExportPDF  = "export_pdf"
+	FeatureExportDOCX = "export_docx"
+	FeatureExportXLSX = "export_xlsx"
 	// FeatureRemovePoweredByBadge hides the "Powered by Xtiitch" badge from the
 	// public storefront. Inverted by design: the badge shows unless a plan grants
 	// its REMOVAL, so a store with no entitlements carries the badge rather than
@@ -85,6 +96,32 @@ func FeatureCatalogue() []Feature {
 				"Without it the store is a catalogue and customers arrange orders off-platform.",
 		},
 		{
+			Key:   FeaturePromotions,
+			Label: "Promotions",
+			Description: "Run discount-code promotions on the storefront. " +
+				"Paid plans only: a Free-plan store's promotion writes are rejected (§13.4).",
+		},
+		{
+			Key:         FeatureExportCSV,
+			Label:       "CSV export",
+			Description: "Export reports and records as CSV (§14.4: Starter and above).",
+		},
+		{
+			Key:         FeatureExportPDF,
+			Label:       "PDF export",
+			Description: "Export reports and records as PDF (§14.4: Growth and above).",
+		},
+		{
+			Key:         FeatureExportDOCX,
+			Label:       "DOCX export",
+			Description: "Export reports and records as DOCX (§14.4: Studio any-format).",
+		},
+		{
+			Key:         FeatureExportXLSX,
+			Label:       "XLSX export",
+			Description: "Export reports and records as Excel (§14.4: Studio any-format).",
+		},
+		{
 			Key:   FeatureRemovePoweredByBadge,
 			Label: "Remove the \"Powered by Xtiitch\" badge",
 			Description: "Hide the Xtiitch badge from the public storefront. " +
@@ -101,6 +138,36 @@ func IsKnownFeature(key string) bool {
 		}
 	}
 	return false
+}
+
+// Limit-entitlement keys (§11.1/§14.1/§15.1). These are NUMERIC matrix rows, so
+// they can never live in the boolean FeatureCatalogue / plans.features jsonb:
+// they are read live from plan_entitlement_values and surface on the owner
+// dashboard as Profile.EntitlementLimits. Encoding:
+//   - analytics_level / crm_level: 0=basic, 1=standard, 2=full, 3=advanced.
+//   - analytics_lookback_days: days of history; -1 (NULL in the matrix) = full.
+//   - scheduled_reports: 0=off, 1=monthly, 2=any cadence.
+const (
+	LimitAnalyticsLevel        = "analytics_level"
+	LimitAnalyticsLookbackDays = "analytics_lookback_days"
+	LimitCRMLevel              = "crm_level"
+	LimitScheduledReports      = "scheduled_reports"
+)
+
+// CapabilityLevel names an analytics_level / crm_level value (0..3) as the
+// tier words the spec uses (§13.4). Unknown values report the empty string.
+func CapabilityLevel(level int) string {
+	switch level {
+	case 0:
+		return "basic"
+	case 1:
+		return "standard"
+	case 2:
+		return "full"
+	case 3:
+		return "advanced"
+	}
+	return ""
 }
 
 // Entitlements is a business's resolved benefit set (from its plan's features).

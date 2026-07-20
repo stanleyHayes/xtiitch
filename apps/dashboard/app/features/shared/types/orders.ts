@@ -58,10 +58,33 @@ export type AvailabilityWindow = {
 
 export type MoneySummary = {
   through_platform_minor: number;
+  // §3.1: Paystack's own fee on the transactions, as reported by Paystack —
+  // displayed branded as "Transaction fee" (§4.5), never "Paystack fee".
+  paystack_fee_minor: number;
+  // §3.1: the Xtiitch fee taken per design sold, split from its tax.
+  xtiitch_fee_minor: number;
+  xtiitch_tax_minor: number;
+  // Kept meaning: the Xtiitch fee + its tax combined.
   commission_minor: number;
+  settled_payouts_minor: number;
   manual_takings_minor: number;
   offline_commission_due_minor: number;
+  // §3.1: total money the store has made with Xtiitch since joining.
+  all_time_income_minor: number;
+  // §3.1: the amount due for payout — rises with sales, drops in real time
+  // when a payout settles (§3.3).
   net_income_minor: number;
+};
+
+// §3.3 payout history row: one mirrored Paystack settlement to the store's
+// MoMo subaccount (automatic T+1 cycle, §4.10).
+export type MoneyPayout = {
+  settlement_id: string;
+  reference: string;
+  amount_minor: number;
+  status: string;
+  settled_at: string;
+  created_at: string;
 };
 
 export type ManualTaking = {

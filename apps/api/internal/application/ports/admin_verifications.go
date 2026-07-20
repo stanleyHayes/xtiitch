@@ -20,7 +20,9 @@ type AdminVerificationCaseRecord struct {
 	SettlementSubaccount  string
 	SettlementAccountHint string
 	// Ghana Card identity document the business submitted for review (empty when
-	// none submitted yet).
+	// none submitted yet). FullLegalName is the owner's name exactly as printed
+	// on the card (§2.3); empty for submissions that predate migration 000097.
+	FullLegalName  string
 	IDCardNumber   string
 	IDPhotoURL     string
 	IDPhotoBackURL string

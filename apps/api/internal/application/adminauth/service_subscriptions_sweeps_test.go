@@ -149,7 +149,7 @@ func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testin
 	if len(provider.charged) != 1 ||
 		provider.charged[0].AuthorizationCode != "AUTH_123" ||
 		provider.charged[0].CustomerEmail != "owner@example.com" ||
-		provider.charged[0].AmountMinor != 36000 ||
+		provider.charged[0].AmountMinor != 36716 ||
 		provider.charged[0].Reference != businesses.issuedSubscriptionInvoice.InvoiceRef {
 		t.Fatalf("unexpected recurring charge input: %+v", provider.charged)
 	}
@@ -157,7 +157,7 @@ func TestRunSubscriptionRecurringSweepChargesDueSubscriptionsAndAudits(t *testin
 	// monthly rate, which is a display basis only ("no monthly billing", Book §2).
 	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
 		!businesses.issuedSubscriptionInvoice.DueAt.Equal(now.Add(72*time.Hour)) ||
-		businesses.issuedSubscriptionInvoice.AmountMinor != 36000 ||
+		businesses.issuedSubscriptionInvoice.AmountMinor != 36716 ||
 		businesses.issuedSubscriptionInvoice.PeriodMonths != 3 ||
 		businesses.paidSubscriptionInvoice.InvoiceID != "invoice-recurring" {
 		t.Fatalf("expected issued and paid invoice inputs, got issue=%+v paid=%+v",
@@ -292,26 +292,29 @@ func TestRunSubscriptionRecurringSweepBillsCadenceRenewalFigure(t *testing.T) {
 	// The charge bills the quarterly RENEWAL figure, not the monthly fee.
 	if len(provider.charged) != 1 ||
 		provider.charged[0].AuthorizationCode != "AUTH_Q" ||
-		provider.charged[0].AmountMinor != 29700 {
-		t.Fatalf("expected a single 29700 quarterly charge, got %+v", provider.charged)
+		provider.charged[0].AmountMinor != 30291 {
+		t.Fatalf("expected a single 30291 quarterly charge (29700 + §4.1 Transaction fee), got %+v", provider.charged)
 	}
 	// The invoice records the same renewal amount and advances the period by 3
 	// months (the cadence length), not 1.
 	if businesses.issuedSubscriptionInvoice.BusinessID != "business-1" ||
-		businesses.issuedSubscriptionInvoice.AmountMinor != 29700 ||
+		businesses.issuedSubscriptionInvoice.AmountMinor != 30291 ||
 		businesses.issuedSubscriptionInvoice.PeriodMonths != 3 {
-		t.Fatalf("expected quarterly renewal invoice (29700, 3 months), got %+v",
+		t.Fatalf("expected quarterly renewal invoice (30291, 3 months), got %+v",
 			businesses.issuedSubscriptionInvoice)
 	}
 }
 
-//nolint:funlen,gocognit,gocyclo // Phase 2 follow-up: extract helpers while preserving behaviour
-func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T) {
+// The §13.3 upcoming-renewal reminders (15/7/3/0 lead days, SMS + email) moved
+// to their own sweep — RunSubscriptionReminderSweep. The recurring sweep now
+// only charges what is due (and follows up on failures): an upcoming,
+// not-yet-due renewal is left completely alone here.
+func TestRunSubscriptionRecurringSweepLeavesUpcomingRenewalAlone(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC)
-	// Renewal is two days out — inside the three-day lead window but not yet due,
-	// so the sweep enqueues an "upcoming renewal" reminder and attempts no charge.
+	// Renewal is two days out — not due, so no charge; and no reminder either,
+	// since the proactive reminders are the reminder sweep's job now.
 	upcoming := now.Add(2 * 24 * time.Hour)
 	businesses := &fakeAdminBusinesses{
 		subscriptions: []ports.AdminSubscriptionRecord{
@@ -338,52 +341,26 @@ func TestRunSubscriptionRecurringSweepEnqueuesUpcomingReminderOnce(t *testing.T)
 		&fakeAdminSessions{},
 		businesses,
 		now,
-		[]common.ID{"audit-1", "audit-2", "audit-3", "audit-4"},
+		[]common.ID{"audit-1"},
 	)
 	provider := &fakePaymentProvider{}
 	service.payments = provider
 
-	first, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
+	record, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
 		ActorUserID: "operator-1",
 		ActorRole:   admindomain.RoleOperator,
 	})
 	if err != nil {
-		t.Fatalf("run recurring sweep (first): %v", err)
+		t.Fatalf("run recurring sweep: %v", err)
 	}
-	// Not due yet: no charge attempted, exactly one reminder enqueued.
-	if first.DueSubscriptions != 0 || first.ChargesAttempted != 0 || first.RemindersEnqueued != 1 {
-		t.Fatalf("unexpected first sweep record: %+v", first)
+	if record.DueSubscriptions != 0 || record.ChargesAttempted != 0 || record.RemindersEnqueued != 0 {
+		t.Fatalf("unexpected sweep record for an upcoming renewal: %+v", record)
 	}
 	if len(provider.charged) != 0 {
 		t.Fatalf("expected no charge for an upcoming (not-yet-due) renewal, got %+v", provider.charged)
 	}
-	if len(businesses.renewalReminders) != 1 {
-		t.Fatalf("expected one reminder enqueue attempt, got %d", len(businesses.renewalReminders))
-	}
-	reminder := businesses.renewalReminders[0]
-	if reminder.Kind != string(notification.KindSubscriptionRenewalUpcoming) ||
-		reminder.Channel != string(notification.ChannelWhatsApp) ||
-		reminder.Recipient != "233555000111" ||
-		reminder.RenewalAmountMinor != 36000 ||
-		reminder.RepayURL != defaultRenewalRepayURL ||
-		!reminder.RenewalAt.Equal(upcoming) {
-		t.Fatalf("unexpected upcoming reminder input: %+v", reminder)
-	}
-
-	second, err := service.RunSubscriptionRecurringSweep(context.Background(), RunSubscriptionRecurringSweepCommand{
-		ActorUserID: "operator-1",
-		ActorRole:   admindomain.RoleOperator,
-	})
-	if err != nil {
-		t.Fatalf("run recurring sweep (second): %v", err)
-	}
-	// The same (subscription, period, kind) reminder must not be enqueued twice.
-	if second.RemindersEnqueued != 0 {
-		t.Fatalf("expected the reminder to be de-duplicated on the second sweep, got %+v", second)
-	}
-	if len(businesses.renewalReminders) != 2 ||
-		businesses.renewalReminders[1].DedupKey != reminder.DedupKey {
-		t.Fatalf("expected the second attempt to reuse the same dedup key, got %+v", businesses.renewalReminders)
+	if len(businesses.renewalReminders) != 0 {
+		t.Fatalf("expected no reminder from the recurring sweep (moved to the reminder sweep), got %+v", businesses.renewalReminders)
 	}
 }
 
@@ -444,7 +421,7 @@ func TestRunSubscriptionRecurringSweepEnqueuesRepayReminderOnCardFailure(t *test
 	reminder := businesses.renewalReminders[0]
 	if reminder.Kind != string(notification.KindSubscriptionRenewalPastDue) ||
 		reminder.Recipient != "233555000222" ||
-		reminder.RenewalAmountMinor != 36000 ||
+		reminder.RenewalAmountMinor != 36716 ||
 		reminder.RepayURL != defaultRenewalRepayURL {
 		t.Fatalf("unexpected re-pay reminder input: %+v", reminder)
 	}
@@ -916,4 +893,16 @@ func (fakePaymentProvider) VerifyWebhookSignature([]byte, string) bool {
 
 func (fakePaymentProvider) ParseChargeEvent([]byte) (ports.ProviderChargeEvent, error) {
 	return ports.ProviderChargeEvent{}, nil
+}
+
+func (fakePaymentProvider) PeekEventType([]byte) string {
+	return ""
+}
+
+func (fakePaymentProvider) ParseTransferEvent([]byte) (ports.ProviderTransferEvent, error) {
+	return ports.ProviderTransferEvent{}, nil
+}
+
+func (fakePaymentProvider) ListSettlements(context.Context, ports.ListSettlementsInput) ([]ports.ProviderSettlement, error) {
+	return nil, nil
 }

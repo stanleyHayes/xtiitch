@@ -21,10 +21,19 @@ export type Profile = {
   // recorded locally, so treat it as "unknown", not "none".
   settlement_bank?: string;
   settlement_account?: string;
+  // §2.1: the MoMo-registered wallet name, collected at payout setup and shown
+  // on the payout summary. Empty until payouts are set up.
+  settlement_account_name?: string;
   plan: string;
   // Resolved plan benefits, e.g. { custom_logo: true }. Drives which storefront
   // customizations the dashboard unlocks; the API enforces the same set.
   entitlements: Record<string, boolean>;
+  // §11.1: the NUMERIC plan-matrix rows (analytics/CRM levels, lookback,
+  // scheduled reports) — they can never live in the boolean entitlements map.
+  // -1 means unlimited; an absent key means the disabled/conservative default.
+  // Keys: analytics_level (0-3), analytics_lookback_days, crm_level (0-3),
+  // scheduled_reports (0/1/2). Read via the helpers in app/lib/entitlements.
+  entitlement_limits?: Record<string, number>;
   // The plan's cap on active designs, straight from the plan. null or absent
   // means unlimited — do NOT coerce it to a number. Admin-editable, so the
   // dashboard must read it rather than infer a cap from the plan name.
@@ -63,7 +72,13 @@ export type StoreSettings = {
   collections_enabled: boolean;
   delivery_enabled: boolean;
   dispatch_enabled: boolean;
-  fee_pass_to_buyer: boolean;
+  // §4.4 pass-down controls, all default false (the owner absorbs the fees).
+  // Ticked fees are added to the customer's checkout instead of coming out of
+  // the store's share; the Xtiitch fee and the Paystack fee appear there as
+  // one combined "Transaction fee" line, the tax as its own line (§4.5).
+  fee_pass_xtiitch_fee: boolean;
+  fee_pass_tax: boolean;
+  fee_pass_paystack_fee: boolean;
   brand_color: string;
   logo_url: string;
   banner_url: string;
@@ -119,6 +134,8 @@ export type DashboardSection =
   | "overview"
   | "tasks"
   | "reports"
+  | "analytics"
+  | "customers"
   | "orders"
   | "money"
   | "visits"
@@ -170,6 +187,12 @@ export type DashboardActionData = {
   priceError?: string;
   promotionError?: string;
   walkInError?: string;
+  // §14/§15: analytics report-schedule and CRM note/tag mutations surface
+  // their own feedback so the snackbar can confirm §1.2 resets.
+  analyticsError?: string;
+  analyticsSuccess?: string;
+  crmError?: string;
+  crmSuccess?: string;
 };
 
 export type DashboardPageMeta = {

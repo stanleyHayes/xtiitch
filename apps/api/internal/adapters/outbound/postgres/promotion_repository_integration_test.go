@@ -394,9 +394,12 @@ func TestReservePromotionCountsContactMatchedCustomers(t *testing.T) {
 				order_id,
 				customer_id,
 				discount_minor,
-				status
+				status,
+				redeemed_at
 			)
-			values ($1, $2, $3, $4, $5, 5000, 'applied')
+			-- 'applied' rows must carry redeemed_at (promotion_redemptions_check,
+			-- 000024) — an applied redemption is by definition a completed one.
+			values ($1, $2, $3, $4, $5, 5000, 'applied', now())
 		`, prRedContactA, prPromoContact, prBizA, prOrderA, prCustA)
 	})
 

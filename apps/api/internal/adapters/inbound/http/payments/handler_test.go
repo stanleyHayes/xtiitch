@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
@@ -116,20 +117,23 @@ func TestVerifyBusinessPassesOTPCode(t *testing.T) {
 	service := &fakeService{}
 	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "owner-1", BusinessID: "business-1", Role: business.UserRoleOwner}}
 	router := newRouter(service, verifier)
-	body := `{"settlement_account":"0240000000","settlement_bank":"MTN","otp_code":"123456"}`
+	body := `{"settlement_account":"0240000000","settlement_bank":"MTN","settlement_account_name":"Ama Serwaa Mensah","otp_code":"123456"}`
 	request := httptest.NewRequest(http.MethodPost, "/businesses/me/verify", bytes.NewReader([]byte(body)))
 	request.Header.Set("Authorization", "Bearer token")
 	response := httptest.NewRecorder()
 
 	router.ServeHTTP(response, request)
 
-	// decodeJSON rejects unknown fields, so an unwired otp_code would 400 here
-	// rather than being quietly ignored.
+	// decodeJSON rejects unknown fields, so an unwired otp_code or
+	// settlement_account_name would 400 here rather than being quietly ignored.
 	if response.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d (%s)", response.Code, response.Body.String())
 	}
 	if service.verifyCommand.OTPCode != "123456" {
 		t.Fatalf("expected the OTP code to reach the service, got %q", service.verifyCommand.OTPCode)
+	}
+	if service.verifyCommand.SettlementAccountName != "Ama Serwaa Mensah" {
+		t.Fatalf("expected the MoMo account name to reach the service, got %q", service.verifyCommand.SettlementAccountName)
 	}
 }
 
@@ -168,6 +172,10 @@ func TestVerifyBusinessMapsOTPErrors(t *testing.T) {
 		{"invalid phone", authapp.ErrInvalidPhone, http.StatusBadRequest, "invalid_phone"},
 		{"delivery failed", authapp.ErrOTPDeliveryFailed, http.StatusBadGateway, "delivery_failed"},
 		{"verifier unwired", paymentsapp.ErrOTPUnavailable, http.StatusServiceUnavailable, "whatsapp_unavailable"},
+		// §2.1 / §2.2: the new payout gates must also reach the dashboard as
+		// their own stable codes, not a generic 500.
+		{"identity not verified", paymentsapp.ErrIdentityVerificationRequired, http.StatusConflict, "identity_verification_required"},
+		{"bad payout number", paymentsapp.ErrInvalidPayoutNumber, http.StatusBadRequest, "invalid_payout_number"},
 	}
 
 	for _, testCase := range cases {
@@ -215,6 +223,57 @@ func TestLogTakingMapsForbidden(t *testing.T) {
 	}
 }
 
+// §3.3: the payout history endpoint serves the store's mirrored settlement
+// rows, paged, to an authenticated member of the business.
+func TestListPayoutsReturnsMirroredRows(t *testing.T) {
+	t.Parallel()
+
+	settledAt := time.Date(2026, 7, 18, 9, 30, 0, 0, time.UTC)
+	service := &fakeService{
+		payouts: []ports.ProviderSettlementRecord{
+			{SettlementID: "s-1", ProviderReference: "paystack_settlement:11", AmountMinor: 9700, Status: "success", SettledAt: &settledAt},
+			{SettlementID: "s-2", ProviderReference: "paystack_settlement:12", AmountMinor: 4850, Status: "pending"},
+		},
+	}
+	verifier := fakeVerifier{principal: ports.VerifiedAccessToken{Subject: "owner-1", BusinessID: "business-1", Role: business.UserRoleOwner}}
+	router := newRouter(service, verifier)
+	request := httptest.NewRequest(http.MethodGet, "/money/payouts?limit=10&offset=20", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", response.Code, response.Body.String())
+	}
+	if service.payoutsLimit != 10 || service.payoutsOffset != 20 {
+		t.Fatalf("expected limit/offset passthrough, got %d/%d", service.payoutsLimit, service.payoutsOffset)
+	}
+	if !bytes.Contains(response.Body.Bytes(), []byte(`"paystack_settlement:11"`)) ||
+		!bytes.Contains(response.Body.Bytes(), []byte(`"amount_minor":9700`)) ||
+		!bytes.Contains(response.Body.Bytes(), []byte(`"status":"pending"`)) {
+		t.Fatalf("unexpected payouts payload: %s", response.Body.String())
+	}
+	// A nil settled_at renders as an empty string rather than a zero time.
+	if !bytes.Contains(response.Body.Bytes(), []byte(`"settled_at":""`)) {
+		t.Fatalf("expected an empty settled_at on the pending row: %s", response.Body.String())
+	}
+}
+
+func TestListPayoutsRequiresAuthentication(t *testing.T) {
+	t.Parallel()
+
+	router := newRouter(&fakeService{}, fakeVerifier{err: errTest})
+	request := httptest.NewRequest(http.MethodGet, "/money/payouts", nil)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 without token, got %d", response.Code)
+	}
+}
+
 func newRouter(service Service, verifier ports.TokenVerifier) http.Handler {
 	router := chi.NewRouter()
 	NewHandler(service, authhttp.NewAuthenticator(verifier)).Register(router)
@@ -247,6 +306,9 @@ type fakeService struct {
 	chargeCommand    paymentsapp.InitiateChargeCommand
 	takingCommand    paymentsapp.LogManualTakingCommand
 	takingErr        error
+	payouts          []ports.ProviderSettlementRecord
+	payoutsLimit     int
+	payoutsOffset    int
 }
 
 func (s *fakeService) VerifyBusiness(_ context.Context, command paymentsapp.VerifyBusinessCommand) error {
@@ -291,4 +353,10 @@ func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope)
 
 func (s *fakeService) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
 	return ports.MoneySummary{}, nil
+}
+
+func (s *fakeService) ListPayouts(_ context.Context, _ common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+	s.payoutsLimit = limit
+	s.payoutsOffset = offset
+	return s.payouts, nil
 }

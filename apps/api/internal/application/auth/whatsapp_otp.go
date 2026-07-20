@@ -87,6 +87,14 @@ func (s Service) RequestBusinessPhoneOTP(ctx context.Context, rawNumber string) 
 	return s.requestBusinessPhoneOTP(ctx, rawNumber, ports.BusinessOTPPurposePayout)
 }
 
+// RequestProfilePhoneOTP sends a verification code to the NEW phone number a
+// signed-in user wants on their profile (§9), before the profile update may
+// save it. The route is authenticated — unlike registration's public one — but
+// the same per-number cooldown applies, since every send still bills an SMS.
+func (s Service) RequestProfilePhoneOTP(ctx context.Context, rawNumber string) error {
+	return s.requestBusinessPhoneOTP(ctx, rawNumber, ports.BusinessOTPPurposeProfile)
+}
+
 func (s Service) requestBusinessPhoneOTP(ctx context.Context, rawNumber string, purpose string) error {
 	if !s.whatsAppOTPEnabled() {
 		return ErrWhatsAppOTPUnavailable
@@ -113,6 +121,42 @@ func (s Service) VerifyBusinessPhoneOTP(ctx context.Context, rawNumber string, c
 		return err
 	}
 	return s.verifyBusinessOTP(ctx, number, code, ports.BusinessOTPPurposePayout)
+}
+
+// VerifyRegistrationOTP proves a signup form's phone number mid-flow (§8: the
+// "Verify phone number" button, code checked before the form is submitted) and
+// MARKS the challenge verified instead of consuming it, so the later
+// RegisterBusiness for the same number can redeem the proof instead of asking
+// for the code a second time. It registers nothing by itself.
+func (s Service) VerifyRegistrationOTP(ctx context.Context, rawNumber string, code string) error {
+	if !s.whatsAppOTPEnabled() {
+		return ErrWhatsAppOTPUnavailable
+	}
+	number, err := normalizeGhanaPhone(rawNumber)
+	if err != nil {
+		return err
+	}
+	challenge, err := s.checkBusinessOTP(ctx, number, code, ports.BusinessOTPPurposeRegister)
+	if err != nil {
+		return err
+	}
+	return s.whatsAppAuth.MarkSignInOTPChallengeVerified(ctx, challenge.ChallengeID)
+}
+
+// ensurePhoneProven accepts EITHER a challenge verified earlier in the flow
+// (§8 verify-then-register, §9 verify-then-save) OR a code presented now. A
+// redeemed earlier proof is consumed, so one verification still completes
+// exactly one registration / phone change; the inline-code path consumes
+// through verifyBusinessOTP exactly as before.
+func (s Service) ensurePhoneProven(ctx context.Context, number string, code string, purpose string) error {
+	verified, err := s.whatsAppAuth.LatestVerifiedSignInOTPChallenge(ctx, number, purpose, s.clock.Now())
+	if err == nil {
+		return s.whatsAppAuth.ConsumeSignInOTPChallenge(ctx, verified.ChallengeID)
+	}
+	if !errors.Is(err, ports.ErrNotFound) {
+		return err
+	}
+	return s.verifyBusinessOTP(ctx, number, code, purpose)
 }
 
 // VerifySignInOTPCommand carries a WhatsApp sign-in attempt.
@@ -255,51 +299,45 @@ func maskWhatsApp(number string) string {
 // verifyBusinessOTP resolves the active challenge for a number, enforces the
 // attempt cap, checks the code, and consumes the challenge on a match.
 func (s Service) verifyBusinessOTP(ctx context.Context, number string, code string, purpose string) error {
+	challenge, err := s.checkBusinessOTP(ctx, number, code, purpose)
+	if err != nil {
+		return err
+	}
+	return s.whatsAppAuth.ConsumeSignInOTPChallenge(ctx, challenge.ChallengeID)
+}
+
+// checkBusinessOTP resolves the active challenge for a number, enforces the
+// attempt cap, and checks the code — the shared core of every verify path.
+// What a match means (consume vs mark verified) is the caller's choice.
+func (s Service) checkBusinessOTP(ctx context.Context, number string, code string, purpose string) (ports.BusinessOTPChallengeRecord, error) {
 	now := s.clock.Now()
 	challenge, err := s.whatsAppAuth.LatestActiveSignInOTPChallenge(ctx, number, purpose, now)
 	if err != nil {
 		if errors.Is(err, ports.ErrNotFound) {
-			return ErrCodeExpired
+			return ports.BusinessOTPChallengeRecord{}, ErrCodeExpired
 		}
-		return err
+		return ports.BusinessOTPChallengeRecord{}, err
 	}
 	if challenge.Attempts >= maxBusinessOTPAttempts {
-		return ErrTooManyAttempts
+		return ports.BusinessOTPChallengeRecord{}, ErrTooManyAttempts
 	}
 	if s.otpGen.HashCode(strings.TrimSpace(code)) != challenge.CodeHash {
 		if incErr := s.whatsAppAuth.IncrementSignInOTPAttempts(ctx, challenge.ChallengeID); incErr != nil {
 			s.logger.Error("failed to increment business sign-in OTP attempts", slog.String("error", incErr.Error()))
 		}
-		return ErrInvalidCode
+		return ports.BusinessOTPChallengeRecord{}, ErrInvalidCode
 	}
-	if err := s.whatsAppAuth.ConsumeSignInOTPChallenge(ctx, challenge.ChallengeID); err != nil {
-		return err
-	}
-	return nil
+	return challenge, nil
 }
 
 // normalizeGhanaPhone coerces a Ghana mobile number to canonical 233XXXXXXXXX
 // (12 digits): accepts 0XXXXXXXXX, +233XXXXXXXXX / 233XXXXXXXXX, or a bare
-// 9-digit local number. Keeps storage and lookup consistent.
+// 9-digit local number. Keeps storage and lookup consistent — it delegates to
+// the shared canonical normalizer (§5.3.4) and maps the error to this
+// package's sentinel.
 func normalizeGhanaPhone(raw string) (string, error) {
-	var b strings.Builder
-	for _, r := range raw {
-		if r >= '0' && r <= '9' {
-			b.WriteRune(r)
-		}
-	}
-	digits := b.String()
-	switch {
-	case len(digits) == 12 && strings.HasPrefix(digits, "233"):
-		// already canonical
-	case len(digits) == 10 && strings.HasPrefix(digits, "0"):
-		digits = "233" + digits[1:]
-	case len(digits) == 9:
-		digits = "233" + digits
-	default:
-		return "", ErrInvalidPhone
-	}
-	if len(digits) != 12 || !strings.HasPrefix(digits, "233") {
+	digits, err := common.NormalizeGhanaPhone(raw)
+	if err != nil {
 		return "", ErrInvalidPhone
 	}
 	return digits, nil

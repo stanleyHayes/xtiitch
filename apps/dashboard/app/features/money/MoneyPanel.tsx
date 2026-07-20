@@ -121,8 +121,26 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             icon={<PaymentsRounded fontSize="small" />}
             label="Platform"
             value={formatGHS(summary.through_platform_minor)}
-            helper="Paid through checkout"
+            helper="Total received through checkout"
             tone={tokens.success}
+          />
+          {/* §3.1/§4.5: Paystack's own fee on the transactions, as reported by
+              Paystack — branded exactly "Transaction fee", never "Paystack
+              fee". These are the persisted Paystack figures (§3.2), never
+              derived locally, so the dashboard mirrors the Paystack splits. */}
+          <MiniStat
+            icon={<ReceiptLongRounded fontSize="small" />}
+            label="Transaction fee"
+            value={formatGHS(summary.paystack_fee_minor)}
+            helper="Paystack's cut, as reported by Paystack"
+            tone={tokens.warning}
+          />
+          <MiniStat
+            icon={<ReceiptLongRounded fontSize="small" />}
+            label="Xtiitch fee"
+            value={formatGHS(summary.xtiitch_fee_minor)}
+            helper="Our share per design sold, already split online"
+            tone={tokens.warning}
           />
           <MiniStat
             icon={<AccountBalanceWalletRounded fontSize="small" />}
@@ -131,18 +149,6 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             helper="Logged cash or momo"
             tone={tokens.info}
           />
-          {/* This figure is the XTIITCH commission (the plan's commission_bps
-              share of online sales). It was labelled "Paystack fee", which is a
-              different charge entirely — Paystack's own ~1.95% is borne by the
-              owner and deducted by Paystack at settlement, so the mislabelled
-              card could never reconcile against the Paystack dashboard. */}
-          <MiniStat
-            icon={<ReceiptLongRounded fontSize="small" />}
-            label="Xtiitch fee"
-            value={formatGHS(summary.commission_minor)}
-            helper="Our share, already split online"
-            tone={tokens.warning}
-          />
           <MiniStat
             icon={<WarningAmberRounded fontSize="small" />}
             label="Offline due"
@@ -150,12 +156,21 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             helper="Invoice or reconcile later"
             tone={tokens.warning}
           />
+          {/* §3.1: doubles as the amount due for payout — it rises as sales
+              come in and drops in real time when a payout settles (§3.3). */}
           <MiniStat
             icon={<CheckCircleRounded fontSize="small" />}
             label="Net income"
             value={formatGHS(summary.net_income_minor)}
-            helper="Gross less online and offline fees"
+            helper="Amount due for payout — drops when a payout lands"
             tone={tokens.burgundy}
+          />
+          <MiniStat
+            icon={<SavingsRounded fontSize="small" />}
+            label="All-time income"
+            value={formatGHS(summary.all_time_income_minor)}
+            helper="Since joining Xtiitch"
+            tone={tokens.info}
           />
         </Box>
 

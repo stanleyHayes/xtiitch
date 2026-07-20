@@ -1,8 +1,9 @@
 import type { Route } from "./+types/track";
 import { api } from "../lib/api";
+import { requestTenant } from "../lib/tenant";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const tracking = await api.tracking(params.orderId);
+export async function loader({ params, request }: Route.LoaderArgs) {
+  const tracking = await api.tracking(params.orderId, requestTenant(request));
   if (!tracking) {
     throw new Response("Order not found", { status: 404 });
   }

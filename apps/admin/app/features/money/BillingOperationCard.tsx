@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -12,6 +12,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import TextField from "../../components/form-text-field";
+import { useActionSuccess } from "../shared/useActionSuccess";
 
 
 
@@ -39,6 +40,16 @@ export function BillingOperationCard({ // eslint-disable-line max-lines-per-func
   actionIcon: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+
+  // §1.2/§11.4: the confirmation dialog closes once the sweep action
+  // succeeds (these intents return the "subscriptions" section tag).
+  // Errors keep the dialog open with the operator note intact.
+  const actionSuccess = useActionSuccess("subscriptions");
+  useEffect(() => {
+    if (actionSuccess) {
+      setOpen(false);
+    }
+  }, [actionSuccess]);
 
   return (
     <Box

@@ -17,6 +17,7 @@ export type AdminPlatformSettings = {
   supportEmail: string;
   verificationSlaHours: number;
   payoutReviewThresholdPesewas: number;
+  vatRateBps: number;
   maintenanceMode: boolean;
   brandLogoUrl: string;
   marketingFlags: MarketingFlags;
@@ -75,6 +76,7 @@ type AdminPlatformSettingsPayload = {
   support_email: string;
   verification_sla_hours: number;
   payout_review_threshold_pesewas: number;
+  vat_rate_bps?: number;
   maintenance_mode: boolean;
   brand_logo_url?: string;
   marketing_flags?: MarketingFlagsPayload | null;
@@ -123,6 +125,23 @@ function mapMarketingFlags(
   };
 }
 
+// The operator edits VAT as a percent (20) while the API stores basis points
+// (2000) so rates like 12.5% survive integer math. Clamp rather than trust the
+// input: the API rejects anything outside 0–10000 bps, and a clamped value is
+// easier to spot and fix than a failed save.
+export const MAX_VAT_RATE_BPS = 10000;
+export const DEFAULT_VAT_RATE_BPS = 2000;
+
+export function vatPercentToBps(percent: number): number {
+  if (!Number.isFinite(percent)) {
+    return DEFAULT_VAT_RATE_BPS;
+  }
+  return Math.min(
+    MAX_VAT_RATE_BPS,
+    Math.max(0, Math.round(percent * 100)),
+  );
+}
+
 function mapPlatformSettings(
   payload: AdminPlatformSettingsPayload,
 ): AdminPlatformSettings {
@@ -131,6 +150,9 @@ function mapPlatformSettings(
     supportEmail: payload.support_email,
     verificationSlaHours: payload.verification_sla_hours,
     payoutReviewThresholdPesewas: payload.payout_review_threshold_pesewas,
+    // Older API responses predate the VAT field; 2000 bps (20%) is the
+    // platform-wide default the backend applies before the setting exists.
+    vatRateBps: payload.vat_rate_bps ?? DEFAULT_VAT_RATE_BPS,
     maintenanceMode: payload.maintenance_mode,
     brandLogoUrl: payload.brand_logo_url ?? "",
     marketingFlags: mapMarketingFlags(payload.marketing_flags),
@@ -192,6 +214,7 @@ export const settingsApi = {
       supportEmail: string;
       verificationSlaHours: number;
       payoutReviewThresholdPesewas: number;
+      vatRateBps: number;
       maintenanceMode: boolean;
       brandLogoUrl: string;
       aiAssistantAddonEnabled: boolean;
@@ -205,6 +228,7 @@ export const settingsApi = {
         support_email: input.supportEmail,
         verification_sla_hours: input.verificationSlaHours,
         payout_review_threshold_pesewas: input.payoutReviewThresholdPesewas,
+        vat_rate_bps: input.vatRateBps,
         maintenance_mode: input.maintenanceMode,
         brand_logo_url: input.brandLogoUrl,
         ai_assistant_addon_enabled: input.aiAssistantAddonEnabled,

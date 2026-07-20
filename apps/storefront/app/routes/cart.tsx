@@ -1,4 +1,10 @@
-import { Form, Link as RouterLink, redirect } from "react-router";
+import {
+  Form,
+  Link as RouterLink,
+  data,
+  redirect,
+} from "react-router";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Container from "@mui/material/Container";
@@ -13,11 +19,14 @@ import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import type { Route } from "./+types/cart";
 import { tokens } from "../theme";
 import { formatGHS } from "../lib/format";
+import { api } from "../lib/api";
+import { requestTenant } from "../lib/tenant";
 import {
   cartTotalMinor,
   clearCart,
   getCart,
   itemsForStore,
+  keepOnlyStore,
   removeFromCart,
   storeHandlesInCart,
 } from "../lib/cart";
@@ -29,18 +38,67 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
+// storeNames resolves each basket's DISPLAY name for its header (§5.1: designs
+// group under "that store's basket name"). One fetch per store, parallel;
+// a failed lookup falls back to the handle so the cart always renders.
+async function storeNames(
+  handles: string[],
+  tenant: string | null,
+): Promise<Record<string, string>> {
+  const entries = await Promise.all(
+    handles.map(async (handle) => {
+      const page = await api.store(handle, tenant).catch(() => null);
+      return [handle, page?.store.name ?? handle] as const;
+    }),
+  );
+  return Object.fromEntries(entries);
+}
+
 export async function loader({ request }: Route.LoaderArgs) {
-  const { storeHandle, items } = await getCart(request);
-  // Group the unified basket by store; each store checks out on its own (§4).
-  const groups = storeHandlesInCart(items).map((handle) => {
-    const storeItems = itemsForStore(items, handle);
+  const tenant = requestTenant(request);
+  const { items } = await getCart(request);
+  // §6: a tenant store's cart holds only that store's designs. Foreign lines
+  // (e.g. from a cookie written before isolation) are dropped from the cookie
+  // outright — they can't legitimately exist anymore.
+  const dropCookie = tenant ? await keepOnlyStore(request, tenant) : null;
+  const scopedItems = tenant ? itemsForStore(items, tenant) : items;
+
+  // Group the basket by store; each store checks out on its own (§5.2).
+  const handles = storeHandlesInCart(scopedItems);
+  const names = await storeNames(handles, tenant);
+  const groups = handles.map((handle) => {
+    const storeItems = itemsForStore(scopedItems, handle);
     return {
       handle,
+      name: names[handle] ?? handle,
       items: storeItems,
       subtotalMinor: cartTotalMinor(storeItems),
     };
   });
-  return { storeHandle, groups, totalMinor: cartTotalMinor(items) };
+
+  // §5.2: after Paystack returns the customer to /cart?paid=<handle>, the paid
+  // basket is already cleared; when no other baskets remain, the customer goes
+  // straight back to the storefront home.
+  const url = new URL(request.url);
+  const paidHandle = (url.searchParams.get("paid") ?? "").trim();
+  if (paidHandle && groups.length === 0) {
+    return redirect("/");
+  }
+  let paidName = "";
+  if (paidHandle) {
+    const paidNames = await storeNames([paidHandle], tenant);
+    paidName = paidNames[paidHandle] ?? paidHandle;
+  }
+
+  return data(
+    {
+      tenantHost: Boolean(tenant),
+      groups,
+      totalMinor: cartTotalMinor(scopedItems),
+      paidName,
+    },
+    dropCookie ? { headers: { "Set-Cookie": dropCookie } } : undefined,
+  );
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -61,8 +119,7 @@ export async function action({ request }: Route.ActionArgs) {
 }
 
 export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
-  const { storeHandle, groups, totalMinor } = loaderData;
-  const storeHref = storeHandle ? `/store/${storeHandle}` : "/discover";
+  const { tenantHost, groups, totalMinor, paidName } = loaderData;
   const multiStore = groups.length > 1;
 
   return (
@@ -70,7 +127,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
       <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: "md" }}>
         <Button
           component={RouterLink}
-          to={storeHref}
+          to="/"
           variant="text"
           startIcon={<ArrowBackRounded />}
           sx={{ px: 0, color: "text.secondary", fontWeight: 800, mb: 2 }}
@@ -101,6 +158,13 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
           </Typography>
         </Stack>
 
+        {paidName ? (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            Payment to {paidName} successful — that basket is settled. Pay each
+            remaining studio's basket one at a time below.
+          </Alert>
+        ) : null}
+
         {groups.length === 0 ? (
           <Box
             sx={{
@@ -112,15 +176,19 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
             }}
           >
             <Typography sx={{ color: "text.secondary" }}>
-              Your cart is empty. Browse a studio and add pieces to your cart.
+              Your cart is empty. Browse the designs and add pieces to your
+              cart.
             </Typography>
+            {/* §6: on a tenant host this is the store's OWN storefront ("/"),
+                never the marketplace AI Search page; on the marketplace "/"
+                is the cross-store browse, which is fine there. */}
             <Button
               component={RouterLink}
-              to="/discover"
+              to="/"
               variant="contained"
               sx={{ mt: 2 }}
             >
-              Discover studios
+              Discover designs
             </Button>
           </Box>
         ) : (
@@ -143,11 +211,37 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                   p: { xs: 1.5, md: 2 },
                 }}
               >
-                {multiStore ? (
-                  <Typography sx={{ fontWeight: 900 }} noWrap>
-                    {group.handle}
+                {/* §5.1: the basket header carries the store's display name and
+                    its own design count, total and checkout button. */}
+                <Stack
+                  direction="row"
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "baseline",
+                    gap: 1,
+                  }}
+                >
+                  <Typography
+                    sx={{ fontWeight: 900, minWidth: 0 }}
+                    noWrap
+                    component={tenantHost ? "span" : RouterLink}
+                    {...(tenantHost
+                      ? {}
+                      : {
+                          to: `/store/${encodeURIComponent(group.handle)}`,
+                          style: { color: "inherit", textDecoration: "none" },
+                        })}
+                  >
+                    {group.name}
                   </Typography>
-                ) : null}
+                  <Typography
+                    variant="body2"
+                    sx={{ color: "text.secondary", flexShrink: 0 }}
+                  >
+                    {group.items.length}{" "}
+                    {group.items.length === 1 ? "design" : "designs"}
+                  </Typography>
+                </Stack>
 
                 {group.items.map((item) => (
                   <Stack
@@ -214,7 +308,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                   }}
                 >
                   <Typography sx={{ fontWeight: 900 }}>
-                    {multiStore ? "Subtotal" : "Total"}
+                    {multiStore ? "Basket subtotal" : "Total"}
                   </Typography>
                   <Typography
                     sx={{ fontWeight: 900, color: "primary.main" }}
@@ -225,50 +319,35 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                 <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
                   <Button
                     component={RouterLink}
-                    to={
-                      multiStore
-                        ? `/checkout?store=${encodeURIComponent(group.handle)}`
-                        : "/checkout"
-                    }
+                    to={`/checkout?store=${encodeURIComponent(group.handle)}`}
                     variant="contained"
                     size="large"
                   >
-                    {multiStore ? "Check out this studio" : "Proceed to checkout"}
+                    Proceed to checkout
                   </Button>
                 </Box>
               </Stack>
             ))}
 
+            {/* §5.2: the cross-store total may be shown for information ONLY —
+                there is no button that pays all stores in one charge. */}
             {multiStore ? (
               <Stack
-                spacing={1.5}
+                direction="row"
                 sx={{
-                  border: "1px solid",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  border: "1px dashed",
                   borderColor: "divider",
                   borderRadius: 3,
                   p: { xs: 1.5, md: 2 },
                 }}
               >
-                <Stack
-                  direction="row"
-                  sx={{ justifyContent: "space-between", alignItems: "center" }}
-                >
-                  <Typography sx={{ fontWeight: 900 }}>Basket total</Typography>
-                  <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
-                    {formatGHS(totalMinor)}
-                  </Typography>
-                </Stack>
-                <Button
-                  component={RouterLink}
-                  to="/checkout-all"
-                  variant="contained"
-                  size="large"
-                >
-                  Pay for all {groups.length} studios at once
-                </Button>
-                <Typography variant="caption" sx={{ color: "text.secondary" }}>
-                  One payment, split to each studio automatically — or check out
-                  a single studio above.
+                <Typography sx={{ fontWeight: 900 }}>
+                  Total across studios
+                </Typography>
+                <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
+                  {formatGHS(totalMinor)}
                 </Typography>
               </Stack>
             ) : null}

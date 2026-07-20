@@ -8,6 +8,25 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 )
 
+// adminPlatformSettingsColumns is the shared column list for the single-row
+// platform settings, so every read/returning projects the same shape the
+// scanner consumes (a mismatch fails the scan at runtime, not at compile time).
+const adminPlatformSettingsColumns = `
+	platform_name,
+	support_email,
+	verification_sla_hours,
+	payout_review_threshold_pesewas,
+	maintenance_mode,
+	brand_logo_url,
+	marketing_show_browse_store,
+	marketing_show_discover,
+	marketing_show_create_store,
+	marketing_show_pricing,
+	ai_assistant_addon_enabled,
+	vat_rate_bps,
+	updated_at
+`
+
 func (repo AdminAuthRepository) GetAdminPlatformSettings(ctx context.Context) (ports.AdminPlatformSettingsRecord, error) {
 	if _, err := repo.pool.Exec(ctx, `
 		insert into admin_platform_settings (settings_id)
@@ -18,19 +37,7 @@ func (repo AdminAuthRepository) GetAdminPlatformSettings(ctx context.Context) (p
 	}
 
 	settings, err := scanAdminPlatformSettingsRecord(repo.pool.QueryRow(ctx, `
-		select
-			platform_name,
-			support_email,
-			verification_sla_hours,
-			payout_review_threshold_pesewas,
-			maintenance_mode,
-			brand_logo_url,
-			marketing_show_browse_store,
-			marketing_show_discover,
-			marketing_show_create_store,
-			marketing_show_pricing,
-			ai_assistant_addon_enabled,
-			updated_at
+		select `+adminPlatformSettingsColumns+`
 		from admin_platform_settings
 		where settings_id = true
 		limit 1
@@ -58,9 +65,10 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			payout_review_threshold_pesewas,
 			maintenance_mode,
 			brand_logo_url,
-			ai_assistant_addon_enabled
+			ai_assistant_addon_enabled,
+			vat_rate_bps
 		)
-		values (true, $1, $2, $3, $4, $5, $6, $7)
+		values (true, $1, $2, $3, $4, $5, $6, $7, $8)
 		on conflict (settings_id) do update
 		set platform_name = excluded.platform_name,
 			support_email = excluded.support_email,
@@ -69,27 +77,17 @@ func (repo AdminAuthRepository) UpdateAdminPlatformSettings(
 			maintenance_mode = excluded.maintenance_mode,
 			brand_logo_url = excluded.brand_logo_url,
 			ai_assistant_addon_enabled = excluded.ai_assistant_addon_enabled,
+			vat_rate_bps = excluded.vat_rate_bps,
 			updated_at = now()
-		returning
-			platform_name,
-			support_email,
-			verification_sla_hours,
-			payout_review_threshold_pesewas,
-			maintenance_mode,
-			brand_logo_url,
-			marketing_show_browse_store,
-			marketing_show_discover,
-			marketing_show_create_store,
-			marketing_show_pricing,
-			ai_assistant_addon_enabled,
-			updated_at
-	`, input.PlatformName,
+		returning `+adminPlatformSettingsColumns,
+		input.PlatformName,
 		input.SupportEmail,
 		input.VerificationSLAHours,
 		input.PayoutReviewThresholdPesewas,
 		input.MaintenanceMode,
 		input.BrandLogoURL,
 		input.AIAssistantAddonEnabled,
+		input.VATRateBps,
 	))
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
@@ -122,19 +120,8 @@ func (repo AdminAuthRepository) UpdateAdminMarketingFlags(
 			marketing_show_pricing = coalesce($4, marketing_show_pricing),
 			updated_at = now()
 		where settings_id = true
-		returning
-			platform_name,
-			support_email,
-			verification_sla_hours,
-			payout_review_threshold_pesewas,
-			maintenance_mode,
-			brand_logo_url,
-			marketing_show_browse_store,
-			marketing_show_discover,
-			marketing_show_create_store,
-			marketing_show_pricing,
-			updated_at
-	`, input.BrowseStore,
+		returning `+adminPlatformSettingsColumns,
+		input.BrowseStore,
 		input.Discover,
 		input.CreateStore,
 		input.Pricing,
@@ -160,6 +147,7 @@ func scanAdminPlatformSettingsRecord(row pgx.Row) (ports.AdminPlatformSettingsRe
 		&settings.MarketingFlags.CreateStore,
 		&settings.MarketingFlags.Pricing,
 		&settings.AIAssistantAddonEnabled,
+		&settings.VATRateBps,
 		&settings.UpdatedAt,
 	); err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err

@@ -22,7 +22,7 @@ type Service interface {
 	RegisterBusiness(ctx context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error)
 	CheckHandleAvailability(ctx context.Context, raw string) (authapp.HandleAvailability, error)
 	ListPublicPlans(ctx context.Context) ([]ports.PublicPlanRecord, error)
-	SubscriptionVATPolicy() (rateBps int, inclusive bool)
+	SubscriptionVATPolicy(ctx context.Context) (rateBps int, inclusive bool)
 	InitializeSubscriptionAuthorization(
 		ctx context.Context,
 		command authapp.InitializeSubscriptionAuthorizationCommand,
@@ -52,7 +52,11 @@ type Service interface {
 	VerifyMFALogin(ctx context.Context, command authapp.VerifyMFALoginCommand) (authapp.AuthResult, error)
 	RequestSignInOTP(ctx context.Context, handle string, whatsAppNumber string) error
 	RequestRegistrationOTP(ctx context.Context, whatsAppNumber string) error
+	VerifyRegistrationOTP(ctx context.Context, phone string, code string) error
 	VerifySignInOTP(ctx context.Context, command authapp.VerifySignInOTPCommand) (authapp.AuthResult, error)
+	GetOwnProfile(ctx context.Context, scope common.TenantScope, userID common.ID) (ports.BusinessUserProfileRecord, error)
+	UpdateOwnProfile(ctx context.Context, command authapp.UpdateOwnProfileCommand) (ports.BusinessUserProfileRecord, error)
+	RequestProfilePhoneOTP(ctx context.Context, phone string) error
 }
 
 type Handler struct {
@@ -81,6 +85,10 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/auth/business/otp/request", handler.requestSignInOTP)
 	router.Post("/auth/business/otp/verify", handler.verifySignInOTP)
 	router.Post("/auth/business/register/otp/request", handler.requestRegistrationOTP)
+	// Verify-only registration check (§8): the signup form's "Verify phone
+	// number" button proves the code up front; the register call then redeems
+	// that proof instead of carrying the code.
+	router.Post("/auth/business/register/otp/verify", handler.verifyRegistrationOTP)
 	// Public plan catalogue powering the signup plan picker.
 	router.Get("/plans", handler.listPlans)
 	// Real-time store-handle availability for the signup form (Instagram-style).
@@ -89,6 +97,11 @@ func (handler Handler) Register(router chi.Router) {
 	router.Group(func(protected chi.Router) {
 		protected.Use(handler.authenticator.Middleware)
 		protected.Get("/auth/business/me", handler.me)
+		// §9 owner self-service profile: read/edit the caller's OWN business-user
+		// row (owner included), with an SMS code gating any phone change exactly
+		// as at account creation.
+		protected.Patch("/auth/business/me", handler.updateOwnProfile)
+		protected.Post("/auth/business/me/phone-otp", handler.requestProfilePhoneOTP)
 		protected.Post("/auth/business/subscription/authorization-link", handler.initializeSubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/authorization-verifications", handler.verifySubscriptionAuthorization)
 		protected.Post("/auth/business/subscription/change-plan", handler.changeSubscriptionPlan)
@@ -180,6 +193,11 @@ func authError(err error) (int, string) {
 		return http.StatusTooManyRequests, "too_many_attempts"
 	case errors.Is(err, authapp.ErrOTPResendTooSoon):
 		return http.StatusTooManyRequests, "resend_too_soon"
+	// §9: a phone change was attempted without proving the new number first.
+	// Distinct from the OTP codes so the dashboard can open the code-entry step
+	// (via POST /auth/business/me/phone-otp) rather than fail outright.
+	case errors.Is(err, authapp.ErrPhoneVerificationRequired):
+		return http.StatusBadRequest, "phone_verification_required"
 	case errors.Is(err, authapp.ErrOTPDeliveryFailed):
 		return http.StatusBadGateway, "delivery_failed"
 	case errors.Is(err, authapp.ErrDiscountCodeInvalid):
@@ -206,6 +224,8 @@ func authError(err error) (int, string) {
 		return http.StatusConflict, "handle_taken"
 	case errors.Is(err, business.ErrUserEmailTaken):
 		return http.StatusConflict, "user_email_taken"
+	case errors.Is(err, business.ErrUserWhatsAppTaken):
+		return http.StatusConflict, "user_whatsapp_taken"
 	case errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	default:

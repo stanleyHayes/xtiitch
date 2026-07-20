@@ -1,4 +1,4 @@
-import { enc, getJSON } from "./core";
+import { enc, getJSON, type TenantScope } from "./core";
 import type {
   AvailabilityPage,
   CollectionPage,
@@ -9,21 +9,25 @@ import type {
   StorePage,
 } from "./types";
 
-export const store = (handle: string) =>
-  getJSON<StorePage>(`/public/stores/${enc(handle)}`);
+export const store = (handle: string, tenant?: TenantScope) =>
+  getJSON<StorePage>(`/public/stores/${enc(handle)}`, tenant);
 
-export const design = (handle: string) =>
-  getJSON<Design>(`/public/designs/${enc(handle)}`);
+export const design = (handle: string, tenant?: TenantScope) =>
+  getJSON<Design>(`/public/designs/${enc(handle)}`, tenant);
 
-export const collection = (handle: string) =>
-  getJSON<CollectionPage>(`/public/collections/${enc(handle)}`);
+export const collection = (handle: string, tenant?: TenantScope) =>
+  getJSON<CollectionPage>(`/public/collections/${enc(handle)}`, tenant);
 
-export const search = (handle: string, query: string) =>
-  getJSON<SearchPage>(`/public/stores/${enc(handle)}/search?q=${enc(query)}`);
+export const search = (handle: string, query: string, tenant?: TenantScope) =>
+  getJSON<SearchPage>(
+    `/public/stores/${enc(handle)}/search?q=${enc(query)}`,
+    tenant,
+  );
 
 export const availability = (
   handle: string,
   range?: { from?: string; to?: string },
+  tenant?: TenantScope,
 ) => {
   const params = new URLSearchParams();
   if (range?.from) {
@@ -35,9 +39,13 @@ export const availability = (
   const query = params.toString();
   return getJSON<AvailabilityPage>(
     `/public/stores/${enc(handle)}/availability${query ? `?${query}` : ""}`,
+    tenant,
   );
 };
 
+// shops/sponsored are deliberately tenant-less: they are cross-store discovery
+// endpoints that only the marketplace may call — on a tenant host the §6
+// middleware 404s them, so tenant hosts must not call them at all.
 export const shops = () => getJSON<PublicShopsPage>(`/public/shops`);
 
 export const sponsored = (limit = 8) =>

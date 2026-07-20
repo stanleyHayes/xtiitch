@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -15,6 +15,7 @@ import GridViewRounded from "@mui/icons-material/GridViewRounded";
 import TextField from "../../components/form-text-field";
 import { Panel, SectionHeader, PaginationFooter } from "../../components/ui";
 import { usePagedItems } from "../shared/usePagedItems";
+import { useActionSuccess } from "../shared/useActionSuccess";
 import type { AdminBusiness } from "../../lib/api";
 import {
   AdminActionFeedback,
@@ -42,6 +43,17 @@ export function BusinessesSection({ // eslint-disable-line max-lines-per-functio
   const [businessView, setBusinessView] = useState<"list" | "card">("list");
   const [selectedBusiness, setSelectedBusiness] =
     useState<AdminBusiness | null>(null);
+
+  // §1.2/§11.4: the inspector drawer is a modal — it closes on any successful
+  // businesses action (suspend/reactivate, delete). On a delete the row is
+  // gone from the revalidated loader data anyway, so leaving the drawer open
+  // would show a tenant that no longer exists.
+  const actionSuccess = useActionSuccess("businesses");
+  useEffect(() => {
+    if (actionSuccess) {
+      setSelectedBusiness(null);
+    }
+  }, [actionSuccess]);
 
   const filteredBusinesses = useMemo(() => {
     const query = businessQuery.trim().toLowerCase();

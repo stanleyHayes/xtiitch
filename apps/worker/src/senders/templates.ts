@@ -1,5 +1,8 @@
 import type { OutboundMessage } from "../outbox";
 
+// Flat kind→template dispatcher; each case delegates (the subscription kinds
+// defer to renderSubscriptionReminder below), so the count is misleading.
+// eslint-disable-next-line complexity
 export function renderNotificationText(message: OutboundMessage): string {
   const design = stringPayload(message.payload.design);
   switch (message.kind) {
@@ -58,9 +61,39 @@ export function renderNotificationText(message: OutboundMessage): string {
           : "";
       return `New Xtiitch order${item}${who}${price}. Open your dashboard to manage it.`;
     }
+    case "subscription_renewal_upcoming":
+    case "subscription_renewal_past_due":
+      return renderSubscriptionReminder(message);
     default:
       return withDesign("Your Xtiitch order has an update.", design);
   }
+}
+
+// renderSubscriptionReminder words the §13.3 subscription reminders. Every one
+// states the amount (the full renewal figure incl. VAT + transaction fee) and
+// the one-tap re-pay link — for MoMo subscriptions, which cannot be silently
+// auto-debited, this message IS the renewal path.
+function renderSubscriptionReminder(message: OutboundMessage): string {
+  const plan = stringPayload(message.payload.plan) || "paid";
+  const amount = renewalAmountClause(message.payload.renewal_amount_minor);
+  const repay = repayClause(message.payload.repay_url);
+
+  if (message.kind === "subscription_renewal_past_due") {
+    // Dunning (§13.3): a MoMo renewal that could not be silently charged, or
+    // a failed card charge now in grace — re-pay before the grace window ends.
+    const grace = renewalDateClause(message.payload.grace_ends_at, " by ");
+    return `Your Xtiitch ${plan} plan payment of ${amount} is due${grace}. Pay to keep your paid features.${repay}`;
+  }
+
+  // Lead-day upcoming reminder (15/7/3/0): "in 7 days" or, on the renewal
+  // date itself, "today".
+  const leadDay = message.payload.lead_day;
+  const when =
+    typeof leadDay === "number" && leadDay > 0 ? `in ${leadDay} days` : "today";
+  return `Your Xtiitch ${plan} plan renews ${when}${renewalDateClause(
+    message.payload.renewal_at,
+    " on ",
+  )}. Amount due: ${amount}.${repay}`;
 }
 
 export function maskRecipient(recipient: string): string {
@@ -87,6 +120,40 @@ function dateClause(value: unknown): string {
     timeStyle: "short",
     timeZone: "Africa/Accra",
   }).format(new Date(date))}`;
+}
+
+// renewalDateClause renders a subscription renewal/grace date (date only —
+// the exact billing timestamp is noise in a reminder).
+function renewalDateClause(value: unknown, prefix: string): string {
+  const date = stringPayload(value);
+  if (date === "") {
+    return "";
+  }
+  return `${prefix}${new Intl.DateTimeFormat("en-GH", {
+    dateStyle: "medium",
+    timeZone: "Africa/Accra",
+  }).format(new Date(date))}`;
+}
+
+// renewalAmountClause formats the subscription renewal figure (GHS minor
+// units) the reminder must always state (§13.3); a missing/invalid figure
+// falls back to a generic label rather than printing "NaN".
+function renewalAmountClause(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return "your plan amount";
+  }
+  return new Intl.NumberFormat("en-GH", {
+    style: "currency",
+    currency: "GHS",
+  }).format(value / 100);
+}
+
+function repayClause(value: unknown): string {
+  const url = stringPayload(value);
+  if (url === "") {
+    return "";
+  }
+  return ` Pay: ${url}`;
 }
 
 function amountClause(value: unknown): string {

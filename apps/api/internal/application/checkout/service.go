@@ -12,6 +12,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
 var (
@@ -83,9 +84,10 @@ func (s Service) resolveDelivery(
 // Payments is the slice of the payments use case the checkout needs.
 type Payments interface {
 	InitiateCharge(ctx context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error)
-	// InitiateMarketplaceCharge raises one combined split charge across several
-	// shops (the §4 "pay once" basket).
-	InitiateMarketplaceCharge(ctx context.Context, command paymentsapp.InitiateMarketplaceChargeCommand) (paymentsapp.ChargeResult, error)
+	// QuoteStoreSale prices a store basket's fee breakdown WITHOUT charging it
+	// (§4.5): the same computation the charge uses, for the read-only
+	// checkout-quote endpoint.
+	QuoteStoreSale(ctx context.Context, command paymentsapp.QuoteStoreSaleCommand) (money.StoreSaleQuote, error)
 }
 
 // Availability is the slice of the availability use case the booking checkout
@@ -174,16 +176,23 @@ func (s Service) StoreDeliveryZones(ctx context.Context, storeHandle string) ([]
 // customer record so repeat orders aggregate under one identity. It returns the
 // resolved-or-new customer id and whether it was freshly created — only a
 // freshly-created customer is cleaned up if the checkout rolls back (an existing
-// customer is shared across orders).
-func (s Service) resolveCustomerByPhone(ctx context.Context, phone string) (common.ID, bool) {
+// customer is shared across orders). A phone no Ghana form can parse comes back
+// as ErrInvalidInput (the repository refuses to store it) so checkout answers
+// 400 invalid_order instead of silently minting a fragmented identity.
+func (s Service) resolveCustomerByPhone(ctx context.Context, phone string) (common.ID, bool, error) {
 	// Atomic resolve-or-create under an advisory lock on the phone, so two
 	// simultaneous first-time orders from the same number share one identity
-	// instead of racing to mint duplicate customers. On any error, fall back to a
-	// fresh id (best-effort, preserving the previous non-atomic behaviour).
-	if id, created, err := s.orders.ResolveOrCreateCustomerByPhone(ctx, strings.TrimSpace(phone), s.ids.NewID()); err == nil {
-		return id, created
+	// instead of racing to mint duplicate customers. On any other error, fall
+	// back to a fresh id (best-effort, preserving the previous non-atomic
+	// behaviour).
+	id, created, err := s.orders.ResolveOrCreateCustomerByPhone(ctx, strings.TrimSpace(phone), s.ids.NewID())
+	if err == nil {
+		return id, created, nil
 	}
-	return s.ids.NewID(), true
+	if errors.Is(err, common.ErrInvalidPhone) {
+		return "", false, ErrInvalidInput
+	}
+	return s.ids.NewID(), true, nil
 }
 
 // discardDraft compensates a checkout whose payment could not be raised by

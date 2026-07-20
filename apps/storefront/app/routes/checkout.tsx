@@ -1,6 +1,7 @@
 import { redirect } from "react-router";
 import type { Route } from "./+types/checkout";
 import { api } from "../lib/api";
+import type { CartOrderLine, CheckoutQuote } from "../lib/api";
 import {
   cartTotalMinor,
   clearStoreItems,
@@ -10,6 +11,7 @@ import {
   type CartItem,
 } from "../lib/cart";
 import { getSession } from "../lib/session";
+import { requestTenant } from "../lib/tenant";
 import { fetchCustomerProfile } from "../lib/discovery";
 import Checkout from "../features/checkout/Checkout";
 
@@ -28,6 +30,42 @@ function resolveCheckoutStore(url: URL, stores: string[]): string {
     return requested;
   }
   return stores.length === 1 ? (stores[0] ?? "") : "";
+}
+
+// cartOrderLines maps the basket's cookie lines onto the wire shape the
+// cart-orders and checkout-quote endpoints share.
+function cartOrderLines(items: CartItem[]): CartOrderLine[] {
+  return items.map((item) => ({
+    design_handle: item.design_handle,
+    size_band_id: item.size_band_id,
+    kind: item.kind,
+    size_mode: item.size_mode,
+    measurements: item.measurements,
+    note: item.note || undefined,
+  }));
+}
+
+// fetchQuote prices the basket through the read-only checkout-quote endpoint
+// (§4.5), so the breakdown the page renders — combined "Transaction fee" line,
+// "Tax (VAT)" line, total — comes from the same engine that will charge. A
+// failure leaves the quote null and the page falls back to items + delivery.
+async function fetchQuote(
+  storeHandle: string,
+  items: CartItem[],
+  deliveryZoneID: string,
+  tenant: string | null,
+): Promise<CheckoutQuote | null> {
+  const response = await api
+    .checkoutQuote(
+      storeHandle,
+      {
+        items: cartOrderLines(items),
+        ...(deliveryZoneID ? { delivery_zone_id: deliveryZoneID } : {}),
+      },
+      tenant,
+    )
+    .catch(() => null);
+  return response?.ok ? response.result : null;
 }
 
 export function meta(): Route.MetaDescriptors {
@@ -51,10 +89,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (!token) {
     return redirect(signInRedirect(url));
   }
-  // §4: settle ONE store's basket lines per charge. Resolve the store and filter
-  // to its items; a multi-store basket with no store chosen goes back to the cart
-  // to pick a shop to check out.
+  // §5.2: settle ONE store's basket lines per charge. Resolve the store and
+  // filter to its items; a multi-store basket with no store chosen goes back
+  // to the cart to pick a shop to check out.
+  const tenant = requestTenant(request);
   const storeHandle = resolveCheckoutStore(url, storeHandlesInCart(allItems));
+  // §6: on a tenant host only that store's basket can be checked out.
+  if (tenant && storeHandle !== tenant) {
+    return redirect("/cart");
+  }
   const items = storeHandle ? itemsForStore(allItems, storeHandle) : [];
   if (items.length === 0) {
     return redirect("/cart");
@@ -68,15 +111,19 @@ export async function loader({ request }: Route.LoaderArgs) {
   const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
   let zones: { zone_id: string; name: string; fee_minor: number }[] = [];
   if (hasMadeToWear && storeHandle) {
-    const page = await api.deliveryZones(storeHandle);
+    const page = await api.deliveryZones(storeHandle, tenant);
     zones = page?.zones ?? [];
   }
+  // §4.5: the pickup quote (no delivery zone) drives the fee lines on first
+  // render; choosing a delivery zone re-quotes via the "quote" action intent.
+  const quote = await fetchQuote(storeHandle, items, "", tenant);
   return {
     storeHandle,
     items,
     totalMinor: cartTotalMinor(items),
     zones,
     profile,
+    quote,
   };
 }
 
@@ -93,11 +140,26 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   if (!session.get("customerToken")) {
     return redirect(signInRedirect(url));
   }
-  // §4: settle exactly one store's lines (same resolution as the loader).
+  // §5.2: settle exactly one store's lines (same resolution as the loader);
+  // §6: on a tenant host, only the tenant's own basket.
+  const tenant = requestTenant(request);
   const storeHandle = resolveCheckoutStore(url, storeHandlesInCart(allItems));
+  if (tenant && storeHandle !== tenant) {
+    return redirect("/cart");
+  }
   const items = storeHandle ? itemsForStore(allItems, storeHandle) : [];
   if (items.length === 0) {
     return redirect("/cart");
+  }
+
+  // Re-quote intent (§4.5): the delivery-zone picker asks for the fee
+  // breakdown of the SAME basket with that zone, so the displayed lines and
+  // total always match what the charge will ask for.
+  const intent = String(form.get("intent") ?? "pay");
+  const deliveryZoneID = String(form.get("delivery_zone_id") ?? "").trim();
+  if (intent === "quote") {
+    const quote = await fetchQuote(storeHandle, items, deliveryZoneID, tenant);
+    return { quote, zoneID: deliveryZoneID };
   }
 
   const customerName = String(form.get("customer_name") ?? "").trim();
@@ -110,7 +172,6 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
 
   const fulfilment = String(form.get("fulfilment") ?? "pickup");
   const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
-  const deliveryZoneID = String(form.get("delivery_zone_id") ?? "").trim();
   const deliveryAddress = String(form.get("delivery_address") ?? "").trim();
   const gpsLocation = String(form.get("gps_location") ?? "").trim();
   if (fulfilment === "delivery" && !hasMadeToWear) {
@@ -128,6 +189,11 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     fulfilment === "delivery" && gpsLocation
       ? `${deliveryAddress}\nGPS: ${gpsLocation}`
       : deliveryAddress;
+
+  // §5.2: after paying, Paystack returns the customer to the cart (flagged
+  // with the settled store) so they can pay the next store basket — or be
+  // sent home when none remain.
+  const callbackURL = `${url.origin}/cart?paid=${encodeURIComponent(storeHandle)}`;
 
   // Clear only this store's lines on success; any other stores stay in the basket.
   const startedHeaders = {
@@ -147,16 +213,21 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     only &&
     only.kind === "made_to_wear"
   ) {
-    const response = await api.placeOrder(storeHandle, {
-      design_handle: only.design_handle,
-      size_band_id: only.size_band_id,
-      customer_name: customerName,
-      customer_phone: customerPhone,
-      customer_whatsapp: customerWhatsApp,
-      customer_email: customerEmail,
-      method: "momo",
-      note: only.note || undefined,
-    });
+    const response = await api.placeOrder(
+      storeHandle,
+      {
+        design_handle: only.design_handle,
+        size_band_id: only.size_band_id,
+        customer_name: customerName,
+        customer_phone: customerPhone,
+        customer_whatsapp: customerWhatsApp,
+        customer_email: customerEmail,
+        method: "momo",
+        note: only.note || undefined,
+        callback_url: callbackURL,
+      },
+      tenant,
+    );
     if (!response.ok) {
       return failed;
     }
@@ -174,27 +245,25 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   // across the cart. Each piece becomes its own order in a checkout group; the
   // single payment's webhook confirms them all. A chosen delivery zone adds its
   // fee to the charge.
-  const response = await api.placeCartOrder(storeHandle, {
-    items: items.map((item: CartItem) => ({
-      design_handle: item.design_handle,
-      size_band_id: item.size_band_id,
-      kind: item.kind,
-      size_mode: item.size_mode,
-      measurements: item.measurements,
-      note: item.note || undefined,
-    })),
-    customer_name: customerName,
-    customer_phone: customerPhone,
-    customer_whatsapp: customerWhatsApp,
-    customer_email: customerEmail,
-    method: "momo",
-    ...(fulfilment === "delivery"
-      ? {
-          delivery_zone_id: deliveryZoneID,
-          delivery_address: deliveryDestination,
-        }
-      : {}),
-  });
+  const response = await api.placeCartOrder(
+    storeHandle,
+    {
+      items: cartOrderLines(items),
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      customer_whatsapp: customerWhatsApp,
+      customer_email: customerEmail,
+      method: "momo",
+      ...(fulfilment === "delivery"
+        ? {
+            delivery_zone_id: deliveryZoneID,
+            delivery_address: deliveryDestination,
+          }
+        : {}),
+      callback_url: callbackURL,
+    },
+    tenant,
+  );
   if (!response.ok) {
     return failed;
   }

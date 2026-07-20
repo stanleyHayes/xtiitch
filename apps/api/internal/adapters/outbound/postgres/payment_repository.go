@@ -39,18 +39,22 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 	if input.SettleAmountMinor > 0 {
 		settleAmount = input.SettleAmountMinor
 	}
+	var xtiitchTax any
+	if input.XtiitchTaxMinor > 0 {
+		xtiitchTax = input.XtiitchTaxMinor
+	}
 
 	if _, err := tx.Exec(ctx, `
 		insert into payments (
 			payment_id, business_id, order_id, booking_id, purpose, amount_minor, currency, method,
-			provider_reference, status, through_platform, commission_minor, settle_amount_minor
+			provider_reference, status, through_platform, commission_minor, xtiitch_tax_minor, settle_amount_minor
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10, $11)
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'initiated', true, $10, $11, $12)
 	`,
 		input.PaymentID.String(), input.BusinessID.String(),
 		nullableIDArg(input.OrderID), nullableIDArg(input.BookingID),
 		input.Purpose, input.AmountMinor, input.Currency, method,
-		input.ProviderReference, input.CommissionMinor, settleAmount,
+		input.ProviderReference, input.CommissionMinor, xtiitchTax, settleAmount,
 	); err != nil {
 		// A second in-flight balance charge for the same order is rejected by the
 		// partial unique index; surface it as the dedicated sentinel so callers
@@ -60,43 +64,6 @@ func (repo PaymentRepository) Create(ctx context.Context, input ports.CreatePaym
 			return ports.ErrPaymentInFlight
 		}
 		return err
-	}
-
-	return tx.Commit(ctx)
-}
-
-// CreateMarketplaceCharge records a combined multi-store split charge and its
-// per-shop members. It is a platform-level (cross-tenant) write — the charge
-// spans several businesses — so it runs under the RLS bypass, like the webhook
-// lookup. The webhook settles each member's checkout group when the single
-// Paystack transaction succeeds (reconcileMarketplaceChargeFromProvider).
-func (repo PaymentRepository) CreateMarketplaceCharge(ctx context.Context, input ports.MarketplaceChargeInput) error {
-	tx, err := repo.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer rollbackPaymentUnlessCommitted(ctx, tx)
-
-	if err := setTenantBypass(ctx, tx); err != nil {
-		return err
-	}
-
-	if _, err := tx.Exec(ctx, `
-		insert into marketplace_charges (charge_id, provider_reference, customer_email, total_minor, status)
-		values ($1, $2, $3, $4, 'initiated')
-	`, input.ChargeID.String(), input.ProviderReference, input.CustomerEmail, input.TotalMinor); err != nil {
-		return err
-	}
-	for _, m := range input.Members {
-		if _, err := tx.Exec(ctx, `
-			insert into marketplace_charge_members (
-				member_id, charge_id, business_id, checkout_group_id, anchor_order_id, net_minor, commission_minor
-			)
-			values ($1, $2, $3, $4, $5, $6, $7)
-		`, m.MemberID.String(), input.ChargeID.String(), m.BusinessID.String(), m.CheckoutGroupID.String(),
-			m.AnchorOrderID.String(), m.NetMinor, m.CommissionMinor); err != nil {
-			return err
-		}
 	}
 
 	return tx.Commit(ctx)
@@ -138,16 +105,6 @@ func (repo PaymentRepository) ConfirmFromProvider(
 		return ports.ConfirmPaymentResult{}, err
 	}
 	if !found {
-		// §4 / P0.4: a combined marketplace charge is not a single-tenant payment
-		// row — it settles across shops. Try it before the other non-order
-		// reconciles; its provider reference is distinct so no overlap.
-		mpFound, err := reconcileMarketplaceChargeFromProvider(ctx, tx, input)
-		if err != nil {
-			return ports.ConfirmPaymentResult{}, err
-		}
-		if mpFound {
-			return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{PaymentFound: false})
-		}
 		invoice, invoiceFound, err := reconcileSubscriptionInvoiceFromProvider(ctx, tx, input)
 		if err != nil {
 			return ports.ConfirmPaymentResult{}, err
@@ -291,12 +248,14 @@ func (repo PaymentRepository) RecordManualTaking(ctx context.Context, scope comm
 	if _, err := tx.Exec(ctx, `
 		insert into manual_takings (
 			taking_id, business_id, order_id, amount_minor, method, what_for,
-			commission_bps, commission_minor, commission_status, commission_note
+			commission_bps, commission_minor, commission_status, commission_note,
+			logged_by_business_user_id
 		)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 	`, input.TakingID.String(), input.BusinessID.String(), nullableIDArg(input.OrderID),
 		input.AmountMinor, input.Method, input.WhatFor, input.CommissionBps,
-		input.CommissionMinor, commissionStatus, input.CommissionNote); err != nil {
+		input.CommissionMinor, commissionStatus, input.CommissionNote,
+		nullableUserIDArg(input.LoggedByUserID)); err != nil {
 		return err
 	}
 
@@ -354,6 +313,16 @@ func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope commo
 	return records, nil
 }
 
+// MoneySummary aggregates the Money Desk figures (§3.1) from PERSISTED
+// provider-derived columns only — SQL sums over stored Paystack figures, which
+// §3.2 allows; nothing here recomputes a fee. The store share per succeeded
+// payment is amount_minor − commission_minor − coalesce(provider_fee_minor, 0)
+// (commission_minor already carries the Xtiitch fee + its VAT). Net income is
+// the amount due for payout: the accrued store share (plus off-platform
+// takings, less accrued offline commission) MINUS the payouts already settled
+// per the mirrored Paystack settlements — so it rises with sales and drops the
+// moment a payout sync lands (§3.3). All-time income is the same figure without
+// the payout deduction: cumulative earnings since joining, never reduced.
 func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
@@ -366,11 +335,29 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 	}
 
 	var summary ports.MoneySummary
+	var storeShareMinor int64
 	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(amount_minor), 0), coalesce(sum(commission_minor), 0)
+		select coalesce(sum(amount_minor), 0),
+			coalesce(sum(commission_minor), 0),
+			coalesce(sum(coalesce(xtiitch_tax_minor, 0)), 0),
+			coalesce(sum(coalesce(provider_fee_minor, 0)), 0),
+			coalesce(sum(amount_minor - commission_minor - coalesce(provider_fee_minor, 0)), 0)
 		from payments
 		where business_id = $1 and status = 'succeeded' and through_platform = true
-	`, scope.BusinessID.String()).Scan(&summary.ThroughPlatformMinor, &summary.CommissionMinor); err != nil {
+	`, scope.BusinessID.String()).Scan(
+		&summary.ThroughPlatformMinor,
+		&summary.CommissionMinor,
+		&summary.XtiitchTaxMinor,
+		&summary.PaystackFeeMinor,
+		&storeShareMinor,
+	); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0)
+		from paystack_settlements
+		where business_id = $1 and status = 'success'
+	`, scope.BusinessID.String()).Scan(&summary.SettledPayoutsMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
 	if err := tx.QueryRow(ctx, `
@@ -385,10 +372,13 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 	`, scope.BusinessID.String()).Scan(&summary.OfflineCommissionDueMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
-	summary.NetIncomeMinor = summary.ThroughPlatformMinor -
-		summary.CommissionMinor +
-		summary.ManualTakingsMinor -
-		summary.OfflineCommissionDueMinor
+
+	// The Xtiitch fee net of its tax: commission_minor persists fee+tax (the
+	// split's transaction_charge), so the fee card is the persisted commission
+	// minus the persisted tax — still a pure function of stored figures.
+	summary.XtiitchFeeMinor = summary.CommissionMinor - summary.XtiitchTaxMinor
+	summary.AllTimeIncomeMinor = storeShareMinor + summary.ManualTakingsMinor - summary.OfflineCommissionDueMinor
+	summary.NetIncomeMinor = summary.AllTimeIncomeMinor - summary.SettledPayoutsMinor
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.MoneySummary{}, err

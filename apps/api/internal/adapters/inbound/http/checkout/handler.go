@@ -21,15 +21,16 @@ const maxBodyBytes = 1 << 20
 type Service interface {
 	PlaceStandardOrder(ctx context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error)
 	PlaceCartOrder(ctx context.Context, command checkoutapp.PlaceCartOrderCommand) (checkoutapp.PlaceCartOrderResult, error)
-	PlaceMarketplaceOrder(
-		ctx context.Context,
-		command checkoutapp.PlaceMarketplaceOrderCommand,
-	) (checkoutapp.PlaceMarketplaceOrderResult, error)
 	PlaceCustomOrder(ctx context.Context, command checkoutapp.PlaceCustomOrderCommand) (checkoutapp.PlaceCustomOrderResult, error)
 	PlaceHomeVisitBooking(
 		ctx context.Context,
 		command checkoutapp.PlaceHomeVisitBookingCommand,
 	) (checkoutapp.PlaceHomeVisitBookingResult, error)
+	// CheckoutQuote prices a store basket's fee breakdown without recording
+	// anything (§4.5): the storefront renders the lines, the combined
+	// "Transaction fee" line, the "Tax (VAT)" line and the grand total before
+	// the customer pays.
+	CheckoutQuote(ctx context.Context, command checkoutapp.CheckoutQuoteCommand) (checkoutapp.CheckoutQuoteResult, error)
 	StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error)
 }
 
@@ -44,10 +45,22 @@ func NewHandler(service Service) Handler {
 func (handler Handler) Register(router chi.Router) {
 	router.Post("/public/stores/{handle}/orders", handler.placeOrder)
 	router.Post("/public/stores/{handle}/cart-orders", handler.placeCartOrder)
-	router.Post("/public/marketplace/orders", handler.placeMarketplaceOrder)
+	// NOTE: there is deliberately no settle-all route. §5.2: payment happens
+	// store-basket by store-basket, one after the other — "there is no such
+	// thing as a total payment for all baskets at once." Every checkout above
+	// is one customer → one store, so the single-store split (§4.8) is the only
+	// split left; the old POST /public/marketplace/orders multi-store charge is
+	// gone for good.
 	router.Get("/public/stores/{handle}/delivery-zones", handler.listDeliveryZones)
 	router.Post("/public/stores/{handle}/custom-orders", handler.placeCustomOrder)
 	router.Post("/public/stores/{handle}/bookings", handler.placeBooking)
+	// Read-only fee breakdown for a basket (§4.5). It accepts the same payload
+	// shape as cart-orders (carried in the request body) so the storefront can
+	// render exactly what the customer will pay before initiating the charge.
+	// The POST alias exists because a browser fetch cannot send a body with GET;
+	// the GET stays for backwards compatibility with existing callers.
+	router.Get("/public/stores/{handle}/checkout-quote", handler.checkoutQuote)
+	router.Post("/public/stores/{handle}/checkout-quote", handler.checkoutQuote)
 }
 
 func (handler Handler) listDeliveryZones(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +94,10 @@ type placeOrderBody struct {
 	AffiliateVisitorID string `json:"affiliate_visitor_id"`
 	ReferralCode       string `json:"referral_code"`
 	Note               string `json:"note"`
+	// CallbackURL is where Paystack returns the customer after paying (§5.2:
+	// back to the cart to settle the next store basket). Optional; validated
+	// in the application layer.
+	CallbackURL string `json:"callback_url"`
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
@@ -105,6 +122,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		AffiliateVisitorID: body.AffiliateVisitorID,
 		ReferralCode:       body.ReferralCode,
 		Note:               body.Note,
+		CallbackURL:        body.CallbackURL,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -112,7 +130,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor, &result.Quote)
 }
 
 type cartLineBody struct {
@@ -133,6 +151,9 @@ type placeCartOrderBody struct {
 	Method           string         `json:"method"`
 	DeliveryZoneID   string         `json:"delivery_zone_id"`
 	DeliveryAddress  string         `json:"delivery_address"`
+	// CallbackURL is where Paystack returns the customer after paying this
+	// basket (§5.2: back to the cart, or home when no baskets remain).
+	CallbackURL string `json:"callback_url"`
 }
 
 func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
@@ -164,6 +185,7 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 		Method:           money.PaymentMethod(body.Method),
 		DeliveryZoneID:   common.ID(body.DeliveryZoneID),
 		DeliveryAddress:  body.DeliveryAddress,
+		CallbackURL:      body.CallbackURL,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -171,66 +193,7 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
-}
-
-type marketplaceStoreBody struct {
-	StoreHandle string         `json:"store_handle"`
-	Items       []cartLineBody `json:"items"`
-}
-
-type placeMarketplaceOrderBody struct {
-	Stores           []marketplaceStoreBody `json:"stores"`
-	CustomerName     string                 `json:"customer_name"`
-	CustomerPhone    string                 `json:"customer_phone"`
-	CustomerWhatsApp string                 `json:"customer_whatsapp"`
-	CustomerEmail    string                 `json:"customer_email"`
-	Method           string                 `json:"method"`
-}
-
-// placeMarketplaceOrder settles a unified basket that spans several shops in ONE
-// combined split charge (§4 "pay once"). It is not store-scoped; each store's
-// lines carry their own handle.
-func (handler Handler) placeMarketplaceOrder(w http.ResponseWriter, r *http.Request) {
-	var body placeMarketplaceOrderBody
-	if err := decodeJSON(r, &body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_request")
-		return
-	}
-
-	stores := make([]checkoutapp.MarketplaceStoreLines, 0, len(body.Stores))
-	for _, store := range body.Stores {
-		lines := make([]checkoutapp.CartLineCommand, 0, len(store.Items))
-		for _, item := range store.Items {
-			lines = append(lines, checkoutapp.CartLineCommand{
-				DesignHandle: item.DesignHandle,
-				SizeBandID:   common.ID(item.SizeBandID),
-				Kind:         checkoutapp.CartLineKind(item.Kind),
-				SizeMode:     order.SizeMode(item.SizeMode),
-				Measurements: item.Measurements,
-			})
-		}
-		stores = append(stores, checkoutapp.MarketplaceStoreLines{
-			StoreHandle: store.StoreHandle,
-			Lines:       lines,
-		})
-	}
-
-	result, err := handler.service.PlaceMarketplaceOrder(r.Context(), checkoutapp.PlaceMarketplaceOrderCommand{
-		Stores:           stores,
-		CustomerName:     body.CustomerName,
-		CustomerPhone:    body.CustomerPhone,
-		CustomerWhatsApp: body.CustomerWhatsApp,
-		CustomerEmail:    body.CustomerEmail,
-		Method:           money.PaymentMethod(body.Method),
-	})
-	if err != nil {
-		status, code := checkoutError(err)
-		writeError(w, status, code)
-		return
-	}
-
-	writeOrderResult(w, "", result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0, &result.Quote)
 }
 
 type placeCustomOrderBody struct {
@@ -248,6 +211,7 @@ type placeCustomOrderBody struct {
 	ReferralCode       string            `json:"referral_code"`
 	Measurements       map[string]string `json:"measurements"`
 	Note               string            `json:"note"`
+	CallbackURL        string            `json:"callback_url"`
 }
 
 func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) {
@@ -273,6 +237,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		ReferralCode:       body.ReferralCode,
 		Measurements:       body.Measurements,
 		Note:               body.Note,
+		CallbackURL:        body.CallbackURL,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -280,7 +245,7 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor, &result.Quote)
 }
 
 type placeBookingBody struct {
@@ -297,6 +262,7 @@ type placeBookingBody struct {
 	SlotStart          string `json:"slot_start"`
 	Address            string `json:"address"`
 	Note               string `json:"note"`
+	CallbackURL        string `json:"callback_url"`
 }
 
 func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
@@ -326,6 +292,7 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		SlotStart:          slotStart,
 		Address:            body.Address,
 		Note:               body.Note,
+		CallbackURL:        body.CallbackURL,
 	})
 	if err != nil {
 		status, code := checkoutError(err)
@@ -333,17 +300,29 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0)
+	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0, &result.Quote)
 }
 
-func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64, discountMinor int64) {
-	writeJSON(w, http.StatusCreated, map[string]any{
+func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64, discountMinor int64, quote *money.StoreSaleQuote) {
+	body := map[string]any{
 		"order_id":          orderID,
 		"reference":         reference,
 		"authorization_url": authorizationURL,
 		"amount_minor":      amountMinor,
 		"discount_minor":    discountMinor,
-	})
+	}
+	if quote != nil {
+		// §4.5: the exact breakdown the customer is charged, so the UI renders
+		// the combined "Transaction fee" line and the "Tax (VAT)" line (never a
+		// raw "Paystack fee"). Both lines are 0 when the owner absorbs the fees.
+		body["fees"] = map[string]any{
+			"items_total_minor":     quote.ItemsTotalMinor,
+			"transaction_fee_minor": quote.TransactionFeeMinor,
+			"tax_minor":             quote.TaxLineMinor,
+			"total_minor":           quote.TotalChargeMinor,
+		}
+	}
+	writeJSON(w, http.StatusCreated, body)
 }
 
 func checkoutError(err error) (int, string) {

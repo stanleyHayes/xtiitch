@@ -24,14 +24,20 @@ const (
 	adminMaxFailedLoginAttempts = 5
 	adminLoginLockoutDuration   = 15 * time.Minute
 
-	// renewalReminderLeadDays is how many days before next_billing_at the
-	// recurring sweep enqueues the "your plan renews soon — tap to pay" reminder.
-	renewalReminderLeadDays = 3
 	// defaultRenewalRepayURL is the existing business billing/onboarding flow the
 	// one-tap re-pay call to action links to. It already authorizes and charges,
 	// so the reminder never builds a new charge endpoint — it only points here.
 	defaultRenewalRepayURL = "https://business.xtiitch.com/onboarding/billing"
 )
+
+// SystemActorUserID is the locked, non-login admin identity (migration 000112)
+// the /v1/internal/* scheduler endpoints act as. The sweep service methods
+// require a real admin_users row — the audit insert joins it for the actor
+// email and the billing/event tables reference it by foreign key — so the
+// worker's token-authenticated calls are attributed to this system actor
+// rather than impersonating a human admin. It can never authenticate:
+// is_active = false and its password hash is not a bcrypt hash.
+const SystemActorUserID = common.ID("00000000-0000-0000-0000-000000000001")
 
 type Service struct {
 	users         ports.AdminUserRepository
@@ -62,8 +68,18 @@ type Service struct {
 	// runs it before charging so a downgraded subscription renews at the new plan.
 	// Optional; nil disables the step.
 	planChanges PlanChangeApplier
-	// vatRateBps / vatInclusive apply VAT to the recurring renewal charge, mirroring
-	// the activation path in auth.Service. 0 disables VAT (behaviour unchanged).
+	// settlementSyncer refreshes stores' mirrored Paystack settlements for the
+	// operator/worker sync endpoint (§3.3). Optional; nil makes the endpoint
+	// fail closed, like the other unset dependencies.
+	settlementSyncer SettlementSyncer
+	// emails delivers the email half of §13.3 renewal reminders (the SMS half
+	// goes through the notification outbox). Nil-safe: with no sender configured
+	// the reminder sweep still enqueues SMS and counts the skipped emails.
+	emails ports.EmailSender
+	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
+	// vatRateBps is the configured seed/fallback used when no reader is wired or
+	// the read fails. vatInclusive mirrors the activation path's treatment.
+	vatRates     VATRateReader
 	vatRateBps   int
 	vatInclusive bool
 }
@@ -103,8 +119,19 @@ type Dependencies struct {
 	// recurring sweep invokes it before charging renewals so a downgraded
 	// subscription bills the new plan. Optional; nil disables the step.
 	PlanChanges PlanChangeApplier
-	// VAT applied to the recurring renewal charge, matching the activation path.
-	// VATRateBps 0 (default) disables it; VATInclusive=false adds it at checkout.
+	// SettlementSyncer refreshes stores' mirrored Paystack settlements (§3.3)
+	// for the operator/worker settlement-sync endpoint. Optional; nil makes that
+	// endpoint fail closed.
+	SettlementSyncer SettlementSyncer
+	// Emails delivers the email half of §13.3 renewal reminders (Resend, same
+	// synchronous sender as the auth flows — the notification outbox has no
+	// email channel). Nil-safe: nil skips the email half only.
+	Emails ports.EmailSender
+	// VAT applied to subscription charges, matching the activation path.
+	// VATRates reads the live admin-editable rate from the platform settings
+	// (§4.1); VATRateBps is only the seed/fallback default, used when no reader
+	// is wired or the read fails. VATInclusive=false adds VAT at checkout.
+	VATRates     VATRateReader
 	VATRateBps   int
 	VATInclusive bool
 }
@@ -115,24 +142,27 @@ func NewService(deps Dependencies) Service {
 		renewalRepayURL = defaultRenewalRepayURL
 	}
 	return Service{
-		users:           deps.Users,
-		sessions:        deps.Sessions,
-		audits:          deps.Audits,
-		businesses:      deps.Businesses,
-		media:           deps.Media,
-		payments:        deps.Payments,
-		passwords:       deps.Passwords,
-		accessTokens:    deps.AccessTokens,
-		refreshTokens:   deps.RefreshTokens,
-		ids:             deps.IDs,
-		clock:           deps.Clock,
-		readiness:       deps.Readiness,
-		whatsAppEnabled: deps.WhatsAppEnabled,
-		smsEnabled:      deps.SMSEnabled,
-		renewalRepayURL: renewalRepayURL,
-		planChanges:     deps.PlanChanges,
-		vatRateBps:      deps.VATRateBps,
-		vatInclusive:    deps.VATInclusive,
+		users:            deps.Users,
+		sessions:         deps.Sessions,
+		audits:           deps.Audits,
+		businesses:       deps.Businesses,
+		media:            deps.Media,
+		payments:         deps.Payments,
+		passwords:        deps.Passwords,
+		accessTokens:     deps.AccessTokens,
+		refreshTokens:    deps.RefreshTokens,
+		ids:              deps.IDs,
+		clock:            deps.Clock,
+		readiness:        deps.Readiness,
+		whatsAppEnabled:  deps.WhatsAppEnabled,
+		smsEnabled:       deps.SMSEnabled,
+		renewalRepayURL:  renewalRepayURL,
+		planChanges:      deps.PlanChanges,
+		settlementSyncer: deps.SettlementSyncer,
+		emails:           deps.Emails,
+		vatRates:         deps.VATRates,
+		vatRateBps:       deps.VATRateBps,
+		vatInclusive:     deps.VATInclusive,
 	}
 }
 
@@ -377,6 +407,10 @@ func normalizePlatformSettings(
 	if cmd.PayoutReviewThresholdPesewas < 0 {
 		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
 	}
+	// §4.1: the VAT rate is a basis-points percentage — 0 (disabled) to 10000.
+	if cmd.VATRateBps < 0 || cmd.VATRateBps > 10000 {
+		return ports.UpdateAdminPlatformSettingsInput{}, authdomain.ErrInvalidInput
+	}
 
 	brandLogoURL, err := normalizeBrandLogoURL(cmd.BrandLogoURL)
 	if err != nil {
@@ -391,6 +425,7 @@ func normalizePlatformSettings(
 		MaintenanceMode:              cmd.MaintenanceMode,
 		BrandLogoURL:                 brandLogoURL,
 		AIAssistantAddonEnabled:      cmd.AIAssistantAddonEnabled,
+		VATRateBps:                   cmd.VATRateBps,
 	}, nil
 }
 

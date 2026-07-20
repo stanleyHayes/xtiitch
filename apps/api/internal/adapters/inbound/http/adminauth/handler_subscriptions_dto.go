@@ -126,6 +126,14 @@ type subscriptionRecurringSweepResponse struct {
 	RanAt                        string `json:"ran_at"`
 }
 
+type subscriptionReminderSweepResponse struct {
+	SubscriptionsEvaluated int    `json:"subscriptions_evaluated"`
+	RemindersEnqueued      int    `json:"reminders_enqueued"`
+	EmailsSent             int    `json:"emails_sent"`
+	EmailsFailed           int    `json:"emails_failed"`
+	RanAt                  string `json:"ran_at"`
+}
+
 type subscriptionAuthorizationLinkResponse struct {
 	BusinessID   string `json:"business_id"`
 	BusinessName string `json:"business_name"`

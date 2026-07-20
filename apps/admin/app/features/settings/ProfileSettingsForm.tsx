@@ -12,15 +12,20 @@ import { tokens } from "../../theme";
 import { AdminProfileSettings } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
 import { roleTone } from "../users/utils";
+import { useFormResetKey } from "../shared/useActionSuccess";
 
 export function ProfileSettingsForm({
   profileSettings,
 }: {
   profileSettings: AdminProfileSettings;
 }) {
+  // §1.2/§11.4: re-mount on successful save so the uncontrolled fields
+  // re-seed from the revalidated loader data.
+  const resetKey = useFormResetKey("settings");
+
   return (
     <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-      <Form method="post">
+      <Form key={resetKey} method="post">
         <input type="hidden" name="intent" value="admin-profile:update" />
         <Stack spacing={2}>
           <Stack

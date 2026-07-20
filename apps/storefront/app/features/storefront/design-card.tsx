@@ -4,10 +4,8 @@ import Card from "@mui/material/Card";
 import CardActionArea from "@mui/material/CardActionArea";
 import CardContent from "@mui/material/CardContent";
 import CardMedia from "@mui/material/CardMedia";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import StarRounded from "@mui/icons-material/StarRounded";
 import type { Design } from "../../lib/api";
 import { priceLabel } from "../../lib/format";
@@ -37,7 +35,9 @@ function DesignImage({ design }: { design: Design }) {
         image={first}
         alt={design.title}
         sx={{
-          aspectRatio: { xs: "5 / 4", sm: "4 / 5" },
+          // §10.1.6: the image stays fully visible — fixed aspect, cover,
+          // exactly like the marketplace homepage cards.
+          aspectRatio: "4 / 5",
           objectFit: "cover",
           width: "100%",
           transition: "transform 260ms ease, filter 260ms ease",
@@ -51,7 +51,7 @@ function DesignImage({ design }: { design: Design }) {
       image={fallbackDesignImage(design)}
       alt={`Studio preview for ${design.title}`}
       sx={{
-        aspectRatio: { xs: "5 / 4", sm: "4 / 5" },
+        aspectRatio: "4 / 5",
         objectFit: "cover",
         width: "100%",
         filter: "saturate(0.92) contrast(1.02)",
@@ -61,6 +61,10 @@ function DesignImage({ design }: { design: Design }) {
   );
 }
 
+// §10.1: the studio/tenant design card mirrors the marketplace homepage card —
+// price as a pill on the image (the "From …" minimum for ranges), the design
+// name FIRST below the image, no "View design" icon, no "Size pricing" text,
+// and a short clamped description that can never overflow the card.
 export function DesignCard({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   design,
   index = 0,
@@ -70,7 +74,6 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
   index?: number;
   featured?: boolean;
 }) {
-  const priced = design.prices.length > 0;
   return (
     <Card
       sx={{
@@ -106,10 +109,6 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
           transform: "scale(1.06)",
           filter: "saturate(1.02) contrast(1.04)",
         },
-        "&:hover .design-reveal": {
-          opacity: 1,
-          transform: "translateY(0)",
-        },
       }}
     >
       <CardActionArea
@@ -131,13 +130,14 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
           }}
         >
           <DesignImage design={design} />
+          {/* Scrim so the price pill stays legible over any image. */}
           <Box
             aria-hidden
             sx={{
               position: "absolute",
               inset: 0,
               pointerEvents: "none",
-              background: `linear-gradient(180deg, ${alpha(tokens.ink, 0)} 54%, ${alpha(tokens.ink, 0.46)} 100%)`,
+              background: `linear-gradient(to top, ${alpha(tokens.ink, 0.5)} 0%, transparent 40%)`,
             }}
           />
           {featured ? (
@@ -205,43 +205,29 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
               </Typography>
             </Box>
           ) : null}
+          {/* §10.1.1: the price replaces the old floating "View design" icon —
+              the minimum ("From GHS …") when the design has a price range,
+              exactly as on the marketplace homepage. */}
           <Box
-            className="design-reveal"
             sx={{
               position: "absolute",
-              left: 0,
-              right: 0,
-              bottom: 0,
-              p: 1.5,
-              display: "flex",
-              justifyContent: "center",
-              pointerEvents: "none",
-              opacity: { xs: 1, md: 0 },
-              transform: { md: "translateY(10px)" },
-              transition: "opacity 240ms ease, transform 240ms ease",
+              left: 10,
+              bottom: 10,
+              px: 1.25,
+              py: 0.4,
+              borderRadius: 999,
+              bgcolor: tokens.white,
+              color: tokens.ink,
+              fontWeight: 900,
+              fontSize: 13,
+              boxShadow: `0 6px 18px ${alpha(tokens.ink, 0.3)}`,
+              maxWidth: "calc(100% - 20px)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            <Box
-              sx={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 0.75,
-                px: 1.75,
-                py: 0.85,
-                borderRadius: 999,
-                bgcolor: "rgba(var(--surface-rgb), 0.96)",
-                color: (theme) =>
-                  theme.palette.mode === "dark"
-                    ? "rgba(255, 215, 224, 0.96)"
-                    : tokens.burgundy,
-                fontWeight: 800,
-                fontSize: 13,
-                boxShadow: `0 12px 28px ${alpha(tokens.ink, 0.24)}`,
-              }}
-            >
-              View design
-              <ArrowForwardRounded sx={{ fontSize: 16 }} />
-            </Box>
+            {priceLabel(design.prices)}
           </Box>
         </Box>
         <CardContent
@@ -250,67 +236,20 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            gap: 0.85,
-            p: { xs: 2, sm: 2.25 },
+            gap: 0.5,
+            p: { xs: 1.75, sm: 2 },
+            overflow: "hidden",
           }}
         >
-          <Stack
-            direction="row"
-            sx={{
-              alignItems: "baseline",
-              justifyContent: "space-between",
-              gap: 1,
-            }}
-          >
-            <Typography
-              sx={{
-                fontSize: { xs: 19, sm: 18 },
-                fontWeight: 800,
-                color: (theme) =>
-                  theme.palette.mode === "dark"
-                    ? "rgba(255, 146, 173, 0.98)"
-                    : tokens.burgundy,
-                letterSpacing: "0.01em",
-                whiteSpace: "nowrap",
-              }}
-            >
-              {priceLabel(design.prices)}
-            </Typography>
-            <Typography
-              variant="caption"
-              sx={{
-                color: (theme) =>
-                  theme.palette.mode === "dark"
-                    ? "rgba(255, 247, 242, 0.68)"
-                    : alpha(tokens.ink, 0.56),
-                fontSize: 11,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                letterSpacing: "0.04em",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-            >
-              {priced ? "Size pricing" : "Request quote"}
-            </Typography>
-          </Stack>
-          <Box
-            aria-hidden
-            sx={{
-              height: "1px",
-              backgroundImage: (theme) =>
-                theme.palette.mode === "dark"
-                  ? `linear-gradient(90deg, ${alpha(theme.palette.warning.main, 0.72)}, ${alpha(theme.palette.common.white, 0.1)} 42%)`
-                  : `linear-gradient(90deg, ${alpha("#c58b2c", 0.65)}, ${alpha(tokens.ink, 0.08)} 40%)`,
-            }}
-          />
+          {/* §10.1.2: the design name comes FIRST (font scaled to fit); the
+              price no longer leads the text block. */}
           <Typography
             variant="h6"
             sx={{
-              fontSize: { xs: 22, sm: 21 },
-              lineHeight: 1.06,
+              fontSize: { xs: 17, sm: 18 },
+              fontWeight: 900,
+              lineHeight: 1.2,
               color: "text.primary",
-              mt: 0.25,
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
@@ -319,6 +258,9 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
           >
             {design.title}
           </Typography>
+          {/* §10.1.4/5: the excerpt stays short — clamped with an ellipsis,
+              contained in the card with no overflow. ("Size pricing" is gone
+              for good, §10.1.3.) */}
           <Typography
             variant="body2"
             sx={{
@@ -327,7 +269,8 @@ export function DesignCard({ // eslint-disable-line max-lines-per-function -- la
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-              lineHeight: 1.5,
+              lineHeight: 1.45,
+              fontSize: { xs: 12.5, sm: 13.5 },
             }}
           >
             {design.description ||

@@ -80,6 +80,7 @@ func (handler Handler) createWalkIn(w http.ResponseWriter, r *http.Request) {
 	cmd := orderapp.CreateWalkInOrderCommand{
 		Scope:            principal.TenantScope(),
 		ActorRole:        principal.Role,
+		ActorUserID:      principal.UserID,
 		DesignID:         common.ID(body.DesignID),
 		CustomerName:     body.CustomerName,
 		CustomerPhone:    body.CustomerPhone,
@@ -122,6 +123,7 @@ func (handler Handler) createCustomWalkIn(w http.ResponseWriter, r *http.Request
 	orderID, err := handler.service.CreateConfirmedCustomOrder(r.Context(), orderapp.CreateConfirmedCustomOrderCommand{
 		Scope:         principal.TenantScope(),
 		ActorRole:     principal.Role,
+		ActorUserID:   principal.UserID,
 		DesignID:      common.ID(body.DesignID),
 		CustomerName:  body.CustomerName,
 		CustomerPhone: body.CustomerPhone,

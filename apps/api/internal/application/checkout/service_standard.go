@@ -27,6 +27,10 @@ type PlaceStandardOrderCommand struct {
 	ReferralCode       string
 	// Note is the customer's free-text instruction captured at checkout ('' if none).
 	Note string
+	// CallbackURL is where the payment provider returns the customer after they
+	// pay (§5.2: back to the cart so they can settle the next store basket).
+	// Optional; validated by cleanCallbackURL.
+	CallbackURL string
 }
 
 type PlaceStandardOrderResult struct {
@@ -35,6 +39,9 @@ type PlaceStandardOrderResult struct {
 	AuthorizationURL string
 	AmountMinor      int64
 	DiscountMinor    int64
+	// Quote is the §4.2–§4.6 fee breakdown behind the charge, so the checkout
+	// response renders exactly what the customer pays.
+	Quote money.StoreSaleQuote
 }
 
 // PlaceStandardOrder records a standard order against a listed size band and
@@ -51,6 +58,10 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceStandardOrderResult{}, ErrInvalidInput
+	}
+	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	if err != nil {
+		return PlaceStandardOrderResult{}, err
 	}
 
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(cmd.StoreHandle))
@@ -79,7 +90,10 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}
 
 	orderID := s.ids.NewID()
-	customerID, customerCreated := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+	if err != nil {
+		return PlaceStandardOrderResult{}, err
+	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {
 		cleanupCustomerID = customerID
@@ -152,6 +166,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		CommissionMinorOverride: promotion.commissionMinor,
 		Method:                  method,
 		CustomerEmail:           email,
+		CallbackURL:             callbackURL,
 	})
 	if err != nil {
 		// The draft order is committed but no payment was raised, so it could
@@ -168,5 +183,6 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 		AuthorizationURL: chargeResult.AuthorizationURL,
 		AmountMinor:      chargeAmount,
 		DiscountMinor:    promotion.discountMinor,
+		Quote:            chargeResult.Quote,
 	}, nil
 }

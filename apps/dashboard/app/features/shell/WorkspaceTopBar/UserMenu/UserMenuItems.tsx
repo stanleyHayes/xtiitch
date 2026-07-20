@@ -12,6 +12,7 @@ import LockRounded from "@mui/icons-material/LockRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
+import PersonRounded from "@mui/icons-material/PersonRounded";
 import SettingsRounded from "@mui/icons-material/SettingsRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import type { Profile, CurrentUser } from "../../../shared/types";
@@ -105,6 +106,15 @@ export function UserMenuItems({ // eslint-disable-line max-lines-per-function --
             helper: "Brand, policies & controls",
             icon: <SettingsRounded fontSize="small" />,
             to: "/dashboard/settings",
+          },
+          {
+            // §9: the owner's own signup details (name/email/numbers), with
+            // SMS verification on a phone change — same self-service idea as
+            // the customer profile pages.
+            label: "Profile settings",
+            helper: "Your name, email & numbers",
+            icon: <PersonRounded fontSize="small" />,
+            to: "/profile",
           },
           {
             label: "Team access",

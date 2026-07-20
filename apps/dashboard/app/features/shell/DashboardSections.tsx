@@ -1,15 +1,10 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Alert from "@mui/material/Alert";
-import Button from "@mui/material/Button";
-import { Link as RouterLink } from "react-router";
-import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import { ManagementOverviewPanel } from "../overview/ManagementOverviewPanel";
-import { StoreReadinessPanel } from "../overview/StoreReadinessPanel";
-import { TodayFocusPanel } from "../overview/TodayFocusPanel";
+import { OverviewSideRail } from "../overview/OverviewSideRail";
 import { ReportsPanel } from "../studio/ReportsPanel";
 import { StaffTaskPanel } from "../studio/StaffTaskPanel";
-import { MoneyPanel } from "../money/MoneyPanel";
+import { MoneySection } from "../money/MoneySection";
 import { BookingQueuePanel } from "../availability/BookingQueuePanel";
 import { HandoverPanel } from "../availability/HandoverPanel";
 import { AvailabilityPanel } from "../availability/AvailabilityPanel";
@@ -20,6 +15,7 @@ import { OrdersSection } from "../orders/OrdersSection";
 import { CatalogueSection } from "../catalogue/CatalogueSection";
 import { MeasurementsSection } from "../settings/MeasurementsSection";
 import { SettingsSection } from "../settings/SettingsSection";
+import { PlanSections, type PlanSectionData } from "./PlanSections";
 import { DashboardMetrics } from "./DashboardMetrics";
 import type {
   AvailabilityWindow,
@@ -34,6 +30,7 @@ import type {
   HandoverSummary,
   ManualTaking,
   MeasurementField,
+  MoneyPayout,
   MoneySummary,
   NotificationSummary,
   OrderSummary,
@@ -53,6 +50,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   measurementFields,
   moneySummary,
   manualTakings,
+  payouts,
   bookings,
   handovers,
   notifications,
@@ -100,6 +98,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   atDesignLimit,
   profile,
   pendingActivation,
+  planData,
 }: {
   section: string;
   canManage: boolean;
@@ -108,6 +107,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
   manualTakings: ManualTaking[];
+  payouts: MoneyPayout[];
   bookings: BookingSummary[];
   handovers: HandoverSummary[];
   notifications: NotificationSummary[];
@@ -155,6 +155,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   atDesignLimit: boolean;
   profile: Profile;
   pendingActivation: boolean;
+  planData: PlanSectionData;
 }) {
   return (
     <>
@@ -219,13 +220,21 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
             )}
 
             {canManage && section === "money" && (
-              <MoneyPanel
+              <MoneySection
                 summary={moneySummary}
                 takings={manualTakings}
                 orders={orders}
+                payouts={payouts}
                 error={action.moneyError}
               />
             )}
+
+            <PlanSections
+              section={section}
+              profile={profile}
+              data={planData}
+              action={action}
+            />
 
             {canManage && section === "promotions" && (
               <PromotionPanel
@@ -352,41 +361,11 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
           )}
 
           {canManage && section === "overview" && (
-            <>
-              {!(profile.payout_ready ?? false) ? (
-                <Alert
-                  severity="warning"
-                  icon={<PaymentsRounded />}
-                  action={
-                    <Button
-                      component={RouterLink}
-                      to="/dashboard/settings#payouts"
-                      color="inherit"
-                      size="small"
-                      variant="outlined"
-                    >
-                      Set up payouts
-                    </Button>
-                  }
-                >
-                  <strong>Add your mobile money number to get paid.</strong>{" "}
-                  Until you do, customers can&apos;t check out — payments to
-                  your store won&apos;t start.
-                </Alert>
-              ) : null}
-              <StoreReadinessPanel
-                steps={overview.setupSteps}
-                storefrontURL={`https://${profile.handle}.xtiitch.com`}
-                verified={profile.verification_status === "verified"}
-                pendingActivation={pendingActivation}
-              />
-              <TodayFocusPanel
-                pendingPayments={overview.pendingPayments}
-                needsMeasurements={overview.needsMeasurements}
-                openHandovers={overview.openHandovers}
-                pendingMessages={overview.pendingMessages}
-              />
-            </>
+            <OverviewSideRail
+              profile={profile}
+              overview={overview}
+              pendingActivation={pendingActivation}
+            />
           )}
         </Stack>
       </Box>

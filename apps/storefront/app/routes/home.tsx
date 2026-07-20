@@ -1,6 +1,6 @@
 import type { Route } from "./+types/home";
 import { api } from "../lib/api";
-import { storeHandleFromHost } from "../lib/tenant";
+import { requestTenant } from "../lib/tenant";
 import { StoreView } from "../components/storefront";
 import { Marketplace } from "../components/marketplace";
 
@@ -8,7 +8,7 @@ import { Marketplace } from "../components/marketplace";
 // and renders that store; on the apex/marketplace host it shows the marketplace —
 // every studio, featured placements, and the AI-search entry.
 export async function loader({ request }: Route.LoaderArgs) {
-  const handle = storeHandleFromHost(request.headers.get("host"));
+  const handle = requestTenant(request);
   if (!handle) {
     const [shopsPage, sponsoredPage] = await Promise.all([
       api.shops(),
@@ -21,9 +21,13 @@ export async function loader({ request }: Route.LoaderArgs) {
     };
   }
 
+  // §6 tenant isolation: every upstream call below carries the
+  // X-Xtiitch-Tenant header, and cross-store reads (api.shops for the
+  // discovery strip) are not made at all on a tenant host — the strip never
+  // renders there, on any plan.
   const query = (new URL(request.url).searchParams.get("q") ?? "").trim();
   if (query) {
-    const page = await api.search(handle, query);
+    const page = await api.search(handle, query, handle);
     if (!page) {
       throw new Response("Store not found", { status: 404 });
     }
@@ -34,10 +38,11 @@ export async function loader({ request }: Route.LoaderArgs) {
       collections: [],
       query,
       marketplace: [],
+      tenantHost: true,
     };
   }
 
-  const [page, shopsPage] = await Promise.all([api.store(handle), api.shops()]);
+  const page = await api.store(handle, handle);
   if (!page) {
     throw new Response("Store not found", { status: 404 });
   }
@@ -47,7 +52,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     designs: page.designs,
     collections: page.collections,
     query: "",
-    marketplace: shopsPage?.shops ?? [],
+    marketplace: [],
+    tenantHost: true,
   };
 }
 
@@ -95,6 +101,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         collections={loaderData.collections}
         query={loaderData.query}
         marketplace={loaderData.marketplace}
+        tenantHost={loaderData.tenantHost}
       />
     );
   }

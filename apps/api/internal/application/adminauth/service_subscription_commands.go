@@ -21,6 +21,14 @@ type RunSubscriptionRecurringSweepCommand struct {
 	IPAddress   string
 }
 
+type RunSubscriptionReminderSweepCommand struct {
+	ActorUserID common.ID
+	ActorRole   admindomain.Role
+	Reason      string
+	UserAgent   string
+	IPAddress   string
+}
+
 type InitializeSubscriptionAuthorizationCommand struct {
 	ActorUserID common.ID
 	ActorRole   admindomain.Role

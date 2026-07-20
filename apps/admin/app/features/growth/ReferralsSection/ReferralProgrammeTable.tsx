@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -13,6 +13,10 @@ import TextField from "../../../components/form-text-field";
 import { Panel } from "../../../components/ui/Panel";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
 import { StyledDateTimeField } from "../../shared/StyledDateTimeField";
+import {
+  useActionSuccess,
+  useFormResetKey,
+} from "../../shared/useActionSuccess";
 import {
   referralAudienceOptions,
   referralRefereeRewardKindOptions,
@@ -40,6 +44,17 @@ export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-fu
   referralProgrammesError: string | null;
 }) {
   const [showReferralCreate, setShowReferralCreate] = useState(false);
+
+  // §1.2/§11.4: the create disclosure closes on a successful submit (its
+  // Collapse unmounts the fields), and the always-visible issue form
+  // re-mounts cleared via the reset key.
+  const actionSuccess = useActionSuccess("referrals");
+  const issueResetKey = useFormResetKey("referrals");
+  useEffect(() => {
+    if (actionSuccess) {
+      setShowReferralCreate(false);
+    }
+  }, [actionSuccess]);
 
   return (
     <>
@@ -207,7 +222,7 @@ export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-fu
 
       {!referralProgrammesError ? (
         <Panel sx={{ p: { xs: 2, md: 2.5 } }}>
-          <Form method="post">
+          <Form method="post" key={issueResetKey}>
             <input
               type="hidden"
               name="intent"

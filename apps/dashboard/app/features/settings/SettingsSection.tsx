@@ -27,6 +27,7 @@ export function SettingsSection({
         verified={profile.verification_status === "verified"}
         settlementBank={profile.settlement_bank}
         settlementAccount={profile.settlement_account}
+        settlementAccountName={profile.settlement_account_name}
         error={action.payoutError}
         success={action.payoutSuccess}
       />

@@ -14,10 +14,11 @@ export function networkLabel(code: string): string {
   return NETWORKS.find((network) => network.code === code)?.label ?? code;
 }
 
-// A Ghana MoMo number is 10 local digits (0XXXXXXXXX) or 12 in 233 form. The API
-// normalises properly; this only decides when the "Verify number" button lights
-// up, so it stays permissive rather than duplicating that rule.
+// §2.1: a payout MoMo number is EXACTLY 10 local digits (0XXXXXXXXX). The API
+// rejects anything else with invalid_payout_number; this predicate gates the
+// "Verify number" button and the pre-submit check so the owner finds out
+// before the SMS goes out.
 export function looksLikeGhanaNumber(raw: string): boolean {
   const digits = raw.replace(/\D/g, "");
-  return digits.length >= 9 && digits.length <= 12;
+  return digits.length === 10 && digits.startsWith("0");
 }

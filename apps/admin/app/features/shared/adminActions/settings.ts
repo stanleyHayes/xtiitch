@@ -1,4 +1,4 @@
-import { adminApi } from "../../../lib/api";
+import { adminApi, vatPercentToBps, DEFAULT_VAT_RATE_BPS } from "../../../lib/api";
 import { requireAdminContext } from "../../../lib/session";
 import { uploadBrandLogo } from "../adminApi";
 import {
@@ -79,6 +79,11 @@ export async function handleSettingsAction({ // eslint-disable-line complexity -
         ),
         payoutReviewThresholdPesewas: readGhsPesewas(
           form.get("payout_review_threshold_ghs"),
+        ),
+        // VAT arrives as a percent from the form and is stored/sent as basis
+        // points; the API applies it to every payment immediately (§11.1).
+        vatRateBps: vatPercentToBps(
+          readNumber(form.get("vat_rate_percent"), DEFAULT_VAT_RATE_BPS / 100),
         ),
         maintenanceMode: readBoolean(form, "maintenance_mode"),
         aiAssistantAddonEnabled: readBoolean(form, "ai_assistant_addon_enabled"),

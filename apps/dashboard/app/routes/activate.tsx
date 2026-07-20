@@ -1,4 +1,5 @@
 import { Link as RouterLink, redirect } from "react-router";
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -17,8 +18,11 @@ import {
   activationPromptMessage,
   fetchActivationStatus,
 } from "../lib/activation";
+import { fetchApi } from "../lib/api-base";
 import { formatGHS } from "../lib/format";
 import { tokens } from "../theme";
+import type { PublicPlan } from "../features/billing/billing-helpers";
+import { PlansView } from "../features/billing/PlansView";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -37,12 +41,41 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw redirect("/dashboard");
   }
   const blocked = new URL(request.url).searchParams.has("blocked");
-  return { activation, blocked };
+  // §7.2: the owner may switch packages from this page, so the plans list
+  // travels with it. Public catalogue — fail soft to an empty list (the
+  // switcher simply stays closed).
+  let plans: PublicPlan[] = [];
+  try {
+    const response = await fetchApi("/plans", { method: "GET" });
+    if (response.ok) {
+      plans = (await response.json()) as PublicPlan[];
+    }
+  } catch {
+    plans = [];
+  }
+  return { activation, blocked, plans };
 }
 
 export default function Activate({ loaderData }: Route.ComponentProps) {
-  const { activation, blocked } = loaderData;
+  const { activation, blocked, plans } = loaderData;
   const planLabel = activationPlanLabel(activation);
+  // §7.2: "Choose a different package instead" opens the full plans list;
+  // picking a plan + cadence enters the same payment flow (the activation
+  // API accepts the chosen plan code via /onboarding/billing?plan=).
+  const [choosing, setChoosing] = useState(false);
+
+  if (choosing) {
+    return (
+      <PlansView
+        plans={plans}
+        title="Choose a different package"
+        subtitle={`Your ${planLabel} plan is still waiting for its first payment. Pick any package below to activate that one instead.`}
+        onBack={() => setChoosing(false)}
+        backLabel={`Keep my ${planLabel} plan`}
+      />
+    );
+  }
+
   return (
     <Box
       sx={{
@@ -139,6 +172,13 @@ export default function Activate({ loaderData }: Route.ComponentProps) {
             >
               Continue to secure payment
             </Button>
+            {/* §7.2: the pending package is not a trap — the owner can switch
+                to any other package before paying. */}
+            {plans.length > 0 ? (
+              <Button variant="outlined" onClick={() => setChoosing(true)}>
+                Choose a different package instead
+              </Button>
+            ) : null}
             <MuiLink
               component={RouterLink}
               to="/dashboard"

@@ -9,6 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/tenantscope"
 )
 
 type healthResponse struct {
@@ -77,6 +79,12 @@ func NewRouter(
 	})
 
 	router.Route("/v1", func(v1 chi.Router) {
+		// §6 tenant isolation on the public storefront API: when the first-party
+		// storefront SSR server marks a request as tenant-store traffic
+		// (X-Xtiitch-Tenant), cross-store reads are refused here at the API —
+		// hiding buttons in the UI is not isolation. Requests without the header
+		// (general-store / direct API traffic) pass through unchanged.
+		v1.Use(tenantscope.Middleware)
 		v1.Get("/version", func(w http.ResponseWriter, _ *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]string{
 				"service": "xtiitch-api",

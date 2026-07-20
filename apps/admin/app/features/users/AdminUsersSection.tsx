@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -30,6 +30,7 @@ import { AdminOperatorCreateForm } from "./AdminOperatorCreateForm";
 import { AdminOperatorRow } from "./AdminOperatorRow";
 import { AdminOperatorDetailForm } from "./AdminOperatorDetailForm";
 import { SectionHeader } from "../../components/ui/SectionHeader";
+import { useActionSuccess } from "../shared/useActionSuccess";
 
 
 
@@ -51,6 +52,16 @@ export function AdminUsersSection({ // eslint-disable-line max-lines-per-functio
   const [statusFilter, setStatusFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailID, setDetailID] = useState<string | null>(null);
+
+  // §1.2/§11.4: both dialogs hold operator forms — close them once a users
+  // action succeeds. Errors keep the dialog open with the input intact.
+  const actionSuccess = useActionSuccess("users");
+  useEffect(() => {
+    if (actionSuccess) {
+      setCreateOpen(false);
+      setDetailID(null);
+    }
+  }, [actionSuccess]);
   const activeCount = users.filter((user) => user.isActive).length;
   const ownerCount = users.filter((user) => user.role === "owner").length;
   const supportCount = users.filter((user) => user.role === "support").length;

@@ -42,6 +42,7 @@ func (handler Handler) updatePlatformSettings(w http.ResponseWriter, r *http.Req
 		MaintenanceMode:              request.MaintenanceMode,
 		BrandLogoURL:                 request.BrandLogoURL,
 		AIAssistantAddonEnabled:      request.AIAssistantAddonEnabled,
+		VATRateBps:                   request.VATRateBps,
 		UserAgent:                    r.UserAgent(),
 		IPAddress:                    requestIP(r),
 	})
@@ -237,6 +238,7 @@ func newPlatformSettingsResponse(settings ports.AdminPlatformSettingsRecord) pla
 		BrandLogoURL:                 settings.BrandLogoURL,
 		MarketingFlags:               newMarketingFlagsResponse(settings.MarketingFlags),
 		AIAssistantAddonEnabled:      settings.AIAssistantAddonEnabled,
+		VATRateBps:                   settings.VATRateBps,
 		UpdatedAt:                    settings.UpdatedAt.Format(time.RFC3339),
 	}
 }

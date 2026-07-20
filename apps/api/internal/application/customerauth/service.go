@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/mail"
-	"regexp"
 	"strings"
 	"time"
 
@@ -31,6 +30,12 @@ var (
 	// delivery_failed (not an opaque internal_error) so the UI can say "couldn't
 	// send the code, try again"; the underlying provider error is logged.
 	ErrOTPDeliveryFailed = errors.New("could not deliver the verification code")
+	// ErrOrderNotInFinalStage means a "Received" mark was attempted on an order
+	// the store has not moved to its final stage yet (§5.3.2: only an archived
+	// — fulfilled — order carries the button). Surfaced as 409
+	// order_not_in_final_stage so the UI can say "the store is still working on
+	// this one" rather than failing silently.
+	ErrOrderNotInFinalStage = errors.New("order has not reached its final stage yet")
 )
 
 type Service struct {
@@ -254,6 +259,45 @@ func (s Service) ListOrders(ctx context.Context, customerID common.ID) ([]ports.
 	return s.repo.ListCustomerOrders(ctx, customerID)
 }
 
+// MarkOrderReceived stamps one of the customer's orders received (§5.3.2): the
+// order disappears from their Archived tab. Only an order in its final stage
+// may be stamped (anything earlier is still the store's to finish), and
+// re-stamping is an idempotent no-op — the button may be tapped twice on a
+// flaky connection. An order that is not the caller's own is reported as
+// missing (ErrNotFound), never as someone else's.
+func (s Service) MarkOrderReceived(ctx context.Context, customerID common.ID, orderID common.ID) error {
+	if customerID.IsZero() || orderID.IsZero() {
+		return ports.ErrNotFound
+	}
+	result, err := s.repo.MarkCustomerOrderReceived(ctx, customerID, orderID, s.clock.Now())
+	if err != nil {
+		return err
+	}
+	switch {
+	case !result.Found:
+		return ports.ErrNotFound
+	case result.AlreadyReceived:
+		return nil
+	case !result.FinalStage:
+		return ErrOrderNotInFinalStage
+	default:
+		return nil
+	}
+}
+
+// MarkBasketReceived stamps every final-stage order the customer has in one
+// checkout basket at once (§5.3.2 whole-basket "Received") and returns how many
+// were newly stamped. Baskets are per-store by construction — a checkout group
+// only ever holds one store's orders — so the group id alone names the basket
+// and no business handle is required. Idempotent: a repeat call stamps nothing
+// and returns 0.
+func (s Service) MarkBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID) (int, error) {
+	if customerID.IsZero() || checkoutGroupID.IsZero() {
+		return 0, ports.ErrNotFound
+	}
+	return s.repo.MarkCustomerBasketReceived(ctx, customerID, checkoutGroupID, s.clock.Now())
+}
+
 // GetProfile returns the customer's editable identity (name, email, phone).
 func (s Service) GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error) {
 	return s.repo.GetCustomerProfile(ctx, customerID)
@@ -300,20 +344,12 @@ func normalizeEmail(raw string) (string, error) {
 	return address, nil
 }
 
-var nonDigit = regexp.MustCompile(`\D`)
-
 // normalizeGhanaPhone coerces local formats to canonical E.164 digits (233…),
-// matching how WhatsApp recipients are stored.
+// matching how WhatsApp recipients are stored. It delegates to the shared
+// canonical normalizer (§5.3.4) and maps the error to this package's sentinel.
 func normalizeGhanaPhone(raw string) (string, error) {
-	digits := nonDigit.ReplaceAllString(strings.TrimSpace(raw), "")
-	switch {
-	case strings.HasPrefix(digits, "233") && len(digits) == 12:
-		// already canonical
-	case strings.HasPrefix(digits, "0") && len(digits) == 10:
-		digits = "233" + digits[1:]
-	case len(digits) == 9:
-		digits = "233" + digits
-	default:
+	digits, err := common.NormalizeGhanaPhone(raw)
+	if err != nil {
 		return "", ErrInvalidPhone
 	}
 	return digits, nil

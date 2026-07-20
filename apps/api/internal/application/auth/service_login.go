@@ -129,8 +129,9 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 	}
 
 	// The PHONE is the number we send SMS to, so it is the one proven at signup:
-	// when supplied it must carry a valid one-time code. No phone → register with
-	// email + password only (backward compatible).
+	// when supplied it must carry a valid one-time code — either proven earlier
+	// via the verify-only endpoint (§8) or presented with this request. No phone
+	// → register with email + password only (backward compatible).
 	var ownerPhone string
 	var phoneVerified bool
 	if strings.TrimSpace(cmd.OwnerPhone) != "" {
@@ -141,7 +142,11 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		if err != nil {
 			return AuthResult{}, err
 		}
-		if err := s.verifyBusinessOTP(ctx, number, cmd.OwnerPhoneCode, ports.BusinessOTPPurposeRegister); err != nil {
+		// Accepts a code proven earlier via /register/otp/verify (§8: the form's
+		// own verify button) as well as a code presented with this request.
+		// Either way one proof completes exactly one registration: the challenge
+		// is consumed on success.
+		if err := s.ensurePhoneProven(ctx, number, cmd.OwnerPhoneCode, ports.BusinessOTPPurposeRegister); err != nil {
 			return AuthResult{}, err
 		}
 		ownerPhone = number

@@ -22,15 +22,16 @@ func (repo BusinessIdentityRepository) SubmitIdentityDocument(ctx context.Contex
 	}
 
 	if _, err := tx.Exec(ctx, `
-		insert into business_identity_documents (business_id, card_number, id_photo_url, id_photo_back_url, submitted_at)
-		values ($1, $2, $3, $4, now())
+		insert into business_identity_documents (business_id, full_legal_name, card_number, id_photo_url, id_photo_back_url, submitted_at)
+		values ($1, $2, $3, $4, $5, now())
 		on conflict (business_id) do update
-		set card_number = excluded.card_number,
+		set full_legal_name = excluded.full_legal_name,
+			card_number = excluded.card_number,
 			id_photo_url = excluded.id_photo_url,
 			id_photo_back_url = excluded.id_photo_back_url,
 			submitted_at = now(),
 			updated_at = now()
-	`, input.BusinessID.String(), input.CardNumber, input.IDPhotoURL, input.IDPhotoBackURL); err != nil {
+	`, input.BusinessID.String(), input.FullLegalName, input.CardNumber, input.IDPhotoURL, input.IDPhotoBackURL); err != nil {
 		return err
 	}
 

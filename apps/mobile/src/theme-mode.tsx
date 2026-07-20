@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Animated, Pressable, StyleSheet, useColorScheme } from "react-native";
+import { Animated, Pressable, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -28,7 +28,6 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 export function ThemeModeProvider({ children }: { children: ReactNode }) {
-  const system = useColorScheme();
   const [override, setOverride] = useState<ThemeMode | null>(null);
 
   useEffect(() => {
@@ -39,12 +38,14 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        /* first run / storage unavailable — fall back to the system scheme */
+        /* first run / storage unavailable — the default stays light */
       });
   }, []);
 
-  // Follow the device scheme until the user explicitly picks a mode.
-  const mode: ThemeMode = override ?? (system === "dark" ? "dark" : "light");
+  // §1.1: the default theme is ALWAYS light, on every surface. The device
+  // scheme is deliberately ignored — dark mode only ever comes from the user
+  // hitting the toggle (which persists here as the override).
+  const mode: ThemeMode = override ?? "light";
   const palette = mode === "dark" ? darkPalette : lightPalette;
 
   // Dramatic cross-fade: flash a full-screen veil of the incoming background on

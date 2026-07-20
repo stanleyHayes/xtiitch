@@ -9,22 +9,28 @@ import SaveRounded from "@mui/icons-material/SaveRounded";
 import TextField from "../../components/form-text-field";
 import { NETWORKS, looksLikeGhanaNumber } from "./payout-networks";
 
-// The payout details form, including the §3.1 step that proves the number by a
+// The payout details form, including the §2.1 step that proves the number by a
 // code sent to it before the details can be saved.
-export function PayoutForm({
+export function PayoutForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   provisioned,
   verified,
   settlementBank,
   settlementAccount,
+  settlementAccountName,
   onCancel,
 }: {
   provisioned: boolean;
   verified: boolean;
   settlementBank?: string;
   settlementAccount?: string;
+  settlementAccountName?: string;
   onCancel?: () => void;
 }) {
   const [account, setAccount] = useState(settlementAccount ?? "");
+  // §2.1: the MoMo-registered wallet name. It becomes the Paystack subaccount's
+  // business name, so it must be the exact legal name on the wallet.
+  const [accountName, setAccountName] = useState(settlementAccountName ?? "");
+  const [numberError, setNumberError] = useState<string | undefined>(undefined);
   // Controlled, because the network is half of what the API treats as "the
   // payout details": leaving it uncontrolled hid a network change from the
   // check below, and the server then demanded a code this form never offered.
@@ -75,11 +81,7 @@ export function PayoutForm({
         setOtpError("A code was just sent. Check your phone before resending.");
         return;
       }
-      setOtpError(
-        body.error === "invalid_phone"
-          ? "That doesn't look like a Ghana mobile money number."
-          : "Could not send a code to that number. Check it and retry.",
-      );
+      setOtpError(otpRequestErrorMessage(body.error));
     } catch {
       setOtpError("Could not send a code right now. Try again in a moment.");
     } finally {
@@ -88,7 +90,19 @@ export function PayoutForm({
   }
 
   return (
-    <Form method="post">
+    <Form
+      method="post"
+      onSubmit={(event) => {
+        // §2.1: exactly 10 local digits, checked before the form can leave —
+        // the API rejects anything else with invalid_payout_number anyway.
+        if (!looksLikeGhanaNumber(account)) {
+          event.preventDefault();
+          setNumberError(
+            "Enter the MoMo number in its 10-digit local form (e.g. 0240000000).",
+          );
+        }
+      }}
+    >
       <input type="hidden" name="intent" value="setup_payout" />
       {/* The code field unmounts when no code is needed, so its value rides
           along in a hidden mirror rather than vanishing on submit. */}
@@ -133,9 +147,32 @@ export function PayoutForm({
             // invalidates a code already sent to the previous one.
             setOtpRequested(false);
             setCode("");
+            if (numberError) {
+              setNumberError(undefined);
+            }
           }}
+          onBlur={() => {
+            if (account.trim() && !looksLikeGhanaNumber(account)) {
+              setNumberError(
+                "Enter the MoMo number in its 10-digit local form (e.g. 0240000000).",
+              );
+            }
+          }}
+          error={Boolean(numberError)}
+          helperText={numberError ?? "Exactly 10 digits, local form."}
         />
       </Stack>
+
+      <TextField
+        name="settlement_account_name"
+        label="MoMo Account Name"
+        required
+        fullWidth
+        value={accountName}
+        onChange={(event) => setAccountName(event.target.value)}
+        helperText="Enter the exact legal name that pops up when someone tries to send money to this MoMo number."
+        sx={{ mt: 1.5 }}
+      />
 
       {needsCode ? (
         <PayoutOTPStep
@@ -159,7 +196,7 @@ export function PayoutForm({
           type="submit"
           variant="contained"
           startIcon={<SaveRounded />}
-          disabled={needsCode && !code.trim()}
+          disabled={(needsCode && !code.trim()) || !accountName.trim()}
           sx={{ flexShrink: 0 }}
         >
           Save payout details
@@ -172,6 +209,25 @@ export function PayoutForm({
       </Stack>
     </Form>
   );
+}
+
+// Friendly copy for the payout-OTP request failures the API reports. Each code
+// implies a different fix — the sequence gate (§2.2), the number itself, or a
+// transient fault — so they stay distinct.
+function otpRequestErrorMessage(code: string | undefined): string {
+  switch (code) {
+    case "identity_verification_required":
+      // §2.2 fallback: the panel already locks payout setup until an admin
+      // approves the Ghana Card, so this should be unreachable — but if the
+      // API says it, show the same explanation rather than a dead end.
+      return "Complete your Ghana Card business verification first — payout details unlock after an admin approves it.";
+    case "invalid_payout_number":
+      return "Enter the MoMo number in its 10-digit local form (e.g. 0240000000).";
+    case "invalid_phone":
+      return "That doesn't look like a Ghana mobile money number.";
+    default:
+      return "Could not send a code to that number. Check it and retry.";
+  }
 }
 
 function PayoutOTPStep({

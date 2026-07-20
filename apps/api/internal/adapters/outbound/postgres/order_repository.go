@@ -20,22 +20,39 @@ func NewOrderRepository(pool *pgxpool.Pool) OrderRepository {
 	return OrderRepository{pool: pool}
 }
 
+// canonicalCustomerPhone coerces a customer phone to the shared canonical
+// 233XXXXXXXXX storage form (§5.3.4: one customer account, everywhere), so a
+// number typed as 024…, 233… or a bare 9-digit local always names ONE row —
+// the same row the OTP login path resolves. Empty stays empty (anonymous
+// customers); anything unnormalizable is rejected so a bad number surfaces to
+// the caller instead of fragmenting the person's history across two rows.
+func canonicalCustomerPhone(phone string) (string, error) {
+	trimmed := strings.TrimSpace(phone)
+	if trimmed == "" {
+		return "", nil
+	}
+	return common.NormalizeGhanaPhone(trimmed)
+}
+
 // FindCustomerIDByPhone resolves an existing, non-erased customer by phone so
 // repeat guest orders link to one identity. Customers are platform-wide, so this
 // matches across tenants; the oldest match wins.
 func (repo OrderRepository) FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error) {
-	trimmed := strings.TrimSpace(phone)
-	if trimmed == "" {
+	canonical, err := canonicalCustomerPhone(phone)
+	if err != nil {
+		return "", false, err
+	}
+	if canonical == "" {
 		return "", false, nil
 	}
 	var id string
-	err := repo.pool.QueryRow(ctx, `
+	err = repo.pool.QueryRow(ctx, `
 		select customer_id::text
 		from customers
 		where phone = $1 and erased_at is null
 		order by created_at asc
 		limit 1
-	`, trimmed).Scan(&id)
+	`, canonical).Scan(&id)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return "", false, nil
@@ -49,11 +66,17 @@ func (repo OrderRepository) FindCustomerIDByPhone(ctx context.Context, phone str
 // phone or creates a minimal one with newID, serialized by an advisory lock on the
 // phone. Without this, two concurrent first-time orders from the same new phone
 // both resolve "not found" and mint different customer_ids — fragmenting that
-// person's identity/history. The order transaction later enriches the row (name,
-// email, whatsapp) via its on-conflict upsert. Returns (id, created).
+// person's identity/history. The phone is canonicalized (§5.3.4) before the
+// lock/lookup/insert so the 024… guest form and the 233… OTP-login form resolve
+// the SAME row; an unnormalizable number is an error, never a stored row. The
+// order transaction later enriches the row (name, email, whatsapp) via its
+// on-conflict upsert. Returns (id, created).
 func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, phone string, newID common.ID) (common.ID, bool, error) {
-	trimmed := strings.TrimSpace(phone)
-	if trimmed == "" {
+	canonical, err := canonicalCustomerPhone(phone)
+	if err != nil {
+		return "", false, err
+	}
+	if canonical == "" {
 		// No phone to dedupe on — a fresh anonymous identity.
 		return newID, true, nil
 	}
@@ -63,7 +86,7 @@ func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, 
 	}
 	defer rollbackUnlessCommitted(ctx, tx)
 
-	if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtext($1)::bigint)`, trimmed); err != nil {
+	if _, err := tx.Exec(ctx, `select pg_advisory_xact_lock(hashtext($1)::bigint)`, canonical); err != nil {
 		return "", false, err
 	}
 	var existing string
@@ -71,7 +94,7 @@ func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, 
 		select customer_id::text from customers
 		where phone = $1 and erased_at is null
 		order by created_at asc limit 1
-	`, trimmed).Scan(&existing)
+	`, canonical).Scan(&existing)
 	if err == nil {
 		if err := tx.Commit(ctx); err != nil {
 			return "", false, err
@@ -83,7 +106,7 @@ func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, 
 	}
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, phone) values ($1, $2)
-	`, newID.String(), trimmed); err != nil {
+	`, newID.String(), canonical); err != nil {
 		return "", false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -93,6 +116,10 @@ func (repo OrderRepository) ResolveOrCreateCustomerByPhone(ctx context.Context, 
 }
 
 func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.TenantScope, input ports.CreateWalkInOrderInput) error {
+	phone, err := canonicalCustomerPhone(input.CustomerPhone)
+	if err != nil {
+		return err
+	}
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -111,7 +138,7 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, phone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -131,11 +158,12 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 		insert into orders (
 			order_id, business_id, customer_id, design_id, size_band_id,
 			order_type, size_mode, flow, channel, agreed_total_minor, settled_minor,
-			status, current_stage_id
+			status, current_stage_id, created_by_business_user_id
 		)
-		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'walk_in', $6, 0, 'confirmed', $7)
+		values ($1, $2, $3, $4, $5, 'standard', 'band', 'ready_made', 'walk_in', $6, 0, 'confirmed', $7, $8)
 	`, input.OrderID.String(), input.BusinessID.String(), input.CustomerID.String(), input.DesignID.String(),
-		nullableIDArg(input.SizeBandID), nullableInt64Arg(input.AgreedTotalMinor), stageID); err != nil {
+		nullableIDArg(input.SizeBandID), nullableInt64Arg(input.AgreedTotalMinor), stageID,
+		nullableUserIDArg(input.CreatedByUserID)); err != nil {
 		return err
 	}
 
@@ -150,6 +178,10 @@ func (repo OrderRepository) CreateWalkInOrder(ctx context.Context, scope common.
 }
 
 func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.TenantScope, input ports.CreateOnlineOrderInput) error {
+	phone, err := canonicalCustomerPhone(input.CustomerPhone)
+	if err != nil {
+		return err
+	}
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -168,7 +200,7 @@ func (repo OrderRepository) CreateOnlineOrder(ctx context.Context, scope common.
 			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, input.CustomerID.String(), input.CustomerName, input.CustomerPhone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
+	`, input.CustomerID.String(), input.CustomerName, phone, input.CustomerWhatsApp, input.CustomerEmail); err != nil {
 		return err
 	}
 
@@ -204,6 +236,13 @@ func (repo OrderRepository) CreateOnlineOrderGroup(
 		return nil
 	}
 
+	// One shared customer across the group: upsert from the first order.
+	first := inputs[0]
+	phone, err := canonicalCustomerPhone(first.CustomerPhone)
+	if err != nil {
+		return err
+	}
+
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -214,8 +253,6 @@ func (repo OrderRepository) CreateOnlineOrderGroup(
 		return err
 	}
 
-	// One shared customer across the group: upsert from the first order.
-	first := inputs[0]
 	if _, err := tx.Exec(ctx, `
 		insert into customers (customer_id, display_name, phone, whatsapp_number, email)
 		values ($1, $2, $3, $4, $5)
@@ -224,7 +261,7 @@ func (repo OrderRepository) CreateOnlineOrderGroup(
 			whatsapp_number = case when excluded.whatsapp_number <> '' then excluded.whatsapp_number else customers.whatsapp_number end,
 			email = case when excluded.email <> '' then excluded.email else customers.email end,
 			updated_at = now()
-	`, first.CustomerID.String(), first.CustomerName, first.CustomerPhone, first.CustomerWhatsApp, first.CustomerEmail); err != nil {
+	`, first.CustomerID.String(), first.CustomerName, phone, first.CustomerWhatsApp, first.CustomerEmail); err != nil {
 		return err
 	}
 

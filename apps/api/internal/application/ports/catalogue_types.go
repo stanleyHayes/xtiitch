@@ -23,9 +23,14 @@ type StoreSettings struct {
 	LogoURL       string
 	BannerURL     string
 	LayoutVariant string
-	// FeePassToBuyer passes the platform sales fee to the buyer at checkout
-	// instead of the merchant absorbing it. Default false (merchant absorbs).
-	FeePassToBuyer bool
+	// FeePassXtiitchFee / FeePassTax / FeePassPaystackFee are the owner's three
+	// fee pass-down tick boxes (§4.4): a ticked fee is added to the customer's
+	// checkout (the Xtiitch and Paystack fees inside one combined "Transaction
+	// fee" line, the tax on its own line); an unticked fee is deducted from the
+	// store's share. All default false (the owner absorbs every fee).
+	FeePassXtiitchFee  bool
+	FeePassTax         bool
+	FeePassPaystackFee bool
 }
 
 // StoreProfile is the authenticated business's own profile, for the dashboard.
@@ -47,9 +52,21 @@ type StoreProfile struct {
 	// before migration 000087 mirrored the network locally.
 	SettlementBank    string
 	SettlementAccount string
+	// SettlementAccountName is the MoMo-registered wallet name on file (§2.1),
+	// shown in the payout-details summary. Empty until payouts are set up, and
+	// for businesses provisioned before migration 000098.
+	SettlementAccountName string
 	// Entitlements is the business's resolved benefit set from its plan's features,
 	// so the dashboard knows which storefront customizations to unlock.
 	Entitlements map[string]bool
+	// EntitlementLimits is the business's resolved NUMERIC entitlement set
+	// (§11.1: analytics_level, analytics_lookback_days, crm_level,
+	// scheduled_reports, plus the cap keys), read live from the entitlement
+	// matrix. -1 means unlimited/full (NULL in the matrix) — the schema forbids
+	// negative limits, so -1 can never collide with a real cap. Keys whose row
+	// is disabled are absent. The dashboard reads this to unlock analytics/CRM
+	// depth without re-deriving it from the plan code.
+	EntitlementLimits map[string]int
 	// DesignLimit is the plan's cap on active designs; nil means unlimited. Served
 	// so the dashboard can warn BEFORE the API rejects design number limit+1. It
 	// used to guess the cap from the plan slug and told every paid plan it was

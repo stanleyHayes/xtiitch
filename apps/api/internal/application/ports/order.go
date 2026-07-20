@@ -29,8 +29,11 @@ type OrderRepository interface {
 	FindCustomerIDByPhone(ctx context.Context, phone string) (common.ID, bool, error)
 	// ResolveOrCreateCustomerByPhone atomically resolves-or-creates the customer for
 	// a phone under an advisory lock, so concurrent first-time orders from the same
-	// phone share one identity instead of racing to create duplicates. Returns
-	// (id, created); created=true means a fresh row was minted (for cleanup).
+	// phone share one identity instead of racing to create duplicates. The phone is
+	// canonicalized to 233XXXXXXXXX (§5.3.4) first, so the 024… guest form and the
+	// 233… OTP-login form resolve the SAME row; an unnormalizable phone returns
+	// common.ErrInvalidPhone. Returns (id, created); created=true means a fresh
+	// row was minted (for cleanup).
 	ResolveOrCreateCustomerByPhone(ctx context.Context, phone string, newID common.ID) (common.ID, bool, error)
 	// DiscardDraftOrder removes a still-draft order and the customer row that was
 	// created with it, scoped to the tenant. It compensates a checkout whose

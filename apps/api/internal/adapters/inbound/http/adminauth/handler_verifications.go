@@ -34,6 +34,10 @@ type businessVerificationResponse struct {
 	IDCardNumber   string   `json:"id_card_number"`
 	IDPhotoURL     string   `json:"id_photo_url"`
 	IDPhotoBackURL string   `json:"id_photo_back_url"`
+	// FullLegalName is the owner's name exactly as printed on the Ghana Card
+	// (§2.3), so the reviewer can match it against the card photos. Empty for
+	// submissions that predate the field.
+	FullLegalName string `json:"full_legal_name"`
 }
 
 func (handler Handler) businessVerifications(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +113,7 @@ func newBusinessVerificationResponse(record ports.AdminVerificationCaseRecord) b
 		IDCardNumber:   record.IDCardNumber,
 		IDPhotoURL:     record.IDPhotoURL,
 		IDPhotoBackURL: record.IDPhotoBackURL,
+		FullLegalName:  record.FullLegalName,
 	}
 }
 

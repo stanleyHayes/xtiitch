@@ -184,10 +184,12 @@ type SubscriptionActivationCharge struct {
 	PeriodStart time.Time
 }
 
-// SubmitIdentityDocumentInput carries a business's Ghana Card submission (both
-// the front and back of the card).
+// SubmitIdentityDocumentInput carries a business's Ghana Card submission: the
+// owner's full legal name as printed on the card (§2.3), the card number, and
+// both the front and back photos.
 type SubmitIdentityDocumentInput struct {
 	BusinessID     common.ID
+	FullLegalName  string
 	CardNumber     string
 	IDPhotoURL     string
 	IDPhotoBackURL string
@@ -295,6 +297,9 @@ const (
 	BusinessOTPPurposeSignIn   = "signin"
 	BusinessOTPPurposeRegister = "register"
 	BusinessOTPPurposePayout   = "payout"
+	// BusinessOTPPurposeProfile scopes codes that prove a NEW phone number in the
+	// §9 owner self-service profile flow, before it may replace the old one.
+	BusinessOTPPurposeProfile = "profile"
 )
 
 // BusinessOTPChallengeRecord is an active business sign-in OTP challenge.
@@ -337,6 +342,39 @@ type UpdateBusinessUserInput struct {
 	Phone       string
 	Role        business.UserRole
 	IsActive    bool
+}
+
+// BusinessUserProfileRecord is the signed-in user's own profile (§9), richer
+// than BusinessUserRecord: it carries the WhatsApp chat number and whether the
+// phone was OTP-proven, which the team-management record does not need.
+type BusinessUserProfileRecord struct {
+	UserID          common.ID
+	BusinessID      common.ID
+	Email           string
+	DisplayName     string
+	Phone           string
+	PhoneVerifiedAt *time.Time
+	WhatsAppNumber  string
+	Role            business.UserRole
+	IsActive        bool
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+// UpdateOwnBusinessUserProfileInput carries the caller's MERGED profile values
+// (the service resolves "field omitted" against the current row, so every field
+// here is final). Unlike UpdateBusinessUserInput it has no role/is_active:
+// self-service must never let a user promote or deactivate themselves, and it
+// may touch the owner row, which the team-management update deliberately
+// refuses. PhoneVerified records that a new phone was just OTP-proven, so the
+// repo stamps phone_verified_at anew; when false the column is left alone.
+type UpdateOwnBusinessUserProfileInput struct {
+	UserID         common.ID
+	Email          string
+	DisplayName    string
+	Phone          string
+	PhoneVerified  bool
+	WhatsAppNumber string
 }
 
 type UpdateBusinessUserPasswordInput struct {

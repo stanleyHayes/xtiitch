@@ -15,6 +15,10 @@ import {
   uniqueDashboardWarnings,
 } from "./utils";
 import { defaultMoneySummary, defaultStoreSettings } from "./constants";
+import { loadAnalyticsData } from "../analytics/loadAnalytics";
+import { defaultAnalyticsData, type AnalyticsData } from "../analytics/types";
+import { loadCrmData } from "../crm/loadCrm";
+import { defaultCrmData, type CrmData } from "../crm/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
@@ -27,6 +31,7 @@ import type {
   HandoverSummary,
   ManualTaking,
   MeasurementField,
+  MoneyPayout,
   MoneySummary,
   NotificationSummary,
   OrderFilter,
@@ -48,6 +53,7 @@ export type DashboardLoaderData = {
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
   manualTakings: ManualTaking[];
+  payouts: MoneyPayout[];
   bookings: BookingSummary[];
   handovers: HandoverSummary[];
   notifications: NotificationSummary[];
@@ -60,6 +66,12 @@ export type DashboardLoaderData = {
   promotions: BusinessPromotion[];
   waitlistEntries: WaitlistEntry[];
   deliveryZones: DeliveryZone[];
+  // §14/§15: fetched ONLY when the matching section is open (nine analytics
+  // endpoints on every page load would be waste) and only as far as the
+  // plan's analytics_level / crm_level entitles — the slices default to their
+  // empty states on every other section.
+  analytics: AnalyticsData;
+  crm: CrmData;
   section: DashboardSection;
   orderFilter: OrderFilter;
   dataWarnings: string[];
@@ -150,6 +162,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   let designs: Design[] = [];
   let moneySummary: MoneySummary = defaultMoneySummary;
   let manualTakings: ManualTaking[] = [];
+  let payouts: MoneyPayout[] = [];
   let availabilityWindows: AvailabilityWindow[] = [];
   let blackoutDates: string[] = [];
   let businessUsers: BusinessUser[] = [];
@@ -170,6 +183,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       designsResult,
       moneySummaryResult,
       takingsResult,
+      payoutsResult,
       availabilityResult,
       blackoutsResult,
       businessUsersResult,
@@ -197,6 +211,14 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
         "/money/takings",
         { takings: [] },
         "Manual takings could not be loaded right now.",
+      ),
+      // §3.3: the payout history table. The first page (50) is loaded and the
+      // table pages client-side, the same treatment as manual takings.
+      loadDashboardJSON<{ payouts: MoneyPayout[] }>(
+        request,
+        "/money/payouts?limit=50&offset=0",
+        { payouts: [] },
+        "Payout history could not be loaded right now.",
       ),
       loadDashboardJSON<{ windows: AvailabilityWindow[] }>(
         request,
@@ -258,6 +280,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     const designsData = readResult(designsResult);
     const moneySummaryData = readResult(moneySummaryResult);
     const takingsData = readResult(takingsResult);
+    const payoutsData = readResult(payoutsResult);
     const availabilityData = readResult(availabilityResult);
     const blackoutsData = readResult(blackoutsResult);
     const businessUsersData = readResult(businessUsersResult);
@@ -290,13 +313,19 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     }
     moneySummary = {
       through_platform_minor: moneySummaryData.through_platform_minor ?? 0,
+      paystack_fee_minor: moneySummaryData.paystack_fee_minor ?? 0,
+      xtiitch_fee_minor: moneySummaryData.xtiitch_fee_minor ?? 0,
+      xtiitch_tax_minor: moneySummaryData.xtiitch_tax_minor ?? 0,
       commission_minor: moneySummaryData.commission_minor ?? 0,
+      settled_payouts_minor: moneySummaryData.settled_payouts_minor ?? 0,
       manual_takings_minor: moneySummaryData.manual_takings_minor ?? 0,
       offline_commission_due_minor:
         moneySummaryData.offline_commission_due_minor ?? 0,
+      all_time_income_minor: moneySummaryData.all_time_income_minor ?? 0,
       net_income_minor: moneySummaryData.net_income_minor ?? 0,
     };
     manualTakings = takingsData.takings ?? [];
+    payouts = payoutsData.payouts ?? [];
     availabilityWindows = availabilityData.windows ?? [];
     blackoutDates = blackoutsData.dates ?? [];
     businessUsers = businessUsersData.users ?? [];
@@ -306,6 +335,28 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     promotions = promotionsData.promotions ?? [];
     waitlistEntries = waitlistData.entries ?? [];
     deliveryZones = deliveryZonesData.zones ?? [];
+  }
+
+  // §14/§15 section data, level-laddered inside the feature loaders.
+  let analytics = defaultAnalyticsData;
+  let crm = defaultCrmData;
+  if (canManage && section === "analytics") {
+    const result = await loadAnalyticsData({
+      request,
+      profile,
+      searchParams: url.searchParams,
+    });
+    analytics = result.data;
+    dataWarnings.push(...result.warnings);
+  }
+  if (canManage && section === "customers") {
+    const result = await loadCrmData({
+      request,
+      profile,
+      searchParams: url.searchParams,
+    });
+    crm = result.data;
+    dataWarnings.push(...result.warnings);
   }
 
   return {
@@ -318,6 +369,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     measurementFields: fieldsData.fields ?? [],
     moneySummary,
     manualTakings,
+    payouts,
     bookings: bookingsData.bookings ?? [],
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
@@ -330,6 +382,8 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     promotions,
     waitlistEntries,
     deliveryZones,
+    analytics,
+    crm,
     section,
     orderFilter,
     dataWarnings: uniqueDashboardWarnings(dataWarnings),

@@ -7,10 +7,8 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
 import { alpha } from "@mui/material/styles";
-import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
 import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
@@ -19,23 +17,30 @@ import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import TextField from "../../components/form-text-field";
-import { formatGHS } from "../../lib/format";
 import { tokens } from "../../theme";
 import type { CustomerOrder, CustomerProfile } from "../../lib/discovery";
-import { formatDate, orderStatus } from "./utils";
+import { OrdersPanel } from "./orders-panel";
 
-export function AccountHub({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AccountHub({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   phone,
   profile,
   orders,
   saved,
   error,
+  tenantHost = false,
+  orderNotice,
+  orderError,
 }: {
   phone: string;
   profile: CustomerProfile | null;
   orders: CustomerOrder[];
   saved?: boolean;
   error?: string;
+  // §6: on a tenant host cross-store entries (AI Search) are hidden — the
+  // customer's orders stay shared, they are their own data (§5.3.4).
+  tenantHost?: boolean;
+  orderNotice?: string;
+  orderError?: string;
 }) {
   const cardSx = {
     p: { xs: 2.25, md: 3 },
@@ -67,7 +72,7 @@ export function AccountHub({ // eslint-disable-line max-lines-per-function -- la
             startIcon={<StorefrontRounded />}
             sx={{ px: 0, color: "text.secondary", fontWeight: 800 }}
           >
-            Back to storefronts
+            Back to storefront
           </Button>
           <Form method="post">
             <input type="hidden" name="intent" value="signout" />
@@ -128,7 +133,14 @@ export function AccountHub({ // eslint-disable-line max-lines-per-function -- la
                 {error}
               </Alert>
             ) : null}
-            <Form method="post">
+            {/* §1.2 auto-reset: the form is keyed by the saved profile values,
+                so a successful save (loader revalidates with the new profile)
+                remounts the fields showing the saved state cleanly instead of
+                keeping stale uncontrolled input. */}
+            <Form
+              method="post"
+              key={`${profile?.display_name ?? ""}|${profile?.email ?? ""}|${profile?.whatsapp_phone ?? ""}`}
+            >
               <input type="hidden" name="intent" value="update_profile" />
               <Stack spacing={2}>
                 <TextField
@@ -204,19 +216,21 @@ export function AccountHub({ // eslint-disable-line max-lines-per-function -- la
               </Stack>
             </Form>
 
-            <Button
-              component={RouterLink}
-              to="/discover"
-              variant="outlined"
-              size="large"
-              startIcon={<AutoAwesomeRounded />}
-              sx={{ mt: 2, width: "100%" }}
-            >
-              Search with AI
-            </Button>
+            {!tenantHost ? (
+              <Button
+                component={RouterLink}
+                to="/discover"
+                variant="outlined"
+                size="large"
+                startIcon={<AutoAwesomeRounded />}
+                sx={{ mt: 2, width: "100%" }}
+              >
+                Search with AI
+              </Button>
+            ) : null}
           </Box>
 
-          {/* Orders */}
+          {/* Orders — §5.3: grouped by store basket, Current/Archived tabs. */}
           <Box sx={cardSx}>
             <Stack
               direction="row"
@@ -228,112 +242,11 @@ export function AccountHub({ // eslint-disable-line max-lines-per-function -- la
                 Your orders
               </Typography>
             </Stack>
-
-            {orders.length === 0 ? (
-              <Box sx={{ textAlign: "center", py: 6 }}>
-                <StorefrontRounded
-                  sx={{ fontSize: 40, color: alpha(tokens.ink, 0.25) }}
-                />
-                <Typography sx={{ mt: 1, fontWeight: 800 }}>
-                  No orders yet
-                </Typography>
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary", mt: 0.5 }}
-                >
-                  When you order from a studio, it shows up here.
-                </Typography>
-                <Button
-                  component={RouterLink}
-                  to="/"
-                  variant="contained"
-                  sx={{ mt: 2.5 }}
-                  endIcon={<ArrowForwardRounded />}
-                >
-                  Browse studios
-                </Button>
-              </Box>
-            ) : (
-              <Stack spacing={1.5}>
-                {orders.map((o) => {
-                  const status = orderStatus(o.status);
-                  return (
-                    <Box
-                      key={o.order_id}
-                      sx={{
-                        p: 1.75,
-                        borderRadius: "10px",
-                        border: "1px solid",
-                        borderColor: alpha(tokens.ink, 0.1),
-                        bgcolor: "rgba(var(--surface-rgb), 0.6)",
-                      }}
-                    >
-                      <Stack
-                        direction="row"
-                        sx={{
-                          justifyContent: "space-between",
-                          gap: 1.5,
-                          alignItems: "flex-start",
-                        }}
-                      >
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 800 }} noWrap>
-                            {o.design_title || "Custom order"}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ color: "text.secondary" }}
-                            noWrap
-                          >
-                            {o.business_name} · {formatDate(o.created_at)}
-                          </Typography>
-                        </Box>
-                        <Box
-                          sx={{
-                            flexShrink: 0,
-                            px: 1,
-                            py: 0.35,
-                            borderRadius: 999,
-                            bgcolor: alpha(status.color, 0.12),
-                            color: status.color,
-                            border: `1px solid ${alpha(status.color, 0.4)}`,
-                            fontSize: 12,
-                            fontWeight: 800,
-                          }}
-                        >
-                          {status.label}
-                        </Box>
-                      </Stack>
-                      <Stack
-                        direction="row"
-                        sx={{
-                          mt: 1.25,
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Typography
-                          sx={{ fontWeight: 900, color: tokens.burgundy }}
-                        >
-                          {o.agreed_total_minor > 0
-                            ? formatGHS(o.agreed_total_minor)
-                            : "Price on confirmation"}
-                        </Typography>
-                        <Button
-                          component={RouterLink}
-                          to={`/track/${o.order_id}`}
-                          size="small"
-                          variant="text"
-                          startIcon={<LocalShippingRounded />}
-                        >
-                          Track
-                        </Button>
-                      </Stack>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            )}
+            <OrdersPanel
+              orders={orders}
+              notice={orderNotice}
+              error={orderError}
+            />
           </Box>
         </Box>
       </Container>

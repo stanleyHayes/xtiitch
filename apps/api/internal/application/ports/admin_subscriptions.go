@@ -157,6 +157,25 @@ type AdminSubscriptionRecurringSweepRecord struct {
 	RanAt                        time.Time
 }
 
+// AdminSubscriptionReminderSweepRecord reports one run of the §13.3 renewal
+// reminder sweep (15/7/3/0 lead days, SMS + email).
+type AdminSubscriptionReminderSweepRecord struct {
+	// SubscriptionsEvaluated counts recurring paid subscriptions with a renewal
+	// date the sweep looked at (the reminder candidates).
+	SubscriptionsEvaluated int
+	// RemindersEnqueued counts NEW (subscription, lead-day, period) SMS
+	// reminders written to the notification outbox; re-runs dedupe against the
+	// subscription_reminders log and enqueue nothing.
+	RemindersEnqueued int
+	// EmailsSent / EmailsFailed count the email half of the reminder. A failed
+	// email never blocks the SMS half or other subscriptions, and is surfaced
+	// (count + warning audit) rather than retried inline — the next sweep does
+	// not re-send a lead-day reminder whose SMS half was already logged.
+	EmailsSent   int
+	EmailsFailed int
+	RanAt        time.Time
+}
+
 // EnqueueSubscriptionRenewalReminderInput carries everything the outbox row and
 // the idempotency log need for one renewal reminder. DedupKey and PeriodKey are
 // derived by the caller from the reminder Kind, the subscription, and the
@@ -174,6 +193,11 @@ type EnqueueSubscriptionRenewalReminderInput struct {
 	RenewalAt          time.Time
 	GraceEndsAt        *time.Time
 	RepayURL           string
+	// LeadDay is the §13.3 reminder lead day (15/7/3/0) an upcoming reminder
+	// fired for; nil for a past-due re-pay reminder (not lead-day driven). The
+	// transport words the message from it ("renews in 7 days" vs "renews
+	// today").
+	LeadDay *int
 }
 
 // SubscriptionRenewalReminderResult reports whether a new reminder was enqueued.

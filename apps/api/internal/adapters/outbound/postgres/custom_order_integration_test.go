@@ -219,7 +219,10 @@ func TestListOrdersIncludesDashboardContext(t *testing.T) {
 	if got.OrderID != orderID || got.OrderType != "custom" || got.SizeMode != "home_visit" || got.Channel != "online" {
 		t.Fatalf("unexpected order route fields: %+v", got)
 	}
-	if got.CustomerPhone != "+233200000000" || got.CustomerEmail != "co@example.com" {
+	// Customer phones are stored in canonical E.164-digit form (§5.3.4 — one
+	// customer account everywhere; common.NormalizeGhanaPhone), so the "+"
+	// prefix on the fixture's input is stripped on write.
+	if got.CustomerPhone != "233200000000" || got.CustomerEmail != "co@example.com" {
 		t.Fatalf("expected contact context, got phone=%q email=%q", got.CustomerPhone, got.CustomerEmail)
 	}
 	if got.PaymentStatus != "initiated" || got.PaymentPurpose != "deposit" || got.PaymentAmount == nil || *got.PaymentAmount != 15000 {

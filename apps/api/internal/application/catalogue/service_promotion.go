@@ -2,6 +2,7 @@ package catalogueapp
 
 import (
 	"context"
+	"errors"
 	"regexp"
 	"strings"
 	"time"
@@ -10,6 +11,12 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
+
+// ErrPromotionsNotEntitled is returned when a store tries to create or edit a
+// promotion but its plan does not grant the promotions entitlement (§13.4:
+// "Free-plan stores cannot run promotions. That feature is not activated for
+// them — it is for paid users only."). The HTTP layer maps this to 403.
+var ErrPromotionsNotEntitled = errors.New("promotions are not included in this store's plan")
 
 var businessPromotionCodePattern = regexp.MustCompile(`^[A-Z0-9][A-Z0-9_-]{1,30}[A-Z0-9]$`)
 
@@ -53,6 +60,9 @@ func (s Service) CreateBusinessPromotion(
 	if s.promotions == nil || cmd.Scope.BusinessID.IsZero() {
 		return ports.BusinessPromotionRecord{}, ErrInvalidInput
 	}
+	if err := s.requirePromotionsEntitlement(ctx, cmd.Scope); err != nil {
+		return ports.BusinessPromotionRecord{}, err
+	}
 	cmd.PromotionID = s.ids.NewID()
 	input, err := normalizeBusinessPromotionInput(cmd)
 	if err != nil {
@@ -70,11 +80,34 @@ func (s Service) UpdateBusinessPromotion(
 	if s.promotions == nil || cmd.Scope.BusinessID.IsZero() || cmd.PromotionID.IsZero() {
 		return ports.BusinessPromotionRecord{}, ErrInvalidInput
 	}
+	if err := s.requirePromotionsEntitlement(ctx, cmd.Scope); err != nil {
+		return ports.BusinessPromotionRecord{}, err
+	}
 	input, err := normalizeBusinessPromotionInput(cmd)
 	if err != nil {
 		return ports.BusinessPromotionRecord{}, err
 	}
 	return s.promotions.UpdateBusinessPromotion(ctx, cmd.Scope, input)
+}
+
+// requirePromotionsEntitlement is the server-side plan gate behind the dashboard's
+// UI gating (§13.4): a store whose plan does not grant the promotions entitlement
+// cannot create or edit one, whatever the client shows. Listing and archiving stay
+// open on purpose — a store that downgraded must still see and switch off the
+// promotions it ran while entitled. Paid-plan stores that have never paid are
+// activation-gated first (§13.2), exactly like store settings.
+func (s Service) requirePromotionsEntitlement(ctx context.Context, scope common.TenantScope) error {
+	profile, err := s.settings.GetProfile(ctx, scope)
+	if err != nil {
+		return err
+	}
+	if profile.ActivationRequired {
+		return ErrActivationRequired
+	}
+	if !business.Entitlements(profile.Entitlements).Has(business.FeaturePromotions) {
+		return ErrPromotionsNotEntitled
+	}
+	return nil
 }
 
 type BusinessPromotionActionCommand struct {

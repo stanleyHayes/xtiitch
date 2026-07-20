@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -27,6 +27,7 @@ import { permissionDescription, permissionLabel, roleTone } from "../utils";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { RoleRow } from "./RoleRow";
 import { PermissionMatrix } from "./PermissionMatrix";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 
 export function RolePermissionsSection({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   roles,
@@ -39,6 +40,15 @@ export function RolePermissionsSection({ // eslint-disable-line complexity, max-
 }) {
   const [detailRoleId, setDetailRoleId] = useState<AdminRole | null>(null);
   const [editRoleId, setEditRoleId] = useState<AdminRole | null>(null);
+
+  // §1.2/§11.4: the edit dialog holds the permission-matrix form — close it
+  // once a roles action succeeds. The read-only detail dialog stays as is.
+  const actionSuccess = useActionSuccess("roles");
+  useEffect(() => {
+    if (actionSuccess) {
+      setEditRoleId(null);
+    }
+  }, [actionSuccess]);
   const totalGrants = roles.reduce(
     (sum, role) => sum + role.permissions.length,
     0,

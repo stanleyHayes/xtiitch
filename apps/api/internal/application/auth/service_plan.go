@@ -140,9 +140,10 @@ func (s Service) upgradeSubscriptionPlan(
 		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
 	}
 
-	// VAT applies to the prorated top-up too. Gross the net proration once so the
-	// charge, the booked invoice, and the reported amount agree.
-	grossProration := s.grossSubscriptionCharge(proration)
+	// VAT applies to the prorated top-up too, plus the §4.1 Transaction fee
+	// grossed up over package + VAT — so the charge, the booked invoice, and the
+	// reported amount agree and Xtiitch nets the proration + VAT exactly.
+	grossProration := s.subscriptionChargeTotal(ctx, proration)
 
 	// Deterministic ref keyed on the subscription + target plan + period start, so a
 	// double submit / retry reuses it: Paystack dedupes the charge and the invoice

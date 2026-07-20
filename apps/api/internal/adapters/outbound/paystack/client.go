@@ -40,8 +40,16 @@ func (c Client) VerifyWebhookSignature(payload []byte, signature string) bool {
 	return verifyWebhookSignature(c.webhookSecret, payload, signature)
 }
 
+func (c Client) PeekEventType(payload []byte) string {
+	return peekEventType(payload)
+}
+
 func (c Client) ParseChargeEvent(payload []byte) (ports.ProviderChargeEvent, error) {
 	return parseChargeEvent(payload)
+}
+
+func (c Client) ParseTransferEvent(payload []byte) (ports.ProviderTransferEvent, error) {
+	return parseTransferEvent(payload)
 }
 
 func (c Client) CreateBusinessSubaccount(
@@ -80,6 +88,7 @@ func (c Client) UpdateBusinessSubaccount(
 		Status bool `json:"status"`
 	}
 	return c.put(ctx, "/subaccount/"+url.PathEscape(input.SubaccountRef), map[string]any{
+		"business_name":   input.BusinessName,
 		"settlement_bank": input.SettlementBank,
 		"account_number":  input.SettlementAccount,
 	}, &response)
@@ -104,30 +113,15 @@ func (c Client) InitializeTransaction(
 		"currency":  input.Currency,
 		"reference": input.Reference,
 	}
-	switch {
-	case len(input.Splits) > 0:
-		// Marketplace split (§4 / P0.4): route ONE charge across several
-		// merchants' subaccounts. Each subaccount receives its flat net share;
-		// the platform (main account) gets the remainder (= its summed
-		// commission). "all-proportional" spreads the Paystack processing fee
-		// across all parties in proportion to their share, mirroring the
-		// single-store "bearer=subaccount" intent (the merchant bears the fee).
-		// The exact split-object shape must be validated against a Paystack test
-		// account before going live, like the single-subaccount path above.
-		subaccounts := make([]map[string]any, 0, len(input.Splits))
-		for _, split := range input.Splits {
-			subaccounts = append(subaccounts, map[string]any{
-				"subaccount": split.SubaccountRef,
-				"share":      split.ShareMinor,
-			})
-		}
-		body["split"] = map[string]any{
-			"type":        "flat",
-			"currency":    input.Currency,
-			"bearer_type": "all-proportional",
-			"subaccounts": subaccounts,
-		}
-	case input.SubaccountRef != "":
+	if input.CallbackURL != "" {
+		// §5.2: after a successful payment the customer returns to the
+		// storefront cart to settle the next store basket (or home when none
+		// remain). Paystack redirects to this URL with the reference.
+		body["callback_url"] = input.CallbackURL
+	}
+	// §5.2: the only split left is the single-store one — one charge, one
+	// merchant subaccount, the platform's commission as transaction_charge.
+	if input.SubaccountRef != "" {
 		body["subaccount"] = input.SubaccountRef
 		body["transaction_charge"] = input.CommissionMinor
 		body["bearer"] = "subaccount"
@@ -187,8 +181,11 @@ func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAutho
 	var response struct {
 		Status bool `json:"status"`
 		Data   struct {
-			Status   string `json:"status"`
-			Amount   int64  `json:"amount"`
+			Status string `json:"status"`
+			Amount int64  `json:"amount"`
+			// Fees is the transaction fee Paystack reports on the charge (§3.2);
+			// carried through so a verify-confirm can persist it verbatim.
+			Fees     *int64 `json:"fees"`
 			Customer struct {
 				// Paystack's /transaction/verify returns the customer code as
 				// "customer_code" (the /customer endpoints use "code").
@@ -208,9 +205,14 @@ func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAutho
 	}
 	succeeded := response.Data.Status == "success"
 	authCode := strings.TrimSpace(response.Data.Authorization.AuthorizationCode)
+	var feeMinor int64
+	if response.Data.Fees != nil {
+		feeMinor = *response.Data.Fees
+	}
 	return ports.VerifyAuthorizationResult{
 		Succeeded:         succeeded,
 		AmountMinor:       response.Data.Amount,
+		FeeMinor:          feeMinor,
 		AuthorizationCode: authCode,
 		CustomerCode:      response.Data.Customer.Code,
 		CustomerEmail:     response.Data.Customer.Email,

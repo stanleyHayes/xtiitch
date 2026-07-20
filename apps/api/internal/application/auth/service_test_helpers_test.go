@@ -71,6 +71,11 @@ type fakeBusinessIdentityRepository struct {
 	cadenceSet            string
 	setCadenceErr         error
 	identityDocument      ports.SubmitIdentityDocumentInput
+	profile               ports.BusinessUserProfileRecord
+	profileErr            error
+	lookupProfileUserID   common.ID
+	updatedProfile        ports.UpdateOwnBusinessUserProfileInput
+	updateProfileErr      error
 	planByCode            ports.PlanPricingRecord
 	planByCodeErr         error
 	upgradeApplied        *ports.ApplyImmediatePlanUpgradeInput
@@ -175,6 +180,52 @@ func (repo *fakeBusinessIdentityRepository) SubmitIdentityDocument(_ context.Con
 	return nil
 }
 
+func (repo *fakeBusinessIdentityRepository) FindBusinessUserProfileByID(
+	_ context.Context,
+	scope common.TenantScope,
+	userID common.ID) (ports.BusinessUserProfileRecord,
+	error,
+) {
+	repo.listScope = scope
+	repo.lookupProfileUserID = userID
+	if repo.profileErr != nil {
+		return ports.BusinessUserProfileRecord{}, repo.profileErr
+	}
+	return repo.profile, nil
+}
+
+// UpdateOwnBusinessUserProfile echoes the merged input back as the stored row,
+// mirroring the real repo's RETURNING clause: phone_verified_at is set iff the
+// update carries a freshly-proven phone.
+func (repo *fakeBusinessIdentityRepository) UpdateOwnBusinessUserProfile(
+	_ context.Context,
+	scope common.TenantScope,
+	input ports.UpdateOwnBusinessUserProfileInput) (ports.BusinessUserProfileRecord,
+	error,
+) {
+	repo.listScope = scope
+	repo.updatedProfile = input
+	if repo.updateProfileErr != nil {
+		return ports.BusinessUserProfileRecord{}, repo.updateProfileErr
+	}
+	verifiedAt := repo.profile.PhoneVerifiedAt
+	if input.PhoneVerified {
+		stamp := fixedOTPClock.now
+		verifiedAt = &stamp
+	}
+	return ports.BusinessUserProfileRecord{
+		UserID:          input.UserID,
+		BusinessID:      scope.BusinessID,
+		Email:           input.Email,
+		DisplayName:     input.DisplayName,
+		Phone:           input.Phone,
+		PhoneVerifiedAt: verifiedAt,
+		WhatsAppNumber:  input.WhatsAppNumber,
+		Role:            repo.profile.Role,
+		IsActive:        true,
+	}, nil
+}
+
 // fakeSubscriptionPayments is a minimal PaymentProvider for the subscription
 // checkout tests. It records the standard-checkout it was asked to open and
 // returns a verified, PAID transaction on verify (the amount echoes what the
@@ -263,6 +314,16 @@ func (f *fakeSubscriptionPayments) VerifyWebhookSignature(_ []byte, _ string) bo
 
 func (f *fakeSubscriptionPayments) ParseChargeEvent(_ []byte) (ports.ProviderChargeEvent, error) {
 	return ports.ProviderChargeEvent{}, nil
+}
+
+func (f *fakeSubscriptionPayments) PeekEventType(_ []byte) string { return "" }
+
+func (f *fakeSubscriptionPayments) ParseTransferEvent(_ []byte) (ports.ProviderTransferEvent, error) {
+	return ports.ProviderTransferEvent{}, nil
+}
+
+func (f *fakeSubscriptionPayments) ListSettlements(_ context.Context, _ ports.ListSettlementsInput) ([]ports.ProviderSettlement, error) {
+	return nil, nil
 }
 
 func newSubscriptionTestService(businesses *fakeBusinessIdentityRepository, payments ports.PaymentProvider) Service {

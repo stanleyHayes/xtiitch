@@ -1,5 +1,5 @@
 import type { AdminPromotion, AdminBusiness } from "../../../lib/api";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
@@ -13,6 +13,7 @@ import { AdminActionFeedback } from "../../shared/types";
 import { formatGHS } from "../../shared/formatting";
 import { MetricCard } from "../../../components/ui/MetricCard";
 import { usePagedItems } from "../../shared/usePagedItems";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminPromotionCreateForm } from "../AdminPromotionCreateForm";
 import { AdminPromotionDetailForm } from "../AdminPromotionDetailForm";
@@ -49,6 +50,17 @@ export function PromotionsSection({ // eslint-disable-line max-lines-per-functio
   const [scopeFilter, setScopeFilter] = useState("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailID, setDetailID] = useState<string | null>(null);
+
+  // §1.2/§11.4: both dialogs close on any successful promotions action
+  // (create, edit, archive); errors stay open with the input intact.
+  const actionSuccess = useActionSuccess("promotions");
+  useEffect(() => {
+    if (actionSuccess) {
+      setCreateOpen(false);
+      setDetailID(null);
+    }
+  }, [actionSuccess]);
+
   const filteredPromotions = useMemo(() => {
     const normalisedQuery = query.trim().toLowerCase();
 

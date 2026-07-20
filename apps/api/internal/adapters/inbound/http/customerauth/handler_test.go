@@ -140,6 +140,11 @@ type fakeService struct {
 	verifiedEmailCode string
 	phoneResult       customerauthapp.CustomerAuthResult
 	emailResult       customerauthapp.CustomerAuthResult
+	ordersResult      []ports.CustomerOrderSummary
+	markedOrderID     common.ID
+	markedGroupID     common.ID
+	markedCount       int
+	markErr           error
 }
 
 func (s *fakeService) RequestOTP(_ context.Context, phone string) error {
@@ -164,7 +169,17 @@ func (s *fakeService) VerifyEmailOTP(_ context.Context, email string, code strin
 }
 
 func (s *fakeService) ListOrders(_ context.Context, _ common.ID) ([]ports.CustomerOrderSummary, error) {
-	return nil, nil
+	return s.ordersResult, nil
+}
+
+func (s *fakeService) MarkOrderReceived(_ context.Context, _ common.ID, orderID common.ID) error {
+	s.markedOrderID = orderID
+	return s.markErr
+}
+
+func (s *fakeService) MarkBasketReceived(_ context.Context, _ common.ID, checkoutGroupID common.ID) (int, error) {
+	s.markedGroupID = checkoutGroupID
+	return s.markedCount, s.markErr
 }
 
 func (s *fakeService) GetProfile(_ context.Context, _ common.ID) (ports.CustomerProfile, error) {

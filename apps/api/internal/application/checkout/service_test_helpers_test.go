@@ -9,6 +9,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/booking"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/order"
 )
 
@@ -218,6 +219,8 @@ type fakeOrders struct {
 	customConfirmed      ports.CreateCustomOrderConfirmedInput
 	customDiscardCalled  bool
 	customDiscardOrder   common.ID
+	resolveErr           error
+	resolvePhone         string
 }
 
 func (f *fakeOrders) CreateWalkInOrder(context.Context, common.TenantScope, ports.CreateWalkInOrderInput) error {
@@ -287,7 +290,11 @@ func (f *fakeOrders) FindCustomerIDByPhone(_ context.Context, _ string) (common.
 	return "", false, nil
 }
 
-func (f *fakeOrders) ResolveOrCreateCustomerByPhone(_ context.Context, _ string, newID common.ID) (common.ID, bool, error) {
+func (f *fakeOrders) ResolveOrCreateCustomerByPhone(_ context.Context, phone string, newID common.ID) (common.ID, bool, error) {
+	f.resolvePhone = phone
+	if f.resolveErr != nil {
+		return "", false, f.resolveErr
+	}
 	return newID, true, nil
 }
 
@@ -354,12 +361,14 @@ func (f *fakeOrders) GetOrderBilling(context.Context, common.TenantScope, common
 }
 
 type fakePayments struct {
-	result             paymentsapp.ChargeResult
-	err                error
-	called             bool
-	command            paymentsapp.InitiateChargeCommand
-	marketplaceCommand paymentsapp.InitiateMarketplaceChargeCommand
-	marketplaceCalled  bool
+	result       paymentsapp.ChargeResult
+	err          error
+	called       bool
+	command      paymentsapp.InitiateChargeCommand
+	quote        money.StoreSaleQuote
+	quoteErr     error
+	quoteCommand paymentsapp.QuoteStoreSaleCommand
+	quoteCalled  bool
 }
 
 func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {
@@ -368,14 +377,10 @@ func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.Ini
 	return f.result, f.err
 }
 
-func (f *fakePayments) InitiateMarketplaceCharge(
-	_ context.Context,
-	command paymentsapp.InitiateMarketplaceChargeCommand) (paymentsapp.ChargeResult,
-	error,
-) {
-	f.marketplaceCalled = true
-	f.marketplaceCommand = command
-	return f.result, f.err
+func (f *fakePayments) QuoteStoreSale(_ context.Context, command paymentsapp.QuoteStoreSaleCommand) (money.StoreSaleQuote, error) {
+	f.quoteCalled = true
+	f.quoteCommand = command
+	return f.quote, f.quoteErr
 }
 
 type fakePromotions struct {

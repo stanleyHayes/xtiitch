@@ -28,6 +28,17 @@ type CustomerAuthRepository interface {
 	// ListCustomerOrders returns a signed-in customer's orders across every shop
 	// (cross-tenant, RLS bypass), newest first.
 	ListCustomerOrders(ctx context.Context, customerID common.ID) ([]CustomerOrderSummary, error)
+	// MarkCustomerOrderReceived stamps one of the customer's orders received
+	// (§5.3.2) at the given time, but only when the order sits in its final
+	// stage; the granular outcome lets the caller distinguish missing,
+	// not-yet-final and already-received without a second round-trip.
+	MarkCustomerOrderReceived(ctx context.Context, customerID common.ID, orderID common.ID, at time.Time) (MarkReceivedResult, error)
+	// MarkCustomerBasketReceived stamps ALL of the customer's final-stage
+	// orders in one checkout basket (§5.3.2 whole-basket "Received") in a single
+	// transaction and returns how many were newly stamped. Already-stamped and
+	// not-yet-final orders are left alone, so a repeat call is an idempotent
+	// no-op returning 0.
+	MarkCustomerBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID, at time.Time) (int, error)
 	// GetCustomerProfile / UpdateCustomerProfile read and edit the global customer
 	// identity (name, email, WhatsApp contact number). The login Phone is immutable
 	// (it's the verified login); WhatsAppPhone is a separate editable contact.

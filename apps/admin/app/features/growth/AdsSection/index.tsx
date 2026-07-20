@@ -1,5 +1,5 @@
 import type { AdminAdCampaign, AdminBusiness } from "../../../lib/api";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Dialog from "@mui/material/Dialog";
@@ -13,6 +13,7 @@ import { AdminActionFeedback } from "../../shared/types";
 import { formatGHS, formatPercentBps } from "../../shared/formatting";
 import { MetricCard } from "../../../components/ui/MetricCard";
 import { usePagedItems } from "../../shared/usePagedItems";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminAdCampaignDetailForm } from "../AdminAdCampaignDetailForm";
 import { AdCampaignTable } from "./AdCampaignTable";
@@ -29,6 +30,16 @@ export function AdsSection({ // eslint-disable-line max-lines-per-function -- la
   actionData?: AdminActionFeedback;
 }) {
   const [detailID, setDetailID] = useState<string | null>(null);
+
+  // §1.2/§11.4: the placement dialog closes on any successful ads action
+  // (create, payment, edit, archive); errors stay open with input intact.
+  const actionSuccess = useActionSuccess("ads");
+  useEffect(() => {
+    if (actionSuccess) {
+      setDetailID(null);
+    }
+  }, [actionSuccess]);
+
   const pendingCampaigns = campaigns.filter(
     (campaign) => campaign.status === "pending_review",
   );

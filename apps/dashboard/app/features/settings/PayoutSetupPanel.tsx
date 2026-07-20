@@ -1,8 +1,10 @@
 import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import LockRounded from "@mui/icons-material/LockRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import { tokens } from "../../theme";
 import { Panel } from "../../components/ui/Panel";
@@ -16,20 +18,24 @@ export function PayoutSetupPanel({
   verified,
   settlementBank,
   settlementAccount,
+  settlementAccountName,
   error,
   success,
 }: {
   provisioned: boolean;
-  // Whether the business is identity-verified. Distinct from `provisioned`: an
-  // admin can reject a business that already has a payout subaccount, and the
-  // API stops treating a resubmit as a no-op when it does.
+  // Whether the business is identity-verified BY AN ADMIN (§2.2). Distinct
+  // from `provisioned`: an admin can reject a business that already has a
+  // payout subaccount, and the API stops treating a resubmit as a no-op when
+  // it does. Payout setup ("payout_status: ready") is a payout state, never
+  // a verification — only the approved Ghana Card check verifies a business.
   verified: boolean;
   settlementBank?: string;
   settlementAccount?: string;
+  settlementAccountName?: string;
   error?: string;
   success?: string;
 }) {
-  // Payouts already set up collapses to a summary (§3.2/§3.3); "Update payout
+  // Payouts already set up collapses to a summary (§2.1); "Update payout
   // details" reopens the form. Editing is the exception, so the form starts
   // closed for anyone who has already set payouts up.
   const [editing, setEditing] = useState(!provisioned);
@@ -59,9 +65,24 @@ export function PayoutSetupPanel({
               </Typography>
             </Box>
           </Stack>
+          {/* The chip reflects the REAL verification state (§2.2): until an
+              admin approves the Ghana Card the section is locked, whatever the
+              payout state says. */}
           <ToneChip
-            label={provisioned ? "Set up" : "Needs setup"}
-            tone={provisioned ? "#1b7f4d" : tokens.burgundy}
+            label={
+              !verified
+                ? "Verification required"
+                : provisioned
+                  ? "Set up"
+                  : "Needs setup"
+            }
+            tone={
+              !verified
+                ? tokens.burgundy
+                : provisioned
+                  ? "#1b7f4d"
+                  : tokens.burgundy
+            }
           />
         </Stack>
         {success ? (
@@ -75,10 +96,33 @@ export function PayoutSetupPanel({
           </Alert>
         ) : null}
 
-        {provisioned && !editing ? (
+        {!verified ? (
+          // §2.2: Ghana Card verification comes FIRST. Until an admin approves
+          // it the payout form is never rendered (and no code is requested —
+          // the API rejects both with 409 identity_verification_required).
+          <Alert severity="info" icon={<LockRounded />} sx={{ mt: 2 }}>
+            <Typography sx={{ fontWeight: 800 }}>
+              Payout details are locked for now.
+            </Typography>
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              Complete your Ghana Card business verification first — payout
+              details unlock after an admin approves it. A business is verified
+              by that approval only, never by setting up payouts.
+            </Typography>
+            <Button
+              href="#verification"
+              size="small"
+              variant="outlined"
+              sx={{ mt: 1.25 }}
+            >
+              Go to business verification
+            </Button>
+          </Alert>
+        ) : provisioned && !editing ? (
           <PayoutSummary
             settlementBank={settlementBank}
             settlementAccount={settlementAccount}
+            settlementAccountName={settlementAccountName}
             onEdit={() => setEditing(true)}
           />
         ) : (
@@ -91,6 +135,7 @@ export function PayoutSetupPanel({
             verified={verified}
             settlementBank={settlementBank}
             settlementAccount={settlementAccount}
+            settlementAccountName={settlementAccountName}
             onCancel={provisioned ? () => setEditing(false) : undefined}
           />
         )}

@@ -208,6 +208,14 @@ type fakeRepo struct {
 	incremented      bool
 	upsertedPhone    string
 	upsertedEmail    string
+
+	markResult     ports.MarkReceivedResult
+	markErr        error
+	markedOrder    common.ID
+	markedAt       time.Time
+	basketCount    int
+	basketErr      error
+	markedBasketID common.ID
 }
 
 func (r *fakeRepo) CreateOTPChallenge(_ context.Context, input ports.CreateOTPChallengeInput) error {
@@ -252,6 +260,22 @@ func (r *fakeRepo) UpsertVerifiedCustomerByEmail(_ context.Context, newID common
 
 func (r *fakeRepo) ListCustomerOrders(_ context.Context, _ common.ID) ([]ports.CustomerOrderSummary, error) {
 	return nil, nil
+}
+
+func (r *fakeRepo) MarkCustomerOrderReceived(
+	_ context.Context,
+	_ common.ID,
+	orderID common.ID,
+	at time.Time,
+) (ports.MarkReceivedResult, error) {
+	r.markedOrder = orderID
+	r.markedAt = at
+	return r.markResult, r.markErr
+}
+
+func (r *fakeRepo) MarkCustomerBasketReceived(_ context.Context, _ common.ID, checkoutGroupID common.ID, _ time.Time) (int, error) {
+	r.markedBasketID = checkoutGroupID
+	return r.basketCount, r.basketErr
 }
 
 func (r *fakeRepo) GetCustomerProfile(_ context.Context, _ common.ID) (ports.CustomerProfile, error) {

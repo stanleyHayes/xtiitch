@@ -32,6 +32,9 @@ type PlaceCustomOrderCommand struct {
 	Measurements map[string]string
 	// Note is the customer's free-text instruction captured at checkout ('' if none).
 	Note string
+	// CallbackURL is where the payment provider returns the customer after they
+	// pay the deposit (§5.2). Optional; validated by cleanCallbackURL.
+	CallbackURL string
 }
 
 type PlaceCustomOrderResult struct {
@@ -40,6 +43,9 @@ type PlaceCustomOrderResult struct {
 	AuthorizationURL string
 	AmountMinor      int64
 	DiscountMinor    int64
+	// Quote is the §4.2–§4.6 fee breakdown behind the deposit charge, so the
+	// checkout response renders exactly what the customer pays.
+	Quote money.StoreSaleQuote
 }
 
 // PlaceCustomOrder records a custom (bespoke) order through one of the three
@@ -126,7 +132,10 @@ func (s Service) placeComeToShop(
 	customer customerDetails,
 ) (PlaceCustomOrderResult, error) {
 	orderID := s.ids.NewID()
-	customerID, _ := s.resolveCustomerByPhone(ctx, customer.phone)
+	customerID, _, err := s.resolveCustomerByPhone(ctx, customer.phone)
+	if err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
 	if err := s.orders.CreateCustomOrderConfirmed(ctx, scope, ports.CreateCustomOrderConfirmedInput{
 		OrderID:          orderID,
 		BusinessID:       businessID,
@@ -153,6 +162,12 @@ func (s Service) placeDepositCustomOrder(
 	customer customerDetails,
 	cmd PlaceCustomOrderCommand,
 ) (PlaceCustomOrderResult, error) {
+	// Only the deposit path raises a payment, so only it takes a callback_url
+	// (a come-to-shop order is arranged in person and charges nothing online).
+	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	if err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
 	var measurements map[string]string
 	if mode == order.SizeModeSelfMeasure {
 		cleaned, err := cleanMeasurements(cmd.Measurements)
@@ -173,7 +188,10 @@ func (s Service) placeDepositCustomOrder(
 	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
 
 	orderID := s.ids.NewID()
-	customerID, customerCreated := s.resolveCustomerByPhone(ctx, customer.phone)
+	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, customer.phone)
+	if err != nil {
+		return PlaceCustomOrderResult{}, err
+	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {
 		cleanupCustomerID = customerID
@@ -247,6 +265,7 @@ func (s Service) placeDepositCustomOrder(
 		CommissionMinorOverride: promotion.commissionMinor,
 		Method:                  method,
 		CustomerEmail:           customer.email,
+		CallbackURL:             callbackURL,
 	})
 	if err != nil {
 		// No deposit could be raised, so the draft custom order could never be
@@ -262,5 +281,6 @@ func (s Service) placeDepositCustomOrder(
 		AuthorizationURL: chargeResult.AuthorizationURL,
 		AmountMinor:      chargeAmount,
 		DiscountMinor:    promotion.discountMinor,
+		Quote:            chargeResult.Quote,
 	}, nil
 }

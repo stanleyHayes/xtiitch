@@ -71,7 +71,7 @@ export function adminSettingsActionError(error: unknown): string {
       case "forbidden":
         return "Your role does not have permission to change platform settings.";
       case "invalid_input":
-        return "Check the email, digest time, SLA hours, and payout threshold.";
+        return "Check the email, digest time, SLA hours, payout threshold, and VAT rate.";
       case "not_found":
         return "Those settings could not be found.";
       default:
@@ -115,6 +115,27 @@ export function adminBusinessActionError(error: unknown): string {
     }
   }
   return "The business status change could not be saved.";
+}
+
+
+
+// Delete is a different failure shape from a status change: the only
+// invalid_input the API returns for DELETE is a missing/mismatched confirm
+// name, so say exactly that instead of the generic status copy.
+export function adminBusinessDeleteActionError(error: unknown): string {
+  if (error instanceof AdminApiError) {
+    switch (error.code) {
+      case "forbidden":
+        return "Your role cannot delete business accounts.";
+      case "invalid_input":
+        return "Deletion was blocked: type the exact business name to confirm.";
+      case "not_found":
+        return "That business could not be found (it may already be deleted).";
+      default:
+        return "The business could not be deleted.";
+    }
+  }
+  return "The business could not be deleted.";
 }
 
 

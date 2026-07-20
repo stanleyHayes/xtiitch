@@ -38,10 +38,24 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 			o.order_id,
 			b.name,
 			b.handle,
+			-- §12 / §5.3.3: the store's phone so the customer can call about an
+			-- order. There is no businesses.phone — the store's contact is the
+			-- owner's number: their direct phone first, their WhatsApp number
+			-- (the only contact older owners have) as the fallback.
+			coalesce((
+				select coalesce(nullif(bu.phone, ''), nullif(bu.whatsapp_number, ''), '')
+				from business_users bu
+				where bu.business_id = o.business_id and bu.role = 'owner' and bu.is_active
+				order by bu.created_at asc
+				limit 1
+			), ''),
 			coalesce(d.title, ''),
 			o.status,
+			case when o.flow = 'bespoke' then 'bespoke' else 'standard' end,
+			o.checkout_group_id::text,
 			coalesce(o.agreed_total_minor, 0),
-			o.created_at
+			o.created_at,
+			o.received_at
 		from orders o
 		join businesses b on b.business_id = o.business_id
 		left join designs d on d.design_id = o.design_id
@@ -57,16 +71,25 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 	orders := make([]ports.CustomerOrderSummary, 0)
 	for rows.Next() {
 		var o ports.CustomerOrderSummary
+		var checkoutGroupID *string
 		if err := rows.Scan(
 			&o.OrderID,
 			&o.BusinessName,
 			&o.BusinessHandle,
+			&o.StorePhone,
 			&o.DesignTitle,
 			&o.Status,
+			&o.Kind,
+			&checkoutGroupID,
 			&o.AgreedTotalMinor,
 			&o.CreatedAt,
+			&o.ReceivedAt,
 		); err != nil {
 			return nil, err
+		}
+		if checkoutGroupID != nil && *checkoutGroupID != "" {
+			id := common.ID(*checkoutGroupID)
+			o.CheckoutGroupID = &id
 		}
 		orders = append(orders, o)
 	}
@@ -77,6 +100,97 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 		return nil, err
 	}
 	return orders, nil
+}
+
+// MarkCustomerOrderReceived stamps the customer's "Received" acknowledgement
+// (§5.3.2) on one of their orders. The read-then-write runs in one transaction
+// under the RLS bypass (customer identity is global, orders are tenant-scoped);
+// the write is additionally guarded by received_at IS NULL so a concurrent
+// repeat can never move the stamp.
+func (repo CustomerAuthRepository) MarkCustomerOrderReceived(
+	ctx context.Context,
+	customerID common.ID,
+	orderID common.ID,
+	at time.Time,
+) (ports.MarkReceivedResult, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.MarkReceivedResult{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.MarkReceivedResult{}, err
+	}
+
+	var status string
+	var receivedAt *time.Time
+	err = tx.QueryRow(ctx, `
+		select status, received_at from orders
+		where order_id = $1 and customer_id = $2
+		for update
+	`, orderID.String(), customerID.String()).Scan(&status, &receivedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Another customer's order is indistinguishable from a missing one.
+		return ports.MarkReceivedResult{Found: false}, commitOrErr(ctx, tx)
+	}
+	if err != nil {
+		return ports.MarkReceivedResult{}, err
+	}
+
+	result := ports.MarkReceivedResult{Found: true, FinalStage: true}
+	if receivedAt != nil {
+		result.AlreadyReceived = true
+		return result, commitOrErr(ctx, tx)
+	}
+	// §5.3.2: only an order the store owner moved to its FINAL stage shows the
+	// "Received" button — everything earlier is still the store's to finish.
+	if status != "fulfilled" {
+		result.FinalStage = false
+		return result, commitOrErr(ctx, tx)
+	}
+
+	if _, err := tx.Exec(ctx, `
+		update orders set received_at = $3, updated_at = now()
+		where order_id = $1 and customer_id = $2 and received_at is null
+	`, orderID.String(), customerID.String(), at); err != nil {
+		return ports.MarkReceivedResult{}, err
+	}
+	return result, tx.Commit(ctx)
+}
+
+// MarkCustomerBasketReceived stamps every final-stage, not-yet-acknowledged
+// order the customer has in one checkout basket (§5.3.2 whole-basket
+// "Received"). Baskets are per-store by construction (a checkout group only
+// ever holds one store's orders), so the checkout_group_id alone identifies
+// the basket — no business handle is needed. One UPDATE = one transaction;
+// the count is the number of rows newly stamped.
+func (repo CustomerAuthRepository) MarkCustomerBasketReceived(
+	ctx context.Context,
+	customerID common.ID,
+	checkoutGroupID common.ID,
+	at time.Time,
+) (int, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return 0, err
+	}
+
+	tag, err := tx.Exec(ctx, `
+		update orders set received_at = $3, updated_at = now()
+		where customer_id = $1 and checkout_group_id = $2
+			and status = 'fulfilled' and received_at is null
+	`, customerID.String(), checkoutGroupID.String(), at)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 func (repo CustomerAuthRepository) GetCustomerProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error) {
@@ -328,6 +442,14 @@ func nullIfEmpty(value string) any {
 		return nil
 	}
 	return value
+}
+
+// commitOrErr closes out a mark-received transaction whose outcome was already
+// decided by the guarded reads above (found / already-received / not-final):
+// nothing was written, but the repo's convention is to end every transaction
+// explicitly rather than relying on the deferred rollback.
+func commitOrErr(ctx context.Context, tx pgx.Tx) error {
+	return tx.Commit(ctx)
 }
 
 func (repo CustomerAuthRepository) execBypass(ctx context.Context, sql string, args ...any) error {

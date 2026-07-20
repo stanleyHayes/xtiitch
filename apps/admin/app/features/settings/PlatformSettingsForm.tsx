@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -15,6 +15,7 @@ import { tokens } from "../../theme";
 import type { AdminSession } from "../../lib/session";
 import { AdminPlatformSettings, AdminRoleDefinition } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
+import { useFormResetKey } from "../shared/useActionSuccess";
 import { BooleanPreference } from "./BooleanPreference";
 
 export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
@@ -31,6 +32,19 @@ export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-func
     roleDefinition?.permissions.includes("manage_settings") ??
     admin.adminRole === "owner";
   const [logoFileName, setLogoFileName] = useState("");
+  // §1.2/§11.4: after a successful save the form re-mounts (clears the file
+  // input and re-seeds defaults from the saved settings), and the "Selected
+  // file" caption — which is component state outside the form — clears too.
+  const formResetKey = useFormResetKey("settings");
+  useEffect(() => {
+    if (formResetKey > 0) {
+      setLogoFileName("");
+    }
+  }, [formResetKey]);
+
+  // Displayed as a percent (20) but stored and submitted as basis points
+  // (2000) so fractional rates survive integer math.
+  const vatRatePercent = platformSettings.vatRateBps / 100;
 
   return (
     <Panel
@@ -39,7 +53,7 @@ export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-func
         borderColor: alpha(tokens.burgundy, 0.16),
       }}
     >
-      <Form method="post" encType="multipart/form-data">
+      <Form key={formResetKey} method="post" encType="multipart/form-data">
         <input
           type="hidden"
           name="intent"
@@ -130,6 +144,23 @@ export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-func
                   ),
                 },
                 htmlInput: { min: 0, step: 0.01 },
+              }}
+            />
+            <TextField
+              name="vat_rate_percent"
+              label="Tax (VAT) rate"
+              type="number"
+              defaultValue={vatRatePercent}
+              required
+              disabled={!canManagePlatformSettings}
+              helperText={`Currently ${vatRatePercent}% — applies immediately to every payment, subscription packages and store sales alike.`}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">%</InputAdornment>
+                  ),
+                },
+                htmlInput: { min: 0, max: 100, step: 0.01 },
               }}
             />
           </Box>

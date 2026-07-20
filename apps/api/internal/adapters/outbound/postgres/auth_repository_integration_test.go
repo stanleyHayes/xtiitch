@@ -41,6 +41,10 @@ func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 		OwnerDisplayName: "Owner A",
 		OwnerEmail:       authItOwnerMail,
 		OwnerPassword:    "hash-owner-a", //nolint:gosec // test fixture password hash
+		// Staff seats ladder by plan (§13.4: Free = owner only) — this test
+		// exercises tenant scoping with a staff member, so it needs a plan
+		// that allows one.
+		PlanCode: "growth",
 	}); err != nil {
 		t.Fatalf("create business A: %v", err)
 	}

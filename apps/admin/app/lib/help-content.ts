@@ -89,6 +89,18 @@ export const HELP_GUIDES: HelpGuide[] = [
     ],
   },
   {
+    section: "payouts",
+    title: "Payouts",
+    helper: "Store payout records",
+    summary:
+      "Every store owner's payout record — MoMo destination, Paystack subaccount, total sales and settled, Xtiitch fees and tax, and the amount due. Figures mirror Paystack (the source of truth), so use them to answer any “was I paid?” question.",
+    steps: [
+      "Search by business or owner legal name to find a store.",
+      "Open a row to see every payout made — amount, date and status.",
+      "Check the last payout status first when an owner asks about a missing settlement.",
+    ],
+  },
+  {
     section: "risk",
     title: "Risk",
     helper: "Flags to investigate",

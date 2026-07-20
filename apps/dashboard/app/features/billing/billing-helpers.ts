@@ -6,6 +6,10 @@ export type PublicPlan = {
   code: string;
   name: string;
   monthly_fee_minor: number;
+  // Key limits surfaced on the plans list (§7.1): the Xtiitch fee per sale and
+  // the active-design cap (null = unlimited).
+  commission_bps: number;
+  design_limit: number | null;
   // Pricing Book cadence figures (minor units): first cycle vs renewal.
   quarterly_first_minor: number;
   quarterly_renewal_minor: number;

@@ -28,7 +28,9 @@ type Zone = {
 type CheckoutFormProps = {
   storeHandle: string;
   items: CartItem[];
-  totalMinor: number;
+  // The amount the Pay button announces — the quote's total_minor (§4.5), so
+  // the button matches the rendered breakdown exactly.
+  payMinor: number;
   zones: Zone[];
   profile: CustomerProfile | null;
   fulfilment: "pickup" | "delivery";
@@ -41,7 +43,7 @@ type CheckoutFormProps = {
 export default function CheckoutForm({
   storeHandle,
   items,
-  totalMinor,
+  payMinor,
   zones,
   profile,
   fulfilment,
@@ -55,13 +57,9 @@ export default function CheckoutForm({
   const submitting = navigation.state === "submitting";
   const canPayNow = items.length > 0;
 
-  const selectedZone = zones.find((zone) => zone.zone_id === zoneID);
-  const deliveryFee =
-    fulfilment === "delivery" && selectedZone ? selectedZone.fee_minor : 0;
-  const grandTotal = totalMinor + deliveryFee;
-
   return (
     <Form method="post" action={submitAction}>
+      <input type="hidden" name="intent" value="pay" />
       <Stack spacing={1.5}>
         {deliveryOffered ? (
           <Box
@@ -176,7 +174,7 @@ export default function CheckoutForm({
         >
           {submitting
             ? "Starting payment…"
-            : `Pay ${formatGHS(grandTotal)} with Paystack`}
+            : `Pay ${formatGHS(payMinor)} with Paystack`}
         </Button>
         {/* "XCreativs" is the name that appears at payment, which is unfamiliar
             to a shopper who only knows Xtiitch — say so here, at the moment of

@@ -396,3 +396,57 @@ func TestPlaceStandardOrderRejectsUnverifiedStore(t *testing.T) {
 		t.Fatal("expected unverified store to stop before draft order or charge")
 	}
 }
+
+// §5.3.4 regression: a phone the repository refuses to canonicalize must fail
+// the checkout as ErrInvalidInput (400 invalid_order) — before any draft order
+// or charge — instead of silently minting a second, anonymous identity for the
+// same person.
+func TestPlaceStandardOrderRejectsUncanonicalizablePhone(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{resolveErr: common.ErrInvalidPhone}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := newTestService(orders, payments)
+
+	cmd := placeCommand()
+	cmd.CustomerPhone = "not-a-phone"
+	if _, err := svc.PlaceStandardOrder(context.Background(), cmd); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected ErrInvalidInput for an unusable phone, got %v", err)
+	}
+	if orders.created.OrderID != "" || payments.called {
+		t.Fatal("expected the invalid phone to stop checkout before draft order or charge")
+	}
+}
+
+// A TRANSIENT resolve failure (not an invalid phone) keeps the historical
+// best-effort behaviour: checkout proceeds with a fresh anonymous identity
+// rather than failing an otherwise good order.
+func TestPlaceStandardOrderFallsBackWhenResolveFailsTransiently(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{resolveErr: errors.New("connection reset")}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders:   orders,
+		Payments: payments,
+		IDs:      &seqIDs{ids: []common.ID{"order-1", "customer-1", "customer-fallback"}},
+	})
+
+	res, err := svc.PlaceStandardOrder(context.Background(), placeCommand())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.OrderID != "order-1" || orders.created.CustomerID != "customer-fallback" {
+		t.Fatalf("expected the fallback identity on the draft, got res=%+v created=%+v", res, orders.created)
+	}
+}

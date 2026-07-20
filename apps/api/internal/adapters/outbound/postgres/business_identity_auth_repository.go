@@ -236,6 +236,54 @@ func (repo BusinessIdentityRepository) ConsumeSignInOTPChallenge(ctx context.Con
 	`, challengeID.String())
 }
 
+// MarkSignInOTPChallengeVerified stamps verified_at without consuming: the §8
+// verify-then-register flow proves the code mid-form and lets the register
+// step redeem the proof (and consume the challenge) later.
+func (repo BusinessIdentityRepository) MarkSignInOTPChallengeVerified(ctx context.Context, challengeID common.ID) error {
+	return repo.execSignInOTPBypass(ctx, `
+		update business_signin_otp_challenges set verified_at = now() where challenge_id = $1
+	`, challengeID.String())
+}
+
+// LatestVerifiedSignInOTPChallenge returns the newest verified-but-unconsumed,
+// unexpired challenge for a number AND purpose: a proof completed earlier in
+// the flow, waiting for the flow's completion step to redeem it.
+func (repo BusinessIdentityRepository) LatestVerifiedSignInOTPChallenge(
+	ctx context.Context,
+	whatsAppNumber string,
+	purpose string,
+	now time.Time,
+) (ports.BusinessOTPChallengeRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.BusinessOTPChallengeRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.BusinessOTPChallengeRecord{}, err
+	}
+	var record ports.BusinessOTPChallengeRecord
+	if err := tx.QueryRow(ctx, `
+		select challenge_id::text, whatsapp_number, code_hash, attempts, expires_at, created_at
+		from business_signin_otp_challenges
+		where whatsapp_number = $1 and purpose = $2
+			and verified_at is not null and consumed_at is null and expires_at > $3
+		order by created_at desc
+		limit 1
+	`, whatsAppNumber, purpose, now).Scan(
+		&record.ChallengeID, &record.WhatsAppNumber, &record.CodeHash, &record.Attempts, &record.ExpiresAt, &record.CreatedAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.BusinessOTPChallengeRecord{}, ErrNotFound
+		}
+		return ports.BusinessOTPChallengeRecord{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.BusinessOTPChallengeRecord{}, err
+	}
+	return record, nil
+}
+
 func (repo BusinessIdentityRepository) execSignInOTPBypass(ctx context.Context, sql string, args ...any) error {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

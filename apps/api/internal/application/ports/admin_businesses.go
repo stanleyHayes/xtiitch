@@ -19,6 +19,19 @@ type AdminBusinessRepository interface {
 	// the opaque customer id.
 	EraseAdminCustomer(ctx context.Context, customerID common.ID) (AdminCustomerErasureRecord, error)
 	UpdateAdminBusinessStatus(ctx context.Context, input UpdateAdminBusinessStatusInput) (AdminBusinessRecord, error)
+	// DeleteAdminBusiness hard-deletes one business and every tenant-owned row
+	// (§11.2) in a single transaction, verifying the typed confirmation against
+	// the business's current name. Customers are GLOBAL and are never touched;
+	// platform records (admin_audit_events, admin_money_replay_requests) keep
+	// their rows with references nulled as the schema allows. ErrNotFound when
+	// the business does not exist, authdomain.ErrInvalidInput on a confirmation
+	// mismatch.
+	DeleteAdminBusiness(ctx context.Context, input DeleteAdminBusinessInput) (AdminBusinessDeleteRecord, error)
+	// ListAdminBusinessActivity is the §11.3 per-business activity feed: a
+	// unified, newest-first page of orders, payments, billing, payouts,
+	// verification, admin actions and manual takings. ErrNotFound when the
+	// business does not exist.
+	ListAdminBusinessActivity(ctx context.Context, input ListAdminBusinessActivityInput) ([]AdminBusinessActivityRecord, error)
 	GetAdminPlatformMetrics(ctx context.Context) (AdminPlatformMetricsRecord, error)
 	GetAdminMoneyRails(ctx context.Context) (AdminMoneyRailsRecord, error)
 	ListAdminSubscriptions(ctx context.Context) ([]AdminSubscriptionRecord, error)
@@ -86,6 +99,14 @@ type AdminBusinessRepository interface {
 	QueueAdminMoneyReplay(ctx context.Context, input QueueAdminMoneyReplayInput) (AdminMoneyReplayRequestRecord, error)
 	ReverseAdminMoneyPayment(ctx context.Context, input ReverseAdminMoneyPaymentInput) (AdminMoneyReversalRecord, error)
 	SetAdminSettlementReviewHold(ctx context.Context, input SetAdminSettlementReviewHoldInput) (AdminMoneyPayoutReviewRecord, error)
+	// ListAdminPayouts is the §11.5 payouts CRM: one row per store with the
+	// payout destination on file and the persisted Paystack-derived figures.
+	ListAdminPayouts(ctx context.Context, input ListAdminPayoutsInput) ([]AdminPayoutRecord, error)
+	// ListAdminPayoutHistory pages one store's mirrored settlement rows.
+	ListAdminPayoutHistory(ctx context.Context, businessID common.ID, limit int, offset int) ([]AdminPayoutHistoryRecord, error)
+	// ListSubaccountedBusinessIDs lists every business with a provider
+	// subaccount on file — the sync set for the operator/worker settlement sync.
+	ListSubaccountedBusinessIDs(ctx context.Context) ([]common.ID, error)
 	ListAdminRiskReviews(ctx context.Context) ([]AdminRiskReviewRecord, error)
 	SetAdminRiskReviewStatus(ctx context.Context, input SetAdminRiskReviewStatusInput) (AdminRiskReviewRecord, error)
 	ListAdminSupportTickets(ctx context.Context) ([]AdminSupportTicketRecord, error)

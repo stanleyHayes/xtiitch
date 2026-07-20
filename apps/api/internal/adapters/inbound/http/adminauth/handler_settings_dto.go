@@ -8,6 +8,8 @@ type updatePlatformSettingsRequest struct {
 	MaintenanceMode              bool   `json:"maintenance_mode"`
 	BrandLogoURL                 string `json:"brand_logo_url"`
 	AIAssistantAddonEnabled      bool   `json:"ai_assistant_addon_enabled"`
+	// VATRateBps is the live platform VAT rate in basis points (§4.1).
+	VATRateBps int `json:"vat_rate_bps"`
 }
 
 type platformSettingsResponse struct {
@@ -19,6 +21,7 @@ type platformSettingsResponse struct {
 	BrandLogoURL                 string                 `json:"brand_logo_url"`
 	MarketingFlags               marketingFlagsResponse `json:"marketing_flags"`
 	AIAssistantAddonEnabled      bool                   `json:"ai_assistant_addon_enabled"`
+	VATRateBps                   int                    `json:"vat_rate_bps"`
 	UpdatedAt                    string                 `json:"updated_at,omitempty"`
 }
 

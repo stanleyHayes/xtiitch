@@ -97,6 +97,50 @@ type UpdateAdminBusinessStatusInput struct {
 	SuspendedByAdminUser common.ID
 }
 
+// DeleteAdminBusinessInput carries the hard-delete request for one tenant
+// (§11.2). ConfirmationName must equal the business's current name (the same
+// typed-confirmation guard the neighbouring customer-erasure endpoint uses),
+// checked atomically inside the delete transaction.
+type DeleteAdminBusinessInput struct {
+	BusinessID       common.ID
+	ConfirmationName string
+}
+
+// AdminBusinessDeleteRecord summarises a completed hard delete for the audit
+// trail — the business row is gone afterwards, so the name/handle are captured
+// here for the audit event's metadata.
+type AdminBusinessDeleteRecord struct {
+	BusinessID       common.ID
+	Name             string
+	Handle           string
+	TotalRowsDeleted int
+}
+
+// ListAdminBusinessActivityInput pages one business's unified activity feed
+// (§11.3). Category filters to one arm of the feed: "", orders, payments,
+// billing, payouts, verification, admin or takings.
+type ListAdminBusinessActivityInput struct {
+	BusinessID common.ID
+	Category   string
+	Limit      int
+	Offset     int
+}
+
+// AdminBusinessActivityRecord is one row of the per-business activity feed:
+// newest first, unified across orders, payments, billing events, payouts,
+// verification, admin actions and manual takings.
+type AdminBusinessActivityRecord struct {
+	EventType  string
+	Category   string
+	OccurredAt time.Time
+	Summary    string
+	// Actor is the side of the platform responsible where it is knowable:
+	// customer, owner, staff, admin or system (empty when not recorded).
+	Actor       string
+	RefID       string
+	AmountMinor *int64
+}
+
 type AdminPlatformMetricsRecord struct {
 	GMVMonthMinor             int64
 	PlatformRevenueMonthMinor int64

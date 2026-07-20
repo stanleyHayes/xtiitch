@@ -57,14 +57,23 @@ export async function action({ request }: ActionFunctionArgs) {
       ? { whatsapp_number: whatsappNumber }
       : { business_handle: businessHandle, whatsapp_number: whatsappNumber };
 
+  let response: Response;
   try {
-    await fetchApi(path, {
+    response = await fetchApi(path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
   } catch {
     return Response.json({ error: "api_unavailable" }, { status: 502 });
+  }
+
+  // resend_too_soon (429) is the one request error the sign-up flow acts on
+  // (§8: the "Resend code" button must honor it), so it passes through instead
+  // of being collapsed into the opaque OK. It reveals nothing about whether
+  // the number exists — only that a code was sent moments ago.
+  if (response.status === 429) {
+    return Response.json({ error: "resend_too_soon" }, { status: 429 });
   }
 
   // 202 always; treat any reachable response as success so the flow advances.

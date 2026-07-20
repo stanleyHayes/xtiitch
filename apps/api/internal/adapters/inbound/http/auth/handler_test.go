@@ -475,6 +475,7 @@ func TestSubmitIdentityVerificationPassesPrincipalRole(t *testing.T) {
 		Role:       business.UserRoleAdmin,
 	}})
 	request := httptest.NewRequest(http.MethodPost, "/auth/business/identity-verification", bytes.NewReader([]byte(`{
+		"full_legal_name": "Ama Serwaa Mensah",
 		"card_number": "GHA-123456789-0",
 		"id_photo_url": "https://cdn.example.com/card.jpg"
 	}`)))
@@ -491,6 +492,7 @@ func TestSubmitIdentityVerificationPassesPrincipalRole(t *testing.T) {
 	}
 	if service.submitIdentityCommand.Scope.BusinessID != "business-1" ||
 		service.submitIdentityCommand.ActorRole != business.UserRoleAdmin ||
+		service.submitIdentityCommand.FullLegalName != "Ama Serwaa Mensah" ||
 		service.submitIdentityCommand.CardNumber != "GHA-123456789-0" ||
 		service.submitIdentityCommand.IDPhotoURL != "https://cdn.example.com/card.jpg" {
 		t.Fatalf("unexpected identity command: %+v", service.submitIdentityCommand)
@@ -543,6 +545,16 @@ type fakeAuthService struct {
 	transferResult           ports.TransferBusinessOwnerResult
 	submitIdentityCalled     bool
 	submitIdentityCommand    authapp.SubmitIdentityVerificationCommand
+	profile                  ports.BusinessUserProfileRecord
+	profileErr               error
+	profileUserID            common.ID
+	verifyRegOTPCalled       bool
+	verifyRegOTPPhone        string
+	verifyRegOTPCode         string
+	requestPhoneOTPCalled    bool
+	requestPhoneOTPPhone     string
+	updateProfileCalled      bool
+	updateProfileCommand     authapp.UpdateOwnProfileCommand
 }
 
 func (service *fakeAuthService) RegisterBusiness(_ context.Context, command authapp.RegisterBusinessCommand) (authapp.AuthResult, error) {
@@ -563,7 +575,7 @@ func (service *fakeAuthService) ListPublicPlans(_ context.Context) ([]ports.Publ
 	return nil, nil
 }
 
-func (service *fakeAuthService) SubscriptionVATPolicy() (int, bool) {
+func (service *fakeAuthService) SubscriptionVATPolicy(context.Context) (int, bool) {
 	return 0, false
 }
 

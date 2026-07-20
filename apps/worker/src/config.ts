@@ -1,4 +1,5 @@
 import type { RedisOptions } from "bullmq";
+import type { InternalApiConfig } from "./internal";
 
 export type NotificationTransportName =
   | "disabled"
@@ -45,6 +46,16 @@ export type WorkerConfig = {
   outboxRetryMaxDelayMs: number;
   subscriptionBillingSweepEnabled: boolean;
   subscriptionBillingSweepIntervalMs: number;
+  // Internal scheduler sweeps (§13.3 recurring charges + renewal reminders,
+  // §14.1 scheduled reports, §3.3 settlement sync): the worker fires the API's
+  // /v1/internal/* endpoints on a timer. internalApi is UNDEFINED when no
+  // XTIITCH_INTERNAL_TOKEN is configured — the jobs then stay unscheduled,
+  // mirroring the API side where the endpoints 404 without the token.
+  internalApi?: InternalApiConfig;
+  recurringChargesSweepIntervalMs: number;
+  renewalRemindersSweepIntervalMs: number;
+  scheduledReportsIntervalMs: number;
+  settlementSyncIntervalMs: number;
   notificationTransport: NotificationTransportName;
   notificationHttp?: NotificationHttpConfig;
   whatsappCloud?: WhatsAppCloudConfig;
@@ -87,6 +98,23 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
       env.SUBSCRIPTION_BILLING_SWEEP_INTERVAL_MS,
       3_600_000,
     ),
+    internalApi: parseInternalApiConfig(env),
+    recurringChargesSweepIntervalMs: parsePositiveInteger(
+      env.RECURRING_CHARGES_SWEEP_INTERVAL_MS,
+      86_400_000, // daily: card auto-billing (§13.3)
+    ),
+    renewalRemindersSweepIntervalMs: parsePositiveInteger(
+      env.RENEWAL_REMINDERS_SWEEP_INTERVAL_MS,
+      86_400_000, // daily: the 15/7/3/0 lead-day math is server-side (§13.3)
+    ),
+    scheduledReportsIntervalMs: parsePositiveInteger(
+      env.SCHEDULED_REPORTS_INTERVAL_MS,
+      86_400_000, // daily: cadence math is DB-side (§14.1)
+    ),
+    settlementSyncIntervalMs: parsePositiveInteger(
+      env.SETTLEMENT_SYNC_INTERVAL_MS,
+      900_000, // 15 min: keeps Money Desk payout reflection near-real-time (§3.3)
+    ),
     notificationTransport,
     notificationHttp: parseNotificationHttpConfig(notificationTransport, env),
     whatsappCloud: parseWhatsAppCloudConfig(notificationTransport, env),
@@ -118,6 +146,13 @@ function validateProductionWorkerConfig(
   }
   if (config.databaseUrl === defaultDatabaseUrl) {
     problems.push("DATABASE_URL must point at the production database");
+  }
+  if (!config.internalApi) {
+    // Without the shared token the API's /v1/internal/* endpoints 404 and no
+    // scheduled sweep (billing, reminders, reports, settlements) ever runs.
+    problems.push(
+      "XTIITCH_INTERNAL_TOKEN must be set in production (the scheduled sweeps authenticate with it)",
+    );
   }
   if (problems.length > 0) {
     throw new Error(
@@ -256,6 +291,30 @@ function parseNotificationHttpConfig(
     authValue,
     from: (env.NOTIFICATION_FROM ?? "Xtiitch").trim() || "Xtiitch",
     timeoutMs: parsePositiveInteger(env.NOTIFICATION_HTTP_TIMEOUT_MS, 10_000),
+  };
+}
+
+// The internal sweeps authenticate to the API with a shared token
+// (X-Internal-Token → XTIITCH_INTERNAL_TOKEN on the API side). When the token
+// is absent the jobs are simply not scheduled — mirroring the API, where the
+// /v1/internal/* endpoints answer 404 without the token configured.
+function parseInternalApiConfig(
+  env: NodeJS.ProcessEnv,
+): InternalApiConfig | undefined {
+  const token = (env.XTIITCH_INTERNAL_TOKEN ?? "").trim();
+  if (token === "") {
+    return undefined;
+  }
+  const apiUrl = (env.XTIITCH_API_URL ?? "http://localhost:8080")
+    .trim()
+    .replace(/\/+$/, "");
+  if (apiUrl === "") {
+    throw new Error("XTIITCH_API_URL cannot be blank");
+  }
+  return {
+    apiUrl,
+    token,
+    timeoutMs: parsePositiveInteger(env.INTERNAL_API_TIMEOUT_MS, 15_000),
   };
 }
 

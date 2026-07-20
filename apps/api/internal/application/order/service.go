@@ -45,6 +45,7 @@ func NewService(deps Dependencies) Service {
 type CreateWalkInOrderCommand struct {
 	Scope            common.TenantScope
 	ActorRole        business.UserRole
+	ActorUserID      common.ID
 	DesignID         common.ID
 	SizeBandID       *common.ID
 	CustomerName     string
@@ -63,18 +64,24 @@ func (s Service) CreateWalkInOrder(ctx context.Context, cmd CreateWalkInOrderCom
 	if cmd.DesignID == "" || name == "" {
 		return "", ErrInvalidInput
 	}
+	phone, err := walkInCustomerPhone(cmd.CustomerPhone)
+	if err != nil {
+		return "", err
+	}
 
 	orderID := s.ids.NewID()
-	err := s.orders.CreateWalkInOrder(ctx, cmd.Scope, ports.CreateWalkInOrderInput{
+	err = s.orders.CreateWalkInOrder(ctx, cmd.Scope, ports.CreateWalkInOrderInput{
 		OrderID:          orderID,
 		BusinessID:       cmd.Scope.BusinessID,
 		CustomerID:       s.ids.NewID(),
 		DesignID:         cmd.DesignID,
 		SizeBandID:       cmd.SizeBandID,
 		CustomerName:     name,
-		CustomerPhone:    strings.TrimSpace(cmd.CustomerPhone),
+		CustomerPhone:    phone,
 		CustomerEmail:    strings.TrimSpace(cmd.CustomerEmail),
 		AgreedTotalMinor: cmd.AgreedTotalMinor,
+		// §14.1 team analytics: attribute the walk-in order to the staff member.
+		CreatedByUserID: cmd.ActorUserID,
 	})
 	return orderID, err
 }
@@ -85,6 +92,7 @@ func (s Service) CreateWalkInOrder(ctx context.Context, cmd CreateWalkInOrderCom
 type CreateConfirmedCustomOrderCommand struct {
 	Scope         common.TenantScope
 	ActorRole     business.UserRole
+	ActorUserID   common.ID
 	DesignID      common.ID
 	CustomerName  string
 	CustomerPhone string
@@ -104,6 +112,10 @@ func (s Service) CreateConfirmedCustomOrder(ctx context.Context, cmd CreateConfi
 	if cmd.DesignID == "" || name == "" {
 		return "", ErrInvalidInput
 	}
+	phone, err := walkInCustomerPhone(cmd.CustomerPhone)
+	if err != nil {
+		return "", err
+	}
 
 	orderID := s.ids.NewID()
 	input := ports.CreateCustomOrderConfirmedInput{
@@ -113,9 +125,11 @@ func (s Service) CreateConfirmedCustomOrder(ctx context.Context, cmd CreateConfi
 		DesignID:      cmd.DesignID,
 		SizeMode:      "come_to_shop",
 		CustomerName:  name,
-		CustomerPhone: strings.TrimSpace(cmd.CustomerPhone),
+		CustomerPhone: phone,
 		CustomerEmail: strings.TrimSpace(cmd.CustomerEmail),
 		Channel:       "walk_in",
+		// §14.1 team analytics: attribute the counter order to the staff member.
+		CreatedByUserID: cmd.ActorUserID,
 	}
 	if len(cmd.Measurements) > 0 {
 		input.MeasurementID = s.ids.NewID()
@@ -253,6 +267,23 @@ func (s Service) CollectBalance(ctx context.Context, cmd CollectBalanceCommand) 
 		AuthorizationURL: charge.AuthorizationURL,
 		AmountMinor:      balance,
 	}, nil
+}
+
+// walkInCustomerPhone canonicalizes the counter-entered customer phone to the
+// shared 233XXXXXXXXX storage form (§5.3.4), so the person's later OTP login
+// resolves the same identity the walk-in order was written against. Empty stays
+// empty (the phone is optional at the counter); anything unnormalizable is an
+// input error (400 invalid_input), never a stored fragment.
+func walkInCustomerPhone(raw string) (string, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return "", nil
+	}
+	canonical, err := common.NormalizeGhanaPhone(trimmed)
+	if err != nil {
+		return "", ErrInvalidInput
+	}
+	return canonical, nil
 }
 
 func authorizeOrderMoneyManagement(scope common.TenantScope, role business.UserRole) error {

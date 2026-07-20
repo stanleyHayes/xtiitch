@@ -20,6 +20,8 @@ type Service interface {
 	VerifyOTP(ctx context.Context, phone string, code string) (customerauthapp.CustomerAuthResult, error)
 	VerifyEmailOTP(ctx context.Context, email string, code string) (customerauthapp.CustomerAuthResult, error)
 	ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error)
+	MarkOrderReceived(ctx context.Context, customerID common.ID, orderID common.ID) error
+	MarkBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID) (int, error)
 	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
 	UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error)
 }
@@ -39,6 +41,11 @@ func (handler Handler) Register(router chi.Router) {
 	router.Get("/customer/me", handler.me)
 	router.Patch("/customer/me", handler.updateProfile)
 	router.Get("/customer/orders", handler.orders)
+	// §5.3.2 "Received": one order, or a whole store basket at once. Both are
+	// scoped to the signed-in customer's own orders (their own data — the one
+	// thing §6 deliberately shares across stores).
+	router.Post("/customer/orders/{orderID}/received", handler.markReceived)
+	router.Post("/customer/orders/received-basket", handler.markBasketReceived)
 }
 
 type requestOTPRequest struct {
@@ -194,13 +201,17 @@ func (handler Handler) updateProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 type customerOrderResponse struct {
-	OrderID          string `json:"order_id"`
-	BusinessName     string `json:"business_name"`
-	BusinessHandle   string `json:"business_handle"`
-	DesignTitle      string `json:"design_title"`
-	Status           string `json:"status"`
-	AgreedTotalMinor int64  `json:"agreed_total_minor"`
-	CreatedAt        string `json:"created_at"`
+	OrderID          string  `json:"order_id"`
+	BusinessName     string  `json:"business_name"`
+	BusinessHandle   string  `json:"business_handle"`
+	StorePhone       string  `json:"store_phone"`
+	DesignTitle      string  `json:"design_title"`
+	Status           string  `json:"status"`
+	Kind             string  `json:"kind"`
+	CheckoutGroupID  *string `json:"checkout_group_id"`
+	AgreedTotalMinor int64   `json:"agreed_total_minor"`
+	CreatedAt        string  `json:"created_at"`
+	ReceivedAt       *string `json:"received_at"`
 }
 
 func (handler Handler) orders(w http.ResponseWriter, r *http.Request) {
@@ -215,17 +226,94 @@ func (handler Handler) orders(w http.ResponseWriter, r *http.Request) {
 	}
 	response := make([]customerOrderResponse, 0, len(orders))
 	for _, o := range orders {
-		response = append(response, customerOrderResponse{
+		item := customerOrderResponse{
 			OrderID:          o.OrderID.String(),
 			BusinessName:     o.BusinessName,
 			BusinessHandle:   o.BusinessHandle,
+			StorePhone:       o.StorePhone,
 			DesignTitle:      o.DesignTitle,
 			Status:           o.Status,
+			Kind:             o.Kind,
 			AgreedTotalMinor: o.AgreedTotalMinor,
 			CreatedAt:        o.CreatedAt.UTC().Format("2006-01-02T15:04:05Z07:00"),
-		})
+		}
+		if o.CheckoutGroupID != nil {
+			value := o.CheckoutGroupID.String()
+			item.CheckoutGroupID = &value
+		}
+		if o.ReceivedAt != nil {
+			value := o.ReceivedAt.UTC().Format("2006-01-02T15:04:05Z07:00")
+			item.ReceivedAt = &value
+		}
+		response = append(response, item)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"orders": response})
+}
+
+// markReceived stamps one archived (final-stage) order received (§5.3.2), so it
+// disappears from the customer's Archived tab. Re-marking is a 200 no-op.
+func (handler Handler) markReceived(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	err := handler.service.MarkOrderReceived(r.Context(), verified.CustomerID, common.ID(chi.URLParam(r, "orderID")))
+	if err != nil {
+		status, code := receivedError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+type markBasketReceivedRequest struct {
+	// CheckoutGroupID names the basket. Baskets are per-store by construction
+	// (a checkout group only ever holds one store's orders), so the group id
+	// alone identifies "the whole basket from that store" — no business handle
+	// is needed, and none is accepted.
+	CheckoutGroupID string `json:"checkout_group_id"`
+}
+
+// markBasketReceived stamps every final-stage order in one store basket
+// received in a single transaction (§5.3.2 whole-basket "Received") and
+// reports how many were newly stamped. Idempotent: a repeat call returns 0.
+func (handler Handler) markBasketReceived(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	var request markBasketReceivedRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	groupID := common.ID(strings.TrimSpace(request.CheckoutGroupID))
+	if groupID == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	marked, err := handler.service.MarkBasketReceived(r.Context(), verified.CustomerID, groupID)
+	if err != nil {
+		status, code := receivedError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "marked_count": marked})
+}
+
+// receivedError maps the §5.3.2 mark-received failures to stable codes:
+// not_found covers both a missing order and another customer's order (they are
+// indistinguishable by design); order_not_in_final_stage is the 409 the UI keys
+// its "the store is still working on this one" message off.
+func receivedError(err error) (int, string) {
+	switch {
+	case errors.Is(err, ports.ErrNotFound):
+		return http.StatusNotFound, "not_found"
+	case errors.Is(err, customerauthapp.ErrOrderNotInFinalStage):
+		return http.StatusConflict, "order_not_in_final_stage"
+	default:
+		return http.StatusInternalServerError, "internal_error"
+	}
 }
 
 func customerAuthError(err error) (int, string) {

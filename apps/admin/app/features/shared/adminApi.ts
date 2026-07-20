@@ -1,5 +1,5 @@
 import { redirect } from "react-router";
-import { AdminApiError, adminApi } from "../../lib/api";
+import { AdminApiError, adminApi, DEFAULT_VAT_RATE_BPS } from "../../lib/api";
 import type { AdminSession } from "../../lib/session";
 import { AdminLoadResult, AdminProfileSettings, AdminPlatformSettings } from "./types";
 
@@ -84,6 +84,7 @@ export function fallbackPlatformSettings(): AdminPlatformSettings {
     supportEmail: "support@xtiitch.com",
     verificationSlaHours: 24,
     payoutReviewThresholdPesewas: 500000,
+    vatRateBps: DEFAULT_VAT_RATE_BPS,
     maintenanceMode: false,
     brandLogoUrl: "",
     marketingFlags: {

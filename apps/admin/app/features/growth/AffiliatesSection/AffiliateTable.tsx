@@ -1,5 +1,5 @@
 import { Form } from "react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -18,6 +18,7 @@ import TextField from "../../../components/form-text-field";
 import { Panel } from "../../../components/ui/Panel";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import {
   affiliateCommissionOptions,
   affiliateEntityOptions,
@@ -47,6 +48,16 @@ export function AffiliateTable({ // eslint-disable-line max-lines-per-function -
   affiliatesError: string | null;
 }) {
   const [affiliateDialogOpen, setAffiliateDialogOpen] = useState(false);
+
+  // §1.2/§11.4: the register dialog closes on a successful submit; errors
+  // keep it open with the operator's input intact.
+  const actionSuccess = useActionSuccess("affiliates");
+  useEffect(() => {
+    if (actionSuccess) {
+      setAffiliateDialogOpen(false);
+    }
+  }, [actionSuccess]);
+
   const attributionByAffiliate = useMemo(
     () =>
       new Map(

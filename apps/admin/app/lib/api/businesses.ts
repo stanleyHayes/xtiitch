@@ -3,6 +3,37 @@ import type { AdminVerificationStatus, AdminRiskLevel } from "./verifications";
 
 export type AdminBusinessOperationalStatus = "active" | "suspended";
 export type AdminBusinessStatus = AdminVerificationStatus | "suspended";
+export type AdminBusinessActivityCategory =
+  | "orders"
+  | "payments"
+  | "billing"
+  | "payouts"
+  | "verification"
+  | "admin"
+  | "takings";
+
+export type AdminBusinessActivityEvent = {
+  eventType: string;
+  category: AdminBusinessActivityCategory;
+  occurredAt: string;
+  summary: string;
+  actor: string;
+  refId: string;
+  amountMinor?: number;
+};
+
+export type AdminBusinessActivityPage = {
+  activity: AdminBusinessActivityEvent[];
+};
+
+export type AdminBusinessDeleteResult = {
+  businessId: string;
+  name: string;
+  handle: string;
+  rowsDeleted: number;
+  deleted: boolean;
+};
+
 export type AdminBusiness = {
   id: string;
   name: string;
@@ -116,6 +147,38 @@ function mapCustomer(payload: AdminCustomerPayload): AdminCustomer {
   };
 }
 
+type AdminBusinessActivityEventPayload = {
+  event_type: string;
+  category: AdminBusinessActivityCategory;
+  occurred_at: string;
+  summary: string;
+  actor: string;
+  ref_id: string;
+  amount_minor?: number;
+};
+
+type AdminBusinessDeletePayload = {
+  business_id: string;
+  name: string;
+  handle: string;
+  rows_deleted: number;
+  deleted: boolean;
+};
+
+function mapBusinessActivityEvent(
+  payload: AdminBusinessActivityEventPayload,
+): AdminBusinessActivityEvent {
+  return {
+    eventType: payload.event_type,
+    category: payload.category,
+    occurredAt: payload.occurred_at,
+    summary: payload.summary,
+    actor: payload.actor,
+    refId: payload.ref_id,
+    amountMinor: payload.amount_minor,
+  };
+}
+
 export const businessesApi = {
   businesses: async (accessToken: string) => {
     const payload = await requestJSON<{ businesses: AdminBusinessPayload[] }>(
@@ -172,4 +235,50 @@ export const businessesApi = {
         }),
       },
     ).then(mapBusiness),
+  // §11.2: permanent, typed-confirmation delete. The confirm name travels as a
+  // query parameter (not a body) because that is the API contract, and it must
+  // match the business name exactly or the API answers 400 invalid_input.
+  deleteBusiness: (accessToken: string, businessId: string, confirm: string) =>
+    requestJSON<AdminBusinessDeletePayload>(
+      `/admin/businesses/${encodeURIComponent(businessId)}?confirm=${encodeURIComponent(confirm)}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    ).then((payload) => ({
+      businessId: payload.business_id,
+      name: payload.name,
+      handle: payload.handle,
+      rowsDeleted: payload.rows_deleted,
+      deleted: payload.deleted,
+    })),
+  // §11.3: the unified per-business activity feed (orders, payments, billing,
+  // payouts, verification, admin, takings), newest first.
+  businessActivity: async (
+    accessToken: string,
+    businessId: string,
+    input: { type?: string; limit?: number; offset?: number } = {},
+  ): Promise<AdminBusinessActivityPage> => {
+    const params = new URLSearchParams();
+    if (input.type) {
+      params.set("type", input.type);
+    }
+    if (typeof input.limit === "number") {
+      params.set("limit", String(input.limit));
+    }
+    if (typeof input.offset === "number") {
+      params.set("offset", String(input.offset));
+    }
+    const query = params.toString();
+    const payload = await requestJSON<{
+      activity?: AdminBusinessActivityEventPayload[] | null;
+    }>(
+      `/admin/businesses/${encodeURIComponent(businessId)}/activity${query ? `?${query}` : ""}`,
+      {
+        method: "GET",
+        headers: { Authorization: `Bearer ${accessToken}` },
+      },
+    );
+    return { activity: (payload.activity ?? []).map(mapBusinessActivityEvent) };
+  },
 };

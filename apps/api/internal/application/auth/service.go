@@ -33,9 +33,11 @@ type Service struct {
 	// When nil, no code is accepted (a supplied code is rejected, never silently
 	// ignored) and the plain intro/renewal charge path is unaffected.
 	discounts ports.SubscriptionDiscountRepository
-	// vatRateBps / vatInclusive apply VAT to subscription charges (activation,
-	// renewal, upgrade proration). 0 disables VAT (behaviour unchanged); see
-	// money.ApplyVAT. inclusive=false adds VAT on top of the listed price.
+	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
+	// vatRateBps is the configured seed/fallback used when no reader is wired or
+	// the read fails. vatInclusive selects the treatment: false adds VAT at
+	// checkout on top of the listed price (the §4.1 mode).
+	vatRates     VATRateReader
 	vatRateBps   int
 	vatInclusive bool
 	// logger records auth-flow events (OTP send/verify, best-effort side effects)
@@ -68,8 +70,12 @@ type Dependencies struct {
 	// Optional subscription discount-code redemption at checkout. When nil, codes
 	// are unavailable and a supplied code is rejected.
 	Discounts ports.SubscriptionDiscountRepository
-	// VAT applied to subscription charges. VATRateBps 0 (default) disables it;
-	// VATInclusive=false adds it at checkout, true treats listed prices as inclusive.
+	// VAT applied to subscription charges. VATRates reads the live admin-editable
+	// rate from the platform settings (§4.1); VATRateBps is only the
+	// seed/fallback default (the XTIITCH_SUBSCRIPTION_VAT_RATE_BPS env value),
+	// used when no reader is wired or the read fails. VATInclusive=false adds
+	// VAT at checkout, true treats listed prices as inclusive.
+	VATRates     VATRateReader
 	VATRateBps   int
 	VATInclusive bool
 	// Logger records auth-flow events; when nil, slog.Default() is used.
@@ -101,6 +107,7 @@ func NewService(deps Dependencies) Service {
 		otpGen:        deps.OTPGen,
 		whatsAppOTP:   deps.WhatsAppOTP,
 		discounts:     deps.Discounts,
+		vatRates:      deps.VATRates,
 		vatRateBps:    deps.VATRateBps,
 		vatInclusive:  deps.VATInclusive,
 		logger:        logger,

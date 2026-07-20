@@ -3,6 +3,7 @@ import { requireAdminContext } from "../../../lib/session";
 import { readBusinessOperationalStatus } from "../formReaders";
 import {
   adminBusinessActionError,
+  adminBusinessDeleteActionError,
 } from "../actionErrors";
 import type { AdminActionFeedback } from "../types";
 
@@ -43,6 +44,28 @@ export async function handleBusinessesAction({
         section: "businesses",
         severity: "error",
         message: adminBusinessActionError(error),
+      };
+    }
+  }
+
+  if (intent === "admin-business:delete") {
+    const { accessToken } = await requireAdminContext(request);
+    try {
+      const result = await adminApi.deleteBusiness(
+        accessToken,
+        String(form.get("business_id") ?? ""),
+        String(form.get("confirm_name") ?? ""),
+      );
+      return {
+        section: "businesses",
+        severity: "success",
+        message: `${result.name} (@${result.handle}) permanently deleted — ${result.rowsDeleted} row(s) removed.`,
+      };
+    } catch (error) {
+      return {
+        section: "businesses",
+        severity: "error",
+        message: adminBusinessDeleteActionError(error),
       };
     }
   }

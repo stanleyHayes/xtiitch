@@ -199,7 +199,8 @@ func (repo AdminAuthRepository) EnqueueSubscriptionRenewalReminder(
 				'renewal_amount_minor', $8::bigint,
 				'renewal_at', $9::timestamptz,
 				'grace_ends_at', $10::timestamptz,
-				'repay_url', $11
+				'repay_url', $11,
+				'lead_day', $13::int
 			),
 			$12
 		from logged
@@ -218,6 +219,7 @@ func (repo AdminAuthRepository) EnqueueSubscriptionRenewalReminder(
 		input.GraceEndsAt,
 		input.RepayURL,
 		input.DedupKey,
+		input.LeadDay,
 	).Scan(&messageID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Either the reminder was already logged for this (subscription, period,

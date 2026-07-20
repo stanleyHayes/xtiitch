@@ -8,25 +8,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
-	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
-
-// SubscriptionVATPolicy reports the configured VAT rate (basis points) and
-// treatment applied to subscription charges, so the public /plans endpoint can
-// disclose it. A zero rate means VAT is disabled.
-func (s Service) SubscriptionVATPolicy() (rateBps int, inclusive bool) {
-	return s.vatRateBps, s.vatInclusive
-}
-
-// grossSubscriptionCharge applies the configured subscription VAT to a base
-// grossSubscriptionCharge applies the configured subscription VAT to a base
-// (net or listed) charge and returns the gross amount to charge and record. With
-// VAT disabled (rate 0) or inclusive pricing the base is returned unchanged; with
-// added-at-checkout pricing VAT is added on top. It is the single place the
-// subscription money path grosses a charge for VAT.
-func (s Service) grossSubscriptionCharge(baseMinor int64) int64 {
-	return money.ApplyVAT(baseMinor, s.vatRateBps, s.vatInclusive).GrossMinor
-}
 
 // Subscription discount-code checkout errors. They are distinct sentinels so the
 // ListPublicPlans returns the active plan catalogue for the unauthenticated
@@ -272,7 +254,9 @@ func (s Service) InitializeSubscriptionAuthorization(
 	// sweep charges each renewal (MoMo yields none — the sweep re-prompts). The
 	// reference is unique per attempt (Paystack rejects a reused reference) but the
 	// callback re-derives the deterministic per-period reference to book idempotently.
-	gross := s.grossSubscriptionCharge(chargeMinor)
+	// §4.1: the checkout total carries VAT and the grossed-up Transaction fee on
+	// top of the package figure, so Xtiitch nets the exact table figure.
+	gross := s.subscriptionChargeTotal(ctx, chargeMinor)
 	checkoutRef := fmt.Sprintf("%s_%d", activation.Ref, s.clock.Now().Unix())
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID:    subscription.BusinessID,

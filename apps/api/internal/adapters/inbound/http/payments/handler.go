@@ -6,6 +6,8 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +31,7 @@ type Service interface {
 	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error)
 	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error)
 	MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error)
+	ListPayouts(ctx context.Context, scope common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error)
 }
 
 type Handler struct {
@@ -52,6 +55,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/money/takings", handler.logTaking)
 		protected.Get("/money/takings", handler.listTakings)
 		protected.Get("/money/summary", handler.moneySummary)
+		protected.Get("/money/payouts", handler.listPayouts)
 	})
 }
 
@@ -60,6 +64,9 @@ type verifyRequest struct {
 	// code Paystack settles the subaccount to; required alongside the number.
 	SettlementBank    string `json:"settlement_bank"`
 	SettlementAccount string `json:"settlement_account"`
+	// SettlementAccountName is the MoMo-registered wallet name (§2.1); required.
+	// It becomes the Paystack subaccount's business_name.
+	SettlementAccountName string `json:"settlement_account_name"`
 	// OTPCode proves SettlementAccount, from the code sent by payout-otp.
 	OTPCode string `json:"otp_code"`
 }
@@ -106,18 +113,22 @@ func (handler Handler) verify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := handler.service.VerifyBusiness(r.Context(), paymentsapp.VerifyBusinessCommand{
-		BusinessID:        principal.BusinessID,
-		ActorRole:         principal.Role,
-		SettlementBank:    request.SettlementBank,
-		SettlementAccount: request.SettlementAccount,
-		OTPCode:           request.OTPCode,
+		BusinessID:            principal.BusinessID,
+		ActorRole:             principal.Role,
+		SettlementBank:        request.SettlementBank,
+		SettlementAccount:     request.SettlementAccount,
+		SettlementAccountName: request.SettlementAccountName,
+		OTPCode:               request.OTPCode,
 	}); err != nil {
 		status, code := paymentError(err)
 		writeError(w, status, code)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"verification_status": "verified"})
+	// §2.2: payout setup does NOT verify the business — identity verification is
+	// the admin's call and was already required to reach this point — so the
+	// response confirms the payout details, not a verification status.
+	writeJSON(w, http.StatusOK, map[string]string{"payout_status": "ready"})
 }
 
 // requestPayoutOTP sends a code to a candidate payout number so the owner can
@@ -242,6 +253,7 @@ func (handler Handler) logTaking(w http.ResponseWriter, r *http.Request) {
 	cmd := paymentsapp.LogManualTakingCommand{
 		Scope:       principal.TenantScope(),
 		ActorRole:   principal.Role,
+		ActorUserID: principal.UserID,
 		AmountMinor: request.AmountMinor,
 		Method:      request.Method,
 		WhatFor:     request.WhatFor,
@@ -303,13 +315,94 @@ func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
 	}
+	// §3.1: every card is a sum over PERSISTED Paystack-derived figures (§3.2) —
+	// through-platform gross, the provider fee, the Xtiitch fee split from its
+	// tax, the payouts already settled, net income (amount due) and all-time
+	// income. commission_minor keeps its existing meaning (fee + tax).
 	writeJSON(w, http.StatusOK, map[string]any{
 		"through_platform_minor":       summary.ThroughPlatformMinor,
+		"paystack_fee_minor":           summary.PaystackFeeMinor,
+		"xtiitch_fee_minor":            summary.XtiitchFeeMinor,
+		"xtiitch_tax_minor":            summary.XtiitchTaxMinor,
 		"commission_minor":             summary.CommissionMinor,
+		"settled_payouts_minor":        summary.SettledPayoutsMinor,
 		"manual_takings_minor":         summary.ManualTakingsMinor,
 		"offline_commission_due_minor": summary.OfflineCommissionDueMinor,
+		"all_time_income_minor":        summary.AllTimeIncomeMinor,
 		"net_income_minor":             summary.NetIncomeMinor,
 	})
+}
+
+// listPayouts is the §3.3 payout history table: the store's mirrored Paystack
+// settlement rows (amount, status, settled_at, reference), paged.
+func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	records, err := handler.service.ListPayouts(
+		r.Context(),
+		principal.TenantScope(),
+		parsePagingLimit(r.URL.Query().Get("limit")),
+		parsePagingOffset(r.URL.Query().Get("offset")),
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	response := make([]payoutResponse, 0, len(records))
+	for _, record := range records {
+		response = append(response, newPayoutResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"payouts": response})
+}
+
+type payoutResponse struct {
+	SettlementID string `json:"settlement_id"`
+	Reference    string `json:"reference"`
+	AmountMinor  int64  `json:"amount_minor"`
+	Status       string `json:"status"`
+	SettledAt    string `json:"settled_at"`
+	CreatedAt    string `json:"created_at"`
+}
+
+func newPayoutResponse(record ports.ProviderSettlementRecord) payoutResponse {
+	settledAt := ""
+	if record.SettledAt != nil {
+		settledAt = record.SettledAt.Format(time.RFC3339)
+	}
+	return payoutResponse{
+		SettlementID: record.SettlementID.String(),
+		Reference:    record.ProviderReference,
+		AmountMinor:  record.AmountMinor,
+		Status:       record.Status,
+		SettledAt:    settledAt,
+		CreatedAt:    record.CreatedAt.Format(time.RFC3339),
+	}
+}
+
+// Payout-history paging bounds: a sane default page and a hard cap, matching
+// the admin CRM's clamps.
+const (
+	defaultPayoutPageLimit = 50
+	maxPayoutPageLimit     = 200
+)
+
+func parsePagingLimit(value string) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed <= 0 || parsed > maxPayoutPageLimit {
+		return defaultPayoutPageLimit
+	}
+	return parsed
+}
+
+func parsePagingOffset(value string) int {
+	parsed, err := strconv.Atoi(strings.TrimSpace(value))
+	if err != nil || parsed < 0 {
+		return 0
+	}
+	return parsed
 }
 
 func (handler Handler) webhook(w http.ResponseWriter, r *http.Request) {
@@ -341,6 +434,14 @@ func paymentError(err error) (int, string) {
 		return http.StatusBadRequest, "invalid_charge"
 	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):
 		return http.StatusConflict, "business_not_verified"
+	// §2.2: payout setup before admin-approved identity verification. 409 (like
+	// business_not_verified) — the request conflicts with the business's current
+	// state, and the dashboard maps the code to "verify your Ghana Card first".
+	case errors.Is(err, paymentsapp.ErrIdentityVerificationRequired):
+		return http.StatusConflict, "identity_verification_required"
+	// §2.1: the payout number is not a 10-digit local MoMo number.
+	case errors.Is(err, paymentsapp.ErrInvalidPayoutNumber):
+		return http.StatusBadRequest, "invalid_payout_number"
 	// The payout OTP errors originate in authapp and reach here through the
 	// MoMoOTP port. Without these cases a wrong or expired code would surface as
 	// a generic 500 and the owner could not tell what to fix. The status/string

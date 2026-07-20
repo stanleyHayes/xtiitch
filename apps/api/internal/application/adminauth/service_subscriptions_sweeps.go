@@ -10,7 +10,6 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	admindomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/admin"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
-	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
@@ -106,9 +105,10 @@ func (s Service) InitializeSubscriptionAuthorization(
 	// direct-debit mandate link is dead for this account). The business pays this
 	// period now; a card also yields a reusable authorization the recurring sweep
 	// charges thereafter (mobile money yields none — the sweep sends re-pay
-	// reminders). VAT is applied once so the checkout amount matches the invoice
-	// booked on verify, mirroring the recurring sweep.
-	amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+	// reminders). §4.1: VAT and the grossed-up Transaction fee are applied once
+	// so the checkout amount matches the invoice booked on verify, mirroring the
+	// recurring sweep.
+	amountMinor := s.subscriptionChargeTotal(ctx, cadenceRenewalMinor(subscription))
 	if amountMinor <= 0 {
 		return SubscriptionAuthorizationLinkResult{}, authdomain.ErrInvalidInput
 	}
@@ -214,7 +214,7 @@ func (s Service) VerifySubscriptionAuthorization(
 	// If an invoice is already open for this period (a prior verify/sweep), leave it
 	// and only (re)capture the authorization — the operator-driven verify is not a
 	// retrying webhook, so this stays effectively idempotent.
-	amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+	amountMinor := s.subscriptionChargeTotal(ctx, cadenceRenewalMinor(subscription))
 	periodMonths := cadenceMonths(subscription.BillingCadence)
 	// No cadence means there is no renewal figure and no period length to book.
 	//
@@ -342,15 +342,9 @@ func (s Service) RunSubscriptionRecurringSweep(
 	}
 
 	for _, subscription := range subscriptions {
-		// (a) Upcoming-renewal reminder: renewalReminderLeadDays before
-		// next_billing_at, before it is due. Card and MoMo subscriptions both get
-		// it — a card still auto-charges below, but the heads-up "tap to pay" nudge
-		// is harmless and de-duplicated per billing period.
-		if subscriptionUpcomingReminderDue(subscription, now, renewalReminderLeadDays) {
-			if err := s.emitRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalUpcoming, nil, &record); err != nil {
-				return ports.AdminSubscriptionRecurringSweepRecord{}, err
-			}
-		}
+		// §13.3 proactive renewal reminders (15/7/3/0 lead days, SMS + email)
+		// live in their own sweep — RunSubscriptionReminderSweep, triggered
+		// separately — so this loop only charges and follows up on failures.
 
 		// A subscription that should renew but has no cadence cannot be billed:
 		// there is no figure to charge and no period to advance. It is skipped
@@ -400,10 +394,10 @@ func (s Service) RunSubscriptionRecurringSweep(
 		// Both the amount charged and the period the invoice covers are chosen
 		// by the subscription's cadence in one place (cadenceRenewalMinor /
 		// cadenceMonths) so the ChargeAuthorization amount and the SUCCESS-path
-		// period advance always agree. VAT is applied once here (rate 0 / inclusive
-		// leaves it unchanged) so the issued invoice and the charge match, mirroring
-		// the activation path in auth.Service.
-		amountMinor := money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor
+		// period advance always agree. §4.1: VAT and the grossed-up Transaction fee
+		// are applied once here so the issued invoice and the charge match,
+		// mirroring the activation path in auth.Service.
+		amountMinor := s.subscriptionChargeTotal(ctx, cadenceRenewalMinor(subscription))
 		periodMonths := cadenceMonths(subscription.BillingCadence)
 
 		invoiceID := s.ids.NewID()
@@ -586,9 +580,9 @@ func (s Service) enqueueRenewalReminder(
 		Channel:        string(notification.ChannelWhatsApp),
 		Recipient:      recipient,
 		PlanName:       subscription.PlanName,
-		// Show the gross (VAT-inclusive) figure the sweep will actually charge, so
-		// the "tap to pay" amount matches the charge. Rate 0 leaves it unchanged.
-		RenewalAmountMinor: money.ApplyVAT(cadenceRenewalMinor(subscription), s.vatRateBps, s.vatInclusive).GrossMinor,
+		// Show the gross figure the sweep will actually charge (package + VAT +
+		// Transaction fee, §4.1), so the "tap to pay" amount matches the charge.
+		RenewalAmountMinor: s.subscriptionChargeTotal(ctx, cadenceRenewalMinor(subscription)),
 		RenewalAt:          *subscription.NextBillingAt,
 		GraceEndsAt:        graceEndsAt,
 		RepayURL:           s.renewalRepayURL,

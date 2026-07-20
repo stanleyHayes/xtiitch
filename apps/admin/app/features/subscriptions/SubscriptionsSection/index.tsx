@@ -1,4 +1,7 @@
-import { useState } from "react";
+/* eslint-disable max-lines -- already on the CI size allowlist
+   (scripts/check-file-size.mjs) pending its queued split; this file owns all
+   section dialog state, so the §1.2/§11.4 success effect must live here. */
+import { useEffect, useState } from "react";
 import Stack from "@mui/material/Stack";
 import {
   AdminActionFeedback,
@@ -11,6 +14,7 @@ import {
 } from "../../shared/types";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
+import { useActionSuccess } from "../../shared/useActionSuccess";
 import { usePagedItems } from "../../shared/usePagedItems";
 import {
   fallbackAdminPlans,
@@ -70,6 +74,19 @@ export function SubscriptionsSection({ // eslint-disable-line max-lines-per-func
   // (manual / payment_link / recurring), so the CRM had no cadence filter at all
   // despite §6.2 requiring one.
   const [subscriberCadenceFilter, setSubscriberCadenceFilter] = useState("all");
+
+  // §1.2/§11.4: one successful submit closes every dialog this section owns;
+  // errors keep dialogs (and their inputs) open. Re-opening re-seeds fields
+  // from revalidated loader data.
+  const actionSuccess = useActionSuccess("subscriptions");
+  useEffect(() => {
+    if (!actionSuccess) return;
+    setManageBusinessId(null);
+    setCreatePlanOpen(false);
+    setPlanDialogId(null);
+    setCreateDiscountOpen(false);
+    setDiscountDialogId(null);
+  }, [actionSuccess]);
 
   const billableSubscriptions = subscriptions.filter(
     (subscription) =>

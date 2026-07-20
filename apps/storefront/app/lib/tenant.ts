@@ -39,6 +39,14 @@ export function storeHandleFromHost(
   return candidate;
 }
 
+// requestTenant resolves the tenant scope for the current SSR request: the
+// store handle when the host is a tenant store, null on the marketplace. Every
+// loader/action uses it both to gate routes (§6) and to stamp the
+// X-Xtiitch-Tenant header on upstream public API calls.
+export function requestTenant(request: Request): string | null {
+  return storeHandleFromHost(request.headers.get("host"));
+}
+
 function hostnameFromHost(host: string): string {
   const value = host.trim().toLowerCase();
   if (value.startsWith("[")) {

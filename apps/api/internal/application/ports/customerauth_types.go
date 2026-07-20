@@ -16,13 +16,43 @@ const (
 )
 
 type CustomerOrderSummary struct {
-	OrderID          common.ID
-	BusinessName     string
-	BusinessHandle   string
-	DesignTitle      string
-	Status           string
+	OrderID        common.ID
+	BusinessName   string
+	BusinessHandle string
+	// StorePhone is the selling store's contact number (§5.3.3 / §12: the
+	// customer can call the store about an order). Sourced from the store
+	// owner's direct phone, falling back to their WhatsApp number (the only
+	// contact older owners have); '' when the store has neither.
+	StorePhone  string
+	DesignTitle string
+	Status      string
+	// Kind is the customer-facing discriminator (§5.3.1): "standard" for a
+	// made-to-wear (ready_made flow) order, "bespoke" for a custom one.
+	Kind string
+	// CheckoutGroupID links the orders bought together in one store basket
+	// (§5.3.1 basket grouping); nil for a single-design checkout, which never
+	// got a group.
+	CheckoutGroupID  *common.ID
 	AgreedTotalMinor int64
 	CreatedAt        time.Time
+	// ReceivedAt is the customer's "Received" acknowledgement (§5.3.2); nil
+	// until they hit the button on an archived (final-stage) order.
+	ReceivedAt *time.Time
+}
+
+// MarkReceivedResult is the outcome of stamping one customer's order received
+// (§5.3.2), resolved by the repository in one pass so the application layer can
+// map it to the right response.
+type MarkReceivedResult struct {
+	// Found is false when no order with that id belongs to the customer (an
+	// other-customer order is indistinguishable from a missing one — 404).
+	Found bool
+	// FinalStage is false when the order has not reached its final stage yet
+	// (status = 'fulfilled'); only a final-stage order may be marked received.
+	FinalStage bool
+	// AlreadyReceived is true when the order was already stamped — a repeat
+	// mark is an idempotent no-op, not an error.
+	AlreadyReceived bool
 }
 
 type CustomerProfile struct {

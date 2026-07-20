@@ -135,6 +135,12 @@ func (s Service) GetStoreDesign(ctx context.Context, handle string) (ports.Store
 		return ports.StorefrontDesign{}, err
 	}
 	scope := common.TenantScope{BusinessID: design.Design.BusinessID}
+	// §14.1 design performance: count the public view. Best-effort on purpose —
+	// a counter hiccup must never break a storefront page (and the public read
+	// already resolved the tenant, so this is a cheap scoped UPDATE).
+	if s.views != nil {
+		_ = s.views.RecordDesignView(ctx, scope, design.Design.ID)
+	}
 	variations, err := s.catalogue.ListDesignVariations(ctx, scope, design.Design.ID)
 	if err != nil {
 		return ports.StorefrontDesign{}, err

@@ -2,8 +2,10 @@ package paystack
 
 import (
 	"context"
+	"net/url"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
 // DevProvider is the payment provider used when no live Paystack secret key is
@@ -40,8 +42,16 @@ func (p DevProvider) InitializeTransaction(
 	input ports.InitializeTransactionInput) (ports.InitializeTransactionResult,
 	error,
 ) {
+	authorizationURL := "https://dev.local/pay/" + input.Reference
+	if input.CallbackURL != "" {
+		// Accept + echo the §5.2 callback: the dev checkout page is a stub, so
+		// the return URL rides the authorization URL as a query parameter —
+		// observable end-to-end in local/e2e runs exactly like the live
+		// provider's callback_url field.
+		authorizationURL += "?callback_url=" + url.QueryEscape(input.CallbackURL)
+	}
 	return ports.InitializeTransactionResult{
-		AuthorizationURL:  "https://dev.local/pay/" + input.Reference,
+		AuthorizationURL:  authorizationURL,
 		AccessCode:        "dev_access_" + input.Reference,
 		ProviderReference: input.Reference,
 	}, nil
@@ -70,6 +80,7 @@ func (p DevProvider) VerifyAuthorization(_ context.Context, input ports.VerifyAu
 	return ports.VerifyAuthorizationResult{
 		Succeeded:         true,
 		AmountMinor:       10000,
+		FeeMinor:          devProviderFee(10000),
 		AuthorizationCode: "AUTH_" + input.Reference,
 		CustomerCode:      "CUS_" + input.Reference,
 		CustomerEmail:     "owner@example.com",
@@ -93,6 +104,38 @@ func (p DevProvider) VerifyWebhookSignature(payload []byte, signature string) bo
 	return verifyWebhookSignature(p.webhookSecret, payload, signature)
 }
 
+func (p DevProvider) PeekEventType(payload []byte) string {
+	return peekEventType(payload)
+}
+
 func (p DevProvider) ParseChargeEvent(payload []byte) (ports.ProviderChargeEvent, error) {
-	return parseChargeEvent(payload)
+	event, err := parseChargeEvent(payload)
+	if err != nil {
+		return ports.ProviderChargeEvent{}, err
+	}
+	// The dev provider reports a DETERMINISTIC fee — the modeled 1.95% Paystack
+	// rate, half-up, mirroring money.Percentage(amount, 195) — when the crafted
+	// payload carried none, so local/test confirms persist a provider fee exactly
+	// like live ones (§3.2). A payload that sets "fees" explicitly wins.
+	if event.FeeMinor == 0 && event.AmountMinor > 0 {
+		event.FeeMinor = devProviderFee(event.AmountMinor)
+	}
+	return event, nil
+}
+
+func (p DevProvider) ParseTransferEvent(payload []byte) (ports.ProviderTransferEvent, error) {
+	return parseTransferEvent(payload)
+}
+
+// ListSettlements returns no settlements: the dev provider is stateless and
+// never settles, so a dev sync is a correct no-op (the Money Desk then shows
+// zero settled payouts locally). Tests exercise the sync over fakes.
+func (p DevProvider) ListSettlements(_ context.Context, _ ports.ListSettlementsInput) ([]ports.ProviderSettlement, error) {
+	return nil, nil
+}
+
+// devProviderFee is the dev provider's deterministic stand-in for Paystack's
+// reported fee: 1.95% of the amount, rounded half-up (money.PaystackFeeRateBps).
+func devProviderFee(amountMinor int64) int64 {
+	return money.Percentage(amountMinor, money.PaystackFeeRateBps)
 }

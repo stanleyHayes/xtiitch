@@ -106,6 +106,92 @@ func (handler Handler) updateBusinessStatus(w http.ResponseWriter, r *http.Reque
 	writeJSON(w, http.StatusOK, newBusinessResponse(record))
 }
 
+// deleteBusiness is the §11.2 hard delete: it removes the business and ALL
+// tenant-owned data (never the global customer identities). Like the
+// neighbouring customer-erasure endpoint it needs a typed confirmation — the
+// business's exact current name in ?confirm= — and the delete is audited.
+func (handler Handler) deleteBusiness(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	record, err := handler.service.DeleteBusiness(r.Context(), adminauthapp.DeleteBusinessCommand{
+		ActorUserID:      principal.AdminUserID,
+		ActorRole:        principal.Role,
+		BusinessID:       common.ID(chi.URLParam(r, "id")),
+		ConfirmationName: r.URL.Query().Get("confirm"),
+		UserAgent:        r.UserAgent(),
+		IPAddress:        requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"business_id":  record.BusinessID.String(),
+		"name":         record.Name,
+		"handle":       record.Handle,
+		"rows_deleted": record.TotalRowsDeleted,
+		"deleted":      true,
+	})
+}
+
+// businessActivity is the §11.3 full activity history: one newest-first feed
+// across orders, payments, billing, payouts, verification, admin actions and
+// manual takings, filtered by ?type= and paged with limit/offset.
+func (handler Handler) businessActivity(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	records, err := handler.service.ListBusinessActivity(r.Context(), adminauthapp.ListBusinessActivityCommand{
+		ActorRole:  principal.Role,
+		BusinessID: common.ID(chi.URLParam(r, "id")),
+		Category:   strings.TrimSpace(r.URL.Query().Get("type")),
+		Limit:      parsePayoutQueryLimit(r.URL.Query().Get("limit")),
+		Offset:     parsePayoutQueryOffset(r.URL.Query().Get("offset")),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	out := make([]businessActivityResponse, 0, len(records))
+	for _, record := range records {
+		out = append(out, newBusinessActivityResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string][]businessActivityResponse{"activity": out})
+}
+
+type businessActivityResponse struct {
+	EventType   string `json:"event_type"`
+	Category    string `json:"category"`
+	OccurredAt  string `json:"occurred_at"`
+	Summary     string `json:"summary"`
+	Actor       string `json:"actor"`
+	RefID       string `json:"ref_id"`
+	AmountMinor *int64 `json:"amount_minor,omitempty"`
+}
+
+func newBusinessActivityResponse(record ports.AdminBusinessActivityRecord) businessActivityResponse {
+	return businessActivityResponse{
+		EventType:   record.EventType,
+		Category:    record.Category,
+		OccurredAt:  record.OccurredAt.Format(time.RFC3339),
+		Summary:     record.Summary,
+		Actor:       record.Actor,
+		RefID:       record.RefID,
+		AmountMinor: record.AmountMinor,
+	}
+}
+
 func (handler Handler) auditEvents(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {

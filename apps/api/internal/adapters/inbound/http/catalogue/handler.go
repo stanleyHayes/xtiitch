@@ -100,7 +100,10 @@ type settingsBody struct {
 	LogoURL              string `json:"logo_url"`
 	BannerURL            string `json:"banner_url"`
 	LayoutVariant        string `json:"layout_variant"`
-	FeePassToBuyer       bool   `json:"fee_pass_to_buyer"`
+	// The three fee pass-down tick boxes (§4.4).
+	FeePassXtiitchFee  bool `json:"fee_pass_xtiitch_fee"`
+	FeePassTax         bool `json:"fee_pass_tax"`
+	FeePassPaystackFee bool `json:"fee_pass_paystack_fee"`
 }
 
 type collectionResponse struct {
@@ -180,7 +183,9 @@ func toSettingsBody(s ports.StoreSettings) settingsBody {
 		LogoURL:              s.LogoURL,
 		BannerURL:            s.BannerURL,
 		LayoutVariant:        s.LayoutVariant,
-		FeePassToBuyer:       s.FeePassToBuyer,
+		FeePassXtiitchFee:    s.FeePassXtiitchFee,
+		FeePassTax:           s.FeePassTax,
+		FeePassPaystackFee:   s.FeePassPaystackFee,
 	}
 }
 
@@ -317,6 +322,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 	}
 	if errors.Is(err, catalogueapp.ErrActivationRequired) {
 		writeError(w, http.StatusPaymentRequired, "activation_required")
+		return
+	}
+	if errors.Is(err, catalogueapp.ErrPromotionsNotEntitled) {
+		writeError(w, http.StatusForbidden, "promotions_not_entitled")
 		return
 	}
 	if errors.Is(err, catalogueapp.ErrPricingModeConflict) {

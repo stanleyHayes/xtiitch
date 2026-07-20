@@ -82,7 +82,9 @@ func TestConfirmOrderEnqueuesNotification(t *testing.T) {
 	if !found {
 		t.Fatal("a confirmed order must enqueue an order_confirmed message")
 	}
-	if recipient != "0241234567" || kind != "order_confirmed" || status != "pending" || channel != "whatsapp" {
+	// Order confirmations go out by SMS (the channel Ghanaian customers read;
+	// enqueueOrderNotification pins notification.ChannelSMS).
+	if recipient != "0241234567" || kind != "order_confirmed" || status != "pending" || channel != "sms" {
 		t.Fatalf("unexpected message: recipient=%q kind=%q status=%q channel=%q", recipient, kind, status, channel)
 	}
 

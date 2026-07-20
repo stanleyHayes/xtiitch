@@ -11,6 +11,7 @@ import type { AdminSession } from "../../lib/session";
 import { AdminPlatformSettings, AdminRoleDefinition } from "../shared/types";
 import { Panel } from "../../components/ui/Panel";
 import { BooleanPreference } from "./BooleanPreference";
+import { useFormResetKey } from "../shared/useActionSuccess";
 
 export function MarketingLaunchFlagsForm({
   admin,
@@ -25,6 +26,9 @@ export function MarketingLaunchFlagsForm({
   const canManagePlatformSettings =
     roleDefinition?.permissions.includes("manage_settings") ??
     admin.adminRole === "owner";
+  // §1.2/§11.4: re-mount on successful save so the uncontrolled toggles
+  // re-seed from the revalidated loader data.
+  const resetKey = useFormResetKey("settings");
 
   return (
     <Panel
@@ -33,7 +37,7 @@ export function MarketingLaunchFlagsForm({
         borderColor: alpha(tokens.info, 0.16),
       }}
     >
-      <Form method="post">
+      <Form key={resetKey} method="post">
         <input
           type="hidden"
           name="intent"

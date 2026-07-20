@@ -23,6 +23,7 @@ export type AdminVerificationCase = {
   evidence: string[];
   notes: string;
   idCardNumber: string;
+  fullLegalName: string;
   idPhotoURL: string;
   idPhotoBackURL: string;
 };
@@ -43,6 +44,7 @@ type AdminVerificationCasePayload = {
   evidence: string[];
   notes: string;
   id_card_number: string;
+  full_legal_name?: string;
   id_photo_url: string;
   id_photo_back_url: string;
 };
@@ -65,6 +67,9 @@ function mapVerificationCase(
     evidence: payload.evidence,
     notes: payload.notes,
     idCardNumber: payload.id_card_number ?? "",
+    // §2.3: the name exactly as it appears on the Ghana Card. Rows submitted
+    // before this field was collected have no value — the card shows "—".
+    fullLegalName: payload.full_legal_name ?? "",
     idPhotoURL: payload.id_photo_url ?? "",
     // Older submissions predate back-photo capture, so this can be empty.
     idPhotoBackURL: payload.id_photo_back_url ?? "",

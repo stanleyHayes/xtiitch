@@ -19,8 +19,11 @@ type UpdatePlatformSettingsCommand struct {
 	MaintenanceMode              bool
 	BrandLogoURL                 string
 	AIAssistantAddonEnabled      bool
-	UserAgent                    string
-	IPAddress                    string
+	// VATRateBps is the platform VAT rate in basis points (§4.1), effective
+	// immediately across all payments. 0 disables VAT.
+	VATRateBps int
+	UserAgent  string
+	IPAddress  string
 }
 
 // UpdateMarketingFlagsCommand is a partial update of the four marketing launch
@@ -77,6 +80,8 @@ func (s Service) UpdatePlatformSettings(
 			"verification_sla_hours":          intString(settings.VerificationSLAHours),
 			"payout_review_threshold_pesewas": intString(settings.PayoutReviewThresholdPesewas),
 			"maintenance_mode":                boolString(settings.MaintenanceMode),
+			// The VAT rate is money-critical (§4.1), so the change is audited with it.
+			"vat_rate_bps": intString(settings.VATRateBps),
 		},
 		IPAddress: cmd.IPAddress,
 		UserAgent: cmd.UserAgent,

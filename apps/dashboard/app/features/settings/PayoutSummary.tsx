@@ -5,15 +5,18 @@ import Typography from "@mui/material/Typography";
 import { networkLabel } from "./payout-networks";
 
 // The settled state for payout details: what is on file, plus a way back into
-// the form. Mirrors BusinessVerificationPanel's completed state — once there is
-// nothing to do, the panel says so rather than presenting an open form.
+// the form. Mirrors BusinessVerificationPanel's completed state (§2.1) — once
+// there is nothing to do, the panel says so rather than presenting an open
+// form.
 export function PayoutSummary({
   settlementBank,
   settlementAccount,
+  settlementAccountName,
   onEdit,
 }: {
   settlementBank?: string;
   settlementAccount?: string;
+  settlementAccountName?: string;
   onEdit: () => void;
 }) {
   const network = networkLabel(settlementBank ?? "");
@@ -21,11 +24,19 @@ export function PayoutSummary({
     <Stack spacing={1.5} sx={{ mt: 2 }}>
       <Box>
         <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          Payouts go to
+          Payout details successfully submitted
         </Typography>
         <Typography sx={{ fontWeight: 700 }}>
           {settlementAccount ? `${network} · ${settlementAccount}` : network}
         </Typography>
+        {/* §2.1: the summary shows the network name, the MoMo number AND the
+            MoMo account name — the exact trio the Paystack subaccount was
+            built from. */}
+        {settlementAccountName ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {settlementAccountName}
+          </Typography>
+        ) : null}
       </Box>
       <Button
         variant="outlined"

@@ -176,6 +176,9 @@ export type PlaceOrderInput = {
   affiliate_visitor_id?: string;
   referral_code?: string;
   note?: string;
+  // Where Paystack returns the customer after paying (§5.2: back to the cart
+  // to settle the next store basket). https; http allowed on localhost.
+  callback_url?: string;
 };
 
 export type CartOrderLine = {
@@ -196,22 +199,56 @@ export type PlaceCartOrderInput = {
   method: "momo" | "card";
   delivery_zone_id?: string;
   delivery_address?: string;
+  // Where Paystack returns the customer after paying this basket (§5.2: back
+  // to the cart, or home when no baskets remain).
+  callback_url?: string;
 };
 
-// A unified marketplace basket paid in one split charge (§4 "pay once"): each
-// store's lines settle to that store's own subaccount. Pickup only.
-export type MarketplaceOrderStore = {
-  store_handle: string;
+// §5.2: no settle-all — the multi-store POST /public/marketplace/orders
+// contract was removed from the API, so there are no marketplace-order input
+// types here anymore.
+
+// checkout-quote accepts the same shape as cart-orders with the customer
+// fields optional (they do not affect pricing).
+export type CheckoutQuoteInput = {
   items: CartOrderLine[];
+  customer_name?: string;
+  customer_phone?: string;
+  customer_whatsapp?: string;
+  customer_email?: string;
+  method?: "momo" | "card";
+  delivery_zone_id?: string;
+  delivery_address?: string;
 };
 
-export type PlaceMarketplaceOrderInput = {
-  stores: MarketplaceOrderStore[];
-  customer_name: string;
-  customer_phone: string;
-  customer_whatsapp?: string;
-  customer_email: string;
-  method: "momo" | "card";
+export type CheckoutQuoteLine = {
+  design_handle: string;
+  kind: string;
+  amount_minor: number;
+};
+
+// The §4.5 fee breakdown for a basket, all GHS minor units.
+// transaction_fee_minor is the single combined "Transaction fee" line and
+// tax_minor the "Tax (VAT)" line; both are 0 when the owner absorbs the fees,
+// in which case the checkout renders NO fee lines at all.
+export type CheckoutQuote = {
+  currency: string;
+  lines: CheckoutQuoteLine[];
+  delivery_fee_minor: number;
+  items_total_minor: number;
+  transaction_fee_minor: number;
+  tax_minor: number;
+  total_minor: number;
+};
+
+// The fee breakdown returned on order initiation (orders/cart-orders/
+// custom-orders/bookings) — the same numbers the checkout-quote endpoint
+// reported, so the UI can render from one source.
+export type OrderFees = {
+  items_total_minor: number;
+  transaction_fee_minor: number;
+  tax_minor: number;
+  total_minor: number;
 };
 
 export type DeliveryZone = {
@@ -265,6 +302,9 @@ export type PlaceOrderResult = {
   authorization_url: string;
   amount_minor: number;
   discount_minor: number;
+  // §4.5 breakdown of the charge that was initiated; present on every
+  // initiation response and identical to what checkout-quote reported.
+  fees?: OrderFees;
 };
 
 export type PlaceOrderResponse =

@@ -1,13 +1,17 @@
 import { Form } from "react-router";
+import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
+import Tab from "@mui/material/Tab";
+import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import BlockRounded from "@mui/icons-material/BlockRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import DeleteForeverRounded from "@mui/icons-material/DeleteForeverRounded";
 import HistoryRounded from "@mui/icons-material/HistoryRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
@@ -22,6 +26,8 @@ import { Panel } from "../../components/ui/Panel";
 import { RiskChip } from "../shared/RiskChip";
 import { StatusChip } from "../shared/StatusChip";
 import { DetailLine } from "../shared/DetailLine";
+import { BusinessActivityPanel } from "../businesses/BusinessActivityPanel";
+import { DeleteBusinessDialog } from "../businesses/DeleteBusinessDialog";
 
 
 
@@ -36,6 +42,18 @@ export function BusinessInspector({ // eslint-disable-line max-lines-per-functio
   onOpenAudit: () => void;
   onClose: () => void;
 }) {
+  // Hooks must sit above the `!business` early return so the hook order is
+  // identical whether the drawer is empty or inspecting a tenant.
+  const [view, setView] = useState<"overview" | "activity">("overview");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  // Re-open on the overview whenever a different tenant is inspected, so the
+  // previous store's activity tab never leaks into the next inspection.
+  useEffect(() => {
+    setView("overview");
+    setDeleteOpen(false);
+  }, [business?.id]);
+
   if (!business) {
     return (
       <Panel
@@ -111,6 +129,22 @@ export function BusinessInspector({ // eslint-disable-line max-lines-per-functio
           <RiskChip level={business.riskLevel} />
           <Chip size="small" label={business.plan} variant="outlined" />
         </Stack>
+        <Tabs
+          value={view}
+          onChange={(_event, next: "overview" | "activity") => setView(next)}
+          variant="fullWidth"
+          sx={{ minHeight: 40, "& .MuiTab-root": { minHeight: 40 } }}
+        >
+          <Tab value="overview" label="Overview" />
+          <Tab value="activity" label="Activity" />
+        </Tabs>
+        {view === "activity" ? (
+          /* §11.3: the unified newest-first feed across orders, payments,
+             billing, payouts, verification, admin, and takings — the data
+             needed to settle disputes with evidence. */
+          <BusinessActivityPanel businessId={business.id} />
+        ) : (
+          <>
         <Divider />
         <Stack spacing={1.25}>
           <DetailLine label="Owner" value={business.ownerEmail} />
@@ -202,8 +236,26 @@ export function BusinessInspector({ // eslint-disable-line max-lines-per-functio
           >
             View public storefront
           </Button>
+          <Divider />
+          {/* §11.2: permanent delete lives behind a typed-confirmation dialog,
+              never a bare click. */}
+          <Button
+            variant="outlined"
+            color="error"
+            startIcon={<DeleteForeverRounded />}
+            onClick={() => setDeleteOpen(true)}
+          >
+            Delete business…
+          </Button>
         </Stack>
+          </>
+        )}
       </Stack>
+      <DeleteBusinessDialog
+        business={business}
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+      />
     </Panel>
   );
 }

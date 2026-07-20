@@ -32,6 +32,9 @@ type PlaceHomeVisitBookingCommand struct {
 	Address            string
 	// Note is the customer's free-text instruction captured at checkout ('' if none).
 	Note string
+	// CallbackURL is where the payment provider returns the customer after they
+	// pay the booking deposit (§5.2). Optional; validated by cleanCallbackURL.
+	CallbackURL string
 }
 
 type PlaceHomeVisitBookingResult struct {
@@ -40,6 +43,9 @@ type PlaceHomeVisitBookingResult struct {
 	Reference        string
 	AuthorizationURL string
 	AmountMinor      int64
+	// Quote is the §4.2–§4.6 fee breakdown behind the deposit charge, so the
+	// checkout response renders exactly what the customer pays.
+	Quote money.StoreSaleQuote
 }
 
 // PlaceHomeVisitBooking books a home visit against one of the business's open
@@ -60,6 +66,10 @@ func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBo
 	}
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceHomeVisitBookingResult{}, ErrInvalidInput
+	}
+	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	if err != nil {
+		return PlaceHomeVisitBookingResult{}, err
 	}
 
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(cmd.StoreHandle))
@@ -92,6 +102,8 @@ func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBo
 		return PlaceHomeVisitBookingResult{}, err
 	}
 
+	// Carry the validated (normalized) callback through to the charge.
+	cmd.CallbackURL = callbackURL
 	return s.holdAndCharge(ctx, scope, store, design, slot, customer, cmd)
 }
 
@@ -108,7 +120,10 @@ func (s Service) holdAndCharge(
 	deposit := money.ResolveDeposit(design.DepositOverrideMinor, &store.DefaultDepositMinor)
 
 	orderID := s.ids.NewID()
-	customerID, customerCreated := s.resolveCustomerByPhone(ctx, customer.phone)
+	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, customer.phone)
+	if err != nil {
+		return PlaceHomeVisitBookingResult{}, err
+	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {
 		cleanupCustomerID = customerID
@@ -170,6 +185,7 @@ func (s Service) holdAndCharge(
 		AmountMinor:   deposit,
 		Method:        method,
 		CustomerEmail: customer.email,
+		CallbackURL:   cmd.CallbackURL,
 	})
 	if err != nil {
 		s.discardBooking(ctx, scope, bookingID, orderID, cleanupCustomerID)
@@ -182,6 +198,7 @@ func (s Service) holdAndCharge(
 		Reference:        chargeResult.Reference,
 		AuthorizationURL: chargeResult.AuthorizationURL,
 		AmountMinor:      deposit,
+		Quote:            chargeResult.Quote,
 	}, nil
 }
 

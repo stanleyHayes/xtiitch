@@ -52,6 +52,30 @@ export const HELP_GUIDES: HelpGuide[] = [
     ],
   },
   {
+    section: "analytics",
+    title: "Analytics",
+    helper: "Plan-tiered insight",
+    summary:
+      "Analytics shows your store's totals — sales, orders, customers and designs — across your plan's history window. Higher plans add trend charts, top-selling designs, outstanding balances, revenue breakdowns, design conversion and team analytics, plus downloadable report exports and scheduled emailed reports.",
+    steps: [
+      "Read the totals cards first — they cover your plan's history window, shown above them.",
+      "Open the export panel to download financial records or a sales report in the formats your plan allows.",
+      "Locked panels explain exactly which plan unlocks them if you choose to upgrade.",
+    ],
+  },
+  {
+    section: "customers",
+    title: "Customers",
+    helper: "Auto-built CRM",
+    summary:
+      "Customers builds itself — everyone who orders from your store is added automatically. Open a customer to call or WhatsApp them, see their full order history and saved measurements. Depending on your plan you can search the list, add notes and tags, filter segments and export it.",
+    steps: [
+      "Tap a customer to open their profile and contact them directly.",
+      "Use the search box to find a customer by name or phone.",
+      "Add a note like a fit preference, or tag customers to group them — these unlock on higher plans.",
+    ],
+  },
+  {
     section: "orders",
     title: "Orders",
     helper: "Your production board",

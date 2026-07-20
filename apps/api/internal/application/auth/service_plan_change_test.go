@@ -66,14 +66,14 @@ func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmedi
 	// The prorated difference is billed in WHOLE CEDIS: 9800 pesewas becomes GHS 98
 	// ("Whole cedis in all display and billing", Pricing Book §7; checklist #14
 	// names proration). Ceil, so a genuine upgrade never rounds down to nothing.
-	if result.ProratedChargeMinor != 9800 {
-		t.Fatalf("expected prorated charge of 9800, got %d", result.ProratedChargeMinor)
+	if result.ProratedChargeMinor != 9995 {
+		t.Fatalf("expected prorated charge of 9995 (9800 + §4.1 Transaction fee), got %d", result.ProratedChargeMinor)
 	}
 	if !result.EffectiveAt.Equal(now) {
 		t.Fatalf("an upgrade should take effect now (%s), got %s", now, result.EffectiveAt)
 	}
 	// The prorated difference is charged on the stored recurring authorization.
-	if payments.chargeInput.AmountMinor != 9800 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
+	if payments.chargeInput.AmountMinor != 9995 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
 		t.Fatalf("expected the prorated difference charged on the stored authorization, got %+v", payments.chargeInput)
 	}
 	if !strings.HasPrefix(payments.chargeInput.Reference, "xtsub_upgrade_sub-1_studio_") {
@@ -84,8 +84,8 @@ func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmedi
 	if businesses.upgradeApplied == nil {
 		t.Fatal("expected the plan to be switched immediately")
 	}
-	if businesses.upgradeApplied.NewPlanID != "plan-studio" || businesses.upgradeApplied.AmountMinor != 9800 {
-		t.Fatalf("expected the switch to the studio plan booking 9800, got %+v", *businesses.upgradeApplied)
+	if businesses.upgradeApplied.NewPlanID != "plan-studio" || businesses.upgradeApplied.AmountMinor != 9995 {
+		t.Fatalf("expected the switch to the studio plan booking 9995, got %+v", *businesses.upgradeApplied)
 	}
 	if businesses.upgradeApplied.ChargeRef != payments.chargeInput.Reference {
 		t.Fatalf("invoice ref must equal the charge reference, got %q vs %q",

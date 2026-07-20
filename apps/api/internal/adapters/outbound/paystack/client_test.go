@@ -118,3 +118,73 @@ func TestClientVerifyAuthorizationReportsUnpaid(t *testing.T) {
 		t.Fatalf("an abandoned transaction must be neither succeeded nor active, got %+v", result)
 	}
 }
+
+// InitializeTransaction must forward the §5.2 callback_url (where the customer
+// returns after paying a store basket) and use ONLY the single-store split —
+// no multi-store split object may ever leave this client again.
+func TestClientInitializeTransactionSendsCallbackURLAndSingleStoreSplit(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/transaction/initialize" {
+			t.Errorf("expected /transaction/initialize, hit %q", r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		_, _ = w.Write([]byte(`{"status":true,"data":{` +
+			`"authorization_url":"https://checkout.paystack.com/xyz",` +
+			`"access_code":"xyz","reference":"ref-9"}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	result, err := client.InitializeTransaction(context.Background(), ports.InitializeTransactionInput{
+		BusinessID:      common.ID("biz-1"),
+		SubaccountRef:   "ACCT_store1",
+		CustomerEmail:   "buyer@example.com",
+		AmountMinor:     25000,
+		CommissionMinor: 750,
+		Currency:        "GHS",
+		Reference:       "ref-9",
+		CallbackURL:     "https://store.xtiitch.com/cart",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotBody["callback_url"] != "https://store.xtiitch.com/cart" {
+		t.Fatalf("expected the callback_url forwarded verbatim, got %+v", gotBody)
+	}
+	if gotBody["subaccount"] != "ACCT_store1" || gotBody["bearer"] != "subaccount" {
+		t.Fatalf("expected the single-store split fields, got %+v", gotBody)
+	}
+	if _, hasSplit := gotBody["split"]; hasSplit {
+		t.Fatalf("§5.2: no multi-store split object may be sent, got %+v", gotBody["split"])
+	}
+	if result.ProviderReference != "ref-9" {
+		t.Fatalf("expected the provider reference parsed, got %+v", result)
+	}
+}
+
+// Without a callback_url the initialize body must not carry the key at all —
+// Paystack then applies the dashboard default, exactly the pre-§5.2 behaviour.
+func TestClientInitializeTransactionOmitsEmptyCallbackURL(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		_, _ = w.Write([]byte(`{"status":true,"data":{"authorization_url":"https://x","access_code":"a","reference":"r"}}`))
+	}))
+	defer server.Close()
+
+	client := newTestClient(server.URL)
+	if _, err := client.InitializeTransaction(context.Background(), ports.InitializeTransactionInput{
+		CustomerEmail: "buyer@example.com",
+		AmountMinor:   1000,
+		Currency:      "GHS",
+		Reference:     "r",
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if _, has := gotBody["callback_url"]; has {
+		t.Fatalf("an empty callback must be omitted, got %+v", gotBody)
+	}
+}

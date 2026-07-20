@@ -168,6 +168,7 @@ func TestBusinessPromotionWritesRequireOwnerOrAdmin(t *testing.T) {
 
 type fakePromotionRepo struct {
 	created  bool
+	updated  bool
 	archived bool
 }
 
@@ -189,6 +190,7 @@ func (repo *fakePromotionRepo) UpdateBusinessPromotion(
 	input ports.BusinessPromotionInput) (ports.BusinessPromotionRecord,
 	error,
 ) {
+	repo.updated = true
 	return ports.BusinessPromotionRecord{PromotionID: input.PromotionID, BusinessID: scope.BusinessID}, nil
 }
 func (repo *fakePromotionRepo) ArchiveBusinessPromotion(

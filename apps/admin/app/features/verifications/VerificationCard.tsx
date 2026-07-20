@@ -132,7 +132,10 @@ export function VerificationCard({ // eslint-disable-line max-lines-per-function
               <Typography sx={{ color: "text.secondary" }}>
                 {item.notes}
               </Typography>
-              {item.idCardNumber || item.idPhotoURL || item.idPhotoBackURL ? (
+              {item.idCardNumber ||
+              item.fullLegalName ||
+              item.idPhotoURL ||
+              item.idPhotoBackURL ? (
                 <Box
                   sx={{
                     p: 1.5,
@@ -154,17 +157,34 @@ export function VerificationCard({ // eslint-disable-line max-lines-per-function
                         on submissions that predate back-photo capture. */}
                     <GhanaCardPhoto url={item.idPhotoURL} side="Front" />
                     <GhanaCardPhoto url={item.idPhotoBackURL} side="Back" />
-                    <Box>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: "text.secondary" }}
-                      >
-                        Card number
-                      </Typography>
-                      <Typography sx={{ fontWeight: 800, letterSpacing: 0.5 }}>
-                        {item.idCardNumber || "—"}
-                      </Typography>
-                    </Box>
+                    <Stack spacing={1.5}>
+                      <Box>
+                        {/* §2.3: the legal identity being verified — the name
+                            must match the card exactly, so it leads the card
+                            number. "—" covers rows submitted before the field
+                            was collected. */}
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          Full legal name (on the Ghana Card)
+                        </Typography>
+                        <Typography sx={{ fontWeight: 800 }}>
+                          {item.fullLegalName || "—"}
+                        </Typography>
+                      </Box>
+                      <Box>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          Card number
+                        </Typography>
+                        <Typography sx={{ fontWeight: 800, letterSpacing: 0.5 }}>
+                          {item.idCardNumber || "—"}
+                        </Typography>
+                      </Box>
+                    </Stack>
                   </Stack>
                 </Box>
               ) : null}

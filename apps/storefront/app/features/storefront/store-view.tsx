@@ -23,18 +23,24 @@ export function StoreView({
   query,
   collections = [],
   marketplace = [],
+  tenantHost = false,
 }: {
   store: StoreSummary;
   designs: Design[];
   query: string;
   collections?: Collection[];
   marketplace?: PublicShop[];
+  // True when the page is served on the store's own tenant host
+  // (business-name.xtiitch.com) — §6 isolation then hides the cross-store
+  // discovery strip on every plan, identical everywhere.
+  tenantHost?: boolean;
 }) {
   const brand = store.brand_color || tokens.burgundy;
   const otherShops = marketplace.filter((shop) => shop.handle !== store.handle);
   // "Discover other studios" only shows on free-plan storefronts; paid plans get
   // a clean, distraction-free store with no cross-promotion of other shops.
-  const showDiscover = store.plan_code === "free";
+  // §6: on a tenant host it NEVER shows, regardless of plan.
+  const showDiscover = !tenantHost && store.plan_code === "free";
 
   return (
     <Box

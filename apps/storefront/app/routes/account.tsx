@@ -6,11 +6,14 @@ import {
   fetchCustomerOrders,
   fetchCustomerProfile,
   updateCustomerProfile,
+  markOrderReceived,
+  markBasketReceived,
   phoneOtpEnabled,
   type CustomerOrder,
   type CustomerProfile,
 } from "../lib/discovery";
 import { commitSession, destroySession, getSession } from "../lib/session";
+import { requestTenant } from "../lib/tenant";
 import type { ActionResult } from "../features/account/types";
 import { normalizeChannel, safeRedirect } from "../features/account/utils";
 
@@ -46,6 +49,10 @@ export async function loader({ request }: Route.LoaderArgs) {
     redirectTo: safeRedirect(url.searchParams.get("redirectTo")),
     orders,
     profile,
+    // §6: on a tenant host the account hub hides cross-store entries (AI
+    // Search). The customer's own orders stay shared across stores (§5.3.4) —
+    // they are their own data, not another store's.
+    tenantHost: Boolean(requestTenant(request)),
   };
 }
 
@@ -78,6 +85,35 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
         ? undefined
         : "We couldn't save your profile. Please try again.",
     } as ActionResult;
+  }
+
+  // §5.3.2: acknowledge receipt of one archived design, or of a whole store
+  // basket at once. The loader revalidates after either, so the stamped
+  // orders disappear from the tabs on the next render.
+  if (intent === "mark_received" || intent === "mark_basket_received") {
+    const session = await getSession(request.headers.get("Cookie"));
+    const token = session.get("customerToken") as string | undefined;
+    if (!token) {
+      return redirect("/account");
+    }
+    const result =
+      intent === "mark_received"
+        ? await markOrderReceived(token, String(form.get("order_id") ?? ""))
+        : await markBasketReceived(
+            token,
+            String(form.get("checkout_group_id") ?? ""),
+          );
+    if (!result.ok) {
+      // 409 order_not_in_final_stage: the store is still working on it.
+      return {
+        step: "identify",
+        orderError:
+          result.error === "order_not_in_final_stage"
+            ? "The store is still working on this one — you can mark it received once it reaches its final stage."
+            : "We couldn't mark that as received. Please try again.",
+      } as ActionResult;
+    }
+    return { step: "identify", orderNotice: "Marked as received." } as ActionResult;
   }
 
   // The channel tabs (WhatsApp | Email) re-render the sign-in form pre-selected

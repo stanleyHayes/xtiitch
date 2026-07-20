@@ -18,7 +18,9 @@ export const defaultStoreSettings: StoreSettings = {
   collections_enabled: false,
   delivery_enabled: false,
   dispatch_enabled: false,
-  fee_pass_to_buyer: false,
+  fee_pass_xtiitch_fee: false,
+  fee_pass_tax: false,
+  fee_pass_paystack_fee: false,
   brand_color: tokens.burgundy,
   logo_url: "",
   banner_url: "",
@@ -27,9 +29,14 @@ export const defaultStoreSettings: StoreSettings = {
 
 export const defaultMoneySummary: MoneySummary = {
   through_platform_minor: 0,
+  paystack_fee_minor: 0,
+  xtiitch_fee_minor: 0,
+  xtiitch_tax_minor: 0,
   commission_minor: 0,
+  settled_payouts_minor: 0,
   manual_takings_minor: 0,
   offline_commission_due_minor: 0,
+  all_time_income_minor: 0,
   net_income_minor: 0,
 };
 
@@ -172,6 +179,11 @@ export const dashboardActionIntents = new Set([
   "create_promotion",
   "update_promotion",
   "archive_promotion",
+  // §14 scheduled reports + §15 CRM annotations (owner/admin only; staff are
+  // refused by canUseDashboardIntent before the handler runs).
+  "save_report_schedule",
+  "save_crm_note",
+  "save_crm_tags",
   "upload_design_image",
   "update_design",
   "delete_design",

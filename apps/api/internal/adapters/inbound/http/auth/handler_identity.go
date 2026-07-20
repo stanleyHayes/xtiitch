@@ -18,10 +18,25 @@ func (handler Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// §9: /me doubles as the profile-settings read, so it returns the caller's
+	// live row (name/email/phone/WhatsApp), not just the token claims — a
+	// PATCH /auth/business/me is reflected here immediately.
+	profile, err := handler.service.GetOwnProfile(r.Context(), principal.TenantScope(), principal.UserID)
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
 	writeJSON(w, http.StatusOK, meResponse{
-		BusinessID: principal.BusinessID.String(),
-		UserID:     principal.UserID.String(),
-		Role:       string(principal.Role),
+		BusinessID:     principal.BusinessID.String(),
+		UserID:         principal.UserID.String(),
+		Role:           string(principal.Role),
+		Email:          profile.Email,
+		DisplayName:    profile.DisplayName,
+		Phone:          profile.Phone,
+		PhoneVerified:  profile.PhoneVerifiedAt != nil,
+		WhatsAppNumber: profile.WhatsAppNumber,
 	})
 }
 
@@ -199,6 +214,7 @@ func (handler Handler) submitIdentityVerification(w http.ResponseWriter, r *http
 	if err := handler.service.SubmitIdentityVerification(r.Context(), authapp.SubmitIdentityVerificationCommand{
 		Scope:          principal.TenantScope(),
 		ActorRole:      principal.Role,
+		FullLegalName:  request.FullLegalName,
 		CardNumber:     request.CardNumber,
 		IDPhotoURL:     request.IDPhotoURL,
 		IDPhotoBackURL: request.IDPhotoBackURL,

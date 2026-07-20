@@ -17,6 +17,17 @@ var (
 	ErrInvalidCharge       = errors.New("invalid charge request")
 	ErrInvalidSignature    = errors.New("invalid webhook signature")
 	ErrInvalidTaking       = errors.New("invalid manual taking")
+	// ErrIdentityVerificationRequired means payout setup was attempted before an
+	// admin approved the business's Ghana Card verification. §2.2 fixes the
+	// sequence: identity submission → admin approval → ONLY THEN payout details.
+	// A business must never become payable — or look verified — from payout
+	// setup alone, so both the OTP request and the save fail closed on this.
+	ErrIdentityVerificationRequired = errors.New("admin-approved identity verification is required before payout setup")
+	// ErrInvalidPayoutNumber means the payout number does not normalize to a
+	// 10-digit Ghana local MoMo number (0XXXXXXXXX, §2.1). Distinct from
+	// authapp.ErrInvalidPhone ("invalid_phone") so the settings form can point
+	// at the payout-number field specifically.
+	ErrInvalidPayoutNumber = errors.New("payout number must be a 10-digit Ghana mobile money number")
 	// ErrOTPUnavailable means payout-number verification is not wired, so a payout
 	// number cannot be proved. VerifyBusiness fails closed on it rather than
 	// saving unproven details: the OTP is the evidence that settles payment
@@ -42,6 +53,11 @@ type Service struct {
 	businesses ports.BusinessChargeRepository
 	ids        ports.IDGenerator
 	otp        MoMoOTP
+	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
+	// vatRateBps is the configured seed/fallback used when no reader is wired
+	// or the read fails. 0 disables VAT on the Xtiitch fee.
+	vatRates   VATRateReader
+	vatRateBps int
 }
 
 type Dependencies struct {
@@ -54,6 +70,12 @@ type Dependencies struct {
 	// step — VerifyBusiness rejects with ErrOTPUnavailable. A misconfiguration must
 	// not quietly turn the gate off.
 	OTP MoMoOTP
+	// VATRates reads the live VAT rate from the platform settings (§4.1).
+	// Optional; VATRateBps is the seed/fallback default (the
+	// XTIITCH_SUBSCRIPTION_VAT_RATE_BPS env value), used only when no reader is
+	// wired or the read fails.
+	VATRates   VATRateReader
+	VATRateBps int
 }
 
 func NewService(deps Dependencies) Service {
@@ -63,6 +85,8 @@ func NewService(deps Dependencies) Service {
 		businesses: deps.Businesses,
 		ids:        deps.IDs,
 		otp:        deps.OTP,
+		vatRates:   deps.VATRates,
+		vatRateBps: deps.VATRateBps,
 	}
 }
 
@@ -81,17 +105,28 @@ type RequestPayoutOTPCommand struct {
 // payout flow at it would widen an unauthenticated path that already sends paid
 // SMS to any Ghana number. Here the caller must hold a session AND the
 // money-management role, which bounds the abuse to authenticated owners.
+//
+// §2.2: the business must be admin-identity-verified before payout details can
+// be set up at all, so the code is not even sent until then.
 func (s Service) RequestPayoutOTP(ctx context.Context, cmd RequestPayoutOTPCommand) error {
 	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
 		return err
 	}
-	if strings.TrimSpace(cmd.SettlementAccount) == "" {
-		return ErrInvalidCharge
+	info, err := s.businesses.GetChargeContext(ctx, common.TenantScope{BusinessID: cmd.BusinessID})
+	if err != nil {
+		return err
+	}
+	if !info.Verified {
+		return ErrIdentityVerificationRequired
+	}
+	number, err := normalizePayoutMoMoNumber(cmd.SettlementAccount)
+	if err != nil {
+		return err
 	}
 	if s.otp == nil {
 		return ErrOTPUnavailable
 	}
-	return s.otp.RequestBusinessPhoneOTP(ctx, cmd.SettlementAccount)
+	return s.otp.RequestBusinessPhoneOTP(ctx, number)
 }
 
 type VerifyBusinessCommand struct {
@@ -99,15 +134,23 @@ type VerifyBusinessCommand struct {
 	ActorRole         business.UserRole
 	SettlementBank    string
 	SettlementAccount string
+	// SettlementAccountName is the MoMo-REGISTERED wallet name (§2.1): "the
+	// exact legal name that pops up when someone tries to send money to this
+	// MoMo number." It becomes the Paystack subaccount's business_name, because
+	// settlement resolves against the wallet's registered name, not the shop's
+	// trading name.
+	SettlementAccountName string
 	// OTPCode is the one-time code sent to SettlementAccount. It proves the payout
 	// number is live and belongs to the owner submitting it — the evidence that
 	// settles a later "I never gave you that number" dispute (Testing Report §3.1).
 	OTPCode string
 }
 
-// VerifyBusiness saves the business's payout details, provisions or repoints its
-// payment-provider subaccount, and marks it verified. Until this runs, charging
-// is gated (Technical Specification sections 5.2, 10.2).
+// VerifyBusiness saves the business's payout details and provisions or repoints
+// its payment-provider subaccount. It runs ONLY after an admin has approved the
+// business's Ghana Card verification (§2.2) — payout setup neither grants nor
+// implies verification. Until both are in place, charging is gated (Technical
+// Specification sections 5.2, 10.2).
 //
 // Resubmitting UNCHANGED details is a no-op. Submitting CHANGED details repoints
 // the existing subaccount rather than creating a second one, and requires a fresh
@@ -117,8 +160,18 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
 		return err
 	}
-	if cmd.SettlementAccount == "" || cmd.SettlementBank == "" {
+	// §2.1: the wallet name is collected alongside network + number and is
+	// required — the subaccount is built from these fields, so they must be
+	// captured and validated correctly before the subaccount is created.
+	accountName := strings.TrimSpace(cmd.SettlementAccountName)
+	if cmd.SettlementBank == "" || accountName == "" || len(accountName) > maxPayoutAccountNameLength {
 		return ErrInvalidCharge
+	}
+	// §2.1: exactly 10 digits in local form (0XXXXXXXXX). The normalized value is
+	// what gets OTP-proved, sent to the provider, and stored.
+	account, err := normalizePayoutMoMoNumber(cmd.SettlementAccount)
+	if err != nil {
+		return err
 	}
 
 	scope := common.TenantScope{BusinessID: cmd.BusinessID}
@@ -127,15 +180,23 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 		return err
 	}
 
+	// §2.2: Ghana Card verification comes FIRST. Verified is true only when an
+	// admin approved the identity submission — nothing on this path sets it.
+	if !info.Verified {
+		return ErrIdentityVerificationRequired
+	}
+
 	// Compare the submitted details against the saved ones, rather than returning
 	// early on "verified" alone. A business that is already provisioned may still
 	// be CHANGING its payout destination, and that change has to reach both the
 	// provider and the businesses row. Note settlement_bank is empty for
-	// businesses provisioned before migration 000087 mirrored it locally, so their
-	// first resubmit falls through and backfills it.
-	if info.Verified && info.SubaccountRef != "" &&
-		info.SettlementAccount == cmd.SettlementAccount &&
-		info.SettlementBank == cmd.SettlementBank {
+	// businesses provisioned before migration 000087 mirrored it locally, and
+	// settlement_momo_account_name for those before 000098, so their first
+	// resubmit falls through and backfills the missing field.
+	if info.SubaccountRef != "" &&
+		info.SettlementAccount == account &&
+		info.SettlementBank == cmd.SettlementBank &&
+		info.MoMoAccountName == accountName {
 		return nil
 	}
 
@@ -144,7 +205,7 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	if s.otp == nil {
 		return ErrOTPUnavailable
 	}
-	if err := s.otp.VerifyBusinessPhoneOTP(ctx, cmd.SettlementAccount, cmd.OTPCode); err != nil {
+	if err := s.otp.VerifyBusinessPhoneOTP(ctx, account, cmd.OTPCode); err != nil {
 		return err
 	}
 
@@ -152,9 +213,9 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	if subaccountRef == "" {
 		result, err := s.provider.CreateBusinessSubaccount(ctx, ports.CreateBusinessSubaccountInput{
 			BusinessID:        cmd.BusinessID,
-			BusinessName:      info.Name,
+			BusinessName:      accountName,
 			SettlementBank:    cmd.SettlementBank,
-			SettlementAccount: cmd.SettlementAccount,
+			SettlementAccount: account,
 		})
 		if err != nil {
 			return err
@@ -163,8 +224,9 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	} else if err := s.provider.UpdateBusinessSubaccount(ctx, ports.UpdateBusinessSubaccountInput{
 		BusinessID:        cmd.BusinessID,
 		SubaccountRef:     subaccountRef,
+		BusinessName:      accountName,
 		SettlementBank:    cmd.SettlementBank,
-		SettlementAccount: cmd.SettlementAccount,
+		SettlementAccount: account,
 	}); err != nil {
 		return err
 	}
@@ -172,11 +234,41 @@ func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) 
 	// Persist only after the provider accepted the details, so a provider failure
 	// never leaves the row claiming a payout destination that will not settle.
 	return s.businesses.ProvisionSubaccount(ctx, ports.ProvisionSubaccountInput{
-		BusinessID:        cmd.BusinessID,
-		SubaccountRef:     subaccountRef,
-		SettlementBank:    cmd.SettlementBank,
-		SettlementAccount: cmd.SettlementAccount,
+		BusinessID:            cmd.BusinessID,
+		SubaccountRef:         subaccountRef,
+		SettlementAccountName: accountName,
+		SettlementBank:        cmd.SettlementBank,
+		SettlementAccount:     account,
 	})
+}
+
+// maxPayoutAccountNameLength bounds the MoMo account-name field; wallet names
+// are far shorter, this only stops abuse payloads.
+const maxPayoutAccountNameLength = 200
+
+// normalizePayoutMoMoNumber coerces a payout number to canonical LOCAL form and
+// enforces §2.1's exactly-10-digits rule (0XXXXXXXXX, e.g. 024XXXXXXX). It
+// accepts the local form and the international 233XXXXXXXXX form (rebased to
+// local) and rejects everything else — including the bare 9-digit form the
+// shared common.NormalizeGhanaPhone tolerates for sign-in, because a payout
+// destination must be unambiguous about which wallet it names.
+func normalizePayoutMoMoNumber(raw string) (string, error) {
+	var b strings.Builder
+	for _, r := range raw {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	// Fail closed on the ambiguous bare 9-digit form before the shared
+	// normalizer can accept it (§2.1 strictness on top of the shared rules).
+	if b.Len() == 9 {
+		return "", ErrInvalidPayoutNumber
+	}
+	canonical, err := common.NormalizeGhanaPhone(raw)
+	if err != nil {
+		return "", ErrInvalidPayoutNumber
+	}
+	return "0" + canonical[3:], nil
 }
 
 type InitiateChargeCommand struct {
@@ -197,12 +289,21 @@ type InitiateChargeCommand struct {
 	LineAmountsMinor []int64
 	Method           money.PaymentMethod
 	CustomerEmail    string
+	// CallbackURL is where the provider returns the customer after they pay
+	// (§5.2: back to the storefront cart so they can settle the next store
+	// basket). Empty keeps the provider default — behaviour from before the
+	// field existed. Callers validate it before it gets here.
+	CallbackURL string
 }
 
 type ChargeResult struct {
 	Reference        string
 	AuthorizationURL string
 	CommissionMinor  int64
+	// Quote is the full §4.2–§4.6 fee breakdown behind the charge, so the
+	// checkout response can render exactly what the customer pays (the combined
+	// "Transaction fee" line, the "Tax (VAT)" line, and the grand total).
+	Quote money.StoreSaleQuote
 }
 
 // InitiateCharge raises a split charge for a verified business: the business
@@ -227,18 +328,36 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		return ChargeResult{}, ErrBusinessNotVerified
 	}
 
-	commission, err := resolveCommission(cmd, info.CommissionBps)
+	commissionOverride, err := validatedCommissionOverride(cmd)
 	if err != nil {
 		return ChargeResult{}, err
 	}
-	// Pass-to-buyer (Pricing Book §3): when the merchant opts to pass the fee to
-	// the buyer, the customer is charged the order total PLUS the commission; the
-	// commission still routes to the platform via the split, so the merchant nets
-	// the full order total. Default: merchant absorbs (chargeAmount == AmountMinor).
-	chargeAmount := cmd.AmountMinor
-	if info.FeePassToBuyer {
-		chargeAmount += commission
+	// §4.2–§4.6: quote the basket — per-design capped fees, VAT on each fee at
+	// the live admin-set rate (§4.1), one Paystack fee on the total (grossed up
+	// when passed down), and the store's three pass-down tick boxes deciding
+	// what rides the customer's checkout lines. The customer is charged the
+	// quote total; Xtiitch's share (fees + taxes) routes to the main account via
+	// the split's transaction_charge; bearer stays "subaccount" even when fees
+	// are passed down — the checkout lines compensate the store so it nets its
+	// full price (§4.8 note). Default (all unticked): the store absorbs every
+	// fee and the customer pays only AmountMinor.
+	lineAmounts := cmd.LineAmountsMinor
+	if len(lineAmounts) == 0 {
+		lineAmounts = []int64{cmd.AmountMinor}
 	}
+	var linesTotal int64
+	for _, lineMinor := range lineAmounts {
+		linesTotal += lineMinor
+	}
+	// Any basket amount beyond the per-design lines (e.g. a delivery fee folded
+	// into AmountMinor) is charged but never commissioned.
+	uncosted := cmd.AmountMinor - linesTotal
+	if uncosted < 0 {
+		return ChargeResult{}, ErrInvalidCharge
+	}
+	quote := s.quoteStoreSale(ctx, lineAmounts, uncosted, commissionOverride, info)
+	chargeAmount := quote.TotalChargeMinor
+	commission := quote.PlatformShareMinor()
 	reference := "xt_" + s.ids.NewID().String()
 
 	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{
@@ -249,6 +368,7 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		CommissionMinor: commission,
 		Currency:        common.CurrencyGHS,
 		Reference:       reference,
+		CallbackURL:     cmd.CallbackURL,
 	})
 	if err != nil {
 		return ChargeResult{}, err
@@ -270,9 +390,14 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		Method:            string(cmd.Method),
 		ProviderReference: providerReference,
 		CommissionMinor:   commission,
-		// Settle the order by its own amount, never the buyer-borne fee: with
-		// pass-to-buyer, chargeAmount = order + commission, but only the order
-		// counts toward the balance (the commission routes to the platform).
+		// §3.2: the quote's VAT-on-fee is persisted with the charge so the Money
+		// Desk can later split the Xtiitch fee from its tax using stored figures
+		// only — never a recomputation.
+		XtiitchTaxMinor: quote.TaxMinor,
+		// Settle the order by its own amount, never the buyer-borne fees: with
+		// pass-down (§4.4), chargeAmount = order + the passed fee/tax lines, but
+		// only the order counts toward the balance (the fee lines route to
+		// Xtiitch and compensate the Paystack deduction).
 		SettleAmountMinor: cmd.AmountMinor,
 	}); err != nil {
 		return ChargeResult{}, err
@@ -282,122 +407,36 @@ func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) 
 		Reference:        providerReference,
 		AuthorizationURL: result.AuthorizationURL,
 		CommissionMinor:  commission,
+		Quote:            quote,
 	}, nil
 }
 
-// MarketplaceStoreCharge is one shop's slice of a combined marketplace charge:
-// its net (the flat split share to its subaccount) and the platform's commission
-// on it, plus the checkout group the webhook confirms on success.
-type MarketplaceStoreCharge struct {
-	BusinessID      common.ID
-	SubaccountRef   string
-	CheckoutGroupID common.ID
-	AnchorOrderID   common.ID
-	NetMinor        int64
-	CommissionMinor int64
-}
-
-type InitiateMarketplaceChargeCommand struct {
-	CustomerEmail string
-	Method        money.PaymentMethod
-	Stores        []MarketplaceStoreCharge
-}
-
-// InitiateMarketplaceCharge raises ONE Paystack transaction whose split settles
-// each shop's net to its own subaccount and the platform's summed commission to
-// the main account (§4 "pay once"). It records a marketplace charge + members so
-// the webhook can confirm every shop's checkout group on success. It requires at
-// least two shops; a single-shop basket uses the existing single-store charge.
-func (s Service) InitiateMarketplaceCharge(ctx context.Context, cmd InitiateMarketplaceChargeCommand) (ChargeResult, error) {
-	if cmd.CustomerEmail == "" || len(cmd.Stores) < 2 || !cmd.Method.Valid() {
-		return ChargeResult{}, ErrInvalidCharge
+// validatedCommissionOverride checks an explicit commission override (used by
+// promotions) against the amount being charged: it may not be negative or
+// exceed the charge amount. Nil passes through unchanged.
+func validatedCommissionOverride(cmd InitiateChargeCommand) (*int64, error) {
+	if cmd.CommissionMinorOverride == nil {
+		return nil, nil
 	}
-
-	var total int64
-	splits := make([]ports.SubaccountSplit, 0, len(cmd.Stores))
-	members := make([]ports.MarketplaceChargeMember, 0, len(cmd.Stores))
-	for _, st := range cmd.Stores {
-		if st.SubaccountRef == "" || st.NetMinor < 0 || st.CommissionMinor < 0 {
-			return ChargeResult{}, ErrInvalidCharge
-		}
-		storeTotal := st.NetMinor + st.CommissionMinor
-		if storeTotal <= 0 {
-			return ChargeResult{}, ErrInvalidCharge
-		}
-		total += storeTotal
-		splits = append(splits, ports.SubaccountSplit{SubaccountRef: st.SubaccountRef, ShareMinor: st.NetMinor})
-		members = append(members, ports.MarketplaceChargeMember{
-			MemberID:        s.ids.NewID(),
-			BusinessID:      st.BusinessID,
-			CheckoutGroupID: st.CheckoutGroupID,
-			AnchorOrderID:   st.AnchorOrderID,
-			NetMinor:        st.NetMinor,
-			CommissionMinor: st.CommissionMinor,
-		})
+	if *cmd.CommissionMinorOverride < 0 || *cmd.CommissionMinorOverride > cmd.AmountMinor {
+		return nil, ErrInvalidCharge
 	}
-	if total <= 0 {
-		return ChargeResult{}, ErrInvalidCharge
-	}
-
-	reference := "xt_" + s.ids.NewID().String()
-	result, err := s.provider.InitializeTransaction(ctx, ports.InitializeTransactionInput{
-		CustomerEmail: cmd.CustomerEmail,
-		AmountMinor:   total,
-		Currency:      common.CurrencyGHS,
-		Reference:     reference,
-		Splits:        splits,
-	})
-	if err != nil {
-		return ChargeResult{}, err
-	}
-	providerReference := result.ProviderReference
-	if providerReference == "" {
-		providerReference = reference
-	}
-
-	if err := s.payments.CreateMarketplaceCharge(ctx, ports.MarketplaceChargeInput{
-		ChargeID:          s.ids.NewID(),
-		ProviderReference: providerReference,
-		CustomerEmail:     cmd.CustomerEmail,
-		TotalMinor:        total,
-		Members:           members,
-	}); err != nil {
-		return ChargeResult{}, err
-	}
-
-	return ChargeResult{Reference: providerReference, AuthorizationURL: result.AuthorizationURL}, nil
-}
-
-// resolveCommission determines the platform's commission for a charge. By
-// default it is one capped commission on the whole amount. A bulk cart passes
-// per-design line amounts, so each design is commissioned and capped separately
-// (its own GHS 50 cap) and the capped fees are summed — an N-design cart pays N
-// separately-capped fees, not one GHS 50 cap on the total (Pricing Book §3 /
-// P0.6a). An explicit override (used by promotions) wins over both and may not
-// be negative or exceed the amount being charged.
-func resolveCommission(cmd InitiateChargeCommand, basisPoints int) (int64, error) {
-	if cmd.CommissionMinorOverride != nil {
-		if *cmd.CommissionMinorOverride < 0 || *cmd.CommissionMinorOverride > cmd.AmountMinor {
-			return 0, ErrInvalidCharge
-		}
-		return *cmd.CommissionMinorOverride, nil
-	}
-	if len(cmd.LineAmountsMinor) > 0 {
-		var perDesign int64
-		for _, lineMinor := range cmd.LineAmountsMinor {
-			perDesign += money.Commission(lineMinor, basisPoints)
-		}
-		return perDesign, nil
-	}
-	return money.Commission(cmd.AmountMinor, basisPoints), nil
+	return cmd.CommissionMinorOverride, nil
 }
 
 // HandleProviderEvent verifies and applies a provider webhook. The signature is
 // checked over the raw body; confirmation is idempotent, so a re-delivered
-// event has the same effect as one delivery.
+// event has the same effect as one delivery. charge.* events confirm payments
+// (persisting the provider-reported fee, §3.2); transfer.* events are the
+// payout signal (§4.10) and trigger a settlement refresh for the store they
+// name.
 func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signature string) error {
 	if !s.provider.VerifyWebhookSignature(payload, signature) {
 		return ErrInvalidSignature
+	}
+
+	if strings.HasPrefix(s.provider.PeekEventType(payload), "transfer.") {
+		return s.handleTransferEvent(ctx, payload)
 	}
 
 	event, err := s.provider.ParseChargeEvent(payload)
@@ -411,84 +450,50 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 		ProviderReference: event.ProviderReference,
 		Succeeded:         event.Succeeded,
 		PaidAmountMinor:   event.AmountMinor,
+		ProviderFeeMinor:  event.FeeMinor,
 	})
 	return err
 }
 
+// handleTransferEvent applies a transfer.* webhook: record it idempotently,
+// then refresh the named store's mirrored settlements so the payout shows on
+// its Money Desk the moment it lands (§3.3/§4.10). The refresh is forced (the
+// event IS the signal that something changed) but best-effort — the event is
+// already recorded, and the throttled read-path sync self-heals a failed
+// refresh within minutes, so a provider hiccup here must not make Paystack
+// retry an event we have processed.
+func (s Service) handleTransferEvent(ctx context.Context, payload []byte) error {
+	event, err := s.provider.ParseTransferEvent(payload)
+	if err != nil {
+		return err
+	}
+
+	isNew, err := s.payments.RecordProviderEvent(ctx, ports.RecordProviderEventInput{
+		EventSignature:    event.Signature,
+		EventType:         event.EventType,
+		ProviderReference: event.ProviderReference,
+	})
+	if err != nil {
+		return err
+	}
+	if !isNew || event.SubaccountCode == "" {
+		return nil
+	}
+
+	businessID, found, err := s.payments.FindBusinessBySubaccount(ctx, event.SubaccountCode)
+	if err != nil {
+		return err
+	}
+	if !found {
+		return nil
+	}
+
+	_, _ = s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: businessID, Force: true})
+	return nil
+}
+
 func (s Service) ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error) {
 	return s.payments.ListByBusiness(ctx, scope)
-}
-
-type LogManualTakingCommand struct {
-	Scope       common.TenantScope
-	ActorRole   business.UserRole
-	OrderID     *common.ID
-	AmountMinor int64
-	Method      string
-	WhatFor     string
-}
-
-type LogManualTakingResult struct {
-	TakingID         common.ID
-	CommissionMinor  int64
-	CommissionStatus string
-}
-
-// LogManualTaking records an off-platform sale (cash/momo/other) for the money
-// tracker. Off-platform money is always fee-free: the platform commission
-// applies only to payments processed through Paystack. A manually logged taking
-// never flows through the provider, so no commission is deducted or accrued —
-// it carries zero commission and a "not_applicable" status.
-func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand) (LogManualTakingResult, error) {
-	if err := authorizeMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {
-		return LogManualTakingResult{}, err
-	}
-	if cmd.AmountMinor <= 0 {
-		return LogManualTakingResult{}, ErrInvalidTaking
-	}
-	switch cmd.Method {
-	case "cash", "momo", "other":
-	default:
-		return LogManualTakingResult{}, ErrInvalidTaking
-	}
-
-	info, err := s.businesses.GetChargeContext(ctx, cmd.Scope)
-	if err != nil {
-		return LogManualTakingResult{}, err
-	}
-	businessID := info.BusinessID
-	if businessID.IsZero() {
-		businessID = cmd.Scope.BusinessID
-	}
-
-	id := s.ids.NewID()
-	if err := s.payments.RecordManualTaking(ctx, cmd.Scope, ports.ManualTakingInput{
-		TakingID:         id,
-		BusinessID:       businessID,
-		OrderID:          cmd.OrderID,
-		AmountMinor:      cmd.AmountMinor,
-		Method:           cmd.Method,
-		WhatFor:          strings.TrimSpace(cmd.WhatFor),
-		CommissionBps:    0,
-		CommissionMinor:  0,
-		CommissionStatus: "not_applicable",
-		CommissionNote:   "",
-	}); err != nil {
-		return LogManualTakingResult{}, err
-	}
-	return LogManualTakingResult{
-		TakingID:         id,
-		CommissionMinor:  0,
-		CommissionStatus: "not_applicable",
-	}, nil
-}
-
-func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {
-	return s.payments.ListManualTakings(ctx, scope)
-}
-
-func (s Service) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
-	return s.payments.MoneySummary(ctx, scope)
 }
 
 func authorizeMoneyManagement(scope common.TenantScope, role business.UserRole) error {

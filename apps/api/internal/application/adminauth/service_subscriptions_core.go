@@ -282,29 +282,6 @@ func renewalReminderRecipient(subscription ports.AdminSubscriptionRecord) string
 	return strings.TrimSpace(subscription.OwnerPhone)
 }
 
-// subscriptionUpcomingReminderDue reports whether an active recurring, paid
-// subscription is within leadDays of its next_billing_at but not yet due — the
-// window for the proactive "your plan renews soon — tap to pay" reminder.
-func subscriptionUpcomingReminderDue(subscription ports.AdminSubscriptionRecord, now time.Time, leadDays int) bool {
-	if subscription.BillingMode != "recurring" ||
-		cadenceRenewalMinor(subscription) <= 0 ||
-		subscription.NextBillingAt == nil {
-		return false
-	}
-	switch subscription.Status {
-	case "active", "trialing":
-	default:
-		return false
-	}
-	next := *subscription.NextBillingAt
-	if !next.After(now) {
-		// Already due or past: handled by the charge / re-pay path, not "upcoming".
-		return false
-	}
-	windowStart := next.Add(-time.Duration(leadDays) * 24 * time.Hour)
-	return !now.Before(windowStart)
-}
-
 // emitRenewalReminder enqueues a renewal reminder (idempotently) and, when a new
 // reminder was actually enqueued, bumps the sweep's RemindersEnqueued counter.
 func (s Service) emitRenewalReminder(

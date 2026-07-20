@@ -478,9 +478,11 @@ var mirroredLimitColumns = []struct {
 	{"images_per_design", "image_limit", true},
 	{"variations_per_design", "variation_limit", true},
 	{"staff_accounts", "staff_limit", true},
-	// Not a cap: orders are uncapped on every tier (Pricing Book §5). This is the
-	// internal review threshold only.
-	{"orders_per_month", "order_review_threshold", false},
+	// orders_per_month was removed from the matrix (§13.4: orders are uncapped on
+	// every tier, "the matrix holds no order limit"). plans.order_review_threshold
+	// is deliberately NOT projected any more: it keeps its last value as a static,
+	// internal-only monitoring signal for the risk queue (never merchant-facing),
+	// no longer tunable from the matrix because it is not an entitlement.
 }
 
 // mirroredLimitClause renders one column's projection.
@@ -535,7 +537,10 @@ func mirrorAdminPlanEntitlementsSQL() string {
 							  'custom_layout',
 							  'design_waitlist',
 							  'online_ordering',
-							  'remove_powered_by_badge'
+							  'remove_powered_by_badge',
+							  -- §11.1 matrix keys mirrored onto the runtime read path
+							  -- (promotions gating + the owner dashboard profile).
+							  'promotions', 'export_csv', 'export_pdf', 'export_docx', 'export_xlsx'
 						  )
 					),
 					'{}'::jsonb

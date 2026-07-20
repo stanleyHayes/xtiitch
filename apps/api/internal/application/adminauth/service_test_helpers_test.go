@@ -305,6 +305,29 @@ type fakeAdminBusinesses struct {
 	riskUpdate                 ports.SetAdminRiskReviewStatusInput
 	supportTickets             []ports.AdminSupportTicketRecord
 	supportUpdate              ports.UpdateAdminSupportTicketInput
+	payouts                    []ports.AdminPayoutRecord
+	payoutsInput               ports.ListAdminPayoutsInput
+	payoutHistory              []ports.AdminPayoutHistoryRecord
+	subaccountedBusinessIDs    []common.ID
+	deletedBusiness            ports.DeleteAdminBusinessInput
+	deleteResult               ports.AdminBusinessDeleteRecord
+	deleteErr                  error
+	activity                   []ports.AdminBusinessActivityRecord
+	activityInput              ports.ListAdminBusinessActivityInput
+	activityErr                error
+}
+
+func (repo *fakeAdminBusinesses) ListAdminPayouts(_ context.Context, input ports.ListAdminPayoutsInput) ([]ports.AdminPayoutRecord, error) {
+	repo.payoutsInput = input
+	return repo.payouts, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminPayoutHistory(_ context.Context, _ common.ID, _ int, _ int) ([]ports.AdminPayoutHistoryRecord, error) {
+	return repo.payoutHistory, nil
+}
+
+func (repo *fakeAdminBusinesses) ListSubaccountedBusinessIDs(_ context.Context) ([]common.ID, error) {
+	return repo.subaccountedBusinessIDs, nil
 }
 
 func (repo *fakeAdminBusinesses) ArchiveAdminAdCampaign(

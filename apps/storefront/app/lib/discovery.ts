@@ -99,10 +99,21 @@ export type CustomerOrder = {
   order_id: string;
   business_name: string;
   business_handle: string;
+  // §5.3.3/§12: the store's own phone, so the customer can call about an order.
+  store_phone: string;
   design_title: string;
   status: string;
+  // standard | bespoke — each design is tracked by whether it is a bespoke or
+  // a made-to-wear (standard) piece (§5.3.1).
+  kind: string;
+  // Present when the order was bought as part of a multi-line basket checkout;
+  // null for single checkouts (§5.3.1 basket grouping).
+  checkout_group_id: string | null;
   agreed_total_minor: number;
   created_at: string;
+  // Set once the customer acknowledges receipt; received orders disappear from
+  // the account entirely (§5.3.2).
+  received_at: string | null;
 };
 
 export type CustomerProfile = {
@@ -162,6 +173,71 @@ export async function updateCustomerProfile(
   } catch {
     return null;
   }
+}
+
+// ── §5.3.2 acknowledging receipt ───────────────────────────────────────────
+
+export type ReceivedResult =
+  | { ok: true }
+  | { ok: false; status: number; error: string };
+
+// markOrderReceived stamps one archived (final-stage) order received, so it
+// disappears from the Archived tab. 409 order_not_in_final_stage when the
+// store hasn't finished with it yet; re-marking is an idempotent no-op.
+export async function markOrderReceived(
+  token: string,
+  orderID: string,
+): Promise<ReceivedResult> {
+  const response = await fetch(
+    `${API_BASE}/v1/customer/orders/${encodeURIComponent(orderID)}/received`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    },
+  );
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      status: response.status,
+      error: payload?.error ?? "upstream_error",
+    };
+  }
+  return { ok: true };
+}
+
+// markBasketReceived stamps every final-stage order in one store basket (one
+// checkout group) received at once, and reports how many were newly stamped.
+export async function markBasketReceived(
+  token: string,
+  checkoutGroupID: string,
+): Promise<ReceivedResult & { markedCount: number }> {
+  const response = await fetch(
+    `${API_BASE}/v1/customer/orders/received-basket`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ checkout_group_id: checkoutGroupID }),
+    },
+  );
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      status: response.status,
+      error: payload?.error ?? "upstream_error",
+      markedCount: 0,
+    };
+  }
+  const body = (await response.json()) as { ok: boolean; marked_count?: number };
+  return { ok: true, markedCount: body.marked_count ?? 0 };
 }
 
 // ── AI marketplace search ──────────────────────────────────────────────────

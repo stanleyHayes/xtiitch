@@ -218,6 +218,35 @@ func (handler Handler) runSubscriptionRecurringSweep(w http.ResponseWriter, r *h
 	writeJSON(w, http.StatusOK, newSubscriptionRecurringSweepResponse(record))
 }
 
+func (handler Handler) runSubscriptionReminderSweep(w http.ResponseWriter, r *http.Request) {
+	principal, ok := PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+
+	var request subscriptionBillingSweepRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json")
+		return
+	}
+
+	record, err := handler.service.RunSubscriptionReminderSweep(r.Context(), adminauthapp.RunSubscriptionReminderSweepCommand{
+		ActorUserID: principal.AdminUserID,
+		ActorRole:   principal.Role,
+		Reason:      request.Reason,
+		UserAgent:   r.UserAgent(),
+		IPAddress:   requestIP(r),
+	})
+	if err != nil {
+		status, code := authError(err)
+		writeError(w, status, code)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, newSubscriptionReminderSweepResponse(record))
+}
+
 func (handler Handler) initializeSubscriptionAuthorization(w http.ResponseWriter, r *http.Request) {
 	principal, ok := PrincipalFromContext(r.Context())
 	if !ok {
@@ -390,6 +419,18 @@ func newSubscriptionRecurringSweepResponse(
 		ChargesSkipped:               record.ChargesSkipped,
 		SubscriptionsAwaitingCadence: record.SubscriptionsAwaitingCadence,
 		RanAt:                        record.RanAt.Format(time.RFC3339),
+	}
+}
+
+func newSubscriptionReminderSweepResponse(
+	record ports.AdminSubscriptionReminderSweepRecord,
+) subscriptionReminderSweepResponse {
+	return subscriptionReminderSweepResponse{
+		SubscriptionsEvaluated: record.SubscriptionsEvaluated,
+		RemindersEnqueued:      record.RemindersEnqueued,
+		EmailsSent:             record.EmailsSent,
+		EmailsFailed:           record.EmailsFailed,
+		RanAt:                  record.RanAt.Format(time.RFC3339),
 	}
 }
 

@@ -254,6 +254,64 @@ func (repo *fakeAdminBusinesses) ListAdminPlanEntitlements(context.Context) ([]p
 	}, nil
 }
 
+// §13.1: a plan is created with the four cadence prices the admin UI sends
+// (quarterly/yearly, first cycle vs renewal) — these are the figures actually
+// billed, so they must reach the repository unmodified, never recomputed.
+func TestCreatePlanCarriesCadencePricing(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeAdminBusinesses{}
+	service, _ := newTestServiceWithBusinesses(
+		&fakeAdminUsers{},
+		&fakeAdminSessions{},
+		businesses,
+		time.Now(),
+		[]common.ID{"audit-1"},
+	)
+
+	_, err := service.CreatePlan(context.Background(), CreatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		Code:            "pro",
+		Name:            "Pro",
+		MonthlyFeeMinor: 14900,
+		YearlyFeeMinor:  1430400,
+		PlanCadencePricing: ports.PlanCadencePricing{
+			QuarterlyFirstMinor:   35760,
+			QuarterlyRenewalMinor: 44700,
+			YearlyFirstMinor:      1072800,
+			YearlyRenewalMinor:    1430400,
+		},
+		CommissionBPS: 50,
+	})
+	if err != nil {
+		t.Fatalf("create plan with cadence pricing: %v", err)
+	}
+	got := businesses.createdPlan.PlanCadencePricing
+	if got.QuarterlyFirstMinor != 35760 ||
+		got.QuarterlyRenewalMinor != 44700 ||
+		got.YearlyFirstMinor != 1072800 ||
+		got.YearlyRenewalMinor != 1430400 {
+		t.Fatalf("expected the cadence figures to pass through untouched, got %+v", got)
+	}
+
+	// Negative cadence figures are rejected (zero is fine: a free plan bills nothing).
+	_, err = service.CreatePlan(context.Background(), CreatePlanCommand{
+		ActorUserID:     "operator-1",
+		ActorRole:       admindomain.RoleOperator,
+		Code:            "pro-2",
+		Name:            "Pro 2",
+		MonthlyFeeMinor: 14900,
+		PlanCadencePricing: ports.PlanCadencePricing{
+			QuarterlyRenewalMinor: -1,
+		},
+		CommissionBPS: 50,
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected negative cadence pricing to be invalid, got %v", err)
+	}
+}
+
 func (repo *fakeAdminBusinesses) UpdateAdminPlanEntitlements(
 	_ context.Context,
 	input ports.UpdateAdminPlanEntitlementsInput,

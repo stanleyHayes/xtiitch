@@ -118,6 +118,27 @@ export async function removeFromCart(
   return storage.commitSession(session);
 }
 
+// keepOnlyStore drops every OTHER store's lines (§6: a tenant store's cart may
+// only hold that store's designs — foreign items can't legitimately exist on a
+// tenant host, but a cookie written before isolation went live could still
+// carry them). Returns null when nothing changed so callers skip the cookie.
+export async function keepOnlyStore(
+  request: Request,
+  storeHandle: string,
+): Promise<string | null> {
+  const session = await storage.getSession(request.headers.get("Cookie"));
+  const items = session.get("items") ?? [];
+  const kept = items.filter((item) => item.store_handle === storeHandle);
+  if (kept.length === items.length) {
+    return null;
+  }
+  session.set("items", kept);
+  if (kept.length === 0) {
+    session.unset("store_handle");
+  }
+  return storage.commitSession(session);
+}
+
 export async function clearCart(request: Request): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
   return storage.destroySession(session);

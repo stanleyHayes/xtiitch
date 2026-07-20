@@ -32,6 +32,12 @@ type Config struct {
 	ExpoAccessToken       string
 	GrowthPolicyConfirmed bool
 	HTTPAddr              string
+	// InternalToken guards the /v1/internal/* scheduler trigger endpoints
+	// (X-Internal-Token header; the worker presents it). EMPTY disables those
+	// endpoints entirely (404) — production MUST set it or the scheduled
+	// sweeps (§13.3 reminders/charges, §14.1 reports, §3.3 settlement sync)
+	// never run.
+	InternalToken string
 	// StorefrontBaseURL is the public storefront origin the WhatsApp bot links to
 	// when pointing a shopper at a shop/design page.
 	StorefrontBaseURL    string
@@ -64,10 +70,11 @@ type Config struct {
 	SonarOrganization    string
 	SonarToken           string
 	// SubscriptionVATRateBps is the VAT rate (basis points) applied to Xtiitch
-	// subscription charges — activation, renewal, and upgrade proration (Pricing
-	// Book tax decision flag). 0 (the default) DISABLES VAT so behaviour is
-	// unchanged until the business confirms its subscriptions are VAT-able; set it
-	// to 2000 for Ghana's standard 20% (money.GhanaStandardVATRateBps).
+	// charges — subscriptions (on the package price) and store sales (on the
+	// Xtiitch fee). §4.1 makes the rate admin-editable in the platform settings
+	// (default 2000 = Ghana's standard 20%, money.GhanaStandardVATRateBps) and
+	// read live at charge time; this env value is only the seed/fallback when
+	// the settings read is unavailable, never the runtime source.
 	// SubscriptionVATInclusive selects the treatment: false (default) adds VAT at
 	// checkout on top of the listed price; true treats listed prices as VAT-inclusive.
 	SubscriptionVATRateBps   int
@@ -127,6 +134,7 @@ func Load() Config {
 		ExpoAccessToken:          getenv("EXPO_ACCESS_TOKEN", ""),
 		GrowthPolicyConfirmed:    getenvBool("XTIITCH_GROWTH_POLICY_CONFIRMED"),
 		HTTPAddr:                 getenv("API_HTTP_ADDR", ":8080"),
+		InternalToken:            getenv("XTIITCH_INTERNAL_TOKEN", ""),
 		StorefrontBaseURL:        getenv("STOREFRONT_BASE_URL", "http://localhost:3100"),
 		JWTAudience:              getenv("JWT_AUDIENCE", "xtiitch-clients"),
 		JWTIssuer:                getenv("JWT_ISSUER", "xtiitch-api"),
@@ -153,8 +161,10 @@ func Load() Config {
 		SonarHostURL:          getenv("SONAR_HOST_URL", ""),
 		SonarOrganization:     getenv("SONAR_ORGANIZATION", ""),
 		SonarToken:            getenv("SONAR_TOKEN", ""),
-		// Default 0 = VAT disabled (behaviour unchanged); set 2000 for Ghana 20%.
-		SubscriptionVATRateBps:   getenvInt("XTIITCH_SUBSCRIPTION_VAT_RATE_BPS", 0),
+		// §4.1: the VAT rate is admin-editable in the platform settings (default
+		// 2000 = Ghana 20%) and read live at charge time; this env value is only
+		// the seed/fallback used when the settings read is unavailable.
+		SubscriptionVATRateBps:   getenvInt("XTIITCH_SUBSCRIPTION_VAT_RATE_BPS", 2000),
 		SubscriptionVATInclusive: getenvBool("XTIITCH_SUBSCRIPTION_VAT_INCLUSIVE"),
 		WhatsAppVerifyToken:      getenv("WHATSAPP_VERIFY_TOKEN", ""),
 		WhatsAppAppSecret:        getenv("WHATSAPP_APP_SECRET", ""),

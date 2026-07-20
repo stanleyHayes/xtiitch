@@ -11,20 +11,24 @@ import (
 	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
 	aiassisthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aiassist"
 	aisearchhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aisearch"
+	analyticshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/analytics"
 	authhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/auth"
 	availabilityhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/availability"
 	bookinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/booking"
 	cataloguehttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/catalogue"
 	checkouthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/checkout"
+	crmhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/crm"
 	customerauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/customerauth"
 	deliveryhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/delivery"
 	growthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/growth"
+	internalhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/internalsweeps"
 	marketinghttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/marketing"
 	measurementhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/measurement"
 	mediahttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/media"
 	notificationhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/notification"
 	orderhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/order"
 	paymentshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/payments"
+	reportshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/reports"
 	whatsapphttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/whatsapp"
 	authadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/cloudinary"
@@ -32,11 +36,13 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
+	analyticsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/analytics"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
 	bookingapp "github.com/xcreativs/xtiitch/apps/api/internal/application/booking"
 	catalogueapp "github.com/xcreativs/xtiitch/apps/api/internal/application/catalogue"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
+	crmapp "github.com/xcreativs/xtiitch/apps/api/internal/application/crm"
 	customerauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/customerauth"
 	deliveryapp "github.com/xcreativs/xtiitch/apps/api/internal/application/delivery"
 	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
@@ -47,6 +53,7 @@ import (
 	orderapp "github.com/xcreativs/xtiitch/apps/api/internal/application/order"
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	reportsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/reports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/clock"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/config"
 	"github.com/xcreativs/xtiitch/apps/api/internal/platform/ids"
@@ -124,6 +131,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 
 	businessIdentityRepo := postgres.NewBusinessIdentityRepository(db)
+	// platformSettingsReader serves the live, admin-editable platform settings
+	// (the §4.1 VAT rate) to every charge path, so an admin change takes effect
+	// without a restart. The env value below is only the seed/fallback.
+	platformSettingsReader := postgres.NewPlatformSettingsReader(db)
 	authService := authapp.NewService(authapp.Dependencies{
 		Businesses:    businessIdentityRepo,
 		Payments:      paymentProvider,
@@ -149,8 +160,10 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// Optional subscription discount-code redemption at checkout (admins CRUD the
 		// codes; this validates + applies one at authorization/verify).
 		Discounts: postgres.NewSubscriptionDiscountRepository(db),
-		// VAT on subscription charges (Pricing Book tax decision flag). Default
-		// rate 0 = disabled; set XTIITCH_SUBSCRIPTION_VAT_RATE_BPS=2000 for Ghana 20%.
+		// VAT on subscription charges (§4.1): the LIVE admin-editable rate is read
+		// from the platform settings at charge time; the env value is only the
+		// seed/fallback default, never the runtime source.
+		VATRates:     platformSettingsReader,
 		VATRateBps:   cfg.SubscriptionVATRateBps,
 		VATInclusive: cfg.SubscriptionVATInclusive,
 		Logger:       logger,
@@ -158,6 +171,21 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	authenticator := authhttp.NewAuthenticator(jwtIssuer)
 	adminAuthRepository := postgres.NewAdminAuthRepository(db)
+
+	paymentService := paymentsapp.NewService(paymentsapp.Dependencies{
+		Provider:   paymentProvider,
+		Payments:   postgres.NewPaymentRepository(db),
+		Businesses: postgres.NewBusinessChargeRepository(db),
+		IDs:        ids.UUIDGenerator{},
+		// VAT on the Xtiitch fee for store sales (§4.2): the live admin-editable
+		// rate (§4.1), with the env value as fallback only.
+		VATRates:   platformSettingsReader,
+		VATRateBps: cfg.SubscriptionVATRateBps,
+		// Sends and checks the code that proves a payout mobile-money number
+		// before payout details are saved (Testing Report §3.1). The auth service
+		// owns the OTP rules; payments borrows them rather than copying them.
+		OTP: authService,
+	})
 
 	var mediaStore ports.MediaStore
 	if cfg.CloudinaryURL != "" {
@@ -195,9 +223,18 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// self-serve plan-change flow) at the top of each recurring sweep, so a
 		// downgraded subscription renews on the new plan.
 		PlanChanges: businessIdentityRepo,
-		// Same VAT policy as the activation path, so renewal charges match.
+		// Refreshes stores' mirrored Paystack settlements for the operator/worker
+		// settlement-sync endpoint (§3.3) — the same sync the Money Desk read
+		// path triggers throttled.
+		SettlementSyncer: paymentService,
+		// Same VAT policy as the activation path, so renewal charges match: the
+		// live admin-editable rate (§4.1), with the env value as fallback only.
+		VATRates:     platformSettingsReader,
 		VATRateBps:   cfg.SubscriptionVATRateBps,
 		VATInclusive: cfg.SubscriptionVATInclusive,
+		// §13.3 renewal reminders go by SMS (outbox) AND email — the same
+		// synchronous Resend sender as the auth flows; nil-safe when unset.
+		Emails: emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
 	})
 	for _, command := range adminBootstrapUsers {
 		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)
@@ -209,17 +246,6 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 	adminAuthenticator := adminauthhttp.NewAuthenticator(jwtIssuer)
 
-	paymentService := paymentsapp.NewService(paymentsapp.Dependencies{
-		Provider:   paymentProvider,
-		Payments:   postgres.NewPaymentRepository(db),
-		Businesses: postgres.NewBusinessChargeRepository(db),
-		IDs:        ids.UUIDGenerator{},
-		// Sends and checks the code that proves a payout mobile-money number
-		// before payout details are saved (Testing Report §3.1). The auth service
-		// owns the OTP rules; payments borrows them rather than copying them.
-		OTP: authService,
-	})
-
 	promotionRepository := postgres.NewPromotionRepository(db)
 
 	catalogueService := catalogueapp.NewService(catalogueapp.Dependencies{
@@ -228,7 +254,9 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Settings:   postgres.NewStoreSettingsRepository(db),
 		Promotions: promotionRepository,
 		Waitlist:   postgres.NewDesignWaitlistRepository(db),
-		IDs:        ids.UUIDGenerator{},
+		// §14.1 design performance: the storefront repo also records views.
+		Views: postgres.NewStorefrontRepository(db),
+		IDs:   ids.UUIDGenerator{},
 	})
 
 	mediaService := mediaapp.NewService(mediaStore)
@@ -275,6 +303,38 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Messages: postgres.NewNotificationRepository(db),
 	})
 
+	// §14 analytics & reports: read-only insight over data the other modules
+	// persist, gated live by the plan entitlement matrix (§14.5).
+	analyticsRepository := postgres.NewAnalyticsRepository(db)
+	reportsRepository := postgres.NewReportsRepository(db)
+	analyticsService := analyticsapp.NewService(analyticsapp.Dependencies{
+		Analytics: analyticsRepository,
+		Settings:  postgres.NewStoreSettingsRepository(db),
+		Clock:     clock.SystemClock{},
+	})
+	reportsService := reportsapp.NewService(reportsapp.Dependencies{
+		Reports:   reportsRepository,
+		Analytics: analyticsRepository,
+		Settings:  postgres.NewStoreSettingsRepository(db),
+		Writers:   reportsapp.NewDefaultRegistry(),
+		// Scheduled-report delivery goes through the same synchronous Resend
+		// sender as the auth flows (the notification outbox has no email
+		// channel; nil-safe when unconfigured).
+		Emails: emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		Clock:  clock.SystemClock{},
+	})
+
+	// §15 Customer CRM: the tenant-scoped read-and-annotate layer over the
+	// customers the order flow auto-populates (§15.3 — no create endpoint
+	// anywhere). Gated live by the plan's crm_level (§11.1 matrix); exports
+	// reuse the §14.4 writer registry read-only.
+	crmService := crmapp.NewService(crmapp.Dependencies{
+		CRM:      postgres.NewCRMRepository(db),
+		Settings: postgres.NewStoreSettingsRepository(db),
+		Writers:  reportsapp.NewDefaultRegistry(),
+		Clock:    clock.SystemClock{},
+	})
+
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
 		Storefront:    postgres.NewStorefrontRepository(db),
 		Businesses:    postgres.NewBusinessChargeRepository(db),
@@ -317,6 +377,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	whatsAppBotService := buildWhatsAppBotService(cfg, logger, db, checkoutService)
 
 	production := strings.EqualFold(cfg.Environment, "production")
+	if production && cfg.InternalToken == "" {
+		// Not a boot failure — the endpoints simply stay 404 — but without the
+		// token the worker can never trigger the §13.3/§14.1/§3.3 sweeps, so
+		// say so loudly.
+		logger.Warn("XTIITCH_INTERNAL_TOKEN not set; /v1/internal/* scheduler endpoints disabled (404)")
+	}
 	// In production the API sits behind Render's single reverse proxy, so the
 	// genuine client IP is the last X-Forwarded-For hop; locally there is no
 	// trusted proxy, so trust none and use the direct connection address.
@@ -350,6 +416,13 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		deliveryhttp.NewHandler(deliveryService, authenticator),
 		measurementhttp.NewHandler(measurementService, authenticator),
 		notificationhttp.NewHandler(notificationService, authenticator),
+		analyticshttp.NewHandler(analyticsService, authenticator),
+		reportshttp.NewHandler(reportsService, authenticator, adminAuthenticator),
+		crmhttp.NewHandler(crmService, authenticator),
+		// Worker-triggered sweeps (§13.3/§14.1/§3.3): token-guarded, calling the
+		// same service methods as the admin endpoints. Registers nothing when
+		// the token is unset (404 = disabled).
+		internalhttp.NewHandler(cfg.InternalToken, adminAuthService, reportsService),
 	)
 
 	return App{

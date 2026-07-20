@@ -59,8 +59,8 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
-	if payments.initInput.AmountMinor != 13200 {
-		t.Fatalf("expected the discounted checkout amount 13200, got %d", payments.initInput.AmountMinor)
+	if payments.initInput.AmountMinor != 13463 {
+		t.Fatalf("expected the discounted checkout amount plus §4.1 fees (13200 -> 13463), got %d", payments.initInput.AmountMinor)
 	}
 
 	// Verify books the paid discounted amount and flips the redemption to applied.
@@ -77,7 +77,7 @@ func TestVerifySubscriptionAuthorizationAppliesPercentageDiscountOffRenewal(t *t
 	if payments.chargeInput.AuthorizationCode != "" {
 		t.Fatalf("the discounted first period must NOT be re-charged, got %+v", payments.chargeInput)
 	}
-	if businesses.activationPayment.AmountMinor != 13200 {
+	if businesses.activationPayment.AmountMinor != 13463 {
 		t.Fatalf("expected the activation payment booked at the discounted amount, got %d", businesses.activationPayment.AmountMinor)
 	}
 	if len(discounts.marked) != 1 || discounts.marked[0].DiscountMinor != 1500 {

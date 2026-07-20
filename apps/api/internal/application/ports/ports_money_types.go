@@ -7,7 +7,12 @@ import (
 )
 
 type CreateBusinessSubaccountInput struct {
-	BusinessID   common.ID
+	BusinessID common.ID
+	// BusinessName is the name Paystack records on the subaccount. Per §2.1 it
+	// is the MoMo-REGISTERED wallet name the owner supplied ("the exact legal
+	// name that pops up when someone sends money to this number"), because
+	// settlement resolves against the wallet's registered name — the store's
+	// trading name is only a fallback for legacy rows that never collected one.
 	BusinessName string
 	// SettlementBank is the provider's settlement-bank code — for Ghana mobile
 	// money the network code (MTN / VOD / ATL), or a bank code. Paystack REQUIRES
@@ -22,7 +27,10 @@ type CreateBusinessSubaccountInput struct {
 type UpdateBusinessSubaccountInput struct {
 	BusinessID common.ID
 	// SubaccountRef is the provider's code for the subaccount to repoint.
-	SubaccountRef     string
+	SubaccountRef string
+	// BusinessName re-points the subaccount's display name at the wallet's
+	// registered name (§2.1), same rule as CreateBusinessSubaccountInput.
+	BusinessName      string
 	SettlementBank    string
 	SettlementAccount string
 }
@@ -33,10 +41,14 @@ type UpdateBusinessSubaccountInput struct {
 // strings: transposing them would write the network into the mobile-money-number
 // column and corrupt the payout destination silently.
 type ProvisionSubaccountInput struct {
-	BusinessID        common.ID
-	SubaccountRef     string
-	SettlementBank    string
-	SettlementAccount string
+	BusinessID    common.ID
+	SubaccountRef string
+	// SettlementAccountName is the MoMo-registered wallet name (§2.1), mirrored
+	// locally so the dashboard can show it and later repoints can re-derive the
+	// subaccount name without asking again.
+	SettlementAccountName string
+	SettlementBank        string
+	SettlementAccount     string
 }
 
 type CreateBusinessSubaccountResult struct {
@@ -51,18 +63,16 @@ type InitializeTransactionInput struct {
 	CommissionMinor int64
 	Currency        string
 	Reference       string
-	// Splits, when set, routes ONE charge across several merchants' subaccounts
-	// (the §4 marketplace basket). Each entry is a merchant's net share; the
-	// platform receives the remainder (total charge minus the summed shares) as
-	// its commission. When Splits is empty the single SubaccountRef path is used.
-	Splits []SubaccountSplit
-}
-
-// SubaccountSplit is one merchant's net share (minor units) of a marketplace
-// split charge, settled to that merchant's subaccount.
-type SubaccountSplit struct {
-	SubaccountRef string
-	ShareMinor    int64
+	// CallbackURL, when set, is where the provider returns the customer after
+	// they pay (§5.2: back to the storefront cart). Empty keeps the provider
+	// default. It is passed to the provider verbatim, so callers must have
+	// validated it already (checkout validates: absolute https, or http on
+	// loopback for dev).
+	CallbackURL string
+	// NOTE: there is deliberately no multi-destination split here. §5.2: every
+	// payment on Xtiitch is one customer → one store, so the single-store
+	// SubaccountRef split (§4.8) is the only split — "no multi-store split
+	// logic exists anywhere."
 }
 
 type InitializeTransactionResult struct {
@@ -100,8 +110,11 @@ type VerifyAuthorizationInput struct {
 // recurring (AuthorizationCode + Reusable; MoMo authorizations are typically not
 // reusable, so the renewal sweep re-prompts instead of silently charging).
 type VerifyAuthorizationResult struct {
-	Succeeded         bool
-	AmountMinor       int64
+	Succeeded   bool
+	AmountMinor int64
+	// FeeMinor is the transaction fee the provider reports on this charge (§3.2);
+	// 0 means "not reported".
+	FeeMinor          int64
 	AuthorizationCode string
 	CustomerCode      string
 	CustomerEmail     string
@@ -134,9 +147,88 @@ type ProviderChargeEvent struct {
 	ProviderReference string
 	Succeeded         bool
 	AmountMinor       int64
+	// FeeMinor is the transaction fee the PROVIDER reports it took on this
+	// charge (Paystack's "fees" field, persisted verbatim per §3.2 — never
+	// locally recomputed). 0 means "not reported".
+	FeeMinor int64
 	// Signature is the idempotency key for this event (provider + reference +
 	// type), used to make a re-delivered confirmation a no-op.
 	Signature string
+}
+
+// ProviderTransferEvent is a parsed transfer.* webhook: the payout-side signal
+// (§4.10). SubaccountCode identifies the store whose settlements should be
+// refreshed; empty means the payload did not name one (no store to refresh).
+type ProviderTransferEvent struct {
+	EventType         string
+	ProviderReference string
+	Status            string
+	SubaccountCode    string
+	AmountMinor       int64
+	Succeeded         bool
+	// Signature is the idempotency key for this event (provider + reference +
+	// type), same construction as ProviderChargeEvent.
+	Signature string
+}
+
+// ListSettlementsInput filters the provider's Settlements API (§3.2): by the
+// store's subaccount, an optional date range and status, paginated.
+type ListSettlementsInput struct {
+	SubaccountRef string
+	From          *time.Time
+	To            *time.Time
+	Status        string
+}
+
+// ProviderSettlement is one settlement (payout) record as the provider reports
+// it — Paystack's Settlements data is the ground truth for what settled to a
+// store (§3.2). RawPayload keeps the provider's own record verbatim for
+// dispute evidence (§11.5).
+type ProviderSettlement struct {
+	ProviderReference string
+	SubaccountCode    string
+	AmountMinor       int64
+	Status            string
+	SettledAt         *time.Time
+	RawPayload        []byte
+}
+
+// RecordProviderEventInput is one non-charge provider event delivery for the
+// idempotency ledger.
+type RecordProviderEventInput struct {
+	EventSignature    string
+	EventType         string
+	ProviderReference string
+}
+
+// ProviderSettlementInput is one settlement row to mirror locally.
+type ProviderSettlementInput struct {
+	ProviderReference string
+	SubaccountCode    string
+	AmountMinor       int64
+	Status            string
+	SettledAt         *time.Time
+	RawPayload        []byte
+}
+
+// ProviderSettlementRecord is a mirrored settlement row: the store owner's
+// payout history (§3.3).
+type ProviderSettlementRecord struct {
+	SettlementID      common.ID
+	ProviderReference string
+	AmountMinor       int64
+	Status            string
+	SettledAt         *time.Time
+	CreatedAt         time.Time
+}
+
+// SettlementSyncResult reports one SyncSettlements run. Skipped means no sync
+// was attempted (no subaccount on file, or the per-business throttle window
+// has not elapsed); Upserted counts the rows written when it did run.
+type SettlementSyncResult struct {
+	BusinessID common.ID
+	Skipped    bool
+	Upserted   int
 }
 
 type ManualTakingInput struct {
@@ -150,6 +242,9 @@ type ManualTakingInput struct {
 	CommissionMinor  int64
 	CommissionStatus string
 	CommissionNote   string
+	// LoggedByUserID is the staff member logging the taking (§14.1 team
+	// analytics, 000109). Zero = unattributed.
+	LoggedByUserID common.ID
 }
 
 type ManualTakingRecord struct {
@@ -164,15 +259,33 @@ type ManualTakingRecord struct {
 	TakenAt          time.Time
 }
 
-// MoneySummary is the business's income overview, all in GHS pesewas. Net income
-// is what the business keeps: through-platform settlements (gross minus the
-// platform commission) plus off-platform takings, less accrued offline platform
-// commission that still needs later invoice/reconciliation.
+// MoneySummary is the business's income overview, all in GHS pesewas. Every
+// fee/settlement figure is a SQL sum over PERSISTED provider-derived columns
+// (§3.2 bans deriving fees locally; sums of stored Paystack figures are the
+// allowed shape). Store share per payment is defined from what we persist:
+//
+//	store_share = amount_minor − commission_minor − coalesce(provider_fee_minor, 0)
+//
+// (commission_minor already carries the Xtiitch fee + the VAT on it — that is
+// the split's transaction_charge routed to the main account). AllTimeIncomeMinor
+// is the store's cumulative earnings since joining (§3.1, never reduced by
+// payouts); NetIncomeMinor is the amount due for payout — the same figure minus
+// the settlements already paid out, so it rises with sales and drops when a
+// payout lands (§3.1/§3.3).
 type MoneySummary struct {
-	ThroughPlatformMinor      int64
-	CommissionMinor           int64
+	ThroughPlatformMinor int64
+	// CommissionMinor is Σ commission_minor (Xtiitch fee + tax combined), kept
+	// with its existing meaning for backward compatibility.
+	CommissionMinor  int64
+	XtiitchFeeMinor  int64
+	XtiitchTaxMinor  int64
+	PaystackFeeMinor int64
+	// SettledPayoutsMinor is Σ successful settlements (payouts) mirrored from
+	// the provider (§3.3) — the "already paid out" side of net income.
+	SettledPayoutsMinor       int64
 	ManualTakingsMinor        int64
 	OfflineCommissionDueMinor int64
+	AllTimeIncomeMinor        int64
 	NetIncomeMinor            int64
 }
 
@@ -187,32 +300,15 @@ type CreatePaymentInput struct {
 	Method            string
 	ProviderReference string
 	CommissionMinor   int64
+	// XtiitchTaxMinor is the VAT on the Xtiitch fee from the quote that was
+	// charged (§4.2/§4.3), persisted at charge time so the Money Desk can split
+	// the fee from the tax without ever recomputing either (§3.2).
+	XtiitchTaxMinor int64
 	// SettleAmountMinor is the portion of this payment that counts toward the
 	// order's settled_minor: the order amount WITHOUT any buyer-borne platform fee
 	// (equals AmountMinor when the merchant absorbs the fee). 0 falls back to
 	// AmountMinor at settlement, so a buyer-borne fee never inflates the balance.
 	SettleAmountMinor int64
-}
-
-// MarketplaceChargeInput records one combined multi-store split charge: the
-// parent (keyed by the Paystack provider reference) plus a member per shop in
-// the basket. TotalMinor is the whole charge; each member's NetMinor is that
-// shop's flat split share and CommissionMinor the platform's cut for it.
-type MarketplaceChargeInput struct {
-	ChargeID          common.ID
-	ProviderReference string
-	CustomerEmail     string
-	TotalMinor        int64
-	Members           []MarketplaceChargeMember
-}
-
-type MarketplaceChargeMember struct {
-	MemberID        common.ID
-	BusinessID      common.ID
-	CheckoutGroupID common.ID
-	AnchorOrderID   common.ID
-	NetMinor        int64
-	CommissionMinor int64
 }
 
 type ConfirmPaymentInput struct {
@@ -225,6 +321,11 @@ type ConfirmPaymentInput struct {
 	// an underpayment never settles an order in full. 0 means "not reported" (skip
 	// the check), preserving behaviour for events without an amount.
 	PaidAmountMinor int64
+	// ProviderFeeMinor is the transaction fee the provider reports it took on this
+	// charge, persisted verbatim on confirmation (§3.2 — the Money Desk reads the
+	// stored figure, it is never recomputed locally). 0 means "not reported":
+	// the stored value is left untouched.
+	ProviderFeeMinor int64
 }
 
 type ConfirmPaymentResult struct {
@@ -260,8 +361,21 @@ type BusinessChargeContext struct {
 	// (migration 000087).
 	SettlementBank    string
 	SettlementAccount string
-	CommissionBps     int
-	// FeePassToBuyer: when true the buyer pays the platform fee on top of the
-	// order total and the merchant nets the full total (Pricing Book §3).
-	FeePassToBuyer bool
+	// MoMoAccountName is the MoMo-registered wallet name as last saved (§2.1).
+	// Empty for businesses provisioned before migration 000098; their first
+	// resubmit backfills it, and until then the store's trading name stands in
+	// for the subaccount name.
+	MoMoAccountName string
+	// SettlementsSyncedAt is the settlement-sync watermark (§3.3): the last time
+	// this store's payouts were mirrored from the provider. Nil means never
+	// synced; the sync throttle compares it against the current time.
+	SettlementsSyncedAt *time.Time
+	CommissionBps       int
+	// FeePassXtiitchFee / FeePassTax / FeePassPaystackFee are the store's three
+	// fee pass-down tick boxes (§4.4): which of the Xtiitch fee, the Tax (VAT on
+	// it) and the Paystack fee are charged to the customer on top of the order
+	// total at checkout instead of absorbed from the store's share.
+	FeePassXtiitchFee  bool
+	FeePassTax         bool
+	FeePassPaystackFee bool
 }

@@ -10,15 +10,29 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkRounded";
 import type { Route } from "./+types/collection";
 import { api } from "../lib/api";
+import { requestTenant } from "../lib/tenant";
 import { DesignGrid, StoreNotice } from "../components/storefront";
 import { tokens } from "../theme";
 
-export async function loader({ params }: Route.LoaderArgs) {
-  const page = await api.collection(params.handle);
+export async function loader({ params, request }: Route.LoaderArgs) {
+  const tenant = requestTenant(request);
+  const page = await api.collection(params.handle, tenant);
   if (!page) {
     // Deleted or unpublished: render a friendly in-store notice (below) rather
     // than a hard error page. The 404 status keeps it out of search results.
     return data({ notFound: true } as const, { status: 404 });
+  }
+  // §6: on a tenant host only that store's own collections exist. Collection
+  // payloads carry no store, so ownership is checked against the tenant's own
+  // store page (whose collections list is authoritative).
+  if (tenant) {
+    const tenantPage = await api.store(tenant, tenant).catch(() => null);
+    const owns = tenantPage?.collections.some(
+      (entry) => entry.handle === params.handle,
+    );
+    if (!owns) {
+      return data({ notFound: true } as const, { status: 404 });
+    }
   }
   return { collection: page.collection, designs: page.designs };
 }

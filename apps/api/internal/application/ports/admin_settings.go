@@ -48,7 +48,12 @@ type AdminPlatformSettingsRecord struct {
 	// add-on: when false it cannot be purchased or renewed anywhere, overriding the
 	// per-deployment capability gate.
 	AIAssistantAddonEnabled bool
-	UpdatedAt               time.Time
+	// VATRateBps is the live, admin-editable VAT rate (§4.1) applied at charge
+	// time across all payments: on the package price for subscriptions, on the
+	// Xtiitch fee for store sales. 0 disables VAT; the column defaults to 2000
+	// (Ghana's standard 20%).
+	VATRateBps int
+	UpdatedAt  time.Time
 }
 
 // MarketingFlags gate whether each not-yet-launched marketing surface is shown.
@@ -68,6 +73,8 @@ type UpdateAdminPlatformSettingsInput struct {
 	MaintenanceMode              bool
 	BrandLogoURL                 string
 	AIAssistantAddonEnabled      bool
+	// VATRateBps is the platform VAT rate in basis points (§4.1), 0..10000.
+	VATRateBps int
 }
 
 // UpdateAdminMarketingFlagsInput is a partial update of the four marketing

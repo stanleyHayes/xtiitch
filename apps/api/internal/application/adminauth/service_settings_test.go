@@ -25,6 +25,7 @@ func TestUpdatePlatformSettingsRequiresManageSettings(t *testing.T) {
 		VerificationSLAHours:         36,
 		PayoutReviewThresholdPesewas: 750000,
 		MaintenanceMode:              true,
+		VATRateBps:                   2000,
 	})
 	if err != nil {
 		t.Fatalf("update platform settings: %v", err)
@@ -36,8 +37,28 @@ func TestUpdatePlatformSettingsRequiresManageSettings(t *testing.T) {
 		!users.updatedPlatformSettings.MaintenanceMode {
 		t.Fatalf("expected normalized platform settings, got %+v", users.updatedPlatformSettings)
 	}
+	// §4.1: the VAT rate is admin-editable through the platform settings.
+	if users.updatedPlatformSettings.VATRateBps != 2000 {
+		t.Fatalf("expected the VAT rate to persist, got %+v", users.updatedPlatformSettings)
+	}
 	if settings.SupportEmail != "support@xtiitch.com" || !settings.MaintenanceMode {
 		t.Fatalf("unexpected platform settings response: %+v", settings)
+	}
+
+	// §4.1: the VAT rate is a basis-points percentage — outside 0..10000 is rejected.
+	for _, badRate := range []int{-1, 10001} {
+		_, err = service.UpdatePlatformSettings(context.Background(), UpdatePlatformSettingsCommand{
+			ActorUserID:                  "owner-1",
+			ActorRole:                    admindomain.RoleOwner,
+			PlatformName:                 "Xtiitch",
+			SupportEmail:                 "support@xtiitch.com",
+			VerificationSLAHours:         24,
+			PayoutReviewThresholdPesewas: 500000,
+			VATRateBps:                   badRate,
+		})
+		if !errors.Is(err, authdomain.ErrInvalidInput) {
+			t.Fatalf("expected VAT rate %d rejected, got %v", badRate, err)
+		}
 	}
 
 	_, err = service.UpdatePlatformSettings(context.Background(), UpdatePlatformSettingsCommand{

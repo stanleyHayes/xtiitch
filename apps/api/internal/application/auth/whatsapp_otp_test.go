@@ -17,6 +17,7 @@ type fakeOTPChallenge struct {
 	codeHash  string
 	attempts  int
 	consumed  bool
+	verified  bool
 	expiresAt time.Time
 	createdAt time.Time
 	purpose   string
@@ -98,6 +99,39 @@ func (f *fakeWhatsAppAuth) ConsumeSignInOTPChallenge(_ context.Context, id commo
 		}
 	}
 	return nil
+}
+
+func (f *fakeWhatsAppAuth) MarkSignInOTPChallengeVerified(_ context.Context, id common.ID) error {
+	for _, c := range f.challenges {
+		if c.id == id {
+			c.verified = true
+		}
+	}
+	return nil
+}
+
+// Mirrors the real query: verified-but-unconsumed, unexpired, number+purpose.
+func (f *fakeWhatsAppAuth) LatestVerifiedSignInOTPChallenge(
+	_ context.Context,
+	number string,
+	purpose string,
+	now time.Time) (ports.BusinessOTPChallengeRecord,
+	error,
+) {
+	for i := len(f.challenges) - 1; i >= 0; i-- {
+		c := f.challenges[i]
+		if c.number == number && c.purpose == purpose && c.verified && !c.consumed && c.expiresAt.After(now) {
+			return ports.BusinessOTPChallengeRecord{
+				ChallengeID:    c.id,
+				WhatsAppNumber: c.number,
+				CodeHash:       c.codeHash,
+				Attempts:       c.attempts,
+				ExpiresAt:      c.expiresAt,
+				CreatedAt:      c.createdAt,
+			}, nil
+		}
+	}
+	return ports.BusinessOTPChallengeRecord{}, ports.ErrNotFound
 }
 
 type fakeOTPGen struct{ code string }

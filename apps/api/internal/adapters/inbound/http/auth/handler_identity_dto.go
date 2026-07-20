@@ -4,6 +4,13 @@ type meResponse struct {
 	BusinessID string `json:"business_id"`
 	UserID     string `json:"user_id"`
 	Role       string `json:"role"`
+	// §9 profile fields, read live from the caller's business_users row so
+	// profile edits are reflected everywhere the dashboard shows them.
+	Email          string `json:"email"`
+	DisplayName    string `json:"display_name"`
+	Phone          string `json:"phone"`
+	PhoneVerified  bool   `json:"phone_verified"`
+	WhatsAppNumber string `json:"whatsapp_number"`
 }
 
 type businessUserResponse struct {
@@ -48,6 +55,9 @@ type transferBusinessOwnerRequest struct {
 }
 
 type identityVerificationRequest struct {
+	// FullLegalName is the owner's official name exactly as printed on the Ghana
+	// Card (§2.3); required for new submissions.
+	FullLegalName  string `json:"full_legal_name"`
 	CardNumber     string `json:"card_number"`
 	IDPhotoURL     string `json:"id_photo_url"`
 	IDPhotoBackURL string `json:"id_photo_back_url"`

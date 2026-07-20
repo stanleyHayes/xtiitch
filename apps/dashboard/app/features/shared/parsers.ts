@@ -31,6 +31,8 @@ export function isManagementSection(value: string): value is DashboardSection {
   return [
     "overview",
     "reports",
+    "analytics",
+    "customers",
     "orders",
     "money",
     "visits",

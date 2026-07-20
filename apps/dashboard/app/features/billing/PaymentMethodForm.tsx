@@ -1,4 +1,4 @@
-import { Form, Link as RouterLink } from "react-router";
+import { Form, Link as RouterLink, useSearchParams } from "react-router";
 import MuiLink from "@mui/material/Link";
 import { useState } from "react";
 import Alert from "@mui/material/Alert";
@@ -8,9 +8,6 @@ import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
 import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
-import Radio from "@mui/material/Radio";
-import RadioGroup from "@mui/material/RadioGroup";
-import FormControlLabel from "@mui/material/FormControlLabel";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -22,6 +19,7 @@ import { CardDropzone } from "../../components/ui/CardDropzone";
 import { XCreativsPaymentNotice } from "../../components/ui/XCreativsPaymentNotice";
 import { tokens } from "../../theme";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
+import { BillingCyclePicker } from "./BillingCyclePicker";
 
 type VATPolicy = { vat_rate_bps: number; vat_inclusive: boolean };
 
@@ -57,37 +55,11 @@ export function vatNote(vat: VATPolicy): string {
 }
 
 // The Pricing Book bills the FIRST figure on the first paid cycle and the
-// RENEWAL figure on every renewal — surfaced verbatim so the owner sees exactly
-// what they will be charged now vs later.
-function cadenceCopy(
-  plan: PublicPlan,
-  cadence: BillingCadence,
-): {
-  label: string;
-  per: string;
-  firstLabel: string;
-  first: number;
-  renewal: number;
-} {
-  if (cadence === "quarterly") {
-    return {
-      label: "Quarterly",
-      per: "quarter",
-      firstLabel: "first 3 months",
-      first: plan.quarterly_first_minor,
-      renewal: plan.quarterly_renewal_minor,
-    };
-  }
-  return {
-    label: "Yearly",
-    per: "year",
-    firstLabel: "first year",
-    first: plan.yearly_first_minor,
-    renewal: plan.yearly_renewal_minor,
-  };
-}
+// RENEWAL figure on every renewal. The cadence figures and their full
+// package + Tax (VAT) + Transaction fee totals render in BillingCyclePicker;
+// the §4.6 gross-up maths lives in lib/billing-fees.ts.
 
-export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+export function PaymentMethodForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   plan,
   identityOnFile,
   verified,
@@ -103,7 +75,12 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
   const [photoName, setPhotoName] = useState("");
   const [photoBackName, setPhotoBackName] = useState("");
   const isPaidPlan = plan !== null && plan.monthly_fee_minor > 0;
-  const [cadence, setCadence] = useState<BillingCadence>("yearly");
+  // The plans list deep-links here with ?plan=code&cadence=..., so the cycle
+  // the owner picked there is the cycle this form starts on.
+  const [searchParams] = useSearchParams();
+  const [cadence, setCadence] = useState<BillingCadence>(
+    searchParams.get("cadence") === "quarterly" ? "quarterly" : "yearly",
+  );
 
   return (
     <Box
@@ -188,87 +165,11 @@ export function PaymentMethodForm({ // eslint-disable-line complexity, max-lines
           <Form method="post" encType="multipart/form-data">
             <Stack spacing={2}>
               {isPaidPlan && plan ? (
-                <Box sx={{ textAlign: "left" }}>
-                  <Typography sx={{ fontWeight: 800, mb: 1 }}>
-                    Choose your billing cycle
-                  </Typography>
-                  <RadioGroup
-                    name="billing_cadence"
-                    value={cadence}
-                    onChange={(event) =>
-                      setCadence(event.target.value as BillingCadence)
-                    }
-                  >
-                    <Stack spacing={1.5}>
-                      {(["yearly", "quarterly"] as BillingCadence[]).map(
-                        (option) => {
-                          if (!plan) return null;
-                          const copy = cadenceCopy(plan, option);
-                          const selected = cadence === option;
-                          return (
-                            <Paper
-                              key={option}
-                              variant="outlined"
-                              sx={{
-                                p: 1.5,
-                                borderRadius: 2,
-                                borderColor: selected
-                                  ? tokens.burgundy
-                                  : alpha(tokens.ink, 0.16),
-                                borderWidth: selected ? 2 : 1,
-                                bgcolor: selected
-                                  ? alpha(tokens.burgundy, 0.04)
-                                  : "transparent",
-                              }}
-                            >
-                              <FormControlLabel
-                                value={option}
-                                control={<Radio />}
-                                sx={{
-                                  m: 0,
-                                  width: "100%",
-                                  alignItems: "flex-start",
-                                }}
-                                label={
-                                  <Box>
-                                    <Typography sx={{ fontWeight: 700 }}>
-                                      {copy.label} —{" "}
-                                      {formatPrice(vatGross(copy.first, plan))}{" "}
-                                      {copy.firstLabel}
-                                    </Typography>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{ color: alpha(tokens.ink, 0.68) }}
-                                    >
-                                      then{" "}
-                                      {formatPrice(
-                                        vatGross(copy.renewal, plan),
-                                      )}
-                                      /{copy.per}
-                                    </Typography>
-                                  </Box>
-                                }
-                              />
-                            </Paper>
-                          );
-                        },
-                      )}
-                    </Stack>
-                  </RadioGroup>
-                  {plan && vatNote(plan) ? (
-                    <Typography
-                      variant="caption"
-                      sx={{
-                        display: "block",
-                        mt: 1,
-                        color: alpha(tokens.ink, 0.6),
-                      }}
-                    >
-                      {vatNote(plan)}
-                    </Typography>
-                  ) : null}
-                  <Divider sx={{ mt: 2 }} />
-                </Box>
+                <BillingCyclePicker
+                  plan={plan}
+                  cadence={cadence}
+                  onChange={setCadence}
+                />
               ) : null}
               {isPaidPlan ? (
                 <Box sx={{ textAlign: "left" }}>

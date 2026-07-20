@@ -11,6 +11,7 @@ import {
 } from "./billing-helpers";
 import { ChangePlanView } from "./ChangePlanView";
 import { PaymentMethodForm } from "./PaymentMethodForm";
+import { PlansView } from "./PlansView";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -79,7 +80,7 @@ export async function action({ request }: Route.ActionArgs) {
   return verifyIdentityAndStartBilling(request, form);
 }
 
-export default function BillingOnboarding({
+export default function BillingOnboarding({ // eslint-disable-line complexity -- view switch over plan/management state; refactor in follow-up
   loaderData,
   actionData,
 }: Route.ComponentProps) {
@@ -107,6 +108,22 @@ export default function BillingOnboarding({
         plans={plans}
         result={result}
         isSubmitting={isSubmitting}
+      />
+    );
+  }
+
+  // §7.1: no valid plan selected and nothing paid to manage — a Free account
+  // hitting Upgrade (or an unknown ?plan=) lands here. The old fall-through
+  // rendered PaymentMethodForm with plan=null, which errored out; show the
+  // plans list instead so Upgrade always reaches a working plans page.
+  if (!plan) {
+    return (
+      <PlansView
+        plans={plans}
+        currentPlanCode={currentPlan?.code}
+        title="Upgrade your plan"
+        subtitle="You're on the Free plan. Pick a package below to unlock more — payment is by Paystack, quarterly or yearly."
+        backTo="/dashboard"
       />
     );
   }

@@ -15,6 +15,7 @@ import TextField from "../../../components/form-text-field";
 import type { AdminPlan } from "../../shared/types";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
 import { PlanBenefitsField } from "../../plans/PlanBenefitsField";
+import { PlanCadenceFields } from "../../plans/PlanCadenceFields";
 import { Panel } from "../../../components/ui/Panel";
 
 export function BillingPanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
@@ -145,23 +146,12 @@ export function BillingPanel({ // eslint-disable-line max-lines-per-function -- 
                         },
                       }}
                     >
-                      <TextField
-                        label="Monthly fee"
-                        name="monthly_fee_ghs"
-                        type="number"
-                        size="small"
-                        defaultValue="0.00"
-                        slotProps={{
-                          input: {
-                            startAdornment: (
-                              <InputAdornment position="start">
-                                GHS
-                              </InputAdornment>
-                            ),
-                          },
-                          htmlInput: { min: 0, step: "0.01" },
-                        }}
-                      />
+                      {/* The cadence prices Xtiitch actually charges (quarterly
+                          / yearly, first cycle vs renewal). The monthly rate
+                          auto-fills the quarterly until overridden, exactly
+                          like the edit dialog — and createPlan already posts
+                          all four cadence figures. */}
+                      <PlanCadenceFields />
                       <TextField
                         label="Yearly fee"
                         name="yearly_fee_ghs"
