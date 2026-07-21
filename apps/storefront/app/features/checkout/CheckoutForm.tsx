@@ -29,8 +29,10 @@ type CheckoutFormProps = {
   storeHandle: string;
   items: CartItem[];
   // The amount the Pay button announces — the quote's total_minor (§4.5), so
-  // the button matches the rendered breakdown exactly.
-  payMinor: number;
+  // the button matches the rendered breakdown exactly. NULL when the quote
+  // could not be loaded: the button then stays disabled (the page shows the
+  // retry error) rather than charging a total with no tax/fee lines behind it.
+  payMinor: number | null;
   zones: Zone[];
   profile: CustomerProfile | null;
   fulfilment: "pickup" | "delivery";
@@ -166,7 +168,7 @@ export default function CheckoutForm({
           variant="contained"
           size="large"
           startIcon={<LockRounded />}
-          disabled={submitting || !canPayNow}
+          disabled={submitting || !canPayNow || payMinor === null}
           sx={{
             bgcolor: tokens.burgundy,
             "&:hover": { bgcolor: alpha(tokens.burgundy, 0.85) },
@@ -174,7 +176,9 @@ export default function CheckoutForm({
         >
           {submitting
             ? "Starting payment…"
-            : `Pay ${formatGHS(payMinor)} with Paystack`}
+            : payMinor !== null
+              ? `Pay ${formatGHS(payMinor)} with Paystack`
+              : "Pay with Paystack"}
         </Button>
         {/* "XCreativs" is the name that appears at payment, which is unfamiliar
             to a shopper who only knows Xtiitch — say so here, at the moment of

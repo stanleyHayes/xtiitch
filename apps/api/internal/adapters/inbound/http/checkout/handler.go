@@ -31,6 +31,10 @@ type Service interface {
 	// "Transaction fee" line, the "Tax (VAT)" line and the grand total before
 	// the customer pays.
 	CheckoutQuote(ctx context.Context, command checkoutapp.CheckoutQuoteCommand) (checkoutapp.CheckoutQuoteResult, error)
+	// VerifyStorePayment settles a checkout payment against the provider when
+	// the customer returns from (or backs out of) Paystack and the webhook has
+	// not landed: succeeded / pending / failed, never an assumption.
+	VerifyStorePayment(ctx context.Context, command checkoutapp.VerifyStorePaymentCommand) (checkoutapp.VerifyStorePaymentResult, error)
 	StoreDeliveryZones(ctx context.Context, storeHandle string) ([]ports.DeliveryZone, error)
 }
 
@@ -61,6 +65,11 @@ func (handler Handler) Register(router chi.Router) {
 	// the GET stays for backwards compatibility with existing callers.
 	router.Get("/public/stores/{handle}/checkout-quote", handler.checkoutQuote)
 	router.Post("/public/stores/{handle}/checkout-quote", handler.checkoutQuote)
+	// Settle a checkout payment against the provider on the customer's return:
+	// the webhook is the primary confirmation path, but a customer who backed
+	// out of Paystack (or whose webhook is late) gets the truth here — and a
+	// failed payment releases its reservations, leaving the draft re-payable.
+	router.Post("/public/stores/{handle}/payments/verify", handler.verifyPayment)
 }
 
 func (handler Handler) listDeliveryZones(w http.ResponseWriter, r *http.Request) {
@@ -303,6 +312,34 @@ func (handler Handler) placeBooking(w http.ResponseWriter, r *http.Request) {
 	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, 0, &result.Quote)
 }
 
+type verifyPaymentBody struct {
+	Reference string `json:"reference"`
+}
+
+// verifyPayment settles a checkout payment by its provider reference: the
+// customer-facing status (succeeded / pending / failed) after checking with
+// the provider — never an assumption from the redirect alone. Unauthenticated
+// like the rest of public checkout; the reference only ever resolves within
+// the named store, so a foreign reference is a plain 404.
+func (handler Handler) verifyPayment(w http.ResponseWriter, r *http.Request) {
+	var body verifyPaymentBody
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	result, err := handler.service.VerifyStorePayment(r.Context(), checkoutapp.VerifyStorePaymentCommand{
+		StoreHandle:       chi.URLParam(r, "handle"),
+		ProviderReference: body.Reference,
+	})
+	if err != nil {
+		status, code := checkoutError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": result.Status})
+}
+
 func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64, discountMinor int64, quote *money.StoreSaleQuote) {
 	body := map[string]any{
 		"order_id":          orderID,
@@ -330,7 +367,8 @@ func checkoutError(err error) (int, string) {
 	case errors.Is(err, checkoutapp.ErrInvalidInput), errors.Is(err, checkoutapp.ErrBandUnavailable),
 		errors.Is(err, checkoutapp.ErrInvalidSizeMode), errors.Is(err, checkoutapp.ErrInvalidMeasurements):
 		return http.StatusBadRequest, "invalid_order"
-	case errors.Is(err, checkoutapp.ErrStoreNotFound), errors.Is(err, checkoutapp.ErrDesignUnavailable):
+	case errors.Is(err, checkoutapp.ErrStoreNotFound), errors.Is(err, checkoutapp.ErrDesignUnavailable),
+		errors.Is(err, ports.ErrNotFound):
 		return http.StatusNotFound, "not_found"
 	case errors.Is(err, checkoutapp.ErrNotVerified):
 		return http.StatusConflict, "store_not_verified"

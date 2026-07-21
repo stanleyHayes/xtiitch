@@ -12,6 +12,7 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CallRounded from "@mui/icons-material/CallRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
+import PaymentRounded from "@mui/icons-material/PaymentRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import { formatGHS } from "../../lib/format";
 import { tokens } from "../../theme";
@@ -261,6 +262,29 @@ function OrderRow({
             : "Price on confirmation"}
         </Typography>
         <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+          {/* A draft order is a payment that was started but never completed
+              (e.g. the customer backed out of Paystack). It must never be a
+              dead end: Pay now mints a fresh Paystack link for the SAME order
+              and sends the customer straight to it. */}
+          {order.status.toLowerCase() === "draft" ? (
+            <Form method="post">
+              <input type="hidden" name="intent" value="pay_order" />
+              <input type="hidden" name="order_id" value={order.order_id} />
+              <input
+                type="hidden"
+                name="store_handle"
+                value={order.business_handle}
+              />
+              <Button
+                type="submit"
+                size="small"
+                variant="contained"
+                startIcon={<PaymentRounded />}
+              >
+                Pay now
+              </Button>
+            </Form>
+          ) : null}
           {/* §5.3.3: the store's phone rides on every order. */}
           {order.store_phone ? (
             <Button

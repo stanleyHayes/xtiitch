@@ -72,8 +72,11 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 			-- multi-store split settles to each store's subaccount), so only stores
 			-- that can actually receive a payment are listed; a store appears
 			-- automatically the moment it sets up payouts. Suspended stores are
-			-- excluded regardless.
+			-- excluded regardless. Selling is ALSO gated on Ghana-Card business
+			-- verification (verification gates selling, never paying), so an
+			-- unverified store is not listed even with payouts set up.
 			where b.operational_status = 'active'
+				and b.verification_status = 'verified'
 				and coalesce(b.settlement_provider_subaccount, '') <> ''
 			order by b.name
 		`)
@@ -205,7 +208,12 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 			-- removal, so a plan with no features carries it rather than quietly
 			-- getting the paid treatment (Pricing Book §5: Free on, paid off).
 			not coalesce((p.features->>'remove_powered_by_badge')::boolean, false),
-			p.code
+			p.code,
+			-- Live: the store may sell and display only once the owner has verified
+			-- their business (Ghana Card) AND provisioned a payout subaccount — the
+			-- same pair checkout enforces (verification gates selling, never paying).
+			b.verification_status = 'verified'
+				and coalesce(b.settlement_provider_subaccount, '') <> ''
 		from businesses b
 		join store_settings ss on ss.business_id = b.business_id
 		join plans p on p.plan_id = b.plan_id
@@ -219,6 +227,7 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 		&store.OnlineOrderingEnabled,
 		&store.ShowPoweredByBadge,
 		&store.PlanCode,
+		&store.Live,
 	)
 	if err != nil {
 		return store, err

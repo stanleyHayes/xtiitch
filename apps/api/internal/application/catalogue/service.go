@@ -20,6 +20,15 @@ var ErrInvalidInput = errors.New("invalid catalogue input")
 // billing. The HTTP layer maps this to 402.
 var ErrActivationRequired = errors.New("plan activation required")
 
+// ErrVerificationRequired is returned when an unverified (or payout-less) store
+// tries to SELL-side write — upload or edit a design. Selling is gated on the
+// owner verifying their business (Ghana Card) AND setting up payout details,
+// the same pair checkout enforces (business_charge_repository: verification
+// status 'verified' + a provisioned settlement subaccount). Verification gates
+// selling, never paying: no payment/upgrade path checks it. The HTTP layer maps
+// this to 403.
+var ErrVerificationRequired = errors.New("business verification and payout setup required to sell")
+
 // ErrPricingModeConflict is returned when a size-band price is set on a design
 // in customisation (deposit) mode. It aliases the port-level error so the
 // repository can surface it atomically and the handler maps it to a 409.

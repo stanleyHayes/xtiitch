@@ -39,6 +39,10 @@ type PaymentRepository interface {
 	// ConfirmFromProvider records the provider event and advances the matching
 	// payment in a single transaction, so a re-delivered event is a no-op.
 	ConfirmFromProvider(ctx context.Context, input ConfirmPaymentInput) (ConfirmPaymentResult, error)
+	// FindByProviderReference returns the payment a provider reference names,
+	// scoped to the tenant, or ErrNotFound when the reference is unknown (or
+	// belongs to another business — the two are indistinguishable to the caller).
+	FindByProviderReference(ctx context.Context, scope common.TenantScope, providerReference string) (PaymentRecord, error)
 	ListByBusiness(ctx context.Context, scope common.TenantScope) ([]PaymentRecord, error)
 	// RecordManualTaking logs an off-platform sale (cash/momo/other). Paystack
 	// does not move this money, so any platform commission is only an accrued

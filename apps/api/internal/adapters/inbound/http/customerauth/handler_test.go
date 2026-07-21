@@ -130,6 +130,58 @@ func TestVerifyOTPDefaultsToPhoneChannel(t *testing.T) {
 	}
 }
 
+// The payment-link route re-initiates a checkout for a draft order and
+// returns the fresh authorization URL + reference; a non-payable order is a
+// 409 the UI keys its message off.
+func TestPaymentLinkReturnsFreshCheckout(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{paymentLinkResult: customerauthapp.OrderPaymentLinkResult{
+		AuthorizationURL: "https://pay/x",
+		Reference:        "xt_ref-2",
+	}}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/customer/orders/order-1/payment-link",
+		bytes.NewReader([]byte(`{"callback_url":"https://store.xtiitch.com/orders"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.paymentLinkOrderID != "order-1" || service.paymentLinkCallback != "https://store.xtiitch.com/orders" {
+		t.Fatalf("unexpected command: order=%q callback=%q", service.paymentLinkOrderID, service.paymentLinkCallback)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["authorization_url"] != "https://pay/x" || body["reference"] != "xt_ref-2" {
+		t.Fatalf("unexpected response body: %+v", body)
+	}
+}
+
+func TestPaymentLinkConflictWhenNotPayable(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{paymentLinkErr: customerauthapp.ErrOrderNotPayable}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/customer/orders/order-1/payment-link",
+		bytes.NewReader([]byte(`{"callback_url":"https://store.xtiitch.com/orders"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 // ── fakes ──────────────────────────────────────────────────────────────────
 
 type fakeService struct {
@@ -145,6 +197,11 @@ type fakeService struct {
 	markedGroupID     common.ID
 	markedCount       int
 	markErr           error
+
+	paymentLinkResult   customerauthapp.OrderPaymentLinkResult
+	paymentLinkErr      error
+	paymentLinkOrderID  common.ID
+	paymentLinkCallback string
 }
 
 func (s *fakeService) RequestOTP(_ context.Context, phone string) error {
@@ -188,6 +245,12 @@ func (s *fakeService) GetProfile(_ context.Context, _ common.ID) (ports.Customer
 
 func (s *fakeService) UpdateProfile(_ context.Context, _ common.ID, _, _, _ string) (ports.CustomerProfile, error) {
 	return ports.CustomerProfile{}, nil
+}
+
+func (s *fakeService) CreateOrderPaymentLink(_ context.Context, _ common.ID, orderID common.ID, callbackURL string) (customerauthapp.OrderPaymentLinkResult, error) {
+	s.paymentLinkOrderID = orderID
+	s.paymentLinkCallback = callbackURL
+	return s.paymentLinkResult, s.paymentLinkErr
 }
 
 type fakeVerifier struct{}

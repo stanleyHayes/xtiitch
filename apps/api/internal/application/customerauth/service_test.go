@@ -216,6 +216,9 @@ type fakeRepo struct {
 	basketCount    int
 	basketErr      error
 	markedBasketID common.ID
+
+	paymentContext    ports.CustomerOrderPaymentContext
+	paymentContextErr error
 }
 
 func (r *fakeRepo) CreateOTPChallenge(_ context.Context, input ports.CreateOTPChallengeInput) error {
@@ -280,6 +283,13 @@ func (r *fakeRepo) MarkCustomerBasketReceived(_ context.Context, _ common.ID, ch
 
 func (r *fakeRepo) GetCustomerProfile(_ context.Context, _ common.ID) (ports.CustomerProfile, error) {
 	return ports.CustomerProfile{}, nil
+}
+
+func (r *fakeRepo) GetCustomerOrderPaymentContext(_ context.Context, _ common.ID, orderID common.ID) (ports.CustomerOrderPaymentContext, error) {
+	if r.paymentContextErr != nil {
+		return ports.CustomerOrderPaymentContext{}, r.paymentContextErr
+	}
+	return r.paymentContext, nil
 }
 
 func (r *fakeRepo) UpdateCustomerProfile(_ context.Context, _ common.ID, _, _, _ string) (ports.CustomerProfile, error) {

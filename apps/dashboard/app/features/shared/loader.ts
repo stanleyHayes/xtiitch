@@ -22,7 +22,6 @@ import { defaultCrmData, type CrmData } from "../crm/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
-  BusinessPromotion,
   BusinessUser,
   CollectionSummary,
   CurrentUser,
@@ -63,7 +62,6 @@ export type DashboardLoaderData = {
   storeSettings: StoreSettings;
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
-  promotions: BusinessPromotion[];
   waitlistEntries: WaitlistEntry[];
   deliveryZones: DeliveryZone[];
   // §14/§15: fetched ONLY when the matching section is open (nine analytics
@@ -169,7 +167,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   let storeSettings = defaultStoreSettings as StoreSettings;
   let collections: CollectionSummary[] = [];
   let sizeBands: SizeBand[] = [];
-  let promotions: BusinessPromotion[] = [];
   let waitlistEntries: WaitlistEntry[] = [];
   let deliveryZones: DeliveryZone[] = [];
   const orders = ordersData.orders ?? [];
@@ -190,7 +187,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       settingsResult,
       collectionsResult,
       sizeBandsResult,
-      promotionsResult,
       waitlistResult,
       deliveryZonesResult,
     ] = await Promise.all([
@@ -258,12 +254,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
         { size_bands: [] },
         "Size bands could not be loaded right now.",
       ),
-      loadDashboardJSON<{ promotions: BusinessPromotion[] }>(
-        request,
-        "/promotions",
-        { promotions: [] },
-        "Promotions could not be loaded right now.",
-      ),
       loadDashboardJSON<{ entries: WaitlistEntry[] }>(
         request,
         "/waitlist-entries",
@@ -287,7 +277,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     const settingsData = readResult(settingsResult);
     const collectionsData = readResult(collectionsResult);
     const sizeBandsData = readResult(sizeBandsResult);
-    const promotionsData = readResult(promotionsResult);
     const waitlistData = readResult(waitlistResult);
     const deliveryZonesData = readResult(deliveryZonesResult);
 
@@ -332,7 +321,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     storeSettings = settingsData;
     collections = collectionsData.collections ?? [];
     sizeBands = sizeBandsData.size_bands ?? [];
-    promotions = promotionsData.promotions ?? [];
     waitlistEntries = waitlistData.entries ?? [];
     deliveryZones = deliveryZonesData.zones ?? [];
   }
@@ -379,7 +367,6 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     storeSettings,
     collections,
     sizeBands,
-    promotions,
     waitlistEntries,
     deliveryZones,
     analytics,

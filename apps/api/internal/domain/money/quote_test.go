@@ -190,6 +190,91 @@ func TestQuoteStoreSaleBulkPerDesignCaps(t *testing.T) {
 	}
 }
 
+// §4.3/§4.4 with a promotion override: the override replaces the computed fee
+// and VAT is charged on the override TOTAL — the same vat × commission rule as
+// the per-design path. Whenever fee_pass_tax is ticked the "Tax (VAT)" line
+// must be present: never dropped, never computed on a different base than the
+// commission actually charged.
+func TestQuoteStoreSaleOverrideKeepsTaxLine(t *testing.T) {
+	t.Parallel()
+
+	override := int64(900)
+	quote := QuoteStoreSale(StoreSaleQuoteInput{
+		LineAmountsMinor:        []int64{25000, 15000},
+		CommissionBps:           300,
+		VATBps:                  2000,
+		PaystackBps:             PaystackFeeRateBps,
+		CommissionOverrideMinor: &override,
+		PassDown:                PassDownFlags{XtiitchFee: true, Tax: true, PaystackFee: true},
+	})
+
+	if quote.XtiitchFeeMinor != 900 {
+		t.Fatalf("override must replace the per-design fees, got %d", quote.XtiitchFeeMinor)
+	}
+	if quote.TaxMinor != 180 || quote.TaxLineMinor != 180 {
+		t.Fatalf("VAT must be 20%% of the override (180) and shown, got tax=%d line=%d", quote.TaxMinor, quote.TaxLineMinor)
+	}
+	// The displayed lines always reconcile to the grand total, and Xtiitch's
+	// share is the override fee + its tax.
+	if quote.ItemsTotalMinor+quote.TransactionFeeMinor+quote.TaxLineMinor != quote.TotalChargeMinor {
+		t.Fatalf("displayed lines do not add up to the total: %+v", quote)
+	}
+	if quote.PlatformShareMinor() != 1080 {
+		t.Fatalf("xtiitch share = %d, want 1080 (900 + 180)", quote.PlatformShareMinor())
+	}
+}
+
+// An override equal to the computed per-design commission must price the tax
+// line IDENTICALLY to the non-override path — the promoted and plain checkouts
+// can never disagree about VAT.
+func TestQuoteStoreSaleOverrideMatchesPerDesignTax(t *testing.T) {
+	t.Parallel()
+
+	input := StoreSaleQuoteInput{
+		LineAmountsMinor: []int64{5000},
+		CommissionBps:    300,
+		VATBps:           2000,
+		PaystackBps:      PaystackFeeRateBps,
+		PassDown:         PassDownFlags{XtiitchFee: true, Tax: true, PaystackFee: true},
+	}
+	plain := QuoteStoreSale(input)
+
+	override := plain.XtiitchFeeMinor
+	input.CommissionOverrideMinor = &override
+	promoted := QuoteStoreSale(input)
+
+	if promoted != plain {
+		t.Fatalf("an override equal to the computed fee must match the plain quote exactly:\nplain=%+v\npromoted=%+v", plain, promoted)
+	}
+}
+
+// Even when the owner absorbs the fees (tax not passed down), the VAT on the
+// override commission is still computed — it rides Xtiitch's share (the
+// split's transaction_charge) and is persisted with the charge.
+func TestQuoteStoreSaleOverrideAbsorbedStillComputesTax(t *testing.T) {
+	t.Parallel()
+
+	override := int64(900)
+	quote := QuoteStoreSale(StoreSaleQuoteInput{
+		LineAmountsMinor:        []int64{25000, 15000},
+		CommissionBps:           300,
+		VATBps:                  2000,
+		PaystackBps:             PaystackFeeRateBps,
+		CommissionOverrideMinor: &override,
+		PassDown:                PassDownFlags{},
+	})
+
+	if quote.TaxMinor != 180 {
+		t.Fatalf("absorbed VAT on the override must still be computed, got %d", quote.TaxMinor)
+	}
+	if quote.TaxLineMinor != 0 {
+		t.Fatalf("absorbed tax is never a customer line, got %d", quote.TaxLineMinor)
+	}
+	if quote.PlatformShareMinor() != 1080 {
+		t.Fatalf("xtiitch share = %d, want 1080 (900 + 180)", quote.PlatformShareMinor())
+	}
+}
+
 // An uncommissioned basket line (a delivery fee) rides the items total and the
 // gross-up but is never fee'd or taxed itself.
 func TestQuoteStoreSaleUncostedDeliveryFee(t *testing.T) {

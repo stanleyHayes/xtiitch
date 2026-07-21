@@ -89,9 +89,13 @@ export function DesignExtrasEditor({ // eslint-disable-line complexity, max-line
       <Divider sx={{ my: 2 }} />
       <Box>
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1}
-          sx={{ alignItems: "center", justifyContent: "space-between", mb: 1 }}
+          sx={{
+            alignItems: { xs: "stretch", sm: "center" },
+            justifyContent: "space-between",
+            mb: 1,
+          }}
         >
           <Box>
             <Typography sx={{ fontWeight: 900 }}>Colour variations</Typography>
@@ -106,6 +110,14 @@ export function DesignExtrasEditor({ // eslint-disable-line complexity, max-line
             variant="outlined"
             startIcon={<AddRounded />}
             onClick={() => setAddVariationOpen((current) => !current)}
+            sx={{
+              // Keep the label on one line inside the button and give the
+              // button its own row on narrow screens (the row stacks to a
+              // column on xs) so it never wraps or overflows on mobile.
+              whiteSpace: "nowrap",
+              flexShrink: 0,
+              alignSelf: { xs: "flex-start", sm: "center" },
+            }}
           >
             Add variation
           </Button>

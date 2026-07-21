@@ -24,7 +24,7 @@ export const faqs: Faq[] = [
   {
     question: "How do deposits work on custom orders?",
     answer:
-      "A standard order with a known price is paid in full at checkout. A custom order is confirmed with a deposit instead. The deposit defaults to GHS 100, can be set higher by the business, and never goes below GHS 100. It counts towards the final price. The one exception is choosing to come to the shop to be measured — then no deposit is taken and money is arranged directly with the business.",
+      "A standard order with a known price is paid in full at checkout. A custom order is confirmed with a deposit instead. The deposit defaults to GHS 1, can be set higher by the business, and never goes below GHS 1. It counts towards the final price. The one exception is choosing to come to the shop to be measured — then no deposit is taken and money is arranged directly with the business.",
   },
   {
     question: "Can I take mobile money and cards?",

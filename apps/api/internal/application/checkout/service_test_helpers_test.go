@@ -369,6 +369,11 @@ type fakePayments struct {
 	quoteErr     error
 	quoteCommand paymentsapp.QuoteStoreSaleCommand
 	quoteCalled  bool
+
+	verifyResult  paymentsapp.VerifyPaymentResult
+	verifyErr     error
+	verifyCommand paymentsapp.VerifyPaymentCommand
+	verifyCalled  bool
 }
 
 func (f *fakePayments) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {
@@ -381,6 +386,12 @@ func (f *fakePayments) QuoteStoreSale(_ context.Context, command paymentsapp.Quo
 	f.quoteCalled = true
 	f.quoteCommand = command
 	return f.quote, f.quoteErr
+}
+
+func (f *fakePayments) VerifyPayment(_ context.Context, command paymentsapp.VerifyPaymentCommand) (paymentsapp.VerifyPaymentResult, error) {
+	f.verifyCalled = true
+	f.verifyCommand = command
+	return f.verifyResult, f.verifyErr
 }
 
 type fakePromotions struct {

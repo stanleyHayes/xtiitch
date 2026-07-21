@@ -356,9 +356,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		OTP:           authadapter.NewCustomerOTPGenerator(),
 		Delivery:      buildCustomerOTPDelivery(cfg, logger),
 		EmailDelivery: buildCustomerEmailOTPDelivery(cfg, logger),
-		IDs:           ids.UUIDGenerator{},
-		Clock:         clock.SystemClock{},
-		Logger:        logger,
+		// Re-initiates a charge for a draft order (the abandoned-checkout
+		// payment link) through the same money rails as checkout.
+		Payments: paymentService,
+		IDs:      ids.UUIDGenerator{},
+		Clock:    clock.SystemClock{},
+		Logger:   logger,
 	})
 
 	// Marketing waitlist: store every public lead, and email the team when Resend

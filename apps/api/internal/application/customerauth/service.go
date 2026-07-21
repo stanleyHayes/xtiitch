@@ -44,6 +44,7 @@ type Service struct {
 	otp           ports.OTPGenerator
 	delivery      ports.CustomerOTPDelivery
 	emailDelivery ports.CustomerEmailOTPDelivery
+	payments      PaymentInitiator
 	ids           ports.IDGenerator
 	clock         ports.Clock
 	logger        *slog.Logger
@@ -55,9 +56,12 @@ type Dependencies struct {
 	OTP           ports.OTPGenerator
 	Delivery      ports.CustomerOTPDelivery
 	EmailDelivery ports.CustomerEmailOTPDelivery
-	IDs           ports.IDGenerator
-	Clock         ports.Clock
-	Logger        *slog.Logger
+	// Payments re-initiates a charge for a draft order (the abandoned-checkout
+	// payment link). Required for that endpoint only.
+	Payments PaymentInitiator
+	IDs      ports.IDGenerator
+	Clock    ports.Clock
+	Logger   *slog.Logger
 }
 
 func NewService(deps Dependencies) Service {
@@ -71,6 +75,7 @@ func NewService(deps Dependencies) Service {
 		otp:           deps.OTP,
 		delivery:      deps.Delivery,
 		emailDelivery: deps.EmailDelivery,
+		payments:      deps.Payments,
 		ids:           deps.IDs,
 		clock:         deps.Clock,
 		logger:        logger,

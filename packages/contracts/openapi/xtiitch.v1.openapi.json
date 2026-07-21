@@ -321,6 +321,34 @@
         }
       }
     },
+    "/v1/public/stores/{handle}/payments/verify": {
+      "post": {
+        "operationId": "verifyPublicStorePayment",
+        "tags": ["Public storefront"],
+        "parameters": [{ "$ref": "#/components/parameters/Handle" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/customer/orders/{orderID}/payment-link": {
+      "post": {
+        "operationId": "createCustomerOrderPaymentLink",
+        "tags": ["Public storefront"],
+        "security": [{ "CustomerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderID" }],
+        "requestBody": { "$ref": "#/components/requestBodies/JsonBody" },
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "400": { "$ref": "#/components/responses/Error" },
+          "404": { "$ref": "#/components/responses/Error" },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/public/orders/{id}": {
       "get": {
         "operationId": "getPublicOrderTracking",
@@ -656,6 +684,12 @@
         "bearerFormat": "JWT",
         "description": "Platform admin access token with operator role and permissions."
       },
+      "CustomerBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Customer session token issued by the customer OTP sign-in; scopes the caller to their own orders."
+      },
       "PaystackSignature": {
         "type": "apiKey",
         "in": "header",
@@ -684,6 +718,12 @@
           "type": "string",
           "pattern": "^[a-z0-9][a-z0-9-]*[a-z0-9]$"
         }
+      },
+      "OrderID": {
+        "name": "orderID",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" }
       },
       "Code": {
         "name": "code",

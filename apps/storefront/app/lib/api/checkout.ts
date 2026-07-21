@@ -3,6 +3,7 @@ import type {
   CheckoutQuote,
   CheckoutQuoteInput,
   DeliveryZonesPage,
+  PaymentVerification,
   PlaceCartOrderInput,
   PlaceOrderInput,
   PlaceOrderResult,
@@ -53,5 +54,20 @@ export const checkoutQuote = (
 export const deliveryZones = (storeHandle: string, tenant?: TenantScope) =>
   getJSON<DeliveryZonesPage>(
     `/public/stores/${enc(storeHandle)}/delivery-zones`,
+    tenant,
+  );
+
+// Verifies the reference Paystack appended to the callback_url when returning
+// the customer. The checkout/account loaders call this before believing any
+// "paid" state: only "succeeded" clears a basket or confirms an order —
+// ?reference= alone (like the old ?paid= flag) proves nothing.
+export const verifyPayment = (
+  storeHandle: string,
+  reference: string,
+  tenant?: TenantScope,
+) =>
+  postJSON<PaymentVerification>(
+    `/public/stores/${enc(storeHandle)}/payments/verify`,
+    { reference },
     tenant,
   );

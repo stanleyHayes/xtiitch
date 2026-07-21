@@ -80,6 +80,15 @@ func (repo BusinessIdentityRepository) GetPlanByCode(ctx context.Context, code s
 
 // GetBusinessSubscription returns the tenant's subscription joined with its plan
 // and owner email, powering the self-serve billing flow.
+//
+// The plan join follows the EFFECTIVE BILLING plan: a payment-pending upgrade
+// (pending_plan_id set with a NULL pending_plan_effective_at — parked at checkout
+// initialize, applied only once Paystack verifies the payment) prices the first
+// charge, so the joined plan code/fee/cadence figures come from the PENDING plan.
+// A scheduled downgrade (pending_plan_effective_at set) does NOT shift the join —
+// the current plan keeps billing until the renewal sweep applies it. Entitlements
+// never read this record; they resolve from businesses.plan_id, which only moves
+// on a verified payment.
 func (repo BusinessIdentityRepository) GetBusinessSubscription(
 	ctx context.Context,
 	businessID common.ID,
@@ -97,6 +106,7 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 	}
 
 	var record ports.BusinessSubscriptionRecord
+	var pendingUpgradePlanID string
 	err = tx.QueryRow(ctx, `
 		select
 			s.subscription_id::text,
@@ -124,10 +134,18 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 			p.yearly_first_minor,
 			p.yearly_renewal_minor,
 			s.current_period_start,
-			s.current_period_end
+			s.current_period_end,
+			-- A payment-pending upgrade target (NULL effective_at); '' when none.
+			coalesce(case
+				when s.pending_plan_effective_at is null then s.pending_plan_id::text
+			end, '')
 		from business_subscriptions s
 		join businesses b on b.business_id = s.business_id
-		join plans p on p.plan_id = s.plan_id
+		join plans p on p.plan_id = case
+			when s.pending_plan_id is not null and s.pending_plan_effective_at is null
+				then s.pending_plan_id
+			else s.plan_id
+		end
 		where s.business_id = $1
 	`, businessID.String()).Scan(
 		&record.SubscriptionID,
@@ -148,12 +166,16 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 		&record.YearlyRenewalMinor,
 		&record.CurrentPeriodStart,
 		&record.CurrentPeriodEnd,
+		&pendingUpgradePlanID,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.BusinessSubscriptionRecord{}, ErrNotFound
 		}
 		return ports.BusinessSubscriptionRecord{}, err
+	}
+	if pendingUpgradePlanID != "" {
+		record.PendingUpgradePlanID = common.ID(pendingUpgradePlanID)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return ports.BusinessSubscriptionRecord{}, err
@@ -457,9 +479,9 @@ func (repo BusinessIdentityRepository) ApplyImmediatePlanUpgrade(ctx context.Con
 		}
 	}
 
-	// Switch the subscription to the new plan and clear any parked pending downgrade
-	// (an upgrade supersedes it), then sync the business plan so entitlements move
-	// immediately.
+	// Switch the subscription to the new plan and clear any parked pending change —
+	// a scheduled downgrade OR a payment-pending upgrade (this call IS its verified
+	// application) — then sync the business plan so entitlements move immediately.
 	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set plan_id = $2,

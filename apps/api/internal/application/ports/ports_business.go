@@ -25,6 +25,14 @@ type BusinessIdentityRepository interface {
 	// ErrNotFound when no active plan has the code.
 	GetPlanByCode(ctx context.Context, code string) (PlanPricingRecord, error)
 	GetBusinessSubscription(ctx context.Context, businessID common.ID) (BusinessSubscriptionRecord, error)
+	// SetPendingPlanUpgrade parks the target plan of an upgrade on the subscription
+	// as PAYMENT-PENDING (pending_plan_id set, pending_plan_effective_at NULL — the
+	// shape migration 000118 admits alongside the scheduled-downgrade pair). It
+	// changes NO entitlements: businesses.plan_id stays on the current paid-up plan
+	// until VerifySubscriptionAuthorization confirms the Paystack payment and
+	// applies the switch via ApplyImmediatePlanUpgrade (which also clears the
+	// pending fields).
+	SetPendingPlanUpgrade(ctx context.Context, businessID common.ID, planID common.ID) error
 	// ApplyImmediatePlanUpgrade switches the tenant to a higher plan now — on the
 	// subscription AND the business (so entitlements take effect immediately) — and,
 	// when AmountMinor > 0, books the prorated difference as a paid invoice on the

@@ -47,11 +47,15 @@ export async function loader({ request }: Route.LoaderArgs) {
   const response = await apiFetch(request, "/addons/ai_assistant", {
     method: "GET",
   });
+  // Set by the callback when the owner returned from Paystack without
+  // completing payment — shows a friendly nothing-was-charged banner.
+  const abandoned =
+    new URL(request.url).searchParams.get("billing") === "abandoned";
   if (!response.ok) {
-    return { status: null as AddonStatus | null };
+    return { status: null as AddonStatus | null, abandoned };
   }
   const status = (await response.json()) as AddonStatus;
-  return { status };
+  return { status, abandoned };
 }
 
 // Ask the API for a Paystack authorization link for the add-on and redirect the
@@ -118,6 +122,7 @@ export default function AiAssistantAddon({ // eslint-disable-line complexity, ma
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const status = loaderData?.status ?? null;
+  const abandoned = loaderData?.abandoned ?? false;
   const result = (actionData ?? {}) as { error?: string };
 
   const priceLabel = status
@@ -207,6 +212,13 @@ export default function AiAssistantAddon({ // eslint-disable-line complexity, ma
           {result.error ? (
             <Alert severity="warning" sx={{ mb: 2 }}>
               {result.error}
+            </Alert>
+          ) : null}
+
+          {abandoned && !active ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Payment wasn&apos;t completed — nothing was charged. You can try
+              again whenever you&apos;re ready.
             </Alert>
           ) : null}
 

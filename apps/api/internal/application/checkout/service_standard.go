@@ -29,7 +29,7 @@ type PlaceStandardOrderCommand struct {
 	Note string
 	// CallbackURL is where the payment provider returns the customer after they
 	// pay (§5.2: back to the cart so they can settle the next store basket).
-	// Optional; validated by cleanCallbackURL.
+	// Optional; validated by CleanCallbackURL.
 	CallbackURL string
 }
 
@@ -59,7 +59,7 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceStandardOrderResult{}, ErrInvalidInput
 	}
-	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	callbackURL, err := CleanCallbackURL(cmd.CallbackURL)
 	if err != nil {
 		return PlaceStandardOrderResult{}, err
 	}

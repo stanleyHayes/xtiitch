@@ -47,11 +47,8 @@ func TestEntitlementMatrixLaunchSeeds(t *testing.T) {
 	}
 	intPtr := func(v int) *int { return &v }
 	expectations := []expectation{
-		// Promotions: paid plans only (§13.4).
-		{"promotions", "free", false, nil},
-		{"promotions", "starter", true, nil},
-		{"promotions", "growth", true, nil},
-		{"promotions", "studio", true, nil},
+		// Promotions: PARKED (000119) — no per-plan rows while the feature is
+		// unavailable to everyone. Asserted absent below, not seeded here.
 		// Analytics level (§14.1): basic / standard / full / advanced as 0..3.
 		{"analytics_level", "free", true, intPtr(0)},
 		{"analytics_level", "starter", true, intPtr(1)},
@@ -118,8 +115,29 @@ func TestEntitlementMatrixLaunchSeeds(t *testing.T) {
 		}
 	}
 
-	// Only promotions is code-enforced among the new keys — the honest
-	// enforced flag convention from 000088.
+	// Promotions is PARKED (000119): no entitlement values and no matrix feature
+	// row for any plan, so no plan can be granted it.
+	var promotionsRows int
+	if err := pool.QueryRow(ctx, `
+		select count(*) from plan_entitlement_values where feature_key = 'promotions'
+	`).Scan(&promotionsRows); err != nil {
+		t.Fatalf("count promotions values: %v", err)
+	}
+	if promotionsRows != 0 {
+		t.Fatalf("promotions is parked: expected no entitlement values, found %d", promotionsRows)
+	}
+	var promotionsFeature int
+	if err := pool.QueryRow(ctx, `
+		select count(*) from plan_entitlement_features where feature_key = 'promotions'
+	`).Scan(&promotionsFeature); err != nil {
+		t.Fatalf("count promotions feature rows: %v", err)
+	}
+	if promotionsFeature != 0 {
+		t.Fatalf("promotions is parked: expected no matrix feature row, found %d", promotionsFeature)
+	}
+
+	// None of the remaining new keys is code-enforced (promotions was the only
+	// one, and it is parked) — the honest enforced flag convention from 000088.
 	var enforcedCount int
 	if err := pool.QueryRow(ctx, `
 		select count(*) from plan_entitlement_features
@@ -130,8 +148,8 @@ func TestEntitlementMatrixLaunchSeeds(t *testing.T) {
 	`).Scan(&enforcedCount); err != nil {
 		t.Fatalf("count enforced new keys: %v", err)
 	}
-	if enforcedCount != 1 {
-		t.Fatalf("only promotions is enforced among the new keys, found %d enforced", enforcedCount)
+	if enforcedCount != 0 {
+		t.Fatalf("no new key is enforced while promotions is parked, found %d enforced", enforcedCount)
 	}
 }
 
@@ -150,8 +168,10 @@ func TestStoreProfileExposesEntitlementLimits(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get starter profile: %v", err)
 	}
-	if !business.Entitlements(starter.Entitlements).Has(business.FeaturePromotions) {
-		t.Fatalf("a Starter store must resolve the promotions entitlement, got %v", starter.Entitlements)
+	// Promotions is PARKED: even a paid plan must NOT resolve the entitlement
+	// (no matrix rows, and SanitizeFeatures drops the key while it is parked).
+	if business.Entitlements(starter.Entitlements).Has(business.FeaturePromotions) {
+		t.Fatalf("a Starter store must not resolve the parked promotions entitlement, got %v", starter.Entitlements)
 	}
 	if starter.EntitlementLimits["analytics_level"] != 1 ||
 		starter.EntitlementLimits["analytics_lookback_days"] != 365 ||

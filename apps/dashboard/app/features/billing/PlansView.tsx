@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link as RouterLink } from "react-router";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -16,7 +17,7 @@ import type { BillingCadence, PublicPlan } from "./billing-helpers";
 import { formatPrice, vatNote } from "./PaymentMethodForm";
 
 // The plan code that carries the "Most Popular" ribbon on the plans list.
-const POPULAR_PLAN_CODE = "growth";
+export const POPULAR_PLAN_CODE = "growth";
 
 // First-purchase vs renewal disclosure for the chosen cadence (Pricing Book:
 // the FIRST figure bills once, the RENEWAL figure bills every cycle after) —
@@ -47,11 +48,14 @@ export function cadencePriceCopy(
   };
 }
 
-function planLimitLines(plan: PublicPlan): string[] {
+// The API's design_limit is `number | null` (null = unlimited), but an older API
+// may omit the field entirely — undefined must also read as unlimited, otherwise
+// the line renders "Up to undefined active designs".
+export function planLimitLines(plan: PublicPlan): string[] {
   const lines = [
-    plan.design_limit === null
-      ? "Unlimited active designs"
-      : `Up to ${plan.design_limit} active designs`,
+    typeof plan.design_limit === "number"
+      ? `Up to ${plan.design_limit} active designs`
+      : "Unlimited active designs",
   ];
   if (plan.commission_bps > 0) {
     const pct = (plan.commission_bps / 100).toLocaleString("en-GH", {
@@ -73,6 +77,7 @@ export function PlansView({ // eslint-disable-line max-lines-per-function -- lar
   currentPlanCode,
   title = "Choose your plan",
   subtitle = "Pick the package that fits your store. You can change it later from your dashboard.",
+  notice,
   onBack,
   backTo,
   backLabel = "Back to dashboard",
@@ -82,6 +87,9 @@ export function PlansView({ // eslint-disable-line max-lines-per-function -- lar
   currentPlanCode?: string;
   title?: string;
   subtitle?: string;
+  // Optional info banner (e.g. the billing callback's "payment wasn't
+  // completed" message after an abandoned Paystack checkout).
+  notice?: string;
   // In-place back action (the activation page toggles this view open) or a
   // plain link target (billing onboarding). One of the two.
   onBack?: () => void;
@@ -124,6 +132,11 @@ export function PlansView({ // eslint-disable-line max-lines-per-function -- lar
           <Typography sx={{ color: alpha(tokens.ink, 0.68), maxWidth: 560 }}>
             {subtitle}
           </Typography>
+          {notice ? (
+            <Alert severity="info" sx={{ mt: 1.5, textAlign: "left" }}>
+              {notice}
+            </Alert>
+          ) : null}
           {/* Quarterly/Yearly only — the Pricing Book has no monthly billing. */}
           <Stack
             direction="row"

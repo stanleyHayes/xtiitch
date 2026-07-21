@@ -176,9 +176,6 @@ export const dashboardActionIntents = new Set([
   "update_size_band",
   "delete_size_band",
   "set_design_price",
-  "create_promotion",
-  "update_promotion",
-  "archive_promotion",
   // §14 scheduled reports + §15 CRM annotations (owner/admin only; staff are
   // refused by canUseDashboardIntent before the handler runs).
   "save_report_schedule",

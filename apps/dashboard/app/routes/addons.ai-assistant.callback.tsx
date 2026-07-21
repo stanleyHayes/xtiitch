@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, redirect } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -7,10 +7,8 @@ import Stack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import { alpha } from "@mui/material/styles";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import ErrorOutlineRounded from "@mui/icons-material/ErrorOutlineRounded";
 import type { Route } from "./+types/addons.ai-assistant.callback";
 import { apiFetch } from "../lib/auth";
-import { tokens } from "../theme";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -21,13 +19,16 @@ export function meta(): Route.MetaDescriptors {
 
 // Paystack redirects back here with ?reference=/?trxref= after the owner
 // authorizes the add-on direct debit. Verify it with the API (which flips the
-// add-on active) and render success or a friendly retry. Mirrors
-// billing-callback.tsx.
+// add-on active) and render success. No reference (backed out before Paystack
+// created a transaction) or a not-success verification (abandoned/failed/
+// pending) redirects back to the add-on page with the "abandoned" flag, which
+// shows a friendly nothing-was-charged banner and a working Enable button —
+// never a blank pending navigation, never a dead retry card.
 export async function loader({ request }: Route.LoaderArgs) {
   const params = new URL(request.url).searchParams;
   const reference = params.get("reference") ?? params.get("trxref") ?? "";
   if (!reference) {
-    return { active: false };
+    throw redirect("/addons/ai-assistant?billing=abandoned");
   }
   const response = await apiFetch(request, "/addons/ai_assistant/verify", {
     method: "POST",
@@ -35,13 +36,16 @@ export async function loader({ request }: Route.LoaderArgs) {
     body: JSON.stringify({ reference }),
   });
   if (!response.ok) {
-    return { active: false };
+    throw redirect("/addons/ai-assistant?billing=abandoned");
   }
   const body = (await response.json()) as {
     active?: boolean;
     billing_status?: string;
   };
-  return { active: Boolean(body.active) };
+  if (!body.active) {
+    throw redirect("/addons/ai-assistant?billing=abandoned");
+  }
+  return { active: true };
 }
 
 export default function AiAssistantCallback({
@@ -105,49 +109,7 @@ export default function AiAssistantCallback({
                 </Button>
               </Stack>
             </>
-          ) : (
-            <>
-              <Box
-                sx={(theme) => ({
-                  width: 56,
-                  height: 56,
-                  borderRadius: 2,
-                  mx: "auto",
-                  mb: 2,
-                  display: "grid",
-                  placeItems: "center",
-                  bgcolor: alpha(theme.palette.warning.main, 0.12),
-                  color: theme.palette.warning.main,
-                })}
-              >
-                <ErrorOutlineRounded />
-              </Box>
-              <Typography variant="h5" component="h1" sx={{ mb: 1 }}>
-                We couldn't confirm your payment
-              </Typography>
-              <Typography sx={{ color: "text.secondary", mb: 3 }}>
-                The Paystack authorization didn't complete. You can try enabling
-                the AI Assistant again.
-              </Typography>
-              <Stack spacing={1.5}>
-                <Button
-                  component={RouterLink}
-                  to="/addons/ai-assistant"
-                  variant="contained"
-                >
-                  Try again
-                </Button>
-                <Button
-                  component={RouterLink}
-                  to="/dashboard"
-                  variant="text"
-                  sx={{ color: alpha(tokens.ink, 0.6) }}
-                >
-                  Go to dashboard
-                </Button>
-              </Stack>
-            </>
-          )}
+          ) : null}
         </Paper>
       </Container>
     </Box>

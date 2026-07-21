@@ -171,6 +171,55 @@ type adCampaignPaymentProviderMatch struct {
 	amountMinor int64
 }
 
+// FindByProviderReference resolves one payment by its provider reference under
+// the caller's tenant scope. A reference that names another business's payment
+// (or none at all) comes back as ErrNotFound — the public verify endpoint must
+// not be able to tell the two apart.
+func (repo PaymentRepository) FindByProviderReference(
+	ctx context.Context,
+	scope common.TenantScope,
+	providerReference string,
+) (ports.PaymentRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.PaymentRecord{}, err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return ports.PaymentRecord{}, err
+	}
+
+	var record ports.PaymentRecord
+	err = tx.QueryRow(ctx, `
+		select payment_id, business_id, purpose, amount_minor, currency,
+			coalesce(method, ''), provider_reference, status, commission_minor
+		from payments
+		where business_id = $1 and provider_reference = $2
+	`, scope.BusinessID.String(), providerReference).Scan(
+		&record.PaymentID,
+		&record.BusinessID,
+		&record.Purpose,
+		&record.AmountMinor,
+		&record.Currency,
+		&record.Method,
+		&record.ProviderReference,
+		&record.Status,
+		&record.CommissionMinor,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ports.PaymentRecord{}, ports.ErrNotFound
+	}
+	if err != nil {
+		return ports.PaymentRecord{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.PaymentRecord{}, err
+	}
+	return record, nil
+}
+
 func (repo PaymentRepository) ListByBusiness(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

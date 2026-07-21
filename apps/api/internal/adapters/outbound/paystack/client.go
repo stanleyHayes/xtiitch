@@ -174,9 +174,12 @@ func (c Client) InitializeAuthorization(
 	}, nil
 }
 
-// VerifyAuthorization reads back the checkout transaction created by
-// InitializeAuthorization: whether it was paid, the amount, and the reusable
-// authorization captured for recurring charges.
+// VerifyAuthorization reads back ANY transaction by reference (Paystack's
+// generic GET /transaction/verify/{reference}): whether it was paid, the raw
+// transaction status, the amount, and — for subscription checkouts created by
+// InitializeAuthorization — the reusable authorization captured for recurring
+// charges. Customer order charges use it to confirm or fail an initiated
+// payment when the webhook has not landed (e.g. the customer backed out).
 func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
 	var response struct {
 		Status bool `json:"status"`
@@ -211,6 +214,7 @@ func (c Client) VerifyAuthorization(ctx context.Context, input ports.VerifyAutho
 	}
 	return ports.VerifyAuthorizationResult{
 		Succeeded:         succeeded,
+		Status:            response.Data.Status,
 		AmountMinor:       response.Data.Amount,
 		FeeMinor:          feeMinor,
 		AuthorizationCode: authCode,

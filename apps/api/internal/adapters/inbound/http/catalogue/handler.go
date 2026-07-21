@@ -324,6 +324,10 @@ func writeServiceError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusPaymentRequired, "activation_required")
 		return
 	}
+	if errors.Is(err, catalogueapp.ErrVerificationRequired) {
+		writeError(w, http.StatusForbidden, "verification_required")
+		return
+	}
 	if errors.Is(err, catalogueapp.ErrPromotionsNotEntitled) {
 		writeError(w, http.StatusForbidden, "promotions_not_entitled")
 		return

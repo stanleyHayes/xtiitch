@@ -177,6 +177,52 @@ func TestQuoteStoreSaleBulkMultiDesign(t *testing.T) {
 	}
 }
 
+// Preview and charge share ONE quote path: for the same basket and the same
+// commission override (a promotion), the read-only QuoteStoreSale and the
+// charged InitiateCharge must produce the identical breakdown — the tax line
+// included — so the storefront always renders exactly what is charged (§4.5).
+func TestQuoteStoreSalePreviewMatchesChargeWithOverride(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeChargeRepo{context: ports.BusinessChargeContext{
+		BusinessID: "business-1", Verified: true, SubaccountRef: "sub_1", CommissionBps: 300,
+		FeePassXtiitchFee: true, FeePassTax: true, FeePassPaystackFee: true,
+	}}
+	service, _, payments := quoteTestService(businesses, &fakeVATRates{rateBps: 2000}, 0)
+
+	override := int64(900)
+	preview, err := service.QuoteStoreSale(context.Background(), QuoteStoreSaleCommand{
+		Scope:                   common.TenantScope{BusinessID: "business-1"},
+		LineAmountsMinor:        []int64{25000, 15000},
+		CommissionMinorOverride: &override,
+	})
+	if err != nil {
+		t.Fatalf("preview quote: %v", err)
+	}
+
+	charged, err := service.InitiateCharge(context.Background(), InitiateChargeCommand{
+		Scope:                   common.TenantScope{BusinessID: "business-1"},
+		Purpose:                 money.PaymentPurposeCartFull,
+		AmountMinor:             40000,
+		LineAmountsMinor:        []int64{25000, 15000},
+		CommissionMinorOverride: &override,
+		Method:                  money.PaymentMethodMomo,
+		CustomerEmail:           "buyer@example.com",
+	})
+	if err != nil {
+		t.Fatalf("initiate charge: %v", err)
+	}
+
+	if charged.Quote != preview {
+		t.Fatalf("preview and charge must quote identically:\npreview=%+v\ncharged=%+v", preview, charged.Quote)
+	}
+	// The VAT on the override commission is persisted with the charge (§3.2) so
+	// the Money Desk splits fee from tax from stored figures only.
+	if payments.created[0].XtiitchTaxMinor != int64(180) {
+		t.Fatalf("expected the override VAT (180) persisted with the charge, got %+v", payments.created[0])
+	}
+}
+
 func TestQuoteStoreSaleRejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 

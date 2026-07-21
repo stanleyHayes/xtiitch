@@ -15,7 +15,6 @@ import {
   AccountBalanceWalletRounded,
   CalendarMonthRounded,
   DesignServicesRounded,
-  LocalOfferRounded,
   LocalShippingRounded,
   PeopleAltRounded,
   QueryStatsRounded,
@@ -145,7 +144,6 @@ export function buildOverviewRooms({
   activeBookings,
   openHandovers,
   activeDesigns,
-  activePromotions,
   activeStoreSettings,
   activeTeamUsers,
 }: {
@@ -155,7 +153,6 @@ export function buildOverviewRooms({
   activeBookings: number;
   openHandovers: number;
   activeDesigns: number;
-  activePromotions: number;
   activeStoreSettings: number;
   activeTeamUsers: number;
 }): OverviewRoom[] {
@@ -215,15 +212,6 @@ export function buildOverviewRooms({
       tone: tokens.burgundy,
     },
     {
-      title: "Promotions",
-      helper: "Promo codes for store, collection, and design campaigns.",
-      href: "/dashboard/promotions",
-      value: `${activePromotions} active`,
-      actionLabel: "Open promotions",
-      icon: <LocalOfferRounded />,
-      tone: tokens.gold,
-    },
-    {
       title: "Settings",
       helper: "Storefront switches, brand colour, and request controls.",
       href: "/dashboard/settings",
@@ -252,7 +240,6 @@ export function buildRailBadges({
   activeBookings,
   openHandovers,
   activeDesigns,
-  activePromotions,
   needsMeasurements,
   availabilityWindows,
   activeStoreSettings,
@@ -266,7 +253,6 @@ export function buildRailBadges({
   activeBookings: number;
   openHandovers: number;
   activeDesigns: number;
-  activePromotions: number;
   needsMeasurements: number;
   availabilityWindows: import("../../shared/types").AvailabilityWindow[];
   activeStoreSettings: number;
@@ -282,7 +268,6 @@ export function buildRailBadges({
         visits: railBadge(activeBookings),
         handovers: railBadge(openHandovers),
         catalogue: railBadge(activeDesigns),
-        promotions: railBadge(activePromotions),
         measurements: railBadge(needsMeasurements),
         availability: railBadge(availabilityWindows.length),
         settings: railBadge(activeStoreSettings),

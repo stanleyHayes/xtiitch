@@ -45,7 +45,7 @@ func TestCreateDesignRejectsDepositOverrideBelowFloor(t *testing.T) {
 
 	repo := &fakeCatalogueRepo{}
 	service := newService(repo)
-	below := int64(5000)
+	below := int64(50)
 
 	_, err := service.CreateDesign(context.Background(), DesignCommand{
 		Scope:                common.TenantScope{BusinessID: "business-1"},
@@ -58,6 +58,28 @@ func TestCreateDesignRejectsDepositOverrideBelowFloor(t *testing.T) {
 	}
 	if repo.created {
 		t.Fatal("expected no design created when deposit is below the floor")
+	}
+}
+func TestCustomisationDesignZeroDepositMeansUnset(t *testing.T) {
+	t.Parallel()
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+	zero := int64(0)
+
+	// A 0 deposit override is "unset", not an error: it is stored as NULL so the
+	// deposit resolves to the store default / GHS 1 floor at quote time.
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:                common.TenantScope{BusinessID: "business-1"},
+		ActorRole:            business.UserRoleOwner,
+		Title:                "Bespoke gown",
+		CustomisationAllowed: true,
+		DepositOverrideMinor: &zero,
+	})
+	if err != nil {
+		t.Fatalf("create design: %v", err)
+	}
+	if repo.design.DepositOverrideMinor != nil {
+		t.Fatalf("zero deposit override must be stored as unset, got %v", *repo.design.DepositOverrideMinor)
 	}
 }
 func TestMadeToWearDesignDropsDeposit(t *testing.T) {

@@ -101,11 +101,18 @@ type StorefrontView struct {
 }
 
 // LoadStorefront resolves a store handle and returns its active catalogue. The
-// repository enforces that only active, non-retired items are returned.
+// repository enforces that only active, non-retired items are returned. A store
+// that is not LIVE (owner not Ghana-Card-verified, or no payout details) resolves
+// to its shell only — no designs, no collections — so a direct visit shows the
+// store as not-live rather than its catalogue (verification gates selling,
+// never paying; the marketplace directory already excludes such stores).
 func (s Service) LoadStorefront(ctx context.Context, handle string) (StorefrontView, error) {
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(handle))
 	if err != nil {
 		return StorefrontView{}, err
+	}
+	if !store.Live {
+		return StorefrontView{Store: store}, nil
 	}
 
 	designs, err := s.storefront.ListActiveDesigns(ctx, store.BusinessID)
@@ -133,6 +140,11 @@ func (s Service) GetStoreDesign(ctx context.Context, handle string) (ports.Store
 	design, err := s.storefront.GetActiveDesignByHandle(ctx, strings.TrimSpace(handle))
 	if err != nil {
 		return ports.StorefrontDesign{}, err
+	}
+	if !design.Store.Live {
+		// A not-live store's designs do not display, even via a direct/shared link
+		// (verification gates selling). Report it exactly like an unknown design.
+		return ports.StorefrontDesign{}, ports.ErrNotFound
 	}
 	scope := common.TenantScope{BusinessID: design.Design.BusinessID}
 	// §14.1 design performance: count the public view. Best-effort on purpose —
@@ -168,6 +180,10 @@ func (s Service) SearchStore(ctx context.Context, handle string, query string) (
 	store, err := s.storefront.ResolveStore(ctx, strings.TrimSpace(handle))
 	if err != nil {
 		return ports.Storefront{}, nil, err
+	}
+	if !store.Live {
+		// A not-live store displays nothing (same rule as LoadStorefront).
+		return store, nil, nil
 	}
 	designs, err := s.storefront.SearchActiveDesigns(ctx, store.BusinessID, strings.TrimSpace(query))
 	return store, designs, err

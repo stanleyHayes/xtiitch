@@ -5,7 +5,7 @@ import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import { tokens } from "../theme";
 
 // Shown wherever a payment is started. Xtiitch is a product of XCreativs
-// Technologies Ltd, and "XCreativs" — not "Xtiitch" — is the name that appears
+// Technologies, and "XCreativs" — not "Xtiitch" — is the name that appears
 // on the Paystack screen and the bank/MoMo statement. Saying so at the point of
 // payment prevents an unfamiliar name reading as a fraudulent charge.
 export function XCreativsPaymentNotice() {
@@ -29,7 +29,7 @@ export function XCreativsPaymentNotice() {
       />
       <Typography variant="caption" sx={{ color: "text.secondary" }}>
         Payments show as <strong>XCreativs</strong>, not Xtiitch. Xtiitch is a
-        product of XCreativs Technologies Ltd, which handles all payments and
+        product of XCreativs Technologies, which handles all payments and
         legals for Xtiitch — so <strong>XCreativs</strong> is the name you&apos;ll
         see while paying and on your statement.
       </Typography>

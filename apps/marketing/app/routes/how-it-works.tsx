@@ -26,7 +26,7 @@ export function meta(): MetaDescriptor[] {
 const depositRules: string[] = [
   "Standard order — the customer fits one of your size bands and takes the design as shown. The price is known, so it’s paid in full at checkout.",
   "Custom order — measurements or changes mean the full price isn’t known yet, so a deposit confirms the order instead.",
-  "The deposit defaults to GHS 100, can be set higher per store or per design, and never goes below GHS 100. It counts towards the final price.",
+  "The deposit defaults to GHS 1, can be set higher per store or per design, and never goes below GHS 1. It counts towards the final price.",
   "Come to the shop to be measured? No deposit is taken — the order is simply placed and money is arranged directly with you.",
 ];
 

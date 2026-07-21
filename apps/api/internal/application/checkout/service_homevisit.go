@@ -33,7 +33,7 @@ type PlaceHomeVisitBookingCommand struct {
 	// Note is the customer's free-text instruction captured at checkout ('' if none).
 	Note string
 	// CallbackURL is where the payment provider returns the customer after they
-	// pay the booking deposit (§5.2). Optional; validated by cleanCallbackURL.
+	// pay the booking deposit (§5.2). Optional; validated by CleanCallbackURL.
 	CallbackURL string
 }
 
@@ -67,7 +67,7 @@ func (s Service) PlaceHomeVisitBooking(ctx context.Context, cmd PlaceHomeVisitBo
 	if cmd.Method != "" && !cmd.Method.Valid() {
 		return PlaceHomeVisitBookingResult{}, ErrInvalidInput
 	}
-	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	callbackURL, err := CleanCallbackURL(cmd.CallbackURL)
 	if err != nil {
 		return PlaceHomeVisitBookingResult{}, err
 	}

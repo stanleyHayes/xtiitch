@@ -21,6 +21,10 @@ type storeSummary struct {
 	// client never has to invert it.
 	ShowPoweredByBadge bool   `json:"show_powered_by_badge"`
 	PlanCode           string `json:"plan_code"`
+	// Live is false while the owner has not verified the business (Ghana Card)
+	// or set up payouts: the storefront then renders as not-live, and the
+	// catalogue payloads already arrive empty.
+	Live bool `json:"live"`
 }
 
 type measurementFieldSummary struct {
@@ -42,6 +46,7 @@ func toStoreSummary(store ports.Storefront) storeSummary {
 		OnlineOrderingEnabled: store.OnlineOrderingEnabled,
 		ShowPoweredByBadge:    store.ShowPoweredByBadge,
 		PlanCode:              store.PlanCode,
+		Live:                  store.Live,
 	}
 }
 

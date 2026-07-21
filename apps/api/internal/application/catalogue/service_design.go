@@ -52,6 +52,9 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 	if profile.ActivationRequired {
 		return "", ErrActivationRequired
 	}
+	if err := requireSellingReadiness(profile); err != nil {
+		return "", err
+	}
 	title, err := cmd.validate()
 	if err != nil {
 		return "", err
@@ -75,9 +78,14 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 
 // depositForMode enforces pricing-mode exclusivity: only a customisation design
 // carries a deposit. A made-to-wear design is priced by its size bands, so any
-// deposit value is coerced away (deposit is N/A on the storefront).
+// deposit value is coerced away (deposit is N/A on the storefront). A zero
+// override means "unset" (ValidateDepositConfig accepts it as such): it is
+// stored as NULL so the deposit resolves to the store default / GHS 1 floor.
 func (cmd DesignCommand) depositForMode() *int64 {
 	if !cmd.CustomisationAllowed {
+		return nil
+	}
+	if cmd.DepositOverrideMinor != nil && *cmd.DepositOverrideMinor == 0 {
 		return nil
 	}
 	return cmd.DepositOverrideMinor
@@ -102,6 +110,9 @@ func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
 	}
 	if profile.ActivationRequired {
 		return ErrActivationRequired
+	}
+	if err := requireSellingReadiness(profile); err != nil {
+		return err
 	}
 	title, err := cmd.validate()
 	if err != nil {
@@ -278,4 +289,17 @@ func (s Service) ReorderDesignVariations(ctx context.Context, cmd ReorderDesignV
 		return ErrInvalidInput
 	}
 	return s.catalogue.ReorderDesignVariations(ctx, cmd.Scope, cmd.DesignID, cmd.OrderedIDs)
+}
+
+// requireSellingReadiness enforces the sell-side verification gate (verification
+// gates SELLING, never paying): until the owner verifies their business (Ghana
+// Card) AND sets up payout details, the store cannot upload or edit designs.
+// It mirrors the exact pair checkout enforces for taking payments
+// (business_charge_repository: verification_status 'verified' + a provisioned
+// settlement subaccount).
+func requireSellingReadiness(profile ports.StoreProfile) error {
+	if profile.VerificationStatus != string(business.VerificationStatusVerified) || !profile.PayoutReady {
+		return ErrVerificationRequired
+	}
+	return nil
 }

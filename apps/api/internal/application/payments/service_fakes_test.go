@@ -20,6 +20,8 @@ type fakeProvider struct {
 	transferErr          error
 	initResult           ports.InitializeTransactionResult
 	initInput            ports.InitializeTransactionInput
+	verifyResult         ports.VerifyAuthorizationResult
+	verifyErr            error
 	settlements          []ports.ProviderSettlement
 	settlementsErr       error
 	settlementsInput     ports.ListSettlementsInput
@@ -80,7 +82,7 @@ func (p *fakeProvider) InitializeAuthorization(
 }
 
 func (p *fakeProvider) VerifyAuthorization(context.Context, ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
-	return ports.VerifyAuthorizationResult{}, nil
+	return p.verifyResult, p.verifyErr
 }
 
 func (p *fakeProvider) ChargeAuthorization(context.Context, ports.ChargeAuthorizationInput) (ports.ChargeAuthorizationResult, error) {
@@ -122,6 +124,9 @@ type fakePaymentRepo struct {
 	taking        ports.ManualTakingInput
 	summary       ports.MoneySummary
 
+	byReference    map[string]ports.PaymentRecord
+	byReferenceErr error
+
 	providerEvents   []ports.RecordProviderEventInput
 	recordEventIsNew bool
 	recordEventErr   error
@@ -149,6 +154,17 @@ func (r *fakePaymentRepo) ConfirmFromProvider(_ context.Context, input ports.Con
 	r.confirmCalled = true
 	r.confirmInput = input
 	return r.confirmResult, nil
+}
+
+func (r *fakePaymentRepo) FindByProviderReference(_ context.Context, _ common.TenantScope, providerReference string) (ports.PaymentRecord, error) {
+	if r.byReferenceErr != nil {
+		return ports.PaymentRecord{}, r.byReferenceErr
+	}
+	record, ok := r.byReference[providerReference]
+	if !ok {
+		return ports.PaymentRecord{}, ports.ErrNotFound
+	}
+	return record, nil
 }
 
 func (r *fakePaymentRepo) ListByBusiness(_ context.Context, _ common.TenantScope) ([]ports.PaymentRecord, error) {

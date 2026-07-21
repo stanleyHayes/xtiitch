@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import type {
   AvailabilityWindow,
   BookingSummary,
-  BusinessPromotion,
   BusinessUser,
   CollectionSummary,
   Design,
@@ -45,8 +44,6 @@ export type OverviewData = {
   stageMetrics: ReturnType<typeof buildStageMetrics>;
   followUps: ReturnType<typeof buildFollowUps>;
   activeDesigns: number;
-  activePromotions: number;
-  promoRedeemedMinor: number;
   activeTeamUsers: number;
   publishedCollections: number;
   activeStoreSettings: number;
@@ -54,7 +51,7 @@ export type OverviewData = {
   railBadges: Partial<Record<string, string | undefined>>;
 };
 
-export function useOverviewData({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function useOverviewData({
   profile,
   orders,
   bookings,
@@ -68,7 +65,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
   storeSettings,
   collections,
   sizeBands,
-  promotions,
   designs,
   canManage,
 }: {
@@ -85,7 +81,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
   storeSettings: StoreSettings;
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
-  promotions: BusinessPromotion[];
   designs: Design[];
   canManage: boolean;
 }): OverviewData {
@@ -109,13 +104,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
     const activeDesigns = designs.filter(
       (design) => design.status === "active",
     ).length;
-    const activePromotions = promotions.filter(
-      (promotion) => promotion.status === "active",
-    ).length;
-    const promoRedeemedMinor = promotions.reduce(
-      (total, promotion) => total + promotion.discount_redeemed_minor,
-      0,
-    );
     const activeTeamUsers = businessUsers.filter((user) => user.is_active).length;
     const publishedCollections = collections.filter(
       (collection) => collection.status === "active",
@@ -144,7 +132,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
       activeBookings,
       openHandovers,
       activeDesigns,
-      activePromotions,
       activeStoreSettings,
       activeTeamUsers,
     });
@@ -156,7 +143,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
       activeBookings,
       openHandovers,
       activeDesigns,
-      activePromotions,
       needsMeasurements,
       availabilityWindows,
       activeStoreSettings,
@@ -181,8 +167,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
       stageMetrics,
       followUps,
       activeDesigns,
-      activePromotions,
-      promoRedeemedMinor,
       activeTeamUsers,
       publishedCollections,
       activeStoreSettings,
@@ -203,7 +187,6 @@ export function useOverviewData({ // eslint-disable-line max-lines-per-function 
     storeSettings,
     collections,
     sizeBands,
-    promotions,
     designs,
     canManage,
   ]);

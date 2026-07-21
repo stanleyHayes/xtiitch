@@ -35,6 +35,8 @@ const requiredPaths = [
   "/v1/public/designs/{handle}",
   "/v1/public/stores/{handle}/orders",
   "/v1/public/stores/{handle}/custom-orders",
+  "/v1/public/stores/{handle}/payments/verify",
+  "/v1/customer/orders/{orderID}/payment-link",
   "/v1/public/orders/{id}",
   "/v1/public/referrals/{code}",
   "/v1/public/affiliates/{code}/clicks",
@@ -142,10 +144,15 @@ test("protected operations declare the expected security scheme", () => {
         assert.deepEqual(operation.security, [{ AdminBearer: [] }], `${label} must use admin auth`);
       }
 
+      if (path.startsWith("/v1/customer/")) {
+        assert.deepEqual(operation.security, [{ CustomerBearer: [] }], `${label} must use customer auth`);
+      }
+
       if (
         path.startsWith("/v1/") &&
         !path.startsWith("/v1/admin/") &&
         !path.startsWith("/v1/public/") &&
+        !path.startsWith("/v1/customer/") &&
         path !== "/v1/version" &&
         path !== "/v1/webhooks/paystack" &&
         !path.startsWith("/v1/auth/business/register") &&

@@ -11,7 +11,17 @@ import (
 )
 
 func newService(repo *fakeCatalogueRepo) Service {
-	return newServiceWithSettings(repo, &fakeStoreSettingsRepo{})
+	return newServiceWithSettings(repo, &fakeStoreSettingsRepo{profile: sellingReadyProfile()})
+}
+
+// sellingReadyProfile is the default catalogue-test profile: a verified store
+// with payout details set up (and not activation-gated), so the sell-side
+// verification gate passes and a test exercises only what it means to.
+func sellingReadyProfile() ports.StoreProfile {
+	return ports.StoreProfile{
+		VerificationStatus: string(business.VerificationStatusVerified),
+		PayoutReady:        true,
+	}
 }
 
 // newServiceWithSettings wires an explicit store-settings fake so a test can drive

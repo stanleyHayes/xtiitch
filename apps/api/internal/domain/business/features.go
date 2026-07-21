@@ -17,6 +17,13 @@ const (
 	// FeaturePromotions gates creating and managing storefront discount
 	// promotions (§13.4: "Free-plan stores cannot run promotions"). Paid plans
 	// only; the catalogue promotion service rejects writes without it.
+	//
+	// PARKED (product update): promotions is unavailable on EVERY plan for now.
+	// The constant and the enforcement stay so the park is reversible, but the
+	// feature is deliberately NOT in FeatureCatalogue and holds no entitlement
+	// matrix rows (migration 000119), so no plan can resolve it and enforcement
+	// rejects everyone. To unpark: restore the catalogue row and the matrix
+	// seeds (000119 down).
 	FeaturePromotions = "promotions"
 	// FeatureExportCSV / PDF / DOCX / XLSX are the report-export formats the
 	// plan may use (§14.4: Starter CSV; Growth CSV+PDF; Studio any format).
@@ -95,12 +102,8 @@ func FeatureCatalogue() []Feature {
 			Description: "Let customers place and pay for orders directly from the storefront. " +
 				"Without it the store is a catalogue and customers arrange orders off-platform.",
 		},
-		{
-			Key:   FeaturePromotions,
-			Label: "Promotions",
-			Description: "Run discount-code promotions on the storefront. " +
-				"Paid plans only: a Free-plan store's promotion writes are rejected (§13.4).",
-		},
+		// NOTE: FeaturePromotions is intentionally ABSENT while promotions is
+		// parked — no plan may see or access it. See the constant's comment.
 		{
 			Key:         FeatureExportCSV,
 			Label:       "CSV export",

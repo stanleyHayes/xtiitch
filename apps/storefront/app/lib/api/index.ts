@@ -22,6 +22,7 @@ export const api = {
   placeOrder: checkout.placeOrder,
   placeCartOrder: checkout.placeCartOrder,
   checkoutQuote: checkout.checkoutQuote,
+  verifyPayment: checkout.verifyPayment,
   deliveryZones: checkout.deliveryZones,
   placeCustomOrder: custom.placeCustomOrder,
   placeBooking: custom.placeBooking,

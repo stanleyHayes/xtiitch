@@ -59,7 +59,6 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     storeSettings,
     collections,
     sizeBands,
-    promotions,
     waitlistEntries,
     deliveryZones,
     analytics,
@@ -159,7 +158,6 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     storeSettings,
     collections,
     sizeBands,
-    promotions,
     designs,
     canManage,
   });
@@ -358,7 +356,6 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               storeSettings={storeSettings}
               collections={collections}
               sizeBands={sizeBands}
-              promotions={promotions}
               waitlistEntries={waitlistEntries}
               deliveryZones={deliveryZones}
               designs={designs}

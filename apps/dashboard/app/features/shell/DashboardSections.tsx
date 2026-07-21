@@ -8,7 +8,6 @@ import { MoneySection } from "../money/MoneySection";
 import { BookingQueuePanel } from "../availability/BookingQueuePanel";
 import { HandoverPanel } from "../availability/HandoverPanel";
 import { AvailabilityPanel } from "../availability/AvailabilityPanel";
-import { PromotionPanel } from "../promotions/PromotionPanel";
 import { TeamPanel } from "../settings/TeamPanel";
 import { NotificationPanel } from "../shared/NotificationPanel";
 import { OrdersSection } from "../orders/OrdersSection";
@@ -20,7 +19,6 @@ import { DashboardMetrics } from "./DashboardMetrics";
 import type {
   AvailabilityWindow,
   BookingSummary,
-  BusinessPromotion,
   BusinessUser,
   CollectionSummary,
   CurrentUser,
@@ -60,7 +58,6 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   storeSettings,
   collections,
   sizeBands,
-  promotions,
   waitlistEntries,
   deliveryZones,
   designs,
@@ -117,7 +114,6 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   storeSettings: StoreSettings;
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
-  promotions: BusinessPromotion[];
   waitlistEntries: WaitlistEntry[];
   deliveryZones: DeliveryZone[];
   designs: Design[];
@@ -235,17 +231,6 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
               data={planData}
               action={action}
             />
-
-            {canManage && section === "promotions" && (
-              <PromotionPanel
-                promotions={promotions}
-                collections={collections}
-                designs={designs}
-                activeCount={overview.activePromotions}
-                redeemedMinor={overview.promoRedeemedMinor}
-                error={action.promotionError}
-              />
-            )}
 
             {section === "visits" && (
               <BookingQueuePanel

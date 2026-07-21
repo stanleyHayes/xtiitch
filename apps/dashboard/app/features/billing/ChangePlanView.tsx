@@ -6,15 +6,20 @@ import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import MuiLink from "@mui/material/Link";
 import { Link as RouterLink } from "react-router";
 import { tokens } from "../../theme";
 import type { PlanChangeResult, PublicPlan } from "./billing-helpers";
-import { formatPrice, vatGross, vatNote } from "./PaymentMethodForm";
+import { formatPrice, vatNote } from "./PaymentMethodForm";
+import {
+  POPULAR_PLAN_CODE,
+  cadencePriceCopy,
+  planLimitLines,
+} from "./PlansView";
 
 // Human date for a plan change's effective moment (RFC3339 → e.g. "1 September 2026").
 function formatDate(iso: string): string {
@@ -56,147 +61,196 @@ export function ChangePlanView({ // eslint-disable-line max-lines-per-function -
   result: { error?: string; changeResult?: PlanChangeResult };
   isSubmitting: boolean;
 }) {
-  const others = plans.filter((item) => item.code !== currentPlan.code);
+  // Large plan cards, cheapest first — the same card design as the plans list
+  // (PlansView): name, big monthly price, first-vs-renewal line, limit lines,
+  // and a full-width "Choose …" button that posts the same change-plan intent
+  // the old compact rows did (the API still classifies upgrade vs downgrade).
+  const others = plans
+    .filter((item) => item.code !== currentPlan.code)
+    .sort((a, b) => a.monthly_fee_minor - b.monthly_fee_minor);
+  const vat = vatNote(currentPlan);
   return (
     <Box
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        display: "grid",
-        placeItems: "center",
-        p: 2,
+        py: { xs: 3, md: 6 },
+        px: 2,
       }}
     >
       <Container maxWidth="sm">
-        <Paper
-          elevation={0}
-          sx={{
-            p: { xs: 3, md: 4 },
-            border: "1px solid",
-            borderColor: alpha(tokens.ink, 0.12),
-            borderRadius: 3,
-            bgcolor: alpha(tokens.white, 0.98),
-            color: tokens.ink,
-          }}
-        >
-          <Stack
-            direction="row"
-            spacing={1.5}
-            sx={{ alignItems: "center", mb: 1 }}
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
+          <Box
+            sx={{
+              width: 44,
+              height: 44,
+              borderRadius: 2,
+              display: "grid",
+              placeItems: "center",
+              bgcolor: alpha(tokens.burgundy, 0.1),
+              color: tokens.burgundy,
+            }}
           >
-            <Box
-              sx={{
-                width: 44,
-                height: 44,
-                borderRadius: 2,
-                display: "grid",
-                placeItems: "center",
-                bgcolor: alpha(tokens.burgundy, 0.1),
-                color: tokens.burgundy,
-              }}
-            >
-              <PaymentsRounded />
-            </Box>
-            <Typography variant="h5" component="h1">
-              Change your plan
-            </Typography>
-          </Stack>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: "center", mb: 2 }}
-          >
-            <Typography variant="body2" sx={{ color: alpha(tokens.ink, 0.68) }}>
-              You're currently on
-            </Typography>
-            <Chip label={currentPlan.name} color="primary" size="small" />
-          </Stack>
+            <PaymentsRounded />
+          </Box>
+          <Typography variant="h5" component="h1">
+            Change your plan
+          </Typography>
+        </Stack>
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
+          <Typography variant="body2" sx={{ color: alpha(tokens.ink, 0.68) }}>
+            You're currently on
+          </Typography>
+          <Chip label={currentPlan.name} color="primary" size="small" />
+        </Stack>
 
-          {result.changeResult ? (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              {changeSummary(result.changeResult)}
-            </Alert>
-          ) : null}
-          {result.error ? (
-            <Alert severity="warning" sx={{ mb: 2 }}>
-              {result.error}
-            </Alert>
-          ) : null}
-
-          <Alert severity="info" icon={false} sx={{ mb: 2 }}>
-            Upgrades take effect immediately — you pay a prorated amount for the
-            rest of your current billing period, and future renewals bill the
-            new plan. Downgrades take effect at your next renewal, with no
-            charge or refund now.
-            {vatNote(currentPlan) ? ` ${vatNote(currentPlan)}` : ""}
+        {result.changeResult ? (
+          <Alert severity="success" sx={{ mb: 2 }}>
+            {changeSummary(result.changeResult)}
           </Alert>
+        ) : null}
+        {result.error ? (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            {result.error}
+          </Alert>
+        ) : null}
 
-          <Stack spacing={1.5}>
-            {others.map((item) => {
-              const upgrade =
-                item.monthly_fee_minor > currentPlan.monthly_fee_minor;
-              return (
-                <Paper
-                  key={item.code}
-                  variant="outlined"
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 2,
-                    borderColor: alpha(tokens.ink, 0.16),
-                  }}
-                >
-                  <Stack
-                    direction="row"
-                    spacing={1.5}
+        <Alert severity="info" icon={false} sx={{ mb: 3 }}>
+          Upgrades take effect immediately — you pay a prorated amount for the
+          rest of your current billing period, and future renewals bill the new
+          plan. Downgrades take effect at your next renewal, with no charge or
+          refund now.
+          {vat ? ` ${vat}` : ""}
+        </Alert>
+
+        <Stack spacing={2.5}>
+          {others.map((item) => {
+            const isPaid = item.monthly_fee_minor > 0;
+            const popular = item.code.toLowerCase() === POPULAR_PLAN_CODE;
+            const copy = cadencePriceCopy(item, "yearly");
+            return (
+              <Paper
+                key={item.code}
+                variant="outlined"
+                sx={{
+                  p: 2.25,
+                  borderRadius: 3,
+                  display: "flex",
+                  flexDirection: "column",
+                  bgcolor: alpha(tokens.white, 0.98),
+                  color: tokens.ink,
+                  borderColor: popular ? tokens.burgundy : alpha(tokens.ink, 0.16),
+                  borderWidth: popular ? 2 : 1,
+                  position: "relative",
+                }}
+              >
+                {popular ? (
+                  <Chip
+                    label="Most Popular"
+                    color="primary"
+                    size="small"
                     sx={{
-                      alignItems: "center",
-                      justifyContent: "space-between",
+                      position: "absolute",
+                      top: -12,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      fontWeight: 800,
                     }}
+                  />
+                ) : null}
+                <Typography sx={{ fontWeight: 900, fontSize: 18 }}>
+                  {item.name}
+                </Typography>
+                <Typography sx={{ fontWeight: 900, fontSize: 26, mt: 0.5 }}>
+                  {isPaid ? formatPrice(item.monthly_fee_minor) : "Free"}
+                  {isPaid ? (
+                    <Typography
+                      component="span"
+                      variant="body2"
+                      sx={{ color: alpha(tokens.ink, 0.6), fontWeight: 600 }}
+                    >
+                      /mo
+                    </Typography>
+                  ) : null}
+                </Typography>
+                {isPaid ? (
+                  <Typography
+                    variant="body2"
+                    sx={{ color: tokens.burgundy, fontWeight: 700, mt: 0.5 }}
                   >
-                    <Box>
-                      <Typography sx={{ fontWeight: 700 }}>
-                        {item.name}
-                      </Typography>
-                      <Typography
-                        variant="caption"
-                        sx={{ color: alpha(tokens.ink, 0.6) }}
-                      >
-                        {item.monthly_fee_minor > 0
-                          ? `${formatPrice(
-                              vatGross(item.quarterly_renewal_minor, item),
-                            )}/quarter · ${formatPrice(
-                              vatGross(item.yearly_renewal_minor, item),
-                            )}/year`
-                          : "Free"}
-                      </Typography>
-                    </Box>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="change-plan" />
-                      <input type="hidden" name="plan_code" value={item.code} />
-                      <Button
-                        type="submit"
-                        variant={upgrade ? "contained" : "outlined"}
-                        size="small"
-                        disabled={isSubmitting}
-                      >
-                        {upgrade ? "Upgrade now" : "Downgrade at renewal"}
-                      </Button>
-                    </Form>
-                  </Stack>
-                </Paper>
-              );
-            })}
-          </Stack>
+                    {copy.text}
+                  </Typography>
+                ) : (
+                  <Typography
+                    variant="body2"
+                    sx={{ color: alpha(tokens.ink, 0.6), mt: 0.5 }}
+                  >
+                    No subscription — upgrade when you're ready.
+                  </Typography>
+                )}
+                <Stack spacing={0.5} sx={{ mt: 1.5, mb: 2, flex: 1 }}>
+                  {planLimitLines(item).map((line) => (
+                    <Typography
+                      key={line}
+                      variant="body2"
+                      sx={{ color: alpha(tokens.ink, 0.72) }}
+                    >
+                      {line}
+                    </Typography>
+                  ))}
+                </Stack>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="change-plan" />
+                  <input type="hidden" name="plan_code" value={item.code} />
+                  <Button
+                    type="submit"
+                    variant={popular ? "contained" : "outlined"}
+                    disabled={isSubmitting}
+                    endIcon={<ArrowForwardRounded />}
+                    fullWidth
+                  >
+                    {`Choose ${item.name}`}
+                  </Button>
+                </Form>
+              </Paper>
+            );
+          })}
+        </Stack>
 
-          <Divider sx={{ my: 2 }} />
+        {vat ? (
+          <Typography
+            variant="caption"
+            sx={{
+              display: "block",
+              mt: 2,
+              textAlign: "center",
+              color: alpha(tokens.ink, 0.6),
+            }}
+          >
+            {vat} A Transaction fee is added at checkout, so your package price
+            reaches Xtiitch untouched.
+          </Typography>
+        ) : null}
+
+        <Box sx={{ mt: 3, textAlign: "center" }}>
           <MuiLink
             component={RouterLink}
             to="/dashboard"
+            sx={{ color: alpha(tokens.ink, 0.68), fontWeight: 700 }}
+          >
+            Keep my {currentPlan.name} plan
+          </MuiLink>
+        </Box>
+        <Box sx={{ mt: 1.5, textAlign: "center" }}>
+          <MuiLink
+            component={RouterLink}
+            to="/dashboard"
+            variant="caption"
             sx={{ color: alpha(tokens.ink, 0.6) }}
           >
             Back to dashboard
           </MuiLink>
-        </Paper>
+        </Box>
       </Container>
     </Box>
   );

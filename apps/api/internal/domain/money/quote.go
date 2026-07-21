@@ -28,9 +28,14 @@ type StoreSaleQuote struct {
 	// plus any uncommissioned lines (e.g. a delivery fee).
 	ItemsTotalMinor int64
 	// XtiitchFeeMinor is the summed per-design fee at the store's plan rate,
-	// each capped at GHS 50 (§4.2/§4.3).
+	// each capped at GHS 50 (§4.2/§4.3) — or the promotion-negotiated override
+	// when one replaces it.
 	XtiitchFeeMinor int64
-	// TaxMinor is the summed per-design VAT on each design's Xtiitch fee (§4.3).
+	// TaxMinor is the VAT on the commission actually charged: the summed
+	// per-design VAT on each design's Xtiitch fee (§4.3) or, when a promotion
+	// override reprices the fee, VAT on the override total — the same
+	// vat × commission rule in both paths, so the tax line can never silently
+	// differ or drop between a plain and a promoted checkout.
 	TaxMinor int64
 	// PaystackFeeMinor is the modeled 1.95% Paystack deduction on the total
 	// charge (informational; never displayed raw — §4.5).
@@ -73,15 +78,21 @@ type StoreSaleQuoteInput struct {
 
 // QuoteStoreSale computes the §4.2–§4.6 store-sale breakdown. Fee and tax are
 // computed PER DESIGN (each capped, each taxed, half-up at every step); the
-// Paystack fee is one charge on the total. When the Paystack fee is passed
-// down, the total is grossed up (§4.6) so the items total and the passed lines
-// survive Paystack's cut exactly; the store still bears the fee at split level
-// (bearer stays "subaccount") and the checkout lines compensate it (§4.8 note).
+// Paystack fee is one charge on the total. When a promotion sets a commission
+// override, the override replaces the per-design fees and VAT is charged on
+// the override TOTAL — the same vat × commission rule applied to the
+// commission actually charged, so the tax line is present and consistent with
+// and without a promotion. When the Paystack fee is passed down, the total is
+// grossed up (§4.6) so the items total and the passed lines survive Paystack's
+// cut exactly; the store still bears the fee at split level (bearer stays
+// "subaccount") and the checkout lines compensate it (§4.8 note).
 func QuoteStoreSale(input StoreSaleQuoteInput) StoreSaleQuote {
 	var itemsTotal int64 = input.UncostedMinor
 	var fee int64
 	var tax int64
 	if input.CommissionOverrideMinor != nil {
+		// Promotion-negotiated fee: VAT on the override total (the commission
+		// actually charged), never dropped.
 		fee = *input.CommissionOverrideMinor
 		tax = Percentage(fee, input.VATBps)
 	}

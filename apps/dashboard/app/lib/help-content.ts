@@ -48,7 +48,7 @@ export const HELP_GUIDES: HelpGuide[] = [
     steps: [
       "Pick a time range to see revenue and order counts for that window.",
       "Compare periods to see whether things are speeding up or slowing down.",
-      "Use the patterns to plan stock, staffing and promotions.",
+      "Use the patterns to plan stock and staffing.",
     ],
   },
   {
@@ -135,18 +135,6 @@ export const HELP_GUIDES: HelpGuide[] = [
       "Publish a piece to make it live on your storefront; retire it to take it down.",
       "Group related pieces into collections to organise your storefront.",
       "Keep prices and photos current — this is what customers see first.",
-    ],
-  },
-  {
-    section: "promotions",
-    title: "Promotions",
-    helper: "Promo codes",
-    summary:
-      "Promotions lets you create discount codes for your store, collections or campaigns — a percentage or fixed amount off, with limits you control.",
-    steps: [
-      "Create a code and choose a percentage or fixed discount.",
-      "Set limits such as how many times it can be used and when it expires.",
-      "Share the code with customers; deactivate it any time.",
     ],
   },
   {

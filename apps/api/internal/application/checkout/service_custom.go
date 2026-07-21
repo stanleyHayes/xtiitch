@@ -33,7 +33,7 @@ type PlaceCustomOrderCommand struct {
 	// Note is the customer's free-text instruction captured at checkout ('' if none).
 	Note string
 	// CallbackURL is where the payment provider returns the customer after they
-	// pay the deposit (§5.2). Optional; validated by cleanCallbackURL.
+	// pay the deposit (§5.2). Optional; validated by CleanCallbackURL.
 	CallbackURL string
 }
 
@@ -164,7 +164,7 @@ func (s Service) placeDepositCustomOrder(
 ) (PlaceCustomOrderResult, error) {
 	// Only the deposit path raises a payment, so only it takes a callback_url
 	// (a come-to-shop order is arranged in person and charges nothing online).
-	callbackURL, err := cleanCallbackURL(cmd.CallbackURL)
+	callbackURL, err := CleanCallbackURL(cmd.CallbackURL)
 	if err != nil {
 		return PlaceCustomOrderResult{}, err
 	}

@@ -10,13 +10,15 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// A paid plan's authorization-verify charges the first period immediately and,
-// on success, books the activation payment and reports the subscription active.
-func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget(t *testing.T) {
+// A free store activating a paid plan gets a Paystack checkout priced on the
+// target plan, but the plan itself is only PARKED as payment-pending at
+// initialize — never switched before Paystack verifies the payment, so an
+// abandoned checkout can never unlock the paid plan's features.
+func TestInitializeSubscriptionAuthorizationParksTargetPlanPendingPayment(t *testing.T) {
 	t.Parallel()
 
-	// A store on the FREE plan (fee 0) activating a paid plan. Without the plan
-	// switch this fails the fee gate outright — the reported "couldn't start billing"
+	// A store on the FREE plan (fee 0) activating a paid plan. Without the pending
+	// park this fails the fee gate outright — the reported "couldn't start billing"
 	// bug for free→paid upgrades.
 	businesses := &fakeBusinessIdentityRepository{
 		subscription: ports.BusinessSubscriptionRecord{
@@ -26,7 +28,8 @@ func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget(t *testing.
 		planByCode: ports.PlanPricingRecord{PlanID: "plan-growth", Code: "growth", MonthlyFeeMinor: 9900},
 		subscriptionUpgraded: ports.BusinessSubscriptionRecord{
 			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
-			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "active", BillingCadence: "yearly", YearlyFirstMinor: 89100,
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "active", BillingCadence: "yearly",
+			YearlyFirstMinor: 89100, PendingUpgradePlanID: "plan-growth",
 		},
 	}
 	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{chargeStatus: "success"})
@@ -38,17 +41,84 @@ func TestInitializeSubscriptionAuthorizationUpgradesFreePlanToTarget(t *testing.
 	if err != nil {
 		t.Fatalf("free→paid activation should succeed, got %v", err)
 	}
-	if businesses.upgradeApplied == nil || businesses.upgradeApplied.NewPlanID != "plan-growth" {
-		t.Fatalf("expected the subscription switched to the target plan, got %+v", businesses.upgradeApplied)
+	if businesses.pendingUpgradeSet != "plan-growth" {
+		t.Fatalf("expected the target plan parked as payment-pending, got %q", businesses.pendingUpgradeSet)
 	}
-	if businesses.upgradeApplied.AmountMinor != 0 {
-		t.Fatalf(
-			"activation switch must not book a proration invoice (first charge is on the callback), got %d",
-			businesses.upgradeApplied.AmountMinor,
-		)
+	if businesses.upgradeApplied != nil {
+		t.Fatalf("the plan must NOT switch at initialize — only on a verified payment, got %+v", businesses.upgradeApplied)
 	}
 	if result.RedirectURL == "" {
 		t.Fatal("expected a Paystack authorization link")
+	}
+}
+
+// A Paystack-VERIFIED first payment applies the parked plan switch — the only
+// path that unlocks the paid plan's entitlements.
+func TestVerifySubscriptionAuthorizationAppliesPendingPlanUpgrade(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "trialing",
+			BillingCadence: "yearly", YearlyFirstMinor: 89100,
+			PendingUpgradePlanID: "plan-growth",
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_1",
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
+	}
+	if result.Status != "active" {
+		t.Fatalf("expected an active subscription, got %+v", result)
+	}
+	if businesses.upgradeApplied == nil || businesses.upgradeApplied.NewPlanID != "plan-growth" {
+		t.Fatalf("expected the pending plan applied on verified payment, got %+v", businesses.upgradeApplied)
+	}
+	if businesses.upgradeApplied.AmountMinor != 0 {
+		t.Fatalf("the pending switch books no proration invoice (the first period books separately), got %d",
+			businesses.upgradeApplied.AmountMinor)
+	}
+}
+
+// An abandoned/failed checkout applies NOTHING: the parked plan stays pending
+// and entitlements keep resolving from the current paid-up plan.
+func TestVerifySubscriptionAuthorizationKeepsPendingPlanLockedWhenPaymentFails(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "trialing",
+			BillingCadence: "yearly", YearlyFirstMinor: 89100,
+			PendingUpgradePlanID: "plan-growth",
+		},
+	}
+	payments := &fakeSubscriptionPayments{verifyNotSucceeded: true}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_1",
+	})
+	if err != nil {
+		t.Fatalf("verify: unexpected error: %v", err)
+	}
+	if result.Status == "active" {
+		t.Fatalf("an unpaid checkout must not report active, got %+v", result)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatalf("an unpaid checkout must never unlock the plan, got %+v", businesses.upgradeApplied)
+	}
+	if businesses.recurringActivated != nil {
+		t.Fatal("an unpaid checkout must not activate recurring billing")
+	}
+	if businesses.activationPayment.ChargeRef != "" {
+		t.Fatal("an unpaid checkout must not book an activation payment")
 	}
 }
 

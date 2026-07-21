@@ -80,6 +80,7 @@ type fakeBusinessIdentityRepository struct {
 	planByCodeErr         error
 	upgradeApplied        *ports.ApplyImmediatePlanUpgradeInput
 	downgradeScheduled    *ports.SchedulePlanDowngradeInput
+	pendingUpgradeSet     common.ID
 }
 
 func (repo *fakeBusinessIdentityRepository) CreateBusinessWithOwner(
@@ -111,12 +112,18 @@ func (repo *fakeBusinessIdentityRepository) GetBusinessSubscription(
 	_ common.ID) (ports.BusinessSubscriptionRecord,
 	error,
 ) {
-	// After a plan switch, a re-read reflects the upgraded plan (mirrors the real
-	// repo, whose figures are joined from the now-current plan).
-	if repo.upgradeApplied != nil && repo.subscriptionUpgraded.SubscriptionID != "" {
+	// After a plan switch OR a parked payment-pending upgrade, a re-read reflects
+	// the target plan (mirrors the real repo, whose figures are joined from the
+	// effective billing plan).
+	if (repo.upgradeApplied != nil || repo.pendingUpgradeSet != "") && repo.subscriptionUpgraded.SubscriptionID != "" {
 		return repo.subscriptionUpgraded, nil
 	}
 	return repo.subscription, nil
+}
+
+func (repo *fakeBusinessIdentityRepository) SetPendingPlanUpgrade(_ context.Context, _ common.ID, planID common.ID) error {
+	repo.pendingUpgradeSet = planID
+	return nil
 }
 
 func (repo *fakeBusinessIdentityRepository) GetPlanByCode(_ context.Context, _ string) (ports.PlanPricingRecord, error) {

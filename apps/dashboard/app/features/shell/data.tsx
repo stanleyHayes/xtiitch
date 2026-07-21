@@ -3,7 +3,6 @@ import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
 import ContactPhoneRounded from "@mui/icons-material/ContactPhoneRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import InsightsRounded from "@mui/icons-material/InsightsRounded";
-import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import NotificationsRounded from "@mui/icons-material/NotificationsRounded";
 import PeopleAltRounded from "@mui/icons-material/PeopleAltRounded";
@@ -80,13 +79,6 @@ export const managementWorkspaceNav: WorkspaceNavItem[] = [
     label: "Catalogue",
     helper: "Storefront pieces",
     icon: <DesignServicesRounded />,
-  },
-  {
-    href: "/dashboard/promotions",
-    section: "promotions",
-    label: "Promotions",
-    helper: "Promo codes",
-    icon: <LocalOfferRounded />,
   },
   {
     href: "/dashboard/measurements",
@@ -205,10 +197,7 @@ export const managementWorkspaceGroups: WorkspaceNavGroup[] = [
     id: "storefront",
     label: "Storefront",
     icon: <StorefrontRounded />,
-    items: workspaceNavItems(managementWorkspaceNav, [
-      "catalogue",
-      "promotions",
-    ]),
+    items: workspaceNavItems(managementWorkspaceNav, ["catalogue"]),
   },
   {
     id: "setup",
@@ -330,15 +319,6 @@ export function dashboardPageMeta(section: DashboardSection): DashboardPageMeta 
           "Publish, retire, and refresh the designs customers see before they order or request custom work.",
         icon: <DesignServicesRounded />,
         tone: tokens.burgundy,
-      };
-    case "promotions":
-      return {
-        eyebrow: "Growth",
-        title: "Promotion desk",
-        helper:
-          "Create business-funded promo codes for the whole store, one collection, or a specific design.",
-        icon: <LocalOfferRounded />,
-        tone: tokens.gold,
       };
     case "measurements":
       return {

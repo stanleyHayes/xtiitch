@@ -102,6 +102,16 @@ type BusinessSubscriptionRecord struct {
 	// remainder of the period (upgrade) and pin a downgrade's effective date.
 	CurrentPeriodStart time.Time
 	CurrentPeriodEnd   time.Time
+	// PendingUpgradePlanID is the target plan of an upgrade that is parked
+	// AWAITING PAYMENT (business_subscriptions.pending_plan_id with a NULL
+	// pending_plan_effective_at): the owner checked out but Paystack has not
+	// verified the charge yet. Empty when no payment-pending upgrade exists.
+	// While it is set the plan pricing fields above reflect the PENDING plan
+	// (so the first charge is priced correctly), but entitlements still resolve
+	// from the current paid-up plan — businesses.plan_id only moves once the
+	// payment verifies. A SCHEDULED downgrade (effective_at set) is different
+	// and is not reported here.
+	PendingUpgradePlanID common.ID
 }
 
 // PlanPricingRecord is a plan's identity + pricing needed to classify and prorate a

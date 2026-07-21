@@ -5,9 +5,8 @@ import { fetchActivationStatus } from "../../lib/activation";
 import type { PlanChangeResult, PublicPlan } from "./billing-helpers";
 import {
   fetchProfile,
-  isIdentityOnFile,
+  startBilling,
   submitPlanChange,
-  verifyIdentityAndStartBilling,
 } from "./billing-helpers";
 import { ChangePlanView } from "./ChangePlanView";
 import { PaymentMethodForm } from "./PaymentMethodForm";
@@ -21,7 +20,8 @@ export function meta(): Route.MetaDescriptors {
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const planCode = new URL(request.url).searchParams.get("plan") ?? "";
+  const searchParams = new URL(request.url).searchParams;
+  const planCode = searchParams.get("plan") ?? "";
   // A paid plan pending activation that reaches the bare plans/management screen
   // (no explicit ?plan target) belongs on the activation page, not the
   // change-plan view — send them there so the plans flow is never a dead-end.
@@ -47,8 +47,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     : null;
   // Owner is authenticated by the time they reach /onboarding/billing (register
   // sets the session; plan changes come from inside the dashboard), so we can read
-  // the profile to decide whether the Ghana Card is still needed and which plan
-  // they are currently on.
+  // the profile to learn which plan they are currently on.
   const profile = await fetchProfile(request);
   const currentPlan =
     plans.find((item) => item.code === profile.planCode) ?? null;
@@ -56,20 +55,21 @@ export async function loader({ request }: Route.LoaderArgs) {
     plan,
     plans,
     currentPlan,
-    verificationStatus: profile.verificationStatus,
-    identityOnFile: isIdentityOnFile(profile.verificationStatus),
+    // Set by the billing callback when the owner returned from Paystack without
+    // completing payment — the views show a friendly "nothing was charged" banner.
+    abandoned: searchParams.get("billing") === "abandoned",
   };
 }
 
-// Collect the owner's Ghana Card (unless already on file), then ask the API for
-// a Paystack recurring-authorization link (owner-scoped) and redirect the owner
-// out to Paystack; they return to the callback route.
+// Ask the API for a Paystack recurring-authorization link (owner-scoped) and
+// redirect the owner out to Paystack; they return to the callback route. Paying
+// is never gated — no identity or verification step stands in this path.
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
 
   // Plan change (upgrade now / downgrade at renewal) for an already-subscribed
-  // business. Distinct from the activation flow below; no Ghana Card or cadence
-  // step — the API classifies and prorates server-side.
+  // business. Distinct from the activation flow below; no cadence step — the
+  // API classifies and prorates server-side.
   if (String(form.get("intent") ?? "") === "change-plan") {
     return submitPlanChange(
       request,
@@ -77,7 +77,7 @@ export async function action({ request }: Route.ActionArgs) {
     );
   }
 
-  return verifyIdentityAndStartBilling(request, form);
+  return startBilling(request, form);
 }
 
 export default function BillingOnboarding({ // eslint-disable-line complexity -- view switch over plan/management state; refactor in follow-up
@@ -89,8 +89,7 @@ export default function BillingOnboarding({ // eslint-disable-line complexity --
   const plan = loaderData?.plan ?? null;
   const currentPlan = loaderData?.currentPlan ?? null;
   const plans = loaderData?.plans ?? [];
-  const identityOnFile = loaderData?.identityOnFile ?? false;
-  const verified = loaderData?.verificationStatus === "verified";
+  const abandoned = loaderData?.abandoned ?? false;
   const result = (actionData ?? {}) as {
     error?: string;
     changeResult?: PlanChangeResult;
@@ -123,6 +122,11 @@ export default function BillingOnboarding({ // eslint-disable-line complexity --
         currentPlanCode={currentPlan?.code}
         title="Upgrade your plan"
         subtitle="You're on the Free plan. Pick a package below to unlock more — payment is by Paystack, quarterly or yearly."
+        notice={
+          abandoned
+            ? "Payment wasn't completed — nothing was charged. You can try again whenever you're ready."
+            : undefined
+        }
         backTo="/dashboard"
       />
     );
@@ -131,9 +135,8 @@ export default function BillingOnboarding({ // eslint-disable-line complexity --
   return (
     <PaymentMethodForm
       plan={plan}
-      identityOnFile={identityOnFile}
-      verified={verified}
       error={result.error}
+      abandoned={abandoned}
       isSubmitting={isSubmitting}
     />
   );

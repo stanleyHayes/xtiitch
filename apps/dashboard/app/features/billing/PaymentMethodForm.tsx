@@ -6,16 +6,13 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
-import Divider from "@mui/material/Divider";
 import Paper from "@mui/material/Paper";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
-import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import TextField from "../../components/form-text-field";
-import { CardDropzone } from "../../components/ui/CardDropzone";
 import { XCreativsPaymentNotice } from "../../components/ui/XCreativsPaymentNotice";
 import { tokens } from "../../theme";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
@@ -61,19 +58,17 @@ export function vatNote(vat: VATPolicy): string {
 
 export function PaymentMethodForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   plan,
-  identityOnFile,
-  verified,
   error,
+  abandoned,
   isSubmitting,
 }: {
   plan: PublicPlan | null;
-  identityOnFile: boolean;
-  verified: boolean;
   error?: string;
+  // True when the owner returned from Paystack without completing payment —
+  // shows a friendly banner and the pay button simply works again.
+  abandoned?: boolean;
   isSubmitting: boolean;
 }) {
-  const [photoName, setPhotoName] = useState("");
-  const [photoBackName, setPhotoBackName] = useState("");
   const isPaidPlan = plan !== null && plan.monthly_fee_minor > 0;
   // The plans list deep-links here with ?plan=code&cadence=..., so the cycle
   // the owner picked there is the cycle this form starts on.
@@ -104,8 +99,8 @@ export function PaymentMethodForm({ // eslint-disable-line max-lines-per-functio
             bgcolor: alpha(tokens.white, 0.98),
             color: tokens.ink,
             // Force light inputs on this white card. Without these the fields fall
-            // back to the theme's (dark-mode) input styling — a near-black Ghana
-            // Card field with an unreadable label. Mirrors the register card.
+            // back to the theme's (dark-mode) input styling — near-black fields
+            // with unreadable labels. Mirrors the register card.
             "& .MuiInputLabel-root": {
               color: alpha(tokens.ink, 0.68),
               bgcolor: alpha(tokens.white, 0.98),
@@ -162,7 +157,13 @@ export function PaymentMethodForm({ // eslint-disable-line max-lines-per-functio
               {error}
             </Alert>
           ) : null}
-          <Form method="post" encType="multipart/form-data">
+          {abandoned ? (
+            <Alert severity="info" sx={{ mb: 2, textAlign: "left" }}>
+              Payment wasn&apos;t completed — nothing was charged. You can try
+              again whenever you&apos;re ready.
+            </Alert>
+          ) : null}
+          <Form method="post">
             <Stack spacing={2}>
               {isPaidPlan && plan ? (
                 <BillingCyclePicker
@@ -192,75 +193,6 @@ export function PaymentMethodForm({ // eslint-disable-line max-lines-per-functio
                   </Typography>
                 </Box>
               ) : null}
-              {identityOnFile ? (
-                <Alert
-                  severity={verified ? "success" : "info"}
-                  icon={<VerifiedUserRounded fontSize="inherit" />}
-                  sx={{ textAlign: "left" }}
-                >
-                  {verified
-                    ? "Your Ghana Card is verified and on file. No need to upload it again."
-                    : "Your Ghana Card is on file and under review. You can continue to payment now."}
-                </Alert>
-              ) : (
-                <Box sx={{ textAlign: "left" }}>
-                  <Divider sx={{ mb: 2 }} />
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{ alignItems: "center", mb: 0.5 }}
-                  >
-                    <VerifiedUserRounded
-                      fontSize="small"
-                      sx={{ color: tokens.burgundy }}
-                    />
-                    <Typography sx={{ fontWeight: 800 }}>
-                      Verify your business
-                    </Typography>
-                  </Stack>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: alpha(tokens.ink, 0.68), mb: 2 }}
-                  >
-                    We collect your Ghana Card to verify the business owner
-                    before taking payments. This is required to activate a paid
-                    plan.
-                  </Typography>
-                  <Stack spacing={1.5}>
-                    <TextField
-                      name="card_number"
-                      label="Ghana Card number"
-                      placeholder="GHA-123456789-0"
-                      required
-                      fullWidth
-                    />
-                    <Stack
-                      direction={{ xs: "column", sm: "row" }}
-                      spacing={1.5}
-                    >
-                      <CardDropzone
-                        name="id_photo_file"
-                        side="Front"
-                        fileName={photoName}
-                        onFile={setPhotoName}
-                      />
-                      <CardDropzone
-                        name="id_photo_back_file"
-                        side="Back"
-                        fileName={photoBackName}
-                        onFile={setPhotoBackName}
-                      />
-                    </Stack>
-                    <Typography
-                      variant="caption"
-                      sx={{ display: "block", color: alpha(tokens.ink, 0.6) }}
-                    >
-                      Clear photos of the front and back of your Ghana Card
-                      (both required).
-                    </Typography>
-                  </Stack>
-                </Box>
-              )}
               <Button
                 type="submit"
                 variant="contained"
@@ -270,9 +202,7 @@ export function PaymentMethodForm({ // eslint-disable-line max-lines-per-functio
               >
                 {isSubmitting
                   ? "Redirecting to Paystack…"
-                  : identityOnFile
-                    ? "Continue to payment"
-                    : "Save & continue to payment"}
+                  : "Continue to payment"}
               </Button>
               {/* The owner is about to be sent to Paystack, where the merchant
                   reads "XCreativs" rather than Xtiitch. */}

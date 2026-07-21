@@ -24,7 +24,8 @@ type publicPlanResponse struct {
 type subscriptionAuthorizationLinkRequest struct {
 	CallbackURL string `json:"callback_url"`
 	// PlanCode is the target plan being activated/upgraded to; when set and it
-	// differs from the current plan the subscription is switched onto it first.
+	// differs from the current plan it is parked as payment-pending (the plan
+	// switch itself only happens once Paystack verifies the payment).
 	PlanCode string `json:"plan_code"`
 	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
 	BillingCadence string `json:"billing_cadence"`

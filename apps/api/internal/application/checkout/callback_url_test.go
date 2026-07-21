@@ -19,7 +19,7 @@ import (
 func TestCleanCallbackURLAcceptsHTTPS(t *testing.T) {
 	t.Parallel()
 
-	got, err := cleanCallbackURL("  https://store.xtiitch.com/cart?paid=1 ")
+	got, err := CleanCallbackURL("  https://store.xtiitch.com/cart?paid=1 ")
 	if err != nil {
 		t.Fatalf("unexpected rejection: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestCleanCallbackURLAcceptsLoopbackHTTP(t *testing.T) {
 		"http://[::1]:3000/cart",
 		"http://store.localhost/cart",
 	} {
-		if _, err := cleanCallbackURL(raw); err != nil {
+		if _, err := CleanCallbackURL(raw); err != nil {
 			t.Fatalf("%s: loopback http must be accepted for dev, got %v", raw, err)
 		}
 	}
@@ -46,7 +46,7 @@ func TestCleanCallbackURLAcceptsLoopbackHTTP(t *testing.T) {
 func TestCleanCallbackURLEmptyStaysEmpty(t *testing.T) {
 	t.Parallel()
 
-	got, err := cleanCallbackURL("   ")
+	got, err := CleanCallbackURL("   ")
 	if err != nil || got != "" {
 		t.Fatalf("an absent callback must stay absent, got %q / %v", got, err)
 	}
@@ -63,7 +63,7 @@ func TestCleanCallbackURLRejectsUnsafeValues(t *testing.T) {
 		"javascript:alert(1)",                  // script scheme
 		"https://" + strings.Repeat("a", 2100), // over the length cap
 	} {
-		if _, err := cleanCallbackURL(raw); !errors.Is(err, ErrInvalidInput) {
+		if _, err := CleanCallbackURL(raw); !errors.Is(err, ErrInvalidInput) {
 			t.Fatalf("%q: expected ErrInvalidInput, got %v", raw, err)
 		}
 	}

@@ -114,7 +114,7 @@ This panel offers up to three routes, depending on what the shop has switched on
 
 ### 2.6 Paying a bespoke deposit
 
-- A bespoke order is confirmed with a **deposit** rather than the full price. The deposit **defaults to GHS 100**, can be set higher by the shop (store-wide or for one design), and **never goes below GHS 100**.
+- A bespoke order is confirmed with a **deposit** rather than the full price. The deposit **defaults to GHS 1**, can be set higher by the shop (store-wide or for one design), and **never goes below GHS 1**.
 - The deposit **counts toward** the final price.
 - After you pay, the shop settles the design, any changes, and the final price with you (Xtiitch encourages this over WhatsApp). The **balance** is then collected the shop's way — another Xtiitch payment link, or cash / direct mobile money.
 - **Exception:** if you choose **Come to the shop** to be measured, **no deposit** is taken online; everything is arranged directly with the business.
@@ -242,7 +242,7 @@ The **Catalogue** page is your Design Studio. It opens with a two-column setup p
 
 1. **Add a design** with a **title**, a **description**, and **images** — drag and drop into the image dropzone, or choose files to upload (images upload directly to secure storage, never through Xtiitch's servers).
 2. Set pricing in the **per-size-band pricing grid**: for a **made-to-wear** piece, enter a price for each size band; the customer picks a size and pays that price in full at checkout.
-3. For a **bespoke** piece, set a **deposit** instead of a full price. The deposit **defaults to GHS 100**, can be set higher (store-wide or for one design), and **never goes below GHS 100**. It counts toward the final price, which you agree with the customer afterward.
+3. For a **bespoke** piece, set a **deposit** instead of a full price. The deposit **defaults to GHS 1**, can be set higher (store-wide or for one design), and **never goes below GHS 1**. It counts toward the final price, which you agree with the customer afterward.
 4. **Publish** a piece to make it live; **retire** it to take it down (retired items stay safely in your dashboard and can be **restored** any time; deleting is a separate, deliberate action).
 5. Use the **copy-link** button on a design or collection to grab its **shareable link** for Instagram, Facebook, or WhatsApp — post a single design or a whole collection and send customers straight to it.
 
@@ -495,7 +495,7 @@ Xtiitch has four plans. You can start free and upgrade any time; every plan — 
 ### 7.4 Deposits and balances (bespoke)
 
 - Ready-made orders are **paid in full** at checkout (the price is known).
-- Bespoke orders are confirmed with a **deposit** (defaults to GHS 100, never lower), which counts toward the final price. The **balance** is agreed and collected afterward — by another Xtiitch payment link (commission applies) or cash / direct mobile money (fee-free). Choosing **Come to the shop** to be measured takes no deposit.
+- Bespoke orders are confirmed with a **deposit** (defaults to GHS 1, never lower), which counts toward the final price. The **balance** is agreed and collected afterward — by another Xtiitch payment link (commission applies) or cash / direct mobile money (fee-free). Choosing **Come to the shop** to be measured takes no deposit.
 
 ### 7.5 Subscription billing & renewal
 

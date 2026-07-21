@@ -4,7 +4,12 @@ import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import type { Collection, Design, PublicShop, StoreSummary } from "../../lib/api";
+import type {
+  Collection,
+  Design,
+  PublicShop,
+  StoreSummary,
+} from "../../lib/api";
 import { tokens } from "../../theme";
 import { CollectionStrip } from "./collection-strip";
 import { DesignGrid } from "./design-grid";
@@ -17,14 +22,17 @@ import { StoreServiceBand } from "./store-service-band";
 // StoreView is the full storefront page — header, in-store search, and the
 // design grid. It is rendered both at <handle>.xtiitch.com (the home route
 // resolving the store from the subdomain) and at the legacy /store/:handle path.
-export function StoreView({
-  store,
-  designs,
-  query,
-  collections = [],
-  marketplace = [],
-  tenantHost = false,
-}: {
+// A store whose owner has not verified the business (Ghana Card) or set up
+// payouts is NOT LIVE: the API already withholds its catalogue, and the page
+// says so instead of rendering an empty grid (verification gates selling).
+export function StoreView(props: StoreViewProps) {
+  if (props.store.live === false) {
+    return <NotLiveStoreView {...props} />;
+  }
+  return <LiveStoreView {...props} />;
+}
+
+type StoreViewProps = {
   store: StoreSummary;
   designs: Design[];
   query: string;
@@ -34,7 +42,25 @@ export function StoreView({
   // (business-name.xtiitch.com) — §6 isolation then hides the cross-store
   // discovery strip on every plan, identical everywhere.
   tenantHost?: boolean;
-}) {
+};
+
+function NotLiveStoreView({ store, designs, query }: StoreViewProps) {
+  return (
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <StoreHeader store={store} designs={designs} query={query} />
+      <NotLiveNotice storeName={store.name} />
+    </Box>
+  );
+}
+
+function LiveStoreView({
+  store,
+  designs,
+  query,
+  collections = [],
+  marketplace = [],
+  tenantHost = false,
+}: StoreViewProps) {
   const brand = store.brand_color || tokens.burgundy;
   const otherShops = marketplace.filter((shop) => shop.handle !== store.handle);
   // "Discover other studios" only shows on free-plan storefronts; paid plans get
@@ -133,5 +159,21 @@ export function StoreView({
         <PoweredByBadge brand={brand} />
       ) : null}
     </Box>
+  );
+}
+
+// NotLiveNotice replaces the catalogue for a store whose owner has not yet
+// verified the business (Ghana Card) or set up payouts — verification gates
+// selling, so the storefront shell renders without designs.
+function NotLiveNotice({ storeName }: { storeName: string }) {
+  return (
+    <Container sx={{ py: { xs: 6, md: 10 } }}>
+      <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
+        This store is not live yet
+      </Typography>
+      <Typography sx={{ color: "text.secondary", maxWidth: 620 }}>
+        {storeName} has not opened its storefront. Check back soon.
+      </Typography>
+    </Container>
   );
 }

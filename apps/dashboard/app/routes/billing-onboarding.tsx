@@ -5,8 +5,8 @@ export { meta, loader, action } from "../features/billing/BillingOnboarding";
 
 // React Router injects loaderData/actionData props only into a route module's
 // LOCALLY-declared default export, not a re-export. Without this wrapper the
-// component saw undefined loaderData and silently defaulted (identityOnFile=false
-// → asked verified owners for their Ghana Card again; plan=null → wrong view).
+// component saw undefined loaderData and silently defaulted (plan=null → wrong
+// view).
 export default function BillingOnboardingRoute(props: Route.ComponentProps) {
   return <BillingOnboarding {...props} />;
 }

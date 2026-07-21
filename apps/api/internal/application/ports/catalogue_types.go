@@ -233,6 +233,13 @@ type Storefront struct {
 	// The storefront uses it to gate plan-specific surfaces such as the
 	// "Discover other studios" strip, which only shows for free-plan stores.
 	PlanCode string
+	// Live is true when the store may SELL and be displayed publicly: the owner
+	// has verified their business (Ghana Card) AND set up payout details — the
+	// same pair checkout enforces (verification gates selling, never paying).
+	// When false the storefront is not live: the public catalogue endpoints
+	// return the store shell with no designs, so a direct visit shows the store
+	// as unavailable rather than its catalogue.
+	Live bool
 }
 
 // DesignWaitlistEntryInput is a customer's public request to join a design's

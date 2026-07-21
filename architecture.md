@@ -213,7 +213,7 @@ The system is a Go hexagonal-architecture monolith (`apps/api`) plus a Node Bull
 
 ### 1. Database schema
 
-Migrations live in `infra/migrations/` as **split `.up.sql` / `.down.sql` pairs**, zero-padded and sequentially numbered `000001` … `000063`. This split-file layout is the **golang-migrate** format, and golang-migrate is the runner used at deploy time (`render.yaml` installs `github.com/golang-migrate/migrate/v4/cmd/migrate` and runs `./migrate -path ../../infra/migrations -database "$DATABASE_URL" up` on API boot). Note a documentation drift: `infra/migrations/README.md` still refers to Goose tooling and `pnpm --filter @xtiitch/api migrate:*` scripts, but the live deployment path uses golang-migrate. `up` exits 0 on both apply and no-change, so a genuine failure blocks boot while a clean restart proceeds.
+Migrations live in `infra/migrations/` as **split `.up.sql` / `.down.sql` pairs**, zero-padded and sequentially numbered `000001` … `000063`. This split-file layout is the **golang-migrate** format, and golang-migrate is the runner both locally (`pnpm --filter @xtiitch/api migrate:*`, which invokes `github.com/golang-migrate/migrate/v4/cmd/migrate` — see amended ADR 0002) and at deploy time (`render.yaml` installs the same CLI and runs `./migrate -path ../../infra/migrations -database "$DATABASE_URL" up` on API boot). `up` exits 0 on both apply and no-change, so a genuine failure blocks boot while a clean restart proceeds.
 
 Conventions enforced across migrations: every tenant-scoped table carries `business_id`; high-traffic indexes lead with `business_id`; client-facing IDs are UUIDs (`gen_random_uuid()` via the `pgcrypto` extension enabled in `000001`); webhook/payment idempotency tables carry unique constraints. Money columns are `bigint`/`integer` minor units with `CHECK (… >= 0)` guards.
 
@@ -827,7 +827,7 @@ Money movement for through-platform sales via Paystack split charges, plus off-p
 
 **Domain types** (`apps/api/internal/domain/money/`)
 - `money.Commission(amountMinor, basisPoints) int64` — `amount*bps/10000`, floored to whole pesewa, never rounds in the platform's favour; ≤0 inputs → 0 — `commission.go:10`.
-- `money.DepositFloorMinor = 10000` (GHS 100 hard floor) + `ValidateDepositConfig` + `ResolveDeposit(designOverride, storeDefault)` — `deposit.go:8`,`:14`,`:26`.
+- `money.DepositFloorMinor = 100` (GHS 1 hard floor, no upper cap) + `ValidateDepositConfig` + `ResolveDeposit(designOverride, storeDefault)` — `deposit.go:8`,`:14`,`:26`.
 - `money.PaymentStatus` (`initiated`/`succeeded`/`failed`/`reversed`) — `payment.go:5`.
 - `money.PaymentPurpose` (`standard_full`/`deposit`/`balance`/`booking_deposit`/`cart_full`/`marketplace_split`) + `Valid()` — `payment.go:14`,`:27`.
 - `money.PaymentMethod` (`momo`/`card`) + `Valid()` — `payment.go:36`,`:43`.

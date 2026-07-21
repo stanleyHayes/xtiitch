@@ -1,6 +1,5 @@
 import { redirect } from "react-router";
 import { apiFetch } from "../../lib/auth";
-import { uploadImage } from "../../lib/media";
 
 export type PublicPlan = {
   code: string;
@@ -25,43 +24,31 @@ export type PublicPlan = {
 export type BillingCadence = "quarterly" | "yearly";
 
 type BusinessProfile = {
-  verification_status?: string;
   plan?: string;
 };
 
 export type Profile = {
-  verificationStatus: string;
   planCode: string;
 };
 
-// The Ghana Card is considered "on file" once it has been submitted (pending
-// review) or approved (verified) — in either case we skip re-collection here.
-export function isIdentityOnFile(status: string): boolean {
-  return status === "verified" || status === "pending";
-}
-
-// Read the owner's business profile: verification status (to decide whether the
-// Ghana Card section is still needed) and the plan they are currently on (to render
-// the plan-change control for an already-subscribed business). Used by the loader
-// and re-checked in the action so a stale form cannot bypass identity capture.
+// Read the owner's business profile for the plan they are currently on (to render
+// the plan-change control for an already-subscribed business). Paying is never
+// gated, so verification status is intentionally NOT read here — it only gates
+// selling (dashboard → settings).
 export async function fetchProfile(request: Request): Promise<Profile> {
   try {
     const response = await apiFetch(request, "/businesses/me", {
       method: "GET",
     });
     if (!response.ok) {
-      return { verificationStatus: "", planCode: "" };
+      return { planCode: "" };
     }
     const body = (await response.json()) as BusinessProfile;
     return {
-      verificationStatus:
-        typeof body.verification_status === "string"
-          ? body.verification_status
-          : "",
       planCode: typeof body.plan === "string" ? body.plan : "",
     };
   } catch {
-    return { verificationStatus: "", planCode: "" };
+    return { planCode: "" };
   }
 }
 
@@ -202,66 +189,11 @@ export async function submitPlanChange(
   return { changeResult: (await response.json()) as PlanChangeResult };
 }
 
-// Upload a single Ghana Card photo and return its URL, or "" if none was
-// provided (so the caller can surface a precise "upload the front/back" error).
-async function uploadCardPhoto(
-  request: Request,
-  form: FormData,
-  field: string,
-): Promise<string> {
-  const file = form.get(field);
-  if (file instanceof File && file.size > 0) {
-    return (await uploadImage(request, file)) ?? "";
-  }
-  return "";
-}
-
-// Capture the Ghana Card (number + front & back photos) and submit it for
-// review. Returns null on success, or an { error } to show without proceeding
-// to payment. Assumes identity is not yet on file (checked by the caller).
-async function captureIdentity(
-  request: Request,
-  form: FormData,
-): Promise<{ error: string } | null> {
-  const cardNumber = String(form.get("card_number") ?? "").trim();
-  if (!cardNumber) {
-    return { error: "Enter your Ghana Card number (e.g. GHA-123456789-0)." };
-  }
-
-  const photoURL = await uploadCardPhoto(request, form, "id_photo_file");
-  if (!photoURL) {
-    return { error: "Upload a clear photo of the front of your Ghana Card." };
-  }
-
-  const photoBackURL = await uploadCardPhoto(request, form, "id_photo_back_file");
-  if (!photoBackURL) {
-    return { error: "Upload a clear photo of the back of your Ghana Card." };
-  }
-
-  const identityResponse = await apiFetch(
-    request,
-    "/auth/business/identity-verification",
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        card_number: cardNumber,
-        id_photo_url: photoURL,
-        id_photo_back_url: photoBackURL,
-      }),
-    },
-  );
-  if (!identityResponse.ok) {
-    // Stay on the page (do NOT proceed to payment) so the owner can fix it.
-    return {
-      error:
-        "We couldn't verify that Ghana Card. Check the number (format GHA-123456789-0) and photo, then try again.",
-    };
-  }
-  return null;
-}
-
-export async function verifyIdentityAndStartBilling(
+// Start billing for the chosen plan. Paying is never gated — no identity
+// capture, no extra step: read the cadence, discount code, and target plan
+// (?plan=, so a free store activates the chosen paid plan) and go straight to
+// Paystack.
+export async function startBilling(
   request: Request,
   form: FormData,
 ): Promise<Response | { error: string }> {
@@ -273,19 +205,6 @@ export async function verifyIdentityAndStartBilling(
       : "yearly";
   const discountCode = String(form.get("discount_code") ?? "").trim();
 
-  // Re-check server-side rather than trusting the rendered form: if the Ghana
-  // Card is not yet on file we must capture it before starting billing.
-  const status = (await fetchProfile(request)).verificationStatus;
-  if (!isIdentityOnFile(status)) {
-    const identityError = await captureIdentity(request, form);
-    if (identityError) {
-      return identityError;
-    }
-  }
-
-  // Identity is on file (already or just submitted) — start Paystack billing,
-  // carrying the target plan (?plan=) so a free store activates the chosen paid
-  // plan, plus any discount code for the API to apply at checkout.
   const targetPlan = new URL(request.url).searchParams.get("plan") ?? "";
   return startPaystackBilling(
     request,

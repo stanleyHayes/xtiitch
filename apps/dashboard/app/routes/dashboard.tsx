@@ -22,7 +22,7 @@ export async function loader(args: Route.LoaderArgs) {
   return loadDashboardData(args);
 }
 
-export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- intent dispatcher; one branch per feature handler
+export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
@@ -56,9 +56,6 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   const { handleCatalogueActions } = await import(
     "../features/catalogue/handleActions"
   );
-  const { handlePromotionsActions } = await import(
-    "../features/promotions/handleActions"
-  );
   const { handleStudioActions } = await import(
     "../features/studio/handleActions"
   );
@@ -75,7 +72,6 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     (await handleSettingsActions(request, form, intent)) ??
     (await handleTeamActions(request, form, intent)) ??
     (await handleCatalogueActions(request, form, intent)) ??
-    (await handlePromotionsActions(request, form, intent)) ??
     (await handleStudioActions(request, form, intent)) ??
     (await handleAnalyticsActions(request, form, intent)) ??
     (await handleCrmActions(request, form, intent)) ??

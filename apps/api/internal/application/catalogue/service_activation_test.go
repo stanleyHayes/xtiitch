@@ -31,8 +31,10 @@ func TestCreateDesignActivationGate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			repo := &fakeCatalogueRepo{}
+			profile := sellingReadyProfile()
+			profile.ActivationRequired = tc.activationRequired
 			service := newServiceWithSettings(repo, &fakeStoreSettingsRepo{
-				profile: ports.StoreProfile{ActivationRequired: tc.activationRequired},
+				profile: profile,
 			})
 
 			_, err := service.CreateDesign(context.Background(), DesignCommand{
@@ -67,8 +69,10 @@ func TestUpdateDesignActivationGate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			repo := &fakeCatalogueRepo{}
+			profile := sellingReadyProfile()
+			profile.ActivationRequired = tc.activationRequired
 			service := newServiceWithSettings(repo, &fakeStoreSettingsRepo{
-				profile: ports.StoreProfile{ActivationRequired: tc.activationRequired},
+				profile: profile,
 			})
 
 			err := service.UpdateDesign(context.Background(), DesignCommand{

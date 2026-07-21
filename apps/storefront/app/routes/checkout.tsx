@@ -1,4 +1,4 @@
-import { redirect } from "react-router";
+import { data, redirect } from "react-router";
 import type { Route } from "./+types/checkout";
 import { api } from "../lib/api";
 import type { CartOrderLine, CheckoutQuote } from "../lib/api";
@@ -68,6 +68,33 @@ async function fetchQuote(
   return response?.ok ? response.result : null;
 }
 
+// paymentReturnState verifies the reference Paystack appended to the checkout
+// callback (?reference=...&trxref=...). Only "succeeded" may clear a basket;
+// "retry" (pending/failed/abandoned) and "unconfirmed" (the verify call
+// itself failed) both keep the cart intact with Pay Now active. Null when
+// this is a fresh visit, not a Paystack return.
+async function paymentReturnState(
+  url: URL,
+  storeHandle: string,
+  tenant: string | null,
+): Promise<"succeeded" | "retry" | "unconfirmed" | null> {
+  const reference = (
+    url.searchParams.get("reference") ??
+    url.searchParams.get("trxref") ??
+    ""
+  ).trim();
+  if (!reference) {
+    return null;
+  }
+  const verification = await api
+    .verifyPayment(storeHandle, reference, tenant)
+    .catch(() => null);
+  if (!verification?.ok) {
+    return "unconfirmed";
+  }
+  return verification.result.status === "succeeded" ? "succeeded" : "retry";
+}
+
 export function meta(): Route.MetaDescriptors {
   return [
     { title: "Checkout · Xtiitch" },
@@ -102,6 +129,33 @@ export async function loader({ request }: Route.LoaderArgs) {
   if (items.length === 0) {
     return redirect("/cart");
   }
+
+  // Paystack return: the callback_url (/checkout?store=<handle>) comes back
+  // with ?reference=...&trxref=... appended. VERIFY the reference before
+  // believing anything — only "succeeded" clears this store's basket lines and
+  // shows the success state. "pending"/"failed" (incl. backing out of the
+  // Paystack page) keep the cart intact with Pay Now active and a retry
+  // banner; a verify error degrades to the same non-trapping state.
+  const paymentState = await paymentReturnState(url, storeHandle, tenant);
+  if (paymentState === "succeeded") {
+    // NOW the basket settles: clear only this store's lines and render the
+    // success state on this page (any other stores stay in the basket).
+    return data(
+      {
+        storeHandle,
+        items,
+        totalMinor: cartTotalMinor(items),
+        zones: [],
+        profile: null,
+        quote: null,
+        paymentState,
+      },
+      {
+        headers: { "Set-Cookie": await clearStoreItems(request, storeHandle) },
+      },
+    );
+  }
+
   // Prefill the contact fields from the signed-in profile so a verified shopper
   // does not re-type what we already hold.
   const profile = await fetchCustomerProfile(token);
@@ -124,6 +178,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     zones,
     profile,
     quote,
+    paymentState,
   };
 }
 
@@ -190,15 +245,12 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
       ? `${deliveryAddress}\nGPS: ${gpsLocation}`
       : deliveryAddress;
 
-  // §5.2: after paying, Paystack returns the customer to the cart (flagged
-  // with the settled store) so they can pay the next store basket — or be
-  // sent home when none remain.
-  const callbackURL = `${url.origin}/cart?paid=${encodeURIComponent(storeHandle)}`;
+  // Paystack returns the customer to THIS checkout (with ?reference= appended),
+  // where the loader verifies the charge before anything is believed: only a
+  // verified "succeeded" clears this store's basket lines — backing out of the
+  // Paystack page leaves the cart intact so the customer can simply pay again.
+  const callbackURL = `${url.origin}/checkout?store=${encodeURIComponent(storeHandle)}`;
 
-  // Clear only this store's lines on success; any other stores stay in the basket.
-  const startedHeaders = {
-    "Set-Cookie": await clearStoreItems(request, storeHandle),
-  };
   const failed = {
     error: "We couldn't start that payment. Check your details and try again.",
   };
@@ -232,13 +284,9 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
       return failed;
     }
     if (response.result.authorization_url) {
-      return redirect(response.result.authorization_url, {
-        headers: startedHeaders,
-      });
+      return redirect(response.result.authorization_url);
     }
-    return redirect(`/track/${response.result.order_id}`, {
-      headers: startedHeaders,
-    });
+    return redirect(`/track/${response.result.order_id}`);
   }
 
   // Everything else (several pieces, or delivery): one combined Paystack charge
@@ -268,13 +316,9 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     return failed;
   }
   if (response.result.authorization_url) {
-    return redirect(response.result.authorization_url, {
-      headers: startedHeaders,
-    });
+    return redirect(response.result.authorization_url);
   }
-  return redirect(`/track/${response.result.order_id}`, {
-    headers: startedHeaders,
-  });
+  return redirect(`/track/${response.result.order_id}`);
 }
 
 export default function CheckoutRoute({

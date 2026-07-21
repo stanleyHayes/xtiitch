@@ -38,6 +38,10 @@ export type StoreSummary = {
   // The store's current plan code (e.g. "free", "starter", "growth", "studio").
   // The "Discover other studios" strip only shows for free-plan stores.
   plan_code?: string;
+  // False while the owner has not verified the business (Ghana Card) or set up
+  // payout details: the store is not live and the API already returns an empty
+  // catalogue. Optional so an older payload renders exactly as before.
+  live?: boolean;
 };
 
 export type SizeChartItem = {
@@ -249,6 +253,14 @@ export type OrderFees = {
   transaction_fee_minor: number;
   tax_minor: number;
   total_minor: number;
+};
+
+// The result of verifying a Paystack reference after the customer is returned
+// to the storefront (the callback_url Paystack appends ?reference=... to).
+// "succeeded" is the ONLY state that settles a basket; "pending"/"failed"
+// (incl. an abandoned Paystack page) leave the cart intact for a retry.
+export type PaymentVerification = {
+  status: "succeeded" | "pending" | "failed";
 };
 
 export type DeliveryZone = {

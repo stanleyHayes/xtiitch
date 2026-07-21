@@ -88,6 +88,9 @@ type Payments interface {
 	// (§4.5): the same computation the charge uses, for the read-only
 	// checkout-quote endpoint.
 	QuoteStoreSale(ctx context.Context, command paymentsapp.QuoteStoreSaleCommand) (money.StoreSaleQuote, error)
+	// VerifyPayment settles a payment the webhook may have missed, against the
+	// provider's ground truth, for the public payments/verify endpoint.
+	VerifyPayment(ctx context.Context, command paymentsapp.VerifyPaymentCommand) (paymentsapp.VerifyPaymentResult, error)
 }
 
 // Availability is the slice of the availability use case the booking checkout

@@ -6,14 +6,13 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
 )
 
-// §13.4: promotions is a paid-plan entitlement enforced by the catalogue
-// service, so the key must survive SanitizeFeatures like any other gate — a key
+// §14.4: the export-format keys are entitlement gates enforced by the reports
+// path, so they must survive SanitizeFeatures like any other gate — a key
 // dropped here would read as "not entitled" for every plan.
-func TestSanitizeFeaturesKeepsPromotionsAndExportKeys(t *testing.T) {
+func TestSanitizeFeaturesKeepsExportKeys(t *testing.T) {
 	t.Parallel()
 
 	clean := business.SanitizeFeatures(map[string]bool{
-		business.FeaturePromotions: true,
 		business.FeatureExportCSV:  true,
 		business.FeatureExportPDF:  true,
 		business.FeatureExportDOCX: true,
@@ -21,7 +20,6 @@ func TestSanitizeFeaturesKeepsPromotionsAndExportKeys(t *testing.T) {
 	})
 
 	for _, key := range []string{
-		business.FeaturePromotions,
 		business.FeatureExportCSV,
 		business.FeatureExportPDF,
 		business.FeatureExportDOCX,
@@ -30,6 +28,22 @@ func TestSanitizeFeaturesKeepsPromotionsAndExportKeys(t *testing.T) {
 		if !clean.Has(key) {
 			t.Fatalf("catalogue key %q was dropped by SanitizeFeatures", key)
 		}
+	}
+}
+
+// While promotions is PARKED (see FeaturePromotions), the key is not in the
+// catalogue, so SanitizeFeatures drops it even when a stored plan blob still
+// carries it — no plan can resolve the entitlement and the promotion service
+// rejects everyone.
+func TestSanitizeFeaturesDropsParkedPromotionsKey(t *testing.T) {
+	t.Parallel()
+
+	clean := business.SanitizeFeatures(map[string]bool{
+		business.FeaturePromotions: true,
+	})
+
+	if clean.Has(business.FeaturePromotions) {
+		t.Fatal("the parked promotions key must not resolve as an entitlement")
 	}
 }
 

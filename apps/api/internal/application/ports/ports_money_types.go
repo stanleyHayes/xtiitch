@@ -105,12 +105,20 @@ type VerifyAuthorizationInput struct {
 	Reference string
 }
 
-// VerifyAuthorizationResult reads back the checkout transaction: whether it was
-// paid (Succeeded), the amount, and the reusable authorization captured for
-// recurring (AuthorizationCode + Reusable; MoMo authorizations are typically not
+// VerifyAuthorizationResult reads back a transaction by reference: whether it
+// was paid (Succeeded), the provider's raw transaction status (Status), the
+// amount, and the reusable authorization captured for recurring
+// (AuthorizationCode + Reusable; MoMo authorizations are typically not
 // reusable, so the renewal sweep re-prompts instead of silently charging).
+// Despite the name it verifies ANY transaction reference (subscriptions and
+// customer order charges alike) — it is Paystack's generic
+// GET /transaction/verify/{reference}.
 type VerifyAuthorizationResult struct {
-	Succeeded   bool
+	Succeeded bool
+	// Status is the provider's raw transaction status verbatim (e.g. "success",
+	// "failed", "abandoned", "pending"), so a caller can tell a still-open
+	// transaction from a genuinely failed one — Succeeded alone cannot.
+	Status      string
 	AmountMinor int64
 	// FeeMinor is the transaction fee the provider reports on this charge (§3.2);
 	// 0 means "not reported".

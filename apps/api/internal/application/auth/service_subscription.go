@@ -40,10 +40,12 @@ func (s Service) GetSubscriptionActivation(ctx context.Context, scope common.Ten
 	}
 	return SubscriptionActivation{
 		// Activated = a free plan, or a paid plan that has actually been charged
-		// at least once. A paid plan that has never paid (a fresh 'trialing' signup
-		// OR a grandfathered 'active' account that never set up billing) is NOT
-		// activated: it sees the banner and is blocked from paid write-actions.
-		Activated: sub.MonthlyFeeMinor == 0 || sub.FirstPurchaseConsumed,
+		// at least once, with no upgrade awaiting payment. A paid plan that has
+		// never paid (a fresh 'trialing' signup OR a grandfathered 'active'
+		// account that never set up billing) and a payment-pending upgrade are
+		// NOT activated: they see the banner and are blocked from paid
+		// write-actions.
+		Activated: (sub.MonthlyFeeMinor == 0 || sub.FirstPurchaseConsumed) && sub.PendingUpgradePlanID.IsZero(),
 		Status:    sub.Status,
 		PlanCode:  sub.PlanCode,
 		// The subscription record carries the plan code, not its display name; the
@@ -76,9 +78,10 @@ type InitializeSubscriptionAuthorizationCommand struct {
 	CallbackURL string
 	// PlanCode is the TARGET plan the owner is activating/upgrading to. When set and
 	// it differs from the current plan (e.g. a free store upgrading to a paid plan),
-	// the subscription is switched to it before billing so the fee gate and first
-	// charge use the target plan — mirroring how a fresh paid signup is seeded on
-	// its plan before payment. Empty keeps the current plan (a re-activation).
+	// the plan is parked as PAYMENT-PENDING so the fee gate and first charge use the
+	// target plan — while entitlements keep resolving from the current paid-up plan
+	// until Paystack verifies the payment (verified in the callback). Empty keeps
+	// the current plan (a re-activation).
 	PlanCode string
 	// BillingCadence is the owner's chosen cadence: 'quarterly' or 'yearly'.
 	// Monthly billing is not offered under the Pricing Book, so an empty or
@@ -152,12 +155,17 @@ func (s Service) InitializeSubscriptionAuthorization(
 	// was set when they first paid and is never un-set, which is exactly what §7's
 	// "After cancel + resubscribe, do not re-grant intro" asks for.
 	// Target plan: when the owner is activating/upgrading to a specific plan (e.g. a
-	// FREE store choosing a paid plan), switch the subscription onto that plan first
-	// so the fee gate and the callback's first charge use the target plan's figures.
-	// Without this, a free-plan store (fee 0) can never start billing — it fails the
-	// fee gate below, and change-plan refuses it as "billing inactive" — a deadlock.
-	// The switch mirrors a fresh paid signup (plan seeded before payment; the
-	// non-payment sweep reverts an abandoned activation).
+	// FREE store choosing a paid plan), park that plan as PAYMENT-PENDING so the fee
+	// gate and the callback's first charge use the target plan's figures. Without
+	// this, a free-plan store (fee 0) can never start billing — it fails the fee
+	// gate below, and change-plan refuses it as "billing inactive" — a deadlock.
+	//
+	// The pending park changes NO entitlements: businesses.plan_id stays on the
+	// current paid-up plan, so plan features/limits keep resolving from it until
+	// Paystack VERIFIES the payment, and only VerifySubscriptionAuthorization
+	// applies the switch (a paid plan's features never unlock on an unconfirmed
+	// or failed payment). The profile shows the pending plan as "pending
+	// activation" via GetSubscriptionActivation in the meantime.
 	if targetCode := strings.ToLower(strings.TrimSpace(cmd.PlanCode)); targetCode != "" &&
 		!strings.EqualFold(targetCode, strings.TrimSpace(subscription.PlanCode)) {
 		target, err := s.businesses.GetPlanByCode(ctx, targetCode)
@@ -168,21 +176,16 @@ func (s Service) InitializeSubscriptionAuthorization(
 			// The target must be a paid plan; you don't "set up billing" for free.
 			return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
 		}
-		// Only switch on a strict UPGRADE here (target fee > current). A downgrade
-		// must go through ChangeSubscriptionPlan (parked to renewal), never an
-		// immediate mid-cycle switch via activation.
+		// Only park a strict UPGRADE here (target fee > current). A downgrade must
+		// go through ChangeSubscriptionPlan (parked to renewal), never an immediate
+		// mid-cycle switch via activation.
 		if target.MonthlyFeeMinor <= subscription.MonthlyFeeMinor {
 			return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
 		}
-		if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
-			BusinessID: subscription.BusinessID,
-			NewPlanID:  target.PlanID,
-			// AmountMinor 0: no proration invoice here — the FIRST period is charged
-			// on the Paystack callback (VerifySubscriptionAuthorization).
-		}); err != nil {
+		if err := s.businesses.SetPendingPlanUpgrade(ctx, subscription.BusinessID, target.PlanID); err != nil {
 			return SubscriptionAuthorizationLink{}, err
 		}
-		// Re-read so the fee gate + downstream figures reflect the target plan.
+		// Re-read so the fee gate + downstream figures reflect the pending target plan.
 		subscription, err = s.businesses.GetBusinessSubscription(ctx, cmd.Scope.BusinessID)
 		if err != nil {
 			return SubscriptionAuthorizationLink{}, err
@@ -234,6 +237,11 @@ func (s Service) InitializeSubscriptionAuthorization(
 	chargeMinor := activationChargeMinor(subscription, cadence)
 	if outcome != nil {
 		if outcome.FreePeriod || outcome.ChargeMinor <= 0 {
+			// The discount settled the first period in full, so a parked target plan
+			// is applied now — same rule as a verified payment, with nothing to collect.
+			if err := s.applyPendingPlanUpgrade(ctx, subscription); err != nil {
+				return SubscriptionAuthorizationLink{}, err
+			}
 			if err := s.activateDiscountedWithoutCharge(ctx, cmd.Scope, subscription, cadence, activation, *outcome); err != nil {
 				return SubscriptionAuthorizationLink{}, err
 			}
@@ -334,7 +342,9 @@ func (s Service) VerifySubscriptionAuthorization(
 	authRef := strings.TrimSpace(result.AuthorizationCode)
 	if !result.Succeeded {
 		// The checkout was abandoned or the payment failed; leave the subscription
-		// unactivated so the tenant can retry. Report it as not-yet-paid.
+		// unactivated so the tenant can retry. Any payment-pending plan upgrade
+		// stays PARKED — entitlements never unlock on an unconfirmed/failed
+		// payment. Report it as not-yet-paid.
 		status := subscription.Status
 		if status == "active" {
 			status = "past_due"
@@ -345,6 +355,12 @@ func (s Service) VerifySubscriptionAuthorization(
 			Status:         status,
 			BillingMode:    "recurring",
 		}, nil
+	}
+	// The payment is Paystack-VERIFIED: apply a parked plan upgrade now (and only
+	// now). This is the moment entitlements move to the target plan — the business
+	// plan switches and the pending fields clear in one transaction.
+	if err := s.applyPendingPlanUpgrade(ctx, subscription); err != nil {
+		return SubscriptionAuthorizationResult{}, err
 	}
 	// Flip the subscription to recurring billing so the renewal sweep picks it up —
 	// ALWAYS, even for mobile money (which yields no reusable authorization). Storing
@@ -390,6 +406,23 @@ func (s Service) VerifySubscriptionAuthorization(
 		ProviderCustomerRef:     customerRef,
 		ProviderSubscriptionRef: authRef,
 	}, nil
+}
+
+// applyPendingPlanUpgrade switches the business onto a plan that was parked as
+// payment-pending at checkout initialize. Callers reach it only once money is
+// settled — a Paystack-verified payment, or a discount that settled the period
+// in full — so paid-plan entitlements never unlock unpaid. A no-op when nothing
+// is parked.
+func (s Service) applyPendingPlanUpgrade(ctx context.Context, sub ports.BusinessSubscriptionRecord) error {
+	if sub.PendingUpgradePlanID.IsZero() {
+		return nil
+	}
+	return s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
+		BusinessID: sub.BusinessID,
+		NewPlanID:  sub.PendingUpgradePlanID,
+		// AmountMinor 0: no proration invoice here — the first period was already
+		// collected at checkout and is booked separately.
+	})
 }
 
 // normalizeBillingCadence validates a paid-plan billing cadence. Under the

@@ -93,3 +93,28 @@ type VerifiedCustomerToken struct {
 	CustomerID common.ID
 	Phone      string
 }
+
+// CustomerOrderPaymentContext is everything needed to re-initiate a Paystack
+// charge for one of the customer's draft orders (the payment-link endpoint):
+// the tenant, the outstanding amount, how the original charge was purposed,
+// and — for a cart basket — the per-design line amounts so the re-charge is
+// commissioned exactly like the original combined charge.
+type CustomerOrderPaymentContext struct {
+	OrderID       common.ID
+	BusinessID    common.ID
+	Status        string
+	CustomerEmail string
+	// OutstandingMinor is what is still owed on the order (agreed minus
+	// settled); for a cart basket it is the whole group's outstanding, because
+	// one charge pays the basket.
+	OutstandingMinor int64
+	// Purpose mirrors the original charge (standard_full / deposit /
+	// booking_deposit / cart_full), so a success settles the order exactly as
+	// the first attempt would have.
+	Purpose   string
+	BookingID *common.ID
+	// LineAmountsMinor carries one commission base per basket design (delivery
+	// fees excluded, matching the original cart charge); nil for a single-order
+	// charge, which InitiateCharge commissions on the amount itself.
+	LineAmountsMinor []int64
+}

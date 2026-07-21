@@ -39,6 +39,10 @@ type CustomerAuthRepository interface {
 	// not-yet-final orders are left alone, so a repeat call is an idempotent
 	// no-op returning 0.
 	MarkCustomerBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID, at time.Time) (int, error)
+	// GetCustomerOrderPaymentContext loads one of the customer's orders with
+	// everything a re-initiated payment needs, or ErrNotFound when the order is
+	// missing or belongs to someone else (indistinguishable by design).
+	GetCustomerOrderPaymentContext(ctx context.Context, customerID common.ID, orderID common.ID) (CustomerOrderPaymentContext, error)
 	// GetCustomerProfile / UpdateCustomerProfile read and edit the global customer
 	// identity (name, email, WhatsApp contact number). The login Phone is immutable
 	// (it's the verified login); WhatsAppPhone is a separate editable contact.

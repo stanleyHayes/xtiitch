@@ -8,10 +8,12 @@ import {
   updateCustomerProfile,
   markOrderReceived,
   markBasketReceived,
+  requestPaymentLink,
   phoneOtpEnabled,
   type CustomerOrder,
   type CustomerProfile,
 } from "../lib/discovery";
+import { api } from "../lib/api";
 import { commitSession, destroySession, getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
 import type { ActionResult } from "../features/account/types";
@@ -44,11 +46,34 @@ export async function loader({ request }: Route.LoaderArgs) {
     ]);
   }
 
+  // Return from a "Pay now" payment on a draft order: Paystack appends
+  // ?reference=... to the callback (/account?payment=return&store=<handle>).
+  // Verify before showing any outcome — the order list itself reloaded above,
+  // so a confirmed payment is already reflected in the statuses.
+  let paymentReturn: "succeeded" | "retry" | "unconfirmed" | null = null;
+  const reference = (
+    url.searchParams.get("reference") ??
+    url.searchParams.get("trxref") ??
+    ""
+  ).trim();
+  const paidStore = (url.searchParams.get("store") ?? "").trim();
+  if (token && url.searchParams.get("payment") === "return" && reference && paidStore) {
+    const verification = await api
+      .verifyPayment(paidStore, reference, requestTenant(request))
+      .catch(() => null);
+    paymentReturn = verification?.ok
+      ? verification.result.status === "succeeded"
+        ? "succeeded"
+        : "retry"
+      : "unconfirmed";
+  }
+
   return {
     signedInPhone,
     redirectTo: safeRedirect(url.searchParams.get("redirectTo")),
     orders,
     profile,
+    paymentReturn,
     // §6: on a tenant host the account hub hides cross-store entries (AI
     // Search). The customer's own orders stay shared across stores (§5.3.4) —
     // they are their own data, not another store's.
@@ -114,6 +139,34 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
       } as ActionResult;
     }
     return { step: "identify", orderNotice: "Marked as received." } as ActionResult;
+  }
+
+  // "Pay now" on a draft ("Awaiting payment") order: mint a fresh Paystack
+  // link for the existing draft and send the customer straight to it. The
+  // callback comes back here (?payment=return&store=<handle>), where the
+  // loader verifies the reference before showing any outcome — no dead
+  // "awaiting payment" state, even for drafts older than the current cart.
+  if (intent === "pay_order") {
+    const session = await getSession(request.headers.get("Cookie"));
+    const token = session.get("customerToken") as string | undefined;
+    if (!token) {
+      return redirect("/account");
+    }
+    const orderID = String(form.get("order_id") ?? "").trim();
+    const storeHandle = String(form.get("store_handle") ?? "").trim();
+    const origin = new URL(request.url).origin;
+    const callbackURL = `${origin}/account?payment=return&store=${encodeURIComponent(storeHandle)}`;
+    const result = await requestPaymentLink(token, orderID, callbackURL);
+    if (!result.ok) {
+      return {
+        step: "identify",
+        orderError:
+          result.status === 409
+            ? "That order can no longer be paid online — please call the store about it."
+            : "We couldn't start that payment. Please try again.",
+      } as ActionResult;
+    }
+    return redirect(result.authorizationUrl);
   }
 
   // The channel tabs (WhatsApp | Email) re-render the sign-in form pre-selected

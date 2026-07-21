@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"time"
 
@@ -100,6 +101,118 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 		return nil, err
 	}
 	return orders, nil
+}
+
+// GetCustomerOrderPaymentContext loads one of the customer's orders with
+// everything a re-initiated payment needs (cross-tenant, RLS bypass — the
+// customer identity is global). An order that is missing or belongs to another
+// customer comes back as ErrNotFound, indistinguishable by design.
+//
+//nolint:funlen,gocognit // the cart-basket branch mirrors the original charge
+func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
+	ctx context.Context,
+	customerID common.ID,
+	orderID common.ID,
+) (ports.CustomerOrderPaymentContext, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.CustomerOrderPaymentContext{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.CustomerOrderPaymentContext{}, err
+	}
+
+	var result ports.CustomerOrderPaymentContext
+	var businessID, groupID, lastPurpose, bookingID sql.NullString
+	var agreedTotal, lastSettleAmount sql.NullInt64
+	var settled int64
+	err = tx.QueryRow(ctx, `
+		select o.business_id::text, o.status,
+			o.agreed_total_minor, o.settled_minor,
+			coalesce(o.customer_email, ''), o.checkout_group_id::text,
+			(select p.purpose from payments p
+				where p.order_id = o.order_id
+				order by p.created_at desc limit 1),
+			(select coalesce(p.settle_amount_minor, p.amount_minor) from payments p
+				where p.order_id = o.order_id
+				order by p.created_at desc limit 1),
+			(select p.booking_id::text from payments p
+				where p.order_id = o.order_id and p.booking_id is not null
+				order by p.created_at desc limit 1)
+		from orders o
+		where o.order_id = $1 and o.customer_id = $2
+	`, orderID.String(), customerID.String()).Scan(
+		&businessID, &result.Status,
+		&agreedTotal, &settled,
+		&result.CustomerEmail, &groupID,
+		&lastPurpose, &lastSettleAmount, &bookingID,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ports.CustomerOrderPaymentContext{}, ports.ErrNotFound
+	}
+	if err != nil {
+		return ports.CustomerOrderPaymentContext{}, err
+	}
+	result.OrderID = orderID
+	result.BusinessID = common.ID(businessID.String)
+
+	if groupID.Valid {
+		// A cart basket is paid by ONE combined charge: re-charge the whole
+		// group's outstanding with the same per-design commission bases the
+		// original charge used (delivery fees excluded — they are never
+		// commissioned), anchored on this order.
+		result.Purpose = "cart_full"
+		if err := tx.QueryRow(ctx, `
+			select coalesce(sum(agreed_total_minor), 0)
+			from orders
+			where checkout_group_id = $1 and business_id = $2 and status = 'draft'
+		`, groupID.String, businessID.String).Scan(&result.OutstandingMinor); err != nil {
+			return ports.CustomerOrderPaymentContext{}, err
+		}
+		rows, err := tx.Query(ctx, `
+			select agreed_total_minor - delivery_fee_minor
+			from orders
+			where checkout_group_id = $1 and business_id = $2 and status = 'draft'
+			order by created_at, order_id
+		`, groupID.String, businessID.String)
+		if err != nil {
+			return ports.CustomerOrderPaymentContext{}, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			var line int64
+			if err := rows.Scan(&line); err != nil {
+				return ports.CustomerOrderPaymentContext{}, err
+			}
+			result.LineAmountsMinor = append(result.LineAmountsMinor, line)
+		}
+		if err := rows.Err(); err != nil {
+			return ports.CustomerOrderPaymentContext{}, err
+		}
+	} else {
+		// A stand-alone bespoke order keeps agreed_total_minor empty (the final
+		// price is negotiated later); its outstanding is the deposit the first
+		// charge carried, read back from that payment's settle amount.
+		if agreedTotal.Valid {
+			result.OutstandingMinor = agreedTotal.Int64 - settled
+		} else if lastSettleAmount.Valid {
+			result.OutstandingMinor = lastSettleAmount.Int64 - settled
+		}
+		result.Purpose = lastPurpose.String
+		if result.Purpose == "" {
+			result.Purpose = "standard_full"
+		}
+		if result.Purpose == "booking_deposit" && bookingID.Valid {
+			id := common.ID(bookingID.String)
+			result.BookingID = &id
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return ports.CustomerOrderPaymentContext{}, err
+	}
+	return result, nil
 }
 
 // MarkCustomerOrderReceived stamps the customer's "Received" acknowledgement

@@ -240,6 +240,52 @@ export async function markBasketReceived(
   return { ok: true, markedCount: body.marked_count ?? 0 };
 }
 
+// ── Paying an awaiting-payment (draft) order ───────────────────────────────
+
+export type PaymentLinkResult =
+  | { ok: true; authorizationUrl: string; reference: string }
+  | { ok: false; status: number; error: string };
+
+// requestPaymentLink mints a fresh Paystack link for a draft ("Awaiting
+// payment") order so an abandoned checkout is never a dead end. 409 when the
+// order is no longer payable (already paid, cancelled, ...).
+export async function requestPaymentLink(
+  token: string,
+  orderID: string,
+  callbackURL: string,
+): Promise<PaymentLinkResult> {
+  const response = await fetch(
+    `${API_BASE}/v1/customer/orders/${encodeURIComponent(orderID)}/payment-link`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ callback_url: callbackURL }),
+    },
+  );
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => null)) as {
+      error?: string;
+    } | null;
+    return {
+      ok: false,
+      status: response.status,
+      error: payload?.error ?? "upstream_error",
+    };
+  }
+  const body = (await response.json()) as {
+    authorization_url: string;
+    reference: string;
+  };
+  return {
+    ok: true,
+    authorizationUrl: body.authorization_url,
+    reference: body.reference,
+  };
+}
+
 // ── AI marketplace search ──────────────────────────────────────────────────
 
 export type AiSearchHit = {

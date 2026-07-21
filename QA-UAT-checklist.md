@@ -49,7 +49,7 @@ Exhaustive acceptance checklist for the Xtiitch platform (storefront, business d
 - [ ] If the combined charge cannot be raised, no un-payable draft orders are left behind.
 
 ### 1.5 Bespoke deposit & balance
-- [ ] Place a bespoke order (self-measure / home-visit / come-to-shop). Deposit (floor GHS 100) is charged; order created.
+- [ ] Place a bespoke order (self-measure / home-visit / come-to-shop). Deposit (floor GHS 1) is charged; order created.
 - [ ] 🔧 With **pass-to-buyer ON**, deposit settlement credits the **deposit only** to `settled_minor` (NOT deposit + fee). Verify the later balance = agreed total − deposit (merchant not shorted by the fee).
 - [ ] Merchant sets the agreed total (≥ settled); balance charge is raised; on payment the order settles to full.
 - [ ] A second in-flight balance charge for the same order is refused (no double charge).

@@ -141,7 +141,6 @@ export type DashboardSection =
   | "visits"
   | "handovers"
   | "catalogue"
-  | "promotions"
   | "measurements"
   | "availability"
   | "settings"

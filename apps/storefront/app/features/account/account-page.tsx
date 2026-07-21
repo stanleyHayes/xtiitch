@@ -16,7 +16,8 @@ export default function Account({ loaderData }: Route.ComponentProps) { // eslin
     navigation.state === "submitting"
       ? String(navigation.formData?.get("intent") ?? "")
       : null;
-  const { signedInPhone, redirectTo, orders, profile, tenantHost } = loaderData;
+  const { signedInPhone, redirectTo, orders, profile, tenantHost, paymentReturn } =
+    loaderData;
   // Whether a code can reach a phone at all — over SMS (default) or WhatsApp. The
   // root loader surfaces this from GET /v1/branding (phone_otp_enabled) so SSR and
   // client agree; default false on fetch failure, then only email shows.
@@ -29,6 +30,18 @@ export default function Account({ loaderData }: Route.ComponentProps) { // eslin
     action?.channel ?? (phoneEnabled ? "whatsapp" : "email");
 
   if (signedInPhone) {
+    // Outcome of a "Pay now" return (the loader verified the Paystack
+    // reference): action feedback wins when both exist.
+    const paymentNotice =
+      paymentReturn === "succeeded"
+        ? "Payment confirmed — thank you! The studio has your order."
+        : undefined;
+    const paymentError =
+      paymentReturn === "retry"
+        ? "That payment wasn't completed — nothing was charged. Use Pay now on the order to try again."
+        : paymentReturn === "unconfirmed"
+          ? "We couldn't confirm that payment just now. If you completed it, it will reflect here shortly."
+          : undefined;
     return (
       <AccountHub
         phone={signedInPhone}
@@ -37,8 +50,8 @@ export default function Account({ loaderData }: Route.ComponentProps) { // eslin
         saved={action?.profileSaved}
         error={action?.profileError}
         tenantHost={tenantHost}
-        orderNotice={action?.orderNotice}
-        orderError={action?.orderError}
+        orderNotice={action?.orderNotice ?? paymentNotice}
+        orderError={action?.orderError ?? paymentError}
       />
     );
   }

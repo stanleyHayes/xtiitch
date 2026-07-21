@@ -139,6 +139,36 @@ func TestPlaceEndpointsThreadCallbackURL(t *testing.T) {
 	}
 }
 
+// The payments/verify endpoint settles a checkout payment by its provider
+// reference, scoped to the store handle, and reports the customer-facing
+// status.
+func TestVerifyPaymentReturnsStatus(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{verifyResult: checkoutapp.VerifyStorePaymentResult{Status: "pending"}}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/public/stores/tdh/payments/verify",
+		bytes.NewReader([]byte(`{"reference":"xt_ref-1"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.verifyCommand.StoreHandle != "tdh" || service.verifyCommand.ProviderReference != "xt_ref-1" {
+		t.Fatalf("expected the verify scoped to the store handle, got %+v", service.verifyCommand)
+	}
+	var body map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["status"] != "pending" {
+		t.Fatalf("unexpected status body: %+v", body)
+	}
+}
+
 func newTestRouter(service *fakeService) chi.Router {
 	router := chi.NewRouter()
 	NewHandler(service).Register(router)
@@ -158,6 +188,9 @@ type fakeService struct {
 	bookingCommand  checkoutapp.PlaceHomeVisitBookingCommand
 	quoteResult     checkoutapp.CheckoutQuoteResult
 	quoteCommand    checkoutapp.CheckoutQuoteCommand
+	verifyResult    checkoutapp.VerifyStorePaymentResult
+	verifyCommand   checkoutapp.VerifyStorePaymentCommand
+	verifyErr       error
 }
 
 func (s *fakeService) PlaceStandardOrder(_ context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error) {
@@ -183,6 +216,11 @@ func (s *fakeService) PlaceHomeVisitBooking(_ context.Context, command checkouta
 func (s *fakeService) CheckoutQuote(_ context.Context, command checkoutapp.CheckoutQuoteCommand) (checkoutapp.CheckoutQuoteResult, error) {
 	s.quoteCommand = command
 	return s.quoteResult, nil
+}
+
+func (s *fakeService) VerifyStorePayment(_ context.Context, command checkoutapp.VerifyStorePaymentCommand) (checkoutapp.VerifyStorePaymentResult, error) {
+	s.verifyCommand = command
+	return s.verifyResult, s.verifyErr
 }
 
 func (s *fakeService) StoreDeliveryZones(_ context.Context, _ string) ([]ports.DeliveryZone, error) {

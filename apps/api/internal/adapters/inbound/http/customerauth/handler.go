@@ -9,7 +9,9 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	customerauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/customerauth"
+	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -24,6 +26,9 @@ type Service interface {
 	MarkBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID) (int, error)
 	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
 	UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error)
+	// CreateOrderPaymentLink re-initiates a Paystack checkout for one of the
+	// customer's draft orders (the abandoned-checkout recovery path).
+	CreateOrderPaymentLink(ctx context.Context, customerID common.ID, orderID common.ID, callbackURL string) (customerauthapp.OrderPaymentLinkResult, error)
 }
 
 type Handler struct {
@@ -46,6 +51,10 @@ func (handler Handler) Register(router chi.Router) {
 	// thing §6 deliberately shares across stores).
 	router.Post("/customer/orders/{orderID}/received", handler.markReceived)
 	router.Post("/customer/orders/received-basket", handler.markBasketReceived)
+	// Re-pay a draft order after backing out of Paystack: a fresh charge for
+	// the order's outstanding amount. The old 'initiated' payment is settled
+	// (or failed) separately via the public payments/verify endpoint.
+	router.Post("/customer/orders/{orderID}/payment-link", handler.paymentLink)
 }
 
 type requestOTPRequest struct {
@@ -299,6 +308,60 @@ func (handler Handler) markBasketReceived(w http.ResponseWriter, r *http.Request
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "marked_count": marked})
+}
+
+type paymentLinkRequest struct {
+	// CallbackURL is where Paystack returns the customer after paying (the
+	// storefront order-tracking page). Optional; validated in the application
+	// layer exactly like the checkout callback.
+	CallbackURL string `json:"callback_url"`
+}
+
+// paymentLink re-initiates a Paystack checkout for one of the signed-in
+// customer's draft orders (the abandoned-checkout recovery path): the response
+// carries a fresh authorization_url + reference, and the customer verifies the
+// outcome through the public payments/verify endpoint on return. A confirmed
+// or cancelled order is a 409; another customer's order is a 404.
+func (handler Handler) paymentLink(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	var request paymentLinkRequest
+	if err := decodeJSON(r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	result, err := handler.service.CreateOrderPaymentLink(
+		r.Context(), verified.CustomerID, common.ID(chi.URLParam(r, "orderID")), request.CallbackURL)
+	if err != nil {
+		status, code := paymentLinkError(err)
+		writeError(w, status, code)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"authorization_url": result.AuthorizationURL,
+		"reference":         result.Reference,
+	})
+}
+
+// paymentLinkError maps the payment-link failures to stable codes: not_found
+// covers both a missing order and another customer's order (indistinguishable
+// by design); order_not_payable is the 409 the UI keys its "this order can no
+// longer be paid" message off.
+func paymentLinkError(err error) (int, string) {
+	switch {
+	case errors.Is(err, ports.ErrNotFound):
+		return http.StatusNotFound, "not_found"
+	case errors.Is(err, customerauthapp.ErrOrderNotPayable):
+		return http.StatusConflict, "order_not_payable"
+	case errors.Is(err, checkoutapp.ErrInvalidInput), errors.Is(err, paymentsapp.ErrInvalidCharge):
+		return http.StatusBadRequest, "invalid_request"
+	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):
+		return http.StatusConflict, "store_cannot_take_payment"
+	default:
+		return http.StatusInternalServerError, "internal_error"
+	}
 }
 
 // receivedError maps the §5.3.2 mark-received failures to stable codes:
