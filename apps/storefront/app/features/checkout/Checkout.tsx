@@ -1,9 +1,5 @@
 import { useState } from "react";
-import {
-  Link as RouterLink,
-  useFetcher,
-  useRevalidator,
-} from "react-router";
+import { Link as RouterLink, useFetcher, useRevalidator } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -110,8 +106,7 @@ export default function Checkout({
   // items-only fallback total: when the quote cannot be loaded the page shows
   // an inline error with a retry and blocks payment, so a passed-down tax/fee
   // line can never silently drop off the bill.
-  const quoting =
-    quoteFetcher.state !== "idle" || revalidator.state !== "idle";
+  const quoting = quoteFetcher.state !== "idle" || revalidator.state !== "idle";
   const quoteFailed = !activeQuote && !quoting;
   const fallbackDeliveryFee =
     fulfilment === "delivery" && selectedZone ? selectedZone.fee_minor : 0;
@@ -125,8 +120,8 @@ export default function Checkout({
       : null;
   const vatLabel =
     vatRatePercent !== null
-      ? `Tax (VAT · ${vatRatePercent}%)`
-      : "Tax (VAT)";
+      ? `VAT on Xtiitch service fee (${vatRatePercent}%)`
+      : "VAT on Xtiitch service fee";
   const retryQuote = () => {
     if (fulfilment === "delivery" && zoneID) {
       requestZoneQuote(zoneID);
@@ -237,9 +232,9 @@ export default function Checkout({
             </Stack>
           ) : null}
           {/* §4.5 fee naming: ONE combined "Transaction fee" line (never a raw
-              "Paystack fee") and "Tax (VAT)" as its own line — rendered only
-              when non-zero; when the owner absorbs the fees both are 0 and no
-              fee lines appear at all. */}
+              "Paystack fee"). VAT is always disclosed when a live rate exists:
+              either its amount is added to this checkout, or "Covered by store"
+              explains why it is zero and absent from the total. */}
           {activeQuote && activeQuote.transaction_fee_minor > 0 ? (
             <Stack direction="row" sx={{ justifyContent: "space-between" }}>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -250,13 +245,27 @@ export default function Checkout({
               </Typography>
             </Stack>
           ) : null}
-          {activeQuote && activeQuote.tax_minor > 0 ? (
-            <Stack direction="row" sx={{ justifyContent: "space-between" }}>
+          {activeQuote && vatRatePercent !== null && vatRatePercent > 0 ? (
+            <Stack
+              direction="row"
+              spacing={1.5}
+              sx={{ justifyContent: "space-between", alignItems: "baseline" }}
+            >
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
                 {vatLabel}
               </Typography>
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {formatGHS(activeQuote.tax_minor)}
+              <Typography
+                variant="body2"
+                sx={{
+                  fontWeight: 800,
+                  color:
+                    activeQuote.tax_minor > 0 ? "text.primary" : "success.main",
+                  flexShrink: 0,
+                }}
+              >
+                {activeQuote.tax_minor > 0
+                  ? formatGHS(activeQuote.tax_minor)
+                  : "Covered by store"}
               </Typography>
             </Stack>
           ) : null}
