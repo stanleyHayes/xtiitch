@@ -30,7 +30,8 @@ import type { Design } from "../../../lib/api";
 import { DesignRowStatus } from "./DesignRowStatus";
 import { DialogActions, RowActions } from "./DesignRowActions";
 
-export function DesignRow({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- renders the complete design editor row.
+export function DesignRow({
   design,
   collections,
   sizeBands,
@@ -280,10 +281,13 @@ export function DesignRow({ // eslint-disable-line max-lines-per-function -- lar
                     <TextField
                       name="deposit_ghs"
                       label="Deposit amount"
-                      defaultValue={moneyInputValue(
-                        design.deposit_override_minor,
-                      )}
+                      type="number"
+                      defaultValue={
+                        moneyInputValue(design.deposit_override_minor) || "1"
+                      }
                       size="small"
+                      required
+                      helperText="Minimum GHS 1 · no maximum"
                       slotProps={{
                         input: {
                           startAdornment: (
@@ -292,7 +296,11 @@ export function DesignRow({ // eslint-disable-line max-lines-per-function -- lar
                             </InputAdornment>
                           ),
                         },
-                        htmlInput: { inputMode: "decimal" },
+                        htmlInput: {
+                          inputMode: "decimal",
+                          min: 1,
+                          step: "0.01",
+                        },
                       }}
                     />
                   ) : null}

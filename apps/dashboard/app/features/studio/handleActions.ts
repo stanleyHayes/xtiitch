@@ -3,6 +3,7 @@ import { redirect } from "react-router";
 import type { Design } from "../../lib/api";
 import {
   parseSequence,
+  parseDepositMinor,
   parseMoneyMinor,
   parseOptionalMoneyMinor,
   parseImageURLs,
@@ -18,7 +19,7 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
   form: FormData,
   intent: string,
 ): Promise<import("../shared/types").DashboardActionData | Response | null> {
-if (intent === "upload_design_image") {
+  if (intent === "upload_design_image") {
     const designID = String(form.get("design_id") ?? "").trim();
     const file = form.get("image_file");
     if (!designID) {
@@ -72,10 +73,10 @@ if (intent === "upload_design_image") {
     return redirect("/dashboard/catalogue");
   }
 
-if (intent === "update_design") {
+  if (intent === "update_design") {
     const designID = String(form.get("design_id") ?? "").trim();
     const sequence = parseSequence(form.get("sequence"));
-    const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    const depositOverrideMinor = parseDepositMinor(form.get("deposit_ghs"));
     // Indicative "from" price for a bespoke design (pesewas); 0 when cleared.
     const bespokeDisplayMinor =
       parseOptionalMoneyMinor(form.get("bespoke_display_ghs")) ?? 0;
@@ -130,7 +131,7 @@ if (intent === "update_design") {
     return redirect("/dashboard/catalogue");
   }
 
-if (intent === "set_design_price") {
+  if (intent === "set_design_price") {
     const designID = String(form.get("design_id") ?? "").trim();
     const sizeBandID = String(form.get("size_band_id") ?? "").trim();
     const priceMinor = parseMoneyMinor(form.get("price_ghs"));
@@ -152,9 +153,9 @@ if (intent === "set_design_price") {
     return redirect("/dashboard/catalogue");
   }
 
-if (intent === "create") {
+  if (intent === "create") {
     const sequence = parseSequence(form.get("sequence"));
-    const depositOverrideMinor = parseMoneyMinor(form.get("deposit_ghs"));
+    const depositOverrideMinor = parseDepositMinor(form.get("deposit_ghs"));
     const bespokeDisplayMinor =
       parseOptionalMoneyMinor(form.get("bespoke_display_ghs")) ?? 0;
     const requestedImageLimit = Number.parseInt(
@@ -259,7 +260,7 @@ if (intent === "create") {
     return redirect("/dashboard/catalogue");
   }
 
-if (intent === "delete_design") {
+  if (intent === "delete_design") {
     const designID = String(form.get("id") ?? "").trim();
     if (!designID) {
       return { designError: "That design could not be found." };
@@ -275,7 +276,7 @@ if (intent === "delete_design") {
     return redirect("/dashboard/catalogue");
   }
 
-if (intent === "retire" || intent === "restore") {
+  if (intent === "retire" || intent === "restore") {
     const designID = String(form.get("id") ?? "").trim();
     if (!designID) {
       return { designError: "That design could not be found." };

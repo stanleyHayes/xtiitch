@@ -17,7 +17,8 @@ import { ImageDropzone } from "../shared/ImageDropzone";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
 
-export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- renders the complete add-design form.
+export function CatalogueAddDesign({
   designs,
   collections,
   sizeBands,
@@ -65,24 +66,14 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
             </Typography>
           </Box>
         </Stack>
-        <Form
-          method="post"
-          encType="multipart/form-data"
-          key={designs.length}
-        >
+        <Form method="post" encType="multipart/form-data" key={designs.length}>
           <input type="hidden" name="intent" value="create" />
           {/* Empty when the plan is uncapped; the action treats that as no
               limit. Only a pre-upload courtesy check either way — the API is
               the authority and re-checks. */}
-          <input
-            type="hidden"
-            name="image_limit"
-            value={imageLimit ?? ""}
-          />
+          <input type="hidden" name="image_limit" value={imageLimit ?? ""} />
           <Stack spacing={1.75}>
-            {designError ? (
-              <Alert severity="error">{designError}</Alert>
-            ) : null}
+            {designError ? <Alert severity="error">{designError}</Alert> : null}
             <TextField name="title" label="Title" required fullWidth />
             <TextField
               name="collection_id"
@@ -239,13 +230,17 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
                 <TextField
                   name="deposit_ghs"
                   label="Deposit amount"
+                  type="number"
+                  defaultValue="1"
+                  required
+                  helperText="Minimum GHS 1 · no maximum"
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">GHS</InputAdornment>
                       ),
                     },
-                    htmlInput: { inputMode: "decimal" },
+                    htmlInput: { inputMode: "decimal", min: 1, step: "0.01" },
                   }}
                 />
               ) : null}
@@ -265,7 +260,11 @@ export function CatalogueAddDesign({ // eslint-disable-line max-lines-per-functi
                 />
               ) : null}
             </Box>
-            <Button type="submit" variant="contained" startIcon={<AddRounded />}>
+            <Button
+              type="submit"
+              variant="contained"
+              startIcon={<AddRounded />}
+            >
               Add design
             </Button>
           </Stack>
