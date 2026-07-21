@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "./server-fetch";
+
 // Server-side client for customer accounts (phone/email OTP) and AI marketplace
 // search. Storefront loaders/actions call these; nothing here runs in the
 // browser. The access token is attached server-side from the session cookie.
@@ -130,7 +132,7 @@ export async function fetchCustomerProfile(
   token: string,
 ): Promise<CustomerProfile | null> {
   try {
-    const response = await fetch(`${API_BASE}/v1/customer/me`, {
+    const response = await fetchWithTimeout(`${API_BASE}/v1/customer/me`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return null;

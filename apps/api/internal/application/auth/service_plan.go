@@ -3,6 +3,7 @@ package authapp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -32,9 +33,10 @@ var (
 
 // ChangeSubscriptionPlanCommand is an owner/admin request to move to another plan.
 type ChangeSubscriptionPlanCommand struct {
-	Scope     common.TenantScope
-	ActorRole business.UserRole
-	PlanCode  string
+	Scope       common.TenantScope
+	ActorRole   business.UserRole
+	PlanCode    string
+	CallbackURL string
 }
 
 // ChangeSubscriptionPlanResult reports the outcome of a plan change: an UPGRADE is
@@ -52,6 +54,9 @@ type ChangeSubscriptionPlanResult struct {
 	// EffectiveAt is when the new plan takes effect: now for an upgrade, the current
 	// period end for a scheduled downgrade.
 	EffectiveAt time.Time
+	// AuthorizationURL is present when an upgrade needs an interactive Paystack
+	// checkout (for example, a mobile-money subscription has no reusable card).
+	AuthorizationURL string
 }
 
 // ChangeSubscriptionPlan moves a business between plans self-serve (Pricing Book
@@ -62,9 +67,6 @@ type ChangeSubscriptionPlanResult struct {
 func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscriptionPlanCommand) (ChangeSubscriptionPlanResult, error) {
 	if err := authorizeBusinessUserManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return ChangeSubscriptionPlanResult{}, err
-	}
-	if s.payments == nil {
-		return ChangeSubscriptionPlanResult{}, authdomain.ErrForbidden
 	}
 	planCode := strings.ToLower(strings.TrimSpace(cmd.PlanCode))
 	if planCode == "" {
@@ -90,7 +92,7 @@ func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscript
 
 	switch {
 	case target.MonthlyFeeMinor > subscription.MonthlyFeeMinor:
-		return s.upgradeSubscriptionPlan(ctx, subscription, target)
+		return s.upgradeSubscriptionPlan(ctx, subscription, target, cmd.CallbackURL)
 	case target.MonthlyFeeMinor < subscription.MonthlyFeeMinor:
 		return s.downgradeSubscriptionPlan(ctx, subscription, target)
 	default:
@@ -106,8 +108,15 @@ func (s Service) upgradeSubscriptionPlan(
 	ctx context.Context,
 	sub ports.BusinessSubscriptionRecord,
 	target ports.PlanPricingRecord,
+	callbackURL string,
 ) (ChangeSubscriptionPlanResult, error) {
 	now := s.clock.Now()
+	if s.payments == nil {
+		return ChangeSubscriptionPlanResult{}, authdomain.ErrForbidden
+	}
+	if !subscriptionPeriodActive(sub, now) {
+		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
+	}
 	// Proration is computed against the cadence renewal figures, matching how the
 	// recurring sweep bills each renewal. A non-billable cadence has no figure.
 	cadence, err := normalizeBillingCadence(sub.BillingCadence)
@@ -134,10 +143,34 @@ func (s Service) upgradeSubscriptionPlan(
 		return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: true, ProratedChargeMinor: 0, EffectiveAt: now}, nil
 	}
 
-	// A charge is due — the tenant must have an active recurring authorization to
-	// charge against (the same stored authorization the renewal sweep uses).
+	// A mobile-money subscription has no reusable authorization. Park the target
+	// plan and open a standard Paystack checkout for the prorated amount instead;
+	// the callback applies the upgrade only after provider verification.
 	if sub.BillingMode != "recurring" || strings.TrimSpace(sub.ProviderSubscriptionRef) == "" {
-		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
+		if strings.TrimSpace(callbackURL) == "" {
+			return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
+		}
+		grossProration := s.subscriptionChargeTotal(ctx, proration)
+		ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%d_%d", sub.SubscriptionID, target.Code,
+			sub.CurrentPeriodStart.Unix(), grossProration, now.UnixNano())
+		checkout, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
+			BusinessID: sub.BusinessID, CustomerEmail: strings.TrimSpace(sub.OwnerEmail),
+			AmountMinor: grossProration, Currency: "GHS", Reference: ref,
+			CallbackURL: strings.TrimSpace(callbackURL),
+		})
+		if err != nil || strings.TrimSpace(checkout.RedirectURL) == "" {
+			return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
+		}
+		// Park only after Paystack accepted the checkout. If initialization fails,
+		// leaving a pending target would make the current subscription look as if it
+		// were already on that plan and strand the owner's retry.
+		if err := s.businesses.SetPendingPlanUpgrade(ctx, sub.BusinessID, target.PlanID); err != nil {
+			return ChangeSubscriptionPlanResult{}, err
+		}
+		return ChangeSubscriptionPlanResult{
+			PlanCode: target.Code, Immediate: false, ProratedChargeMinor: grossProration,
+			EffectiveAt: now, AuthorizationURL: strings.TrimSpace(checkout.RedirectURL),
+		}, nil
 	}
 
 	// VAT applies to the prorated top-up too, plus the §4.1 Transaction fee
@@ -156,6 +189,11 @@ func (s Service) upgradeSubscriptionPlan(
 	// verify the deterministic ref: if it already succeeded, skip the (duplicate)
 	// charge and go straight to applying the upgrade, which is idempotent on the ref.
 	verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: ref})
+	if verifyErr == nil && verify.Succeeded && verify.AmountMinor < grossProration {
+		// A successful provider status is insufficient if the amount does not cover
+		// this upgrade. Never grant higher entitlements on an old/partial charge.
+		return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
+	}
 	if verifyErr != nil || !verify.Succeeded {
 		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
 			BusinessID:        sub.BusinessID,
@@ -165,7 +203,8 @@ func (s Service) upgradeSubscriptionPlan(
 			Currency:          "GHS",
 			Reference:         ref,
 		})
-		if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") {
+		if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") ||
+			charge.AmountMinor < grossProration {
 			// Do not switch the plan on a non-success charge: entitlements never go
 			// unpaid. The deterministic ref lets the owner safely retry.
 			return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
@@ -192,6 +231,9 @@ func (s Service) downgradeSubscriptionPlan(
 	sub ports.BusinessSubscriptionRecord,
 	target ports.PlanPricingRecord,
 ) (ChangeSubscriptionPlanResult, error) {
+	if !subscriptionPeriodActive(sub, s.clock.Now()) {
+		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
+	}
 	if err := s.businesses.SchedulePlanDowngrade(ctx, ports.SchedulePlanDowngradeInput{
 		BusinessID:  sub.BusinessID,
 		NewPlanID:   target.PlanID,
@@ -203,6 +245,15 @@ func (s Service) downgradeSubscriptionPlan(
 		PlanCode: target.Code, Immediate: false,
 		ProratedChargeMinor: 0, EffectiveAt: sub.CurrentPeriodEnd,
 	}, nil
+}
+
+// subscriptionPeriodActive ensures a plan change is anchored to a real, paid
+// billing window. An expired/zero window must be renewed first; otherwise an
+// upgrade could switch for free or a downgrade could be scheduled in the past.
+func subscriptionPeriodActive(sub ports.BusinessSubscriptionRecord, now time.Time) bool {
+	return !sub.CurrentPeriodStart.IsZero() &&
+		sub.CurrentPeriodEnd.After(sub.CurrentPeriodStart) &&
+		sub.CurrentPeriodEnd.After(now)
 }
 
 // targetRenewalFigureMinor returns the target plan's FULL renewal figure for the
@@ -220,28 +271,28 @@ func targetRenewalFigureMinor(target ports.PlanPricingRecord, cadence string) in
 
 // prorationChargeMinor computes the prorated upgrade difference to charge now:
 //
-//	ceil( (newRenewal - currentRenewal) * daysRemainingInPeriod / totalDaysInPeriod )
+//	ceil( (newRenewal - currentRenewal) * timeRemaining / totalPeriodTime )
 //
 // All in GHS minor units (pesewas). It guards against a non-positive difference, a
 // zero/negative period, and a period already elapsed — any of which yields 0 (no
-// charge). daysRemaining is clamped to [0, totalDays] so an odd clock never charges
-// more than a full period's difference.
+// charge). Remaining time is clamped to the full period so an odd clock never
+// charges more than the full difference. Seconds, rather than whole days, ensure
+// the final partial day of an active period never becomes a free upgrade.
 func prorationChargeMinor(currentRenewal, newRenewal int64, periodStart, periodEnd, now time.Time) int64 {
 	diff := newRenewal - currentRenewal
 	if diff <= 0 {
 		return 0
 	}
-	const day = 24 * time.Hour
-	totalDays := int64(periodEnd.Sub(periodStart) / day)
-	if totalDays <= 0 {
+	totalSeconds := int64(periodEnd.Sub(periodStart) / time.Second)
+	if totalSeconds <= 0 {
 		return 0
 	}
-	remainingDays := int64(periodEnd.Sub(now) / day)
-	if remainingDays <= 0 {
+	remainingSeconds := int64(periodEnd.Sub(now) / time.Second)
+	if remainingSeconds <= 0 {
 		return 0
 	}
-	if remainingDays > totalDays {
-		remainingDays = totalDays
+	if remainingSeconds > totalSeconds {
+		remainingSeconds = totalSeconds
 	}
 	// ceil(diff * remainingDays / totalDays) with integer math, then up to a whole
 	// cedi: Xtiitch bills whole cedis only ("Whole cedis in all display and
@@ -249,6 +300,6 @@ func prorationChargeMinor(currentRenewal, newRenewal int64, periodStart, periodE
 	// stored figures are already whole; a proration is computed, so it is one of
 	// the few places a pesewa can appear. Ceil rather than nearest so a genuine
 	// upgrade of a few hours still bills a cedi instead of rounding to nothing.
-	numerator := diff * remainingDays
-	return money.CeilToWholeCedi((numerator + totalDays - 1) / totalDays)
+	numerator := diff * remainingSeconds
+	return money.CeilToWholeCedi((numerator + totalSeconds - 1) / totalSeconds)
 }

@@ -55,6 +55,7 @@ func (handler Handler) checkoutQuote(w http.ResponseWriter, r *http.Request) {
 		Lines:               quoteLines,
 		DeliveryFeeMinor:    result.DeliveryFeeMinor,
 		ItemsTotalMinor:     result.Quote.ItemsTotalMinor,
+		VATRateBps:          result.Quote.VATRateBps,
 		TransactionFeeMinor: result.Quote.TransactionFeeMinor,
 		TaxMinor:            result.Quote.TaxLineMinor,
 		TotalMinor:          result.Quote.TotalChargeMinor,
@@ -76,6 +77,7 @@ type checkoutQuoteResponse struct {
 	Lines               []checkoutQuoteLineResponse `json:"lines"`
 	DeliveryFeeMinor    int64                       `json:"delivery_fee_minor"`
 	ItemsTotalMinor     int64                       `json:"items_total_minor"`
+	VATRateBps          int                         `json:"vat_rate_bps"`
 	TransactionFeeMinor int64                       `json:"transaction_fee_minor"`
 	TaxMinor            int64                       `json:"tax_minor"`
 	TotalMinor          int64                       `json:"total_minor"`

@@ -240,6 +240,7 @@ export type CheckoutQuote = {
   lines: CheckoutQuoteLine[];
   delivery_fee_minor: number;
   items_total_minor: number;
+  vat_rate_bps?: number;
   transaction_fee_minor: number;
   tax_minor: number;
   total_minor: number;
@@ -250,6 +251,7 @@ export type CheckoutQuote = {
 // reported, so the UI can render from one source.
 export type OrderFees = {
   items_total_minor: number;
+  vat_rate_bps?: number;
   transaction_fee_minor: number;
   tax_minor: number;
   total_minor: number;

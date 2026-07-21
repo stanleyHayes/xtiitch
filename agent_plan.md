@@ -70,6 +70,22 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 
 ### Final Update follow-up audit — 2026-07-21
 
+- ✅ Checkout VAT/failed-return follow-up: store-sale quotes now disclose the
+  exact VAT rate read from the live admin platform setting (with
+  `XTIITCH_SUBSCRIPTION_VAT_RATE_BPS` as fallback), and checkout labels the VAT
+  line with that rate. Paystack submission uses a native document navigation
+  and storefront API reads have a finite timeout, preventing browser Back from
+  restoring a permanently submitting/loading checkout after a failed or
+  abandoned payment.
+- ✅ Subscription plan-change follow-up: upgrades validate an active billing
+  period and the provider-confirmed amount before switching entitlements,
+  sub-day proration no longer rounds to a free upgrade, and mobile-money owners
+  without a reusable authorization receive a verified prorated Paystack
+  checkout instead of a billing dead end. Downgrades remain payment-free but
+  require a valid period end. Subscription Paystack forms use document
+  navigation and bounded API requests so abandoned returns cannot restore an
+  infinite loading state.
+
 - ✅ Audited all nine required changes in `Xtiitch-Final-Update.pdf` against the
   runtime code, migrations, and tests. The implementation in `ab28d47` parks
   Promotions for all plans, lowers the bespoke deposit floor to GHS 1, keeps

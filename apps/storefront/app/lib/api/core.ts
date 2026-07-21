@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "../server-fetch";
+
 // Server-side client for the Xtiitch public catalogue API. Storefront loaders
 // call these; nothing here runs in the browser. The base URL points at the Go
 // API and is overridable per environment.
@@ -21,7 +23,7 @@ export async function getJSON<T>(
   path: string,
   tenant?: TenantScope,
 ): Promise<T | null> {
-  const response = await fetch(`${API_BASE}/v1${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE}/v1${path}`, {
     headers: tenantHeaders(tenant),
   });
   if (response.status === 404) {
@@ -42,7 +44,7 @@ export async function postJSON<T>(
 ): Promise<
   { ok: true; result: T } | { ok: false; status: number; error: string }
 > {
-  const response = await fetch(`${API_BASE}/v1${path}`, {
+  const response = await fetchWithTimeout(`${API_BASE}/v1${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

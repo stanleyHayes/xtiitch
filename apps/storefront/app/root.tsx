@@ -16,6 +16,7 @@ import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
+import { fetchWithTimeout } from "./lib/server-fetch";
 
 const readBrandingEnv = (key: string): string | undefined =>
   typeof process !== "undefined" ? process.env[key] : undefined;
@@ -29,9 +30,12 @@ const BRANDING_API_BASE =
 // own store logo.
 export async function loader() {
   try {
-    const response = await fetch(`${BRANDING_API_BASE}/v1/branding`, {
-      headers: { Accept: "application/json" },
-    });
+    const response = await fetchWithTimeout(
+      `${BRANDING_API_BASE}/v1/branding`,
+      {
+        headers: { Accept: "application/json" },
+      },
+    );
     if (!response.ok) {
       return {
         brandLogoUrl: "",

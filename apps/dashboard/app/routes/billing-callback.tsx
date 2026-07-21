@@ -17,6 +17,9 @@ export function meta(): Route.MetaDescriptors {
 // destination shows the friendly nothing-was-charged banner with a working pay
 // button. Never a dead end, never a hung loader.
 async function abandonedCheckoutRedirect(request: Request): Promise<never> {
+  if (new URL(request.url).searchParams.get("flow") === "plan-change") {
+    throw redirect("/onboarding/billing?change=retry&billing=abandoned");
+  }
   const activation = await fetchActivationStatus(request);
   if (!activation.activated && activation.plan_code) {
     throw redirect(

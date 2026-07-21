@@ -54,7 +54,8 @@ type CheckoutProps = {
   actionData?: { error?: string } | null;
 };
 
-export default function Checkout({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+export default function Checkout({
   storeHandle,
   items,
   zones,
@@ -118,6 +119,14 @@ export default function Checkout({ // eslint-disable-line complexity, max-lines-
     ? activeQuote.delivery_fee_minor
     : fallbackDeliveryFee;
   const payMinor = activeQuote ? activeQuote.total_minor : null;
+  const vatRatePercent =
+    activeQuote?.vat_rate_bps !== undefined
+      ? activeQuote.vat_rate_bps / 100
+      : null;
+  const vatLabel =
+    vatRatePercent !== null
+      ? `Tax (VAT · ${vatRatePercent}%)`
+      : "Tax (VAT)";
   const retryQuote = () => {
     if (fulfilment === "delivery" && zoneID) {
       requestZoneQuote(zoneID);
@@ -244,7 +253,7 @@ export default function Checkout({ // eslint-disable-line complexity, max-lines-
           {activeQuote && activeQuote.tax_minor > 0 ? (
             <Stack direction="row" sx={{ justifyContent: "space-between" }}>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Tax (VAT)
+                {vatLabel}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 {formatGHS(activeQuote.tax_minor)}

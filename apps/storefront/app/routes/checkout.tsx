@@ -165,7 +165,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const hasMadeToWear = items.some((item) => item.kind === "made_to_wear");
   let zones: { zone_id: string; name: string; fee_minor: number }[] = [];
   if (hasMadeToWear && storeHandle) {
-    const page = await api.deliveryZones(storeHandle, tenant);
+    // Delivery is optional; an upstream timeout must not trap a shopper who
+    // just returned from a failed/abandoned payment. The quote below remains
+    // the payment gate and will show its explicit retry state if unavailable.
+    const page = await api.deliveryZones(storeHandle, tenant).catch(() => null);
     zones = page?.zones ?? [];
   }
   // §4.5: the pickup quote (no delivery zone) drives the fee lines on first

@@ -39,7 +39,7 @@ func TestCheckoutQuoteAcceptsPOST(t *testing.T) {
 
 	service := &fakeService{quoteResult: checkoutapp.CheckoutQuoteResult{
 		Lines: []checkoutapp.CheckoutQuoteLine{{DesignHandle: "smock", Kind: checkoutapp.CartLineMadeToWear, AmountMinor: 25000}},
-		Quote: money.StoreSaleQuote{ItemsTotalMinor: 25000, TotalChargeMinor: 25000},
+		Quote: money.StoreSaleQuote{ItemsTotalMinor: 25000, VATRateBps: 2000, TotalChargeMinor: 25000},
 	}}
 	router := newTestRouter(service)
 	request := httptest.NewRequest(http.MethodPost, "/public/stores/tdh/checkout-quote",
@@ -59,7 +59,7 @@ func TestCheckoutQuoteAcceptsPOST(t *testing.T) {
 	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if body.ItemsTotalMinor != 25000 || body.TotalMinor != 25000 || len(body.Lines) != 1 {
+	if body.ItemsTotalMinor != 25000 || body.VATRateBps != 2000 || body.TotalMinor != 25000 || len(body.Lines) != 1 {
 		t.Fatalf("unexpected quote body: %+v", body)
 	}
 }

@@ -27,6 +27,10 @@ type StoreSaleQuote struct {
 	// ItemsTotalMinor is the basket total before fees: the per-design amounts
 	// plus any uncommissioned lines (e.g. a delivery fee).
 	ItemsTotalMinor int64
+	// VATRateBps is the live admin-configured VAT rate used for this quote (or
+	// the environment fallback when platform settings cannot be read). Exposing
+	// it lets checkout disclose the exact rate behind TaxLineMinor.
+	VATRateBps int
 	// XtiitchFeeMinor is the summed per-design fee at the store's plan rate,
 	// each capped at GHS 50 (§4.2/§4.3) — or the promotion-negotiated override
 	// when one replaces it.
@@ -133,6 +137,7 @@ func QuoteStoreSale(input StoreSaleQuoteInput) StoreSaleQuote {
 
 	return StoreSaleQuote{
 		ItemsTotalMinor:     itemsTotal,
+		VATRateBps:          max(input.VATBps, 0),
 		XtiitchFeeMinor:     fee,
 		TaxMinor:            tax,
 		PaystackFeeMinor:    paystackFee,

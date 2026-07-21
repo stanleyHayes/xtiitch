@@ -50,16 +50,19 @@ function changeSummary(change: PlanChangeResult): string {
   )}. You keep your current plan until then — no charge or refund now.`;
 }
 
-export function ChangePlanView({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function ChangePlanView({
   currentPlan,
   plans,
   result,
   isSubmitting,
+  abandoned,
 }: {
   currentPlan: PublicPlan;
   plans: PublicPlan[];
   result: { error?: string; changeResult?: PlanChangeResult };
   isSubmitting: boolean;
+  abandoned?: boolean;
 }) {
   // Large plan cards, cheapest first — the same card design as the plans list
   // (PlansView): name, big monthly price, first-vs-renewal line, limit lines,
@@ -79,7 +82,11 @@ export function ChangePlanView({ // eslint-disable-line max-lines-per-function -
       }}
     >
       <Container maxWidth="sm">
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 1 }}>
+        <Stack
+          direction="row"
+          spacing={1.5}
+          sx={{ alignItems: "center", mb: 1 }}
+        >
           <Box
             sx={{
               width: 44,
@@ -114,6 +121,12 @@ export function ChangePlanView({ // eslint-disable-line max-lines-per-function -
             {result.error}
           </Alert>
         ) : null}
+        {abandoned ? (
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Payment wasn't completed — your current plan is unchanged and
+            nothing was charged. You can retry the upgrade below.
+          </Alert>
+        ) : null}
 
         <Alert severity="info" icon={false} sx={{ mb: 3 }}>
           Upgrades take effect immediately — you pay a prorated amount for the
@@ -139,7 +152,9 @@ export function ChangePlanView({ // eslint-disable-line max-lines-per-function -
                   flexDirection: "column",
                   bgcolor: alpha(tokens.white, 0.98),
                   color: tokens.ink,
-                  borderColor: popular ? tokens.burgundy : alpha(tokens.ink, 0.16),
+                  borderColor: popular
+                    ? tokens.burgundy
+                    : alpha(tokens.ink, 0.16),
                   borderWidth: popular ? 2 : 1,
                   position: "relative",
                 }}

@@ -2,10 +2,9 @@ package money
 
 // GhanaStandardVATRateBps is Ghana's standard effective VAT rate as of 1 Jan 2026
 // in basis points: 20% (2000 bps) — a unified 15% VAT + 2.5% NHIL + 2.5% GETFund
-// levied on the same base (the 1% COVID-19 levy was abolished). It is provided as
-// the documented value to configure when Xtiitch confirms its subscriptions are
-// VAT-able; it is NOT applied by default (see the SubscriptionVATRateBps config,
-// which defaults to 0 / disabled).
+// levied on the same base (the 1% COVID-19 levy was abolished). The live admin
+// platform setting is the runtime source; XTIITCH_SUBSCRIPTION_VAT_RATE_BPS is
+// the fallback when that setting cannot be read.
 const GhanaStandardVATRateBps = 2000
 
 // VATBreakdown splits a subscription charge into its net (ex-VAT) and VAT

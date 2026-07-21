@@ -58,6 +58,7 @@ func TestQuoteStoreSaleFullPassDownWorkedExample(t *testing.T) {
 
 	want := StoreSaleQuote{
 		ItemsTotalMinor:     5000,
+		VATRateBps:          2000,
 		XtiitchFeeMinor:     150,
 		TaxMinor:            30,
 		PaystackFeeMinor:    103,
@@ -90,6 +91,7 @@ func TestQuoteStoreSaleAbsorbWorkedExample(t *testing.T) {
 
 	want := StoreSaleQuote{
 		ItemsTotalMinor:     5000,
+		VATRateBps:          2000,
 		XtiitchFeeMinor:     150,
 		TaxMinor:            30,
 		PaystackFeeMinor:    98,
@@ -177,6 +179,7 @@ func TestQuoteStoreSaleBulkPerDesignCaps(t *testing.T) {
 	// 12.10; ONE paystack fee on the grossed-up total.
 	want := StoreSaleQuote{
 		ItemsTotalMinor:     235000,
+		VATRateBps:          2000,
 		XtiitchFeeMinor:     6050,
 		TaxMinor:            1210,
 		PaystackFeeMinor:    4818,

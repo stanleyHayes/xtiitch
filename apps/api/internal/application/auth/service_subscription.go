@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -314,6 +315,13 @@ func (s Service) VerifySubscriptionAuthorization(
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, err
 	}
+	// Interactive mid-cycle upgrade checkout (used when the current payment was
+	// mobile money and therefore supplied no reusable authorization). Its amount is
+	// embedded in a tenant/plan/period-bound reference minted by ChangePlan; verify
+	// that exact amount before switching entitlements.
+	if strings.HasPrefix(reference, "xtsub_upgrade_checkout_") {
+		return s.verifyInteractivePlanUpgrade(ctx, subscription, reference)
+	}
 	// Canceled is NOT refused here, for the same reason it is not refused at
 	// initialize: "Re-subscribe restores access" (Pricing Book §7). These are the
 	// two halves of one payment flow, and refusing only the second half is the
@@ -437,6 +445,69 @@ func (s Service) VerifySubscriptionAuthorization(
 		BillingMode:             "recurring",
 		ProviderCustomerRef:     customerRef,
 		ProviderSubscriptionRef: authRef,
+	}, nil
+}
+
+func (s Service) verifyInteractivePlanUpgrade(
+	ctx context.Context,
+	subscription ports.BusinessSubscriptionRecord,
+	reference string,
+) (SubscriptionAuthorizationResult, error) {
+	if !subscriptionPeriodActive(subscription, s.clock.Now()) {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	prefix := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_", subscription.SubscriptionID,
+		subscription.PlanCode, subscription.CurrentPeriodStart.Unix())
+	if !strings.HasPrefix(reference, prefix) {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	parts := strings.Split(strings.TrimPrefix(reference, prefix), "_")
+	if len(parts) != 2 {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	dueMinor, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || dueMinor <= 0 {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	if _, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
+	verified, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	if !verified.Succeeded || verified.AmountMinor < dueMinor {
+		return SubscriptionAuthorizationResult{
+			SubscriptionID: subscription.SubscriptionID, BusinessID: subscription.BusinessID,
+			Status: "past_due", BillingMode: subscription.BillingMode,
+		}, nil
+	}
+	// A repeated callback sees the pending target already cleared and the target
+	// plan current. Treat that as an idempotent success; otherwise apply the parked
+	// target exactly once, booking the verified proration under this provider ref.
+	if !subscription.PendingUpgradePlanID.IsZero() {
+		if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
+			BusinessID: subscription.BusinessID, NewPlanID: subscription.PendingUpgradePlanID,
+			AmountMinor: verified.AmountMinor, Currency: "GHS", ChargeRef: reference,
+		}); err != nil {
+			return SubscriptionAuthorizationResult{}, err
+		}
+	}
+	channel := normalizeAuthorizationChannel(verified.Channel)
+	authRef := strings.TrimSpace(verified.AuthorizationCode)
+	if authRef == "" && channel == "" {
+		channel = "mobile_money"
+	}
+	if err := s.businesses.ActivateRecurringBilling(ctx, ports.ActivateRecurringBillingInput{
+		BusinessID: subscription.BusinessID, ProviderCustomerRef: strings.TrimSpace(verified.CustomerCode),
+		ProviderSubscriptionRef: authRef, ProviderChannel: channel,
+	}); err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	return SubscriptionAuthorizationResult{
+		SubscriptionID: subscription.SubscriptionID, BusinessID: subscription.BusinessID,
+		Status: "active", BillingMode: "recurring",
+		ProviderCustomerRef: strings.TrimSpace(verified.CustomerCode), ProviderSubscriptionRef: authRef,
 	}, nil
 }
 

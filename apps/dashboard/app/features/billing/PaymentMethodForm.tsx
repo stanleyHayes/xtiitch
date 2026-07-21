@@ -56,7 +56,8 @@ export function vatNote(vat: VATPolicy): string {
 // package + Tax (VAT) + Transaction fee totals render in BillingCyclePicker;
 // the §4.6 gross-up maths lives in lib/billing-fees.ts.
 
-export function PaymentMethodForm({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function PaymentMethodForm({
   plan,
   error,
   abandoned,
@@ -163,7 +164,10 @@ export function PaymentMethodForm({ // eslint-disable-line max-lines-per-functio
               again whenever you&apos;re ready.
             </Alert>
           ) : null}
-          <Form method="post">
+          {/* Paystack is an external navigation. Native document submission
+              prevents browser Back from restoring React Router's stale
+              "submitting" state after a failed or abandoned payment. */}
+          <Form method="post" reloadDocument>
             <Stack spacing={2}>
               {isPaidPlan && plan ? (
                 <BillingCyclePicker

@@ -22,10 +22,11 @@ export function meta(): Route.MetaDescriptors {
 export async function loader({ request }: Route.LoaderArgs) {
   const searchParams = new URL(request.url).searchParams;
   const planCode = searchParams.get("plan") ?? "";
+  const retryingPlanChange = searchParams.get("change") === "retry";
   // A paid plan pending activation that reaches the bare plans/management screen
   // (no explicit ?plan target) belongs on the activation page, not the
   // change-plan view — send them there so the plans flow is never a dead-end.
-  if (!planCode) {
+  if (!planCode && !retryingPlanChange) {
     const activation = await fetchActivationStatus(request);
     if (!activation.activated) {
       throw redirect("/activate");
@@ -80,7 +81,8 @@ export async function action({ request }: Route.ActionArgs) {
   return startBilling(request, form);
 }
 
-export default function BillingOnboarding({ // eslint-disable-line complexity -- view switch over plan/management state; refactor in follow-up
+// eslint-disable-next-line complexity -- view switch over plan/management state; refactor in follow-up
+export default function BillingOnboarding({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
@@ -107,6 +109,7 @@ export default function BillingOnboarding({ // eslint-disable-line complexity --
         plans={plans}
         result={result}
         isSubmitting={isSubmitting}
+        abandoned={abandoned}
       />
     );
   }

@@ -144,9 +144,10 @@ func (handler Handler) changeSubscriptionPlan(w http.ResponseWriter, r *http.Req
 		return
 	}
 	result, err := handler.service.ChangeSubscriptionPlan(r.Context(), authapp.ChangeSubscriptionPlanCommand{
-		Scope:     principal.TenantScope(),
-		ActorRole: principal.Role,
-		PlanCode:  request.PlanCode,
+		Scope:       principal.TenantScope(),
+		ActorRole:   principal.Role,
+		PlanCode:    request.PlanCode,
+		CallbackURL: request.CallbackURL,
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -158,5 +159,6 @@ func (handler Handler) changeSubscriptionPlan(w http.ResponseWriter, r *http.Req
 		Immediate:           result.Immediate,
 		ProratedChargeMinor: result.ProratedChargeMinor,
 		EffectiveAt:         result.EffectiveAt.Format(time.RFC3339),
+		AuthorizationURL:    result.AuthorizationURL,
 	})
 }

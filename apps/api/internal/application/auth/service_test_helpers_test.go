@@ -239,6 +239,7 @@ func (repo *fakeBusinessIdentityRepository) UpdateOwnBusinessUserProfile(
 // checkout was priced at). The recurring sweep still uses ChargeAuthorization.
 type fakeSubscriptionPayments struct {
 	initInput ports.InitializeAuthorizationInput
+	initErr   error
 	// verifyNotSucceeded makes VerifyAuthorization report an unpaid/abandoned
 	// checkout; verifyNoAuth makes it report a mobile-money payment (no reusable
 	// authorization). Both default to the paid-card happy path.
@@ -276,6 +277,9 @@ func (f *fakeSubscriptionPayments) InitializeAuthorization(
 	error,
 ) {
 	f.initInput = input
+	if f.initErr != nil {
+		return ports.InitializeAuthorizationResult{}, f.initErr
+	}
 	return ports.InitializeAuthorizationResult{RedirectURL: "https://pay", Reference: input.Reference}, nil
 }
 

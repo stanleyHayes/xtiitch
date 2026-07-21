@@ -151,6 +151,7 @@ export type PlanChangeResult = {
   prorated_charge_minor: number;
   // RFC3339 timestamp the new plan takes effect.
   effective_at: string;
+  authorization_url?: string;
 };
 
 // Ask the API to change the plan. The API classifies upgrade vs downgrade and
@@ -159,7 +160,7 @@ export type PlanChangeResult = {
 export async function submitPlanChange(
   request: Request,
   planCode: string,
-): Promise<{ error: string } | { changeResult: PlanChangeResult }> {
+): Promise<Response | { error: string } | { changeResult: PlanChangeResult }> {
   if (!planCode) {
     return { error: "Choose a plan to switch to." };
   }
@@ -169,7 +170,10 @@ export async function submitPlanChange(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan_code: planCode }),
+      body: JSON.stringify({
+        plan_code: planCode,
+        callback_url: `${new URL(request.url).origin}/onboarding/billing/callback?flow=plan-change`,
+      }),
     },
   );
   if (!response.ok) {
@@ -186,7 +190,11 @@ export async function submitPlanChange(
         "We couldn't change your plan right now. Please try again later.",
     };
   }
-  return { changeResult: (await response.json()) as PlanChangeResult };
+  const changeResult = (await response.json()) as PlanChangeResult;
+  if (changeResult.authorization_url) {
+    return redirect(changeResult.authorization_url);
+  }
+  return { changeResult };
 }
 
 // Start billing for the chosen plan. Paying is never gated — no identity

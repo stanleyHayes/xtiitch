@@ -354,6 +354,7 @@ func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationUR
 		// raw "Paystack fee"). Both lines are 0 when the owner absorbs the fees.
 		body["fees"] = map[string]any{
 			"items_total_minor":     quote.ItemsTotalMinor,
+			"vat_rate_bps":          quote.VATRateBps,
 			"transaction_fee_minor": quote.TransactionFeeMinor,
 			"tax_minor":             quote.TaxLineMinor,
 			"total_minor":           quote.TotalChargeMinor,

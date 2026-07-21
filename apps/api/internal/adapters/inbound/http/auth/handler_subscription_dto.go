@@ -71,7 +71,8 @@ type subscriptionActivationResponse struct {
 }
 
 type changeSubscriptionPlanRequest struct {
-	PlanCode string `json:"plan_code"`
+	PlanCode    string `json:"plan_code"`
+	CallbackURL string `json:"callback_url"`
 }
 
 type changeSubscriptionPlanResponse struct {
@@ -84,5 +85,6 @@ type changeSubscriptionPlanResponse struct {
 	ProratedChargeMinor int64 `json:"prorated_charge_minor"`
 	// EffectiveAt is when the new plan takes effect (now for an upgrade, the period
 	// end for a scheduled downgrade), RFC3339.
-	EffectiveAt string `json:"effective_at"`
+	EffectiveAt      string `json:"effective_at"`
+	AuthorizationURL string `json:"authorization_url,omitempty"`
 }

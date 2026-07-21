@@ -125,8 +125,8 @@ func TestQuoteStoreSaleReadsLiveVATRate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quote: %v", err)
 	}
-	if quote.TaxMinor != 30 {
-		t.Fatalf("expected 20%% VAT on the 1.50 fee = 0.30, got %d", quote.TaxMinor)
+	if quote.VATRateBps != 2000 || quote.TaxMinor != 30 {
+		t.Fatalf("expected disclosed 20%% VAT on the 1.50 fee = 0.30, got rate=%d tax=%d", quote.VATRateBps, quote.TaxMinor)
 	}
 
 	fallback, _, _ := quoteTestService(businesses, &fakeVATRates{err: errors.New("db down")}, 2000)
@@ -137,8 +137,8 @@ func TestQuoteStoreSaleReadsLiveVATRate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("quote: %v", err)
 	}
-	if quote.TaxMinor != 30 {
-		t.Fatalf("a failing reader must fall back to the seeded 20%%, got tax %d", quote.TaxMinor)
+	if quote.VATRateBps != 2000 || quote.TaxMinor != 30 {
+		t.Fatalf("a failing reader must disclose and use the seeded 20%%, got rate=%d tax=%d", quote.VATRateBps, quote.TaxMinor)
 	}
 }
 

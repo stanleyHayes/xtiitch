@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
@@ -119,6 +120,55 @@ func TestVerifySubscriptionAuthorizationKeepsPendingPlanLockedWhenPaymentFails(t
 	}
 	if businesses.activationPayment.ChargeRef != "" {
 		t.Fatal("an unpaid checkout must not book an activation payment")
+	}
+}
+
+func TestVerifyInteractivePlanUpgradeAppliesOnlyAfterFullPayment(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{subscription: ports.BusinessSubscriptionRecord{
+		SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+		PlanCode: "studio", MonthlyFeeMinor: 9900, Status: "active", BillingMode: "recurring",
+		BillingCadence: "quarterly", QuarterlyRenewalMinor: 59700,
+		CurrentPeriodStart:   time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		CurrentPeriodEnd:     time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC),
+		PendingUpgradePlanID: "plan-studio",
+	}}
+	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 9995}}
+	service := newSubscriptionTestService(businesses, payments)
+	reference := "xtsub_upgrade_checkout_sub-1_studio_1780272000_9995_1781467200"
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: reference,
+	})
+	if err != nil || result.Status != "active" {
+		t.Fatalf("verified upgrade should activate: result=%+v err=%v", result, err)
+	}
+	if businesses.upgradeApplied == nil || businesses.upgradeApplied.NewPlanID != "plan-studio" ||
+		businesses.upgradeApplied.AmountMinor != 9995 || businesses.upgradeApplied.ChargeRef != reference {
+		t.Fatalf("expected paid upgrade applied and booked, got %+v", businesses.upgradeApplied)
+	}
+}
+
+func TestVerifyInteractivePlanUpgradeRejectsUnderpayment(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{subscription: ports.BusinessSubscriptionRecord{
+		SubscriptionID: "sub-1", BusinessID: "business-1", PlanCode: "studio", MonthlyFeeMinor: 9900,
+		Status: "active", BillingMode: "recurring", BillingCadence: "quarterly", QuarterlyRenewalMinor: 59700,
+		CurrentPeriodStart: time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC),
+		CurrentPeriodEnd:   time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC), PendingUpgradePlanID: "plan-studio",
+	}}
+	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 100}}
+	service := newSubscriptionTestService(businesses, payments)
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope:     common.TenantScope{BusinessID: "business-1"},
+		Reference: "xtsub_upgrade_checkout_sub-1_studio_1780272000_9995_1781467200",
+	})
+	if err != nil || result.Status == "active" {
+		t.Fatalf("underpaid upgrade must remain inactive: result=%+v err=%v", result, err)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatalf("underpayment must not unlock target plan: %+v", businesses.upgradeApplied)
 	}
 }
 

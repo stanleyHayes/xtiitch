@@ -59,8 +59,13 @@ export default function CheckoutForm({
   const submitting = navigation.state === "submitting";
   const canPayNow = items.length > 0;
 
+  // A native document submission is intentional here. Paystack is an external
+  // navigation; if React Router owns the submission, browser Back can restore
+  // its bfcache snapshot while navigation.state is still "submitting", which
+  // strands the checkout on an infinite loading indicator. A document submit
+  // returns to a fresh, idle checkout while preserving the cart cookie.
   return (
-    <Form method="post" action={submitAction}>
+    <Form method="post" action={submitAction} reloadDocument>
       <input type="hidden" name="intent" value="pay" />
       <Stack spacing={1.5}>
         {deliveryOffered ? (
