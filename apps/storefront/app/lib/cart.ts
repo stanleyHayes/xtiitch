@@ -9,9 +9,10 @@ import { createCookieSessionStorage } from "react-router";
 // success, leaving the other stores' items in the basket.
 
 export type CartItemKind = "made_to_wear" | "bespoke";
+export const MAX_CART_ITEMS_PER_STORE = 50;
 
 export type CartItem = {
-  // Stable line id (so duplicate design+size lines can be removed individually).
+  // Stable id for one distinct product configuration.
   line_id: string;
   store_handle: string;
   design_handle: string;
@@ -29,6 +30,9 @@ export type CartItem = {
   // Optional free-text note the shopper attaches on the design page; carried to
   // checkout so it reaches the store with the order.
   note?: string;
+  // Identical configurations share one cart row. Checkout expands the quantity
+  // back into individual order lines because the API creates one order per item.
+  quantity: number;
 };
 
 type CartData = {
@@ -57,12 +61,70 @@ export async function getCart(
   const session = await storage.getSession(request.headers.get("Cookie"));
   return {
     storeHandle: session.get("store_handle") ?? "",
-    items: session.get("items") ?? [],
+    items: consolidateCartItems(session.get("items") ?? []),
   };
 }
 
 export function cartTotalMinor(items: CartItem[]): number {
-  return items.reduce((sum, item) => sum + item.amount_minor, 0);
+  return items.reduce(
+    (sum, item) => sum + item.amount_minor * normalizedQuantity(item.quantity),
+    0,
+  );
+}
+
+export function cartItemCount(items: CartItem[]): number {
+  return items.reduce(
+    (sum, item) => sum + normalizedQuantity(item.quantity),
+    0,
+  );
+}
+
+function normalizedQuantity(quantity: number | undefined): number {
+  return Number.isSafeInteger(quantity) && quantity && quantity > 0
+    ? Math.min(quantity, MAX_CART_ITEMS_PER_STORE)
+    : 1;
+}
+
+function itemConfigurationKey(item: CartItem): string {
+  const measurements = Object.entries(item.measurements ?? {}).sort(
+    ([a], [b]) => a.localeCompare(b),
+  );
+  return JSON.stringify({
+    store: item.store_handle,
+    design: item.design_handle,
+    kind: item.kind,
+    sizeBand: item.size_band_id,
+    sizeMode: item.size_mode ?? "",
+    measurements,
+    note: item.note ?? "",
+    amount: item.amount_minor,
+  });
+}
+
+// Consolidate legacy duplicate cookie lines as well as new quantity-aware lines.
+export function consolidateCartItems(items: CartItem[]): CartItem[] {
+  const consolidated: CartItem[] = [];
+  const indexes = new Map<string, number>();
+  for (const item of items) {
+    const key = itemConfigurationKey(item);
+    const existingIndex = indexes.get(key);
+    if (existingIndex === undefined) {
+      indexes.set(key, consolidated.length);
+      consolidated.push({
+        ...item,
+        quantity: normalizedQuantity(item.quantity),
+      });
+      continue;
+    }
+    const existing = consolidated[existingIndex];
+    if (existing) {
+      existing.quantity = Math.min(
+        MAX_CART_ITEMS_PER_STORE,
+        existing.quantity + normalizedQuantity(item.quantity),
+      );
+    }
+  }
+  return consolidated;
 }
 
 // storeHandlesInCart returns the distinct store handles present, in first-seen
@@ -90,12 +152,33 @@ export function itemsForStore(
 // coexist (grouped by store_handle); nothing is wiped when adding across stores.
 export async function addToCart(
   request: Request,
-  item: Omit<CartItem, "line_id">,
+  item: Omit<CartItem, "line_id" | "quantity"> & { quantity?: number },
 ): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
-  const items = session.get("items") ?? [];
+  const items = consolidateCartItems(session.get("items") ?? []);
   const lineID = `${item.design_handle}:${item.size_band_id}:${crypto.randomUUID()}`;
-  items.push({ ...item, line_id: lineID });
+  const incoming: CartItem = {
+    ...item,
+    line_id: lineID,
+    quantity: normalizedQuantity(item.quantity),
+  };
+  const matching = items.find(
+    (existing) =>
+      itemConfigurationKey(existing) === itemConfigurationKey(incoming),
+  );
+  const storeItemCount = cartItemCount(
+    items.filter((existing) => existing.store_handle === item.store_handle),
+  );
+  const available = Math.max(0, MAX_CART_ITEMS_PER_STORE - storeItemCount);
+  if (matching) {
+    matching.quantity = Math.min(
+      matching.quantity + available,
+      matching.quantity + incoming.quantity,
+    );
+  } else if (available > 0) {
+    incoming.quantity = Math.min(incoming.quantity, available);
+    items.push(incoming);
+  }
   // store_handle tracks the most recently added store (used for "continue
   // shopping" back-links); the basket itself is multi-store via item.store_handle.
   session.set("store_handle", item.store_handle);
@@ -108,11 +191,45 @@ export async function removeFromCart(
   lineID: string,
 ): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
-  const items = (session.get("items") ?? []).filter(
+  const items = consolidateCartItems(session.get("items") ?? []).filter(
     (item) => item.line_id !== lineID,
   );
   session.set("items", items);
   if (items.length === 0) {
+    session.unset("store_handle");
+  }
+  return storage.commitSession(session);
+}
+
+export async function updateCartItemQuantity(
+  request: Request,
+  lineID: string,
+  quantity: number,
+): Promise<string> {
+  const session = await storage.getSession(request.headers.get("Cookie"));
+  const items = consolidateCartItems(session.get("items") ?? []);
+  const target = items.find((item) => item.line_id === lineID);
+  const otherStoreItems = target
+    ? cartItemCount(
+        items.filter(
+          (item) =>
+            item.store_handle === target.store_handle &&
+            item.line_id !== lineID,
+        ),
+      )
+    : 0;
+  const requested = Number.isFinite(quantity) ? Math.trunc(quantity) : 1;
+  const nextQuantity = Math.max(
+    0,
+    Math.min(MAX_CART_ITEMS_PER_STORE - otherStoreItems, requested),
+  );
+  const updated = items
+    .map((item) =>
+      item.line_id === lineID ? { ...item, quantity: nextQuantity } : item,
+    )
+    .filter((item) => item.quantity > 0);
+  session.set("items", updated);
+  if (updated.length === 0) {
     session.unset("store_handle");
   }
   return storage.commitSession(session);
@@ -127,7 +244,7 @@ export async function keepOnlyStore(
   storeHandle: string,
 ): Promise<string | null> {
   const session = await storage.getSession(request.headers.get("Cookie"));
-  const items = session.get("items") ?? [];
+  const items = consolidateCartItems(session.get("items") ?? []);
   const kept = items.filter((item) => item.store_handle === storeHandle);
   if (kept.length === items.length) {
     return null;

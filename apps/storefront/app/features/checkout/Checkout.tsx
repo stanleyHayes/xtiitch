@@ -209,9 +209,10 @@ export default function Checkout({
               <Typography variant="body2" noWrap sx={{ pr: 1 }}>
                 {item.title}
                 {item.kind === "bespoke" ? " (bespoke deposit)" : ""}
+                {item.quantity > 1 ? ` × ${item.quantity}` : ""}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                {formatGHS(item.amount_minor)}
+                {formatGHS(item.amount_minor * item.quantity)}
               </Typography>
             </Stack>
           ))}

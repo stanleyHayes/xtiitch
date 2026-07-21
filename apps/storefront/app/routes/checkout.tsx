@@ -35,14 +35,16 @@ function resolveCheckoutStore(url: URL, stores: string[]): string {
 // cartOrderLines maps the basket's cookie lines onto the wire shape the
 // cart-orders and checkout-quote endpoints share.
 function cartOrderLines(items: CartItem[]): CartOrderLine[] {
-  return items.map((item) => ({
-    design_handle: item.design_handle,
-    size_band_id: item.size_band_id,
-    kind: item.kind,
-    size_mode: item.size_mode,
-    measurements: item.measurements,
-    note: item.note || undefined,
-  }));
+  return items.flatMap((item) =>
+    Array.from({ length: item.quantity }, () => ({
+      design_handle: item.design_handle,
+      size_band_id: item.size_band_id,
+      kind: item.kind,
+      size_mode: item.size_mode,
+      measurements: item.measurements,
+      note: item.note || undefined,
+    })),
+  );
 }
 
 // fetchQuote prices the basket through the read-only checkout-quote endpoint
@@ -185,7 +187,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
+// eslint-disable-next-line complexity -- action handles quote, fulfilment, and payment branches.
+export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const url = new URL(request.url);
   const { items: allItems } = await getCart(request);
@@ -261,10 +264,11 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   // Pickup + a single ready-made piece: the proven single-order checkout. A
   // lone bespoke deposit has no size band, so it must not take this path — it
   // falls through to the group charge below, which settles the deposit.
+  const orderLines = cartOrderLines(items);
   const only = items[0];
   if (
     fulfilment !== "delivery" &&
-    items.length === 1 &&
+    orderLines.length === 1 &&
     only &&
     only.kind === "made_to_wear"
   ) {
@@ -299,7 +303,7 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
   const response = await api.placeCartOrder(
     storeHandle,
     {
-      items: cartOrderLines(items),
+      items: orderLines,
       customer_name: customerName,
       customer_phone: customerPhone,
       customer_whatsapp: customerWhatsApp,

@@ -1,9 +1,4 @@
-import {
-  Form,
-  Link as RouterLink,
-  data,
-  redirect,
-} from "react-router";
+import { Form, Link as RouterLink, data, redirect } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -20,15 +15,19 @@ import type { Route } from "./+types/cart";
 import { tokens } from "../theme";
 import { formatGHS } from "../lib/format";
 import { api } from "../lib/api";
+import CartQuantity from "../features/cart/cart-quantity";
 import { requestTenant } from "../lib/tenant";
 import {
   cartTotalMinor,
+  cartItemCount,
   clearCart,
   getCart,
   itemsForStore,
   keepOnlyStore,
+  MAX_CART_ITEMS_PER_STORE,
   removeFromCart,
   storeHandlesInCart,
+  updateCartItemQuantity,
 } from "../lib/cart";
 
 export function meta(): Route.MetaDescriptors {
@@ -72,6 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       handle,
       name: names[handle] ?? handle,
       items: storeItems,
+      itemCount: cartItemCount(storeItems),
       subtotalMinor: cartTotalMinor(storeItems),
     };
   });
@@ -110,6 +110,15 @@ export async function action({ request }: Route.ActionArgs) {
       headers: { "Set-Cookie": await removeFromCart(request, lineID) },
     });
   }
+  if (intent === "quantity") {
+    const lineID = String(form.get("line_id") ?? "");
+    const quantity = Number.parseInt(String(form.get("quantity") ?? "1"), 10);
+    return redirect("/cart", {
+      headers: {
+        "Set-Cookie": await updateCartItemQuantity(request, lineID, quantity),
+      },
+    });
+  }
   if (intent === "clear") {
     return redirect("/cart", {
       headers: { "Set-Cookie": await clearCart(request) },
@@ -118,7 +127,8 @@ export async function action({ request }: Route.ActionArgs) {
   return null;
 }
 
-export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- route renders the complete grouped cart flow.
+export default function Cart({ loaderData }: Route.ComponentProps) {
   const { tenantHost, groups, totalMinor, paidName } = loaderData;
   const multiStore = groups.length > 1;
 
@@ -238,8 +248,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                     variant="body2"
                     sx={{ color: "text.secondary", flexShrink: 0 }}
                   >
-                    {group.items.length}{" "}
-                    {group.items.length === 1 ? "design" : "designs"}
+                    {group.itemCount} {group.itemCount === 1 ? "item" : "items"}
                   </Typography>
                 </Stack>
 
@@ -277,9 +286,26 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                           : item.size_label}
                       </Typography>
                     </Box>
-                    <Typography sx={{ fontWeight: 800 }}>
-                      {formatGHS(item.amount_minor)}
-                    </Typography>
+                    <Stack spacing={0.5} sx={{ alignItems: "flex-end" }}>
+                      <Typography sx={{ fontWeight: 800 }}>
+                        {formatGHS(item.amount_minor * item.quantity)}
+                      </Typography>
+                      {item.quantity > 1 ? (
+                        <Typography
+                          variant="caption"
+                          sx={{ color: "text.secondary" }}
+                        >
+                          {formatGHS(item.amount_minor)} each
+                        </Typography>
+                      ) : null}
+                    </Stack>
+                    <CartQuantity
+                      item={item}
+                      maxQuantity={
+                        MAX_CART_ITEMS_PER_STORE -
+                        (group.itemCount - item.quantity)
+                      }
+                    />
                     <Form method="post">
                       <input type="hidden" name="intent" value="remove" />
                       <input
@@ -310,9 +336,7 @@ export default function Cart({ loaderData }: Route.ComponentProps) { // eslint-d
                   <Typography sx={{ fontWeight: 900 }}>
                     {multiStore ? "Basket subtotal" : "Total"}
                   </Typography>
-                  <Typography
-                    sx={{ fontWeight: 900, color: "primary.main" }}
-                  >
+                  <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
                     {formatGHS(group.subtotalMinor)}
                   </Typography>
                 </Stack>
