@@ -2,6 +2,7 @@ package authapp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -334,6 +335,17 @@ func (s Service) VerifySubscriptionAuthorization(
 	if activationChargeMinor(subscription, cadence) <= 0 {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
+	// Resolve the deterministic reference for THIS subscription period before
+	// asking Paystack about the callback reference. A successful transaction from
+	// another order, plan, or subscription must never activate this plan merely
+	// because the browser supplied its reference.
+	activation, err := s.businesses.PrepareSubscriptionActivationCharge(ctx, subscription.BusinessID)
+	if err != nil {
+		return SubscriptionAuthorizationResult{}, err
+	}
+	if !strings.HasPrefix(reference, activation.Ref+"_") {
+		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
+	}
 	result, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
 	if err != nil {
 		return SubscriptionAuthorizationResult{}, err
@@ -353,8 +365,32 @@ func (s Service) VerifySubscriptionAuthorization(
 			SubscriptionID: subscription.SubscriptionID,
 			BusinessID:     subscription.BusinessID,
 			Status:         status,
-			BillingMode:    "recurring",
+			BillingMode:    subscription.BillingMode,
 		}, nil
+	}
+	// A provider "success" is not enough on its own: for an unpaid period the
+	// verified amount must cover the exact checkout total that this plan/cadence
+	// (and any matching captured discount) required. This closes the entitlement
+	// hole where an older, cheaper successful transaction could be replayed after
+	// parking a higher plan. A period already recorded paid is an idempotent
+	// callback and needs no second amount comparison.
+	if activation.ShouldCharge {
+		dueMinor, dueErr := s.subscriptionActivationCheckoutDue(ctx, cmd.Scope, subscription, cadence)
+		if dueErr != nil {
+			return SubscriptionAuthorizationResult{}, dueErr
+		}
+		if result.AmountMinor < dueMinor {
+			status := subscription.Status
+			if status == "active" {
+				status = "past_due"
+			}
+			return SubscriptionAuthorizationResult{
+				SubscriptionID: subscription.SubscriptionID,
+				BusinessID:     subscription.BusinessID,
+				Status:         status,
+				BillingMode:    subscription.BillingMode,
+			}, nil
+		}
 	}
 	// The payment is Paystack-VERIFIED: apply a parked plan upgrade now (and only
 	// now). This is the moment entitlements move to the target plan — the business
@@ -388,10 +424,6 @@ func (s Service) VerifySubscriptionAuthorization(
 	// so a repeated callback (double submit, client retry, callback re-hit) re-uses
 	// the same ref and the paid-invoice insert no-ops. The amount booked is what
 	// Paystack collected at checkout.
-	activation, err := s.businesses.PrepareSubscriptionActivationCharge(ctx, subscription.BusinessID)
-	if err != nil {
-		return SubscriptionAuthorizationResult{}, err
-	}
 	if activation.ShouldCharge {
 		if err := s.bookFirstPeriodPaid(ctx, cmd.Scope, subscription, cadence, activation, result.AmountMinor); err != nil {
 			return SubscriptionAuthorizationResult{}, err
@@ -406,6 +438,37 @@ func (s Service) VerifySubscriptionAuthorization(
 		ProviderCustomerRef:     customerRef,
 		ProviderSubscriptionRef: authRef,
 	}, nil
+}
+
+// subscriptionActivationCheckoutDue reconstructs the amount the standard
+// checkout was opened for. A pending discount only belongs to this attempt when
+// its plan and cadence still match; stale pending redemptions from an earlier
+// plan choice cannot reduce a later upgrade's payment requirement.
+func (s Service) subscriptionActivationCheckoutDue(
+	ctx context.Context,
+	scope common.TenantScope,
+	sub ports.BusinessSubscriptionRecord,
+	cadence string,
+) (int64, error) {
+	chargeMinor := activationChargeMinor(sub, cadence)
+	if s.discounts != nil {
+		pending, err := s.discounts.FindPendingRedemption(ctx, scope, sub.SubscriptionID)
+		switch {
+		case err == nil && strings.EqualFold(strings.TrimSpace(pending.PlanCode), strings.TrimSpace(sub.PlanCode)) &&
+			strings.EqualFold(strings.TrimSpace(pending.Cadence), cadence):
+			chargeMinor = computeDiscountOutcome(
+				pending.DiscountType,
+				pending.DiscountValue,
+				renewalFigureMinor(sub, cadence),
+			).ChargeMinor
+		case err != nil && !errors.Is(err, ports.ErrNotFound):
+			return 0, err
+		}
+	}
+	if chargeMinor <= 0 {
+		return 0, authdomain.ErrInvalidInput
+	}
+	return s.subscriptionChargeTotal(ctx, chargeMinor), nil
 }
 
 // applyPendingPlanUpgrade switches the business onto a plan that was parked as

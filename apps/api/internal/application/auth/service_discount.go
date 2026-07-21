@@ -196,6 +196,13 @@ func (s Service) bookFirstPeriodPaid(
 		}
 		return err
 	}
+	// A merchant may abandon one plan checkout and choose another. The older
+	// pending redemption must not be applied to the later plan/cadence merely
+	// because it belongs to the same subscription row.
+	if !strings.EqualFold(strings.TrimSpace(pending.PlanCode), strings.TrimSpace(sub.PlanCode)) ||
+		!strings.EqualFold(strings.TrimSpace(pending.Cadence), cadence) {
+		return nil
+	}
 	outcome := computeDiscountOutcome(pending.DiscountType, pending.DiscountValue, renewalFigureMinor(sub, cadence))
 	return s.discounts.MarkRedemptionApplied(ctx, scope, ports.MarkDiscountRedemptionAppliedInput{
 		RedemptionID:  pending.RedemptionID,

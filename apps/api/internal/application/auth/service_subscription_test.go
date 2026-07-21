@@ -65,11 +65,11 @@ func TestVerifySubscriptionAuthorizationAppliesPendingPlanUpgrade(t *testing.T) 
 			PendingUpgradePlanID: "plan-growth",
 		},
 	}
-	payments := &fakeSubscriptionPayments{}
+	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 90872}}
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_1",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
 	})
 	if err != nil {
 		t.Fatalf("verify: unexpected error: %v", err)
@@ -103,7 +103,7 @@ func TestVerifySubscriptionAuthorizationKeepsPendingPlanLockedWhenPaymentFails(t
 	service := newSubscriptionTestService(businesses, payments)
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
-		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_1",
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
 	})
 	if err != nil {
 		t.Fatalf("verify: unexpected error: %v", err)
@@ -119,6 +119,68 @@ func TestVerifySubscriptionAuthorizationKeepsPendingPlanLockedWhenPaymentFails(t
 	}
 	if businesses.activationPayment.ChargeRef != "" {
 		t.Fatal("an unpaid checkout must not book an activation payment")
+	}
+}
+
+// A callback reference must come from the deterministic checkout opened for
+// this subscription period. A successful reference from an unrelated payment
+// cannot activate the parked plan.
+func TestVerifySubscriptionAuthorizationRejectsForeignReference(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "trialing",
+			BillingCadence: "yearly", YearlyFirstMinor: 89100,
+			PendingUpgradePlanID: "plan-growth",
+		},
+	}
+	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 90872}}
+	service := newSubscriptionTestService(businesses, payments)
+
+	_, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xt_customer_order_reference",
+	})
+	if !errors.Is(err, authdomain.ErrInvalidInput) {
+		t.Fatalf("expected a foreign reference to be rejected, got %v", err)
+	}
+	if businesses.upgradeApplied != nil || businesses.recurringActivated != nil {
+		t.Fatal("a foreign payment reference must not activate billing or unlock the plan")
+	}
+}
+
+// Paystack success is insufficient when it collected less than this pending
+// plan's checkout total. This covers replaying an older/cheaper plan attempt
+// after parking a higher upgrade.
+func TestVerifySubscriptionAuthorizationRejectsUnderpayment(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 9900, Status: "trialing",
+			BillingCadence: "yearly", YearlyFirstMinor: 89100,
+			PendingUpgradePlanID: "plan-growth",
+		},
+	}
+	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 100}}
+	service := newSubscriptionTestService(businesses, payments)
+
+	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: "xtsub_act_test_1",
+	})
+	if err != nil {
+		t.Fatalf("underpayment should remain recoverable, got %v", err)
+	}
+	if result.Status == "active" {
+		t.Fatalf("an underpayment must not report active, got %+v", result)
+	}
+	if businesses.upgradeApplied != nil || businesses.recurringActivated != nil {
+		t.Fatal("an underpayment must not activate billing or unlock the plan")
+	}
+	if businesses.activationPayment.ChargeRef != "" {
+		t.Fatal("an underpayment must not be booked as a paid subscription period")
 	}
 }
 
@@ -291,14 +353,15 @@ func TestVerifySubscriptionAuthorizationLeavesUnactivatedWhenCheckoutNotPaid(t *
 	payments := &fakeSubscriptionPayments{verifyNotSucceeded: true}
 	service := newSubscriptionTestService(businesses, payments)
 
-	if _, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+	link, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
 		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb", BillingCadence: "yearly",
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("initialize: unexpected error: %v", err)
 	}
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+		Reference: link.Reference,
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -334,7 +397,7 @@ func TestVerifySubscriptionAuthorizationDoesNotRechargeWhenAlreadyPaid(t *testin
 
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope:     common.TenantScope{BusinessID: "business-1"},
-		Reference: "paystack-ref",
+		Reference: "xtsub_act_test_1",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-07-04 GMT
+Last updated: 2026-07-21 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -67,6 +67,30 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 > shared-identity semantics (a `customers` row is global across businesses) and
 > accounting-record retention; consent capture needs storefront UX + a consent
 > log. Both are specced as the next compliance slice.
+
+### Final Update follow-up audit — 2026-07-21
+
+- ✅ Audited all nine required changes in `Xtiitch-Final-Update.pdf` against the
+  runtime code, migrations, and tests. The implementation in `ab28d47` parks
+  Promotions for all plans, lowers the bespoke deposit floor to GHS 1, keeps
+  verification out of billing while gating selling, restores abandoned design
+  checkout/payment links, keeps paid entitlements locked until verification,
+  uses one tax-aware quote path, applies the target upgrade/add-variation UI,
+  and removes “Ltd” from the XCreativs payment notice.
+- ✅ Closed a remaining plan-abandonment bug: the dashboard callback now treats
+  only an explicit API `status: active` payload as success. A 200 response whose
+  transaction is trialing, past due, pending, failed, or abandoned returns to
+  the working billing retry screen instead of showing a false active result.
+- ✅ Hardened paid-plan activation: a Paystack callback reference must belong to
+  the current subscription period and its verified amount must cover the current
+  plan/cadence checkout total. Foreign references, underpayments, and stale
+  discount redemptions cannot unlock or discount a later pending plan.
+- ✅ Verification: `go test ./internal/...`; dashboard 47 tests, typecheck and
+  production build; storefront 9 tests, typecheck and production build; focused
+  ESLint; and `git diff --check` all pass. Both web builds retain only the known
+  React Router v8 future-flag warning. Live hosted-payment completion still
+  requires Paystack test credentials/callback evidence and remains an external
+  go-live check rather than something a source-only audit can claim.
 
 ### Review follow-up — 2026-07-03
 

@@ -377,3 +377,58 @@ func TestInitializeSubscriptionAuthorizationEnforcesPerAccountLimit(t *testing.T
 		t.Fatalf("an exhausted code must capture nothing, got %+v", discounts.created)
 	}
 }
+
+// A pending redemption captured for an abandoned plan choice must not discount
+// or be consumed by a later checkout for another plan/cadence on the same
+// subscription.
+func TestStalePendingDiscountDoesNotReduceOrApplyLaterPlanPayment(t *testing.T) {
+	t.Parallel()
+
+	subscription := ports.BusinessSubscriptionRecord{
+		SubscriptionID:        "sub-1",
+		BusinessID:            "business-1",
+		OwnerEmail:            "owner@adwoa.test",
+		PlanCode:              "growth",
+		MonthlyFeeMinor:       4900,
+		Status:                "trialing",
+		BillingCadence:        "quarterly",
+		QuarterlyFirstMinor:   11800,
+		QuarterlyRenewalMinor: 14700,
+	}
+	businesses := &fakeBusinessIdentityRepository{subscription: subscription}
+	discounts := &fakeDiscountRepository{
+		hasPending: true,
+		pending: ports.PendingDiscountRedemption{
+			RedemptionID:  "old-redemption",
+			DiscountType:  "percentage",
+			DiscountValue: 90,
+			PlanCode:      "starter",
+			Cadence:       "yearly",
+		},
+	}
+	service := newDiscountTestService(businesses, &fakeSubscriptionPayments{}, discounts)
+	scope := common.TenantScope{BusinessID: "business-1"}
+
+	due, err := service.subscriptionActivationCheckoutDue(context.Background(), scope, subscription, "quarterly")
+	if err != nil {
+		t.Fatalf("checkout due: %v", err)
+	}
+	if due != 12035 {
+		t.Fatalf("stale discount must not reduce the normal 12035 checkout, got %d", due)
+	}
+
+	err = service.bookFirstPeriodPaid(
+		context.Background(),
+		scope,
+		subscription,
+		"quarterly",
+		ports.SubscriptionActivationCharge{Ref: "xtsub_act_test"},
+		due,
+	)
+	if err != nil {
+		t.Fatalf("book paid period: %v", err)
+	}
+	if len(discounts.marked) != 0 {
+		t.Fatalf("stale redemption must remain unapplied, got %+v", discounts.marked)
+	}
+}

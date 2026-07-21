@@ -2,6 +2,7 @@ import { redirect } from "react-router";
 import type { Route } from "./+types/billing-callback";
 import { apiFetch } from "../lib/auth";
 import { fetchActivationStatus } from "../lib/activation";
+import { billingVerificationIsActive } from "../lib/billing-verification";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -47,7 +48,10 @@ export async function loader({ request }: Route.LoaderArgs) {
       body: JSON.stringify({ reference }),
     },
   );
-  if (response.ok) {
+  // The API intentionally returns a truthful 200 payload for an abandoned,
+  // failed, or still-pending Paystack transaction. Only the explicit active
+  // state is success; HTTP 200 by itself must never unlock the success route.
+  if (await billingVerificationIsActive(response)) {
     throw redirect("/dashboard?billing=active");
   }
   return abandonedCheckoutRedirect(request);
