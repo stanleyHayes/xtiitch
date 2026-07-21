@@ -64,6 +64,7 @@ func TestQuoteStoreSaleFullPassDownWorkedExample(t *testing.T) {
 		PaystackFeeMinor:    103,
 		TransactionFeeMinor: 253,
 		TaxLineMinor:        30,
+		TaxPassedDown:       true,
 		TotalChargeMinor:    5283,
 		StoreNetMinor:       5000,
 	}
@@ -185,11 +186,27 @@ func TestQuoteStoreSaleBulkPerDesignCaps(t *testing.T) {
 		PaystackFeeMinor:    4818,
 		TransactionFeeMinor: 10868,
 		TaxLineMinor:        1210,
+		TaxPassedDown:       true,
 		TotalChargeMinor:    247078,
 		StoreNetMinor:       235000,
 	}
 	if quote != want {
 		t.Fatalf("bulk quote = %+v, want %+v", quote, want)
+	}
+}
+
+func TestQuoteStoreSalePreservesPassedTaxWhenAmountRoundsToZero(t *testing.T) {
+	t.Parallel()
+
+	quote := QuoteStoreSale(StoreSaleQuoteInput{
+		LineAmountsMinor: []int64{100},
+		CommissionBps:    150,
+		VATBps:           2000,
+		PassDown:         PassDownFlags{Tax: true},
+	})
+
+	if quote.TaxMinor != 0 || quote.TaxLineMinor != 0 || !quote.TaxPassedDown {
+		t.Fatalf("rounded tax quote = %+v, want zero amount with pass-down preserved", quote)
 	}
 }
 

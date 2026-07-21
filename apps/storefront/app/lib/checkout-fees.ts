@@ -5,13 +5,12 @@ export type CheckoutTaxLine = {
   amountMinor: number;
 };
 
-// The API's tax_minor is already the store-setting-aware customer charge:
-// positive only when fee_pass_tax is enabled, zero when the store absorbs it.
-// Checkout must not infer visibility from the global VAT rate.
+// The explicit pass-down flag controls visibility independently of the rounded
+// amount. Fall back to the amount while API and storefront deployments overlap.
 export function checkoutTaxLine(
   quote: CheckoutQuote | null,
 ): CheckoutTaxLine | null {
-  if (!quote || quote.tax_minor <= 0) {
+  if (!quote || !(quote.tax_passed_down ?? quote.tax_minor > 0)) {
     return null;
   }
   return { label: "Tax fee", amountMinor: quote.tax_minor };

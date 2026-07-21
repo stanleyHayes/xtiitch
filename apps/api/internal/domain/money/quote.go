@@ -48,9 +48,13 @@ type StoreSaleQuote struct {
 	// line: the Paystack fee and/or the Xtiitch fee, but ONLY the parts the
 	// owner passes down (§4.4/§4.5). Zero when neither is passed.
 	TransactionFeeMinor int64
-	// TaxLineMinor is the customer-facing "Tax (VAT)" line — shown only when
-	// the tax is passed down, otherwise zero (§4.4).
+	// TaxLineMinor is the customer-facing "Tax fee" amount. It can be zero
+	// even when tax is passed down if the computed tax rounds below one pesewa.
 	TaxLineMinor int64
+	// TaxPassedDown preserves the store setting independently of the rounded
+	// amount so checkout can distinguish a zero-value passed line from an
+	// absorbed tax line.
+	TaxPassedDown bool
 	// TotalChargeMinor is what the customer actually pays.
 	TotalChargeMinor int64
 	// StoreNetMinor is what the store nets after Paystack's deduction and
@@ -143,6 +147,7 @@ func QuoteStoreSale(input StoreSaleQuoteInput) StoreSaleQuote {
 		PaystackFeeMinor:    paystackFee,
 		TransactionFeeMinor: transactionFee,
 		TaxLineMinor:        passedTax,
+		TaxPassedDown:       input.PassDown.Tax,
 		TotalChargeMinor:    charge,
 		StoreNetMinor:       charge - paystackFee - fee - tax,
 	}

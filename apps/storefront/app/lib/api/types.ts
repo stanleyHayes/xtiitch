@@ -233,8 +233,8 @@ export type CheckoutQuoteLine = {
 
 // The §4.5 fee breakdown for a basket, all GHS minor units.
 // transaction_fee_minor is the single combined "Transaction fee" line and
-// tax_minor the "Tax fee" line; both are 0 when the owner absorbs the fees,
-// in which case the checkout renders NO fee lines at all.
+// tax_minor is the "Tax fee" amount. tax_passed_down explicitly controls its
+// visibility because a small passed amount can legitimately round to zero.
 export type CheckoutQuote = {
   currency: string;
   lines: CheckoutQuoteLine[];
@@ -243,6 +243,7 @@ export type CheckoutQuote = {
   vat_rate_bps?: number;
   transaction_fee_minor: number;
   tax_minor: number;
+  tax_passed_down?: boolean;
   total_minor: number;
 };
 
@@ -254,6 +255,7 @@ export type OrderFees = {
   vat_rate_bps?: number;
   transaction_fee_minor: number;
   tax_minor: number;
+  tax_passed_down?: boolean;
   total_minor: number;
 };
 

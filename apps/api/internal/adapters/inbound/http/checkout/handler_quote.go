@@ -58,6 +58,7 @@ func (handler Handler) checkoutQuote(w http.ResponseWriter, r *http.Request) {
 		VATRateBps:          result.Quote.VATRateBps,
 		TransactionFeeMinor: result.Quote.TransactionFeeMinor,
 		TaxMinor:            result.Quote.TaxLineMinor,
+		TaxPassedDown:       result.Quote.TaxPassedDown,
 		TotalMinor:          result.Quote.TotalChargeMinor,
 	})
 }
@@ -69,9 +70,9 @@ type checkoutQuoteLineResponse struct {
 }
 
 // checkoutQuoteResponse is the read-only §4.5 breakdown, all GHS minor units.
-// transaction_fee_minor is the combined "Transaction fee" line and tax_minor
-// the "Tax (VAT)" line (§4.5 naming); both are 0 when the owner absorbs the
-// fees, so the customer then sees only the items total.
+// transaction_fee_minor is the combined "Transaction fee" line. tax_minor is
+// the "Tax fee" amount and tax_passed_down controls whether that line is shown,
+// including when a very small amount rounds to zero.
 type checkoutQuoteResponse struct {
 	Currency            string                      `json:"currency"`
 	Lines               []checkoutQuoteLineResponse `json:"lines"`
@@ -80,5 +81,6 @@ type checkoutQuoteResponse struct {
 	VATRateBps          int                         `json:"vat_rate_bps"`
 	TransactionFeeMinor int64                       `json:"transaction_fee_minor"`
 	TaxMinor            int64                       `json:"tax_minor"`
+	TaxPassedDown       bool                        `json:"tax_passed_down"`
 	TotalMinor          int64                       `json:"total_minor"`
 }

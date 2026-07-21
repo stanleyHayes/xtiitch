@@ -361,13 +361,15 @@ func writeOrderResult(
 	}
 	if quote != nil {
 		// §4.5: the exact breakdown the customer is charged, so the UI renders
-		// the combined "Transaction fee" line and the "Tax (VAT)" line (never a
-		// raw "Paystack fee"). Both lines are 0 when the owner absorbs the fees.
+		// the combined "Transaction fee" line and the "Tax fee" line (never a
+		// raw "Paystack fee"). The explicit pass-down flag disambiguates a tax
+		// amount rounded to zero from a tax setting that is disabled.
 		body["fees"] = map[string]any{
 			"items_total_minor":     quote.ItemsTotalMinor,
 			"vat_rate_bps":          quote.VATRateBps,
 			"transaction_fee_minor": quote.TransactionFeeMinor,
 			"tax_minor":             quote.TaxLineMinor,
+			"tax_passed_down":       quote.TaxPassedDown,
 			"total_minor":           quote.TotalChargeMinor,
 		}
 	}
