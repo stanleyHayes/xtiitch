@@ -104,6 +104,8 @@ func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscript
 // upgradeSubscriptionPlan switches to the higher plan immediately and charges the
 // prorated difference for the remainder of the current period. The plan is switched
 // only after a successful charge (or when nothing is owed).
+//
+//nolint:gocognit // card recovery and interactive MoMo fallback are intentionally fail-closed in one money-critical transaction flow
 func (s Service) upgradeSubscriptionPlan(
 	ctx context.Context,
 	sub ports.BusinessSubscriptionRecord,

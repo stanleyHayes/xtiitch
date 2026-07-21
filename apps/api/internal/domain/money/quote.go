@@ -91,7 +91,7 @@ type StoreSaleQuoteInput struct {
 // cut exactly; the store still bears the fee at split level (bearer stays
 // "subaccount") and the checkout lines compensate it (§4.8 note).
 func QuoteStoreSale(input StoreSaleQuoteInput) StoreSaleQuote {
-	var itemsTotal int64 = input.UncostedMinor
+	itemsTotal := input.UncostedMinor
 	var fee int64
 	var tax int64
 	if input.CommissionOverrideMinor != nil {

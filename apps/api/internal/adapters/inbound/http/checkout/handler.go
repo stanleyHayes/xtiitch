@@ -139,7 +139,10 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor, &result.Quote)
+	writeOrderResult(
+		w, result.OrderID.String(), result.Reference, result.AuthorizationURL,
+		result.AmountMinor, result.DiscountMinor, &result.Quote,
+	)
 }
 
 type cartLineBody struct {
@@ -254,7 +257,10 @@ func (handler Handler) placeCustomOrder(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	writeOrderResult(w, result.OrderID.String(), result.Reference, result.AuthorizationURL, result.AmountMinor, result.DiscountMinor, &result.Quote)
+	writeOrderResult(
+		w, result.OrderID.String(), result.Reference, result.AuthorizationURL,
+		result.AmountMinor, result.DiscountMinor, &result.Quote,
+	)
 }
 
 type placeBookingBody struct {
@@ -340,7 +346,12 @@ func (handler Handler) verifyPayment(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": result.Status})
 }
 
-func writeOrderResult(w http.ResponseWriter, orderID, reference, authorizationURL string, amountMinor int64, discountMinor int64, quote *money.StoreSaleQuote) {
+func writeOrderResult(
+	w http.ResponseWriter,
+	orderID, reference, authorizationURL string,
+	amountMinor, discountMinor int64,
+	quote *money.StoreSaleQuote,
+) {
 	body := map[string]any{
 		"order_id":          orderID,
 		"reference":         reference,
