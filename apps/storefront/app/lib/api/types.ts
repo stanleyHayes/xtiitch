@@ -233,7 +233,7 @@ export type CheckoutQuoteLine = {
 
 // The §4.5 fee breakdown for a basket, all GHS minor units.
 // transaction_fee_minor is the single combined "Transaction fee" line and
-// tax_minor the "Tax (VAT)" line; both are 0 when the owner absorbs the fees,
+// tax_minor the "Tax fee" line; both are 0 when the owner absorbs the fees,
 // in which case the checkout renders NO fee lines at all.
 export type CheckoutQuote = {
   currency: string;

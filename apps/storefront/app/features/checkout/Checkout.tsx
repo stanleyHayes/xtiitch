@@ -13,6 +13,7 @@ import { formatGHS } from "../../lib/format";
 import type { CheckoutQuote } from "../../lib/api";
 import type { CartItem } from "../../lib/cart";
 import type { CustomerProfile } from "../../lib/discovery";
+import { checkoutTaxLine } from "../../lib/checkout-fees";
 import CheckoutForm from "./CheckoutForm";
 
 type Zone = {
@@ -114,14 +115,7 @@ export default function Checkout({
     ? activeQuote.delivery_fee_minor
     : fallbackDeliveryFee;
   const payMinor = activeQuote ? activeQuote.total_minor : null;
-  const vatRatePercent =
-    activeQuote?.vat_rate_bps !== undefined
-      ? activeQuote.vat_rate_bps / 100
-      : null;
-  const vatLabel =
-    vatRatePercent !== null
-      ? `VAT on Xtiitch service fee (${vatRatePercent}%)`
-      : "VAT on Xtiitch service fee";
+  const taxLine = checkoutTaxLine(activeQuote);
   const retryQuote = () => {
     if (fulfilment === "delivery" && zoneID) {
       requestZoneQuote(zoneID);
@@ -232,9 +226,9 @@ export default function Checkout({
             </Stack>
           ) : null}
           {/* §4.5 fee naming: ONE combined "Transaction fee" line (never a raw
-              "Paystack fee"). VAT is always disclosed when a live rate exists:
-              either its amount is added to this checkout, or "Covered by store"
-              explains why it is zero and absent from the total. */}
+              "Paystack fee") and a separate "Tax fee" only when the store has
+              chosen to pass tax down to the customer. Absorbed tax is not a
+              customer charge and therefore renders no row. */}
           {activeQuote && activeQuote.transaction_fee_minor > 0 ? (
             <Stack direction="row" sx={{ justifyContent: "space-between" }}>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
@@ -245,27 +239,13 @@ export default function Checkout({
               </Typography>
             </Stack>
           ) : null}
-          {activeQuote && vatRatePercent !== null && vatRatePercent > 0 ? (
-            <Stack
-              direction="row"
-              spacing={1.5}
-              sx={{ justifyContent: "space-between", alignItems: "baseline" }}
-            >
+          {taxLine ? (
+            <Stack direction="row" sx={{ justifyContent: "space-between" }}>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {vatLabel}
+                {taxLine.label}
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontWeight: 800,
-                  color:
-                    activeQuote.tax_minor > 0 ? "text.primary" : "success.main",
-                  flexShrink: 0,
-                }}
-              >
-                {activeQuote.tax_minor > 0
-                  ? formatGHS(activeQuote.tax_minor)
-                  : "Covered by store"}
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {formatGHS(taxLine.amountMinor)}
               </Typography>
             </Stack>
           ) : null}

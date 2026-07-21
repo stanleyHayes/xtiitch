@@ -65,7 +65,8 @@ export function storeFeatureSwitches(
     // §4.4: the three pass-down controls. Ticked, the fee is added to the
     // customer's checkout; unticked (the default), it comes out of the store's
     // share. At checkout the Xtiitch fee and the Paystack fee appear as ONE
-    // combined "Transaction fee" line; the tax is always its own line (§4.5).
+    // combined "Transaction fee" line; passed-down tax is its own "Tax fee"
+    // line, while absorbed tax is not shown to the customer (§4.5).
     {
       name: "fee_pass_xtiitch_fee",
       label: "Pass down the Xtiitch fee",
@@ -75,9 +76,9 @@ export function storeFeatureSwitches(
     },
     {
       name: "fee_pass_tax",
-      label: "Pass down the Tax (VAT)",
+      label: "Pass down the tax fee",
       helper:
-        "Ticked: shown as its own Tax (VAT) line on the customer's checkout. Unticked: deducted from your share.",
+        "Ticked: shown as “Tax fee” on the customer's checkout. Unticked: deducted from your share and not shown at checkout.",
       checked: settings.fee_pass_tax,
     },
     {
@@ -90,7 +91,10 @@ export function storeFeatureSwitches(
   ];
 }
 
-export function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] | null { // eslint-disable-line complexity -- form-data mapper with many conditional branches; refactor in follow-up
+// eslint-disable-next-line complexity -- form-data mapper with many conditional branches; refactor in follow-up
+export function parseAvailabilityWindows(
+  form: FormData,
+): AvailabilityWindow[] | null {
   const recurrences = form.getAll("recurrence");
   const weekdays = form.getAll("weekday");
   const daysOfMonth = form.getAll("day_of_month");
@@ -172,7 +176,9 @@ export function parseAvailabilityWindows(form: FormData): AvailabilityWindow[] |
   return windows;
 }
 
-export function extractMeasurementValues(form: FormData): Record<string, string> {
+export function extractMeasurementValues(
+  form: FormData,
+): Record<string, string> {
   const values: Record<string, string> = {};
   for (const [key, value] of form.entries()) {
     if (!key.startsWith("measurement_")) {

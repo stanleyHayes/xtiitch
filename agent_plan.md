@@ -72,11 +72,12 @@ each feature does and [architecture.md](architecture.md) for where it lives.
 
 - ✅ Checkout VAT/failed-return follow-up: store-sale quotes now disclose the
   exact VAT rate read from the live admin platform setting (with
-  `XTIITCH_SUBSCRIPTION_VAT_RATE_BPS` as fallback), and checkout labels the VAT
-  line with that rate. Paystack submission uses a native document navigation
-  and storefront API reads have a finite timeout, preventing browser Back from
-  restoring a permanently submitting/loading checkout after a failed or
-  abandoned payment.
+  `XTIITCH_SUBSCRIPTION_VAT_RATE_BPS` as fallback). The store's independent
+  `fee_pass_tax` setting controls the customer UI exactly: passed-down tax is a
+  `Tax fee` line, while store-absorbed tax has no checkout row. Paystack
+  submission uses a native document navigation and storefront API reads have a
+  finite timeout, preventing browser Back from restoring a permanently
+  submitting/loading checkout after a failed or abandoned payment.
 - ✅ Subscription plan-change follow-up: upgrades validate an active billing
   period and the provider-confirmed amount before switching entitlements,
   sub-day proration no longer rounds to a free upgrade, and mobile-money owners
