@@ -3,6 +3,7 @@ package paystack
 import (
 	"context"
 	"net/url"
+	"sync"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
@@ -15,10 +16,42 @@ import (
 // production.
 type DevProvider struct {
 	webhookSecret string
+	// amounts remembers what each stub checkout was initialized for, shared by
+	// pointer across the provider's value copies.
+	amounts *devAmounts
+}
+
+// devAmounts records the amount of each initialized transaction by reference,
+// so VerifyAuthorization can report the REAL amount for a known reference
+// instead of a flat placeholder (a basket over the placeholder size would
+// otherwise trip the underpayment rule in local/e2e runs of the store-sale
+// verify path).
+type devAmounts struct {
+	mu    sync.Mutex
+	byRef map[string]int64
+}
+
+func (store *devAmounts) record(reference string, amountMinor int64) {
+	if reference == "" || amountMinor <= 0 {
+		return
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.byRef[reference] = amountMinor
+}
+
+func (store *devAmounts) lookup(reference string) (int64, bool) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	amountMinor, ok := store.byRef[reference]
+	return amountMinor, ok
 }
 
 func NewDevProvider(webhookSecret string) DevProvider {
-	return DevProvider{webhookSecret: webhookSecret}
+	return DevProvider{
+		webhookSecret: webhookSecret,
+		amounts:       &devAmounts{byRef: map[string]int64{}},
+	}
 }
 
 func (p DevProvider) CreateBusinessSubaccount(
@@ -50,6 +83,7 @@ func (p DevProvider) InitializeTransaction(
 		// provider's callback_url field.
 		authorizationURL += "?callback_url=" + url.QueryEscape(input.CallbackURL)
 	}
+	p.amounts.record(input.Reference, input.AmountMinor)
 	return ports.InitializeTransactionResult{
 		AuthorizationURL:  authorizationURL,
 		AccessCode:        "dev_access_" + input.Reference,
@@ -63,6 +97,7 @@ func (p DevProvider) InitializeAuthorization(
 	error,
 ) {
 	reference := "dev_auth_" + input.BusinessID.String()
+	p.amounts.record(reference, input.AmountMinor)
 	return ports.InitializeAuthorizationResult{
 		RedirectURL: "https://dev.local/authorize/" + reference,
 		AccessCode:  "dev_access_" + reference,
@@ -72,15 +107,21 @@ func (p DevProvider) InitializeAuthorization(
 
 func (p DevProvider) VerifyAuthorization(_ context.Context, input ports.VerifyAuthorizationInput) (ports.VerifyAuthorizationResult, error) {
 	// The dev checkout always "succeeds" and returns a reusable card authorization,
-	// so the subscription/add-on activation path runs end-to-end locally. AmountMinor
-	// is a positive PLACEHOLDER (the stub is stateless and never saw the checkout
-	// amount): the booked invoice must satisfy the amount_minor > 0 DB check, and the
-	// exact figure is irrelevant offline — real runs use the live Paystack client,
-	// whose /transaction/verify returns the actual amount collected.
+	// so the subscription/add-on activation path runs end-to-end locally. A
+	// reference this provider initialized reports the amount it was initialized
+	// for; an unknown reference falls back to a positive PLACEHOLDER (the booked
+	// invoice must satisfy the amount_minor > 0 DB check, and the exact figure is
+	// irrelevant offline). Real runs use the live Paystack client, whose
+	// /transaction/verify returns the actual amount collected.
+	amountMinor := int64(10000)
+	if initialized, ok := p.amounts.lookup(input.Reference); ok {
+		amountMinor = initialized
+	}
 	return ports.VerifyAuthorizationResult{
 		Succeeded:         true,
-		AmountMinor:       10000,
-		FeeMinor:          devProviderFee(10000),
+		Status:            "success",
+		AmountMinor:       amountMinor,
+		FeeMinor:          devProviderFee(amountMinor),
 		AuthorizationCode: "AUTH_" + input.Reference,
 		CustomerCode:      "CUS_" + input.Reference,
 		CustomerEmail:     "owner@example.com",

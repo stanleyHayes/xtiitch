@@ -71,6 +71,41 @@ func TestDevProviderVerifyAuthorizationReportsDeterministicFee(t *testing.T) {
 	}
 }
 
+// A reference the dev provider initialized reports the REAL initialized amount
+// on verify — a basket over the old flat placeholder must not trip the
+// underpayment rule in local/e2e runs of the store-sale verify path. Unknown
+// references keep the placeholder.
+func TestDevProviderVerifyAuthorizationReportsInitializedAmount(t *testing.T) {
+	t.Parallel()
+
+	provider := NewDevProvider("whsec")
+	if _, err := provider.InitializeTransaction(context.Background(), ports.InitializeTransactionInput{
+		Reference:   "xt_big_basket",
+		AmountMinor: 25000,
+	}); err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+
+	result, err := provider.VerifyAuthorization(context.Background(), ports.VerifyAuthorizationInput{Reference: "xt_big_basket"})
+	if err != nil {
+		t.Fatalf("verify authorization: %v", err)
+	}
+	if result.AmountMinor != 25000 {
+		t.Fatalf("expected the initialized amount 25000, got %+v", result)
+	}
+	if result.FeeMinor != devProviderFee(25000) {
+		t.Fatalf("expected the deterministic fee on 25000, got %+v", result)
+	}
+
+	unknown, err := provider.VerifyAuthorization(context.Background(), ports.VerifyAuthorizationInput{Reference: "never_initialized"})
+	if err != nil {
+		t.Fatalf("verify unknown reference: %v", err)
+	}
+	if unknown.AmountMinor != 10000 {
+		t.Fatalf("expected the placeholder amount for an unknown reference, got %+v", unknown)
+	}
+}
+
 // The dev provider holds no settlement state: a dev sync mirrors nothing.
 func TestDevProviderListSettlementsIsEmpty(t *testing.T) {
 	t.Parallel()

@@ -5,9 +5,9 @@
   "scripts": {
     "check": "gofmt -w . && go vet ./... && go test ./...",
     "dev": "go run ./cmd/api",
-    "migrate:down": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" down",
-    "migrate:status": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" status",
-    "migrate:up": "go run github.com/pressly/goose/v3/cmd/goose@latest -dir ../../infra/migrations postgres \"$DATABASE_URL\" up",
+    "migrate:down": "go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path ../../infra/migrations -database \"$DATABASE_URL\" down 1",
+    "migrate:status": "go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path ../../infra/migrations -database \"$DATABASE_URL\" version",
+    "migrate:up": "go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest -path ../../infra/migrations -database \"$DATABASE_URL\" up",
     "test": "go test -race -coverprofile=coverage.out -timeout=45s ./..."
   }
 }

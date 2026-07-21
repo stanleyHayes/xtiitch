@@ -11,12 +11,12 @@ Rules:
 - RLS policies should be added for tenant-scoped tables.
 - Webhook and payment idempotency tables must have unique constraints when introduced.
 
-Migration tooling: Goose through `go run github.com/pressly/goose/v3/cmd/goose@latest`. See `docs/adr/0002-sql-migration-tooling.md`.
+Migration tooling: golang-migrate through `go run -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest`. The split `.up.sql` / `.down.sql` layout is the golang-migrate format — it is also the runner used at deploy time (`render.yaml`). See `docs/adr/0002-sql-migration-tooling.md` (amended).
 
-Run from the repo root:
+Run from the repo root (requires `$DATABASE_URL`):
 
 ```sh
-pnpm --filter @xtiitch/api migrate:up
-pnpm --filter @xtiitch/api migrate:status
-pnpm --filter @xtiitch/api migrate:down
+pnpm --filter @xtiitch/api migrate:up      # apply all pending
+pnpm --filter @xtiitch/api migrate:status  # print the current version
+pnpm --filter @xtiitch/api migrate:down    # roll back ONE migration
 ```
