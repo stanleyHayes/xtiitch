@@ -1,5 +1,4 @@
 import { Form, Link as RouterLink } from "react-router";
-import CheckroomRounded from "@mui/icons-material/CheckroomRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -222,17 +221,21 @@ function StoreCatalogueEmpty({
     >
       <Box
         sx={{
-          width: 82,
-          height: 82,
+          width: { xs: 104, md: 112 },
+          height: { xs: 104, md: 112 },
           borderRadius: "50%",
           display: "grid",
           placeItems: "center",
-          color: brand,
           bgcolor: alpha(brand, 0.075),
-          "& svg": { fontSize: 42 },
         }}
       >
-        <CheckroomRounded />
+        <Box
+          component="img"
+          src="/images/storefront-dress-form.png"
+          alt=""
+          aria-hidden
+          sx={{ width: "78%", height: "78%", objectFit: "contain" }}
+        />
       </Box>
       <Typography variant="h5" component="h3">
         {query ? "No pieces match that search" : "No pieces published yet"}
