@@ -1,6 +1,5 @@
 import { Form } from "react-router";
 import { useEffect, useMemo, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -26,9 +25,12 @@ import {
   affiliateStatusOptions,
 } from "../options";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import HandshakeRounded from "@mui/icons-material/HandshakeRounded";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 import { AffiliateDetail } from "./AffiliateDetail";
 
-export function AffiliateTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AffiliateTable({
   affiliates,
   pagedAffiliates,
   affiliateAttribution,
@@ -268,7 +270,20 @@ export function AffiliateTable({ // eslint-disable-line max-lines-per-function -
       ) : null}
 
       {!affiliatesError && affiliates.length === 0 ? (
-        <Alert severity="info">No affiliate partners are registered yet.</Alert>
+        <AdminEmptyState
+          icon={<HandshakeRounded />}
+          eyebrow="Partner network"
+          title="No affiliate partners yet"
+          helper="Register the first partner to issue a trackable code, define commission terms, and keep payouts and attributed revenue in one place."
+          action={
+            <Button
+              variant="contained"
+              onClick={() => setAffiliateDialogOpen(true)}
+            >
+              Register first partner
+            </Button>
+          }
+        />
       ) : null}
 
       {!affiliatesError && affiliates.length > 0 ? (
@@ -277,7 +292,10 @@ export function AffiliateTable({ // eslint-disable-line max-lines-per-function -
             sx={{
               display: "grid",
               gap: 2,
-              gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "repeat(2, minmax(0, 1fr))",
+              },
             }}
           >
             {pagedAffiliates.map((affiliate) => (

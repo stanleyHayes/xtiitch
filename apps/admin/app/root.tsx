@@ -237,12 +237,13 @@ export function ErrorBoundary({ error }: { error: unknown }) {
           {message}
         </Typography>
         <Button
-          href="/admin"
+          type="button"
+          onClick={() => window.location.reload()}
           variant="contained"
           size="large"
           sx={{ mt: 4, bgcolor: tokens.burgundy }}
         >
-          Open console
+          Reload console
         </Button>
         <Typography
           sx={{

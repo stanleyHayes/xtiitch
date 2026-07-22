@@ -14,13 +14,15 @@ import type { AdminAdCampaign, AdminBusiness } from "../../../lib/api";
 import TextField from "../../../components/form-text-field";
 import { Panel } from "../../../components/ui/Panel";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 import { FormGroupLabel } from "../../shared/FormGroupLabel";
 import { useActionSuccess } from "../../shared/useActionSuccess";
 import { StyledDateTimeField } from "../../shared/StyledDateTimeField";
 import { adCampaignStatusOptions, adPlacementOptions } from "../options";
 import { AdCampaignDetail } from "./AdCampaignDetail";
 
-export function AdCampaignTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function AdCampaignTable({
   campaigns,
   pagedCampaigns,
   businesses,
@@ -297,9 +299,22 @@ export function AdCampaignTable({ // eslint-disable-line max-lines-per-function 
       ) : null}
 
       {!adCampaignsError && campaigns.length === 0 ? (
-        <Alert severity="info">
-          No sponsored placement campaigns are configured yet.
-        </Alert>
+        <AdminEmptyState
+          icon={<CampaignRounded />}
+          eyebrow="Sponsored placements"
+          title="Your campaign board is ready"
+          helper="Create the first prepaid placement to feature a verified store or design. Budget, run dates, payment status, and engagement will stay together here."
+          action={
+            <Button
+              variant="contained"
+              startIcon={<CampaignRounded />}
+              disabled={eligibleBusinesses.length === 0}
+              onClick={() => setAdDialogOpen(true)}
+            >
+              Create first placement
+            </Button>
+          }
+        />
       ) : null}
 
       {!adCampaignsError && campaigns.length > 0 ? (
@@ -308,7 +323,10 @@ export function AdCampaignTable({ // eslint-disable-line max-lines-per-function 
             sx={{
               display: "grid",
               gap: 2,
-              gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "repeat(2, minmax(0, 1fr))",
+              },
               alignItems: "start",
             }}
           >

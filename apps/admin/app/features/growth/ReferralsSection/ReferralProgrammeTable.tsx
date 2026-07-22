@@ -1,6 +1,5 @@
 import { Form } from "react-router";
 import { useEffect, useState } from "react";
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
@@ -8,10 +7,12 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import SyncRounded from "@mui/icons-material/SyncRounded";
+import GroupAddRounded from "@mui/icons-material/GroupAddRounded";
 import type { AdminReferralProgramme } from "../../../lib/api";
 import TextField from "../../../components/form-text-field";
 import { Panel } from "../../../components/ui/Panel";
 import { PaginationFooter } from "../../../components/ui/PaginationFooter";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 import { StyledDateTimeField } from "../../shared/StyledDateTimeField";
 import {
   useActionSuccess,
@@ -26,7 +27,8 @@ import {
 } from "../options";
 import { ReferralDetail } from "./ReferralDetail";
 
-export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function ReferralProgrammeTable({
   programmes,
   pagedProgrammes,
   page,
@@ -274,9 +276,20 @@ export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-fu
       ) : null}
 
       {!referralProgrammesError && programmes.length === 0 ? (
-        <Alert severity="info">
-          No referral programmes are registered yet.
-        </Alert>
+        <AdminEmptyState
+          icon={<GroupAddRounded />}
+          eyebrow="Two-sided growth"
+          title="Create your first referral loop"
+          helper="Set rewards for the referrer and new customer, then control qualifying spend, hold periods, programme dates, and issued codes from here."
+          action={
+            <Button
+              variant="contained"
+              onClick={() => setShowReferralCreate(true)}
+            >
+              Create first programme
+            </Button>
+          }
+        />
       ) : null}
 
       {!referralProgrammesError && programmes.length > 0 ? (
@@ -285,7 +298,10 @@ export function ReferralProgrammeTable({ // eslint-disable-line max-lines-per-fu
             sx={{
               display: "grid",
               gap: 2,
-              gridTemplateColumns: { xs: "1fr", xl: "repeat(2, minmax(0, 1fr))" },
+              gridTemplateColumns: {
+                xs: "1fr",
+                xl: "repeat(2, minmax(0, 1fr))",
+              },
             }}
           >
             {pagedProgrammes.map((programme) => (

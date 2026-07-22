@@ -1,4 +1,3 @@
-import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
@@ -11,6 +10,9 @@ import { formatGHS } from "../../shared/formatting";
 import { shortTime } from "../../shared/dates";
 import { DetailLine } from "../../shared/DetailLine";
 import { CardDetailAction } from "../../shared/CardDetailAction";
+import LocalOfferRounded from "@mui/icons-material/LocalOfferRounded";
+import SearchOffRounded from "@mui/icons-material/SearchOffRounded";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 import {
   promotionDiscountLabel,
   promotionScopeTargetLabel,
@@ -18,7 +20,8 @@ import {
   promotionTargetLabel,
 } from "../utils";
 
-export function PromotionTable({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function PromotionTable({
   promotions,
   filteredPromotions,
   pagedPromotions,
@@ -38,16 +41,22 @@ export function PromotionTable({ // eslint-disable-line max-lines-per-function -
   return (
     <>
       {!promotions.length ? (
-        <Alert severity="info">
-          No promotion rules are configured yet. Create the first voucher from
-          New promotion.
-        </Alert>
+        <AdminEmptyState
+          icon={<LocalOfferRounded />}
+          eyebrow="Offers and vouchers"
+          title="No promotions have been created"
+          helper="Use New promotion to launch a code, define who funds it, set redemption limits, and choose the stores or packages where it applies."
+        />
       ) : null}
 
       {promotions.length > 0 && filteredPromotions.length === 0 ? (
-        <Alert severity="info">
-          No promotions match the current search and filters.
-        </Alert>
+        <AdminEmptyState
+          compact
+          icon={<SearchOffRounded />}
+          eyebrow="No matches"
+          title="Try a broader promotion search"
+          helper="No promotion matches the current search and filters. Clear a filter or search by another title, code, or owner."
+        />
       ) : null}
 
       {filteredPromotions.length > 0 ? (
