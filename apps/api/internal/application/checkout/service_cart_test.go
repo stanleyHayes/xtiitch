@@ -82,6 +82,41 @@ func TestPlaceCartOrderChargesGroupTotalAndCreatesEveryLine(t *testing.T) {
 	}
 }
 
+func TestPlaceCartOrderUsesVerifiedCustomerWithoutPhoneResolution(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := NewService(Dependencies{
+		Storefront: fakeStorefront{
+			store: ports.Storefront{BusinessID: testBusinessID, OnlineOrderingEnabled: true},
+			design: ports.StorefrontDesign{
+				Design: catalogue.Design{ID: "design-1", BusinessID: testBusinessID},
+				Prices: []catalogue.BandPrice{{SizeBandID: "band-1", PriceMinor: 50000}},
+			},
+		},
+		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
+			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
+		}},
+		Orders: orders, Payments: payments,
+		IDs: &seqIDs{ids: []common.ID{"group-1", "order-a"}},
+	})
+
+	_, err := svc.PlaceCartOrder(context.Background(), PlaceCartOrderCommand{
+		CustomerID: "customer-signed-in", StoreHandle: "shop",
+		Lines:        []CartLineCommand{{DesignHandle: "design", SizeBandID: "band-1"}},
+		CustomerName: "Ama", CustomerEmail: "ama@example.com",
+	})
+	if err != nil {
+		t.Fatalf("place cart: %v", err)
+	}
+	if orders.resolvePhone != "" || len(orders.createdGroup) != 1 ||
+		orders.createdGroup[0].CustomerID != "customer-signed-in" {
+		t.Fatalf("verified customer must bypass anonymous phone resolution: phone=%q orders=%+v",
+			orders.resolvePhone, orders.createdGroup)
+	}
+}
+
 // A bulk cart threads ONE amount per design to the charge (excluding delivery),
 // so the platform commission is charged and capped per design and summed, not
 // capped once on the whole cart total (Pricing Book §3 / P0.6a).

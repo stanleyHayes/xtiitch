@@ -13,22 +13,26 @@ export const placeOrder = (
   storeHandle: string,
   input: PlaceOrderInput,
   tenant?: TenantScope,
+  customerToken?: string,
 ) =>
   postJSON<PlaceOrderResult>(
     `/public/stores/${enc(storeHandle)}/orders`,
     input,
     tenant,
+    customerToken,
   );
 
 export const placeCartOrder = (
   storeHandle: string,
   input: PlaceCartOrderInput,
   tenant?: TenantScope,
+  customerToken?: string,
 ) =>
   postJSON<PlaceOrderResult>(
     `/public/stores/${enc(storeHandle)}/cart-orders`,
     input,
     tenant,
+    customerToken,
   );
 
 // §5.2: there is deliberately no settle-all client — payment happens

@@ -47,6 +47,10 @@ type CartLineCommand struct {
 }
 
 type PlaceCartOrderCommand struct {
+	// CustomerID is trusted only when supplied by the HTTP layer after bearer
+	// verification. Without it, email-only customers fragment into anonymous
+	// rows because there is no phone number to resolve.
+	CustomerID       common.ID
 	StoreHandle      string
 	Lines            []CartLineCommand
 	CustomerName     string
@@ -151,9 +155,13 @@ func (s Service) PlaceCartOrder(ctx context.Context, cmd PlaceCartOrderCommand) 
 	}
 
 	groupID := s.ids.NewID()
-	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
-	if err != nil {
-		return PlaceCartOrderResult{}, err
+	customerID := cmd.CustomerID
+	customerCreated := false
+	if customerID.IsZero() {
+		customerID, customerCreated, err = s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+		if err != nil {
+			return PlaceCartOrderResult{}, err
+		}
 	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {

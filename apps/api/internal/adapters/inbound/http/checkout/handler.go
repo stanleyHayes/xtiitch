@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,11 +40,34 @@ type Service interface {
 }
 
 type Handler struct {
-	service Service
+	service          Service
+	customerVerifier ports.CustomerTokenVerifier
 }
 
-func NewHandler(service Service) Handler {
-	return Handler{service: service}
+func NewHandler(service Service, customerVerifier ports.CustomerTokenVerifier) Handler {
+	return Handler{service: service, customerVerifier: customerVerifier}
+}
+
+// optionalCustomerID keeps the checkout endpoints public while allowing the
+// signed-in storefront to bind a new order to the verified customer account.
+// A supplied but invalid token is rejected instead of silently creating an
+// anonymous order that the same shopper cannot retry later.
+func (handler Handler) optionalCustomerID(w http.ResponseWriter, r *http.Request) (common.ID, bool) {
+	authorization := strings.TrimSpace(r.Header.Get("Authorization"))
+	if authorization == "" {
+		return "", true
+	}
+	parts := strings.Fields(authorization)
+	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || handler.customerVerifier == nil {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return "", false
+	}
+	verified, err := handler.customerVerifier.VerifyCustomerAccessToken(r.Context(), parts[1])
+	if err != nil || verified.CustomerID.IsZero() {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return "", false
+	}
+	return verified.CustomerID, true
 }
 
 func (handler Handler) Register(router chi.Router) {
@@ -110,6 +134,10 @@ type placeOrderBody struct {
 }
 
 func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
+	customerID, ok := handler.optionalCustomerID(w, r)
+	if !ok {
+		return
+	}
 	var body placeOrderBody
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request")
@@ -117,6 +145,7 @@ func (handler Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.PlaceStandardOrder(r.Context(), checkoutapp.PlaceStandardOrderCommand{
+		CustomerID:         customerID,
 		StoreHandle:        chi.URLParam(r, "handle"),
 		DesignHandle:       body.DesignHandle,
 		SizeBandID:         common.ID(body.SizeBandID),
@@ -169,6 +198,10 @@ type placeCartOrderBody struct {
 }
 
 func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
+	customerID, ok := handler.optionalCustomerID(w, r)
+	if !ok {
+		return
+	}
 	var body placeCartOrderBody
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_request")
@@ -188,6 +221,7 @@ func (handler Handler) placeCartOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	result, err := handler.service.PlaceCartOrder(r.Context(), checkoutapp.PlaceCartOrderCommand{
+		CustomerID:       customerID,
 		StoreHandle:      chi.URLParam(r, "handle"),
 		Lines:            lines,
 		CustomerName:     body.CustomerName,

@@ -41,6 +41,7 @@ export async function postJSON<T>(
   path: string,
   body: unknown,
   tenant?: TenantScope,
+  bearerToken?: string,
 ): Promise<
   { ok: true; result: T } | { ok: false; status: number; error: string }
 > {
@@ -49,6 +50,7 @@ export async function postJSON<T>(
     headers: {
       "Content-Type": "application/json",
       ...tenantHeaders(tenant),
+      ...(bearerToken ? { Authorization: `Bearer ${bearerToken}` } : {}),
     },
     body: JSON.stringify(body),
   });

@@ -344,6 +344,7 @@ export async function action({ request }: Route.ActionArgs) {
         callback_url: callbackURL,
       },
       tenant,
+      customerToken,
     );
     if (!response.ok) {
       return failed;
@@ -385,6 +386,7 @@ export async function action({ request }: Route.ActionArgs) {
       callback_url: callbackURL,
     },
     tenant,
+    customerToken,
   );
   if (!response.ok) {
     return failed;

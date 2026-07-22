@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	checkoutapp "github.com/xcreativs/xtiitch/apps/api/internal/application/checkout"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/money"
 )
 
@@ -139,6 +141,58 @@ func TestPlaceEndpointsThreadCallbackURL(t *testing.T) {
 	}
 }
 
+func TestPlaceEndpointsBindVerifiedCustomer(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{
+		standardResult: checkoutapp.PlaceStandardOrderResult{OrderID: "order-1"},
+		cartResult:     checkoutapp.PlaceCartOrderResult{OrderID: "order-1"},
+	}
+	router := chi.NewRouter()
+	NewHandler(service, fakeCustomerVerifier{}).Register(router)
+
+	post := func(path string) *httptest.ResponseRecorder {
+		request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte(`{}`)))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Authorization", "Bearer customer-token")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		return response
+	}
+
+	if response := post("/public/stores/tdh/orders"); response.Code != http.StatusCreated {
+		t.Fatalf("orders: expected 201, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.standardCommand.CustomerID != "customer-signed-in" {
+		t.Fatalf("orders: verified customer was not bound: %+v", service.standardCommand)
+	}
+	if response := post("/public/stores/tdh/cart-orders"); response.Code != http.StatusCreated {
+		t.Fatalf("cart-orders: expected 201, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.cartCommand.CustomerID != "customer-signed-in" {
+		t.Fatalf("cart-orders: verified customer was not bound: %+v", service.cartCommand)
+	}
+}
+
+func TestPlaceEndpointRejectsInvalidSuppliedCustomerToken(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	router := chi.NewRouter()
+	NewHandler(service, fakeCustomerVerifier{err: errors.New("expired")}).Register(router)
+	request := httptest.NewRequest(http.MethodPost, "/public/stores/tdh/orders", bytes.NewReader([]byte(`{}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer expired-token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized || !service.standardCommand.CustomerID.IsZero() {
+		t.Fatalf("invalid supplied token must fail before order creation: status=%d command=%+v",
+			response.Code, service.standardCommand)
+	}
+}
+
 // The payments/verify endpoint settles a checkout payment by its provider
 // reference, scoped to the store handle, and reports the customer-facing
 // status.
@@ -171,7 +225,7 @@ func TestVerifyPaymentReturnsStatus(t *testing.T) {
 
 func newTestRouter(service *fakeService) chi.Router {
 	router := chi.NewRouter()
-	NewHandler(service).Register(router)
+	NewHandler(service, nil).Register(router)
 	return router
 }
 
@@ -191,6 +245,20 @@ type fakeService struct {
 	verifyResult    checkoutapp.VerifyStorePaymentResult
 	verifyCommand   checkoutapp.VerifyStorePaymentCommand
 	verifyErr       error
+}
+
+type fakeCustomerVerifier struct {
+	err error
+}
+
+func (verifier fakeCustomerVerifier) VerifyCustomerAccessToken(
+	_ context.Context,
+	_ string,
+) (ports.VerifiedCustomerToken, error) {
+	if verifier.err != nil {
+		return ports.VerifiedCustomerToken{}, verifier.err
+	}
+	return ports.VerifiedCustomerToken{CustomerID: common.ID("customer-signed-in")}, nil
 }
 
 func (s *fakeService) PlaceStandardOrder(_ context.Context, command checkoutapp.PlaceStandardOrderCommand) (checkoutapp.PlaceStandardOrderResult, error) {

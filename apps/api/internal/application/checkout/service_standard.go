@@ -12,6 +12,10 @@ import (
 )
 
 type PlaceStandardOrderCommand struct {
+	// CustomerID is supplied only after the public handler verifies an optional
+	// customer bearer token. It keeps email-only sign-ins attached to their real
+	// account instead of creating an anonymous customer for every checkout.
+	CustomerID         common.ID
 	StoreHandle        string
 	DesignHandle       string
 	SizeBandID         common.ID
@@ -90,9 +94,13 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}
 
 	orderID := s.ids.NewID()
-	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
-	if err != nil {
-		return PlaceStandardOrderResult{}, err
+	customerID := cmd.CustomerID
+	customerCreated := false
+	if customerID.IsZero() {
+		customerID, customerCreated, err = s.resolveCustomerByPhone(ctx, cmd.CustomerPhone)
+		if err != nil {
+			return PlaceStandardOrderResult{}, err
+		}
 	}
 	cleanupCustomerID := common.ID("")
 	if customerCreated {

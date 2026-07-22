@@ -125,12 +125,13 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 
 	var result ports.CustomerOrderPaymentContext
 	var businessID, groupID, lastPurpose, bookingID, lastReference, lastPaymentStatus sql.NullString
+	var originalCustomerID string
 	var agreedTotal, lastSettleAmount sql.NullInt64
 	var settled int64
 	err = tx.QueryRow(ctx, `
-		select o.business_id::text, o.status,
+		select o.business_id::text, o.customer_id::text, o.status,
 			o.agreed_total_minor, o.settled_minor,
-			coalesce(o.customer_email, ''), o.checkout_group_id::text,
+			coalesce(order_customer.email, ''), o.checkout_group_id::text,
 			(select p.purpose from payments p
 				where p.order_id = o.order_id
 				order by p.created_at desc limit 1),
@@ -147,9 +148,19 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 				where p.order_id = o.order_id
 				order by p.created_at desc limit 1)
 		from orders o
-		where o.order_id = $1 and o.customer_id = $2
+		join customers order_customer on order_customer.customer_id = o.customer_id
+		left join customers signed_in_customer on signed_in_customer.customer_id = $2
+		where o.order_id = $1
+			and (
+				o.customer_id = $2
+				or (
+					coalesce(order_customer.phone, '') = ''
+					and coalesce(signed_in_customer.email, '') <> ''
+					and lower(trim(order_customer.email)) = lower(trim(signed_in_customer.email))
+				)
+			)
 	`, orderID.String(), customerID.String()).Scan(
-		&businessID, &result.Status,
+		&businessID, &originalCustomerID, &result.Status,
 		&agreedTotal, &settled,
 		&result.CustomerEmail, &groupID,
 		&lastPurpose, &lastSettleAmount, &bookingID,
@@ -165,6 +176,36 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 	result.BusinessID = common.ID(businessID.String)
 	result.LastPaymentReference = lastReference.String
 	result.LastPaymentStatus = lastPaymentStatus.String
+
+	// Before bearer-aware checkout creation, an email-only signed-in customer
+	// was stored as a fresh anonymous customer because there was no phone to
+	// resolve. The guarded email match above recovers those existing drafts; bind
+	// the whole draft basket to the verified account so later retries and order
+	// history use the real identity. Phone-backed orders never take this path.
+	if originalCustomerID != customerID.String() {
+		if _, err := tx.Exec(ctx, `
+			update orders
+			set customer_id = $2, updated_at = now()
+			where customer_id = $1
+				and status = 'draft'
+				and (order_id = $3 or checkout_group_id = nullif($4, '')::uuid)
+		`, originalCustomerID, customerID.String(), orderID.String(), groupID.String); err != nil {
+			return ports.CustomerOrderPaymentContext{}, err
+		}
+		if _, err := tx.Exec(ctx, `
+			update order_measurements m
+			set customer_id = $2, updated_at = now()
+			from orders o
+			where m.order_id = o.order_id
+				and m.business_id = o.business_id
+				and m.customer_id = $1
+				and o.customer_id = $2
+				and o.status = 'draft'
+				and (o.order_id = $3 or o.checkout_group_id = nullif($4, '')::uuid)
+		`, originalCustomerID, customerID.String(), orderID.String(), groupID.String); err != nil {
+			return ports.CustomerOrderPaymentContext{}, err
+		}
+	}
 
 	if groupID.Valid {
 		// A cart basket is paid by ONE combined charge: re-charge the whole

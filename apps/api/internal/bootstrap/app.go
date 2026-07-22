@@ -412,7 +412,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		cataloguehttp.NewHandler(catalogueService, authenticator),
 		mediahttp.NewHandler(mediaService, authenticator),
 		orderhttp.NewHandler(orderService, authenticator),
-		checkouthttp.NewHandler(checkoutService),
+		checkouthttp.NewHandler(checkoutService, jwtIssuer),
 		growthhttp.NewHandler(growthService),
 		availabilityhttp.NewHandler(availabilityService, authenticator),
 		bookinghttp.NewHandler(bookingService, authenticator),

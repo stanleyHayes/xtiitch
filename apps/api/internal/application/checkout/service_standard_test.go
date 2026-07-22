@@ -67,6 +67,25 @@ func TestPlaceStandardOrderKeepsOrderWhenChargeSucceeds(t *testing.T) {
 		t.Fatalf("expected momo to be the default method, got %q", payments.command.Method)
 	}
 }
+
+func TestPlaceStandardOrderUsesVerifiedCustomerWithoutPhoneResolution(t *testing.T) {
+	t.Parallel()
+
+	orders := &fakeOrders{}
+	payments := &fakePayments{result: paymentsapp.ChargeResult{Reference: "xt_ref", AuthorizationURL: "https://pay"}}
+	svc := newTestService(orders, payments)
+	cmd := placeCommand()
+	cmd.CustomerID = "customer-signed-in"
+	cmd.CustomerPhone = ""
+
+	if _, err := svc.PlaceStandardOrder(context.Background(), cmd); err != nil {
+		t.Fatalf("place order: %v", err)
+	}
+	if orders.resolvePhone != "" || orders.created.CustomerID != "customer-signed-in" {
+		t.Fatalf("verified customer must bypass anonymous phone resolution: phone=%q order=%+v",
+			orders.resolvePhone, orders.created)
+	}
+}
 func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
 	t.Parallel()
 
