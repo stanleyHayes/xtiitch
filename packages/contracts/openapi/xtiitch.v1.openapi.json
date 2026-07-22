@@ -349,6 +349,18 @@
         }
       }
     },
+    "/v1/customer/orders/{orderID}/close": {
+      "post": {
+        "operationId": "closeCustomerAwaitingPaymentOrder",
+        "tags": ["Public storefront"],
+        "security": [{ "CustomerBearer": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/OrderID" }],
+        "responses": {
+          "200": { "$ref": "#/components/responses/JsonOk" },
+          "404": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
     "/v1/public/orders/{id}": {
       "get": {
         "operationId": "getPublicOrderTracking",

@@ -454,6 +454,10 @@ func (repo OrderRepository) ListOrders(ctx context.Context, scope common.TenantS
 			limit 1
 		) p on true
 		where o.business_id = $1
+			and (
+				o.status <> 'draft'
+				or (o.closed_at is null and o.created_at > now() - interval '24 hours')
+			)
 		order by o.created_at desc
 	`, scope.BusinessID.String())
 	if err != nil {

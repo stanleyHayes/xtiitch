@@ -17,6 +17,9 @@ const (
 	maxOTPAttempts = 5
 	// Updates §12: keep customers signed in 3× longer (30d → 90d).
 	customerTokenTTL = 90 * 24 * time.Hour
+	// Awaiting-payment orders are temporary checkout holds, not permanent order
+	// history. At this boundary they disappear and cannot mint another charge.
+	awaitingPaymentTTL = 24 * time.Hour
 )
 
 var (
@@ -262,6 +265,23 @@ func (s Service) issueCustomerToken(ctx context.Context, customerID common.ID, p
 // ListOrders returns the signed-in customer's order history across all shops.
 func (s Service) ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error) {
 	return s.repo.ListCustomerOrders(ctx, customerID)
+}
+
+// CloseOrder removes an awaiting-payment order from the customer's account and
+// the business order board. The repository closes an entire checkout basket
+// together and leaves non-draft orders untouched.
+func (s Service) CloseOrder(ctx context.Context, customerID, orderID common.ID) error {
+	if customerID.IsZero() || orderID.IsZero() {
+		return ports.ErrNotFound
+	}
+	found, err := s.repo.CloseCustomerDraftOrder(ctx, customerID, orderID, s.clock.Now())
+	if err != nil {
+		return err
+	}
+	if !found {
+		return ports.ErrNotFound
+	}
+	return nil
 }
 
 // MarkOrderReceived stamps one of the customer's orders received (§5.3.2): the

@@ -37,6 +37,7 @@ const requiredPaths = [
   "/v1/public/stores/{handle}/custom-orders",
   "/v1/public/stores/{handle}/payments/verify",
   "/v1/customer/orders/{orderID}/payment-link",
+  "/v1/customer/orders/{orderID}/close",
   "/v1/public/orders/{id}",
   "/v1/public/referrals/{code}",
   "/v1/public/affiliates/{code}/clicks",

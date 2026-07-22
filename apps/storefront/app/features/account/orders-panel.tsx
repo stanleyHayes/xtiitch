@@ -11,6 +11,7 @@ import { alpha } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CallRounded from "@mui/icons-material/CallRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import CloseRounded from "@mui/icons-material/CloseRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import PaymentRounded from "@mui/icons-material/PaymentRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -42,6 +43,9 @@ export function OrdersPanel({
   const tabs = splitTabs(orders);
   const shown = tab === "current" ? tabs.current : tabs.archived;
   const groups = groupOrdersByStore(shown);
+  const hasAwaitingPayment = orders.some(
+    (order) => order.status.toLowerCase() === "draft",
+  );
 
   return (
     <Box>
@@ -57,6 +61,12 @@ export function OrdersPanel({
       {error ? (
         <Alert severity="warning" sx={{ mb: 2 }}>
           {error}
+        </Alert>
+      ) : null}
+      {hasAwaitingPayment ? (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          Awaiting-payment orders expire after 24 hours. Pay now or close an
+          order you no longer want.
         </Alert>
       ) : null}
 
@@ -260,23 +270,42 @@ function OrderRow({
               dead end: Pay now mints a fresh Paystack link for the SAME order
               and sends the customer straight to it. */}
           {order.status.toLowerCase() === "draft" ? (
-            <Form method="post" reloadDocument>
-              <input type="hidden" name="intent" value="pay_order" />
-              <input type="hidden" name="order_id" value={order.order_id} />
-              <input
-                type="hidden"
-                name="store_handle"
-                value={order.business_handle}
-              />
-              <Button
-                type="submit"
-                size="small"
-                variant="contained"
-                startIcon={<PaymentRounded />}
-              >
-                Pay now
-              </Button>
-            </Form>
+            <>
+              <Form method="post" reloadDocument>
+                <input type="hidden" name="intent" value="pay_order" />
+                <input type="hidden" name="order_id" value={order.order_id} />
+                <input
+                  type="hidden"
+                  name="store_handle"
+                  value={order.business_handle}
+                />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="contained"
+                  startIcon={<PaymentRounded />}
+                >
+                  Pay now
+                </Button>
+              </Form>
+              <Form method="post">
+                <input
+                  type="hidden"
+                  name="intent"
+                  value="close_awaiting_payment"
+                />
+                <input type="hidden" name="order_id" value={order.order_id} />
+                <Button
+                  type="submit"
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<CloseRounded />}
+                >
+                  Close
+                </Button>
+              </Form>
+            </>
           ) : null}
           {/* §5.3.3: the store's phone rides on every order. */}
           {order.store_phone ? (

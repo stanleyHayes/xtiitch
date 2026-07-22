@@ -22,6 +22,7 @@ type Service interface {
 	VerifyOTP(ctx context.Context, phone string, code string) (customerauthapp.CustomerAuthResult, error)
 	VerifyEmailOTP(ctx context.Context, email string, code string) (customerauthapp.CustomerAuthResult, error)
 	ListOrders(ctx context.Context, customerID common.ID) ([]ports.CustomerOrderSummary, error)
+	CloseOrder(ctx context.Context, customerID common.ID, orderID common.ID) error
 	MarkOrderReceived(ctx context.Context, customerID common.ID, orderID common.ID) error
 	MarkBasketReceived(ctx context.Context, customerID common.ID, checkoutGroupID common.ID) (int, error)
 	GetProfile(ctx context.Context, customerID common.ID) (ports.CustomerProfile, error)
@@ -51,6 +52,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Get("/customer/me", handler.me)
 	router.Patch("/customer/me", handler.updateProfile)
 	router.Get("/customer/orders", handler.orders)
+	router.Post("/customer/orders/{orderID}/close", handler.closeOrder)
 	// §5.3.2 "Received": one order, or a whole store basket at once. Both are
 	// scoped to the signed-in customer's own orders (their own data — the one
 	// thing §6 deliberately shares across stores).
@@ -262,6 +264,27 @@ func (handler Handler) orders(w http.ResponseWriter, r *http.Request) {
 		response = append(response, item)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"orders": response})
+}
+
+// closeOrder dismisses one awaiting-payment order. Cart orders close as a
+// whole basket in the repository, keeping the customer and business views in
+// sync and preventing partial-basket payment retries.
+func (handler Handler) closeOrder(w http.ResponseWriter, r *http.Request) {
+	verified, ok := handler.authCustomer(w, r)
+	if !ok {
+		return
+	}
+	if err := handler.service.CloseOrder(
+		r.Context(), verified.CustomerID, common.ID(chi.URLParam(r, "orderID")),
+	); err != nil {
+		if errors.Is(err, ports.ErrNotFound) {
+			writeError(w, http.StatusNotFound, "not_found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // markReceived stamps one archived (final-stage) order received (§5.3.2), so it

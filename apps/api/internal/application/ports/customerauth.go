@@ -28,6 +28,10 @@ type CustomerAuthRepository interface {
 	// ListCustomerOrders returns a signed-in customer's orders across every shop
 	// (cross-tenant, RLS bypass), newest first.
 	ListCustomerOrders(ctx context.Context, customerID common.ID) ([]CustomerOrderSummary, error)
+	// CloseCustomerDraftOrder hides one awaiting-payment order from both the
+	// customer and business views. For a cart order it closes the whole checkout
+	// group atomically so a partially closed basket can never be paid.
+	CloseCustomerDraftOrder(ctx context.Context, customerID common.ID, orderID common.ID, at time.Time) (bool, error)
 	// MarkCustomerOrderReceived stamps one of the customer's orders received
 	// (§5.3.2) at the given time, but only when the order sits in its final
 	// stage; the granular outcome lets the caller distinguish missing,

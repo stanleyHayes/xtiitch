@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -19,6 +20,68 @@ type fakePaymentInitiator struct {
 	verifyErr     error
 	verifyCalled  bool
 	verifyCommand paymentsapp.VerifyPaymentCommand
+}
+
+func TestCreateOrderPaymentLinkRejectsExpiredOrClosedDraft(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 6, 20, 20, 0, 0, 0, time.UTC)
+	closedAt := now.Add(-time.Minute)
+	for _, tc := range []struct {
+		name      string
+		createdAt time.Time
+		closedAt  *time.Time
+	}{
+		{name: "exactly 24 hours old", createdAt: now.Add(-awaitingPaymentTTL)},
+		{name: "older than 24 hours", createdAt: now.Add(-awaitingPaymentTTL - time.Second)},
+		{name: "manually closed", createdAt: now.Add(-time.Hour), closedAt: &closedAt},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			repo := &fakeRepo{paymentContext: ports.CustomerOrderPaymentContext{
+				OrderID:          "order-1",
+				BusinessID:       "business-1",
+				Status:           "draft",
+				CreatedAt:        tc.createdAt,
+				ClosedAt:         tc.closedAt,
+				OutstandingMinor: 25000,
+			}}
+			payments := &fakePaymentInitiator{}
+			service := newPaymentLinkService(repo, payments)
+
+			_, err := service.CreateOrderPaymentLink(context.Background(), "customer-1", "order-1", "")
+			if !errors.Is(err, ErrOrderNotPayable) {
+				t.Fatalf("expected expired/closed order to be non-payable, got %v", err)
+			}
+			if payments.called {
+				t.Fatal("an expired/closed order must not start another charge")
+			}
+		})
+	}
+}
+
+func TestCreateOrderPaymentLinkAllowsDraftInside24Hours(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepo{paymentContext: ports.CustomerOrderPaymentContext{
+		OrderID:          "order-1",
+		BusinessID:       "business-1",
+		Status:           "draft",
+		CreatedAt:        time.Date(2026, 6, 19, 20, 0, 1, 0, time.UTC),
+		CustomerEmail:    "ama@example.com",
+		OutstandingMinor: 25000,
+	}}
+	payments := &fakePaymentInitiator{result: paymentsapp.ChargeResult{
+		AuthorizationURL: "https://pay/new",
+	}}
+	service := newPaymentLinkService(repo, payments)
+
+	if _, err := service.CreateOrderPaymentLink(context.Background(), "customer-1", "order-1", ""); err != nil {
+		t.Fatalf("a draft younger than 24 hours should remain payable: %v", err)
+	}
+	if !payments.called {
+		t.Fatal("expected a new charge inside the 24-hour window")
+	}
 }
 
 func (f *fakePaymentInitiator) VerifyPayment(

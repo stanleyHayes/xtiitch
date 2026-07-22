@@ -93,6 +93,41 @@ func TestOrdersPayloadCarriesStorePhoneKindBasketAndReceived(t *testing.T) {
 	}
 }
 
+func TestCloseAwaitingPaymentOrder(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/customer/orders/order-1/close", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.closedOrderID != "order-1" {
+		t.Fatalf("expected order-1 closed, got %q", service.closedOrderID)
+	}
+}
+
+func TestCloseAwaitingPaymentOrderNotFound(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{closeErr: ports.ErrNotFound}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/customer/orders/order-1/close", nil)
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 // §5.3.2 "Received" button: final-stage only, idempotent, own orders only.
 
 func TestMarkReceivedStampsOrder(t *testing.T) {

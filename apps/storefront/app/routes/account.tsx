@@ -13,6 +13,7 @@ import {
   type CustomerOrder,
   type CustomerProfile,
 } from "../lib/discovery";
+import { closeAwaitingPaymentOrder } from "../lib/customer-order-close";
 import { api } from "../lib/api";
 import { commitSession, destroySession, getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
@@ -91,6 +92,29 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
+async function handleCloseAwaitingPayment(request: Request, form: FormData) {
+  const session = await getSession(request.headers.get("Cookie"));
+  const token = session.get("customerToken") as string | undefined;
+  if (!token) {
+    return redirect("/account");
+  }
+  const result = await closeAwaitingPaymentOrder(
+    token,
+    String(form.get("order_id") ?? ""),
+  );
+  return {
+    step: "identify",
+    ...(result.ok
+      ? { orderNotice: "Awaiting-payment order closed." }
+      : {
+          orderError:
+            result.status === 404
+              ? "That order is no longer awaiting payment."
+              : "We couldn't close that order. Please try again.",
+        }),
+  } as ActionResult;
+}
+
 // eslint-disable-next-line complexity -- route action handles account and order workflows.
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
@@ -121,6 +145,10 @@ export async function action({ request }: Route.ActionArgs) {
         ? undefined
         : "We couldn't save your profile. Please try again.",
     } as ActionResult;
+  }
+
+  if (intent === "close_awaiting_payment") {
+    return handleCloseAwaitingPayment(request, form);
   }
 
   // §5.3.2: acknowledge receipt of one archived design, or of a whole store

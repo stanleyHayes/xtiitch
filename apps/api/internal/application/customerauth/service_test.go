@@ -216,6 +216,10 @@ type fakeRepo struct {
 	basketCount    int
 	basketErr      error
 	markedBasketID common.ID
+	closeFound     bool
+	closeErr       error
+	closedOrderID  common.ID
+	closedAt       time.Time
 
 	paymentContext    ports.CustomerOrderPaymentContext
 	paymentContextErr error
@@ -263,6 +267,17 @@ func (r *fakeRepo) UpsertVerifiedCustomerByEmail(_ context.Context, newID common
 
 func (r *fakeRepo) ListCustomerOrders(_ context.Context, _ common.ID) ([]ports.CustomerOrderSummary, error) {
 	return nil, nil
+}
+
+func (r *fakeRepo) CloseCustomerDraftOrder(
+	_ context.Context,
+	_ common.ID,
+	orderID common.ID,
+	at time.Time,
+) (bool, error) {
+	r.closedOrderID = orderID
+	r.closedAt = at
+	return r.closeFound, r.closeErr
 }
 
 func (r *fakeRepo) MarkCustomerOrderReceived(

@@ -222,6 +222,8 @@ type fakeService struct {
 	markedGroupID     common.ID
 	markedCount       int
 	markErr           error
+	closedOrderID     common.ID
+	closeErr          error
 
 	paymentLinkResult   customerauthapp.OrderPaymentLinkResult
 	paymentLinkErr      error
@@ -252,6 +254,11 @@ func (s *fakeService) VerifyEmailOTP(_ context.Context, email string, code strin
 
 func (s *fakeService) ListOrders(_ context.Context, _ common.ID) ([]ports.CustomerOrderSummary, error) {
 	return s.ordersResult, nil
+}
+
+func (s *fakeService) CloseOrder(_ context.Context, _ common.ID, orderID common.ID) error {
+	s.closedOrderID = orderID
+	return s.closeErr
 }
 
 func (s *fakeService) MarkOrderReceived(_ context.Context, _ common.ID, orderID common.ID) error {

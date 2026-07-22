@@ -50,6 +50,10 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 		join businesses b on b.business_id = o.business_id
 		left join designs d on d.design_id = o.design_id
 		where o.customer_id = $1
+			and (
+				o.status <> 'draft'
+				or (o.closed_at is null and o.created_at > now() - interval '24 hours')
+			)
 		order by o.created_at desc
 		limit 100
 	`, customerID.String())
@@ -118,7 +122,7 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 	var agreedTotal, lastSettleAmount sql.NullInt64
 	var settled int64
 	err = tx.QueryRow(ctx, `
-		select o.business_id::text, o.customer_id::text, o.status,
+		select o.business_id::text, o.customer_id::text, o.status, o.created_at, o.closed_at,
 			o.agreed_total_minor, o.settled_minor,
 			coalesce(order_customer.email, ''), o.checkout_group_id::text,
 			(select p.purpose from payments p
@@ -149,7 +153,7 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 				)
 			)
 	`, orderID.String(), customerID.String()).Scan(
-		&businessID, &originalCustomerID, &result.Status,
+		&businessID, &originalCustomerID, &result.Status, &result.CreatedAt, &result.ClosedAt,
 		&agreedTotal, &settled,
 		&result.CustomerEmail, &groupID,
 		&lastPurpose, &lastSettleAmount, &bookingID,

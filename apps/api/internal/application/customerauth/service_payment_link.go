@@ -68,7 +68,8 @@ func (s Service) CreateOrderPaymentLink(
 	if err != nil {
 		return OrderPaymentLinkResult{}, err
 	}
-	if order.Status != "draft" || order.OutstandingMinor <= 0 {
+	if order.Status != "draft" || order.OutstandingMinor <= 0 || order.ClosedAt != nil ||
+		(!order.CreatedAt.IsZero() && !s.clock.Now().Before(order.CreatedAt.Add(awaitingPaymentTTL))) {
 		return OrderPaymentLinkResult{}, ErrOrderNotPayable
 	}
 	if order.LastPaymentStatus == string(money.PaymentStatusInitiated) && order.LastPaymentReference != "" {

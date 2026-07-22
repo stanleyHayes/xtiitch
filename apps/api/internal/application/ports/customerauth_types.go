@@ -103,6 +103,8 @@ type CustomerOrderPaymentContext struct {
 	OrderID       common.ID
 	BusinessID    common.ID
 	Status        string
+	CreatedAt     time.Time
+	ClosedAt      *time.Time
 	CustomerEmail string
 	// OutstandingMinor is what is still owed on the order (agreed minus
 	// settled); for a cart basket it is the whole group's outstanding, because
