@@ -1,33 +1,54 @@
 import { useMemo, useState } from "react";
-import { Form, Link as RouterLink } from "react-router";
+import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
+import FilterListRounded from "@mui/icons-material/FilterListRounded";
+import SearchRounded from "@mui/icons-material/SearchRounded";
+import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
+import Checkbox from "@mui/material/Checkbox";
 import Container from "@mui/material/Container";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
-import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
-import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
-import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
-import BoltRounded from "@mui/icons-material/BoltRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
-import SearchRounded from "@mui/icons-material/SearchRounded";
-import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
+import { Link as RouterLink } from "react-router";
 import TextField from "../../components/form-text-field";
-import { tokens } from "../../theme";
 import type { PublicShop, SponsoredPlacement } from "../../lib/api";
+import { tokens } from "../../theme";
 import { DesignCard } from "./design-card";
 import { EmptyState } from "./empty-state";
-import { FeaturedCard } from "./featured-card";
+import { MarketplaceHeader } from "./marketplace-header";
+import { MarketplaceHero } from "./marketplace-hero";
 import { StudioCard } from "./studio-card";
+import { StyleRail } from "./style-rail";
 import type { FlatDesign, SortKey, Tab } from "./types";
 
-export function Marketplace({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+const catalogueFilters = [
+  { label: "Contemporary", query: "contemporary" },
+  { label: "Heritage & print", query: "kente print heritage adire" },
+  { label: "Bridal", query: "bridal wedding bride" },
+  { label: "Menswear", query: "men menswear shirt kaftan" },
+  { label: "Ready to wear", query: "ready casual everyday" },
+] as const;
+
+function shopSearchText(shop: PublicShop): string {
+  return [shop.name, ...shop.designs.map((design) => design.title)]
+    .join(" ")
+    .toLowerCase();
+}
+
+function matchesCatalogueFilter(shop: PublicShop, filter: string): boolean {
+  if (!filter) return true;
+  const config = catalogueFilters.find((item) => item.label === filter);
+  if (!config) return true;
+  const text = shopSearchText(shop);
+  return config.query.split(" ").some((keyword) => text.includes(keyword));
+}
+
+// eslint-disable-next-line max-lines-per-function -- selected marketplace screen keeps filters, tabs and results coordinated
+export function Marketplace({
   shops,
   sponsored,
 }: {
@@ -37,325 +58,350 @@ export function Marketplace({ // eslint-disable-line complexity, max-lines-per-f
   const [tab, setTab] = useState<Tab>("studios");
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<SortKey>("popular");
+  const [catalogueFilter, setCatalogueFilter] = useState("");
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   const designs: FlatDesign[] = useMemo(
     () =>
-      shops.flatMap((s) =>
-        s.designs.map((d) => ({
-          ...d,
-          store_name: s.name,
-          store_handle: s.handle,
-          brand_color: s.brand_color,
+      shops.flatMap((shop) =>
+        shop.designs.map((design) => ({
+          ...design,
+          store_name: shop.name,
+          store_handle: shop.handle,
+          brand_color: shop.brand_color,
         })),
       ),
     [shops],
   );
 
+  const promotedHandles = useMemo(
+    () =>
+      new Set(
+        sponsored.map(
+          (placement) => placement.store_handle || placement.business_handle,
+        ),
+      ),
+    [sponsored],
+  );
   const q = search.trim().toLowerCase();
 
   const visibleStudios = useMemo(() => {
-    let list = shops;
-    if (q) list = list.filter((s) => s.name.toLowerCase().includes(q));
+    let list = shops.filter((shop) =>
+      matchesCatalogueFilter(shop, catalogueFilter),
+    );
+    if (q) list = list.filter((shop) => shopSearchText(shop).includes(q));
     const sorted = [...list];
     if (sort === "name") sorted.sort((a, b) => a.name.localeCompare(b.name));
-    else sorted.sort((a, b) => b.design_count - a.design_count); // popular default
+    else {
+      sorted.sort((a, b) => {
+        const promoted =
+          Number(promotedHandles.has(b.handle)) -
+          Number(promotedHandles.has(a.handle));
+        return promoted || b.design_count - a.design_count;
+      });
+    }
     return sorted;
-  }, [shops, q, sort]);
+  }, [catalogueFilter, promotedHandles, q, shops, sort]);
 
   const visibleDesigns = useMemo(() => {
     let list = designs;
-    if (q) list = list.filter((d) => d.title.toLowerCase().includes(q) || d.store_name.toLowerCase().includes(q));
+    const filterConfig = catalogueFilters.find(
+      (item) => item.label === catalogueFilter,
+    );
+    if (filterConfig) {
+      const keywords = filterConfig.query.split(" ");
+      list = list.filter((design) =>
+        keywords.some((keyword) =>
+          design.title.toLowerCase().includes(keyword),
+        ),
+      );
+    }
+    if (q)
+      list = list.filter((design) =>
+        `${design.title} ${design.store_name}`.toLowerCase().includes(q),
+      );
     const sorted = [...list];
-    if (sort === "price_low") sorted.sort((a, b) => a.price_minor - b.price_minor);
-    else if (sort === "price_high") sorted.sort((a, b) => b.price_minor - a.price_minor);
-    else if (sort === "name") sorted.sort((a, b) => a.title.localeCompare(b.title));
+    if (sort === "price_low")
+      sorted.sort((a, b) => a.price_minor - b.price_minor);
+    else if (sort === "price_high")
+      sorted.sort((a, b) => b.price_minor - a.price_minor);
+    else if (sort === "name")
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
     return sorted;
-  }, [designs, q, sort]);
+  }, [catalogueFilter, designs, q, sort]);
+
+  const clearFilters = () => {
+    setSearch("");
+    setCatalogueFilter("");
+  };
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.04)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.04)} 1px, transparent 1px)`,
-        backgroundSize: "40px 40px",
-      }}
-    >
-      {/* Hero */}
-      <Box
-        sx={{
-          position: "relative",
-          overflow: "hidden",
-          color: tokens.white,
-          backgroundImage: `radial-gradient(circle at 12% 18%, ${alpha(tokens.burgundy, 0.55)}, transparent 42%), radial-gradient(circle at 88% 8%, ${alpha(tokens.gold, 0.22)}, transparent 38%), linear-gradient(160deg, ${tokens.ink}, ${tokens.charcoal})`,
-        }}
-      >
-        <Container sx={{ py: { xs: 6, md: 9 } }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
-            <Box
-              component="img"
-              src="/favicon.svg"
-              alt="Xtiitch"
-              sx={{ width: 34, height: 34, borderRadius: "9px", display: "block" }}
-            />
-            <Typography sx={{ fontWeight: 950, letterSpacing: 0.4 }}>Xtiitch</Typography>
-            <Chip
-              size="small"
-              label="Marketplace"
-              sx={{ ml: 0.5, bgcolor: alpha(tokens.white, 0.12), color: tokens.white, fontWeight: 800, letterSpacing: 0.4 }}
-            />
-            {/* Cart sits next to Account on every viewport: the marketplace is
-                shoppable, so a customer must always be able to reach their bag. */}
-            <Button
-              component={RouterLink}
-              to="/cart"
-              variant="outlined"
-              size="small"
-              startIcon={<ShoppingBagRounded />}
-              sx={{
-                ml: "auto",
-                color: tokens.white,
-                borderColor: alpha(tokens.white, 0.4),
-                fontWeight: 800,
-                whiteSpace: "nowrap",
-                "&:hover": { borderColor: tokens.white, bgcolor: alpha(tokens.white, 0.08) },
-              }}
-            >
-              Cart
-            </Button>
-            <Button
-              component={RouterLink}
-              to="/account"
-              variant="outlined"
-              size="small"
-              startIcon={<AccountCircleRounded />}
-              sx={{
-                color: tokens.white,
-                borderColor: alpha(tokens.white, 0.4),
-                fontWeight: 800,
-                whiteSpace: "nowrap",
-                "&:hover": { borderColor: tokens.white, bgcolor: alpha(tokens.white, 0.08) },
-              }}
-            >
-              Account
-            </Button>
-          </Stack>
-          <Typography
-            variant="h1"
-            sx={{ fontSize: { xs: "2.6rem", md: "4.4rem" }, lineHeight: 1.02, maxWidth: 820, color: tokens.white }}
-          >
-            Ghana's fashion studios, in one place.
-          </Typography>
-          <Typography sx={{ mt: 2, fontSize: { xs: 16, md: 19 }, color: alpha(tokens.white, 0.82), maxWidth: 620 }}>
-            Browse studios and their designs, or describe what you want and let AI
-            find it across every shop — no account needed to look.
-          </Typography>
+    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
+      <MarketplaceHeader />
+      <MarketplaceHero />
+      <StyleRail designs={designs} />
 
-          {/* AI search */}
-          <Box sx={{ mt: 4, maxWidth: 680 }}>
-            <Form method="get" action="/discover">
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
+      <Container maxWidth="xl" component="main" sx={{ py: { xs: 3, md: 4 } }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "190px minmax(0, 1fr)" },
+            gap: { xs: 2, lg: 3 },
+          }}
+        >
+          <Box component="aside">
+            <Button
+              variant="outlined"
+              startIcon={<FilterListRounded />}
+              onClick={() => setShowMobileFilters((open) => !open)}
+              aria-expanded={showMobileFilters}
+              sx={{ display: { xs: "inline-flex", lg: "none" }, mb: 1 }}
+            >
+              Filter styles
+            </Button>
+            <Box
+              sx={{
+                display: {
+                  xs: showMobileFilters ? "block" : "none",
+                  lg: "block",
+                },
+                borderRight: { lg: "1px solid" },
+                borderColor: { lg: "divider" },
+                pr: { lg: 2.5 },
+                pb: { xs: 1.5, lg: 0 },
+              }}
+            >
+              <Typography
+                variant="overline"
+                sx={{
+                  color: tokens.burgundy,
+                  fontWeight: 900,
+                  letterSpacing: "0.1em",
+                }}
+              >
+                Discover studios
+              </Typography>
+              <Typography sx={{ mt: 1.6, mb: 0.75, fontWeight: 850 }}>
+                Style & occasion
+              </Typography>
+              <Stack>
+                {catalogueFilters.map((filter) => (
+                  <FormControlLabel
+                    key={filter.label}
+                    label={filter.label}
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={catalogueFilter === filter.label}
+                        onChange={() =>
+                          setCatalogueFilter((current) =>
+                            current === filter.label ? "" : filter.label,
+                          )
+                        }
+                      />
+                    }
+                    sx={{
+                      m: 0,
+                      minHeight: 34,
+                      "& .MuiFormControlLabel-label": {
+                        fontSize: 14,
+                        color: "text.secondary",
+                      },
+                    }}
+                  />
+                ))}
+              </Stack>
+              {catalogueFilter || q ? (
+                <Button
+                  onClick={clearFilters}
+                  size="small"
+                  sx={{ mt: 1, px: 0 }}
+                >
+                  Clear filters
+                </Button>
+              ) : null}
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mt: 2,
+                  color: "text.secondary",
+                  lineHeight: 1.5,
+                }}
+              >
+                Filters read each studio&apos;s live catalogue. More discovery
+                options appear as studios add pieces.
+              </Typography>
+            </Box>
+          </Box>
+
+          <Box sx={{ minWidth: 0 }}>
+            <Stack
+              direction={{ xs: "column", md: "row" }}
+              spacing={1.25}
+              sx={{
+                alignItems: { md: "center" },
+                justifyContent: "space-between",
+                mb: 2,
+              }}
+            >
+              <Stack
+                direction="row"
+                spacing={0.5}
+                sx={{
+                  width: "fit-content",
+                  p: 0.4,
+                  border: "1px solid",
+                  borderColor: "divider",
+                  borderRadius: 999,
+                  bgcolor: "background.paper",
+                }}
+              >
+                {(["studios", "designs"] as const).map((item) => (
+                  <Button
+                    key={item}
+                    size="small"
+                    variant={tab === item ? "contained" : "text"}
+                    onClick={() => setTab(item)}
+                    sx={{ px: 2.4, minHeight: 36, textTransform: "capitalize" }}
+                  >
+                    {item}
+                  </Button>
+                ))}
+              </Stack>
+
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{
+                  width: { xs: "100%", md: "auto" },
+                  flex: { md: 1 },
+                  maxWidth: { md: 520 },
+                }}
+              >
                 <TextField
-                  name="q"
-                  placeholder="red kente dress for a wedding under 800"
-                  aria-label="Describe what you want"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={
+                    tab === "studios"
+                      ? "Search studios or styles"
+                      : "Search designs"
+                  }
+                  size="small"
                   fullWidth
-                  sx={{
-                    "& .MuiOutlinedInput-root": {
-                      bgcolor: tokens.white,
-                      borderRadius: "12px",
-                      color: tokens.ink,
-                      fontWeight: 600,
-                    },
-                    "& .MuiOutlinedInput-input::placeholder": {
-                      color: alpha(tokens.ink, 0.55),
-                      opacity: 1,
-                    },
-                    "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
-                    "& .MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline": {
-                      borderColor: alpha(tokens.burgundy, 0.35),
-                    },
-                    "& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                      borderColor: tokens.burgundy,
-                      borderWidth: 2,
-                    },
-                  }}
                   slotProps={{
                     input: {
                       startAdornment: (
                         <InputAdornment position="start">
-                          <AutoAwesomeRounded fontSize="small" sx={{ color: tokens.burgundy }} />
+                          <SearchRounded fontSize="small" />
                         </InputAdornment>
                       ),
                     },
                   }}
                 />
-                <Button type="submit" variant="contained" size="large" endIcon={<ArrowForwardRounded />} sx={{ flexShrink: 0, px: 3 }}>
-                  AI search
-                </Button>
+                <Select
+                  value={sort}
+                  onChange={(event) => setSort(event.target.value as SortKey)}
+                  size="small"
+                  aria-label="Sort marketplace results"
+                  sx={{
+                    minWidth: { xs: 128, sm: 150 },
+                    bgcolor: "background.paper",
+                  }}
+                >
+                  <MenuItem value="popular">Most popular</MenuItem>
+                  <MenuItem value="name">Name (A–Z)</MenuItem>
+                  {tab === "designs" ? (
+                    <MenuItem value="price_low">Price: low to high</MenuItem>
+                  ) : null}
+                  {tab === "designs" ? (
+                    <MenuItem value="price_high">Price: high to low</MenuItem>
+                  ) : null}
+                </Select>
               </Stack>
-            </Form>
-            <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: "center" }}>
-              <Button
-                component={RouterLink}
-                to="/track"
-                variant="text"
-                size="small"
-                startIcon={<LocalShippingRounded />}
-                sx={{ color: alpha(tokens.white, 0.85), "&:hover": { color: tokens.white, bgcolor: alpha(tokens.white, 0.08) } }}
-              >
-                Track an order
-              </Button>
-              <Button href="https://xtiitch.com" target="_blank" rel="noopener noreferrer" variant="text" size="small" sx={{ color: alpha(tokens.white, 0.7) }}>
-                Learn about Xtiitch
-              </Button>
             </Stack>
-          </Box>
-        </Container>
-      </Box>
 
-      <Container sx={{ py: { xs: 4, md: 6 } }}>
-        {/* Featured / sponsored */}
-        {sponsored.length > 0 && (
-          <Box sx={{ mb: 5 }}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: "center", mb: 2 }}>
-              <BoltRounded sx={{ color: tokens.gold }} />
-              <Typography variant="h5" component="h2">
-                Featured
-              </Typography>
-            </Stack>
-            <Stack direction="row" spacing={2} sx={{ overflowX: "auto", pb: 1, "&::-webkit-scrollbar": { height: 6 } }}>
-              {sponsored.map((p) => (
-                <FeaturedCard key={p.campaign_id} p={p} />
-              ))}
-            </Stack>
-          </Box>
-        )}
-
-        {/* Browse: filter bar */}
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={1.5}
-          sx={{ alignItems: { md: "center" }, justifyContent: "space-between", mb: 2.5 }}
-        >
-          <Stack direction="row" spacing={0.5} sx={{ p: 0.5, borderRadius: 999, border: "1px solid", borderColor: alpha(tokens.ink, 0.12), bgcolor: "rgba(var(--surface-rgb), 0.6)", width: "fit-content" }}>
-            {(["studios", "designs"] as const).map((t) => (
-              <Button
-                key={t}
-                onClick={() => setTab(t)}
-                variant={tab === t ? "contained" : "text"}
-                size="small"
+            {tab === "studios" ? (
+              visibleStudios.length === 0 ? (
+                <EmptyState
+                  icon={<StorefrontRounded sx={{ fontSize: 32 }} />}
+                  title="No studios match those filters"
+                  hint="Clear a filter or search another style. You can also describe the exact piece you want and let AI search every catalogue."
+                  action={
+                    <Button onClick={clearFilters} variant="contained">
+                      Clear filters
+                    </Button>
+                  }
+                />
+              ) : (
+                <Box
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: {
+                      xs: "1fr",
+                      sm: "repeat(2, minmax(0, 1fr))",
+                      md: "repeat(2, minmax(0, 1fr))",
+                      xl: "1.08fr .92fr .92fr",
+                    },
+                    gridAutoRows: { md: 224 },
+                    gap: 1.5,
+                    "& > :first-of-type": {
+                      gridRow: { md: "span 2" },
+                      gridColumn: { sm: "span 2", xl: "span 1" },
+                    },
+                  }}
+                >
+                  {visibleStudios.map((shop, index) => (
+                    <StudioCard
+                      key={shop.handle}
+                      shop={shop}
+                      featured={index === 0}
+                      promoted={promotedHandles.has(shop.handle)}
+                    />
+                  ))}
+                </Box>
+              )
+            ) : visibleDesigns.length === 0 ? (
+              <EmptyState
+                title="No designs match those filters"
+                hint="Try a broader style or ask the AI stylist to search across every studio."
+                action={
+                  <Button
+                    component={RouterLink}
+                    to={
+                      q
+                        ? `/discover?q=${encodeURIComponent(search.trim())}`
+                        : "/discover"
+                    }
+                    variant="contained"
+                    startIcon={<AutoAwesomeRounded />}
+                  >
+                    Search with AI
+                  </Button>
+                }
+              />
+            ) : (
+              <Box
                 sx={{
-                  borderRadius: 999,
-                  px: 2,
-                  fontWeight: 900,
-                  textTransform: "capitalize",
-                  ...(tab !== t && { color: "text.secondary" }),
+                  display: "grid",
+                  gap: 1.5,
+                  gridTemplateColumns: {
+                    xs: "repeat(2, minmax(0, 1fr))",
+                    md: "repeat(3, minmax(0, 1fr))",
+                    xl: "repeat(4, minmax(0, 1fr))",
+                  },
                 }}
               >
-                {t}
-              </Button>
-            ))}
-          </Stack>
-          <Stack direction="row" spacing={1.25} sx={{ flex: 1, maxWidth: { md: 520 }, width: "100%" }}>
-            <TextField
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={tab === "studios" ? "Search studios" : "Search designs"}
-              fullWidth
-              size="small"
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRounded fontSize="small" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
-            <Select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              size="small"
-              sx={{ minWidth: 150, borderRadius: "8px", bgcolor: "rgba(var(--surface-rgb), 0.92)" }}
-            >
-              <MenuItem value="popular">{tab === "studios" ? "Most designs" : "Featured"}</MenuItem>
-              <MenuItem value="name">Name (A–Z)</MenuItem>
-              {tab === "designs" && <MenuItem value="price_low">Price: low → high</MenuItem>}
-              {tab === "designs" && <MenuItem value="price_high">Price: high → low</MenuItem>}
-            </Select>
-          </Stack>
-        </Stack>
-
-        {/* Grid */}
-        {tab === "studios" ? (
-          visibleStudios.length === 0 ? (
-            <EmptyState
-              icon={<StorefrontRounded sx={{ fontSize: 28 }} />}
-              title={q ? `No studios match “${search.trim()}”` : "Studios are on their way"}
-              hint={
-                q
-                  ? "Try a shorter or different name, or switch to Designs and describe what you’re after."
-                  : "Verified studios appear here as they open their storefronts. Check back soon — new shops are joining."
-              }
-              action={
-                q ? (
-                  <Button onClick={() => setSearch("")} variant="contained" startIcon={<SearchRounded />}>
-                    Clear search
-                  </Button>
-                ) : (
-                  <Button component={RouterLink} to="/discover" variant="contained" startIcon={<AutoAwesomeRounded />}>
-                    Try AI search
-                  </Button>
-                )
-              }
-            />
-          ) : (
-            <Box
-              sx={{
-                display: "grid",
-                gap: 2,
-                gridTemplateColumns: { xs: "repeat(2, minmax(0,1fr))", sm: "repeat(3, minmax(0,1fr))", md: "repeat(4, minmax(0,1fr))" },
-              }}
-            >
-              {visibleStudios.map((s) => (
-                <StudioCard key={s.handle} shop={s} />
-              ))}
-            </Box>
-          )
-        ) : visibleDesigns.length === 0 ? (
-          <EmptyState
-            title={q ? `No designs match “${search.trim()}”` : "Designs are on their way"}
-            hint={
-              q
-                ? "Keyword match is strict. Describe the piece — fabric, occasion, budget — and AI search reads it across every shop."
-                : "As studios add pieces they appear here. Or describe what you want and let AI search look across every shop."
-            }
-            action={
-              <Button
-                component={RouterLink}
-                to={q ? `/discover?q=${encodeURIComponent(search.trim())}` : "/discover"}
-                variant="contained"
-                startIcon={<AutoAwesomeRounded />}
-              >
-                {q ? "Search with AI" : "Try AI search"}
-              </Button>
-            }
-          />
-        ) : (
-          <Box
-            sx={{
-              display: "grid",
-              gap: 2,
-              gridTemplateColumns: { xs: "repeat(2, minmax(0,1fr))", sm: "repeat(3, minmax(0,1fr))", md: "repeat(4, minmax(0,1fr))" },
-            }}
-          >
-            {visibleDesigns.map((d) => (
-              <DesignCard key={`${d.store_handle}-${d.handle}`} d={d} />
-            ))}
+                {visibleDesigns.map((design) => (
+                  <DesignCard
+                    key={`${design.store_handle}-${design.handle}`}
+                    d={design}
+                  />
+                ))}
+              </Box>
+            )}
           </Box>
-        )}
+        </Box>
       </Container>
     </Box>
   );

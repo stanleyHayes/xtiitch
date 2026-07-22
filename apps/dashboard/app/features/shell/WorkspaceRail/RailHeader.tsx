@@ -22,24 +22,12 @@ export function RailHeader({
     <Box
       sx={{
         position: "relative",
-        overflow: "hidden",
-        p: compact ? 0.75 : 1.25,
-        border: "1px solid",
-        borderColor: alpha(tokens.gold, 0.22),
-        borderRadius: 2.5,
+        overflow: "visible",
+        p: compact ? 0.5 : 0.65,
+        border: 0,
+        borderRadius: 1.5,
         color: tokens.white,
-        backgroundColor: alpha(tokens.white, 0.05),
-        backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${alpha(tokens.gold, 0.16)} 0%, transparent 44%), linear-gradient(150deg, ${alpha(tokens.burgundy, 0.5)} 0%, ${alpha(tokens.ink, 0)} 62%)`,
-        backdropFilter: "blur(14px)",
-        boxShadow: `0 18px 44px ${alpha(tokens.ink, 0.42)}, inset 0 1px 0 ${alpha(tokens.white, 0.12)}`,
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          insetInline: 14,
-          top: 0,
-          height: "1px",
-          background: `linear-gradient(90deg, transparent, ${alpha(tokens.gold, 0.7)}, transparent)`,
-        },
+        backgroundColor: "transparent",
       }}
     >
       <Stack
@@ -60,14 +48,14 @@ export function RailHeader({
               position: "relative",
               width: compact ? 44 : 48,
               height: compact ? 44 : 48,
-              borderRadius: 2,
+              borderRadius: 1.5,
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
               color: tokens.white,
               backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
               border: `1px solid ${alpha(tokens.gold, 0.5)}`,
-              boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
+              boxShadow: `0 10px 24px ${alpha(tokens.burgundy, 0.4)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
             }}
           >
             <Typography
@@ -87,7 +75,8 @@ export function RailHeader({
               <Typography
                 sx={{
                   fontFamily: '"Fraunces", serif',
-                  fontSize: 19,
+                  fontSize: 20,
+                  fontWeight: 850,
                   lineHeight: 1.15,
                   color: tokens.white,
                 }}
@@ -100,7 +89,7 @@ export function RailHeader({
                 sx={{
                   fontSize: 10.5,
                   fontWeight: 800,
-                  letterSpacing: 0,
+                  letterSpacing: "0.16em",
                   textTransform: "uppercase",
                   color: tokens.gold,
                 }}

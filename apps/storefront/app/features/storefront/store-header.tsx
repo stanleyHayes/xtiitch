@@ -1,139 +1,93 @@
-import { Form, Link as RouterLink } from "react-router";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-import Chip from "@mui/material/Chip";
-import Container from "@mui/material/Container";
-import InputAdornment from "@mui/material/InputAdornment";
-import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
+import { Link as RouterLink } from "react-router";
 import AccountCircleRounded from "@mui/icons-material/AccountCircleRounded";
-import SearchRounded from "@mui/icons-material/SearchRounded";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 import StorefrontOutlined from "@mui/icons-material/StorefrontOutlined";
 import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
-import type { Design, StoreSummary } from "../../lib/api";
-import TextField from "../../components/form-text-field";
-import { ThemeModeToggle } from "../../theme-mode";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Container from "@mui/material/Container";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
+import type { StoreSummary } from "../../lib/api";
 import { tokens } from "../../theme";
+import { ThemeModeToggle } from "../../theme-mode";
+import { readableBrandText, resolveStoreBrand } from "./store-brand";
 import { StoreNavMenu } from "./store-nav-menu";
 
-// Readable text colour for an arbitrary brand background.
-function contrastText(hex: string): string {
-  const value = hex.replace("#", "");
-  if (value.length !== 6) {
-    return "#ffffff";
-  }
-  const r = parseInt(value.slice(0, 2), 16);
-  const g = parseInt(value.slice(2, 4), 16);
-  const b = parseInt(value.slice(4, 6), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.6 ? "#15111a" : "#ffffff";
-}
+const fallbackHero = "/images/storefront-atelier-hero.webp";
 
-export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
-  store,
-  designs,
-  query,
-}: {
-  store: StoreSummary;
-  designs: Design[];
-  query: string;
-}) {
-  const brand = store.brand_color || "#800020";
-  const onBrand = contrastText(brand);
-  // Header actions shrink (rather than disappear) on phones, and never wrap
-  // their label mid-button.
-  const compactActionSx = {
-    fontSize: { xs: 12, sm: 14 },
-    px: { xs: 1.25, sm: 2 },
-    whiteSpace: "nowrap",
-  };
-  const outlinedActionSx = {
-    ...compactActionSx,
-    color: onBrand,
-    borderColor: alpha(onBrand, 0.32),
-    "&:hover": { borderColor: alpha(onBrand, 0.58) },
-  };
-  // Plan-gated storefront customizations (the API only returns these for entitled
-  // plans; otherwise they fall back to the Xtiitch defaults below).
+export function StoreHeader({ store }: { store: StoreSummary }) {
+  const brand = resolveStoreBrand(store.brand_color);
+  const onBrand = readableBrandText(brand);
   const logoURL = store.settings.logo_url?.trim() ?? "";
   const bannerURL = store.settings.banner_url?.trim() ?? "";
   const layout = store.settings.layout_variant || "standard";
-  const heroImage = bannerURL || "/images/storefront-atelier-hero.webp";
-  const heroGradient =
-    layout === "minimal"
-      ? `linear-gradient(120deg, ${alpha(brand, 0.98)}, ${alpha(brand, 0.9)})`
-      : layout === "spotlight"
-        ? `linear-gradient(90deg, ${alpha(brand, 0.82)} 0%, ${alpha(brand, 0.4)} 52%, ${alpha(brand, 0.12)} 100%)`
-        : `linear-gradient(90deg, ${alpha(brand, 0.96)} 0%, ${alpha(brand, 0.88)} 46%, ${alpha(brand, 0.46)} 100%)`;
-  const heroBackground =
-    layout === "minimal"
-      ? heroGradient
-      : `${heroGradient}, url("${heroImage}")`;
-  const heroMinHeight =
-    layout === "minimal"
-      ? { xs: 420, md: 460 }
-      : layout === "spotlight"
-        ? { xs: 540, md: 620 }
-        : { xs: 500, md: 560 };
-  const customisableCount = designs.filter(
-    (design) => design.customisation_allowed,
-  ).length;
-  const pricedCount = designs.filter(
-    (design) => design.prices.length > 0,
-  ).length;
+
+  return (
+    <Box component="header" sx={{ bgcolor: "background.paper" }}>
+      <StoreNavBar
+        store={store}
+        brand={brand}
+        onBrand={onBrand}
+        logoURL={logoURL}
+      />
+      <StoreHero
+        store={store}
+        brand={brand}
+        onBrand={onBrand}
+        bannerURL={bannerURL}
+        layout={layout}
+      />
+    </Box>
+  );
+}
+
+function StoreNavBar({
+  store,
+  brand,
+  onBrand,
+  logoURL,
+}: {
+  store: StoreSummary;
+  brand: string;
+  onBrand: string;
+  logoURL: string;
+}) {
   return (
     <Box
-      component="header"
       sx={{
-        color: onBrand,
-        position: "relative",
-        overflow: "hidden",
-        backgroundImage: heroBackground,
-        backgroundSize: "cover",
-        backgroundPosition: "center",
-        minHeight: heroMinHeight,
-        display: "flex",
-        flexDirection: "column",
-        "&::after": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          backgroundImage: `
-            linear-gradient(${alpha(onBrand, 0.08)} 1px, transparent 1px),
-            linear-gradient(90deg, ${alpha(onBrand, 0.08)} 1px, transparent 1px)
-          `,
-          backgroundSize: "44px 44px",
-          maskImage:
-            "linear-gradient(90deg, black 0%, black 58%, transparent 100%)",
-          pointerEvents: "none",
-        },
+        borderBottom: "1px solid",
+        borderColor: alpha(tokens.ink, 0.09),
+        bgcolor: "rgba(var(--surface-rgb), 0.96)",
       }}
     >
       <Container
         sx={{
-          position: "relative",
-          zIndex: 1,
-          py: 2,
+          minHeight: { xs: 68, md: 78 },
+          py: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 2,
         }}
       >
-        <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
+        <Stack
+          direction="row"
+          spacing={1.25}
+          sx={{ alignItems: "center", minWidth: 0 }}
+        >
           <Box
             sx={{
-              width: 42,
-              height: 42,
+              width: 44,
+              height: 44,
               borderRadius: 1.5,
               display: "grid",
               placeItems: "center",
               overflow: "hidden",
-              bgcolor: logoURL ? alpha(onBrand, 0.95) : alpha(onBrand, 0.13),
-              border: "1px solid",
-              borderColor: alpha(onBrand, 0.18),
+              color: onBrand,
+              bgcolor: brand,
               flexShrink: 0,
             }}
           >
@@ -142,77 +96,83 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
                 component="img"
                 src={logoURL}
                 alt={`${store.name} logo`}
-                sx={{ width: "100%", height: "100%", objectFit: "contain" }}
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "contain",
+                  bgcolor: tokens.white,
+                }}
               />
             ) : (
               <StorefrontOutlined />
             )}
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontWeight: 900 }} noWrap>
-              {store.name}
-            </Typography>
             <Typography
-              variant="caption"
-              sx={{ opacity: 0.72, fontWeight: 800 }}
+              component="p"
+              sx={{
+                color: brand,
+                fontFamily: '"Fraunces", Georgia, serif',
+                fontSize: { xs: 19, md: 24 },
+                fontWeight: 750,
+                lineHeight: 1.05,
+              }}
               noWrap
             >
-              {store.handle}.xtiitch.com
+              {store.name}
             </Typography>
+            <Stack
+              direction="row"
+              spacing={0.5}
+              sx={{ alignItems: "center", mt: 0.35 }}
+            >
+              <VerifiedRounded sx={{ color: brand, fontSize: 15 }} />
+              <Typography
+                variant="caption"
+                sx={{ color: "text.secondary", fontWeight: 750 }}
+                noWrap
+              >
+                Verified Xtiitch store
+              </Typography>
+            </Stack>
           </Box>
         </Stack>
+
         <Stack
           direction="row"
-          spacing={1}
-          useFlexGap
-          sx={{
-            alignItems: "center",
-            justifyContent: { xs: "flex-start", sm: "flex-end" },
-          }}
+          spacing={0.5}
+          sx={{ alignItems: "center", flexShrink: 0 }}
         >
-          <ThemeModeToggle sx={{ color: onBrand }} />
-          <Button
-            href="#designs"
-            variant="contained"
-            sx={{
-              ...compactActionSx,
-              bgcolor: alpha(onBrand, 0.92),
-              color: brand,
-              "&:hover": { bgcolor: onBrand },
-            }}
-          >
-            Browse pieces
-          </Button>
-          {/* §10.3: Cart / Track order / Account / About Xtiitch stay as raw
-              buttons on desktop (sm+ would crowd, so desktop = md and up)… */}
           <Stack
+            component="nav"
+            aria-label="Store navigation"
             direction="row"
-            spacing={1}
-            useFlexGap
-            sx={{
-              display: { xs: "none", md: "flex" },
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
+            spacing={0.25}
+            sx={{ display: { xs: "none", md: "flex" }, alignItems: "center" }}
           >
+            <Button href="#designs" sx={{ color: "text.primary" }}>
+              Browse pieces
+            </Button>
             <Button
               component={RouterLink}
               to="/cart"
-              variant="outlined"
               startIcon={<ShoppingBagRounded />}
-              sx={outlinedActionSx}
+              sx={{ color: "text.primary" }}
             >
               Cart
             </Button>
-            <Button component={RouterLink} to="/track" variant="outlined" sx={outlinedActionSx}>
+            <Button
+              component={RouterLink}
+              to="/track"
+              sx={{ color: "text.primary" }}
+            >
               Track order
             </Button>
             <Button
               component={RouterLink}
               to="/account"
-              variant="outlined"
               startIcon={<AccountCircleRounded />}
-              sx={outlinedActionSx}
+              sx={{ color: "text.primary" }}
             >
               Account
             </Button>
@@ -220,124 +180,124 @@ export function StoreHeader({ // eslint-disable-line complexity, max-lines-per-f
               href="https://xtiitch.com"
               target="_blank"
               rel="noopener noreferrer"
-              variant="outlined"
-              sx={outlinedActionSx}
+              sx={{ color: "text.primary" }}
             >
               About Xtiitch
             </Button>
           </Stack>
-          {/* …and collapse into a single menu icon on mobile. */}
-          <StoreNavMenu onBrand={onBrand} />
+          <ThemeModeToggle sx={{ color: "text.primary" }} />
+          <StoreNavMenu />
         </Stack>
       </Container>
+    </Box>
+  );
+}
 
-      <Container
-        sx={{
-          position: "relative",
-          zIndex: 1,
-          flex: 1,
-          display: "grid",
-          alignItems: "center",
-          py: { xs: 5, md: 7 },
-        }}
-      >
-        <Box sx={{ maxWidth: 720 }}>
-          <Stack
-            direction="row"
-            spacing={1.2}
-            sx={{ alignItems: "center", mb: 1.25, flexWrap: "wrap" }}
-          >
-            <Chip
-              size="small"
-              icon={<VerifiedRounded />}
-              label="Verified Xtiitch store"
-              sx={{
-                color: onBrand,
-                bgcolor: alpha(onBrand, 0.12),
-                border: "1px solid",
-                borderColor: alpha(onBrand, 0.18),
-                "& .MuiChip-icon": { color: alpha(onBrand, 0.78) },
-              }}
-            />
-            <Chip
-              size="small"
-              label={`${designs.length} ${designs.length === 1 ? "piece" : "pieces"}`}
-              sx={{
-                color: onBrand,
-                bgcolor: alpha(onBrand, 0.12),
-                border: "1px solid",
-                borderColor: alpha(onBrand, 0.18),
-              }}
-            />
-          </Stack>
+function StoreHero({
+  store,
+  brand,
+  onBrand,
+  bannerURL,
+  layout,
+}: {
+  store: StoreSummary;
+  brand: string;
+  onBrand: string;
+  bannerURL: string;
+  layout: string;
+}) {
+  const minimal = layout === "minimal";
+  const spotlight = layout === "spotlight";
+  const heroImage = bannerURL || fallbackHero;
+
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        minHeight: minimal
+          ? { xs: 310, md: 330 }
+          : spotlight
+            ? { xs: 430, md: 470 }
+            : { xs: 360, md: 390 },
+        display: "flex",
+        alignItems: "center",
+        overflow: "hidden",
+        color: minimal ? onBrand : tokens.white,
+        bgcolor: minimal ? brand : tokens.ink,
+        backgroundImage: minimal ? "none" : `url("${heroImage}")`,
+        backgroundSize: "cover",
+        backgroundPosition: spotlight ? "center 38%" : "center",
+        "&::before": minimal
+          ? undefined
+          : {
+              content: '""',
+              position: "absolute",
+              inset: 0,
+              bgcolor: alpha(tokens.ink, 0.48),
+            },
+      }}
+    >
+      <Container sx={{ position: "relative", zIndex: 1, py: { xs: 5, md: 6 } }}>
+        <Box sx={{ maxWidth: { xs: 560, md: 660 } }}>
           <Typography
             variant="h2"
             component="h1"
             sx={{
-              maxWidth: 680,
-              fontSize: { xs: "2.6rem", md: "4.15rem" },
+              fontSize: {
+                xs: "2.7rem",
+                md: spotlight ? "4.8rem" : "4.25rem",
+              },
               lineHeight: 0.98,
+              textShadow: minimal
+                ? "none"
+                : `0 3px 24px ${alpha(tokens.ink, 0.48)}`,
             }}
           >
             {store.name}
           </Typography>
+          <Box
+            sx={{
+              width: 42,
+              height: 3,
+              bgcolor: minimal ? onBrand : brand,
+              my: 2.25,
+            }}
+          />
           <Typography
             sx={{
-              mt: 2,
-              opacity: 0.82,
-              maxWidth: 620,
-              fontSize: { xs: 17, md: 20 },
+              maxWidth: 520,
+              fontSize: { xs: 17, md: 19 },
+              lineHeight: 1.55,
             }}
           >
             Browse available pieces, choose a fit route, and start an order from
             the design that feels right.
           </Typography>
-
-          <Form method="get" role="search">
-            <TextField
-              name="q"
-              defaultValue={query}
-              placeholder="Search pieces"
-              size="medium"
-              fullWidth
-              slotProps={{
-                input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchRounded fontSize="small" />
-                    </InputAdornment>
-                  ),
-                },
-              }}
+          <Stack
+            direction={{ xs: "column", sm: "row" }}
+            spacing={1.25}
+            sx={{ mt: 3, alignItems: { xs: "stretch", sm: "center" } }}
+          >
+            <Button
+              href="#designs"
+              variant="contained"
+              endIcon={<ArrowForwardRounded />}
               sx={{
-                mt: 3,
-                maxWidth: 560,
-                "& .MuiOutlinedInput-root": {
-                  bgcolor: "rgba(var(--surface-rgb), 0.96)",
-                  color: "text.primary",
-                  boxShadow: `0 16px 42px ${alpha(tokens.ink, 0.16)}`,
-                },
+                bgcolor: brand,
+                color: onBrand,
+                "&:hover": { bgcolor: brand, filter: "brightness(0.92)" },
               }}
-            />
-          </Form>
-
-          <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: "wrap" }}>
-            {[
-              { label: "Priced pieces", value: String(pricedCount) },
-              { label: "Custom options", value: String(customisableCount) },
-            ].map((signal) => (
-              <Chip
-                key={signal.label}
-                label={`${signal.value} ${signal.label.toLowerCase()}`}
-                sx={{
-                  color: onBrand,
-                  bgcolor: alpha(onBrand, 0.12),
-                  border: "1px solid",
-                  borderColor: alpha(onBrand, 0.18),
-                  fontWeight: 850,
-                }}
-              />
-            ))}
+            >
+              Browse pieces
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/track"
+              variant="outlined"
+              sx={{ color: "inherit", borderColor: "currentColor" }}
+            >
+              Track an order
+            </Button>
           </Stack>
         </Box>
       </Container>

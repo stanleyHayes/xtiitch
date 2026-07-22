@@ -60,7 +60,6 @@ export function NavItems({
           compact={compact}
           inDrawer={inDrawer}
           open={openGroups[group.id] ?? true}
-          solo={group.id === "overview"}
           onToggle={() => toggleGroup(group.id)}
           onCloseMobile={onCloseMobile}
         />
@@ -69,14 +68,15 @@ export function NavItems({
   );
 }
 
-function WorkspaceGroup({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// Group markup includes both collapsed and expanded rail presentations.
+// eslint-disable-next-line max-lines-per-function
+function WorkspaceGroup({
   group,
   section,
   badges,
   compact,
   inDrawer,
   open,
-  solo,
   onToggle,
   onCloseMobile,
 }: {
@@ -86,7 +86,6 @@ function WorkspaceGroup({ // eslint-disable-line max-lines-per-function -- large
   compact: boolean;
   inDrawer: boolean;
   open: boolean;
-  solo: boolean;
   onToggle: () => void;
   onCloseMobile: () => void;
 }) {
@@ -99,138 +98,131 @@ function WorkspaceGroup({ // eslint-disable-line max-lines-per-function -- large
 
   return (
     <Box>
-      {!solo &&
-        (compact ? (
-          <Tooltip title={group.label} placement="right">
-            <IconButton
-              aria-label={`${group.label} navigation group`}
-              aria-expanded={open}
-              onClick={onToggle}
-              sx={{
-                width: "100%",
-                height: 40,
-                color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
-                border: "1px solid",
-                borderColor: activeGroup
-                  ? alpha(groupTone, 0.34)
-                  : alpha(tokens.white, 0.1),
-                bgcolor: activeGroup
-                  ? alpha(groupTone, 0.12)
-                  : alpha(tokens.white, 0.035),
-                borderRadius: 1.25,
-                "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
-              }}
-            >
-              <Badge
-                color="error"
-                badgeContent={groupBadge}
-                invisible={groupBadge === 0}
-                max={99}
-                sx={{
-                  "& .MuiBadge-badge": {
-                    bgcolor: tokens.burgundy,
-                    color: tokens.white,
-                    border: `1px solid ${alpha(tokens.white, 0.28)}`,
-                  },
-                }}
-              >
-                {group.icon}
-              </Badge>
-            </IconButton>
-          </Tooltip>
-        ) : (
-          <Button
-            type="button"
-            onClick={onToggle}
-            startIcon={group.icon}
-            endIcon={
-              open ? (
-                <KeyboardArrowDownRounded />
-              ) : (
-                <KeyboardArrowRightRounded />
-              )
-            }
+      {compact ? (
+        <Tooltip title={group.label} placement="right">
+          <IconButton
+            aria-label={`${group.label} navigation group`}
             aria-expanded={open}
-            fullWidth
+            onClick={onToggle}
             sx={{
-              minHeight: 36,
-              justifyContent: "flex-start",
-              color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
-              borderRadius: 1.25,
+              width: "100%",
+              height: 40,
+              color: activeGroup ? groupTone : alpha(tokens.white, 0.78),
               border: "1px solid",
               borderColor: activeGroup
-                ? alpha(groupTone, 0.3)
-                : "transparent",
-              bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
-              position: "relative",
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                left: 0,
-                top: 9,
-                bottom: 9,
-                width: 2,
-                borderRadius: 4,
-                bgcolor: activeGroup ? groupTone : "transparent",
-              },
-              "& .MuiButton-startIcon": {
-                color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
-              },
-              "& .MuiButton-endIcon": {
-                ml: "auto",
-                color: alpha(tokens.white, 0.56),
-              },
-              "&:hover": {
-                bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                borderColor: alpha(tokens.white, 0.1),
-              },
+                ? alpha(groupTone, 0.34)
+                : alpha(tokens.white, 0.1),
+              bgcolor: activeGroup
+                ? alpha(groupTone, 0.12)
+                : alpha(tokens.white, 0.035),
+              borderRadius: 1.25,
+              "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.1)" },
             }}
           >
-            <Box
-              component="span"
+            <Badge
+              color="error"
+              badgeContent={groupBadge}
+              invisible={groupBadge === 0}
+              max={99}
               sx={{
-                minWidth: 0,
-                flex: 1,
-                textAlign: "left",
-                fontSize: 12,
-                fontWeight: 950,
-                letterSpacing: 0,
-                textTransform: "uppercase",
+                "& .MuiBadge-badge": {
+                  bgcolor: tokens.burgundy,
+                  color: tokens.white,
+                  border: `1px solid ${alpha(tokens.white, 0.28)}`,
+                },
               }}
             >
-              {group.label}
-            </Box>
-            {groupBadge > 0 ? (
-              <Chip
-                size="small"
-                label={groupBadge}
-                sx={{
-                  height: 20,
-                  mr: 0.5,
-                  color: tokens.white,
-                  bgcolor: alpha(tokens.burgundy, 0.72),
-                  border: "1px solid",
-                  borderColor: alpha(tokens.white, 0.14),
-                }}
-              />
-            ) : null}
-          </Button>
-        ))}
-      <Collapse in={solo || open} timeout="auto" unmountOnExit>
+              {group.icon}
+            </Badge>
+          </IconButton>
+        </Tooltip>
+      ) : (
+        <Button
+          type="button"
+          onClick={onToggle}
+          startIcon={group.icon}
+          endIcon={
+            open ? <KeyboardArrowDownRounded /> : <KeyboardArrowRightRounded />
+          }
+          aria-expanded={open}
+          fullWidth
+          sx={{
+            minHeight: 40,
+            justifyContent: "flex-start",
+            px: 0.65,
+            color: activeGroup ? groupTone : alpha(tokens.white, 0.72),
+            borderRadius: 0.75,
+            border: 0,
+            bgcolor: "transparent",
+            position: "relative",
+            "& .MuiButton-startIcon": {
+              mr: 1.25,
+              color: activeGroup ? groupTone : alpha(groupTone, 0.82),
+            },
+            "& .MuiButton-endIcon": {
+              ml: "auto",
+              color: alpha(tokens.white, 0.56),
+            },
+            "&:hover": {
+              bgcolor: alpha(tokens.white, 0.055),
+              color: groupTone,
+            },
+          }}
+        >
+          <Box
+            component="span"
+            sx={{
+              minWidth: 0,
+              flex: 1,
+              textAlign: "left",
+              fontSize: 11.5,
+              fontWeight: 850,
+              letterSpacing: "0.16em",
+              textTransform: "uppercase",
+            }}
+          >
+            {group.label}
+          </Box>
+          {groupBadge > 0 ? (
+            <Chip
+              size="small"
+              label={groupBadge}
+              sx={{
+                height: 20,
+                mr: 0.5,
+                color: tokens.white,
+                bgcolor: alpha(tokens.burgundy, 0.72),
+                border: "1px solid",
+                borderColor: alpha(tokens.white, 0.14),
+              }}
+            />
+          ) : null}
+        </Button>
+      )}
+      <Collapse in={open} timeout="auto" unmountOnExit>
         <Stack
           spacing={0.55}
           sx={{
-            mt: 0.6,
+            mt: 0.25,
             display: "grid",
-            // Indent + a connecting rail so grouped items read as nested under
-            // their header (solo Overview has no header, so no indent).
-            ...(solo
+            position: "relative",
+            ...(compact
               ? {}
               : {
-                  ml: 1.25,
-                  pl: 1.5,
-                  borderLeft: "1px solid",
-                  borderColor: alpha(tokens.white, 0.14),
+                  ml: 1.45,
+                  pl: 2.45,
+                  "&::before": {
+                    content: '""',
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    bottom: 24,
+                    width: 2,
+                    borderRadius: 999,
+                    bgcolor: activeGroup
+                      ? alpha(groupTone, 0.58)
+                      : alpha(groupTone, 0.34),
+                  },
                 }),
           }}
         >
@@ -251,7 +243,9 @@ function WorkspaceGroup({ // eslint-disable-line max-lines-per-function -- large
   );
 }
 
-function NavItem({ // eslint-disable-line complexity -- large presentational component; refactor in follow-up
+// The item adapts its link, badge, connector, and compact state in one component.
+// eslint-disable-next-line complexity
+function NavItem({
   item,
   section,
   badge,
@@ -285,20 +279,8 @@ function NavItem({ // eslint-disable-line complexity -- large presentational com
         color: active ? tokens.white : alpha(tokens.white, 0.88),
         bgcolor: active ? alpha(tokens.white, 0.11) : "transparent",
         border: "1px solid",
-        borderColor: active
-          ? alpha(tokens.gold, 0.24)
-          : "transparent",
+        borderColor: active ? alpha(tokens.gold, 0.24) : "transparent",
         borderRadius: 1.25,
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          left: 0,
-          top: 7,
-          bottom: 7,
-          width: 3,
-          borderRadius: 4,
-          bgcolor: active ? tokens.gold : "transparent",
-        },
         "& .MuiButton-startIcon": {
           color: active ? tokens.gold : alpha(tokens.white, 0.58),
         },
@@ -306,9 +288,7 @@ function NavItem({ // eslint-disable-line complexity -- large presentational com
           bgcolor: "rgba(var(--surface-rgb), 0.09)",
           borderColor: alpha(tokens.white, 0.12),
           color: tokens.white,
-          transform: compact
-            ? "translateY(-1px)"
-            : "translateX(2px)",
+          transform: compact ? "translateY(-1px)" : "translateX(1px)",
           "& .MuiButton-startIcon": {
             color: active ? tokens.gold : tokens.white,
           },
@@ -380,7 +360,26 @@ function NavItem({ // eslint-disable-line complexity -- large presentational com
   );
 
   return (
-    <Box>
+    <Box
+      sx={
+        compact
+          ? undefined
+          : {
+              position: "relative",
+              "&::before": {
+                content: '""',
+                position: "absolute",
+                zIndex: 1,
+                left: -19.5,
+                top: 23,
+                width: 19.5,
+                height: 2,
+                borderRadius: 999,
+                bgcolor: active ? tokens.gold : alpha(tokens.gold, 0.42),
+              },
+            }
+      }
+    >
       {compact ? (
         <Tooltip title={item.label} placement="right">
           {button}

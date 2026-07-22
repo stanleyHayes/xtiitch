@@ -7,7 +7,7 @@ import CloseRounded from "@mui/icons-material/CloseRounded";
 import ShieldRounded from "@mui/icons-material/ShieldRounded";
 import { tokens } from "../../../theme";
 
-export function RailHeader({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function RailHeader({
   collapsed,
   brandLogoUrl,
   onClose,
@@ -20,24 +20,12 @@ export function RailHeader({ // eslint-disable-line max-lines-per-function -- la
     <Box
       sx={{
         position: "relative",
-        overflow: "hidden",
-        p: collapsed ? 0.75 : 1.25,
-        border: "1px solid",
-        borderColor: alpha(tokens.gold, 0.22),
-        borderRadius: 2.5,
+        overflow: "visible",
+        p: collapsed ? 0.5 : 0.65,
+        border: 0,
+        borderRadius: 1.5,
         color: tokens.white,
-        backgroundColor: alpha(tokens.white, 0.05),
-        backgroundImage: `radial-gradient(120% 140% at 0% 0%, ${alpha(tokens.gold, 0.16)} 0%, transparent 44%), linear-gradient(150deg, ${alpha(tokens.burgundy, 0.5)} 0%, ${alpha(tokens.ink, 0)} 62%)`,
-        backdropFilter: "blur(14px)",
-        boxShadow: `0 18px 44px ${alpha(tokens.ink, 0.42)}, inset 0 1px 0 ${alpha(tokens.white, 0.12)}`,
-        "&::before": {
-          content: '""',
-          position: "absolute",
-          insetInline: 14,
-          top: 0,
-          height: "1px",
-          background: `linear-gradient(90deg, transparent, ${alpha(tokens.gold, 0.7)}, transparent)`,
-        },
+        backgroundColor: "transparent",
       }}
     >
       <Stack
@@ -58,7 +46,7 @@ export function RailHeader({ // eslint-disable-line max-lines-per-function -- la
               position: "relative",
               width: collapsed ? 44 : 48,
               height: collapsed ? 44 : 48,
-              borderRadius: 2,
+              borderRadius: 1.5,
               display: "grid",
               placeItems: "center",
               flexShrink: 0,
@@ -68,7 +56,7 @@ export function RailHeader({ // eslint-disable-line max-lines-per-function -- la
                 ? `linear-gradient(155deg, ${alpha(tokens.white, 0.06)}, ${alpha(tokens.charcoal, 0.18)})`
                 : `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
               border: `1px solid ${alpha(tokens.gold, 0.5)}`,
-              boxShadow: `0 14px 30px ${alpha(tokens.burgundy, 0.5)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
+              boxShadow: `0 10px 24px ${alpha(tokens.burgundy, 0.4)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
             }}
           >
             {brandLogoUrl ? (
@@ -119,7 +107,8 @@ export function RailHeader({ // eslint-disable-line max-lines-per-function -- la
               <Typography
                 sx={{
                   fontFamily: '"Fraunces", serif',
-                  fontSize: 18,
+                  fontSize: 20,
+                  fontWeight: 850,
                   lineHeight: 1.15,
                   color: tokens.white,
                 }}
@@ -130,9 +119,9 @@ export function RailHeader({ // eslint-disable-line max-lines-per-function -- la
               <Typography
                 component="span"
                 sx={{
-                  fontSize: 10,
+                  fontSize: 10.5,
                   fontWeight: 800,
-                  letterSpacing: 0,
+                  letterSpacing: "0.18em",
                   textTransform: "uppercase",
                   color: tokens.gold,
                 }}

@@ -1,158 +1,114 @@
+import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
+import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
+import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined";
+import StraightenRounded from "@mui/icons-material/StraightenRounded";
 import Box from "@mui/material/Box";
-import Chip from "@mui/material/Chip";
 import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import ContentCutRounded from "@mui/icons-material/ContentCutRounded";
-import CreditCardRounded from "@mui/icons-material/CreditCardRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
-import StraightenRounded from "@mui/icons-material/StraightenRounded";
-import VerifiedRounded from "@mui/icons-material/VerifiedRounded";
 import type { StoreSummary } from "../../lib/api";
 import { tokens } from "../../theme";
+import { resolveStoreBrand } from "./store-brand";
 
 export function StoreOrderGuide({ store }: { store: StoreSummary }) {
-  const brand = store.brand_color || tokens.burgundy;
+  const brand = resolveStoreBrand(store.brand_color);
   const steps = [
     {
       title: "Choose the piece",
-      helper:
-        "Open a design to compare prices, available sizes, and custom fit routes.",
+      helper: "Browse the catalogue or start with a custom route.",
       icon: <ContentCutRounded />,
     },
     {
       title: "Select a fit route",
       helper: store.settings.bespoke_enabled
-        ? "Order a listed size, send measurements, book a visit, or reserve shop measurement."
-        : "Use the listed-size checkout this store has published.",
+        ? "Share measurements, choose a size, or book a visit."
+        : "Choose from the sizes the store has published.",
       icon: <StraightenRounded />,
     },
     {
-      title: "Pay or reserve",
-      helper:
-        "Online payments open in the secure checkout; shop-measurement requests can start without payment.",
+      title: "Confirm and pay",
+      helper: "Review the order and complete secure checkout.",
       icon: <CreditCardRounded />,
     },
     {
-      title: "Track production",
-      helper:
-        "Keep the tracking link to follow stage updates, pickup, or delivery handover.",
-      icon: <LocalShippingRounded />,
+      title: "Track your order",
+      helper: "Follow production through pickup or delivery.",
+      icon: <Inventory2Outlined />,
     },
   ];
 
   return (
     <Box
       sx={{
-        bgcolor: "rgba(var(--surface-rgb), 0.68)",
-        borderBottom: "1px solid",
-        borderColor: alpha(tokens.ink, 0.08),
+        borderBlock: "1px solid",
+        borderColor: alpha(tokens.ink, 0.09),
+        bgcolor: "rgba(var(--surface-rgb), 0.78)",
       }}
     >
-      <Container sx={{ py: { xs: 3.5, md: 4.5 } }}>
-        <Stack
-          direction={{ xs: "column", md: "row" }}
-          spacing={2.5}
-          sx={{
-            alignItems: { xs: "flex-start", md: "flex-end" },
-            justifyContent: "space-between",
-            mb: 2.5,
-          }}
-        >
-          <Box sx={{ maxWidth: 620 }}>
-            <Typography
-              variant="caption"
-              sx={{
-                color: brand,
-                fontWeight: 900,
-                textTransform: "uppercase",
-              }}
-            >
-              How ordering works
-            </Typography>
-            <Typography variant="h5" component="h2">
-              From browse to handover
-            </Typography>
-            <Typography sx={{ mt: 0.75, color: "text.secondary" }}>
-              Each store controls its catalogue and fulfilment; Xtiitch keeps
-              the order route, checkout, and tracking link in one place.
-            </Typography>
-          </Box>
-          <Chip
-            icon={<VerifiedRounded />}
-            label="No account needed to browse"
-            sx={{
-              bgcolor: alpha(brand, 0.08),
-              color: brand,
-              fontWeight: 900,
-              "& .MuiChip-icon": { color: brand },
-            }}
-          />
-        </Stack>
-
+      <Container sx={{ py: { xs: 3, md: 3.5 } }}>
         <Box
           sx={{
             display: "grid",
-            gap: 1.5,
+            gap: { xs: 2.5, md: 2 },
             gridTemplateColumns: {
               xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
-              lg: "repeat(4, minmax(0, 1fr))",
+              md: "220px repeat(4, minmax(0, 1fr))",
             },
+            alignItems: "start",
           }}
         >
-          {steps.map((step, index) => (
-            <Box
-              key={step.title}
-              sx={{
-                p: 1.75,
-                minHeight: 176,
-                borderRadius: "8px",
-                border: "1px solid",
-                borderColor: alpha(brand, 0.13),
-                bgcolor: "rgba(var(--surface-rgb), 0.78)",
-                display: "flex",
-                flexDirection: "column",
-                gap: 1.25,
-              }}
+          <Box>
+            <Typography
+              variant="caption"
+              sx={{ color: brand, fontWeight: 900, textTransform: "uppercase" }}
             >
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ alignItems: "center", minWidth: 0 }}
+              From browse to handover
+            </Typography>
+            <Typography variant="h6" component="h2" sx={{ mt: 0.4 }}>
+              How ordering works
+            </Typography>
+          </Box>
+          {steps.map((step, index) => (
+            <Stack
+              key={step.title}
+              direction="row"
+              spacing={1.25}
+              sx={{ minWidth: 0, position: "relative" }}
+            >
+              <Box
+                sx={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: 1.25,
+                  display: "grid",
+                  placeItems: "center",
+                  color: brand,
+                  bgcolor: alpha(brand, 0.075),
+                  flexShrink: 0,
+                  "& svg": { fontSize: 22 },
+                }}
               >
-                <Box
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "8px",
-                    display: "grid",
-                    placeItems: "center",
-                    bgcolor: alpha(brand, 0.08),
-                    color: brand,
-                    flexShrink: 0,
-                  }}
-                >
-                  {step.icon}
-                </Box>
+                {step.icon}
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
                 <Typography
                   variant="caption"
-                  sx={{ color: "text.secondary", fontWeight: 900 }}
+                  sx={{ color: brand, fontWeight: 900 }}
                 >
-                  Step {index + 1}
+                  {String(index + 1).padStart(2, "0")}
                 </Typography>
-              </Stack>
-              <Box>
-                <Typography sx={{ fontWeight: 950 }}>{step.title}</Typography>
+                <Typography sx={{ fontWeight: 900, lineHeight: 1.25 }}>
+                  {step.title}
+                </Typography>
                 <Typography
                   variant="body2"
-                  sx={{ mt: 0.6, color: "text.secondary" }}
+                  sx={{ mt: 0.4, color: "text.secondary", lineHeight: 1.45 }}
                 >
                   {step.helper}
                 </Typography>
               </Box>
-            </Box>
+            </Stack>
           ))}
         </Box>
       </Container>

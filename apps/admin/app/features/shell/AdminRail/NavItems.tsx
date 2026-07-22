@@ -23,7 +23,9 @@ import {
   adminOverviewNavId,
 } from "../../shared/types";
 
-export function NavItems({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// The complete navigation tree stays together so group state and badges share one source of truth.
+// eslint-disable-next-line max-lines-per-function
+export function NavItems({
   section,
   collapsed,
   notificationCount,
@@ -77,7 +79,7 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
     item: AdminNavItem,
     compact: boolean,
     close?: () => void,
-  ) => { // eslint-disable-line complexity -- large presentational component; refactor in follow-up
+  ) => {
     const selected = item.id === section;
     const badge = navBadge(item.id);
     const button = (
@@ -100,22 +102,12 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
           bgcolor: selected ? alpha(tokens.white, 0.11) : "transparent",
           transition:
             "transform 180ms ease, background-color 180ms ease, border-color 180ms ease",
-          "&::before": {
-            content: '""',
-            position: "absolute",
-            left: 0,
-            top: 8,
-            bottom: 8,
-            width: 3,
-            borderRadius: 4,
-            bgcolor: selected ? tokens.gold : "transparent",
-          },
           "&.Mui-selected": {
             bgcolor: "rgba(var(--surface-rgb), 0.11)",
           },
           "&.Mui-selected:hover, &:hover": {
             bgcolor: "rgba(var(--surface-rgb), 0.09)",
-            transform: compact ? "translateY(-1px)" : "translateX(2px)",
+            transform: compact ? "translateY(-1px)" : "translateX(1px)",
           },
         }}
       >
@@ -195,6 +187,8 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
     );
   };
 
+  // Group markup includes both collapsed and expanded rail presentations.
+  /* eslint-disable max-lines-per-function */
   const renderNavGroup = (
     group: AdminNavGroup,
     compact: boolean,
@@ -207,7 +201,7 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
       const value = Number(navBadge(item.id) ?? 0);
       return Number.isFinite(value) ? total + value : total;
     }, 0);
-    const groupTone = placement === "bottom" ? tokens.gold : tokens.warning;
+    const groupTone = placement === "bottom" ? tokens.gold : tokens.gold;
 
     return (
       <Box key={group.id}>
@@ -260,34 +254,25 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
             aria-expanded={open}
             fullWidth
             sx={{
-              minHeight: 36,
+              minHeight: 40,
               justifyContent: "flex-start",
-              color: activeGroup ? tokens.white : alpha(tokens.white, 0.72),
-              borderRadius: 1.25,
-              border: "1px solid",
-              borderColor: activeGroup ? alpha(groupTone, 0.3) : "transparent",
-              bgcolor: activeGroup ? alpha(groupTone, 0.11) : "transparent",
+              px: 0.65,
+              color: activeGroup ? groupTone : alpha(tokens.white, 0.72),
+              borderRadius: 0.75,
+              border: 0,
+              bgcolor: "transparent",
               position: "relative",
-              "&::before": {
-                content: '""',
-                position: "absolute",
-                left: 0,
-                top: 9,
-                bottom: 9,
-                width: 2,
-                borderRadius: 4,
-                bgcolor: activeGroup ? groupTone : "transparent",
-              },
               "& .MuiButton-startIcon": {
-                color: activeGroup ? groupTone : alpha(tokens.white, 0.62),
+                mr: 1.25,
+                color: activeGroup ? groupTone : alpha(groupTone, 0.82),
               },
               "& .MuiButton-endIcon": {
                 ml: "auto",
                 color: alpha(tokens.white, 0.56),
               },
               "&:hover": {
-                bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                borderColor: alpha(tokens.white, 0.1),
+                bgcolor: alpha(tokens.white, 0.055),
+                color: groupTone,
               },
             }}
           >
@@ -297,9 +282,9 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
                 minWidth: 0,
                 flex: 1,
                 textAlign: "left",
-                fontSize: 12,
-                fontWeight: 950,
-                letterSpacing: 0,
+                fontSize: 11.5,
+                fontWeight: 850,
+                letterSpacing: "0.16em",
                 textTransform: "uppercase",
               }}
             >
@@ -325,19 +310,64 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
           <List
             sx={{
               p: 0,
-              mt: 0.6,
+              mt: 0.25,
               display: "grid",
-              gap: 0.55,
+              gap: 0.2,
+              position: "relative",
+              ...(compact
+                ? {}
+                : {
+                    ml: 1.45,
+                    pl: 2.45,
+                    "&::before": {
+                      content: '""',
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      bottom: 24,
+                      width: 2,
+                      borderRadius: 999,
+                      bgcolor: activeGroup
+                        ? alpha(groupTone, 0.58)
+                        : alpha(groupTone, 0.34),
+                    },
+                  }),
             }}
           >
             {group.items.map((item) => (
-              <Box key={item.id}>{renderNavItem(item, compact, close)}</Box>
+              <Box
+                key={item.id}
+                sx={
+                  compact
+                    ? undefined
+                    : {
+                        position: "relative",
+                        "&::before": {
+                          content: '""',
+                          position: "absolute",
+                          zIndex: 1,
+                          left: -19.5,
+                          top: 23,
+                          width: 19.5,
+                          height: 2,
+                          borderRadius: 999,
+                          bgcolor:
+                            item.id === section
+                              ? groupTone
+                              : alpha(groupTone, 0.42),
+                        },
+                      }
+                }
+              >
+                {renderNavItem(item, compact, close)}
+              </Box>
             ))}
           </List>
         </Collapse>
       </Box>
     );
   };
+  /* eslint-enable max-lines-per-function */
 
   return (
     <Box sx={{ flex: 1, minHeight: 0 }}>
@@ -346,18 +376,22 @@ export function NavItems({ // eslint-disable-line max-lines-per-function -- larg
           p: 0,
           mt: collapsed ? 0 : 0.85,
           display: "grid",
-          gap: collapsed ? 0.65 : 0.85,
+          gap: collapsed ? 0.65 : 1.15,
         }}
       >
-        {renderNavItem(adminNavItem(adminOverviewNavId), collapsed, onClose)}
-        <Box
-          sx={{
-            height: "1px",
-            my: 0.4,
-            bgcolor: alpha(tokens.white, 0.08),
-          }}
-        />
-        {adminNavGroups.map((group) => renderNavGroup(group, collapsed, onClose))}
+        {renderNavGroup(
+          {
+            id: "dashboard",
+            label: "Dashboard",
+            icon: adminNavItem(adminOverviewNavId).icon,
+            items: [adminNavItem(adminOverviewNavId)],
+          },
+          collapsed,
+          onClose,
+        )}
+        {adminNavGroups.map((group) =>
+          renderNavGroup(group, collapsed, onClose),
+        )}
       </List>
     </Box>
   );

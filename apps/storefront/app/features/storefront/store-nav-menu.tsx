@@ -15,7 +15,7 @@ import ShoppingBagRounded from "@mui/icons-material/ShoppingBagRounded";
 // §10.3: on phones the tenant/marketplace store header's top buttons (Cart,
 // Track order, Account, About Xtiitch) collapse into one menu icon instead of
 // wrapping raw across the hero. Small screens only — desktop keeps the buttons.
-export function StoreNavMenu({ onBrand }: { onBrand: string }) {
+export function StoreNavMenu({ onBrand }: { onBrand?: string }) {
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const close = () => setAnchor(null);
 
@@ -28,9 +28,9 @@ export function StoreNavMenu({ onBrand }: { onBrand: string }) {
         onClick={(event) => setAnchor(event.currentTarget)}
         sx={{
           display: { xs: "inline-flex", md: "none" },
-          color: onBrand,
+          color: onBrand || "text.primary",
           border: "1px solid",
-          borderColor: alpha(onBrand, 0.32),
+          borderColor: onBrand ? alpha(onBrand, 0.32) : "divider",
           borderRadius: 1.5,
         }}
       >

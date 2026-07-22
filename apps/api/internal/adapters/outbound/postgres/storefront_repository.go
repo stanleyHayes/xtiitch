@@ -59,14 +59,23 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
 			select b.business_id, b.name, b.handle,
-				coalesce(nullif(ss.brand_color, ''), '#800020'),
-				coalesce(ss.banner_url, ''),
+				case
+					when coalesce((p.features->>'custom_brand_color')::boolean, false)
+						then coalesce(nullif(ss.brand_color, ''), '#800020')
+					else '#800020'
+				end,
+				case
+					when coalesce((p.features->>'custom_banner')::boolean, false)
+						then coalesce(ss.banner_url, '')
+					else ''
+				end,
 				(select count(*) from designs d
 					where d.business_id = b.business_id and d.status = 'active')
 			from businesses b
 			-- LEFT so a store with no store_settings row still appears once it is
 			-- payment-ready.
 			left join store_settings ss on ss.business_id = b.business_id
+			join plans p on p.plan_id = b.plan_id
 			-- P0.5: gate marketplace appearance on a PROVISIONED PAYOUT SUBACCOUNT.
 			-- The marketplace is a shoppable, checkout-ready surface (and the §4
 			-- multi-store split settles to each store's subaccount), so only stores
@@ -199,9 +208,29 @@ func loadStore(ctx context.Context, tx pgx.Tx, where string, args ...any) (ports
 	var store ports.Storefront
 	err := tx.QueryRow(ctx, `
 		select b.business_id, b.name, b.handle, b.default_deposit_minor,
-			ss.brand_color, ss.bespoke_enabled, ss.measurements_enabled,
+			case
+				when coalesce((p.features->>'custom_brand_color')::boolean, false)
+					then coalesce(nullif(ss.brand_color, ''), '#800020')
+				else '#800020'
+			end,
+			ss.bespoke_enabled, ss.measurements_enabled,
 			ss.customisation_enabled, ss.collections_enabled, ss.delivery_enabled, ss.dispatch_enabled,
-			coalesce(ss.logo_url, ''), coalesce(ss.banner_url, ''), ss.layout_variant,
+			case
+				when coalesce((p.features->>'custom_logo')::boolean, false)
+					then coalesce(ss.logo_url, '')
+				else ''
+			end,
+			case
+				when coalesce((p.features->>'custom_banner')::boolean, false)
+					then coalesce(ss.banner_url, '')
+				else ''
+			end,
+			case
+				when coalesce((p.features->>'custom_layout')::boolean, false)
+					and ss.layout_variant in ('standard', 'spotlight', 'minimal')
+					then ss.layout_variant
+				else 'standard'
+			end,
 			coalesce((p.features->>'design_waitlist')::boolean, false),
 			coalesce((p.features->>'online_ordering')::boolean, false),
 			-- Inverted on purpose: the badge SHOWS unless the plan grants its
