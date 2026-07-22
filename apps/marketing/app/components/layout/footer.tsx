@@ -1,31 +1,62 @@
 import { Link as RouterLink, useRouteLoaderData } from "react-router";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
+import ArrowOutwardRounded from "@mui/icons-material/ArrowOutwardRounded";
+import Instagram from "@mui/icons-material/Instagram";
+import MusicNoteRounded from "@mui/icons-material/MusicNoteRounded";
 import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
-import Stack from "@mui/material/Stack";
+import Container from "@mui/material/Container";
 import Divider from "@mui/material/Divider";
 import Link from "@mui/material/Link";
-import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import { site } from "../../content";
-import { Logo } from "./logo";
+import { tokens } from "../../theme";
 import { footerGroups, footerProof } from "./footer-data";
+import { Logo } from "./logo";
 
-export function Footer() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
-  const year = 2026;
+const socialLinks = [
+  {
+    label: "Instagram",
+    handle: "@xtiitch",
+    href: "https://www.instagram.com/xtiitch?igsh=b2JyejFueXBreHpp&utm_source=qr",
+    icon: <Instagram />,
+  },
+  {
+    label: "TikTok",
+    handle: "@xtiitch",
+    href: "https://www.tiktok.com/@xtiitch?_r=1&_t=ZS-98FyVEdkVZV",
+    icon: <MusicNoteRounded />,
+  },
+] as const;
+
+const footerLinkSx = {
+  width: "fit-content",
+  color: "rgba(255,255,255,.68)",
+  fontSize: 14,
+  fontWeight: 650,
+  textDecoration: "none",
+  transition: "color 160ms ease, transform 160ms ease",
+  "&:hover": { color: tokens.white, transform: "translateX(3px)" },
+} as const;
+
+// eslint-disable-next-line max-lines-per-function -- cohesive editorial footer composition
+export function Footer() {
   const rootData = useRouteLoaderData("root") as
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
+
   return (
     <Box
       component="footer"
       sx={{
         position: "relative",
         overflow: "hidden",
-        bgcolor: "secondary.main",
-        color: "common.white",
-        borderTop: "1px solid rgba(197,139,44,0.4)",
+        color: tokens.white,
+        bgcolor: tokens.ink,
+        borderTop: `1px solid ${alpha(tokens.gold, 0.32)}`,
       }}
     >
       <Box
@@ -34,309 +65,272 @@ export function Footer() { // eslint-disable-line max-lines-per-function -- larg
           position: "absolute",
           inset: 0,
           pointerEvents: "none",
-          background: `
-            radial-gradient(58% 80% at 6% -12%, rgba(128,0,32,0.6), transparent 60%),
-            radial-gradient(46% 64% at 102% -6%, rgba(197,139,44,0.16), transparent 56%),
-            radial-gradient(40% 60% at 52% 128%, rgba(128,0,32,0.5), transparent 62%)
-          `,
+          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.035)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.035)} 1px, transparent 1px), radial-gradient(circle at 82% 4%, ${alpha(tokens.burgundy, 0.58)}, transparent 34%)`,
+          backgroundSize: "42px 42px, 42px 42px, auto",
+          maskImage: "linear-gradient(to bottom, black, rgba(0,0,0,.78))",
         }}
       />
-      <Container sx={{ position: "relative", py: { xs: 6, md: 9 } }}>
+
+      <Container
+        maxWidth="xl"
+        sx={{ position: "relative", py: { xs: 5, md: 7 } }}
+      >
         <Box
           sx={{
-            position: "relative",
-            overflow: "hidden",
-            borderRadius: 3,
-            p: { xs: 3, md: 5 },
-            mb: { xs: 6, md: 8 },
-            background:
-              "linear-gradient(135deg, rgba(128,0,32,0.96), rgba(94,0,24,0.96))",
-            border: "1px solid rgba(255,255,255,0.12)",
-            boxShadow: "0 44px 90px -54px rgba(0,0,0,0.85)",
+            display: "grid",
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "minmax(0, 1.45fr) minmax(340px, .55fr)",
+            },
+            gap: { xs: 3, lg: 5 },
+            alignItems: "stretch",
           }}
         >
           <Box
-            aria-hidden
             sx={{
-              position: "absolute",
-              top: -130,
-              right: -90,
-              width: 380,
-              height: 380,
-              borderRadius: "50%",
-              border: "1px solid rgba(255,255,255,0.10)",
-              background:
-                "radial-gradient(circle, rgba(197,139,44,0.20), transparent 66%)",
-            }}
-          />
-          <Box
-            sx={{
-              position: "relative",
-              display: "grid",
-              gap: { xs: 3, md: 4 },
-              gridTemplateColumns: { xs: "1fr", md: "1.45fr auto" },
-              alignItems: "center",
+              p: { xs: 3, md: 4.5 },
+              borderRadius: 3,
+              background: `linear-gradient(135deg, ${tokens.burgundy}, #4f0014)`,
+              border: `1px solid ${alpha(tokens.white, 0.14)}`,
+              boxShadow: `0 32px 80px ${alpha(tokens.ink, 0.36)}`,
             }}
           >
-            <Box>
-              <Typography
-                sx={{
-                  color: "rgba(232,196,128,0.95)",
-                  fontWeight: 800,
-                  letterSpacing: "0.14em",
-                  fontSize: 12,
-                  textTransform: "uppercase",
-                }}
-              >
-                Open for business
-              </Typography>
-              <Typography
-                variant="h3"
-                component="p"
-                sx={{
-                  mt: 1.5,
-                  color: "common.white",
-                  fontSize: { xs: 26, md: 38 },
-                  maxWidth: 640,
-                }}
-              >
-                Start free, then grow into a plan when orders pick up.
-              </Typography>
-              <Typography
-                sx={{ mt: 2, color: "rgba(255,255,255,0.76)", maxWidth: 580 }}
-              >
-                {site.promise}
-              </Typography>
-            </Box>
-            <Stack spacing={1.5} sx={{ minWidth: { md: 248 } }}>
+            <Typography
+              variant="overline"
+              sx={{ color: "#efd59d", fontWeight: 900, letterSpacing: ".16em" }}
+            >
+              Fashion, in good order
+            </Typography>
+            <Typography
+              component="p"
+              sx={{
+                mt: 1,
+                maxWidth: 760,
+                fontFamily: '"Fraunces", Georgia, serif',
+                fontSize: { xs: 30, md: 46 },
+                fontWeight: 800,
+                lineHeight: 1.04,
+              }}
+            >
+              Put your studio where customers can find it.
+            </Typography>
+            <Typography
+              sx={{
+                mt: 1.75,
+                maxWidth: 660,
+                color: alpha(tokens.white, 0.74),
+                lineHeight: 1.7,
+              }}
+            >
+              Start with a real storefront, keep every order moving, and give
+              customers a clearer way to buy from you.
+            </Typography>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              spacing={1.25}
+              sx={{ mt: 3, alignItems: { sm: "center" } }}
+            >
               <Button
                 component="a"
                 href={signupUrl}
                 variant="contained"
                 size="large"
-                endIcon={<ArrowForwardRoundedIcon />}
+                endIcon={<ArrowForwardRounded />}
                 sx={{
-                  bgcolor: "common.white",
-                  color: "primary.main",
-                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
+                  bgcolor: tokens.white,
+                  color: tokens.burgundy,
+                  "&:hover": { bgcolor: "#fff7f3" },
                 }}
               >
-                {site.primaryCta.label}
+                Start for free
               </Button>
               <Button
                 component={RouterLink}
-                to={site.secondaryCta.href}
-                variant="outlined"
+                to="/how-it-works"
+                variant="text"
                 size="large"
-                sx={{
-                  color: "common.white",
-                  borderColor: "rgba(255,255,255,0.4)",
-                  "&:hover": {
-                    borderColor: "common.white",
-                    bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                  },
-                }}
+                sx={{ color: tokens.white }}
               >
-                {site.secondaryCta.label}
+                See how it works
               </Button>
             </Stack>
           </Box>
-          <Stack
-            direction="row"
-            spacing={1}
-            useFlexGap
-            sx={{ position: "relative", mt: { xs: 3, md: 4 }, flexWrap: "wrap" }}
+
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-between",
+              p: { xs: 2.5, md: 3 },
+              borderRadius: 3,
+              bgcolor: alpha(tokens.white, 0.055),
+              border: `1px solid ${alpha(tokens.white, 0.12)}`,
+            }}
           >
-            {footerProof.map((item) => (
-              <Box
-                key={item.label}
-                sx={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 1,
-                  minHeight: 36,
-                  px: 1.5,
-                  borderRadius: 999,
-                  color: "rgba(255,255,255,0.86)",
-                  bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                  border: "1px solid rgba(255,255,255,0.16)",
-                  "& svg": { fontSize: 17, color: "rgba(232,196,128,0.9)" },
-                }}
+            <Box>
+              <Typography sx={{ fontWeight: 850, fontSize: 18 }}>
+                Follow the stitch
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ mt: 0.5, color: alpha(tokens.white, 0.62) }}
               >
-                {item.icon}
-                <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                  {item.label}
-                </Typography>
-              </Box>
-            ))}
-          </Stack>
+                New studios, fresh pieces, and practical fashion-business ideas.
+              </Typography>
+            </Box>
+            <Stack spacing={1.25} sx={{ mt: 2.5 }}>
+              {socialLinks.map((social) => (
+                <Box
+                  key={social.label}
+                  component="a"
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 1.5,
+                    minHeight: 62,
+                    px: 2,
+                    color: tokens.white,
+                    textDecoration: "none",
+                    borderRadius: 2,
+                    bgcolor: alpha(tokens.white, 0.065),
+                    border: `1px solid ${alpha(tokens.white, 0.12)}`,
+                    transition:
+                      "background-color 160ms ease, transform 160ms ease",
+                    "&:hover": {
+                      bgcolor: alpha(tokens.white, 0.11),
+                      transform: "translateY(-2px)",
+                    },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 1.5,
+                      display: "grid",
+                      placeItems: "center",
+                      bgcolor: alpha(tokens.gold, 0.16),
+                      color: "#efd59d",
+                    }}
+                  >
+                    {social.icon}
+                  </Box>
+                  <Box sx={{ minWidth: 0, flex: 1 }}>
+                    <Typography sx={{ fontWeight: 850, lineHeight: 1.2 }}>
+                      {social.label}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      sx={{ color: alpha(tokens.white, 0.58) }}
+                    >
+                      {social.handle}
+                    </Typography>
+                  </Box>
+                  <ArrowOutwardRounded fontSize="small" />
+                </Box>
+              ))}
+            </Stack>
+          </Box>
         </Box>
+
+        <Divider
+          sx={{ my: { xs: 4, md: 5 }, borderColor: alpha(tokens.white, 0.11) }}
+        />
 
         <Box
           sx={{
             display: "grid",
-            gap: { xs: 4, md: 6 },
-            gridTemplateColumns: { xs: "1fr", md: "1.05fr 1.95fr" },
+            gridTemplateColumns: {
+              xs: "1fr",
+              lg: "minmax(260px, .9fr) minmax(0, 2.1fr)",
+            },
+            gap: { xs: 4, lg: 7 },
           }}
         >
           <Box>
             <Logo tone="light" />
             <Typography
               sx={{
-                mt: 2.5,
-                color: "rgba(255,255,255,0.78)",
-                maxWidth: 360,
-                fontSize: 18,
-                lineHeight: 1.5,
+                mt: 2,
+                maxWidth: 380,
+                color: alpha(tokens.white, 0.68),
+                lineHeight: 1.65,
               }}
             >
               {site.oneLiner}
             </Typography>
-            <Box
-              sx={{
-                mt: 3,
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 1.25,
-                px: 1.75,
-                py: 1.25,
-                borderRadius: 2,
-                bgcolor: "rgba(var(--surface-rgb), 0.05)",
-                border: "1px solid rgba(255,255,255,0.14)",
-              }}
+            <Stack
+              direction="row"
+              useFlexGap
+              sx={{ mt: 2.5, flexWrap: "wrap", gap: 0.75 }}
             >
-              <Box
-                aria-hidden
-                sx={{
-                  width: 9,
-                  height: 9,
-                  borderRadius: "50%",
-                  bgcolor: "#c58b2c",
-                  boxShadow: "0 0 0 4px rgba(197,139,44,0.22)",
-                }}
-              />
-              <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                Xtiitch never holds your money
-              </Typography>
-            </Box>
+              {footerProof.map((item) => (
+                <Box
+                  key={item.label}
+                  sx={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.65,
+                    px: 1.1,
+                    py: 0.65,
+                    borderRadius: 999,
+                    color: alpha(tokens.white, 0.72),
+                    bgcolor: alpha(tokens.white, 0.05),
+                    border: `1px solid ${alpha(tokens.white, 0.1)}`,
+                    "& svg": { fontSize: 15, color: "#efd59d" },
+                  }}
+                >
+                  {item.icon}
+                  <Typography variant="caption" sx={{ fontWeight: 750 }}>
+                    {item.label}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
           </Box>
 
           <Box
             sx={{
               display: "grid",
-              gap: { xs: 4, md: 3 },
-              gridTemplateColumns: { xs: "1fr 1fr", sm: "repeat(4, 1fr)" },
+              gridTemplateColumns: {
+                xs: "repeat(2, minmax(0, 1fr))",
+                sm: "repeat(4, minmax(0, 1fr))",
+              },
+              gap: { xs: 3, md: 4 },
             }}
           >
             {footerGroups.map((group) => (
               <Box key={group.heading}>
-                <Box
-                  sx={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 1,
-                    mb: 1.75,
-                    color: "common.white",
-                    "& svg": { fontSize: 18 },
-                  }}
+                <Typography
+                  sx={{ mb: 1.25, color: tokens.white, fontWeight: 850 }}
                 >
-                  <Box
-                    aria-hidden
-                    sx={{
-                      width: 30,
-                      height: 30,
-                      borderRadius: 1,
-                      display: "grid",
-                      placeItems: "center",
-                      color: "common.white",
-                      background:
-                        "linear-gradient(135deg, rgba(128,0,32,0.6), rgba(197,139,44,0.32))",
-                      border: "1px solid rgba(255,255,255,0.16)",
-                    }}
-                  >
-                    {group.icon}
-                  </Box>
-                  <Typography
-                    variant="subtitle2"
-                    sx={{
-                      fontWeight: 800,
-                      letterSpacing: "0.02em",
-                      color: "rgba(255,255,255,0.96)",
-                    }}
-                  >
-                    {group.heading}
-                  </Typography>
-                </Box>
-                <Stack spacing={0.5}>
-                  {group.links.map((link) => {
-                    const linkSx = {
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 1,
-                      width: "fit-content",
-                      minHeight: 32,
-                      color: "rgba(255,255,255,0.74)",
-                      fontWeight: 600,
-                      fontSize: 14,
-                      "& svg": { fontSize: 16 },
-                      "& .footer-link-icon": {
-                        color: "rgba(255,255,255,0.6)",
-                        transition:
-                          "transform 180ms ease, color 180ms ease, background-color 180ms ease",
-                      },
-                      "&:hover": {
-                        color: "common.white",
-                        "& .footer-link-icon": {
-                          transform: "translateX(2px)",
-                          color: "#e8c480",
-                          bgcolor: "rgba(197,139,44,0.18)",
-                        },
-                      },
-                    } as const;
-                    const iconBox = (
-                      <Box
-                        component="span"
-                        className="footer-link-icon"
-                        aria-hidden
-                        sx={{
-                          width: 24,
-                          height: 24,
-                          borderRadius: 1,
-                          display: "grid",
-                          placeItems: "center",
-                          bgcolor: "rgba(var(--surface-rgb), 0.06)",
-                        }}
-                      >
-                        {link.icon}
-                      </Box>
-                    );
-                    if (link.href.startsWith("mailto:")) {
-                      return (
-                        <Link
-                          key={link.href}
-                          component="a"
-                          href={link.href}
-                          underline="none"
-                          sx={linkSx}
-                        >
-                          {iconBox}
-                          {link.label}
-                        </Link>
-                      );
-                    }
-                    return (
+                  {group.heading}
+                </Typography>
+                <Stack spacing={0.65}>
+                  {group.links.map((item) =>
+                    item.href.startsWith("/") ? (
                       <Link
-                        key={link.href}
+                        key={item.href}
                         component={RouterLink}
-                        to={link.href}
-                        underline="none"
-                        sx={linkSx}
+                        to={item.href}
+                        sx={footerLinkSx}
                       >
-                        {iconBox}
-                        {link.label}
+                        {item.label}
                       </Link>
-                    );
-                  })}
+                    ) : (
+                      <Link
+                        key={item.href}
+                        component="a"
+                        href={item.href}
+                        sx={footerLinkSx}
+                      >
+                        {item.label}
+                      </Link>
+                    ),
+                  )}
                 </Stack>
               </Box>
             ))}
@@ -344,25 +338,29 @@ export function Footer() { // eslint-disable-line max-lines-per-function -- larg
         </Box>
 
         <Divider
-          sx={{ my: { xs: 4, md: 5 }, borderColor: "rgba(255,255,255,0.12)" }}
+          sx={{
+            my: { xs: 3.5, md: 4.5 },
+            borderColor: alpha(tokens.white, 0.11),
+          }}
         />
 
-        <Box
+        <Stack
+          direction={{ xs: "column", md: "row" }}
+          spacing={1}
           sx={{
-            display: "flex",
-            flexDirection: { xs: "column", md: "row" },
-            gap: 1.5,
             justifyContent: "space-between",
-            alignItems: { xs: "flex-start", md: "center" },
+            color: alpha(tokens.white, 0.48),
           }}
         >
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-            © {year} {site.company}. Built for Ghanaian fashion businesses.
+          <Typography variant="caption">
+            © {new Date().getFullYear()} {site.company}. Built in Ghana for
+            fashion businesses.
           </Typography>
-          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.6)" }}>
-            Xtiitch never holds customer funds; payments settle through Paystack.
+          <Typography variant="caption">
+            Payments settle securely through Paystack. Xtiitch never holds
+            customer funds.
           </Typography>
-        </Box>
+        </Stack>
       </Container>
     </Box>
   );

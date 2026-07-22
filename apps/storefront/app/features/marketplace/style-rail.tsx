@@ -5,25 +5,48 @@ import Container from "@mui/material/Container";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import type { FlatDesign } from "./types";
 import { tokens } from "../../theme";
 
 const categories = [
-  { label: "Wedding guest", helper: "Elegant looks", query: "wedding guest" },
-  { label: "Kente & Adire", helper: "Heritage weaves", query: "kente adire" },
-  { label: "Menswear", helper: "Sharp & modern", query: "menswear" },
-  { label: "Ready to wear", helper: "Everyday styles", query: "ready to wear" },
-  { label: "Accessories", helper: "Finishing touches", query: "accessories" },
-  { label: "Bridal", helper: "Timeless beauty", query: "bridal" },
+  {
+    label: "Wedding guest",
+    helper: "Elegant looks",
+    query: "wedding guest",
+    image: "/images/style-wedding-guest.webp",
+  },
+  {
+    label: "Kente & Adire",
+    helper: "Heritage weaves",
+    query: "kente adire",
+    image: "/images/style-kente-adire.webp",
+  },
+  {
+    label: "Menswear",
+    helper: "Sharp & modern",
+    query: "menswear",
+    image: "/images/style-menswear.webp",
+  },
+  {
+    label: "Ready to wear",
+    helper: "Everyday styles",
+    query: "ready to wear",
+    image: "/images/style-ready-to-wear.webp",
+  },
+  {
+    label: "Accessories",
+    helper: "Finishing touches",
+    query: "accessories",
+    image: "/images/style-accessories.webp",
+  },
+  {
+    label: "Bridal",
+    helper: "Timeless beauty",
+    query: "bridal",
+    image: "/images/style-bridal.webp",
+  },
 ] as const;
 
-const fallbackImages = [
-  "/images/storefront-fitting.webp",
-  "/images/storefront-atelier-review.webp",
-  "/images/storefront-atelier-hero.webp",
-];
-
-export function StyleRail({ designs }: { designs: FlatDesign[] }) {
+export function StyleRail() {
   return (
     <Box
       component="section"
@@ -55,10 +78,7 @@ export function StyleRail({ designs }: { designs: FlatDesign[] }) {
             spacing={{ xs: 2.5, md: 4 }}
             sx={{ overflowX: "auto", flex: 1, pb: 0.5, scrollbarWidth: "thin" }}
           >
-            {categories.map((category, index) => {
-              const image =
-                designs[index]?.image ||
-                fallbackImages[index % fallbackImages.length];
+            {categories.map((category) => {
               return (
                 <Stack
                   key={category.label}
@@ -79,11 +99,13 @@ export function StyleRail({ designs }: { designs: FlatDesign[] }) {
                 >
                   <Box
                     component="img"
-                    src={image}
-                    alt=""
+                    src={category.image}
+                    alt={`${category.label} style`}
+                    loading="lazy"
                     sx={{
                       width: 52,
                       height: 52,
+                      flexShrink: 0,
                       borderRadius: "50%",
                       objectFit: "cover",
                       border: "1px solid",

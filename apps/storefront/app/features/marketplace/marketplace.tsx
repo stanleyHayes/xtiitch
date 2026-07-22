@@ -139,7 +139,7 @@ export function Marketplace({
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
       <MarketplaceHeader />
       <MarketplaceHero />
-      <StyleRail designs={designs} />
+      <StyleRail />
 
       <Container maxWidth="xl" component="main" sx={{ py: { xs: 3, md: 4 } }}>
         <Box
@@ -341,21 +341,16 @@ export function Marketplace({
                       xs: "1fr",
                       sm: "repeat(2, minmax(0, 1fr))",
                       md: "repeat(2, minmax(0, 1fr))",
-                      xl: "1.08fr .92fr .92fr",
+                      lg: "repeat(3, minmax(0, 1fr))",
                     },
-                    gridAutoRows: { md: 224 },
+                    gridAutoRows: { xs: 320, sm: 330, lg: 300 },
                     gap: 1.5,
-                    "& > :first-of-type": {
-                      gridRow: { md: "span 2" },
-                      gridColumn: { sm: "span 2", xl: "span 1" },
-                    },
                   }}
                 >
-                  {visibleStudios.map((shop, index) => (
+                  {visibleStudios.map((shop) => (
                     <StudioCard
                       key={shop.handle}
                       shop={shop}
-                      featured={index === 0}
                       promoted={promotedHandles.has(shop.handle)}
                     />
                   ))}
