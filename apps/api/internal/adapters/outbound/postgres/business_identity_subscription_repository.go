@@ -362,12 +362,13 @@ func (repo BusinessIdentityRepository) RecordSubscriptionActivationPayment(
 }
 
 // PrepareSubscriptionActivationCharge returns the deterministic charge reference
-// for the subscription's current period and whether a first charge is still due
-// (no paid invoice already recorded for that period). Keying the ref on the
-// subscription + cadence + period makes the first-period charge idempotent
-// against retries and the verify-callback being hit twice: a repeated verify at
-// the same cadence reuses the same ref, so Paystack dedupes the charge and the
-// paid-invoice insert no-ops.
+// for the subscription's target plan and current period and whether a first
+// charge is still due (no paid invoice already recorded for that plan/period).
+// Keying the ref on the subscription + plan + cadence + period makes retries and
+// repeated verify callbacks idempotent without letting a lower plan's paid
+// invoice swallow an upgrade. A repeated verify at the same target/cadence
+// reuses the same ref, so Paystack dedupes the charge and the invoice insert
+// no-ops.
 //
 // The period anchor is the current period's start while that period is still
 // LIVE (current_period_end > now()), so retries of an in-flight or completed
@@ -393,29 +394,39 @@ func (repo BusinessIdentityRepository) PrepareSubscriptionActivationCharge(
 		return ports.SubscriptionActivationCharge{}, err
 	}
 
-	var subscriptionID, billingCadence string
+	var subscriptionID, billingCadence, chargePlanID, chargePlanCode string
 	var periodStart time.Time
 	if err := tx.QueryRow(ctx, `
 		select subscription_id::text,
 			case when current_period_end > now() then current_period_start else now() end,
-			coalesce(billing_cadence, '')
-		from business_subscriptions where business_id = $1
-	`, businessID.String()).Scan(&subscriptionID, &periodStart, &billingCadence); err != nil {
+			coalesce(billing_cadence, ''),
+			charge_plan.plan_id::text,
+			charge_plan.code
+		from business_subscriptions s
+		join plans charge_plan on charge_plan.plan_id = case
+			when s.pending_plan_id is not null and s.pending_plan_effective_at is null
+				then s.pending_plan_id
+			else s.plan_id
+		end
+		where s.business_id = $1
+	`, businessID.String()).Scan(&subscriptionID, &periodStart, &billingCadence, &chargePlanID, &chargePlanCode); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ports.SubscriptionActivationCharge{}, ErrNotFound
 		}
 		return ports.SubscriptionActivationCharge{}, err
 	}
 
-	ref := "xtsub_act_" + subscriptionID + "_" + billingCadence + "_" + strconv.FormatInt(periodStart.Unix(), 10)
+	ref := "xtsub_act_" + subscriptionID + "_" + chargePlanCode + "_" + billingCadence + "_" +
+		strconv.FormatInt(periodStart.Unix(), 10)
 
 	var alreadyPaid bool
 	if err := tx.QueryRow(ctx, `
 		select exists(
 			select 1 from business_subscription_invoices
-			where invoice_ref = $1 and status = 'paid'
+			where status = 'paid'
+				and (invoice_ref = $1 or (plan_id = $2 and period_start = $3))
 		)
-	`, ref).Scan(&alreadyPaid); err != nil {
+	`, ref, chargePlanID, periodStart).Scan(&alreadyPaid); err != nil {
 		return ports.SubscriptionActivationCharge{}, err
 	}
 

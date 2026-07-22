@@ -48,11 +48,11 @@ type BusinessIdentityRepository interface {
 	SchedulePlanDowngrade(ctx context.Context, input SchedulePlanDowngradeInput) error
 	ActivateRecurringBilling(ctx context.Context, input ActivateRecurringBillingInput) error
 	// PrepareSubscriptionActivationCharge returns a DETERMINISTIC charge reference
-	// for the subscription's current period and whether a first charge is still
-	// due (no paid invoice for that period yet). The stable ref makes the
-	// first-period charge idempotent: a repeated authorization-verify reuses the
-	// same ref, so Paystack dedupes the charge and the paid-invoice insert is a
-	// no-op — preventing a double charge on retry/replay.
+	// for the subscription's target plan/current period and whether a first charge
+	// is still due (no paid invoice for that plan and period yet). The stable ref
+	// makes the first-period charge idempotent: a repeated authorization-verify
+	// reuses the same ref, so Paystack dedupes the charge and the paid-invoice
+	// insert is a no-op — preventing a double charge on retry/replay.
 	PrepareSubscriptionActivationCharge(ctx context.Context, businessID common.ID) (SubscriptionActivationCharge, error)
 	// RecordSubscriptionActivationPayment books the first recurring charge a tenant
 	// paid at authorization time: a paid invoice for the current period plus the

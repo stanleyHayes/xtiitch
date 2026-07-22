@@ -12,6 +12,7 @@ package postgres
 import (
 	"context"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -143,6 +144,50 @@ func TestActivationChargeKeepsTheLivePeriodAnchor(t *testing.T) {
 	}
 	if !activation.ShouldCharge {
 		t.Fatalf("no activation invoice exists yet for the live sub; a charge is still due")
+	}
+}
+
+// A paid Starter period must not be mistaken for a paid Growth activation just
+// because both use quarterly billing and share the same period anchor. This was
+// the production bug where quarterly returned straight to the dashboard while
+// yearly opened Paystack: the old ref omitted the target plan.
+func TestActivationChargeScopesPaidPeriodToPendingTargetPlan(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedActivationFixtures(t, pool)
+	defer cleanupActivationFixtures(t, pool)
+
+	repo := NewBusinessIdentityRepository(pool)
+	ctx := context.Background()
+	starterCharge, err := repo.PrepareSubscriptionActivationCharge(ctx, common.ID(itActBizLive))
+	if err != nil {
+		t.Fatalf("prepare Starter charge: %v", err)
+	}
+	if err := repo.RecordSubscriptionActivationPayment(ctx, ports.RecordSubscriptionActivationPaymentInput{
+		BusinessID: common.ID(itActBizLive), AmountMinor: 29700, Currency: "GHS",
+		ChargeRef: starterCharge.Ref, PeriodStart: starterCharge.PeriodStart, BillingCadence: "quarterly",
+	}); err != nil {
+		t.Fatalf("record Starter payment: %v", err)
+	}
+
+	var growthPlanID string
+	if err := pool.QueryRow(ctx, `select plan_id::text from plans where code = 'growth' limit 1`).Scan(&growthPlanID); err != nil {
+		t.Fatalf("read Growth plan: %v", err)
+	}
+	if err := repo.SetPendingPlanUpgrade(ctx, common.ID(itActBizLive), common.ID(growthPlanID)); err != nil {
+		t.Fatalf("park Growth target: %v", err)
+	}
+
+	growthCharge, err := repo.PrepareSubscriptionActivationCharge(ctx, common.ID(itActBizLive))
+	if err != nil {
+		t.Fatalf("prepare Growth charge: %v", err)
+	}
+	if !growthCharge.ShouldCharge {
+		t.Fatal("a paid Starter invoice must not mark the pending Growth plan paid")
+	}
+	if growthCharge.Ref == starterCharge.Ref || !strings.Contains(growthCharge.Ref, "_growth_quarterly_") {
+		t.Fatalf("target plan must distinguish the activation ref: starter=%q growth=%q",
+			starterCharge.Ref, growthCharge.Ref)
 	}
 }
 
