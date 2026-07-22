@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -140,6 +140,10 @@ export function CtaRow({
 }: {
   align?: "flex-start" | "center";
 }) {
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   return (
     <Stack
       direction={{ xs: "column", sm: "row" }}
@@ -150,8 +154,8 @@ export function CtaRow({
       }}
     >
       <Button
-        component={RouterLink}
-        to={site.primaryCta.href}
+        component="a"
+        href={signupUrl}
         variant="contained"
         size="large"
         endIcon={<ArrowForwardRoundedIcon />}

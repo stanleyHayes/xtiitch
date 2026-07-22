@@ -217,7 +217,7 @@ export default function Security() { // eslint-disable-line max-lines-per-functi
 
       <CtaBand
         title="Payments you and your customers can trust"
-        body="Join the waitlist and start taking secure payments straight to your own account."
+        body="Create your store and start taking secure payments through your connected Paystack account."
       />
     </>
   );

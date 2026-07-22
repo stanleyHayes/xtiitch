@@ -21,9 +21,6 @@ export const footerGroups: {
     label: string;
     href: string;
     icon: ReactNode;
-    // Legal pages aren't ready for public review, so the labels stay but must
-    // not navigate to their (unreviewed) routes yet.
-    nonNavigating?: boolean;
   }[];
 }[] = [
   {
@@ -58,8 +55,8 @@ export const footerGroups: {
     links: [
       { label: "Security", href: "/security", icon: <SecurityRoundedIcon /> },
       {
-        label: "Join the waitlist",
-        href: "/contact",
+        label: "Contact support",
+        href: "mailto:support@xtiitch.com",
         icon: <MailRoundedIcon />,
       },
     ],
@@ -72,19 +69,16 @@ export const footerGroups: {
         label: "Privacy",
         href: "/privacy",
         icon: <PrivacyTipRoundedIcon />,
-        nonNavigating: true,
       },
       {
         label: "Terms",
         href: "/terms",
         icon: <ArticleRoundedIcon />,
-        nonNavigating: true,
       },
       {
         label: "Payment policy",
         href: "/payment-policy",
         icon: <PaymentsRoundedIcon />,
-        nonNavigating: true,
       },
     ],
   },

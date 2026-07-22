@@ -49,9 +49,9 @@ export default function Pricing() {
 
       <Section alt>
         <SectionHeading
-          eyebrow="Growth add-ons"
-          title="Promo, affiliate and sponsored tools sit above the plan"
-          subtitle="Plan pricing runs the store. Growth programmes are controlled separately so every code, partner link, and sponsored post has its own approval, ledger, and date window."
+          eyebrow="Platform programmes"
+          title="Operator-managed programmes sit outside plan entitlements"
+          subtitle="Plan pricing runs the store. Referral, affiliate and sponsored programmes have separate approval and ledger controls; promotion codes are currently parked and are not included in any plan."
         />
         <Box
           sx={{
@@ -126,7 +126,7 @@ export default function Pricing() {
 
       <CtaBand
         title="Start on Free, upgrade when it pays off"
-        body="There’s no monthly cost to get online. Join the waitlist to claim your store."
+        body="There’s no monthly cost to get online. Create your store now and choose a paid plan whenever the lower sales fee and added tools make sense."
       />
     </>
   );

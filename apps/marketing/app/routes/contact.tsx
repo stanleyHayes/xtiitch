@@ -1,250 +1,124 @@
 import type { MetaDescriptor } from "react-router";
+import { useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
-import Stack from "@mui/material/Stack";
+import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
-import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import MailRoundedIcon from "@mui/icons-material/MailRounded";
+import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
+import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
 import { pageMeta } from "../components/seo";
-import { Eyebrow } from "../components/ui";
-import { WaitlistForm } from "../components/waitlist-form";
-import {
-  parseWaitlist,
-  submitWaitlistLead,
-  type WaitlistResult,
-} from "../lib/waitlist";
+import { PageHero, Section } from "../components/ui";
+import { site } from "../content";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
-    title: "Join the waitlist",
+    title: "Contact Xtiitch",
     description:
-      "Tell us about your fashion business and join the Xtiitch waitlist. We’ll set you up with your store as onboarding opens.",
+      "Create your Xtiitch store or contact the support team for account, payment, privacy and product help.",
     path: "/contact",
   });
 }
 
-export async function action({
-  request,
-}: {
-  request: Request;
-}): Promise<WaitlistResult> {
-  const formData = await request.formData();
-  const parsed = parseWaitlist(formData);
+const contactOptions = [
+  {
+    title: "Create your store",
+    body: "Registration is open. Start on the Free plan, publish your storefront and upgrade whenever the added tools make sense.",
+    action: "Start for free",
+    href: "signup",
+    icon: <StorefrontRoundedIcon />,
+  },
+  {
+    title: "Get product support",
+    body: "Ask about setup, billing, orders, payments or your storefront. Include your business name and payment reference when relevant.",
+    action: "Email support",
+    href: "mailto:support@xtiitch.com",
+    icon: <SupportAgentRoundedIcon />,
+  },
+  {
+    title: "Privacy and legal requests",
+    body: "Use the same support address for privacy rights, policy questions, account closure or a formal complaint.",
+    action: "Contact the team",
+    href: "mailto:support@xtiitch.com",
+    icon: <MailRoundedIcon />,
+  },
+] as const;
 
-  if (!parsed.ok) {
-    return { ok: false, errors: parsed.errors };
-  }
+export default function Contact() {
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
 
-  // The form carries an optional source page; default to the contact page.
-  const rawSource = formData.get("source");
-  const source =
-    typeof rawSource === "string" && rawSource.trim()
-      ? rawSource.trim()
-      : "marketing-contact";
-
-  const delivery = await submitWaitlistLead(parsed.values, source);
-  if (!delivery.ok) {
-    return { ok: false, errors: { form: delivery.message } };
-  }
-
-  return { ok: true };
-}
-
-const reassurance: string[] = [
-  "We’ll reach out as onboarding opens for new businesses.",
-  "Setup is guided — your store, sizes and first designs.",
-  "No monthly cost to start on the Free plan.",
-  "Your details are only used to set up and reach you.",
-];
-
-const launchSteps = ["Request", "Guided setup", "Store live"] as const;
-
-export default function Contact() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
   return (
-    <Box
-      sx={{
-        position: "relative",
-        overflow: "hidden",
-        bgcolor: "background.default",
-        py: { xs: 6, md: 9 },
-        "&:before": {
-          content: '""',
-          position: "absolute",
-          inset: 0,
-          opacity: 0.65,
-          background:
-            "linear-gradient(90deg, rgba(128,0,32,0.035) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.026) 1px, transparent 1px)",
-          backgroundSize: "42px 42px",
-          pointerEvents: "none",
-        },
-      }}
-    >
-      <Container sx={{ position: "relative" }}>
+    <>
+      <PageHero
+        eyebrow="Contact"
+        title="Start your store or talk to us"
+        subtitle="Self-serve registration is open, and the Xtiitch team is available when you need help with the product, payments or your information."
+      />
+      <Section>
         <Box
           sx={{
             display: "grid",
-            gap: { xs: 4, md: 6 },
-            gridTemplateColumns: { xs: "1fr", md: "0.95fr 1.05fr" },
-            alignItems: "start",
+            gap: 2.5,
+            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
           }}
         >
-          <Box
-            sx={{
-              position: "relative",
-              overflow: "hidden",
-              borderRadius: 1,
-              border: "1px solid",
-              borderColor: "divider",
-              minHeight: { xs: 560, md: 720 },
-              bgcolor: "secondary.main",
-              color: "common.white",
-              boxShadow: "0 34px 90px -58px rgba(21,17,26,0.74)",
-            }}
-          >
-            <Box
-              component="img"
-              src="/images/atelier-hero.webp"
-              alt="Fashion atelier with burgundy garments and a sewing machine"
-              loading="lazy"
-              decoding="async"
-              sx={{
-                position: "absolute",
-                inset: 0,
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-              }}
-            />
-            <Box
-              aria-hidden
-              sx={{
-                position: "absolute",
-                inset: 0,
-                background:
-                  "linear-gradient(180deg, rgba(21,17,26,0.22), rgba(21,17,26,0.88)), linear-gradient(90deg, rgba(128,0,32,0.34), rgba(21,17,26,0.12))",
-              }}
-            />
-            <Box
-              sx={{
-                position: "relative",
-                minHeight: { xs: 560, md: 720 },
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between",
-                p: { xs: 3, md: 4 },
-              }}
-            >
-              <Box>
-                <Eyebrow tone="light">Join the waitlist</Eyebrow>
-                <Typography
-                  variant="h1"
-                  component="h1"
-                  sx={{ fontSize: { xs: 42, md: 60 }, maxWidth: 560 }}
-                >
-                  Get your fashion business online
-                </Typography>
-                <Typography
-                  sx={{
-                    mt: 2.5,
-                    color: "rgba(255,255,255,0.78)",
-                    fontSize: { xs: 17, md: 19 },
-                    maxWidth: 560,
-                  }}
-                >
-                  Leave your details and we’ll help you set up a real store,
-                  take payment, and give your customers a clear view of their
-                  orders.
-                </Typography>
-              </Box>
-              <Stack spacing={1.25} sx={{ mt: 4 }}>
-                {reassurance.map((line) => (
-                  <Box
-                    key={line}
-                    sx={{
-                      display: "flex",
-                      gap: 1.5,
-                      alignItems: "flex-start",
-                      p: 1.5,
-                      borderRadius: 1,
-                      bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                      border: "1px solid rgba(255,255,255,0.14)",
-                    }}
-                  >
-                    <CheckCircleRoundedIcon
-                      sx={{ color: "success.light", mt: "2px" }}
-                      aria-hidden
-                    />
-                    <Typography sx={{ color: "rgba(255,255,255,0.84)" }}>
-                      {line}
-                    </Typography>
-                  </Box>
-                ))}
-              </Stack>
-              <Box
+          {contactOptions.map((option) => {
+            const href = option.href === "signup" ? signupUrl : option.href;
+            return (
+              <Paper
+                key={option.title}
+                elevation={0}
                 sx={{
-                  mt: 3,
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
+                  p: { xs: 3, md: 3.5 },
+                  border: "1px solid",
+                  borderColor: "divider",
                   borderRadius: 1,
-                  overflow: "hidden",
-                  border: "1px solid rgba(255,255,255,0.14)",
-                  bgcolor: "rgba(21,17,26,0.36)",
+                  bgcolor: "rgba(var(--surface-rgb), 0.9)",
+                  display: "flex",
+                  flexDirection: "column",
+                  minHeight: 300,
                 }}
               >
-                {launchSteps.map((step, index) => (
-                  <Box
-                    key={step}
-                    sx={{
-                      p: { xs: 1.25, md: 1.5 },
-                      borderRight:
-                        index === launchSteps.length - 1
-                          ? "none"
-                          : "1px solid rgba(255,255,255,0.14)",
-                    }}
+                <Box
+                  aria-hidden
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    display: "grid",
+                    placeItems: "center",
+                    borderRadius: 1,
+                    color: "primary.main",
+                    bgcolor: "rgba(128,0,32,0.08)",
+                  }}
+                >
+                  {option.icon}
+                </Box>
+                <Typography variant="h5" component="h2" sx={{ mt: 2.5 }}>
+                  {option.title}
+                </Typography>
+                <Typography sx={{ mt: 1.25, color: "text.secondary" }}>
+                  {option.body}
+                </Typography>
+                <Stack sx={{ mt: "auto", pt: 3 }}>
+                  <Button
+                    component="a"
+                    href={href}
+                    variant={option.href === "signup" ? "contained" : "outlined"}
+                    endIcon={<ArrowForwardRoundedIcon />}
                   >
-                    <Typography
-                      component="p"
-                      sx={{
-                        color: "rgba(255,255,255,0.52)",
-                        fontSize: 11,
-                        fontWeight: 800,
-                      }}
-                    >
-                      {String(index + 1).padStart(2, "0")}
-                    </Typography>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        mt: 0.5,
-                        color: "rgba(255,255,255,0.86)",
-                        fontWeight: 800,
-                      }}
-                    >
-                      {step}
-                    </Typography>
-                  </Box>
-                ))}
-              </Box>
-            </Box>
-          </Box>
-
-          <Paper
-            elevation={0}
-            sx={{
-              p: { xs: 3, md: 4 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "rgba(var(--surface-rgb), 0.9)",
-              boxShadow: "0 28px 80px -58px rgba(21,17,26,0.64)",
-              position: { md: "sticky" },
-              top: { md: 110 },
-            }}
-          >
-            <WaitlistForm />
-          </Paper>
+                    {option.action}
+                  </Button>
+                </Stack>
+              </Paper>
+            );
+          })}
         </Box>
-      </Container>
-    </Box>
+      </Section>
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -12,6 +12,10 @@ import { site } from "../../content";
 import { riseInSx } from "./shared";
 
 export function CtaBand({ title, body }: { title: string; body: string }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   return (
     <Box
       sx={{
@@ -95,8 +99,8 @@ export function CtaBand({ title, body }: { title: string; body: string }) { // e
               }}
             />
             <Button
-              component={RouterLink}
-              to={site.primaryCta.href}
+              component="a"
+              href={signupUrl}
               size="large"
               fullWidth
               sx={{

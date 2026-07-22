@@ -139,7 +139,7 @@ export default function Discover() {
 
       <CtaBand
         title="Run a fashion business? Get listed."
-        body="Open a verified storefront on Xtiitch and your shop appears here automatically. Join the waitlist to get set up."
+        body="Open a storefront on Xtiitch, complete verification, and become eligible to appear in discovery surfaces."
       />
     </>
   );

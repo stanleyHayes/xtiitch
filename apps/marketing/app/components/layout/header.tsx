@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link as RouterLink, useLocation, useRouteLoaderData } from "react-router";
+import { useLocation, useRouteLoaderData } from "react-router";
 import AppBar from "@mui/material/AppBar";
 import Toolbar from "@mui/material/Toolbar";
 import Container from "@mui/material/Container";
@@ -26,10 +26,11 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
   const [open, setOpen] = useState(false);
   const { pathname } = useLocation();
   const rootData = useRouteLoaderData("root") as
-    | { marketplaceUrl?: string }
+    | { marketplaceUrl?: string; signupUrl?: string }
     | undefined;
   const marketplaceUrl =
     rootData?.marketplaceUrl ?? "https://store.xtiitch.com";
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   // Pre-launch gating: the "Discover" group (and its sub-items) only show when
   // the discover flag is live; the "Browse the store" button only when
   // browse_store is live. Both default hidden.
@@ -111,8 +112,8 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
               </Button>
             ) : null}
             <Button
-              component={RouterLink}
-              to={site.primaryCta.href}
+              component="a"
+              href={signupUrl}
               variant="contained"
               endIcon={<ArrowForwardRoundedIcon />}
               sx={{ minWidth: 154 }}
@@ -236,8 +237,8 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
             </Button>
           ) : null}
           <Button
-            component={RouterLink}
-            to={site.primaryCta.href}
+            component="a"
+            href={signupUrl}
             onClick={close}
             variant="contained"
             size="large"

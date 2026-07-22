@@ -150,7 +150,7 @@ export default function Features() {
 
       <CtaBand
         title="See it working for your shop"
-        body="Join the waitlist and we’ll help you set up your store, sizes and first designs."
+        body="Start for free and set up your store, sizes and first designs today."
       />
     </>
   );

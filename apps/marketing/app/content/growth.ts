@@ -10,8 +10,8 @@ export const growthProgrammes: GrowthProgramme[] = [
   {
     title: "Promotion codes",
     label: "Discounts",
-    body: "Run business-funded codes for a whole store, a collection, or one design. Platform operators can also approve wider offers when the commercial rules are clear.",
-    status: "Built for admin, business dashboard, storefront checkout",
+    body: "The promotion-code infrastructure supports store, collection and design offers, but customer-facing promotions are currently parked while the commercial rules are finalised.",
+    status: "Parked — not currently included in any plan",
     proof: [
       "Store, collection, and design targeting",
       "Usage caps, date windows, and minimum spend",

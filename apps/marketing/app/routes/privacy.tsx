@@ -1,66 +1,65 @@
 import type { MetaDescriptor } from "react-router";
 import Alert from "@mui/material/Alert";
 import { pageMeta } from "../components/seo";
-import {
-  PageHero,
-  PolicySectionList,
-  Section,
-  SectionHeading,
-} from "../components/ui";
+import { PageHero, PolicySectionList, Section } from "../components/ui";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
-    title: "Privacy",
+    title: "Privacy Policy",
     description:
-      "How Xtiitch plans to handle waitlist, business, customer, order, measurement and payment-related information.",
+      "How Xtiitch collects, uses, shares, protects and retains business, customer, order, measurement and payment-related information.",
     path: "/privacy",
   });
 }
 
 const privacySections = [
   {
-    title: "Who is responsible for your data (controller vs processor)",
-    body: "For account, waitlist and platform data, Xtiitch (XCreativs Technologies) is the data controller. For the customer, order and measurement records a business records inside its own store, that business is the data controller and Xtiitch acts as its data processor — handling the data only on the business’s instructions to run the service. This follows the controller/processor roles set out in the Data Protection Act, 2012 (Act 843).",
+    title: "1. Who we are and when this policy applies",
+    body: "Xtiitch is operated by XCreativs Technologies in Ghana. This policy applies to xtiitch.com, business.xtiitch.com, Xtiitch storefronts, the business and customer account areas, and related support communications. It explains how we handle personal data when you visit, create or use an account, operate a store, place or track an order, make a payment, or contact us. Questions and rights requests can be sent to support@xtiitch.com.",
   },
   {
-    title: "What we collect",
-    body: "Waitlist: the name, business name, phone, optional email, town or city and any message you submit. In the product: business setup details; customer contact details; order, catalogue and measurement information; delivery and booking choices; payment metadata (never raw card details); and technical data such as device, log and usage information needed for security and reliability.",
+    title: "2. Controller and processor roles",
+    body: "XCreativs Technologies is the data controller for marketing-site activity, business and customer accounts, subscription billing, platform security, support and operator records. A fashion business is normally the controller of customer, measurement, appointment, order and fulfilment information it enters or receives through its store; Xtiitch processes that information to provide the service on the business’s instructions. Each business remains responsible for telling its customers why it collects their data and for using it lawfully.",
   },
   {
-    title: "Why we use it and our lawful basis",
-    body: "We process data to deliver the contract you or your business asked for (set up stores, process orders, show tracking, support payments, send service notifications); for our legitimate interest in keeping the service secure and preventing misuse; with your consent for optional marketing or non-essential contact; and to meet legal, tax and accounting obligations. You can withdraw consent for marketing at any time.",
+    title: "3. Information we collect",
+    body: "Depending on how you use Xtiitch, we collect identity and contact details; account credentials and security settings; business profile, ownership, team and verification information; catalogue, images, sizes and availability; customer contacts, measurements and fitting notes; orders, appointments, delivery and fulfilment records; subscription, invoice and payment metadata; support messages; and device, IP address, browser, log and usage information. We receive information directly from you, from a store you deal with, from authorised team members, and from service providers such as Paystack.",
   },
   {
-    title: "Payments",
-    body: "Paystack collects payments on its own PCI-compliant surfaces. Xtiitch never receives or stores raw card details and does not operate a wallet or hold customer funds in escrow — it only records payment state.",
+    title: "4. Why we use personal data",
+    body: "We use personal data to create and secure accounts; publish and operate storefronts; manage customers, measurements, orders, appointments and delivery; calculate charges; initialise and verify payments; administer subscriptions; send service messages; provide support; prevent fraud and abuse; maintain audit records; improve reliability and usability; and meet legal, tax, accounting and regulatory duties. We process data where necessary to perform a contract, comply with law, pursue legitimate interests that do not override your rights, or act on consent where consent is required. Marketing communications are optional and can be stopped at any time.",
   },
   {
-    title: "Tenant isolation",
-    body: "Each business’s data is scoped to that business and enforced at the database layer (row-level security). Tenant isolation across customer, order, measurement, catalogue and money records is a release-blocking security requirement; one business can never read another’s data.",
+    title: "5. Payments and financial information",
+    body: "Paystack processes card and mobile-money payment details on its payment surfaces. Xtiitch does not receive or store raw card numbers, card security codes or mobile-money PINs. We do receive and retain payment references, amounts, fee and tax breakdowns, status, channel, payer or settlement metadata and provider responses needed to reconcile payments, subscriptions, refunds, disputes and payouts. Xtiitch does not operate a customer wallet or escrow account.",
   },
   {
-    title: "How we keep data secure",
-    body: "Data is encrypted in transit (TLS); passwords are hashed with bcrypt, never stored in plain text; access follows least-privilege principles; sensitive operator actions are audit-logged; and the platform applies conservative security headers, request limits and dependency-vulnerability scanning.",
+    title: "6. How we share information",
+    body: "We share data only as needed with the fashion business responsible for an order; authorised members of that business; payment, hosting, image, email, messaging, analytics and security providers; professional advisers; and regulators, courts or law-enforcement bodies where lawfully required. Providers may include Paystack for payments and Cloudinary for images. We require providers to handle data for the agreed purpose and apply appropriate confidentiality and security protections. We do not sell personal data.",
   },
   {
-    title: "How long we keep it",
-    body: "We keep personal data only as long as needed to provide the service and to meet legal, tax and accounting obligations, after which it is deleted or anonymised. Waitlist contacts are removed on request. Exact retention periods per data category are being finalised and will be published before public launch.",
+    title: "7. International processing",
+    body: "Some service providers may process or store information outside Ghana. Where personal data is transferred internationally, we use providers and contractual, organisational or legal safeguards appropriate to the destination and the sensitivity of the data, as required by applicable Ghanaian data-protection law.",
   },
   {
-    title: "Your rights under Act 843",
-    body: "Subject to the Data Protection Act, 2012, you may request access to your personal data, ask us to correct or delete it, object to or restrict certain processing, ask for a portable copy, and withdraw consent. For data a business holds in its store, we forward such requests to that business as the controller. We will respond within the time the law allows.",
+    title: "8. Retention and account closure",
+    body: "We retain personal data only for as long as necessary for the purposes in this policy, including while an account is active and for legal, tax, accounting, fraud-prevention, dispute and audit requirements afterwards. Awaiting-payment orders stop appearing to customers and businesses after 24 hours or when the customer closes them, although limited payment and audit records may remain where needed for security, reconciliation or law. When retention is no longer justified, information is deleted, anonymised or securely isolated.",
   },
   {
-    title: "Service providers and international transfers",
-    body: "We rely on vetted providers to run the service — for example Paystack (payments), Cloudinary (image hosting), an email delivery provider and cloud infrastructure. Some of these process data outside Ghana; where they do, we use providers that apply appropriate security and contractual safeguards.",
+    title: "9. Security and access",
+    body: "We use technical and organisational safeguards appropriate to the data and risk, including encrypted connections, password hashing, role-based access, tenant separation, audit logging, request controls and security monitoring. Businesses must keep account credentials confidential, use appropriate staff roles, remove access promptly when a team member leaves and notify us of suspected compromise. No online service can guarantee absolute security.",
   },
   {
-    title: "Children",
-    body: "Xtiitch is a business tool and is not directed at children. We do not knowingly collect personal data from anyone under 18; if you believe a child’s data has been shared with us, contact us and we will remove it.",
+    title: "10. Your rights",
+    body: "Subject to the Data Protection Act, 2012 (Act 843), you may ask whether we process your personal data and request access, correction, completion, deletion, restriction or objection where applicable. You may withdraw consent without affecting earlier lawful processing and may ask for a portable copy where the law provides. For store-controlled order or measurement data, we may refer the request to the relevant fashion business and assist it in responding. We may verify identity before acting on a request.",
   },
   {
-    title: "Contact and complaints",
-    body: "For privacy questions or to exercise your rights, contact Xtiitch’s data-protection point of contact (published with the final policy before launch). You also have the right to lodge a complaint with the Data Protection Commission of Ghana.",
+    title: "11. Children’s information",
+    body: "A person must be at least 18 and able to contract to open or administer a business account. Fashion businesses may record garment measurements or order details relating to a child only where the parent, guardian or other authorised adult has provided the information or authorised its collection. Businesses must avoid entering unnecessary information about children. Contact support@xtiitch.com if you believe a child’s data has been handled improperly.",
+  },
+  {
+    title: "12. Complaints, changes and contact",
+    body: "Contact support@xtiitch.com with a privacy question, request or complaint. You may also complain to Ghana’s Data Protection Commission. We may update this policy when the service, providers or legal requirements change. Material changes will be highlighted on the service or communicated to account holders, and the effective date will be updated.",
   },
 ];
 
@@ -68,9 +67,9 @@ export default function Privacy() {
   return (
     <>
       <PageHero
-        eyebrow="Privacy"
-        title="Privacy, written plainly"
-        subtitle="Xtiitch handles sensitive business and customer data, including measurements. The product is being built with tenant isolation, limited data access and Ghana data-protection review in mind."
+        eyebrow="Privacy Policy"
+        title="Your information, handled with care"
+        subtitle="This policy explains what Xtiitch collects, why we use it, who receives it and the choices available to businesses and customers."
       />
 
       <Section>
@@ -83,19 +82,9 @@ export default function Privacy() {
             bgcolor: "rgba(49,95,143,0.08)",
           }}
         >
-          This is a launch-draft privacy notice for implementation and legal
-          review. Final privacy terms must be approved before public launch.
+          Effective 22 July 2026. Last updated 22 July 2026.
         </Alert>
         <PolicySectionList items={privacySections} />
-      </Section>
-
-      <Section alt>
-        <SectionHeading
-          align="left"
-          eyebrow="Before launch"
-          title="What still needs final legal review"
-          subtitle="The final privacy policy must confirm Xtiitch’s data controller/processor roles, retention periods, support contacts, international service providers, incident process and user rights under applicable Ghana law."
-        />
       </Section>
     </>
   );

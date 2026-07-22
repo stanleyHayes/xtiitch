@@ -1,4 +1,3 @@
-import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
@@ -18,8 +17,8 @@ export function DiscoverFeaturedBlurb() {
           subtitle="When the storefront directory opens, verified fashion businesses on Xtiitch will be featured here — putting your designs in front of customers who are looking for exactly what you make. Being featured helps people find your shop, browse your latest pieces, and order directly, so a new customer can discover you without ever knowing your name first."
         />
         <Button
-          component={RouterLink}
-          to={site.primaryCta.href}
+          component="a"
+          href={site.primaryCta.href}
           variant="contained"
           size="large"
           endIcon={<ArrowForwardRoundedIcon />}

@@ -133,7 +133,7 @@ export default function ForCustomers() {
 
       <CtaBand
         title="Run a fashion business?"
-        body="Give your own customers this experience. Join the waitlist to get your store."
+        body="Give your customers this experience. Create your store for free today."
       />
     </>
   );

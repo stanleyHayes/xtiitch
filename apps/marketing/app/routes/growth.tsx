@@ -53,12 +53,12 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
             />
             <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25}>
               <Button
-                component={RouterLink}
-                to={site.primaryCta.href}
+                component="a"
+                href={site.primaryCta.href}
                 variant="contained"
                 endIcon={<ArrowForwardRoundedIcon />}
               >
-                Join the waitlist
+                Start for free
               </Button>
               <Button component={RouterLink} to="/pricing" variant="outlined">
                 See pricing
@@ -229,7 +229,7 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
 
       <CtaBand
         title="Ready to grow with a cleaner system?"
-        body="Join the waitlist and tell us whether you need promo codes, partner tracking, sponsored placement, or all three."
+        body="Start your store for free. Referral, affiliate and sponsored programmes remain operator-managed, while promotion codes are currently parked."
       />
     </>
   );

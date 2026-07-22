@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link as RouterLink, useRouteLoaderData } from "react-router";
+import { useRouteLoaderData } from "react-router";
 import ToggleButton from "@mui/material/ToggleButton";
 import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Box from "@mui/material/Box";
@@ -11,9 +11,7 @@ import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { type Plan, site } from "../../content";
-import { useMarketingFlags } from "../../root";
 import { fadeInSx } from "./shared";
 
 export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
@@ -24,9 +22,6 @@ export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
-  // Pre-launch (pricing flag off) the per-plan signup CTAs are hidden and
-  // replaced by a single prominent "Join the waitlist" button below the grid.
-  const { pricing: pricingLive } = useMarketingFlags();
   return (
     <Box>
       <Box
@@ -200,40 +195,24 @@ export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line
                 </Box>
               ))}
             </Stack>
-            {pricingLive ? (
-              <Button
-                component="a"
-                href={signupUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                variant={plan.highlight ? "contained" : "outlined"}
-                size="large"
-                disabled={!plan.available}
-                sx={{ mt: 3 }}
-              >
-                {plan.available ? "Get started" : "Coming later"}
-              </Button>
-            ) : null}
+            <Button
+              component="a"
+              href={signupUrl}
+              variant={plan.highlight ? "contained" : "outlined"}
+              size="large"
+              disabled={!plan.available}
+              sx={{ mt: 3 }}
+            >
+              {plan.available
+                ? plan.code === "free"
+                  ? "Start for free"
+                  : `Choose ${plan.name.split(" — ")[0]}`
+                : "Coming later"}
+            </Button>
           </CardContent>
         </Card>
         ))}
       </Box>
-      {/* Pre-launch: one prominent waitlist CTA stands in for the per-plan
-          signup buttons, scrolling/linking to the waitlist form. */}
-      {pricingLive ? null : (
-        <Box sx={{ mt: { xs: 4, md: 5 }, display: "flex", justifyContent: "center" }}>
-          <Button
-            component={RouterLink}
-            to={site.primaryCta.href}
-            variant="contained"
-            size="large"
-            endIcon={<ArrowForwardRoundedIcon />}
-            sx={{ minWidth: { xs: "100%", sm: 280 } }}
-          >
-            {site.primaryCta.label}
-          </Button>
-        </Box>
-      )}
     </Box>
   );
 }

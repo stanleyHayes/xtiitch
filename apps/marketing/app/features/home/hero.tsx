@@ -8,7 +8,6 @@ import Stack from "@mui/material/Stack";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { site } from "../../content";
-import { useMarketingFlags } from "../../root";
 
 const homeRiseSx = (delayMs = 0) => ({
   animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
@@ -25,14 +24,11 @@ const heroSignals = [
 
 export function Hero() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   // Self-serve signup URL (the business dashboard's /register, a separate
-  // origin) comes from the root loader; fall back to the waitlist if absent.
+  // origin) comes from the root loader.
   const rootData = useRouteLoaderData("root") as
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
-  // The hero "Create your store" button only shows once self-serve signup is
-  // live (create_store flag). Pre-launch it's hidden, leaving the waitlist CTA.
-  const { create_store: createStoreLive } = useMarketingFlags();
   return (
     <Box
       sx={{
@@ -179,54 +175,34 @@ export function Hero() { // eslint-disable-line max-lines-per-function -- large 
                 ...homeRiseSx(320),
               }}
             >
-              {createStoreLive ? (
-                <Button
-                  component="a"
-                  href={signupUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  size="large"
-                  endIcon={<ArrowForwardRoundedIcon />}
-                  sx={{
-                    bgcolor: "common.white",
-                    color: "primary.main",
-                    "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
-                  }}
-                >
-                  Create your store
-                </Button>
-              ) : null}
-              {/* Pre-launch the waitlist CTA is the prominent white button (it's
-                  the only hero action); once "Create your store" is live it
-                  steps back to the outlined secondary style. */}
               <Button
-                component={RouterLink}
-                to={site.primaryCta.href}
+                component="a"
+                href={signupUrl}
                 size="large"
-                variant={createStoreLive ? "outlined" : "contained"}
-                endIcon={
-                  createStoreLive ? undefined : <ArrowForwardRoundedIcon />
-                }
-                sx={
-                  createStoreLive
-                    ? {
-                        color: "common.white",
-                        borderColor: "rgba(255,255,255,0.62)",
-                        "&:hover": {
-                          borderColor: "common.white",
-                          bgcolor: "rgba(var(--surface-rgb), 0.08)",
-                        },
-                      }
-                    : {
-                        bgcolor: "common.white",
-                        color: "primary.main",
-                        "&:hover": {
-                          bgcolor: "rgba(var(--surface-rgb), 0.9)",
-                        },
-                      }
-                }
+                endIcon={<ArrowForwardRoundedIcon />}
+                sx={{
+                  bgcolor: "common.white",
+                  color: "primary.main",
+                  "&:hover": { bgcolor: "rgba(var(--surface-rgb), 0.9)" },
+                }}
               >
                 {site.primaryCta.label}
+              </Button>
+              <Button
+                component={RouterLink}
+                to={site.secondaryCta.href}
+                size="large"
+                variant="outlined"
+                sx={{
+                  color: "common.white",
+                  borderColor: "rgba(255,255,255,0.62)",
+                  "&:hover": {
+                    borderColor: "common.white",
+                    bgcolor: "rgba(var(--surface-rgb), 0.08)",
+                  },
+                }}
+              >
+                {site.secondaryCta.label}
               </Button>
             </Stack>
             <Typography

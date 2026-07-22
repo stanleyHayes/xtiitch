@@ -198,7 +198,7 @@ export default function Home() {
 
       <CtaBand
         title="Get your fashion business online"
-        body="Join the waitlist and we’ll set you up as onboarding opens. No monthly cost to start."
+        body="Create your store now and start on the Free plan. No monthly cost to get online."
       />
     </>
   );

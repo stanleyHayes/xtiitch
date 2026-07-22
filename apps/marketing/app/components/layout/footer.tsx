@@ -1,4 +1,4 @@
-import { Link as RouterLink } from "react-router";
+import { Link as RouterLink, useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
@@ -13,6 +13,10 @@ import { footerGroups, footerProof } from "./footer-data";
 
 export function Footer() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const year = 2026;
+  const rootData = useRouteLoaderData("root") as
+    | { signupUrl?: string }
+    | undefined;
+  const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
   return (
     <Box
       component="footer"
@@ -84,7 +88,7 @@ export function Footer() { // eslint-disable-line max-lines-per-function -- larg
                   textTransform: "uppercase",
                 }}
               >
-                Launching soon
+                Open for business
               </Typography>
               <Typography
                 variant="h3"
@@ -106,8 +110,8 @@ export function Footer() { // eslint-disable-line max-lines-per-function -- larg
             </Box>
             <Stack spacing={1.5} sx={{ minWidth: { md: 248 } }}>
               <Button
-                component={RouterLink}
-                to={site.primaryCta.href}
+                component="a"
+                href={signupUrl}
                 variant="contained"
                 size="large"
                 endIcon={<ArrowForwardRoundedIcon />}
@@ -306,19 +310,14 @@ export function Footer() { // eslint-disable-line max-lines-per-function -- larg
                         {link.icon}
                       </Box>
                     );
-                    // The Privacy/Terms/Payment-policy labels stay visible but
-                    // must not navigate to their unreviewed pages yet — render
-                    // them as a clickable-looking but inert span (href="#" with
-                    // the default suppressed).
-                    if (link.nonNavigating) {
+                    if (link.href.startsWith("mailto:")) {
                       return (
                         <Link
                           key={link.href}
                           component="a"
-                          href="#"
+                          href={link.href}
                           underline="none"
-                          onClick={(event) => event.preventDefault()}
-                          sx={{ ...linkSx, cursor: "pointer" }}
+                          sx={linkSx}
                         >
                           {iconBox}
                           {link.label}

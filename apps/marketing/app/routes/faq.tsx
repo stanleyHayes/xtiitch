@@ -50,7 +50,7 @@ export default function Faq() {
       <PageHero
         eyebrow="FAQ"
         title="Questions, answered plainly"
-        subtitle="The things fashion businesses and their customers ask most. If something isn’t here, reach out when you join the waitlist."
+        subtitle="The things fashion businesses and their customers ask most. If something isn’t here, contact support and we’ll help."
       />
 
       <Section>
@@ -136,7 +136,7 @@ export default function Faq() {
 
       <CtaBand
         title="Still have a question?"
-        body="Join the waitlist and tell us what you sell — we’ll get back to you."
+        body="Start your store for free, add what you sell, and contact support whenever you need help."
       />
     </>
   );

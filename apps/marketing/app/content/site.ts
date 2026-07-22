@@ -12,7 +12,10 @@ export const site = {
     "Give your fashion business a real online store, one place to run orders and customers, and a clean way to take payment — and finally let your customers see where their garment has reached.",
   oneLiner:
     "A real shop, a simple way to run it, and an answer to “where is my cloth?”",
-  primaryCta: { label: "Join the waitlist", href: "/contact" },
+  primaryCta: {
+    label: "Start for free",
+    href: "https://business.xtiitch.com/register",
+  },
   secondaryCta: { label: "See how it works", href: "/how-it-works" },
   whatsappNote:
     "Custom orders settle the final price with a quick WhatsApp chat, started straight from the dashboard.",

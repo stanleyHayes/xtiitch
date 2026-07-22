@@ -128,7 +128,7 @@ export default function HowItWorks() {
 
       <CtaBand
         title="Ready to set up your store?"
-        body="Join the waitlist and we’ll walk you through your first designs, sizes and stages."
+        body="Create your store for free and set up your first designs, sizes and production stages."
       />
     </>
   );
