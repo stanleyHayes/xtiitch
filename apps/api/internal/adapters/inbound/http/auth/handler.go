@@ -210,6 +210,8 @@ func authError(err error) (int, string) {
 		return http.StatusConflict, "discount_code_exhausted"
 	case errors.Is(err, authapp.ErrPlanChangeSamePlan):
 		return http.StatusConflict, "plan_change_same_plan"
+	case errors.Is(err, authapp.ErrPlanChangePricingInvalid):
+		return http.StatusConflict, "upgrade_price_invalid"
 	case errors.Is(err, authapp.ErrPlanChangeBillingInactive):
 		return http.StatusConflict, "billing_not_active"
 	case errors.Is(err, authapp.ErrPlanChangeChargeFailed):

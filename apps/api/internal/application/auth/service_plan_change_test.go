@@ -13,12 +13,13 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
-// An UPGRADE charges the prorated difference for the remainder of the current
-// period against the stored authorization, then switches the plan immediately.
+// An UPGRADE opens checkout for the prorated difference and parks the target.
+// Even a stored card must not be silently charged or unlock the plan before the
+// owner explicitly pays and Paystack verifies the callback.
 // Proration = ceil( (newRenewal - currentRenewal) * daysRemaining / totalDays ):
 // growth→studio quarterly renewal diff = 59700-29700 = 30000; a 92-day period with
 // 30 days remaining → ceil(30000*30/92) = ceil(9782.6…) = 9800 (the ceil rounds up).
-func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmediately(t *testing.T) {
+func TestChangeSubscriptionPlanUpgradeRequiresCheckoutBeforeSwitching(t *testing.T) {
 	t.Parallel()
 
 	periodStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -47,21 +48,20 @@ func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmedi
 			QuarterlyRenewalMinor: 59700,
 		},
 	}
-	// verifyNotSucceeded so the upgrade's recovery pre-verify reports the ref as
-	// not-yet-charged (first attempt), letting the proration charge proceed.
-	payments := &fakeSubscriptionPayments{chargeStatus: "success", verifyNotSucceeded: true}
+	payments := &fakeSubscriptionPayments{}
 	service := newPlanChangeTestService(businesses, payments, now)
 
 	result, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
-		Scope:     common.TenantScope{BusinessID: "business-1"},
-		ActorRole: business.UserRoleOwner,
-		PlanCode:  "studio",
+		Scope:       common.TenantScope{BusinessID: "business-1"},
+		ActorRole:   business.UserRoleOwner,
+		PlanCode:    "studio",
+		CallbackURL: "https://dashboard.example/callback?flow=plan-change",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !result.Immediate || result.PlanCode != "studio" {
-		t.Fatalf("expected an immediate switch to studio, got %+v", result)
+	if result.Immediate || result.PlanCode != "studio" || result.AuthorizationURL != "https://pay" {
+		t.Fatalf("expected a pending Paystack checkout for studio, got %+v", result)
 	}
 	// The prorated difference is billed in WHOLE CEDIS: 9800 pesewas becomes GHS 98
 	// ("Whole cedis in all display and billing", Pricing Book §7; checklist #14
@@ -72,24 +72,16 @@ func TestChangeSubscriptionPlanUpgradeChargesProratedDifferenceAndSwitchesImmedi
 	if !result.EffectiveAt.Equal(now) {
 		t.Fatalf("an upgrade should take effect now (%s), got %s", now, result.EffectiveAt)
 	}
-	// The prorated difference is charged on the stored recurring authorization.
-	if payments.chargeInput.AmountMinor != 9995 || payments.chargeInput.AuthorizationCode != "AUTH_x" {
-		t.Fatalf("expected the prorated difference charged on the stored authorization, got %+v", payments.chargeInput)
+	if payments.chargeInput.AmountMinor != 0 {
+		t.Fatalf("stored authorization must not be charged silently, got %+v", payments.chargeInput)
 	}
-	if !strings.HasPrefix(payments.chargeInput.Reference, "xtsub_upgrade_sub-1_studio_") {
-		t.Fatalf("expected a deterministic upgrade ref, got %q", payments.chargeInput.Reference)
+	if payments.initInput.AmountMinor != 9995 ||
+		!strings.HasPrefix(payments.initInput.Reference, "xtsub_upgrade_checkout_sub-1_studio_") {
+		t.Fatalf("expected the prorated Paystack checkout, got %+v", payments.initInput)
 	}
-	// The plan is switched immediately, keyed on the target plan, and the invoice ref
-	// equals the charge ref (webhook idempotency), mirroring the activation charge.
-	if businesses.upgradeApplied == nil {
-		t.Fatal("expected the plan to be switched immediately")
-	}
-	if businesses.upgradeApplied.NewPlanID != "plan-studio" || businesses.upgradeApplied.AmountMinor != 9995 {
-		t.Fatalf("expected the switch to the studio plan booking 9995, got %+v", *businesses.upgradeApplied)
-	}
-	if businesses.upgradeApplied.ChargeRef != payments.chargeInput.Reference {
-		t.Fatalf("invoice ref must equal the charge reference, got %q vs %q",
-			businesses.upgradeApplied.ChargeRef, payments.chargeInput.Reference)
+	if businesses.upgradeApplied != nil || businesses.pendingUpgradeSet != "plan-studio" {
+		t.Fatalf("target must remain parked until payment verification: pending=%q applied=%+v",
+			businesses.pendingUpgradeSet, businesses.upgradeApplied)
 	}
 	if businesses.downgradeScheduled != nil {
 		t.Fatal("an upgrade must not schedule a pending downgrade")
@@ -178,9 +170,10 @@ func TestProrationChargesTheFinalPartialDay(t *testing.T) {
 	}
 }
 
-// Recovery may trust a prior deterministic Paystack reference only when the
-// provider-confirmed amount covers the current prorated upgrade charge.
-func TestChangeSubscriptionPlanRejectsUnderpaidSuccessfulRecovery(t *testing.T) {
+// Monthly price order alone is not enough to grant an upgrade. If cadence
+// renewal prices are equal or inverted, there is no positive amount to verify,
+// so the change must fail closed instead of activating for free.
+func TestChangeSubscriptionPlanRejectsZeroProrationUpgrade(t *testing.T) {
 	t.Parallel()
 
 	periodStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
@@ -194,21 +187,21 @@ func TestChangeSubscriptionPlanRejectsUnderpaidSuccessfulRecovery(t *testing.T) 
 			CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd,
 		},
 		planByCode: ports.PlanPricingRecord{
-			PlanID: "plan-studio", Code: "studio", MonthlyFeeMinor: 9900, QuarterlyRenewalMinor: 59700,
+			PlanID: "plan-studio", Code: "studio", MonthlyFeeMinor: 9900, QuarterlyRenewalMinor: 29700,
 		},
 	}
-	payments := &fakeSubscriptionPayments{chargeStatus: "success"}
-	payments.initInput.AmountMinor = 100 // provider says success, but far below the due amount
+	payments := &fakeSubscriptionPayments{}
 	service := newPlanChangeTestService(businesses, payments, now)
 
 	_, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
 		Scope: common.TenantScope{BusinessID: "business-1"}, ActorRole: business.UserRoleOwner, PlanCode: "studio",
+		CallbackURL: "https://dashboard.example/callback?flow=plan-change",
 	})
-	if !errors.Is(err, ErrPlanChangeChargeFailed) {
-		t.Fatalf("expected an underpaid recovery to fail closed, got %v", err)
+	if !errors.Is(err, ErrPlanChangePricingInvalid) {
+		t.Fatalf("expected a zero-price upgrade to fail closed, got %v", err)
 	}
-	if businesses.upgradeApplied != nil || payments.chargeInput.AmountMinor != 0 {
-		t.Fatal("an underpaid used reference must neither switch nor attempt a duplicate charge")
+	if businesses.upgradeApplied != nil || !businesses.pendingUpgradeSet.IsZero() || payments.initInput.AmountMinor != 0 {
+		t.Fatal("an unpriced upgrade must neither open checkout nor switch the plan")
 	}
 }
 
@@ -274,9 +267,9 @@ func TestChangeSubscriptionPlanRejectsSamePlan(t *testing.T) {
 	}
 }
 
-// An upgrade that owes a prorated charge is refused when there is no active recurring
-// authorization to charge against (e.g. billing was never set up).
-func TestChangeSubscriptionPlanUpgradeRequiresActiveBilling(t *testing.T) {
+// The API must have a trusted callback URL before it can open an upgrade checkout;
+// without one there is no safe verification route and nothing may be activated.
+func TestChangeSubscriptionPlanUpgradeRequiresCallback(t *testing.T) {
 	t.Parallel()
 
 	businesses := &fakeBusinessIdentityRepository{
@@ -310,7 +303,7 @@ func TestChangeSubscriptionPlanUpgradeRequiresActiveBilling(t *testing.T) {
 		t.Fatalf("expected ErrPlanChangeBillingInactive, got %v", err)
 	}
 	if payments.chargeInput.AmountMinor != 0 || businesses.upgradeApplied != nil {
-		t.Fatal("nothing should be charged or switched when billing is inactive")
+		t.Fatal("nothing should be charged or switched without a callback")
 	}
 }
 

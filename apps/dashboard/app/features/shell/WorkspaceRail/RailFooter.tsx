@@ -147,9 +147,7 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
           </Button>
         )
       ) : null}
-      {!pendingActivation &&
-      profile.plan !== "growth" &&
-      profile.plan !== "studio" ? (
+      {!pendingActivation && profile.plan.toLowerCase() !== "studio" ? (
         compact ? (
           <Tooltip title="Upgrade plan" placement="right">
             <IconButton

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -21,10 +20,12 @@ var (
 	// ErrPlanChangeSamePlan: the target is the current plan, or a same-priced tier
 	// (classification by monthly_fee_minor yields neither an upgrade nor a downgrade).
 	ErrPlanChangeSamePlan = errors.New("subscription is already on that plan")
-	// ErrPlanChangeBillingInactive: an upgrade that owes a prorated charge needs an
-	// active recurring authorization on file, but the subscription has none (e.g. a
-	// free plan or one that never completed billing setup). They must set up billing
-	// via the activation flow first.
+	// ErrPlanChangePricingInvalid: the target is nominally higher but its renewal
+	// figure for this subscription's cadence is not higher, so there is no valid
+	// positive amount that can be collected before activation.
+	ErrPlanChangePricingInvalid = errors.New("upgrade pricing is invalid for the billing cadence")
+	// ErrPlanChangeBillingInactive: an upgrade needs a valid paid billing window
+	// and callback URL so its interactive payment can be confirmed.
 	ErrPlanChangeBillingInactive = errors.New("active recurring billing is required to upgrade")
 	// ErrPlanChangeChargeFailed: the prorated upgrade charge did not succeed, so the
 	// plan was NOT switched (money-critical: never grant entitlements unpaid).
@@ -40,22 +41,21 @@ type ChangeSubscriptionPlanCommand struct {
 }
 
 // ChangeSubscriptionPlanResult reports the outcome of a plan change: an UPGRADE is
-// applied immediately (Immediate = true) and may carry a prorated charge; a
-// DOWNGRADE is scheduled for the next renewal (Immediate = false, EffectiveAt is
-// the period end) with no charge or refund now.
+// activated after verified checkout; the initial response is payment-pending
+// (Immediate = false) and carries the Paystack URL. A DOWNGRADE is scheduled for
+// the next renewal with no charge or refund now.
 type ChangeSubscriptionPlanResult struct {
 	PlanCode string
-	// Immediate is true for an applied upgrade, false for a scheduled downgrade.
+	// Immediate is false while an upgrade awaits checkout and for a scheduled downgrade.
 	Immediate bool
-	// ProratedChargeMinor is the amount charged now for the remainder of the current
-	// period (upgrade). Zero for a downgrade or when the prorated difference rounds
-	// to zero.
+	// ProratedChargeMinor is the checkout amount for the remainder of the current
+	// period (upgrade). Zero for a downgrade.
 	ProratedChargeMinor int64
 	// EffectiveAt is when the new plan takes effect: now for an upgrade, the current
 	// period end for a scheduled downgrade.
 	EffectiveAt time.Time
-	// AuthorizationURL is present when an upgrade needs an interactive Paystack
-	// checkout (for example, a mobile-money subscription has no reusable card).
+	// AuthorizationURL is present for every upgrade, which always requires an
+	// explicit Paystack checkout before activation.
 	AuthorizationURL string
 }
 
@@ -118,11 +118,9 @@ func effectiveSubscriptionPlan(sub ports.BusinessSubscriptionRecord) ports.Busin
 	return sub
 }
 
-// upgradeSubscriptionPlan switches to the higher plan immediately and charges the
-// prorated difference for the remainder of the current period. The plan is switched
-// only after a successful charge (or when nothing is owed).
-//
-//nolint:gocognit // card recovery and interactive MoMo fallback are intentionally fail-closed in one money-critical transaction flow
+// upgradeSubscriptionPlan opens an interactive checkout for the prorated
+// difference. The target is parked and is applied only after Paystack verifies
+// that checkout, regardless of whether a reusable card authorization exists.
 func (s Service) upgradeSubscriptionPlan(
 	ctx context.Context,
 	sub ports.BusinessSubscriptionRecord,
@@ -150,97 +148,40 @@ func (s Service) upgradeSubscriptionPlan(
 
 	proration := prorationChargeMinor(currentRenewal, newRenewal, sub.CurrentPeriodStart, sub.CurrentPeriodEnd, now)
 
-	// Nothing owed (difference rounds to zero, or the period is over): switch now
-	// without a charge.
+	// A higher package must never unlock without a confirmed payment. A zero
+	// proration means the cadence prices are not ordered consistently (for example,
+	// Starter and Growth have the same quarterly renewal figure) and must fail
+	// closed until an admin fixes the plan prices.
 	if proration <= 0 {
-		if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
-			BusinessID: sub.BusinessID,
-			NewPlanID:  target.PlanID,
-		}); err != nil {
-			return ChangeSubscriptionPlanResult{}, err
-		}
-		return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: true, ProratedChargeMinor: 0, EffectiveAt: now}, nil
+		return ChangeSubscriptionPlanResult{}, ErrPlanChangePricingInvalid
 	}
 
-	// A mobile-money subscription has no reusable authorization. Park the target
-	// plan and open a standard Paystack checkout for the prorated amount instead;
-	// the callback applies the upgrade only after provider verification.
-	if sub.BillingMode != "recurring" || strings.TrimSpace(sub.ProviderSubscriptionRef) == "" {
-		if strings.TrimSpace(callbackURL) == "" {
-			return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
-		}
-		grossProration := s.subscriptionChargeTotal(ctx, proration)
-		ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%d_%d", sub.SubscriptionID, target.Code,
-			sub.CurrentPeriodStart.Unix(), grossProration, now.UnixNano())
-		checkout, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
-			BusinessID: sub.BusinessID, CustomerEmail: strings.TrimSpace(sub.OwnerEmail),
-			AmountMinor: grossProration, Currency: "GHS", Reference: ref,
-			CallbackURL: strings.TrimSpace(callbackURL),
-		})
-		if err != nil || strings.TrimSpace(checkout.RedirectURL) == "" {
-			return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
-		}
-		// Park only after Paystack accepted the checkout. If initialization fails,
-		// leaving a pending target would make the current subscription look as if it
-		// were already on that plan and strand the owner's retry.
-		if err := s.businesses.SetPendingPlanUpgrade(ctx, sub.BusinessID, target.PlanID); err != nil {
-			return ChangeSubscriptionPlanResult{}, err
-		}
-		return ChangeSubscriptionPlanResult{
-			PlanCode: target.Code, Immediate: false, ProratedChargeMinor: grossProration,
-			EffectiveAt: now, AuthorizationURL: strings.TrimSpace(checkout.RedirectURL),
-		}, nil
+	if strings.TrimSpace(callbackURL) == "" {
+		return ChangeSubscriptionPlanResult{}, ErrPlanChangeBillingInactive
 	}
-
 	// VAT applies to the prorated top-up too, plus the §4.1 Transaction fee
 	// grossed up over package + VAT — so the charge, the booked invoice, and the
 	// reported amount agree and Xtiitch nets the proration + VAT exactly.
 	grossProration := s.subscriptionChargeTotal(ctx, proration)
-
-	// Deterministic ref keyed on the subscription + target plan + period start, so a
-	// double submit / retry reuses it: Paystack dedupes the charge and the invoice
-	// insert no-ops — mirroring the activation charge's idempotency.
-	ref := "xtsub_upgrade_" + sub.SubscriptionID.String() + "_" + target.Code + "_" + strconv.FormatInt(sub.CurrentPeriodStart.Unix(), 10)
-
-	// RECOVERY: a prior attempt may have charged the card but then failed to switch
-	// the plan (leaving the tenant paid-but-not-upgraded). Because charge_authorization
-	// REJECTS a duplicate reference, a naive retry would be stuck forever. So first
-	// verify the deterministic ref: if it already succeeded, skip the (duplicate)
-	// charge and go straight to applying the upgrade, which is idempotent on the ref.
-	verify, verifyErr := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: ref})
-	if verifyErr == nil && verify.Succeeded && verify.AmountMinor < grossProration {
-		// A successful provider status is insufficient if the amount does not cover
-		// this upgrade. Never grant higher entitlements on an old/partial charge.
+	ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%d_%d", sub.SubscriptionID, target.Code,
+		sub.CurrentPeriodStart.Unix(), grossProration, now.UnixNano())
+	checkout, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
+		BusinessID: sub.BusinessID, CustomerEmail: strings.TrimSpace(sub.OwnerEmail),
+		AmountMinor: grossProration, Currency: "GHS", Reference: ref,
+		CallbackURL: strings.TrimSpace(callbackURL),
+	})
+	if err != nil || strings.TrimSpace(checkout.RedirectURL) == "" {
 		return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
 	}
-	if verifyErr != nil || !verify.Succeeded {
-		charge, chargeErr := s.payments.ChargeAuthorization(ctx, ports.ChargeAuthorizationInput{
-			BusinessID:        sub.BusinessID,
-			AuthorizationCode: strings.TrimSpace(sub.ProviderSubscriptionRef),
-			CustomerEmail:     strings.TrimSpace(sub.OwnerEmail),
-			AmountMinor:       grossProration,
-			Currency:          "GHS",
-			Reference:         ref,
-		})
-		if chargeErr != nil || !strings.EqualFold(strings.TrimSpace(charge.Status), "success") ||
-			charge.AmountMinor < grossProration {
-			// Do not switch the plan on a non-success charge: entitlements never go
-			// unpaid. The deterministic ref lets the owner safely retry.
-			return ChangeSubscriptionPlanResult{}, ErrPlanChangeChargeFailed
-		}
-	}
-
-	if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
-		BusinessID:  sub.BusinessID,
-		NewPlanID:   target.PlanID,
-		AmountMinor: grossProration,
-		Currency:    "GHS",
-		ChargeRef:   ref,
-	}); err != nil {
+	// Park only after Paystack accepted the checkout. Entitlements continue to
+	// resolve from the paid-up plan until the callback verifies the payment.
+	if err := s.businesses.SetPendingPlanUpgrade(ctx, sub.BusinessID, target.PlanID); err != nil {
 		return ChangeSubscriptionPlanResult{}, err
 	}
-
-	return ChangeSubscriptionPlanResult{PlanCode: target.Code, Immediate: true, ProratedChargeMinor: grossProration, EffectiveAt: now}, nil
+	return ChangeSubscriptionPlanResult{
+		PlanCode: target.Code, Immediate: false, ProratedChargeMinor: grossProration,
+		EffectiveAt: now, AuthorizationURL: strings.TrimSpace(checkout.RedirectURL),
+	}, nil
 }
 
 // downgradeSubscriptionPlan parks the change to apply at the next renewal. It never

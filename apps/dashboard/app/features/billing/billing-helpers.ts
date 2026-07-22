@@ -134,6 +134,8 @@ export async function startPaystackBilling(
 // change is explained precisely rather than as a generic failure.
 const PLAN_CHANGE_ERROR_MESSAGES: Record<string, string> = {
   plan_change_same_plan: "You're already on that plan.",
+  upgrade_price_invalid:
+    "This upgrade isn't priced correctly for your billing cycle. Please contact support before trying again.",
   billing_not_active:
     "Set up billing first — activate your subscription, then you can upgrade.",
   upgrade_charge_failed:

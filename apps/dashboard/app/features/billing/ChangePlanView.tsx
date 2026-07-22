@@ -129,10 +129,10 @@ export function ChangePlanView({
         ) : null}
 
         <Alert severity="info" icon={false} sx={{ mb: 3 }}>
-          Upgrades take effect immediately — you pay a prorated amount for the
-          rest of your current billing period, and future renewals bill the new
-          plan. Downgrades take effect at your next renewal, with no charge or
-          refund now.
+          Upgrades open Paystack for a prorated payment and take effect only
+          after that payment is confirmed. Future renewals bill the new plan.
+          Downgrades take effect at your next renewal, with no charge or refund
+          now.
           {vat ? ` ${vat}` : ""}
         </Alert>
 
