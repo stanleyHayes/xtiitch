@@ -34,10 +34,11 @@ var (
 
 // ChangeSubscriptionPlanCommand is an owner/admin request to move to another plan.
 type ChangeSubscriptionPlanCommand struct {
-	Scope       common.TenantScope
-	ActorRole   business.UserRole
-	PlanCode    string
-	CallbackURL string
+	Scope          common.TenantScope
+	ActorRole      business.UserRole
+	PlanCode       string
+	BillingCadence string
+	CallbackURL    string
 }
 
 // ChangeSubscriptionPlanResult reports the outcome of a plan change: an UPGRADE is
@@ -93,7 +94,7 @@ func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscript
 
 	switch {
 	case target.MonthlyFeeMinor > effectiveSubscription.MonthlyFeeMinor:
-		return s.upgradeSubscriptionPlan(ctx, effectiveSubscription, target, cmd.CallbackURL)
+		return s.upgradeSubscriptionPlan(ctx, effectiveSubscription, target, cmd.BillingCadence, cmd.CallbackURL)
 	case target.MonthlyFeeMinor < effectiveSubscription.MonthlyFeeMinor:
 		return s.downgradeSubscriptionPlan(ctx, effectiveSubscription, target)
 	default:
@@ -125,6 +126,7 @@ func (s Service) upgradeSubscriptionPlan(
 	ctx context.Context,
 	sub ports.BusinessSubscriptionRecord,
 	target ports.PlanPricingRecord,
+	billingCadence string,
 	callbackURL string,
 ) (ChangeSubscriptionPlanResult, error) {
 	now := s.clock.Now()
@@ -136,7 +138,13 @@ func (s Service) upgradeSubscriptionPlan(
 	}
 	// Proration is computed against the cadence renewal figures, matching how the
 	// recurring sweep bills each renewal. A non-billable cadence has no figure.
-	cadence, err := normalizeBillingCadence(sub.BillingCadence)
+	requestedCadence := strings.TrimSpace(billingCadence)
+	if requestedCadence == "" {
+		// Backward compatibility for API clients released before upgrade cadence
+		// selection: retain the subscription's current cycle.
+		requestedCadence = sub.BillingCadence
+	}
+	cadence, err := normalizeBillingCadence(requestedCadence)
 	if err != nil {
 		return ChangeSubscriptionPlanResult{}, err
 	}
@@ -163,8 +171,8 @@ func (s Service) upgradeSubscriptionPlan(
 	// grossed up over package + VAT — so the charge, the booked invoice, and the
 	// reported amount agree and Xtiitch nets the proration + VAT exactly.
 	grossProration := s.subscriptionChargeTotal(ctx, proration)
-	ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%d_%d", sub.SubscriptionID, target.Code,
-		sub.CurrentPeriodStart.Unix(), grossProration, now.UnixNano())
+	ref := fmt.Sprintf("xtsub_upgrade_checkout_%s_%s_%d_%s_%d_%d", sub.SubscriptionID, target.Code,
+		sub.CurrentPeriodStart.Unix(), cadence, grossProration, now.UnixNano())
 	checkout, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID: sub.BusinessID, CustomerEmail: strings.TrimSpace(sub.OwnerEmail),
 		AmountMinor: grossProration, Currency: "GHS", Reference: ref,

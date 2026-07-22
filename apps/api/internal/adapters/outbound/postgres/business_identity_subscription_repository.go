@@ -507,11 +507,12 @@ func (repo BusinessIdentityRepository) ApplyImmediatePlanUpgrade(ctx context.Con
 	if _, err := tx.Exec(ctx, `
 		update business_subscriptions
 		set plan_id = $2,
+			billing_cadence = case when $3 = '' then billing_cadence else $3 end,
 			pending_plan_id = null,
 			pending_plan_effective_at = null,
 			updated_at = now()
 		where business_id = $1
-	`, input.BusinessID.String(), input.NewPlanID.String()); err != nil {
+	`, input.BusinessID.String(), input.NewPlanID.String(), input.BillingCadence); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `

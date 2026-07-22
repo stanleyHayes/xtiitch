@@ -52,10 +52,11 @@ func TestChangeSubscriptionPlanUpgradeRequiresCheckoutBeforeSwitching(t *testing
 	service := newPlanChangeTestService(businesses, payments, now)
 
 	result, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
-		Scope:       common.TenantScope{BusinessID: "business-1"},
-		ActorRole:   business.UserRoleOwner,
-		PlanCode:    "studio",
-		CallbackURL: "https://dashboard.example/callback?flow=plan-change",
+		Scope:          common.TenantScope{BusinessID: "business-1"},
+		ActorRole:      business.UserRoleOwner,
+		PlanCode:       "studio",
+		BillingCadence: "quarterly",
+		CallbackURL:    "https://dashboard.example/callback?flow=plan-change",
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -76,7 +77,7 @@ func TestChangeSubscriptionPlanUpgradeRequiresCheckoutBeforeSwitching(t *testing
 		t.Fatalf("stored authorization must not be charged silently, got %+v", payments.chargeInput)
 	}
 	if payments.initInput.AmountMinor != 9995 ||
-		!strings.HasPrefix(payments.initInput.Reference, "xtsub_upgrade_checkout_sub-1_studio_") {
+		!strings.Contains(payments.initInput.Reference, "_quarterly_9995_") {
 		t.Fatalf("expected the prorated Paystack checkout, got %+v", payments.initInput)
 	}
 	if businesses.upgradeApplied != nil || businesses.pendingUpgradeSet != "plan-studio" {
@@ -85,6 +86,41 @@ func TestChangeSubscriptionPlanUpgradeRequiresCheckoutBeforeSwitching(t *testing
 	}
 	if businesses.downgradeScheduled != nil {
 		t.Fatal("an upgrade must not schedule a pending downgrade")
+	}
+}
+
+// The cadence selected on the upgrade billing screen, rather than the current
+// subscription cadence, prices the target and is carried into the verified
+// reference so it can be committed only after payment succeeds.
+func TestChangeSubscriptionPlanUpgradeUsesSelectedCadence(t *testing.T) {
+	t.Parallel()
+
+	periodStart := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 4900, Status: "active", BillingMode: "recurring",
+			BillingCadence: "quarterly", QuarterlyRenewalMinor: 29700, YearlyRenewalMinor: 118800,
+			CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd,
+		},
+		planByCode: ports.PlanPricingRecord{
+			PlanID: "plan-studio", Code: "studio", MonthlyFeeMinor: 9900,
+			QuarterlyRenewalMinor: 59700, YearlyRenewalMinor: 238800,
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	service := newPlanChangeTestService(businesses, payments, time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC))
+
+	_, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, ActorRole: business.UserRoleOwner,
+		PlanCode: "studio", BillingCadence: "yearly", CallbackURL: "https://dashboard.example/callback?flow=plan-change",
+	})
+	if err != nil {
+		t.Fatalf("yearly upgrade checkout should open: %v", err)
+	}
+	if !strings.Contains(payments.initInput.Reference, "_yearly_") || payments.initInput.AmountMinor <= 0 {
+		t.Fatalf("selected yearly cadence must price and tag the checkout: %+v", payments.initInput)
 	}
 }
 

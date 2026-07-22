@@ -71,8 +71,9 @@ type subscriptionActivationResponse struct {
 }
 
 type changeSubscriptionPlanRequest struct {
-	PlanCode    string `json:"plan_code"`
-	CallbackURL string `json:"callback_url"`
+	PlanCode       string `json:"plan_code"`
+	BillingCadence string `json:"billing_cadence"`
+	CallbackURL    string `json:"callback_url"`
 }
 
 type changeSubscriptionPlanResponse struct {

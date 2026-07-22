@@ -144,10 +144,11 @@ func (handler Handler) changeSubscriptionPlan(w http.ResponseWriter, r *http.Req
 		return
 	}
 	result, err := handler.service.ChangeSubscriptionPlan(r.Context(), authapp.ChangeSubscriptionPlanCommand{
-		Scope:       principal.TenantScope(),
-		ActorRole:   principal.Role,
-		PlanCode:    request.PlanCode,
-		CallbackURL: request.CallbackURL,
+		Scope:          principal.TenantScope(),
+		ActorRole:      principal.Role,
+		PlanCode:       request.PlanCode,
+		BillingCadence: request.BillingCadence,
+		CallbackURL:    request.CallbackURL,
 	})
 	if err != nil {
 		status, code := authError(err)

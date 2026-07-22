@@ -21,10 +21,12 @@ export function BillingCyclePicker({
   plan,
   cadence,
   onChange,
+  renewalOnly = false,
 }: {
   plan: PublicPlan;
   cadence: BillingCadence;
   onChange: (cadence: BillingCadence) => void;
+  renewalOnly?: boolean;
 }) {
   return (
     <Box sx={{ textAlign: "left" }}>
@@ -38,17 +40,21 @@ export function BillingCyclePicker({
       >
         <Stack spacing={1.5}>
           {(["yearly", "quarterly"] as BillingCadence[]).map((option) => {
-            const first = subscriptionCharge(
+            const renewalMinor =
               option === "quarterly"
-                ? plan.quarterly_first_minor
-                : plan.yearly_first_minor,
+                ? plan.quarterly_renewal_minor
+                : plan.yearly_renewal_minor;
+            const first = subscriptionCharge(
+              renewalOnly
+                ? renewalMinor
+                : option === "quarterly"
+                  ? plan.quarterly_first_minor
+                  : plan.yearly_first_minor,
               plan.vat_rate_bps,
               plan.vat_inclusive,
             );
             const renewal = subscriptionCharge(
-              option === "quarterly"
-                ? plan.quarterly_renewal_minor
-                : plan.yearly_renewal_minor,
+              renewalMinor,
               plan.vat_rate_bps,
               plan.vat_inclusive,
             );
@@ -81,18 +87,22 @@ export function BillingCyclePicker({
                     <Box>
                       <Typography sx={{ fontWeight: 700 }}>
                         {option === "quarterly" ? "Quarterly" : "Yearly"} —{" "}
-                        {formatPrice(first.totalMinor)}{" "}
-                        {option === "quarterly"
-                          ? "first 3 months"
-                          : "first year"}
+                        {formatPrice(first.totalMinor)}
+                        {renewalOnly
+                          ? `/${option === "quarterly" ? "quarter" : "year"}`
+                          : option === "quarterly"
+                            ? " first 3 months"
+                            : " first year"}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: alpha(tokens.ink, 0.68) }}
-                      >
-                        then {formatPrice(renewal.totalMinor)}/
-                        {option === "quarterly" ? "quarter" : "year"}
-                      </Typography>
+                      {!renewalOnly ? (
+                        <Typography
+                          variant="body2"
+                          sx={{ color: alpha(tokens.ink, 0.68) }}
+                        >
+                          then {formatPrice(renewal.totalMinor)}/
+                          {option === "quarterly" ? "quarter" : "year"}
+                        </Typography>
+                      ) : null}
                       {selected ? (
                         <Typography
                           variant="caption"

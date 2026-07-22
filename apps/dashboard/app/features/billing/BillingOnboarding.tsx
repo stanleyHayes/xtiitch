@@ -22,7 +22,8 @@ export function meta(): Route.MetaDescriptors {
 export async function loader({ request }: Route.LoaderArgs) {
   const searchParams = new URL(request.url).searchParams;
   const planCode = searchParams.get("plan") ?? "";
-  const retryingPlanChange = searchParams.get("change") === "retry";
+  const changeCode = searchParams.get("change") ?? "";
+  const retryingPlanChange = changeCode === "retry";
   // A paid plan pending activation that reaches the bare plans/management screen
   // (no explicit ?plan target) belongs on the activation page, not the
   // change-plan view — send them there so the plans flow is never a dead-end.
@@ -46,6 +47,10 @@ export async function loader({ request }: Route.LoaderArgs) {
   const plan = planCode
     ? (plans.find((item) => item.code === planCode) ?? null)
     : null;
+  const changePlan =
+    changeCode && !retryingPlanChange
+      ? (plans.find((item) => item.code === changeCode) ?? null)
+      : null;
   // Owner is authenticated by the time they reach /onboarding/billing (register
   // sets the session; plan changes come from inside the dashboard), so we can read
   // the profile to learn which plan they are currently on.
@@ -54,6 +59,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     plans.find((item) => item.code === profile.planCode) ?? null;
   return {
     plan,
+    changePlan,
     plans,
     currentPlan,
     // Set by the billing callback when the owner returned from Paystack without
@@ -69,12 +75,13 @@ export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
 
   // Plan change (upgrade now / downgrade at renewal) for an already-subscribed
-  // business. Distinct from the activation flow below; no cadence step — the
-  // API classifies and prorates server-side.
+  // business. Upgrades arrive here after the owner chooses a billing cadence;
+  // downgrades remain payment-free and use no cadence change.
   if (String(form.get("intent") ?? "") === "change-plan") {
     return submitPlanChange(
       request,
       String(form.get("plan_code") ?? "").trim(),
+      String(form.get("billing_cadence") ?? "").trim(),
     );
   }
 
@@ -89,6 +96,7 @@ export default function BillingOnboarding({
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
   const plan = loaderData?.plan ?? null;
+  const changePlan = loaderData?.changePlan ?? null;
   const currentPlan = loaderData?.currentPlan ?? null;
   const plans = loaderData?.plans ?? [];
   const abandoned = loaderData?.abandoned ?? false;
@@ -96,6 +104,22 @@ export default function BillingOnboarding({
     error?: string;
     changeResult?: PlanChangeResult;
   };
+
+  if (
+    changePlan &&
+    currentPlan &&
+    changePlan.monthly_fee_minor > currentPlan.monthly_fee_minor
+  ) {
+    return (
+      <PaymentMethodForm
+        plan={changePlan}
+        error={result.error}
+        abandoned={abandoned}
+        isSubmitting={isSubmitting}
+        changePlan
+      />
+    );
+  }
 
   // Management mode: no activation target in the URL and the business is already on
   // a paid plan → show the self-serve plan-change control instead of the activation

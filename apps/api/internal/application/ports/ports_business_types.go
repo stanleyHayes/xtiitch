@@ -138,10 +138,11 @@ type PlanPricingRecord struct {
 // AmountMinor > 0 it also books the prorated charge as a paid invoice keyed on
 // ChargeRef (idempotent); a zero amount just switches the plan (no invoice).
 type ApplyImmediatePlanUpgradeInput struct {
-	BusinessID  common.ID
-	NewPlanID   common.ID
-	AmountMinor int64
-	Currency    string
+	BusinessID     common.ID
+	NewPlanID      common.ID
+	BillingCadence string
+	AmountMinor    int64
+	Currency       string
 	// ChargeRef is the deterministic Paystack charge reference; it becomes the
 	// invoice ref so the charge webhook reconciles to this already-paid invoice and
 	// a replayed upgrade no-ops instead of switching/charging twice.

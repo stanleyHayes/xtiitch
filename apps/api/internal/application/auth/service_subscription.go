@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -462,14 +461,8 @@ func (s Service) verifyInteractivePlanUpgrade(
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
 	parts := strings.Split(strings.TrimPrefix(reference, prefix), "_")
-	if len(parts) != 2 {
-		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
-	}
-	dueMinor, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil || dueMinor <= 0 {
-		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
-	}
-	if _, err := strconv.ParseInt(parts[1], 10, 64); err != nil {
+	cadence, dueMinor, err := parseUpgradeReferenceSuffix(parts, subscription.BillingCadence)
+	if err != nil {
 		return SubscriptionAuthorizationResult{}, authdomain.ErrInvalidInput
 	}
 	verified, err := s.payments.VerifyAuthorization(ctx, ports.VerifyAuthorizationInput{Reference: reference})
@@ -488,7 +481,7 @@ func (s Service) verifyInteractivePlanUpgrade(
 	if !subscription.PendingUpgradePlanID.IsZero() {
 		if err := s.businesses.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
 			BusinessID: subscription.BusinessID, NewPlanID: subscription.PendingUpgradePlanID,
-			AmountMinor: verified.AmountMinor, Currency: "GHS", ChargeRef: reference,
+			BillingCadence: cadence, AmountMinor: verified.AmountMinor, Currency: "GHS", ChargeRef: reference,
 		}); err != nil {
 			return SubscriptionAuthorizationResult{}, err
 		}

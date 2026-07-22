@@ -170,7 +170,7 @@ func TestVerifyInteractivePlanUpgradeAppliesOnlyAfterFullPayment(t *testing.T) {
 	}}
 	payments := &fakeSubscriptionPayments{initInput: ports.InitializeAuthorizationInput{AmountMinor: 9995}}
 	service := newSubscriptionTestService(businesses, payments)
-	reference := "xtsub_upgrade_checkout_sub-1_studio_1780272000_9995_1781467200"
+	reference := "xtsub_upgrade_checkout_sub-1_studio_1780272000_yearly_9995_1781467200"
 	result, err := service.VerifySubscriptionAuthorization(context.Background(), VerifySubscriptionAuthorizationCommand{
 		Scope: common.TenantScope{BusinessID: "business-1"}, Reference: reference,
 	})
@@ -180,6 +180,9 @@ func TestVerifyInteractivePlanUpgradeAppliesOnlyAfterFullPayment(t *testing.T) {
 	if businesses.upgradeApplied == nil || businesses.upgradeApplied.NewPlanID != "plan-studio" ||
 		businesses.upgradeApplied.AmountMinor != 9995 || businesses.upgradeApplied.ChargeRef != reference {
 		t.Fatalf("expected paid upgrade applied and booked, got %+v", businesses.upgradeApplied)
+	}
+	if businesses.upgradeApplied.BillingCadence != "yearly" {
+		t.Fatalf("verified upgrade must commit the selected cadence, got %+v", businesses.upgradeApplied)
 	}
 }
 

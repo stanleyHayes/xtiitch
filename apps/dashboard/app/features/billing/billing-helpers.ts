@@ -156,12 +156,29 @@ export type PlanChangeResult = {
   authorization_url?: string;
 };
 
+export function upgradeBillingHref(planCode: string): string {
+  return `/onboarding/billing?change=${encodeURIComponent(planCode)}`;
+}
+
+export function planChangeRequestBody(
+  planCode: string,
+  billingCadence: string,
+  callbackURL: string,
+): Record<string, string> {
+  return {
+    plan_code: planCode,
+    ...(billingCadence ? { billing_cadence: billingCadence } : {}),
+    callback_url: callbackURL,
+  };
+}
+
 // Ask the API to change the plan. The API classifies upgrade vs downgrade and
 // prorates server-side; we surface whether it applied immediately (upgrade) or was
 // scheduled for the next renewal (downgrade).
 export async function submitPlanChange(
   request: Request,
   planCode: string,
+  billingCadence = "",
 ): Promise<Response | { error: string } | { changeResult: PlanChangeResult }> {
   if (!planCode) {
     return { error: "Choose a plan to switch to." };
@@ -172,10 +189,13 @@ export async function submitPlanChange(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        plan_code: planCode,
-        callback_url: `${new URL(request.url).origin}/onboarding/billing/callback?flow=plan-change`,
-      }),
+      body: JSON.stringify(
+        planChangeRequestBody(
+          planCode,
+          billingCadence,
+          `${new URL(request.url).origin}/onboarding/billing/callback?flow=plan-change`,
+        ),
+      ),
     },
   );
   if (!response.ok) {

@@ -14,6 +14,7 @@ import MuiLink from "@mui/material/Link";
 import { Link as RouterLink } from "react-router";
 import { tokens } from "../../theme";
 import type { PlanChangeResult, PublicPlan } from "./billing-helpers";
+import { upgradeBillingHref } from "./billing-helpers";
 import { formatPrice, vatNote } from "./PaymentMethodForm";
 import {
   POPULAR_PLAN_CODE,
@@ -139,6 +140,8 @@ export function ChangePlanView({
         <Stack spacing={2.5}>
           {others.map((item) => {
             const isPaid = item.monthly_fee_minor > 0;
+            const isUpgrade =
+              item.monthly_fee_minor > currentPlan.monthly_fee_minor;
             const popular = item.code.toLowerCase() === POPULAR_PLAN_CODE;
             const copy = cadencePriceCopy(item, "yearly");
             return (
@@ -217,19 +220,31 @@ export function ChangePlanView({
                 {/* Paystack is an external navigation. A native document submit
                     prevents browser Back from restoring React Router's stale
                     submitting state and leaving every retry button disabled. */}
-                <Form method="post" reloadDocument>
-                  <input type="hidden" name="intent" value="change-plan" />
-                  <input type="hidden" name="plan_code" value={item.code} />
+                {isUpgrade ? (
                   <Button
-                    type="submit"
+                    component={RouterLink}
+                    to={upgradeBillingHref(item.code)}
                     variant={popular ? "contained" : "outlined"}
-                    disabled={isSubmitting}
                     endIcon={<ArrowForwardRounded />}
                     fullWidth
                   >
                     {`Choose ${item.name}`}
                   </Button>
-                </Form>
+                ) : (
+                  <Form method="post" reloadDocument>
+                    <input type="hidden" name="intent" value="change-plan" />
+                    <input type="hidden" name="plan_code" value={item.code} />
+                    <Button
+                      type="submit"
+                      variant={popular ? "contained" : "outlined"}
+                      disabled={isSubmitting}
+                      endIcon={<ArrowForwardRounded />}
+                      fullWidth
+                    >
+                      {`Choose ${item.name}`}
+                    </Button>
+                  </Form>
+                )}
               </Paper>
             );
           })}

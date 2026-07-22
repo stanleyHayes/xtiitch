@@ -56,12 +56,13 @@ export function vatNote(vat: VATPolicy): string {
 // package + Tax (VAT) + Transaction fee totals render in BillingCyclePicker;
 // the §4.6 gross-up maths lives in lib/billing-fees.ts.
 
-// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- one presentational form covers activation and upgrade copy/states
 export function PaymentMethodForm({
   plan,
   error,
   abandoned,
   isSubmitting,
+  changePlan = false,
 }: {
   plan: PublicPlan | null;
   error?: string;
@@ -69,6 +70,9 @@ export function PaymentMethodForm({
   // shows a friendly banner and the pay button simply works again.
   abandoned?: boolean;
   isSubmitting: boolean;
+  // Existing paid subscribers use this form as the cadence step before an
+  // upgrade. The action then calls change-plan rather than first activation.
+  changePlan?: boolean;
 }) {
   const isPaidPlan = plan !== null && plan.monthly_fee_minor > 0;
   // The plans list deep-links here with ?plan=code&cadence=..., so the cycle
@@ -146,12 +150,15 @@ export function PaymentMethodForm({
           </Box>
           <Chip label="Almost there" color="primary" sx={{ mb: 1.5 }} />
           <Typography variant="h4" component="h1" sx={{ mb: 1 }}>
-            Set up billing{plan ? ` for ${plan.name}` : ""}
+            {changePlan ? "Choose billing for" : "Set up billing"}
+            {plan ? ` ${plan.name}` : ""}
           </Typography>
           <Typography sx={{ color: alpha(tokens.ink, 0.68), mb: 3 }}>
-            {isPaidPlan
-              ? "Choose a billing cycle and authorize it with Paystack to activate your plan. You can manage or cancel anytime."
-              : "Authorize recurring billing with Paystack to activate your plan."}
+            {changePlan
+              ? `Choose the cycle ${plan?.name ?? "your new plan"} will renew on. Your payment today is prorated for the rest of the current period and your plan changes only after Paystack confirms it.`
+              : isPaidPlan
+                ? "Choose a billing cycle and authorize it with Paystack to activate your plan. You can manage or cancel anytime."
+                : "Authorize recurring billing with Paystack to activate your plan."}
           </Typography>
           {error ? (
             <Alert severity="warning" sx={{ mb: 2, textAlign: "left" }}>
@@ -169,14 +176,34 @@ export function PaymentMethodForm({
               "submitting" state after a failed or abandoned payment. */}
           <Form method="post" reloadDocument>
             <Stack spacing={2}>
+              {changePlan ? (
+                <>
+                  <input type="hidden" name="intent" value="change-plan" />
+                  <input
+                    type="hidden"
+                    name="plan_code"
+                    value={plan?.code ?? ""}
+                  />
+                </>
+              ) : null}
               {isPaidPlan && plan ? (
                 <BillingCyclePicker
                   plan={plan}
                   cadence={cadence}
                   onChange={setCadence}
+                  renewalOnly={changePlan}
                 />
               ) : null}
-              {isPaidPlan ? (
+              {changePlan ? (
+                <Typography
+                  variant="caption"
+                  sx={{ color: alpha(tokens.ink, 0.62), textAlign: "left" }}
+                >
+                  These are the full renewal totals. Paystack will show and
+                  collect only the prorated upgrade amount due today.
+                </Typography>
+              ) : null}
+              {isPaidPlan && !changePlan ? (
                 <Box sx={{ textAlign: "left" }}>
                   <TextField
                     name="discount_code"
@@ -213,10 +240,12 @@ export function PaymentMethodForm({
               <XCreativsPaymentNotice />
               <MuiLink
                 component={RouterLink}
-                to="/dashboard"
+                to={changePlan ? "/onboarding/billing" : "/dashboard"}
                 sx={{ color: alpha(tokens.ink, 0.6) }}
               >
-                Skip for now — I'll do this later
+                {changePlan
+                  ? "Back to packages"
+                  : "Skip for now — I'll do this later"}
               </MuiLink>
             </Stack>
           </Form>
