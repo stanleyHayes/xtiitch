@@ -33,6 +33,8 @@ type CheckoutFormProps = {
   // could not be loaded: the button then stays disabled (the page shows the
   // retry error) rather than charging a total with no tax/fee lines behind it.
   payMinor: number | null;
+  paymentPending: boolean;
+  recoveryLocked: boolean;
   zones: Zone[];
   profile: CustomerProfile | null;
   fulfilment: "pickup" | "delivery";
@@ -42,10 +44,13 @@ type CheckoutFormProps = {
   deliveryOffered: boolean;
 };
 
+// eslint-disable-next-line complexity, max-lines-per-function -- form renders fulfilment and payment states.
 export default function CheckoutForm({
   storeHandle,
   items,
   payMinor,
+  paymentPending,
+  recoveryLocked,
   zones,
   profile,
   fulfilment,
@@ -68,6 +73,12 @@ export default function CheckoutForm({
     <Form method="post" action={submitAction} reloadDocument>
       <input type="hidden" name="intent" value="pay" />
       <Stack spacing={1.5}>
+        {recoveryLocked ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            Your original fulfilment details are preserved for this payment
+            retry. Change the cart if you need to create a different order.
+          </Typography>
+        ) : null}
         {deliveryOffered ? (
           <Box
             sx={{
@@ -89,12 +100,12 @@ export default function CheckoutForm({
             >
               <FormControlLabel
                 value="pickup"
-                control={<Radio />}
+                control={<Radio disabled={recoveryLocked} />}
                 label="Pick up from the studio (free)"
               />
               <FormControlLabel
                 value="delivery"
-                control={<Radio />}
+                control={<Radio disabled={recoveryLocked} />}
                 label="Deliver to me"
               />
             </RadioGroup>
@@ -109,6 +120,7 @@ export default function CheckoutForm({
                     name="delivery_zone_id"
                     label="Delivery area"
                     value={zoneID}
+                    disabled={recoveryLocked}
                     onChange={(event) => onZoneChange(event.target.value)}
                   >
                     {zones.map((zone) => (
@@ -123,6 +135,7 @@ export default function CheckoutForm({
                   label="Delivery address"
                   placeholder="House number, street, area, landmark"
                   required
+                  disabled={recoveryLocked}
                   fullWidth
                   multiline
                   minRows={2}
@@ -131,6 +144,7 @@ export default function CheckoutForm({
                   name="gps_location"
                   label="GPS location (optional)"
                   placeholder="GA-123-4567 or Google Maps link"
+                  disabled={recoveryLocked}
                   fullWidth
                 />
               </Stack>
@@ -173,17 +187,21 @@ export default function CheckoutForm({
           variant="contained"
           size="large"
           startIcon={<LockRounded />}
-          disabled={submitting || !canPayNow || payMinor === null}
+          disabled={
+            submitting || paymentPending || !canPayNow || payMinor === null
+          }
           sx={{
             bgcolor: tokens.burgundy,
             "&:hover": { bgcolor: alpha(tokens.burgundy, 0.85) },
           }}
         >
-          {submitting
-            ? "Starting payment…"
-            : payMinor !== null
-              ? `Pay ${formatGHS(payMinor)} with Paystack`
-              : "Pay with Paystack"}
+          {paymentPending
+            ? "Payment confirmation pending…"
+            : submitting
+              ? "Starting payment…"
+              : payMinor !== null
+                ? `Pay ${formatGHS(payMinor)} with Paystack`
+                : "Pay with Paystack"}
         </Button>
         {/* "XCreativs" is the name that appears at payment, which is unfamiliar
             to a shopper who only knows Xtiitch — say so here, at the moment of

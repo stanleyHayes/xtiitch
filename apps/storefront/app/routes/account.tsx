@@ -37,6 +37,38 @@ export async function loader({ request }: Route.LoaderArgs) {
   const token = (session.get("customerToken") as string | undefined) ?? null;
   const signedInPhone = (session.get("customerPhone") as string | null) ?? null;
 
+  // Return from a "Pay now" payment on a draft order: Paystack appends
+  // ?reference=... to the callback (/account?payment=return&store=<handle>).
+  // Verify before loading orders so a confirmed payment is already reflected
+  // in the statuses rendered below.
+  let paymentReturn: "succeeded" | "pending" | "retry" | "unconfirmed" | null =
+    null;
+  const reference = (
+    url.searchParams.get("reference") ??
+    url.searchParams.get("trxref") ??
+    ""
+  ).trim();
+  const paidStore = (url.searchParams.get("store") ?? "").trim();
+  if (
+    token &&
+    url.searchParams.get("payment") === "return" &&
+    reference &&
+    paidStore
+  ) {
+    const verification = await api
+      .verifyPayment(paidStore, reference, requestTenant(request))
+      .catch(() => null);
+    paymentReturn = verification?.ok
+      ? verification.result.status === "succeeded"
+        ? "succeeded"
+        : verification.result.status === "pending"
+          ? "pending"
+          : "retry"
+      : "unconfirmed";
+  }
+
+  // Load orders AFTER verification so a successful return cannot render the
+  // stale draft/Pay now state for an order that was just confirmed.
   let orders: CustomerOrder[] = [];
   let profile: CustomerProfile | null = null;
   if (token) {
@@ -44,28 +76,6 @@ export async function loader({ request }: Route.LoaderArgs) {
       fetchCustomerOrders(token),
       fetchCustomerProfile(token),
     ]);
-  }
-
-  // Return from a "Pay now" payment on a draft order: Paystack appends
-  // ?reference=... to the callback (/account?payment=return&store=<handle>).
-  // Verify before showing any outcome — the order list itself reloaded above,
-  // so a confirmed payment is already reflected in the statuses.
-  let paymentReturn: "succeeded" | "retry" | "unconfirmed" | null = null;
-  const reference = (
-    url.searchParams.get("reference") ??
-    url.searchParams.get("trxref") ??
-    ""
-  ).trim();
-  const paidStore = (url.searchParams.get("store") ?? "").trim();
-  if (token && url.searchParams.get("payment") === "return" && reference && paidStore) {
-    const verification = await api
-      .verifyPayment(paidStore, reference, requestTenant(request))
-      .catch(() => null);
-    paymentReturn = verification?.ok
-      ? verification.result.status === "succeeded"
-        ? "succeeded"
-        : "retry"
-      : "unconfirmed";
   }
 
   return {
@@ -81,7 +91,8 @@ export async function loader({ request }: Route.LoaderArgs) {
   };
 }
 
-export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
+// eslint-disable-next-line complexity -- route action handles account and order workflows.
+export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
@@ -138,7 +149,10 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
             : "We couldn't mark that as received. Please try again.",
       } as ActionResult;
     }
-    return { step: "identify", orderNotice: "Marked as received." } as ActionResult;
+    return {
+      step: "identify",
+      orderNotice: "Marked as received.",
+    } as ActionResult;
   }
 
   // "Pay now" on a draft ("Awaiting payment") order: mint a fresh Paystack
@@ -161,9 +175,11 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
       return {
         step: "identify",
         orderError:
-          result.status === 409
-            ? "That order can no longer be paid online — please call the store about it."
-            : "We couldn't start that payment. Please try again.",
+          result.error === "payment_pending"
+            ? "Paystack is still confirming the previous payment. We haven't started another charge; refresh shortly."
+            : result.status === 409
+              ? "That order can no longer be paid online — please call the store about it."
+              : "We couldn't start that payment. Please try again.",
       } as ActionResult;
     }
     return redirect(result.authorizationUrl);

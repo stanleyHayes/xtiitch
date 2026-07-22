@@ -182,6 +182,31 @@ func TestPaymentLinkConflictWhenNotPayable(t *testing.T) {
 	}
 }
 
+func TestPaymentLinkConflictWhileProviderStillPending(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeService{paymentLinkErr: customerauthapp.ErrOrderPaymentPending}
+	router := newTestRouter(service)
+	request := httptest.NewRequest(http.MethodPost, "/customer/orders/order-1/payment-link",
+		bytes.NewReader([]byte(`{"callback_url":"https://store.xtiitch.com/orders"}`)))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer token")
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d body=%s", response.Code, response.Body.String())
+	}
+	var body map[string]string
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body["error"] != "payment_pending" {
+		t.Fatalf("expected payment_pending, got %+v", body)
+	}
+}
+
 // ── fakes ──────────────────────────────────────────────────────────────────
 
 type fakeService struct {

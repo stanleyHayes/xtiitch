@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link as RouterLink, useFetcher, useRevalidator } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
@@ -30,12 +30,19 @@ type QuoteActionData = {
 // Where the customer stands on returning from Paystack (the checkout loader
 // verifies the ?reference= Paystack appended to the callback):
 // - "succeeded": charge confirmed — basket cleared, success panel shows.
-// - "retry": payment pending/failed/abandoned — normal checkout, cart intact,
-//   Pay Now active, plus a nothing-was-charged banner.
+// - "pending": Paystack still has an open attempt — cart intact, but a second
+//   charge stays blocked until the first resolves.
+// - "retry": payment failed/abandoned — normal checkout, cart intact, Pay Now
+//   active, plus a nothing-was-charged banner.
 // - "unconfirmed": the verify call itself failed — same non-trapping checkout
 //   with a softer "we couldn't confirm" banner.
 // - null: a fresh visit, no payment return involved.
-export type PaymentState = "succeeded" | "retry" | "unconfirmed" | null;
+export type PaymentState =
+  | "succeeded"
+  | "pending"
+  | "retry"
+  | "unconfirmed"
+  | null;
 
 type CheckoutProps = {
   storeHandle: string;
@@ -48,6 +55,7 @@ type CheckoutProps = {
   // rendering a bill that could silently drop passed-down tax/fee lines.
   quote: CheckoutQuote | null;
   paymentState: PaymentState;
+  pendingDeliveryZoneID?: string;
   actionData?: { error?: string } | null;
 };
 
@@ -59,15 +67,31 @@ export default function Checkout({
   profile,
   quote,
   paymentState,
+  pendingDeliveryZoneID = "",
   actionData,
 }: CheckoutProps) {
-  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">("pickup");
-  const [zoneID, setZoneID] = useState("");
+  const recoveryLocked = paymentState !== null && paymentState !== "succeeded";
+  const [fulfilment, setFulfilment] = useState<"pickup" | "delivery">(
+    pendingDeliveryZoneID ? "delivery" : "pickup",
+  );
+  const [zoneID, setZoneID] = useState(pendingDeliveryZoneID);
   // Choosing a delivery zone re-prices the SAME basket through checkout-quote
   // (the "quote" action intent), so the fee lines and total on screen are
   // always exactly what the charge will ask for.
   const quoteFetcher = useFetcher<QuoteActionData>();
   const revalidator = useRevalidator();
+  // Browser Back can restore the pre-Paystack checkout from bfcache without a
+  // network request. Revalidate that restored document so the loader checks the
+  // pending reference stored with the cart and renders the true provider state.
+  useEffect(() => {
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) {
+        revalidator.revalidate();
+      }
+    };
+    window.addEventListener("pageshow", handlePageShow);
+    return () => window.removeEventListener("pageshow", handlePageShow);
+  }, [revalidator]);
   const submitAction = `/checkout?store=${encodeURIComponent(storeHandle)}`;
   const requestZoneQuote = (zone: string) => {
     if (!zone) {
@@ -79,12 +103,18 @@ export default function Checkout({
     quoteFetcher.submit(body, { method: "post", action: submitAction });
   };
   const onFulfilmentChange = (value: "pickup" | "delivery") => {
+    if (recoveryLocked) {
+      return;
+    }
     setFulfilment(value);
     if (value === "delivery") {
       requestZoneQuote(zoneID);
     }
   };
   const onZoneChange = (value: string) => {
+    if (recoveryLocked) {
+      return;
+    }
     setZoneID(value);
     requestZoneQuote(value);
   };
@@ -182,11 +212,18 @@ export default function Checkout({
             try again whenever you&apos;re ready.
           </Alert>
         ) : null}
+        {paymentState === "pending" ? (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Paystack is still confirming your previous payment attempt. Your
+            cart is safe, and we won&apos;t start another charge until it
+            resolves. Refresh shortly to check again.
+          </Alert>
+        ) : null}
         {paymentState === "unconfirmed" ? (
           <Alert severity="info" sx={{ mb: 2 }}>
             We couldn&apos;t confirm your payment just now. If you completed it,
-            it will reflect in your account shortly — otherwise you can safely
-            try again below.
+            it will reflect in your account shortly. Refresh before trying again
+            so we can confirm Paystack&apos;s status first.
           </Alert>
         ) : null}
 
@@ -296,6 +333,8 @@ export default function Checkout({
           storeHandle={storeHandle}
           items={items}
           payMinor={payMinor}
+          paymentPending={paymentState === "pending"}
+          recoveryLocked={recoveryLocked}
           zones={zones}
           profile={profile}
           fulfilment={fulfilment}

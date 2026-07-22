@@ -85,10 +85,7 @@ export function OrdersPanel({
           <Typography sx={{ mt: 1, fontWeight: 800 }}>
             {tab === "current" ? "No current orders" : "Nothing archived yet"}
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{ color: "text.secondary", mt: 0.5 }}
-          >
+          <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
             {tab === "current"
               ? "When you order from a studio, it shows up here."
               : "Orders the store has finished land here for you to acknowledge."}
@@ -221,11 +218,7 @@ function OrderRow({
           <Typography sx={{ fontWeight: 800 }} noWrap>
             {order.design_title || "Custom order"}
           </Typography>
-          <Typography
-            variant="body2"
-            sx={{ color: "text.secondary" }}
-            noWrap
-          >
+          <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
             {kindLabel(order.kind)} · {formatDate(order.created_at)}
           </Typography>
         </Box>
@@ -267,7 +260,7 @@ function OrderRow({
               dead end: Pay now mints a fresh Paystack link for the SAME order
               and sends the customer straight to it. */}
           {order.status.toLowerCase() === "draft" ? (
-            <Form method="post">
+            <Form method="post" reloadDocument>
               <input type="hidden" name="intent" value="pay_order" />
               <input type="hidden" name="order_id" value={order.order_id} />
               <input

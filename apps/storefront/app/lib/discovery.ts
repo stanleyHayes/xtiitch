@@ -146,7 +146,7 @@ export async function fetchCustomerOrders(
   token: string,
 ): Promise<CustomerOrder[]> {
   try {
-    const response = await fetch(`${API_BASE}/v1/customer/orders`, {
+    const response = await fetchWithTimeout(`${API_BASE}/v1/customer/orders`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok) return [];
@@ -190,7 +190,7 @@ export async function markOrderReceived(
   token: string,
   orderID: string,
 ): Promise<ReceivedResult> {
-  const response = await fetch(
+  const response = await fetchWithTimeout(
     `${API_BASE}/v1/customer/orders/${encodeURIComponent(orderID)}/received`,
     {
       method: "POST",
@@ -238,7 +238,10 @@ export async function markBasketReceived(
       markedCount: 0,
     };
   }
-  const body = (await response.json()) as { ok: boolean; marked_count?: number };
+  const body = (await response.json()) as {
+    ok: boolean;
+    marked_count?: number;
+  };
   return { ok: true, markedCount: body.marked_count ?? 0 };
 }
 
@@ -256,36 +259,40 @@ export async function requestPaymentLink(
   orderID: string,
   callbackURL: string,
 ): Promise<PaymentLinkResult> {
-  const response = await fetch(
-    `${API_BASE}/v1/customer/orders/${encodeURIComponent(orderID)}/payment-link`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+  try {
+    const response = await fetchWithTimeout(
+      `${API_BASE}/v1/customer/orders/${encodeURIComponent(orderID)}/payment-link`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ callback_url: callbackURL }),
       },
-      body: JSON.stringify({ callback_url: callbackURL }),
-    },
-  );
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as {
-      error?: string;
-    } | null;
-    return {
-      ok: false,
-      status: response.status,
-      error: payload?.error ?? "upstream_error",
+    );
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return {
+        ok: false,
+        status: response.status,
+        error: payload?.error ?? "upstream_error",
+      };
+    }
+    const body = (await response.json()) as {
+      authorization_url: string;
+      reference: string;
     };
+    return {
+      ok: true,
+      authorizationUrl: body.authorization_url,
+      reference: body.reference,
+    };
+  } catch {
+    return { ok: false, status: 504, error: "upstream_timeout" };
   }
-  const body = (await response.json()) as {
-    authorization_url: string;
-    reference: string;
-  };
-  return {
-    ok: true,
-    authorizationUrl: body.authorization_url,
-    reference: body.reference,
-  };
 }
 
 // ── AI marketplace search ──────────────────────────────────────────────────

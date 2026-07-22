@@ -11,10 +11,20 @@ import (
 )
 
 type fakePaymentInitiator struct {
-	result  paymentsapp.ChargeResult
-	err     error
-	called  bool
-	command paymentsapp.InitiateChargeCommand
+	result        paymentsapp.ChargeResult
+	err           error
+	called        bool
+	command       paymentsapp.InitiateChargeCommand
+	verifyResult  paymentsapp.VerifyPaymentResult
+	verifyErr     error
+	verifyCalled  bool
+	verifyCommand paymentsapp.VerifyPaymentCommand
+}
+
+func (f *fakePaymentInitiator) VerifyPayment(_ context.Context, command paymentsapp.VerifyPaymentCommand) (paymentsapp.VerifyPaymentResult, error) {
+	f.verifyCalled = true
+	f.verifyCommand = command
+	return f.verifyResult, f.verifyErr
 }
 
 func (f *fakePaymentInitiator) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {
@@ -116,6 +126,51 @@ func TestCreateOrderPaymentLinkRejectsNonDraftOrder(t *testing.T) {
 		if payments.called {
 			t.Fatalf("status %q: no charge may be raised", status)
 		}
+	}
+}
+
+func TestCreateOrderPaymentLinkVerifiesLatestAttemptBeforeRetry(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		status     string
+		wantErr    error
+		wantCharge bool
+	}{
+		{name: "provider still pending", status: "pending", wantErr: ErrOrderPaymentPending},
+		{name: "provider succeeded", status: "succeeded", wantErr: ErrOrderNotPayable},
+		{name: "provider confirms failure", status: "failed", wantCharge: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			repo := &fakeRepo{paymentContext: ports.CustomerOrderPaymentContext{
+				OrderID:              "order-1",
+				BusinessID:           "business-1",
+				Status:               "draft",
+				CustomerEmail:        "ama@example.com",
+				OutstandingMinor:     25000,
+				Purpose:              "standard_full",
+				LastPaymentReference: "xt_old",
+				LastPaymentStatus:    "initiated",
+			}}
+			payments := &fakePaymentInitiator{
+				verifyResult: paymentsapp.VerifyPaymentResult{Status: tc.status},
+				result:       paymentsapp.ChargeResult{AuthorizationURL: "https://pay/new"},
+			}
+			service := newPaymentLinkService(repo, payments)
+
+			_, err := service.CreateOrderPaymentLink(context.Background(), "customer-1", "order-1", "")
+			if !errors.Is(err, tc.wantErr) {
+				t.Fatalf("error = %v, want %v", err, tc.wantErr)
+			}
+			if !payments.verifyCalled || payments.verifyCommand.ProviderReference != "xt_old" {
+				t.Fatalf("latest attempt was not verified: %+v", payments.verifyCommand)
+			}
+			if payments.called != tc.wantCharge {
+				t.Fatalf("charge called = %v, want %v", payments.called, tc.wantCharge)
+			}
+		})
 	}
 }
 

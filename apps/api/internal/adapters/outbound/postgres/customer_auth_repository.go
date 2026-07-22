@@ -124,7 +124,7 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 	}
 
 	var result ports.CustomerOrderPaymentContext
-	var businessID, groupID, lastPurpose, bookingID sql.NullString
+	var businessID, groupID, lastPurpose, bookingID, lastReference, lastPaymentStatus sql.NullString
 	var agreedTotal, lastSettleAmount sql.NullInt64
 	var settled int64
 	err = tx.QueryRow(ctx, `
@@ -139,6 +139,12 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 				order by p.created_at desc limit 1),
 			(select p.booking_id::text from payments p
 				where p.order_id = o.order_id and p.booking_id is not null
+				order by p.created_at desc limit 1),
+			(select p.provider_reference from payments p
+				where p.order_id = o.order_id
+				order by p.created_at desc limit 1),
+			(select p.status from payments p
+				where p.order_id = o.order_id
 				order by p.created_at desc limit 1)
 		from orders o
 		where o.order_id = $1 and o.customer_id = $2
@@ -147,6 +153,7 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 		&agreedTotal, &settled,
 		&result.CustomerEmail, &groupID,
 		&lastPurpose, &lastSettleAmount, &bookingID,
+		&lastReference, &lastPaymentStatus,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ports.CustomerOrderPaymentContext{}, ports.ErrNotFound
@@ -156,6 +163,8 @@ func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 	}
 	result.OrderID = orderID
 	result.BusinessID = common.ID(businessID.String)
+	result.LastPaymentReference = lastReference.String
+	result.LastPaymentStatus = lastPaymentStatus.String
 
 	if groupID.Valid {
 		// A cart basket is paid by ONE combined charge: re-charge the whole

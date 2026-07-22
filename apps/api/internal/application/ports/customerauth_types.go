@@ -117,4 +117,8 @@ type CustomerOrderPaymentContext struct {
 	// fees excluded, matching the original cart charge); nil for a single-order
 	// charge, which InitiateCharge commissions on the amount itself.
 	LineAmountsMinor []int64
+	// The latest attempt is verified before another link is minted. This avoids
+	// double-charging an order whose prior Paystack transaction is still open.
+	LastPaymentReference string
+	LastPaymentStatus    string
 }

@@ -17,11 +17,16 @@ import (
 // order is already paid (or cancelled)" rather than raising a second charge.
 var ErrOrderNotPayable = errors.New("order is not payable")
 
+// ErrOrderPaymentPending prevents a second Paystack charge while the previous
+// attempt is still open at the provider.
+var ErrOrderPaymentPending = errors.New("order payment is still pending")
+
 // PaymentInitiator is the slice of the payments use case the customer payment
 // link needs (declared here, in the consumer, to keep the dependency narrow —
 // same shape as checkout's Payments).
 type PaymentInitiator interface {
 	InitiateCharge(ctx context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error)
+	VerifyPayment(ctx context.Context, command paymentsapp.VerifyPaymentCommand) (paymentsapp.VerifyPaymentResult, error)
 }
 
 // OrderPaymentLinkResult is a fresh Paystack checkout for an order the
@@ -63,6 +68,21 @@ func (s Service) CreateOrderPaymentLink(
 	}
 	if order.Status != "draft" || order.OutstandingMinor <= 0 {
 		return OrderPaymentLinkResult{}, ErrOrderNotPayable
+	}
+	if order.LastPaymentStatus == string(money.PaymentStatusInitiated) && order.LastPaymentReference != "" {
+		verified, verifyErr := s.payments.VerifyPayment(ctx, paymentsapp.VerifyPaymentCommand{
+			Scope:             common.TenantScope{BusinessID: order.BusinessID},
+			ProviderReference: order.LastPaymentReference,
+		})
+		if verifyErr != nil {
+			return OrderPaymentLinkResult{}, verifyErr
+		}
+		switch verified.Status {
+		case string(money.PaymentStatusSucceeded):
+			return OrderPaymentLinkResult{}, ErrOrderNotPayable
+		case "pending":
+			return OrderPaymentLinkResult{}, ErrOrderPaymentPending
+		}
 	}
 
 	email := order.CustomerEmail

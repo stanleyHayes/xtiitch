@@ -11,6 +11,13 @@ import { createCookieSessionStorage } from "react-router";
 export type CartItemKind = "made_to_wear" | "bespoke";
 export const MAX_CART_ITEMS_PER_STORE = 50;
 
+export type PendingCartPayment = {
+  store_handle: string;
+  order_id: string;
+  reference: string;
+  delivery_zone_id?: string;
+};
+
 export type CartItem = {
   // Stable id for one distinct product configuration.
   line_id: string;
@@ -39,6 +46,7 @@ type CartData = {
   // The store the cart belongs to; cleared/replaced when adding from another.
   store_handle: string;
   items: CartItem[];
+  pending_payments: Record<string, PendingCartPayment>;
 };
 
 const storage = createCookieSessionStorage<CartData>({
@@ -55,14 +63,39 @@ const storage = createCookieSessionStorage<CartData>({
   },
 });
 
-export async function getCart(
-  request: Request,
-): Promise<{ storeHandle: string; items: CartItem[] }> {
+export async function getCart(request: Request): Promise<{
+  storeHandle: string;
+  items: CartItem[];
+  pendingPayments: Record<string, PendingCartPayment>;
+}> {
   const session = await storage.getSession(request.headers.get("Cookie"));
   return {
     storeHandle: session.get("store_handle") ?? "",
     items: consolidateCartItems(session.get("items") ?? []),
+    pendingPayments: session.get("pending_payments") ?? {},
   };
+}
+
+function withoutPendingStore(
+  pending: Record<string, PendingCartPayment>,
+  storeHandle: string,
+): Record<string, PendingCartPayment> {
+  return Object.fromEntries(
+    Object.entries(pending).filter(([handle]) => handle !== storeHandle),
+  );
+}
+
+export async function setPendingCartPayment(
+  request: Request,
+  payment: PendingCartPayment,
+): Promise<string> {
+  const session = await storage.getSession(request.headers.get("Cookie"));
+  const pending = session.get("pending_payments") ?? {};
+  session.set("pending_payments", {
+    ...pending,
+    [payment.store_handle]: payment,
+  });
+  return storage.commitSession(session);
 }
 
 export function cartTotalMinor(items: CartItem[]): number {
@@ -183,6 +216,13 @@ export async function addToCart(
   // shopping" back-links); the basket itself is multi-store via item.store_handle.
   session.set("store_handle", item.store_handle);
   session.set("items", items);
+  session.set(
+    "pending_payments",
+    withoutPendingStore(
+      session.get("pending_payments") ?? {},
+      item.store_handle,
+    ),
+  );
   return storage.commitSession(session);
 }
 
@@ -191,10 +231,19 @@ export async function removeFromCart(
   lineID: string,
 ): Promise<string> {
   const session = await storage.getSession(request.headers.get("Cookie"));
-  const items = consolidateCartItems(session.get("items") ?? []).filter(
-    (item) => item.line_id !== lineID,
-  );
+  const current = consolidateCartItems(session.get("items") ?? []);
+  const removed = current.find((item) => item.line_id === lineID);
+  const items = current.filter((item) => item.line_id !== lineID);
   session.set("items", items);
+  if (removed) {
+    session.set(
+      "pending_payments",
+      withoutPendingStore(
+        session.get("pending_payments") ?? {},
+        removed.store_handle,
+      ),
+    );
+  }
   if (items.length === 0) {
     session.unset("store_handle");
   }
@@ -229,6 +278,15 @@ export async function updateCartItemQuantity(
     )
     .filter((item) => item.quantity > 0);
   session.set("items", updated);
+  if (target) {
+    session.set(
+      "pending_payments",
+      withoutPendingStore(
+        session.get("pending_payments") ?? {},
+        target.store_handle,
+      ),
+    );
+  }
   if (updated.length === 0) {
     session.unset("store_handle");
   }
@@ -250,6 +308,11 @@ export async function keepOnlyStore(
     return null;
   }
   session.set("items", kept);
+  const pending = session.get("pending_payments") ?? {};
+  session.set(
+    "pending_payments",
+    pending[storeHandle] ? { [storeHandle]: pending[storeHandle] } : {},
+  );
   if (kept.length === 0) {
     session.unset("store_handle");
   }
@@ -273,6 +336,10 @@ export async function clearStoreItems(
     (item) => item.store_handle !== storeHandle,
   );
   session.set("items", items);
+  session.set(
+    "pending_payments",
+    withoutPendingStore(session.get("pending_payments") ?? {}, storeHandle),
+  );
   if (items.length === 0) {
     session.unset("store_handle");
   }

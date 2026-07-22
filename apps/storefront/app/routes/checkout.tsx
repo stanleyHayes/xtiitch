@@ -7,12 +7,13 @@ import {
   clearStoreItems,
   getCart,
   itemsForStore,
+  setPendingCartPayment,
   storeHandlesInCart,
   type CartItem,
 } from "../lib/cart";
 import { getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
-import { fetchCustomerProfile } from "../lib/discovery";
+import { fetchCustomerProfile, requestPaymentLink } from "../lib/discovery";
 import Checkout from "../features/checkout/Checkout";
 
 // §3b: paying requires a verified customer session. Guests are sent to sign in
@@ -72,19 +73,14 @@ async function fetchQuote(
 
 // paymentReturnState verifies the reference Paystack appended to the checkout
 // callback (?reference=...&trxref=...). Only "succeeded" may clear a basket;
-// "retry" (pending/failed/abandoned) and "unconfirmed" (the verify call
-// itself failed) both keep the cart intact with Pay Now active. Null when
-// this is a fresh visit, not a Paystack return.
+// "pending" blocks a second charge, "retry" keeps the exact draft available
+// for another attempt, and "unconfirmed" blocks retry until Paystack can be
+// reached. All non-success states keep the cart intact.
 async function paymentReturnState(
-  url: URL,
+  reference: string,
   storeHandle: string,
   tenant: string | null,
-): Promise<"succeeded" | "retry" | "unconfirmed" | null> {
-  const reference = (
-    url.searchParams.get("reference") ??
-    url.searchParams.get("trxref") ??
-    ""
-  ).trim();
+): Promise<"succeeded" | "pending" | "retry" | "unconfirmed" | null> {
   if (!reference) {
     return null;
   }
@@ -94,7 +90,10 @@ async function paymentReturnState(
   if (!verification?.ok) {
     return "unconfirmed";
   }
-  return verification.result.status === "succeeded" ? "succeeded" : "retry";
+  if (verification.result.status === "succeeded") {
+    return "succeeded";
+  }
+  return verification.result.status === "pending" ? "pending" : "retry";
 }
 
 export function meta(): Route.MetaDescriptors {
@@ -104,8 +103,9 @@ export function meta(): Route.MetaDescriptors {
   ];
 }
 
+// eslint-disable-next-line complexity -- loader resolves cart, tenant, and provider-return states.
 export async function loader({ request }: Route.LoaderArgs) {
-  const { items: allItems } = await getCart(request);
+  const { items: allItems, pendingPayments } = await getCart(request);
   if (allItems.length === 0) {
     return redirect("/cart");
   }
@@ -138,7 +138,17 @@ export async function loader({ request }: Route.LoaderArgs) {
   // shows the success state. "pending"/"failed" (incl. backing out of the
   // Paystack page) keep the cart intact with Pay Now active and a retry
   // banner; a verify error degrades to the same non-trapping state.
-  const paymentState = await paymentReturnState(url, storeHandle, tenant);
+  const returnedReference = (
+    url.searchParams.get("reference") ??
+    url.searchParams.get("trxref") ??
+    pendingPayments[storeHandle]?.reference ??
+    ""
+  ).trim();
+  const paymentState = await paymentReturnState(
+    returnedReference,
+    storeHandle,
+    tenant,
+  );
   if (paymentState === "succeeded") {
     // NOW the basket settles: clear only this store's lines and render the
     // success state on this page (any other stores stay in the basket).
@@ -175,7 +185,14 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
   // §4.5: the pickup quote (no delivery zone) drives the fee lines on first
   // render; choosing a delivery zone re-quotes via the "quote" action intent.
-  const quote = await fetchQuote(storeHandle, items, "", tenant);
+  const pendingDeliveryZoneID =
+    pendingPayments[storeHandle]?.delivery_zone_id ?? "";
+  const quote = await fetchQuote(
+    storeHandle,
+    items,
+    pendingDeliveryZoneID,
+    tenant,
+  );
   return {
     storeHandle,
     items,
@@ -184,21 +201,23 @@ export async function loader({ request }: Route.LoaderArgs) {
     profile,
     quote,
     paymentState,
+    pendingDeliveryZoneID,
   };
 }
 
-// eslint-disable-next-line complexity -- action handles quote, fulfilment, and payment branches.
+// eslint-disable-next-line complexity, max-lines-per-function -- action handles quote, fulfilment, retry, and payment branches.
 export async function action({ request }: Route.ActionArgs) {
   const form = await request.formData();
   const url = new URL(request.url);
-  const { items: allItems } = await getCart(request);
+  const { items: allItems, pendingPayments } = await getCart(request);
   if (allItems.length === 0) {
     return redirect("/cart");
   }
   // §3b: enforce the account gate on submit too, so a direct POST without a
   // verified session cannot place an order past the loader redirect.
   const session = await getSession(request.headers.get("Cookie"));
-  if (!session.get("customerToken")) {
+  const customerToken = session.get("customerToken") as string | undefined;
+  if (!customerToken) {
     return redirect(signInRedirect(url));
   }
   // §5.2: settle exactly one store's lines (same resolution as the loader);
@@ -221,6 +240,55 @@ export async function action({ request }: Route.ActionArgs) {
   if (intent === "quote") {
     const quote = await fetchQuote(storeHandle, items, deliveryZoneID, tenant);
     return { quote, zoneID: deliveryZoneID };
+  }
+
+  const callbackURL = `${url.origin}/checkout?store=${encodeURIComponent(storeHandle)}`;
+  const failed = {
+    error: "We couldn't start that payment. Check your details and try again.",
+  };
+
+  // An unchanged cart with an abandoned payment retries the SAME draft order,
+  // rather than creating duplicate awaiting-payment orders on every attempt.
+  // This runs before form validation because the original order already holds
+  // its customer and delivery details.
+  const pendingPayment = pendingPayments[storeHandle];
+  if (pendingPayment) {
+    const verification = await api
+      .verifyPayment(storeHandle, pendingPayment.reference, tenant)
+      .catch(() => null);
+    if (!verification?.ok) {
+      return {
+        error:
+          "We couldn't confirm the previous payment yet. Refresh before trying again.",
+      };
+    }
+    if (verification.result.status === "succeeded") {
+      return redirect(
+        `/checkout?store=${encodeURIComponent(storeHandle)}&reference=${encodeURIComponent(pendingPayment.reference)}`,
+      );
+    }
+    if (verification.result.status === "pending") {
+      return {
+        error:
+          "Paystack is still confirming the previous payment. We haven't started another charge.",
+      };
+    }
+    const retry = await requestPaymentLink(
+      customerToken,
+      pendingPayment.order_id,
+      callbackURL,
+    );
+    if (!retry.ok) {
+      return failed;
+    }
+    return redirect(retry.authorizationUrl, {
+      headers: {
+        "Set-Cookie": await setPendingCartPayment(request, {
+          ...pendingPayment,
+          reference: retry.reference,
+        }),
+      },
+    });
   }
 
   const customerName = String(form.get("customer_name") ?? "").trim();
@@ -250,16 +318,6 @@ export async function action({ request }: Route.ActionArgs) {
     fulfilment === "delivery" && gpsLocation
       ? `${deliveryAddress}\nGPS: ${gpsLocation}`
       : deliveryAddress;
-
-  // Paystack returns the customer to THIS checkout (with ?reference= appended),
-  // where the loader verifies the charge before anything is believed: only a
-  // verified "succeeded" clears this store's basket lines — backing out of the
-  // Paystack page leaves the cart intact so the customer can simply pay again.
-  const callbackURL = `${url.origin}/checkout?store=${encodeURIComponent(storeHandle)}`;
-
-  const failed = {
-    error: "We couldn't start that payment. Check your details and try again.",
-  };
 
   // Pickup + a single ready-made piece: the proven single-order checkout. A
   // lone bespoke deposit has no size band, so it must not take this path — it
@@ -291,7 +349,16 @@ export async function action({ request }: Route.ActionArgs) {
       return failed;
     }
     if (response.result.authorization_url) {
-      return redirect(response.result.authorization_url);
+      return redirect(response.result.authorization_url, {
+        headers: {
+          "Set-Cookie": await setPendingCartPayment(request, {
+            store_handle: storeHandle,
+            order_id: response.result.order_id,
+            reference: response.result.reference,
+            delivery_zone_id: "",
+          }),
+        },
+      });
     }
     return redirect(`/track/${response.result.order_id}`);
   }
@@ -323,7 +390,16 @@ export async function action({ request }: Route.ActionArgs) {
     return failed;
   }
   if (response.result.authorization_url) {
-    return redirect(response.result.authorization_url);
+    return redirect(response.result.authorization_url, {
+      headers: {
+        "Set-Cookie": await setPendingCartPayment(request, {
+          store_handle: storeHandle,
+          order_id: response.result.order_id,
+          reference: response.result.reference,
+          delivery_zone_id: fulfilment === "delivery" ? deliveryZoneID : "",
+        }),
+      },
+    });
   }
   return redirect(`/track/${response.result.order_id}`);
 }

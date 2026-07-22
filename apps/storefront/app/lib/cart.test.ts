@@ -1,11 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  addToCart,
   cartItemCount,
   cartTotalMinor,
   consolidateCartItems,
+  getCart,
+  setPendingCartPayment,
   type CartItem,
 } from "./cart";
+
+function request(cookie = ""): Request {
+  return new Request("https://store.xtiitch.com/cart", {
+    headers: cookie ? { Cookie: cookie } : {},
+  });
+}
+
+function cookieHeader(setCookie: string): string {
+  return setCookie.split(";", 1)[0] ?? "";
+}
 
 function item(overrides: Partial<CartItem> = {}): CartItem {
   return {
@@ -56,4 +69,28 @@ test("legacy cart lines without quantity default to one", () => {
 
   const result = consolidateCartItems([legacy]);
   assert.equal(result[0]?.quantity, 1);
+});
+
+test("pending checkout references survive navigation and clear when the cart changes", async () => {
+  const pendingCookie = await setPendingCartPayment(request(), {
+    store_handle: "kwadwo",
+    order_id: "order-1",
+    reference: "xt_ref-1",
+  });
+  const pendingRequest = request(cookieHeader(pendingCookie));
+  const pendingCart = await getCart(pendingRequest);
+  assert.equal(pendingCart.pendingPayments.kwadwo?.order_id, "order-1");
+
+  const changedCookie = await addToCart(pendingRequest, {
+    store_handle: "kwadwo",
+    design_handle: "party-dress",
+    title: "Party dress",
+    image: "dress.webp",
+    kind: "made_to_wear",
+    size_band_id: "xl",
+    size_label: "XL",
+    amount_minor: 100,
+  });
+  const changedCart = await getCart(request(cookieHeader(changedCookie)));
+  assert.equal(changedCart.pendingPayments.kwadwo, undefined);
 });

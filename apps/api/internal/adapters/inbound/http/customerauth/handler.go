@@ -355,6 +355,8 @@ func paymentLinkError(err error) (int, string) {
 		return http.StatusNotFound, "not_found"
 	case errors.Is(err, customerauthapp.ErrOrderNotPayable):
 		return http.StatusConflict, "order_not_payable"
+	case errors.Is(err, customerauthapp.ErrOrderPaymentPending):
+		return http.StatusConflict, "payment_pending"
 	case errors.Is(err, checkoutapp.ErrInvalidInput), errors.Is(err, paymentsapp.ErrInvalidCharge):
 		return http.StatusBadRequest, "invalid_request"
 	case errors.Is(err, paymentsapp.ErrBusinessNotVerified):

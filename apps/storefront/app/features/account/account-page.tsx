@@ -1,14 +1,11 @@
-import {
-  useActionData,
-  useNavigation,
-  useRouteLoaderData,
-} from "react-router";
+import { useActionData, useNavigation, useRouteLoaderData } from "react-router";
 import type { Route } from "../../routes/+types/account";
 import { AccountHub } from "./account-hub";
 import { SignIn } from "./sign-in";
 import type { ActionResult, OtpChannel, Step } from "./types";
 
-export default function Account({ loaderData }: Route.ComponentProps) { // eslint-disable-line complexity -- prop-forwarding wrapper with several action-state branches; refactor in follow-up
+// eslint-disable-next-line complexity -- prop-forwarding wrapper with several action-state branches.
+export default function Account({ loaderData }: Route.ComponentProps) {
   const action = useActionData<ActionResult>();
   const navigation = useNavigation();
   // Which form is mid-submit, so the matching button can show a spinner.
@@ -16,8 +13,14 @@ export default function Account({ loaderData }: Route.ComponentProps) { // eslin
     navigation.state === "submitting"
       ? String(navigation.formData?.get("intent") ?? "")
       : null;
-  const { signedInPhone, redirectTo, orders, profile, tenantHost, paymentReturn } =
-    loaderData;
+  const {
+    signedInPhone,
+    redirectTo,
+    orders,
+    profile,
+    tenantHost,
+    paymentReturn,
+  } = loaderData;
   // Whether a code can reach a phone at all — over SMS (default) or WhatsApp. The
   // root loader surfaces this from GET /v1/branding (phone_otp_enabled) so SSR and
   // client agree; default false on fetch failure, then only email shows.
@@ -39,9 +42,11 @@ export default function Account({ loaderData }: Route.ComponentProps) { // eslin
     const paymentError =
       paymentReturn === "retry"
         ? "That payment wasn't completed — nothing was charged. Use Pay now on the order to try again."
-        : paymentReturn === "unconfirmed"
-          ? "We couldn't confirm that payment just now. If you completed it, it will reflect here shortly."
-          : undefined;
+        : paymentReturn === "pending"
+          ? "Paystack is still confirming that payment. We haven't started another charge; refresh shortly to check again."
+          : paymentReturn === "unconfirmed"
+            ? "We couldn't confirm that payment just now. If you completed it, it will reflect here shortly."
+            : undefined;
     return (
       <AccountHub
         phone={signedInPhone}
