@@ -189,7 +189,7 @@ func QuoteSubscriptionCharge(packageMinor int64, vatBps int, vatInclusive bool, 
 	vat := ApplyVAT(packageMinor, vatBps, vatInclusive)
 	total, fee := GrossUp(vat.GrossMinor, paystackBps)
 	return SubscriptionQuote{
-		PackageMinor:        packageMinor,
+		PackageMinor:        vat.NetMinor,
 		VATMinor:            vat.VATMinor,
 		TransactionFeeMinor: fee,
 		TotalChargeMinor:    total,

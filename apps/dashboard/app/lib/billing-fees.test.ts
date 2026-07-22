@@ -1,10 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  roundHalfUpMinor,
-  subscriptionCharge,
-  vatMinor,
-} from "./billing-fees";
+import { roundHalfUpMinor, subscriptionCharge, vatMinor } from "./billing-fees";
 
 test("subscriptionCharge matches the §4.6 worked example (147.00 + 29.40 + 3.51 = 179.91)", () => {
   const charge = subscriptionCharge(14700, 2000, false);
@@ -20,7 +16,7 @@ test("subscriptionCharge matches the §4.6 worked example (147.00 + 29.40 + 3.51
   );
 });
 
-test("subscriptionCharge adds nothing when VAT is disabled or inclusive", () => {
+test("subscriptionCharge disables VAT only when the configured rate is zero", () => {
   const noVat = subscriptionCharge(14700, 0, false);
   assert.equal(noVat.vatMinor, 0);
   assert.equal(noVat.totalMinor, roundHalfUpMinor(14700 / 0.9805));
@@ -30,7 +26,24 @@ test("subscriptionCharge adds nothing when VAT is disabled or inclusive", () => 
   );
 
   const inclusive = subscriptionCharge(14700, 2000, true);
-  assert.equal(inclusive.vatMinor, 0);
+  assert.equal(inclusive.packageMinor, 12250);
+  assert.equal(inclusive.vatMinor, 2450);
+  assert.equal(inclusive.transactionFeeMinor, 292);
+  assert.equal(inclusive.totalMinor, 14992);
+  assert.equal(
+    inclusive.packageMinor + inclusive.vatMinor + inclusive.transactionFeeMinor,
+    inclusive.totalMinor,
+  );
+});
+
+test("inclusive GHS 2 at 20% shows GHS 1.67 package + GHS 0.33 tax fee", () => {
+  const charge = subscriptionCharge(200, 2000, true);
+  assert.deepEqual(charge, {
+    packageMinor: 167,
+    vatMinor: 33,
+    transactionFeeMinor: 4,
+    totalMinor: 204,
+  });
 });
 
 test("vatMinor rounds half-up to the pesewa (§4.7)", () => {
@@ -38,6 +51,7 @@ test("vatMinor rounds half-up to the pesewa (§4.7)", () => {
   // 1001 * 20% = 200.2 -> 200; 1003 * 20% = 200.6 -> 201.
   assert.equal(vatMinor(1001, 2000, false), 200);
   assert.equal(vatMinor(1003, 2000, false), 201);
+  assert.equal(vatMinor(200, 2000, true), 33);
 });
 
 test("roundHalfUpMinor rounds a trailing 5 up, never down (§4.7)", () => {

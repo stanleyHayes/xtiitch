@@ -352,3 +352,18 @@ func TestQuoteSubscriptionChargeEdgeRates(t *testing.T) {
 		t.Fatalf("no-paystack-rate quote = %+v, want 17640 with no fee", quote)
 	}
 }
+
+func TestQuoteSubscriptionChargeItemizesInclusiveVAT(t *testing.T) {
+	t.Parallel()
+
+	quote := QuoteSubscriptionCharge(200, 2000, true, PaystackFeeRateBps)
+	want := SubscriptionQuote{
+		PackageMinor:        167,
+		VATMinor:            33,
+		TransactionFeeMinor: 4,
+		TotalChargeMinor:    204,
+	}
+	if quote != want {
+		t.Fatalf("inclusive subscription quote = %+v, want %+v", quote, want)
+	}
+}

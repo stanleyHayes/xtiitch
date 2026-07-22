@@ -18,22 +18,26 @@ export function roundHalfUpMinor(value: number): number {
   return Math.floor(value + 0.5);
 }
 
-// Tax (VAT) on a package figure, in minor units. A zero rate or VAT-inclusive
-// pricing adds nothing on top — the figure already carries the tax.
+// Tax fee on a package figure, in minor units. Inclusive pricing extracts the
+// tax already contained in the listed figure; exclusive pricing adds it on top.
 export function vatMinor(
   packageMinor: number,
   vatRateBps: number,
   vatInclusive: boolean,
 ): number {
-  if (packageMinor <= 0 || vatRateBps <= 0 || vatInclusive) {
+  if (packageMinor <= 0 || vatRateBps <= 0) {
     return 0;
+  }
+  if (vatInclusive) {
+    const net = roundHalfUpMinor((packageMinor * 10000) / (10000 + vatRateBps));
+    return packageMinor - net;
   }
   return roundHalfUpMinor((packageMinor * vatRateBps) / 10000);
 }
 
 export type SubscriptionCharge = {
   packageMinor: number;
-  // The "Tax (VAT)" line — always its own labelled line (§4.5).
+  // The "Tax fee" line — always its own labelled line (§4.5).
   vatMinor: number;
   // The "Transaction fee" line — the grossed-up Paystack fee, branded exactly
   // "Transaction fee", never "Paystack fee" (§4.5).
@@ -43,20 +47,22 @@ export type SubscriptionCharge = {
 };
 
 // The full checkout breakdown for a subscription charge (§4.1): package price
-// + Tax (VAT) on top + the grossed-up Transaction fee, so Xtiitch nets the
-// package figure untouched after Paystack takes its 1.95% of the total.
+// + Tax fee + the grossed-up Transaction fee. For inclusive prices, packageMinor
+// in the returned breakdown is the ex-tax portion so every displayed line sums
+// exactly to totalMinor without charging VAT twice.
 export function subscriptionCharge(
   packageMinor: number,
   vatRateBps: number,
   vatInclusive: boolean,
 ): SubscriptionCharge {
   const tax = vatMinor(packageMinor, vatRateBps, vatInclusive);
-  const net = packageMinor + tax;
-  const total = roundHalfUpMinor(net / (1 - PAYSTACK_FEE_RATE));
+  const displayedPackage = vatInclusive ? packageMinor - tax : packageMinor;
+  const grossBeforeFee = vatInclusive ? packageMinor : packageMinor + tax;
+  const total = roundHalfUpMinor(grossBeforeFee / (1 - PAYSTACK_FEE_RATE));
   return {
-    packageMinor,
+    packageMinor: displayedPackage,
     vatMinor: tax,
-    transactionFeeMinor: total - net,
+    transactionFeeMinor: total - grossBeforeFee,
     totalMinor: total,
   };
 }

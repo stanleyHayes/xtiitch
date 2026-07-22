@@ -13,7 +13,7 @@ import type { BillingCadence, PublicPlan } from "./billing-helpers";
 import { formatPrice, vatNote } from "./PaymentMethodForm";
 
 // The "Choose your billing cycle" block of the payment screen. Every total it
-// shows is the FULL checkout figure — package + Tax (VAT) + Transaction fee —
+// shows is the FULL checkout figure — package + Tax fee + Transaction fee —
 // computed with the §4.6 gross-up rule so what the owner reads here matches
 // what Paystack charges; the selected cycle also itemises the three lines
 // (§4.1/§4.5).
@@ -113,7 +113,7 @@ export function BillingCyclePicker({
                           }}
                         >
                           {formatPrice(first.packageMinor)} package +{" "}
-                          {formatPrice(first.vatMinor)} Tax (VAT) +{" "}
+                          {formatPrice(first.vatMinor)} Tax fee +{" "}
                           {formatPrice(first.transactionFeeMinor)} Transaction
                           fee
                         </Typography>
