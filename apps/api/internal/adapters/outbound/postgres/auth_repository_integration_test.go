@@ -48,6 +48,41 @@ func TestBusinessIdentityRepositoryTenantScopedUsersAndLogin(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create business A: %v", err)
 	}
+	// A paid signup target is visible to billing as pending, but Free remains the
+	// effective business/subscription plan until a verified payment applies it.
+	var businessPlanCode, subscriptionPlanCode, pendingPlanCode, subscriptionStatus string
+	inBypass(t, pool, func(tx pgx.Tx) {
+		if err := tx.QueryRow(ctx, `
+			select business_plan.code, subscription_plan.code,
+				coalesce(pending_plan.code, ''), s.status
+			from businesses b
+			join plans business_plan on business_plan.plan_id = b.plan_id
+			join business_subscriptions s on s.business_id = b.business_id
+			join plans subscription_plan on subscription_plan.plan_id = s.plan_id
+			left join plans pending_plan on pending_plan.plan_id = s.pending_plan_id
+			where b.business_id = $1
+		`, authItBizA).Scan(
+			&businessPlanCode, &subscriptionPlanCode, &pendingPlanCode, &subscriptionStatus,
+		); err != nil {
+			t.Fatalf("read pending paid signup: %v", err)
+		}
+	})
+	if businessPlanCode != "free" || subscriptionPlanCode != "free" ||
+		pendingPlanCode != "growth" || subscriptionStatus != "trialing" {
+		t.Fatalf("paid signup must remain effectively Free pending payment, got business=%q subscription=%q pending=%q status=%q",
+			businessPlanCode, subscriptionPlanCode, pendingPlanCode, subscriptionStatus)
+	}
+	// This tenant-scoping test needs a paid staff-seat allowance. Simulate the
+	// verified callback applying Growth before creating the staff fixture.
+	var growthPlanID string
+	if err := pool.QueryRow(ctx, `select plan_id::text from plans where code = 'growth'`).Scan(&growthPlanID); err != nil {
+		t.Fatalf("resolve Growth plan: %v", err)
+	}
+	if err := repo.ApplyImmediatePlanUpgrade(ctx, ports.ApplyImmediatePlanUpgradeInput{
+		BusinessID: common.ID(authItBizA), NewPlanID: common.ID(growthPlanID),
+	}); err != nil {
+		t.Fatalf("activate Growth test fixture: %v", err)
+	}
 	if _, err := repo.CreateBusinessWithOwner(ctx, ports.CreateBusinessWithOwnerInput{
 		BusinessID:       common.ID(authItBizB),
 		BusinessName:     "Auth IT B",

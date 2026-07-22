@@ -196,19 +196,35 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
-	// Place the business on the plan the owner chose at signup; an empty or
-	// unknown/inactive code falls back to the free plan (the union-all keeps the
-	// chosen row first, so limit 1 picks it when present).
+	// Resolve the selected target and the always-effective Free plan together.
+	// A paid choice is displayed/priced through pending_plan_id, but businesses
+	// stays on Free until Paystack verification applies the switch. This makes
+	// every entitlement query fail closed without each feature needing its own
+	// unpaid-plan exception.
+	var selectedPlanID, freePlanID string
+	var selectedMonthlyFee int
+	err = tx.QueryRow(ctx, `
+		select selected.plan_id::text, selected.monthly_fee_minor, free.plan_id::text
+		from (
+			select plan_id, monthly_fee_minor, 0 as priority
+			from plans where code = lower($1) and is_active = true
+			union all
+			select plan_id, monthly_fee_minor, 1 as priority
+			from plans where code = 'free' and is_active = true
+			order by priority
+			limit 1
+		) selected
+		cross join plans free
+		where free.code = 'free' and free.is_active = true
+	`, input.PlanCode).Scan(&selectedPlanID, &selectedMonthlyFee, &freePlanID)
+	if err != nil {
+		return ports.BusinessOwnerIdentity{}, err
+	}
+
 	_, err = tx.Exec(ctx, `
 		insert into businesses (business_id, plan_id, name, handle, verification_status)
-		select $1, plan_id, $2, $3, 'unverified'
-		from (
-			select plan_id from plans where code = $4 and is_active = true
-			union all
-			select plan_id from plans where code = 'free' and is_active = true
-		) chosen
-		limit 1
-	`, input.BusinessID.String(), input.BusinessName, input.BusinessHandle, input.PlanCode)
+		values ($1, $2, $3, $4, 'unverified')
+	`, input.BusinessID.String(), freePlanID, input.BusinessName, input.BusinessHandle)
 	if err != nil {
 		// The store handle is globally unique; surface a clash as a domain
 		// conflict so callers can return 409 rather than an opaque 500.
@@ -219,23 +235,26 @@ func (repo BusinessIdentityRepository) CreateBusinessWithOwner(
 		return ports.BusinessOwnerIdentity{}, err
 	}
 
-	// Every business needs a subscription row on its chosen plan (the admin
+	// Every business needs a subscription row (the admin
 	// console and the recurring-billing sweep read it). The migration only
 	// backfilled pre-existing tenants, so create one here for new signups.
 	//
-	// A FREE plan (no monthly fee) is active immediately; a PAID plan starts
-	// 'trialing' = Pending Activation, and only becomes 'active' once its first
-	// invoice is paid (ActivateRecurringBilling). This is the source-of-truth
-	// behind the activation gate: paid entitlements are not granted until paid.
+	// A Free choice is active immediately. A paid choice keeps Free as plan_id and
+	// parks the selected target in pending_plan_id with status trialing. Only the
+	// verified callback applies that target to the subscription and business.
+	var pendingPlanID any
+	status := "active"
+	if selectedMonthlyFee > 0 {
+		pendingPlanID = selectedPlanID
+		status = "trialing"
+	}
 	if _, err := tx.Exec(ctx, `
-		insert into business_subscriptions (business_id, plan_id, status)
-		select b.business_id, b.plan_id,
-			case when p.monthly_fee_minor = 0 then 'active' else 'trialing' end
+		insert into business_subscriptions (business_id, plan_id, status, pending_plan_id, pending_plan_effective_at)
+		select b.business_id, b.plan_id, $2, $3, null
 		from businesses b
-		join plans p on p.plan_id = b.plan_id
 		where b.business_id = $1
 		on conflict (business_id) do nothing
-	`, input.BusinessID.String()); err != nil {
+	`, input.BusinessID.String(), status, pendingPlanID); err != nil {
 		return ports.BusinessOwnerIdentity{}, err
 	}
 

@@ -181,7 +181,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 		// Only park a strict UPGRADE here (target fee > current). A downgrade must
 		// go through ChangeSubscriptionPlan (parked to renewal), never an immediate
 		// mid-cycle switch via activation.
-		if target.MonthlyFeeMinor <= subscription.MonthlyFeeMinor {
+		if target.MonthlyFeeMinor <= effectiveSubscriptionPlan(subscription).MonthlyFeeMinor {
 			return SubscriptionAuthorizationLink{}, authdomain.ErrInvalidInput
 		}
 		if err := s.businesses.SetPendingPlanUpgrade(ctx, subscription.BusinessID, target.PlanID); err != nil {

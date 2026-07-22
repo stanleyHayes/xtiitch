@@ -86,19 +86,36 @@ func (s Service) ChangeSubscriptionPlan(ctx context.Context, cmd ChangeSubscript
 	if err != nil {
 		return ChangeSubscriptionPlanResult{}, err
 	}
-	if strings.EqualFold(strings.TrimSpace(target.Code), strings.TrimSpace(subscription.PlanCode)) {
+	effectiveSubscription := effectiveSubscriptionPlan(subscription)
+	if strings.EqualFold(strings.TrimSpace(target.Code), strings.TrimSpace(effectiveSubscription.PlanCode)) {
 		return ChangeSubscriptionPlanResult{}, ErrPlanChangeSamePlan
 	}
 
 	switch {
-	case target.MonthlyFeeMinor > subscription.MonthlyFeeMinor:
-		return s.upgradeSubscriptionPlan(ctx, subscription, target, cmd.CallbackURL)
-	case target.MonthlyFeeMinor < subscription.MonthlyFeeMinor:
-		return s.downgradeSubscriptionPlan(ctx, subscription, target)
+	case target.MonthlyFeeMinor > effectiveSubscription.MonthlyFeeMinor:
+		return s.upgradeSubscriptionPlan(ctx, effectiveSubscription, target, cmd.CallbackURL)
+	case target.MonthlyFeeMinor < effectiveSubscription.MonthlyFeeMinor:
+		return s.downgradeSubscriptionPlan(ctx, effectiveSubscription, target)
 	default:
 		// Same monthly fee → neither an upgrade nor a downgrade.
 		return ChangeSubscriptionPlanResult{}, ErrPlanChangeSamePlan
 	}
+}
+
+// effectiveSubscriptionPlan returns the paid-up plan used to classify and price
+// a change. GetBusinessSubscription deliberately exposes pending-target pricing
+// in its primary fields so activation can charge that target; a retry must still
+// compare against the current/free plan or it is incorrectly rejected as a
+// same-plan change.
+func effectiveSubscriptionPlan(sub ports.BusinessSubscriptionRecord) ports.BusinessSubscriptionRecord {
+	if strings.TrimSpace(sub.EffectivePlanCode) == "" {
+		return sub
+	}
+	sub.PlanCode = sub.EffectivePlanCode
+	sub.MonthlyFeeMinor = sub.EffectiveMonthlyFeeMinor
+	sub.QuarterlyRenewalMinor = sub.EffectiveQuarterlyRenewalMinor
+	sub.YearlyRenewalMinor = sub.EffectiveYearlyRenewalMinor
+	return sub
 }
 
 // upgradeSubscriptionPlan switches to the higher plan immediately and charges the

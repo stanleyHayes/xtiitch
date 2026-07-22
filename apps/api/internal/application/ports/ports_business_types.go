@@ -38,8 +38,9 @@ type CreateBusinessWithOwnerInput struct {
 	OwnerDisplayName string
 	OwnerEmail       string
 	OwnerPassword    string
-	// PlanCode is the plan the owner chose at signup. Empty or unknown codes
-	// fall back to the free plan in the repository.
+	// PlanCode is the plan the owner chose at signup. A paid choice is parked as
+	// pending while the effective business plan remains Free until payment.
+	// Empty or unknown codes fall back to Free.
 	PlanCode string
 	// Phone is the store owner's contact phone number captured at signup, stored
 	// for order and account notifications. Optional; not a sign-in identity.
@@ -92,6 +93,13 @@ type BusinessSubscriptionRecord struct {
 	// FirstPurchaseConsumed is true once the account has been charged at least
 	// once; the one-time intro figure is only billed while it is false.
 	FirstPurchaseConsumed bool
+	// EffectivePlan* is the plan whose entitlements the business has actually
+	// paid for. During a payment-pending upgrade the billing fields above describe
+	// the target plan, while these fields remain on the current/free plan.
+	EffectivePlanCode              string
+	EffectiveMonthlyFeeMinor       int
+	EffectiveQuarterlyRenewalMinor int
+	EffectiveYearlyRenewalMinor    int
 	// Cadence pricing carried from the joined plan (minor units), so the
 	// activation charge can pick the intro/renewal figure without a second query.
 	QuarterlyFirstMinor   int

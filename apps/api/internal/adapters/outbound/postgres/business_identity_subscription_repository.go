@@ -133,6 +133,10 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 			p.quarterly_renewal_minor,
 			p.yearly_first_minor,
 			p.yearly_renewal_minor,
+			current_plan.code,
+			current_plan.monthly_fee_minor,
+			current_plan.quarterly_renewal_minor,
+			current_plan.yearly_renewal_minor,
 			s.current_period_start,
 			s.current_period_end,
 			-- A payment-pending upgrade target (NULL effective_at); '' when none.
@@ -141,6 +145,7 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 			end, '')
 		from business_subscriptions s
 		join businesses b on b.business_id = s.business_id
+		join plans current_plan on current_plan.plan_id = s.plan_id
 		join plans p on p.plan_id = case
 			when s.pending_plan_id is not null and s.pending_plan_effective_at is null
 				then s.pending_plan_id
@@ -164,6 +169,10 @@ func (repo BusinessIdentityRepository) GetBusinessSubscription(
 		&record.QuarterlyRenewalMinor,
 		&record.YearlyFirstMinor,
 		&record.YearlyRenewalMinor,
+		&record.EffectivePlanCode,
+		&record.EffectiveMonthlyFeeMinor,
+		&record.EffectiveQuarterlyRenewalMinor,
+		&record.EffectiveYearlyRenewalMinor,
 		&record.CurrentPeriodStart,
 		&record.CurrentPeriodEnd,
 		&pendingUpgradePlanID,

@@ -214,7 +214,10 @@ export function ChangePlanView({
                     </Typography>
                   ))}
                 </Stack>
-                <Form method="post">
+                {/* Paystack is an external navigation. A native document submit
+                    prevents browser Back from restoring React Router's stale
+                    submitting state and leaving every retry button disabled. */}
+                <Form method="post" reloadDocument>
                   <input type="hidden" name="intent" value="change-plan" />
                   <input type="hidden" name="plan_code" value={item.code} />
                   <Button

@@ -53,6 +53,40 @@ func TestInitializeSubscriptionAuthorizationParksTargetPlanPendingPayment(t *tes
 	}
 }
 
+func TestInitializeSubscriptionAuthorizationCanReplaceUnpaidPendingTarget(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "growth", MonthlyFeeMinor: 4900, PendingUpgradePlanID: "plan-growth",
+			EffectivePlanCode: "free", EffectiveMonthlyFeeMinor: 0, Status: "trialing",
+		},
+		planByCode: ports.PlanPricingRecord{PlanID: "plan-starter", Code: "starter", MonthlyFeeMinor: 2900},
+		subscriptionUpgraded: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			PlanCode: "starter", MonthlyFeeMinor: 2900, Status: "trialing", BillingCadence: "yearly",
+			YearlyFirstMinor: 26100, PendingUpgradePlanID: "plan-starter",
+			EffectivePlanCode: "free", EffectiveMonthlyFeeMinor: 0,
+		},
+	}
+	service := newSubscriptionTestService(businesses, &fakeSubscriptionPayments{})
+	result, err := service.InitializeSubscriptionAuthorization(context.Background(), InitializeSubscriptionAuthorizationCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, CallbackURL: "https://x/cb",
+		BillingCadence: "yearly", PlanCode: "starter",
+	})
+	if err != nil {
+		t.Fatalf("switching an unpaid pending package should succeed: %v", err)
+	}
+	if businesses.pendingUpgradeSet != "plan-starter" || result.RedirectURL == "" {
+		t.Fatalf("expected Starter to replace the pending target and open checkout: pending=%q result=%+v",
+			businesses.pendingUpgradeSet, result)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatalf("changing the unpaid target must not unlock it: %+v", businesses.upgradeApplied)
+	}
+}
+
 // A Paystack-VERIFIED first payment applies the parked plan switch — the only
 // path that unlocks the paid plan's entitlements.
 func TestVerifySubscriptionAuthorizationAppliesPendingPlanUpgrade(t *testing.T) {

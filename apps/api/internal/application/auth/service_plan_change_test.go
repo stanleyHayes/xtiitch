@@ -356,6 +356,48 @@ func TestChangeSubscriptionPlanMobileMoneyUpgradeOpensProratedCheckout(t *testin
 	}
 }
 
+// Returning from an abandoned interactive upgrade leaves the target parked.
+// Retrying that same target must compare it with the effective paid-up plan,
+// not reject it as "already on that plan" because billing fields show the
+// pending target.
+func TestChangeSubscriptionPlanRetriesPendingInteractiveUpgrade(t *testing.T) {
+	t.Parallel()
+
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	end := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 8, 2, 0, 0, 0, 0, time.UTC)
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID: "sub-1", BusinessID: "business-1", OwnerEmail: "owner@example.com",
+			// Primary billing fields describe the parked target.
+			PlanCode: "studio", MonthlyFeeMinor: 9900, QuarterlyRenewalMinor: 59700,
+			PendingUpgradePlanID: "plan-studio",
+			// Effective fields describe the current paid-up plan and entitlements.
+			EffectivePlanCode: "growth", EffectiveMonthlyFeeMinor: 4900,
+			EffectiveQuarterlyRenewalMinor: 29700,
+			Status:                         "active", BillingMode: "recurring", BillingCadence: "quarterly",
+			CurrentPeriodStart: start, CurrentPeriodEnd: end,
+		},
+		planByCode: ports.PlanPricingRecord{
+			PlanID: "plan-studio", Code: "studio", MonthlyFeeMinor: 9900, QuarterlyRenewalMinor: 59700,
+		},
+	}
+	service := newPlanChangeTestService(businesses, &fakeSubscriptionPayments{}, now)
+	result, err := service.ChangeSubscriptionPlan(context.Background(), ChangeSubscriptionPlanCommand{
+		Scope: common.TenantScope{BusinessID: "business-1"}, ActorRole: business.UserRoleOwner,
+		PlanCode: "studio", CallbackURL: "https://dashboard.example/callback?flow=plan-change",
+	})
+	if err != nil {
+		t.Fatalf("pending upgrade retry should open checkout: %v", err)
+	}
+	if result.AuthorizationURL != "https://pay" || result.Immediate {
+		t.Fatalf("expected a fresh interactive retry for the parked target, got %+v", result)
+	}
+	if businesses.upgradeApplied != nil {
+		t.Fatalf("retry initialization must not unlock the target: %+v", businesses.upgradeApplied)
+	}
+}
+
 func TestChangeSubscriptionPlanFailedCheckoutInitializationDoesNotParkTarget(t *testing.T) {
 	t.Parallel()
 
