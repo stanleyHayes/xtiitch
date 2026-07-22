@@ -7,13 +7,16 @@ import Tooltip from "@mui/material/Tooltip";
 import { alpha } from "@mui/material/styles";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
+import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import TrendingUpRounded from "@mui/icons-material/TrendingUpRounded";
 import VisibilityRounded from "@mui/icons-material/VisibilityRounded";
 import { tokens } from "../../../theme";
 import { ACTIVATION_PATH, storefrontGate } from "../../../lib/activation";
 import type { Profile } from "../../shared/types";
+import { billingPlansLabel } from "../../billing/billing-helpers";
 
-export function RailFooter({ // eslint-disable-line max-lines-per-function -- large presentational footer with compact/expanded button variants; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- footer owns compact and expanded variants for the same account actions
+export function RailFooter({
   profile,
   storefrontURL,
   compact,
@@ -30,6 +33,13 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
   // is activated, so the "View storefront" control is disabled with a tooltip
   // pointing at the blocking step rather than opening a not-yet-live page.
   const gate = storefrontGate(verified, !pendingActivation);
+  const billingLabel = billingPlansLabel(profile.plan);
+  const billingIcon =
+    billingLabel === "View billing plans" ? (
+      <PaymentsRounded />
+    ) : (
+      <TrendingUpRounded />
+    );
   return (
     <Box sx={{ mt: "auto" }}>
       {gate.locked ? (
@@ -147,13 +157,13 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
           </Button>
         )
       ) : null}
-      {!pendingActivation && profile.plan.toLowerCase() !== "studio" ? (
+      {!pendingActivation ? (
         compact ? (
-          <Tooltip title="Upgrade plan" placement="right">
+          <Tooltip title={billingLabel} placement="right">
             <IconButton
               component={RouterLink}
               to="/onboarding/billing"
-              aria-label="Upgrade plan"
+              aria-label={billingLabel}
               sx={{
                 mt: 1,
                 width: "100%",
@@ -166,14 +176,14 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
                 "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
               }}
             >
-              <TrendingUpRounded />
+              {billingIcon}
             </IconButton>
           </Tooltip>
         ) : (
           <Button
             component={RouterLink}
             to="/onboarding/billing"
-            startIcon={<TrendingUpRounded />}
+            startIcon={billingIcon}
             fullWidth
             sx={{
               mt: 1,
@@ -183,7 +193,7 @@ export function RailFooter({ // eslint-disable-line max-lines-per-function -- la
               "&:hover": { bgcolor: alpha(tokens.gold, 0.85) },
             }}
           >
-            Upgrade plan
+            {billingLabel}
           </Button>
         )
       ) : null}

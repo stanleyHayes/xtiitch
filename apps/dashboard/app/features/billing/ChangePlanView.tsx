@@ -69,9 +69,9 @@ export function ChangePlanView({
   // (PlansView): name, big monthly price, first-vs-renewal line, limit lines,
   // and a full-width "Choose …" button that posts the same change-plan intent
   // the old compact rows did (the API still classifies upgrade vs downgrade).
-  const others = plans
-    .filter((item) => item.code !== currentPlan.code)
-    .sort((a, b) => a.monthly_fee_minor - b.monthly_fee_minor);
+  const availablePlans = [...plans].sort(
+    (a, b) => a.monthly_fee_minor - b.monthly_fee_minor,
+  );
   const vat = taxFeeNote(currentPlan);
   return (
     <Box
@@ -138,8 +138,9 @@ export function ChangePlanView({
         </Alert>
 
         <Stack spacing={2.5}>
-          {others.map((item) => {
+          {availablePlans.map((item) => {
             const isPaid = item.monthly_fee_minor > 0;
+            const isCurrent = item.code === currentPlan.code;
             const isUpgrade =
               item.monthly_fee_minor > currentPlan.monthly_fee_minor;
             const popular = item.code.toLowerCase() === POPULAR_PLAN_CODE;
@@ -220,7 +221,11 @@ export function ChangePlanView({
                 {/* Paystack is an external navigation. A native document submit
                     prevents browser Back from restoring React Router's stale
                     submitting state and leaving every retry button disabled. */}
-                {isUpgrade ? (
+                {isCurrent ? (
+                  <Button variant="outlined" disabled fullWidth>
+                    Current plan
+                  </Button>
+                ) : isUpgrade ? (
                   <Button
                     component={RouterLink}
                     to={upgradeBillingHref(item.code)}

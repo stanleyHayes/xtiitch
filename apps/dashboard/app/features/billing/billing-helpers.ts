@@ -160,6 +160,15 @@ export function upgradeBillingHref(planCode: string): string {
   return `/onboarding/billing?change=${encodeURIComponent(planCode)}`;
 }
 
+// Billing remains a permanent account destination even when no higher tier
+// exists. Studio owners still need the catalogue to review billing and schedule
+// a downgrade, so only the wording changes at the top tier.
+export function billingPlansLabel(planCode: string): string {
+  return planCode.trim().toLowerCase() === "studio"
+    ? "View billing plans"
+    : "Upgrade plan";
+}
+
 export function planChangeRequestBody(
   planCode: string,
   billingCadence: string,
