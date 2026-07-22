@@ -1,6 +1,6 @@
 import { Form, Link as RouterLink, useSearchParams } from "react-router";
 import MuiLink from "@mui/material/Link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -77,14 +77,6 @@ export function PaymentMethodForm({
   const [cadence, setCadence] = useState<BillingCadence>(
     searchParams.get("cadence") === "quarterly" ? "quarterly" : "yearly",
   );
-
-  // This screen is taller than an iPhone viewport. Safari can preserve the
-  // previous route's scroll position when owners arrive here from Packages,
-  // leaving the title and first option behind the browser chrome. Billing is a
-  // fresh step, so always begin it at the top without changing later scrolls.
-  useEffect(() => {
-    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
-  }, []);
 
   return (
     <Box
