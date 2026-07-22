@@ -54,10 +54,11 @@ export function SignIn({
         }}
       />
       <Container
+        maxWidth="xl"
         sx={{
           position: "relative",
           minHeight: "100vh",
-          py: { xs: 4, md: 7 },
+          py: { xs: 3, md: 6 },
           display: "grid",
           alignItems: "center",
         }}
@@ -65,8 +66,8 @@ export function SignIn({
         <Box
           sx={{
             display: "grid",
-            gap: { xs: 3, lg: 4 },
-            gridTemplateColumns: { xs: "1fr", lg: "0.9fr 1.1fr" },
+            gap: { xs: 3.5, lg: 6 },
+            gridTemplateColumns: { xs: "1fr", lg: "0.95fr 1.05fr" },
             alignItems: "center",
           }}
         >

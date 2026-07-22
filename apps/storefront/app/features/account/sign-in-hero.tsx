@@ -5,8 +5,17 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
+import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
+import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import { tokens } from "../../theme";
+
+const JOURNEY_PREVIEW = [
+  { label: "All your orders", Icon: ReceiptLongRounded },
+  { label: "Live progress", Icon: LocalShippingRounded },
+  { label: "Easy handover", Icon: CheckCircleRounded },
+] as const;
 
 export function SignInHero() {
   return (
@@ -62,7 +71,7 @@ export function SignInHero() {
           fontSize: { xs: "2.6rem", md: "4rem" },
         }}
       >
-        Sign in to track orders
+        Your wardrobe, in progress
       </Typography>
       <Typography
         sx={{
@@ -72,10 +81,37 @@ export function SignInHero() {
           fontSize: { xs: 16, md: 18 },
         }}
       >
-        Your phone or email, no password. Signing in keeps your order
-        history in one place and unlocks more natural-language AI searches
-        across every Xtiitch shop.
+        Sign in without a password to follow every order, retry payments and
+        keep your studio conversations in one calm place.
       </Typography>
+      <Stack
+        direction={{ xs: "column", sm: "row", lg: "column", xl: "row" }}
+        spacing={1}
+        sx={{ mt: 3 }}
+      >
+        {JOURNEY_PREVIEW.map(({ label, Icon }) => (
+          <Stack
+            key={label}
+            direction="row"
+            spacing={0.75}
+            sx={{
+              alignItems: "center",
+              px: 1.25,
+              py: 0.9,
+              borderRadius: 999,
+              border: "1px solid",
+              borderColor: alpha(tokens.burgundy, 0.13),
+              bgcolor: "rgba(var(--surface-rgb), 0.55)",
+              color: "text.secondary",
+            }}
+          >
+            <Icon sx={{ fontSize: 18, color: "primary.main" }} />
+            <Typography variant="caption" sx={{ fontWeight: 800 }}>
+              {label}
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
       <Stack
         direction="row"
         spacing={1}
@@ -83,7 +119,7 @@ export function SignInHero() {
       >
         <AutoAwesomeRounded fontSize="small" />
         <Typography sx={{ fontWeight: 800 }}>
-          25 free AI searches a month, signed in.
+          Plus 25 free AI searches every month.
         </Typography>
       </Stack>
     </Box>

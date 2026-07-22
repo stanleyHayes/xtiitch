@@ -99,6 +99,10 @@ export function PayoutsSection() {
   const lowerBoundTotal =
     (page - 1) * ADMIN_PAGE_SIZE + payouts.length + (hasMore ? 1 : 0);
 
+  if (selected) {
+    return <PayoutHistoryDrawer payout={selected} onClose={() => setSelected(null)} />;
+  }
+
   return (
     <Stack spacing={2.5}>
       <SectionHeader
@@ -128,7 +132,7 @@ export function PayoutsSection() {
         fetcher={fetcher}
         query={query}
         payouts={payouts}
-        selectedId={selected?.businessId ?? null}
+        selectedId={null}
         onInspect={setSelected}
       />
       <PaginationFooter
@@ -138,10 +142,6 @@ export function PayoutsSection() {
         pageSize={ADMIN_PAGE_SIZE}
         total={lowerBoundTotal}
         onChange={setPage}
-      />
-      <PayoutHistoryDrawer
-        payout={selected}
-        onClose={() => setSelected(null)}
       />
     </Stack>
   );

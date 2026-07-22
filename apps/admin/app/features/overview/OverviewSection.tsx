@@ -61,9 +61,9 @@ export function OverviewSection({
   return (
     <Stack spacing={3}>
       <SectionHeader
-        eyebrow="Platform pulse"
-        title="Everything at a glance"
-        helper="A live snapshot across the admin, business, and customer platforms — money flow, growth, trust & safety, and the latest activity."
+        eyebrow="Control room"
+        title="Good morning. Here is the platform pulse."
+        helper="Revenue, operations, trust, and customer pressure in one calm briefing. Open a workspace only when something needs action."
       />
 
       {platformMetricsError ? (
@@ -81,6 +81,16 @@ export function OverviewSection({
         pendingCount={pendingCount}
       />
 
+      <OverviewRecentActivity
+        operationsHealth={operationsHealth}
+        subscriptions={subscriptions}
+        verificationCases={verificationCases}
+        supportTickets={supportTickets}
+        auditEvents={auditEvents}
+        moneyRails={moneyRails}
+        onSelect={onSelect}
+      />
+
       <OverviewCharts
         businesses={businesses}
         customers={customers}
@@ -93,16 +103,6 @@ export function OverviewSection({
         affiliates={affiliates}
         referralProgrammes={referralProgrammes}
         auditEvents={auditEvents}
-        onSelect={onSelect}
-      />
-
-      <OverviewRecentActivity
-        operationsHealth={operationsHealth}
-        subscriptions={subscriptions}
-        verificationCases={verificationCases}
-        supportTickets={supportTickets}
-        auditEvents={auditEvents}
-        moneyRails={moneyRails}
         onSelect={onSelect}
       />
     </Stack>

@@ -152,6 +152,7 @@ export function AdminTopBar({
                   aria-label="Open section guide"
                   onClick={onOpenHelp}
                   sx={{
+                    display: { xs: "none", sm: "inline-flex" },
                     color: "inherit",
                     flexShrink: 0,
                     border: "1px solid",
@@ -223,6 +224,7 @@ export function AdminTopBar({
                 onToggleDarkChrome({ x: event.clientX, y: event.clientY })
               }
               sx={{
+                display: { xs: "none", sm: "inline-flex" },
                 color: "inherit",
                 width: { xs: 40, sm: 44 },
                 height: { xs: 40, sm: 44 },

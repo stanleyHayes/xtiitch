@@ -3,3 +3,4 @@ export { SectionHeader } from "./SectionHeader";
 export { MetricCard } from "./MetricCard";
 export { PaginationFooter } from "./PaginationFooter";
 export { AdminEmptyState } from "./AdminEmptyState";
+export { AdminRecordPage } from "./AdminRecordPage";

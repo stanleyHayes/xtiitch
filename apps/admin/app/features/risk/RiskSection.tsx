@@ -1,197 +1,28 @@
-import { Form } from "react-router";
+import { Form, useSearchParams } from "react-router";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
 import { alpha } from "@mui/material/styles";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import PersonSearchRounded from "@mui/icons-material/PersonSearchRounded";
-import { tokens } from "../../theme";
-import { Panel, SectionHeader, PaginationFooter } from "../../components/ui";
+import SecurityRounded from "@mui/icons-material/SecurityRounded";
+import { AdminEmptyState, AdminRecordPage, PaginationFooter, Panel, SectionHeader } from "../../components/ui";
 import { usePagedItems } from "../shared/usePagedItems";
 import { AdminRiskReview, AdminActionFeedback } from "../shared/types";
 import { shortTime, riskColor } from "../shared";
 import { RiskChip } from "../shared/RiskChip";
 
-export function RiskSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
-  riskReviews,
-  riskReviewError,
-  actionData,
-}: {
-  riskReviews: AdminRiskReview[];
-  riskReviewError: string | null;
-  actionData?: AdminActionFeedback;
-}) {
-  const {
-    page: riskPage,
-    pageCount: riskPageCount,
-    pagedItems: pagedRiskReviews,
-    setPage: setRiskPage,
-  } = usePagedItems(riskReviews, 6, riskReviews.length);
+function RiskAction({ item }: { item: AdminRiskReview }) { const closed = item.status === "closed"; return <Form method="post"><input type="hidden" name="intent" value="admin-risk-review:update" /><input type="hidden" name="review_key" value={item.id} /><input type="hidden" name="status" value={closed ? "open" : "closed"} /><input type="hidden" name="reason" value={closed ? `Reopened ${item.title}` : `Closed ${item.title}`} /><Button type="submit" variant={closed ? "contained" : "outlined"} startIcon={closed ? <CheckCircleRounded /> : <PersonSearchRounded />} sx={{ whiteSpace: "nowrap" }}>{closed ? "Reopen review" : "Close review"}</Button></Form>; }
 
-  return (
-    <Stack spacing={2.5}>
-      <SectionHeader
-        eyebrow="Trust and compliance"
-        title="Risk review"
-        helper="Open issues for payment integrity, tenant isolation evidence, complaints, and manual escalation."
-      />
-      {actionData?.section === "risk" && actionData.message ? (
-        <Alert severity={actionData.severity ?? "success"}>
-          {actionData.message}
-        </Alert>
-      ) : null}
-      {riskReviewError ? (
-        <Alert severity="warning">{riskReviewError}</Alert>
-      ) : null}
-      <Box
-        sx={{
-          display: "grid",
-          gap: 2,
-          gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" },
-        }}
-      >
-        {pagedRiskReviews.map((item) => {
-          const closed = item.status === "closed";
-          return (
-            <Panel
-              key={item.id}
-              sx={{
-                p: 2.5,
-                minHeight: "100%",
-                borderColor: alpha(riskColor(item.level), 0.22),
-                backgroundImage: `
-                  radial-gradient(circle at 100% 0%, ${alpha(riskColor(item.level), closed ? 0.06 : 0.12)}, transparent 34%),
-                  linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-                `,
-                opacity: closed ? 0.72 : 1,
-                "&:hover": {
-                  transform: "translateY(-2px)",
-                  borderColor: alpha(riskColor(item.level), 0.36),
-                  boxShadow: `0 24px 60px ${alpha(tokens.ink, 0.1)}`,
-                },
-              }}
-            >
-              <Stack spacing={1.5}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                  }}
-                >
-                  <Stack direction="row" spacing={1}>
-                    <RiskChip level={item.level} />
-                    {closed ? (
-                      <Chip
-                        size="small"
-                        label="closed"
-                        sx={{ color: tokens.success }}
-                      />
-                    ) : null}
-                  </Stack>
-                  <Chip
-                    size="small"
-                    label={item.owner}
-                    variant="outlined"
-                  />
-                </Stack>
-                <Box>
-                  <Typography variant="h6">{item.title}</Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ color: "text.secondary" }}
-                  >
-                    {item.business}
-                  </Typography>
-                </Box>
-                <Typography sx={{ color: "text.secondary" }}>
-                  {item.reason}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{ color: "text.secondary" }}
-                >
-                  Updated {shortTime(item.updatedAt)}
-                </Typography>
-                <Form method="post">
-                  <input
-                    type="hidden"
-                    name="intent"
-                    value="admin-risk-review:update"
-                  />
-                  <input
-                    type="hidden"
-                    name="review_key"
-                    value={item.id}
-                  />
-                  <input
-                    type="hidden"
-                    name="status"
-                    value={closed ? "open" : "closed"}
-                  />
-                  <input
-                    type="hidden"
-                    name="reason"
-                    value={
-                      closed
-                        ? `Reopened ${item.title}`
-                        : `Closed ${item.title}`
-                    }
-                  />
-                  <Button
-                    type="submit"
-                    variant={closed ? "contained" : "outlined"}
-                    startIcon={
-                      closed ? (
-                        <CheckCircleRounded />
-                      ) : (
-                        <PersonSearchRounded />
-                      )
-                    }
-                    fullWidth
-                  >
-                    {closed ? "Reopen review" : "Close review"}
-                  </Button>
-                </Form>
-              </Stack>
-            </Panel>
-          );
-        })}
-        {!riskReviewError && riskReviews.length === 0 ? (
-          <Box
-            sx={{
-              p: 2,
-              border: "1px dashed",
-              borderColor: alpha(tokens.success, 0.28),
-              borderRadius: 1.5,
-              bgcolor: "rgba(var(--surface-rgb), 0.68)",
-            }}
-          >
-            <Typography sx={{ fontWeight: 900 }}>
-              No active risk signals.
-            </Typography>
-            <Typography
-              variant="body2"
-              sx={{ mt: 0.5, color: "text.secondary" }}
-            >
-              Payment failures, active holds, suspended stores, and
-              rejected verification cases will appear here.
-            </Typography>
-          </Box>
-        ) : null}
-      </Box>
-      <PaginationFooter
-        count={riskPageCount}
-        label="risk reviews"
-        page={riskPage}
-        pageSize={6}
-        total={riskReviews.length}
-        onChange={setRiskPage}
-      />
-    </Stack>
-  );
+export function RiskSection({ riskReviews, riskReviewError, actionData }: { riskReviews: AdminRiskReview[]; riskReviewError: string | null; actionData?: AdminActionFeedback; }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = riskReviews.find((item) => item.id === searchParams.get("risk")) ?? null;
+  const { page, pageCount, pagedItems, setPage } = usePagedItems(riskReviews, 8, riskReviews.length);
+  const close = () => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("risk"); return next; });
+  if (selected) { const color = riskColor(selected.level); return <AdminRecordPage eyebrow="Risk review" title={selected.title} helper={`${selected.business} · updated ${shortTime(selected.updatedAt)}`} status={selected.level} statusColor={color} onBack={close} actions={<RiskAction item={selected} />}><Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1.35fr) minmax(260px, .65fr)" } }}><Box><Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 900 }}>Why this was flagged</Typography><Typography sx={{ mt: 1, fontSize: 18 }}>{selected.reason}</Typography></Box><Stack spacing={1} sx={{ p: 2, border: "1px solid", borderColor: alpha(color, .2), borderRadius: 2, bgcolor: alpha(color, .06) }}><Typography variant="overline" sx={{ color, fontWeight: 900 }}>Review posture</Typography><Typography sx={{ fontWeight: 900 }}>{selected.owner}</Typography><Typography variant="body2" sx={{ color: "text.secondary", textTransform: "capitalize" }}>{selected.status} · {selected.level} risk</Typography></Stack></Box></AdminRecordPage>; }
+  return <Stack spacing={2.5}><SectionHeader eyebrow="Trust & safety" title="Risk review" helper="A concise queue of risk signals. Open a review to see the evidence and take action." />{actionData?.section === "risk" && actionData.message ? <Alert severity={actionData.severity ?? "success"}>{actionData.message}</Alert> : null}{riskReviewError ? <Alert severity="warning">{riskReviewError}</Alert> : null}<Panel sx={{ overflow: "hidden" }}>{pagedItems.map((item, index) => { const color = riskColor(item.level); return <Box key={item.id} component="button" type="button" onClick={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("risk", item.id); return next; })} sx={{ width: "100%", p: { xs: 2, md: 2.25 }, display: "grid", gridTemplateColumns: { xs: "auto 1fr auto", md: "auto minmax(0, 1.35fr) minmax(180px, .65fr) auto" }, gap: 1.5, alignItems: "center", border: 0, borderBottom: index === pagedItems.length - 1 ? 0 : "1px solid", borderColor: "divider", bgcolor: "transparent", color: "text.primary", textAlign: "left", cursor: "pointer", font: "inherit", opacity: item.status === "closed" ? .65 : 1, "&:hover": { bgcolor: alpha(color, .055) } }}><Box sx={{ width: 40, height: 40, borderRadius: 1.5, display: "grid", placeItems: "center", bgcolor: alpha(color, .11), color }}><SecurityRounded /></Box><Box sx={{ minWidth: 0 }}><Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}><Typography sx={{ fontWeight: 900 }}>{item.title}</Typography><RiskChip level={item.level} />{item.status === "closed" ? <Chip size="small" label="closed" /> : null}</Stack><Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.reason}</Typography></Box><Box sx={{ display: { xs: "none", md: "block" } }}><Typography variant="body2" sx={{ fontWeight: 800 }}>{item.business}</Typography><Typography variant="caption" sx={{ color: "text.secondary" }}>{shortTime(item.updatedAt)}</Typography></Box><ArrowForwardRounded sx={{ color }} /></Box>; })}{riskReviews.length === 0 ? <AdminEmptyState compact icon={<SecurityRounded />} eyebrow="Risk review" title="No active risk signals" helper="Payment failures, holds, and tenant flags will appear here." /> : null}</Panel><PaginationFooter count={pageCount} label="risk reviews" page={page} pageSize={8} total={riskReviews.length} onChange={setPage} /></Stack>;
 }

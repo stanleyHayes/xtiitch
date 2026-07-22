@@ -1,4 +1,4 @@
-import { Form } from "react-router";
+import { Form, useSearchParams } from "react-router";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -7,11 +7,13 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import SyncRounded from "@mui/icons-material/SyncRounded";
 import WebhookRounded from "@mui/icons-material/WebhookRounded";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import type { AdminMoneyWebhookEvent } from "../../../lib/api";
 import { tokens } from "../../../theme";
 import { Panel } from "../../../components/ui";
 import { PaginationFooter } from "../../../components/ui";
 import { AdminEmptyState } from "../../../components/ui";
+import { AdminRecordPage } from "../../../components/ui";
 import { formatGHS, shortTime } from "../../shared";
 import { webhookColor } from "../utils";
 
@@ -29,6 +31,19 @@ export function MoneyRailsPanel({
   pageCount: number;
   onPageChange: (page: number) => void;
 }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selected = events.find((event) => event.id === searchParams.get("webhook")) ?? null;
+  const close = () => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("webhook"); return next; });
+  if (selected) {
+    const replayed = selected.status === "replayed";
+    const color = replayed ? tokens.info : webhookColor(selected.status);
+    return (
+      <AdminRecordPage eyebrow="Webhook event" title={selected.business} helper={`${selected.purpose} · received ${shortTime(selected.receivedAt)}`} status={replayed ? "replay queued" : selected.status} statusColor={color} onBack={close}
+        actions={<><Form method="post"><input type="hidden" name="intent" value="money:webhook-replay" /><input type="hidden" name="provider_reference" value={selected.providerReference} /><input type="hidden" name="reason" value={selected.note} /><Button type="submit" variant="outlined" startIcon={<SyncRounded />} disabled={selected.status === "verified" || replayed}>{replayed ? "Queued" : "Replay"}</Button></Form>{selected.status === "verified" ? <Form method="post"><input type="hidden" name="intent" value="money:payment-reversal" /><input type="hidden" name="provider_reference" value={selected.providerReference} /><input type="hidden" name="reason" value="Refund or dispute confirmed by provider." /><Button type="submit" variant="outlined" color="warning">Reverse</Button></Form> : null}</>}>
+        <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", lg: "minmax(0, 1.3fr) minmax(280px, .7fr)" } }}><Box><Typography variant="overline" sx={{ color: "text.secondary", fontWeight: 900 }}>Provider result</Typography><Typography sx={{ mt: 1, fontSize: 18 }}>{selected.note}</Typography><Typography variant="body2" sx={{ mt: 2, color: "text.secondary", overflowWrap: "anywhere" }}>Reference: {selected.providerReference}</Typography></Box><Stack spacing={1} sx={{ p: 2, border: "1px solid", borderColor: alpha(color, .2), borderRadius: 2, bgcolor: alpha(color, .06) }}><Typography variant="overline" sx={{ color, fontWeight: 900 }}>Event snapshot</Typography><Typography sx={{ fontWeight: 900 }}>{formatGHS(selected.amountMinor)}</Typography><Typography variant="body2" sx={{ color: "text.secondary" }}>{selected.attempts} delivery attempt{selected.attempts === 1 ? "" : "s"}</Typography></Stack></Box>
+      </AdminRecordPage>
+    );
+  }
   return (
     <Panel
       sx={{
@@ -49,9 +64,10 @@ export function MoneyRailsPanel({
         {pagedEvents.map((event) => {
           const replayed = event.status === "replayed";
           return (
-            <Box
+            <Box component="button" type="button" onClick={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("webhook", event.id); return next; })}
               key={event.id}
               sx={{
+                width: "100%",
                 p: 1.5,
                 border: "1px solid",
                 borderColor: alpha(
@@ -60,6 +76,10 @@ export function MoneyRailsPanel({
                 ),
                 borderRadius: 1.5,
                 bgcolor: "rgba(var(--surface-rgb), 0.7)",
+                color: "text.primary",
+                textAlign: "left",
+                font: "inherit",
+                cursor: "pointer",
                 backgroundImage: `linear-gradient(90deg, ${alpha(
                   replayed ? tokens.info : webhookColor(event.status),
                   0.075,
@@ -113,11 +133,9 @@ export function MoneyRailsPanel({
                     {event.business} · {event.purpose} ·{" "}
                     {formatGHS(event.amountMinor)} · {event.attempts} attempts
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    {event.note}
-                  </Typography>
+                  <Typography variant="body2" sx={{ mt: 1, color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{event.note}</Typography>
                 </Box>
-                <Stack spacing={1} sx={{ alignItems: { md: "flex-end" } }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
                   <Typography
                     variant="caption"
                     sx={{
@@ -127,55 +145,7 @@ export function MoneyRailsPanel({
                   >
                     {shortTime(event.receivedAt)}
                   </Typography>
-                  <Form method="post">
-                    <input
-                      type="hidden"
-                      name="intent"
-                      value="money:webhook-replay"
-                    />
-                    <input
-                      type="hidden"
-                      name="provider_reference"
-                      value={event.providerReference}
-                    />
-                    <input type="hidden" name="reason" value={event.note} />
-                    <Button
-                      type="submit"
-                      variant="outlined"
-                      size="small"
-                      startIcon={<SyncRounded />}
-                      disabled={event.status === "verified" || replayed}
-                    >
-                      {replayed ? "Queued" : "Replay"}
-                    </Button>
-                  </Form>
-                  {event.status === "verified" ? (
-                    <Form method="post">
-                      <input
-                        type="hidden"
-                        name="intent"
-                        value="money:payment-reversal"
-                      />
-                      <input
-                        type="hidden"
-                        name="provider_reference"
-                        value={event.providerReference}
-                      />
-                      <input
-                        type="hidden"
-                        name="reason"
-                        value="Refund or dispute confirmed by provider."
-                      />
-                      <Button
-                        type="submit"
-                        variant="outlined"
-                        color="warning"
-                        size="small"
-                      >
-                        Reverse
-                      </Button>
-                    </Form>
-                  ) : null}
+                  <ArrowForwardRounded sx={{ color: replayed ? tokens.info : webhookColor(event.status) }} />
                 </Stack>
               </Stack>
             </Box>

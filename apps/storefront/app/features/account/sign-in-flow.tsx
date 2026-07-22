@@ -33,12 +33,12 @@ export function SignInFlow({ // eslint-disable-line complexity, max-lines-per-fu
     <Box
       sx={{
         position: "relative",
-        p: { xs: 2.5, sm: 3, md: 3.5 },
-        borderRadius: "18px",
+        p: { xs: 2.25, sm: 3.25, md: 4 },
+        borderRadius: "22px",
         border: "1px solid",
         borderColor: alpha(tokens.burgundy, 0.18),
         bgcolor: "rgba(var(--surface-rgb), 0.96)",
-        boxShadow: `0 30px 80px ${alpha(tokens.ink, 0.18)}`,
+        boxShadow: `0 34px 90px ${alpha(tokens.ink, 0.16)}`,
         overflow: "hidden",
         "&::before": {
           content: '""',

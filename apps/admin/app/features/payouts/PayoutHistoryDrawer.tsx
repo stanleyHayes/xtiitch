@@ -2,15 +2,14 @@ import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
-import Drawer from "@mui/material/Drawer";
 import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { formatGHS } from "../shared/formatting";
 import { shortTime } from "../shared/dates";
 import { PaginationFooter } from "../../components/ui/PaginationFooter";
+import { AdminRecordPage } from "../../components/ui/AdminRecordPage";
 import { ADMIN_PAGE_SIZE } from "../shared/types";
 import { PayoutStatusChip } from "./PayoutTable";
 import type { AdminPayoutRow } from "../../lib/api";
@@ -52,39 +51,19 @@ export function PayoutHistoryDrawer({
   const lowerBoundTotal =
     (page - 1) * ADMIN_PAGE_SIZE + history.length + (hasMore ? 1 : 0);
 
+  if (!payout) return null;
   return (
-    <Drawer
-      anchor="right"
-      open={Boolean(payout)}
-      onClose={onClose}
-      slotProps={{
-        paper: {
-          sx: {
-            width: { xs: "100%", sm: 460 },
-            maxWidth: "100%",
-            bgcolor: "background.default",
-            p: { xs: 2, sm: 2.5 },
-          },
-        },
-      }}
+    <AdminRecordPage
+      eyebrow="Payout account"
+      title={payout.businessName}
+      helper={`${payout.handle}.xtiitch.com · settlement history mirrored from Paystack`}
+      status={payout.lastPayoutStatus || "No payouts"}
+      onBack={onClose}
     >
-      {payout ? (
         <Stack spacing={2}>
-          <Stack
-            direction="row"
-            spacing={1}
-            sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
-          >
-            <Box>
-              <Typography variant="h6">{payout.businessName}</Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {payout.handle}.xtiitch.com · payout history
-              </Typography>
-            </Box>
-            <Button size="small" onClick={onClose}>
-              Close
-            </Button>
-          </Stack>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
+            {[["Total sales", formatGHS(payout.totalSalesMinor)], ["Settled", formatGHS(payout.totalSettledMinor)], ["Fees + tax", formatGHS(payout.xtiitchFeesMinor + payout.xtiitchTaxMinor)], ["Amount due", formatGHS(payout.amountDueMinor)]].map(([label, value]) => <Box key={label} sx={{ p: 2, border: "1px solid", borderColor: "divider", borderRadius: 2 }}><Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 800 }}>{label}</Typography><Typography variant="h6">{value}</Typography></Box>)}
+          </Box>
           <Typography variant="caption" sx={{ color: "text.secondary" }}>
             Amounts mirror Paystack (the source of truth) — use them to answer
             any “was I paid?” question against Paystack’s own records.
@@ -99,13 +78,8 @@ export function PayoutHistoryDrawer({
               No payouts recorded yet for this store.
             </Typography>
           ) : null}
-          {history.map((entry) => (
-            <Stack
-              key={entry.settlementId}
-              direction="row"
-              spacing={1.25}
-              sx={{ alignItems: "center", justifyContent: "space-between" }}
-            >
+          {history.map((entry, index) => (
+            <Stack key={entry.settlementId} direction="row" spacing={1.25} sx={{ p: 1.5, alignItems: "center", justifyContent: "space-between", borderBottom: index === history.length - 1 ? 0 : "1px solid", borderColor: "divider" }}>
               <Box sx={{ minWidth: 0 }}>
                 <Typography sx={{ fontWeight: 800 }}>
                   {formatGHS(entry.amountMinor)}
@@ -130,7 +104,6 @@ export function PayoutHistoryDrawer({
             onChange={setPage}
           />
         </Stack>
-      ) : null}
-    </Drawer>
+    </AdminRecordPage>
   );
 }

@@ -1,5 +1,4 @@
 import Box from "@mui/material/Box";
-import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
@@ -9,7 +8,6 @@ import { AdminPlatformSettings } from "../shared/types";
 import { formatGHS } from "../shared/formatting";
 import { shortTime } from "../shared/dates";
 import { Panel } from "../../components/ui/Panel";
-import { DetailLine } from "../shared/DetailLine";
 
 export function CurrentPlatformPolicy({
   platformSettings,
@@ -27,7 +25,7 @@ export function CurrentPlatformPolicy({
         `,
       }}
     >
-      <Stack spacing={1.25}>
+      <Stack spacing={2}>
         <Stack
           direction="row"
           spacing={1.25}
@@ -42,29 +40,19 @@ export function CurrentPlatformPolicy({
             </Typography>
           </Box>
         </Stack>
-        <Divider />
-        <DetailLine
-          label="Verification SLA"
-          value={`${platformSettings.verificationSlaHours} hours`}
-        />
-        <DetailLine
-          label="Payout review threshold"
-          value={formatGHS(platformSettings.payoutReviewThresholdPesewas)}
-        />
-        <DetailLine
-          label="Maintenance"
-          value={
-            platformSettings.maintenanceMode ? "Enabled" : "Disabled"
-          }
-        />
-        <DetailLine
-          label="Updated"
-          value={
-            platformSettings.updatedAt
-              ? shortTime(platformSettings.updatedAt)
-              : "Default"
-          }
-        />
+        <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
+          {[
+            ["Verification SLA", `${platformSettings.verificationSlaHours} hours`],
+            ["Payout threshold", formatGHS(platformSettings.payoutReviewThresholdPesewas)],
+            ["Maintenance", platformSettings.maintenanceMode ? "Enabled" : "Disabled"],
+            ["Updated", platformSettings.updatedAt ? shortTime(platformSettings.updatedAt) : "Default"],
+          ].map(([label, value]) => (
+            <Box key={label} sx={{ p: 1.5, borderRadius: 1.5, border: "1px solid", borderColor: "divider", bgcolor: "rgba(var(--surface-rgb), .55)" }}>
+              <Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 800 }}>{label}</Typography>
+              <Typography sx={{ mt: .25, fontWeight: 900 }}>{value}</Typography>
+            </Box>
+          ))}
+        </Box>
       </Stack>
     </Panel>
   );

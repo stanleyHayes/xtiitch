@@ -1,33 +1,29 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
-import Drawer from "@mui/material/Drawer";
+import Chip from "@mui/material/Chip";
 import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
-import ToggleButton from "@mui/material/ToggleButton";
-import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
 import Typography from "@mui/material/Typography";
-import Alert from "@mui/material/Alert";
 import { alpha } from "@mui/material/styles";
+import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
-import ViewListRounded from "@mui/icons-material/ViewListRounded";
-import GridViewRounded from "@mui/icons-material/GridViewRounded";
+import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import TextField from "../../components/form-text-field";
-import { Panel, SectionHeader, PaginationFooter } from "../../components/ui";
+import { AdminEmptyState, PaginationFooter, Panel, SectionHeader } from "../../components/ui";
 import { usePagedItems } from "../shared/usePagedItems";
-import { useActionSuccess } from "../shared/useActionSuccess";
 import type { AdminBusiness } from "../../lib/api";
-import {
-  AdminActionFeedback,
-  StatusFilter,
-  Section,
-  statusFilters,
-} from "../shared/types";
-import { BusinessRow } from "../verifications/BusinessRow";
+import { AdminActionFeedback, StatusFilter, Section, statusFilters } from "../shared/types";
 import { BusinessInspector } from "../verifications/BusinessInspector";
-import { BusinessTable } from "./BusinessTable";
+import { RiskChip } from "../shared/RiskChip";
+import { StatusChip } from "../shared/StatusChip";
+import { formatGHS } from "../shared/formatting";
+import { shortTime } from "../shared/dates";
+import { tokens } from "../../theme";
 
-export function BusinessesSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function BusinessesSection({
   adminBusinesses,
   businessManagementError,
   actionData,
@@ -38,201 +34,45 @@ export function BusinessesSection({ // eslint-disable-line max-lines-per-functio
   actionData?: AdminActionFeedback;
   onSelect: (section: Section) => void;
 }) {
-  const [businessQuery, setBusinessQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
-  const [businessView, setBusinessView] = useState<"list" | "card">("list");
-  const [selectedBusiness, setSelectedBusiness] =
-    useState<AdminBusiness | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [query, setQuery] = useState("");
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const selectedId = searchParams.get("business");
+  const selected = adminBusinesses.find((item) => item.id === selectedId) ?? null;
+  const filtered = useMemo(() => adminBusinesses.filter((business) => {
+    const needle = query.trim().toLowerCase();
+    return (status === "all" || business.status === status) && (!needle || [business.name, business.handle, business.ownerEmail].some((value) => value.toLowerCase().includes(needle)));
+  }), [adminBusinesses, query, status]);
+  const { page, pageCount, pagedItems, setPage } = usePagedItems(filtered, 10, `${query}:${status}`);
+  const clearSelected = () => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.delete("business"); return next; });
 
-  // §1.2/§11.4: the inspector drawer is a modal — it closes on any successful
-  // businesses action (suspend/reactivate, delete). On a delete the row is
-  // gone from the revalidated loader data anyway, so leaving the drawer open
-  // would show a tenant that no longer exists.
-  const actionSuccess = useActionSuccess("businesses");
-  useEffect(() => {
-    if (actionSuccess) {
-      setSelectedBusiness(null);
-    }
-  }, [actionSuccess]);
-
-  const filteredBusinesses = useMemo(() => {
-    const query = businessQuery.trim().toLowerCase();
-    return adminBusinesses.filter((business) => {
-      const matchesStatus =
-        statusFilter === "all" || business.status === statusFilter;
-      const matchesQuery =
-        !query ||
-        business.name.toLowerCase().includes(query) ||
-        business.handle.toLowerCase().includes(query) ||
-        business.ownerEmail.toLowerCase().includes(query);
-      return matchesStatus && matchesQuery;
-    });
-  }, [adminBusinesses, businessQuery, statusFilter]);
-
-  const businessPageSize = businessView === "card" ? 6 : 10;
-  const {
-    page: businessPage,
-    pageCount: businessPageCount,
-    pagedItems: pagedBusinesses,
-    setPage: setBusinessPage,
-  } = usePagedItems(
-    filteredBusinesses,
-    businessPageSize,
-    `${businessQuery}:${statusFilter}:${businessView}`,
-  );
+  if (selected) {
+    return <BusinessInspector business={selected} onReviewPayments={() => onSelect("money")} onOpenAudit={() => onSelect("audit")} onClose={clearSelected} />;
+  }
 
   return (
     <Stack spacing={2.5}>
-      <SectionHeader
-        eyebrow="Tenant operations"
-        title="Businesses"
-        helper="Search stores, monitor GMV and commission, and suspend risky tenants without touching customer data."
-      />
-      {actionData?.section === "businesses" && actionData.message ? (
-        <Alert severity={actionData.severity ?? "success"}>
-          {actionData.message}
-        </Alert>
-      ) : null}
-      {businessManagementError ? (
-        <Alert severity="warning">{businessManagementError}</Alert>
-      ) : null}
-      <Panel sx={{ p: 2 }}>
-        <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
-          <TextField
-            label="Search business"
-            value={businessQuery}
-            onChange={(event) => setBusinessQuery(event.target.value)}
-            fullWidth
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRounded />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          <TextField
-            select
-            label="Status"
-            value={statusFilter}
-            onChange={(event) =>
-              setStatusFilter(event.target.value as StatusFilter)
-            }
-            sx={{ minWidth: { md: 220 } }}
-          >
-            {statusFilters.map((filter) => (
-              <MenuItem key={filter.value} value={filter.value}>
-                {filter.label}
-              </MenuItem>
-            ))}
-          </TextField>
-          <ToggleButtonGroup
-            exclusive
-            value={businessView}
-            onChange={(_event, next) => {
-              if (next) setBusinessView(next as "list" | "card");
-            }}
-            aria-label="Business view"
-            sx={{
-              alignSelf: { xs: "stretch", md: "center" },
-              "& .MuiToggleButton-root": {
-                px: 1.5,
-                border: "1px solid",
-                borderColor: "divider",
-                color: "text.secondary",
-                "&.Mui-selected": {
-                  color: "primary.main",
-                  bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
-                },
-              },
-            }}
-          >
-            <ToggleButton value="list" aria-label="List view">
-              <ViewListRounded fontSize="small" />
-            </ToggleButton>
-            <ToggleButton value="card" aria-label="Card view">
-              <GridViewRounded fontSize="small" />
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </Stack>
+      <SectionHeader eyebrow="Businesses & money" title="Business directory" helper="A compact operating view of every tenant. Open a business for its complete record and admin-safe actions." />
+      {actionData?.section === "businesses" && actionData.message ? <Alert severity={actionData.severity ?? "success"}>{actionData.message}</Alert> : null}
+      {businessManagementError ? <Alert severity="warning">{businessManagementError}</Alert> : null}
+      <Panel sx={{ p: 2 }}><Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+        <TextField label="Search business" value={query} onChange={(event) => setQuery(event.target.value)} fullWidth slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRounded /></InputAdornment> } }} />
+        <TextField select label="Status" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)} sx={{ minWidth: { md: 220 } }}>{statusFilters.map((item) => <MenuItem key={item.value} value={item.value}>{item.label}</MenuItem>)}</TextField>
+      </Stack></Panel>
+      <Panel sx={{ overflow: "hidden" }}>
+        {pagedItems.map((business, index) => (
+          <Box key={business.id} component="button" type="button" onClick={() => setSearchParams((prev) => { const next = new URLSearchParams(prev); next.set("business", business.id); return next; })}
+            sx={{ width: "100%", p: { xs: 2, md: 2.25 }, display: "grid", gridTemplateColumns: { xs: "auto minmax(0, 1fr) auto", md: "auto minmax(230px, 1.2fr) minmax(180px, .8fr) minmax(160px, .7fr) auto" }, gap: 1.5, alignItems: "center", border: 0, borderBottom: index === pagedItems.length - 1 ? 0 : "1px solid", borderColor: "divider", bgcolor: "transparent", color: "text.primary", textAlign: "left", cursor: "pointer", font: "inherit", "&:hover": { bgcolor: alpha(tokens.burgundy, .045) } }}>
+            <Box sx={{ width: 42, height: 42, borderRadius: 1.5, display: "grid", placeItems: "center", bgcolor: alpha(tokens.burgundy, .09), color: tokens.burgundy }}><StorefrontRounded /></Box>
+            <Box sx={{ minWidth: 0 }}><Stack direction="row" spacing={.75} sx={{ alignItems: "center", flexWrap: "wrap" }}><Typography sx={{ fontWeight: 900 }}>{business.name}</Typography><StatusChip status={business.status} /><RiskChip level={business.riskLevel} /></Stack><Typography variant="body2" sx={{ color: "text.secondary", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{business.handle}.xtiitch.com · {business.ownerEmail}</Typography></Box>
+            <Box sx={{ display: { xs: "none", md: "block" } }}><Typography variant="caption" sx={{ color: "text.secondary" }}>Gross volume</Typography><Typography sx={{ fontWeight: 900 }}>{formatGHS(business.gmvMinor)}</Typography></Box>
+            <Box sx={{ display: { xs: "none", md: "block" } }}><Typography variant="caption" sx={{ color: "text.secondary" }}>Last active</Typography><Typography variant="body2" sx={{ fontWeight: 800 }}>{shortTime(business.lastActive)}</Typography></Box>
+            <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}><Chip size="small" label={business.plan} variant="outlined" sx={{ display: { xs: "none", sm: "flex" } }} /><ArrowForwardRounded sx={{ color: tokens.burgundy }} /></Stack>
+          </Box>
+        ))}
+        {filtered.length === 0 ? <AdminEmptyState compact icon={<StorefrontRounded />} eyebrow="Business directory" title="No businesses found" helper="Clear the search or select another status to widen the directory." /> : null}
       </Panel>
-      {filteredBusinesses.length === 0 ? (
-        <Panel sx={{ p: 3, textAlign: "center" }}>
-          <Typography sx={{ fontWeight: 800 }}>
-            No businesses match this view.
-          </Typography>
-          <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-            Clear the search or choose another status.
-          </Typography>
-        </Panel>
-      ) : businessView === "card" ? (
-        <Box
-          sx={{
-            display: "grid",
-            gap: 1.5,
-            alignContent: "start",
-            gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, minmax(0, 1fr))",
-              xl: "repeat(3, minmax(0, 1fr))",
-            },
-          }}
-        >
-          {pagedBusinesses.map((business) => (
-            <BusinessRow
-              key={business.id}
-              business={business}
-              selected={selectedBusiness?.id === business.id}
-              onInspect={setSelectedBusiness}
-              compact
-            />
-          ))}
-        </Box>
-      ) : (
-        <BusinessTable
-          businesses={pagedBusinesses}
-          selectedId={selectedBusiness?.id ?? null}
-          onInspect={setSelectedBusiness}
-        />
-      )}
-      <PaginationFooter
-        count={businessPageCount}
-        label="businesses"
-        page={businessPage}
-        pageSize={businessPageSize}
-        total={filteredBusinesses.length}
-        onChange={setBusinessPage}
-      />
-      <Drawer
-        anchor="right"
-        open={Boolean(selectedBusiness)}
-        onClose={() => setSelectedBusiness(null)}
-        slotProps={{
-          paper: {
-            sx: {
-              width: { xs: "100%", sm: 460 },
-              maxWidth: "100%",
-              bgcolor: "background.default",
-              p: { xs: 2, sm: 2.5 },
-            },
-          },
-        }}
-      >
-        <BusinessInspector
-          business={selectedBusiness}
-          onReviewPayments={() => {
-            onSelect("money");
-            setSelectedBusiness(null);
-          }}
-          onOpenAudit={() => {
-            onSelect("audit");
-            setSelectedBusiness(null);
-          }}
-          onClose={() => setSelectedBusiness(null)}
-        />
-      </Drawer>
+      <PaginationFooter count={pageCount} label="businesses" page={page} pageSize={10} total={filtered.length} onChange={setPage} />
     </Stack>
   );
 }
