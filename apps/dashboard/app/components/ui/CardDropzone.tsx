@@ -3,7 +3,6 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
-import { tokens } from "../../theme";
 
 // A dashed-border upload dropzone for one side of the Ghana Card. Shows an icon,
 // a prompt, and the size/format hint; flips to a "selected" state with the file
@@ -36,32 +35,44 @@ export function CardDropzone({
         cursor: "pointer",
         borderRadius: 2,
         border: "2px dashed",
-        borderColor: chosen ? tokens.burgundy : alpha(tokens.ink, 0.28),
-        bgcolor: chosen ? alpha(tokens.burgundy, 0.06) : alpha(tokens.ink, 0.015),
+        borderColor: (theme) =>
+          chosen
+            ? alpha(theme.palette.primary.main, 0.72)
+            : alpha(theme.palette.text.primary, 0.28),
+        bgcolor: (theme) =>
+          chosen
+            ? alpha(theme.palette.primary.main, 0.1)
+            : alpha(theme.palette.text.primary, 0.025),
         transition: "border-color .15s ease, background-color .15s ease",
         "&:hover": {
-          borderColor: tokens.burgundy,
-          bgcolor: alpha(tokens.burgundy, 0.06),
+          borderColor: "primary.main",
+          bgcolor: (theme) => alpha(theme.palette.primary.main, 0.1),
+        },
+        "&:focus-within": {
+          borderColor: "primary.main",
+          outline: (theme) =>
+            `3px solid ${alpha(theme.palette.primary.main, 0.2)}`,
+          outlineOffset: 2,
         },
       }}
     >
       {chosen ? (
-        <CheckCircleRounded sx={{ color: tokens.burgundy, fontSize: 30 }} />
+        <CheckCircleRounded sx={{ color: "primary.main", fontSize: 30 }} />
       ) : (
         <CloudUploadRounded
-          sx={{ color: alpha(tokens.ink, 0.55), fontSize: 30 }}
+          sx={{ color: "text.secondary", fontSize: 30 }}
         />
       )}
       <Typography
         sx={{
           fontWeight: 700,
-          color: chosen ? tokens.burgundy : tokens.ink,
+          color: chosen ? "primary.main" : "text.primary",
           wordBreak: "break-word",
         }}
       >
         {chosen ? fileName : `${side} of Ghana Card`}
       </Typography>
-      <Typography variant="caption" sx={{ color: alpha(tokens.ink, 0.55) }}>
+      <Typography variant="caption" sx={{ color: "text.secondary" }}>
         {chosen ? "Tap to replace" : "PNG or JPG · up to 5 MB"}
       </Typography>
       <input
