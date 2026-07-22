@@ -28,7 +28,12 @@ type Service interface {
 	UpdateProfile(ctx context.Context, customerID common.ID, displayName, email, whatsAppPhone string) (ports.CustomerProfile, error)
 	// CreateOrderPaymentLink re-initiates a Paystack checkout for one of the
 	// customer's draft orders (the abandoned-checkout recovery path).
-	CreateOrderPaymentLink(ctx context.Context, customerID common.ID, orderID common.ID, callbackURL string) (customerauthapp.OrderPaymentLinkResult, error)
+	CreateOrderPaymentLink(
+		ctx context.Context,
+		customerID common.ID,
+		orderID common.ID,
+		callbackURL string,
+	) (customerauthapp.OrderPaymentLinkResult, error)
 }
 
 type Handler struct {

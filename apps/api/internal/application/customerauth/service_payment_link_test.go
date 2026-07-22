@@ -21,13 +21,19 @@ type fakePaymentInitiator struct {
 	verifyCommand paymentsapp.VerifyPaymentCommand
 }
 
-func (f *fakePaymentInitiator) VerifyPayment(_ context.Context, command paymentsapp.VerifyPaymentCommand) (paymentsapp.VerifyPaymentResult, error) {
+func (f *fakePaymentInitiator) VerifyPayment(
+	_ context.Context,
+	command paymentsapp.VerifyPaymentCommand,
+) (paymentsapp.VerifyPaymentResult, error) {
 	f.verifyCalled = true
 	f.verifyCommand = command
 	return f.verifyResult, f.verifyErr
 }
 
-func (f *fakePaymentInitiator) InitiateCharge(_ context.Context, command paymentsapp.InitiateChargeCommand) (paymentsapp.ChargeResult, error) {
+func (f *fakePaymentInitiator) InitiateCharge(
+	_ context.Context,
+	command paymentsapp.InitiateChargeCommand,
+) (paymentsapp.ChargeResult, error) {
 	f.called = true
 	f.command = command
 	return f.result, f.err

@@ -272,7 +272,12 @@ func (s *fakeService) UpdateProfile(_ context.Context, _ common.ID, _, _, _ stri
 	return ports.CustomerProfile{}, nil
 }
 
-func (s *fakeService) CreateOrderPaymentLink(_ context.Context, _ common.ID, orderID common.ID, callbackURL string) (customerauthapp.OrderPaymentLinkResult, error) {
+func (s *fakeService) CreateOrderPaymentLink(
+	_ context.Context,
+	_ common.ID,
+	orderID common.ID,
+	callbackURL string,
+) (customerauthapp.OrderPaymentLinkResult, error) {
 	s.paymentLinkOrderID = orderID
 	s.paymentLinkCallback = callbackURL
 	return s.paymentLinkResult, s.paymentLinkErr

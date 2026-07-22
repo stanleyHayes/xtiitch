@@ -108,7 +108,7 @@ func (repo CustomerAuthRepository) ListCustomerOrders(ctx context.Context, custo
 // customer identity is global). An order that is missing or belongs to another
 // customer comes back as ErrNotFound, indistinguishable by design.
 //
-//nolint:funlen,gocognit // the cart-basket branch mirrors the original charge
+//nolint:funlen,gocognit,gocyclo // the cart-basket branch mirrors the original charge
 func (repo CustomerAuthRepository) GetCustomerOrderPaymentContext(
 	ctx context.Context,
 	customerID common.ID,

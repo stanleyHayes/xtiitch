@@ -48,6 +48,8 @@ type OrderPaymentLinkResult struct {
 // draft (or has nothing left to settle) is refused as not payable. An order
 // that is not the caller's own is reported as missing, never as someone
 // else's.
+//
+//nolint:gocognit,gocyclo // payment recovery keeps validation and provider-state guards in one transaction flow
 func (s Service) CreateOrderPaymentLink(
 	ctx context.Context,
 	customerID common.ID,
