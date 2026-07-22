@@ -11,11 +11,14 @@ import CollectionsBookmarkRounded from "@mui/icons-material/CollectionsBookmarkR
 import type { Route } from "./+types/collection";
 import { api } from "../lib/api";
 import { requestTenant } from "../lib/tenant";
+import { storefrontMeta } from "../lib/seo";
 import { DesignGrid, StoreNotice } from "../components/storefront";
 import { tokens } from "../theme";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   const tenant = requestTenant(request);
+  const requestedURL = new URL(request.url);
+  const canonicalURL = `${requestedURL.origin}${requestedURL.pathname}`;
   const page = await api.collection(params.handle, tenant);
   if (!page) {
     // Deleted or unpublished: render a friendly in-store notice (below) rather
@@ -34,7 +37,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       return data({ notFound: true } as const, { status: 404 });
     }
   }
-  return { collection: page.collection, designs: page.designs };
+  return { collection: page.collection, designs: page.designs, canonicalURL };
 }
 
 export function meta({ data: loaded }: Route.MetaArgs) {
@@ -47,13 +50,15 @@ export function meta({ data: loaded }: Route.MetaArgs) {
     ];
   }
   const name = collection.name;
-  return [
-    { title: `${name} · Xtiitch` },
-    {
-      name: "description",
-      content: collection.theme || `Browse the ${name} collection on Xtiitch.`,
-    },
-  ];
+  const description = collection.theme || `Browse the ${name} collection on Xtiitch.`;
+  const image = loaded && "designs" in loaded ? loaded.designs[0]?.images[0] : undefined;
+  return storefrontMeta({
+    title: `${name} · Xtiitch`,
+    description,
+    canonicalURL: loaded && "canonicalURL" in loaded ? loaded.canonicalURL : "https://store.xtiitch.com/",
+    imageURL: image,
+    imageAlt: `${name} collection on Xtiitch`,
+  });
 }
 
 export default function CollectionPage({ loaderData }: Route.ComponentProps) { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up

@@ -67,6 +67,51 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="theme-color" content={tokens.burgundy} />
         {/* Business dashboard — never index. */}
         <meta name="robots" content="noindex, nofollow" />
+        {/* Keep social preview metadata in the document shell: React Router route
+            metadata replaces parent descriptors, while these tags must survive
+            on login, registration, activation and authenticated routes alike. */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Xtiitch Business" />
+        <meta
+          property="og:title"
+          content="Xtiitch Business · Run your fashion business"
+        />
+        <meta
+          property="og:description"
+          content="Manage orders, customers, designs, fittings, payments and growth from your Xtiitch business workspace."
+        />
+        <meta property="og:url" content="https://business.xtiitch.com/" />
+        <meta
+          property="og:image"
+          content="https://business.xtiitch.com/og.png"
+        />
+        <meta
+          property="og:image:secure_url"
+          content="https://business.xtiitch.com/og.png"
+        />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+          property="og:image:alt"
+          content="Xtiitch business owner dashboard"
+        />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+          name="twitter:title"
+          content="Xtiitch Business · Run your fashion business"
+        />
+        <meta
+          name="twitter:description"
+          content="Manage orders, customers, designs, fittings, payments and growth from your Xtiitch business workspace."
+        />
+        <meta
+          name="twitter:image"
+          content="https://business.xtiitch.com/og.png"
+        />
+        <meta
+          name="twitter:image:alt"
+          content="Xtiitch business owner dashboard"
+        />
         <meta name="emotion-insertion-point" content="" />
         <Meta />
         <Links />

@@ -1,12 +1,15 @@
 import type { Route } from "./+types/store";
 import { api } from "../lib/api";
 import { requestTenant } from "../lib/tenant";
+import { storefrontMeta } from "../lib/seo";
 import { StoreView } from "../components/storefront";
 
 export async function loader({ params, request }: Route.LoaderArgs) {
   // §6: on a tenant host only that tenant's own store exists — a /store/:handle
   // for any other store is a 404, exactly as if the page were never built.
   const tenant = requestTenant(request);
+  const requestedURL = new URL(request.url);
+  const canonicalURL = `${requestedURL.origin}${requestedURL.pathname}`;
   if (tenant && params.handle !== tenant) {
     throw new Response("Store not found", { status: 404 });
   }
@@ -24,6 +27,7 @@ export async function loader({ params, request }: Route.LoaderArgs) {
       query,
       marketplace: [],
       tenantHost: Boolean(tenant),
+      canonicalURL,
     };
   }
 
@@ -43,18 +47,18 @@ export async function loader({ params, request }: Route.LoaderArgs) {
     query: "",
     marketplace: shopsPage?.shops ?? [],
     tenantHost: Boolean(tenant),
+    canonicalURL,
   };
 }
 
 export function meta({ data }: Route.MetaArgs) {
   const name = data?.store.name ?? "Store";
-  return [
-    { title: `${name} · Xtiitch` },
-    {
-      name: "description",
-      content: `Browse and order from ${name} on Xtiitch.`,
-    },
-  ];
+  return storefrontMeta({
+    title: `${name} · Xtiitch`,
+    description: `Browse and order from ${name} on Xtiitch.`,
+    canonicalURL: data?.canonicalURL ?? "https://store.xtiitch.com/",
+    imageAlt: `${name} storefront on Xtiitch`,
+  });
 }
 
 export default function Store({ loaderData }: Route.ComponentProps) {

@@ -4,6 +4,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 // the dashboard, which itself bounces to /login when there is no session.
 export default [
   index("routes/home.tsx"),
+  route("robots.txt", "routes/robots.ts"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("forgot-password", "routes/forgot-password.tsx"),

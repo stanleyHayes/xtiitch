@@ -29,11 +29,13 @@ export function pageMeta({
     { name: "description", content: description },
     { tagName: "link", rel: "canonical", href: url },
     { property: "og:type", content: "website" },
+    { property: "og:locale", content: "en_GH" },
     { property: "og:site_name", content: BRAND },
     { property: "og:title", content: fullTitle },
     { property: "og:description", content: description },
     { property: "og:url", content: url },
     { property: "og:image", content: image },
+    { property: "og:image:secure_url", content: image },
     { property: "og:image:width", content: "1200" },
     { property: "og:image:height", content: "630" },
     { property: "og:image:alt", content: BRAND },
@@ -41,5 +43,6 @@ export function pageMeta({
     { name: "twitter:title", content: fullTitle },
     { name: "twitter:description", content: description },
     { name: "twitter:image", content: image },
+    { name: "twitter:image:alt", content: BRAND },
   ];
 }

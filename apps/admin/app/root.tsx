@@ -41,6 +41,44 @@ export function Layout({ children }: { children: ReactNode }) {
         <meta name="theme-color" content={tokens.burgundy} />
         {/* Operator console — never index. */}
         <meta name="robots" content="noindex, nofollow" />
+        {/* Route metadata replaces parent descriptors, so social tags live in
+            the shell and remain present on every private admin route. */}
+        <meta property="og:type" content="website" />
+        <meta property="og:site_name" content="Xtiitch Admin" />
+        <meta
+          property="og:title"
+          content="Xtiitch Admin · Secure platform operations"
+        />
+        <meta
+          property="og:description"
+          content="Secure access to Xtiitch platform operations, verification, subscriptions, payments and service health."
+        />
+        <meta property="og:url" content="https://admin.xtiitch.com/" />
+        <meta property="og:image" content="https://admin.xtiitch.com/og.png" />
+        <meta
+          property="og:image:secure_url"
+          content="https://admin.xtiitch.com/og.png"
+        />
+        <meta property="og:image:width" content="1200" />
+        <meta property="og:image:height" content="630" />
+        <meta
+          property="og:image:alt"
+          content="Xtiitch secure administration console"
+        />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta
+          name="twitter:title"
+          content="Xtiitch Admin · Secure platform operations"
+        />
+        <meta
+          name="twitter:description"
+          content="Secure access to Xtiitch platform operations, verification, subscriptions, payments and service health."
+        />
+        <meta name="twitter:image" content="https://admin.xtiitch.com/og.png" />
+        <meta
+          name="twitter:image:alt"
+          content="Xtiitch secure administration console"
+        />
         <meta name="emotion-insertion-point" content="" />
         <Meta />
         <Links />

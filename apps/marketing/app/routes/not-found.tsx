@@ -2,11 +2,14 @@ import type { MetaDescriptor } from "react-router";
 import { pageMeta } from "../components/seo";
 
 export function meta(): MetaDescriptor[] {
-  return pageMeta({
-    title: "Page not found",
-    description: "The page you were looking for is not here.",
-    path: "/404",
-  });
+  return [
+    ...pageMeta({
+      title: "Page not found",
+      description: "The page you were looking for is not here.",
+      path: "/404",
+    }),
+    { name: "robots", content: "noindex, nofollow" },
+  ];
 }
 
 // Any unmatched URL returns a real 404. Throwing the response bubbles up to the

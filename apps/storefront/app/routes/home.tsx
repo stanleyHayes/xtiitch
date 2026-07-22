@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { api } from "../lib/api";
 import { requestTenant } from "../lib/tenant";
+import { storefrontMeta } from "../lib/seo";
 import { StoreView } from "../components/storefront";
 import { Marketplace } from "../components/marketplace";
 
@@ -9,6 +10,8 @@ import { Marketplace } from "../components/marketplace";
 // every studio, featured placements, and the AI-search entry.
 export async function loader({ request }: Route.LoaderArgs) {
   const handle = requestTenant(request);
+  const requestedURL = new URL(request.url);
+  const canonicalURL = `${requestedURL.origin}${requestedURL.pathname}`;
   if (!handle) {
     const [shopsPage, sponsoredPage] = await Promise.all([
       api.shops(),
@@ -18,6 +21,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       mode: "marketplace" as const,
       shops: shopsPage?.shops ?? [],
       sponsored: sponsoredPage?.placements ?? [],
+      canonicalURL,
     };
   }
 
@@ -39,6 +43,7 @@ export async function loader({ request }: Route.LoaderArgs) {
       query,
       marketplace: [],
       tenantHost: true,
+      canonicalURL,
     };
   }
 
@@ -54,6 +59,7 @@ export async function loader({ request }: Route.LoaderArgs) {
     query: "",
     marketplace: [],
     tenantHost: true,
+    canonicalURL,
   };
 }
 
@@ -61,35 +67,22 @@ export function meta({ data }: Route.MetaArgs) {
   if (data?.mode === "store") {
     const title = `${data.store.name} · Xtiitch`;
     const description = `Browse and order ${data.store.name}'s designs on Xtiitch — see prices and order online, no account needed.`;
-    return [
-      { title },
-      { name: "description", content: description },
-      { property: "og:title", content: title },
-      { property: "og:description", content: description },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://store.xtiitch.com/og.png" },
-      { property: "og:image:width", content: "1200" },
-      { property: "og:image:height", content: "630" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:image", content: "https://store.xtiitch.com/og.png" },
-    ];
+    return storefrontMeta({
+      title,
+      description,
+      canonicalURL: data.canonicalURL,
+      imageAlt: `${data.store.name} storefront on Xtiitch`,
+    });
   }
   const title = "Discover Ghana's fashion studios · Xtiitch";
   const description =
     "Browse Ghanaian fashion studios and their designs, or describe what you want and let AI find it across every shop. Order online — no account needed to look.";
-  return [
-    { title },
-    { name: "description", content: description },
-    { property: "og:title", content: "Xtiitch — Ghana's fashion marketplace" },
-    { property: "og:description", content: description },
-    { property: "og:type", content: "website" },
-    { property: "og:url", content: "https://store.xtiitch.com/" },
-    { property: "og:image", content: "https://store.xtiitch.com/og.png" },
-    { property: "og:image:width", content: "1200" },
-    { property: "og:image:height", content: "630" },
-    { name: "twitter:card", content: "summary_large_image" },
-    { name: "twitter:image", content: "https://store.xtiitch.com/og.png" },
-  ];
+  return storefrontMeta({
+    title,
+    description,
+    canonicalURL: data?.canonicalURL ?? "https://store.xtiitch.com/",
+    imageAlt: "Xtiitch — Ghana's fashion marketplace",
+  });
 }
 
 export default function Home({ loaderData }: Route.ComponentProps) {

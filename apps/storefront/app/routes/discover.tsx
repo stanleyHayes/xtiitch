@@ -21,19 +21,19 @@ import { formatGHS } from "../lib/format";
 import { aiSearch, type AiQuota, type AiSearchResponse } from "../lib/discovery";
 import { getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
+import { storefrontMeta } from "../lib/seo";
 import { tokens } from "../theme";
 
 const SEARCH_LIMIT = 16;
 
 export function meta() {
-  return [
-    { title: "Discover · AI search · Xtiitch" },
-    {
-      name: "description",
-      content:
-        "Describe what you want in plain words — \"red kente dress for a wedding under 800\" — and Xtiitch finds it across every shop.",
-    },
-  ];
+  return storefrontMeta({
+    title: "Discover · AI search · Xtiitch",
+    description:
+      "Describe what you want in plain words and Xtiitch finds matching designs across Ghana's fashion studios.",
+    canonicalURL: "https://store.xtiitch.com/discover",
+    imageAlt: "Discover fashion designs across Xtiitch",
+  });
 }
 
 export async function loader({ request }: Route.LoaderArgs) {

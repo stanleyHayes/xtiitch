@@ -4,6 +4,7 @@ import { api } from "../lib/api";
 import { addToCart } from "../lib/cart";
 import { getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
+import { storefrontMeta, structuredDataJSON } from "../lib/seo";
 import {
   actionFailure,
   attributionPayload,
@@ -19,6 +20,8 @@ import {
 
 export async function loader({ params, request }: Route.LoaderArgs) { // eslint-disable-line complexity -- route loader with several conditional branches; refactor in follow-up
   const tenant = requestTenant(request);
+  const requestedURL = new URL(request.url);
+  const canonicalURL = `${requestedURL.origin}${requestedURL.pathname}`;
   const design = await api.design(params.handle, tenant);
   // §6: inside a tenant store, another store's design does not exist. The
   // public design payload always carries its store, so the check is exact.
@@ -50,6 +53,7 @@ export async function loader({ params, request }: Route.LoaderArgs) { // eslint-
     referralPreview,
     visitSlots: availability?.slots ?? [],
     relatedDesigns: relatedDesignsFor(design, storePage?.designs ?? []),
+    canonicalURL,
   };
 }
 
@@ -62,13 +66,19 @@ export function meta({ data: loaded }: Route.MetaArgs) {
     ];
   }
   const title = design.title;
-  return [
-    { title: `${title} · Xtiitch` },
-    {
-      name: "description",
-      content: design.description || `View ${title} on Xtiitch.`,
-    },
-  ];
+  const description = design.description || `View ${title} on Xtiitch.`;
+  const canonicalURL =
+    loaded && "canonicalURL" in loaded
+      ? loaded.canonicalURL
+      : "https://store.xtiitch.com/";
+  return storefrontMeta({
+    title: `${title} · Xtiitch`,
+    description,
+    canonicalURL,
+    imageURL: design.images[0],
+    imageAlt: `${title}${design.store?.name ? ` by ${design.store.name}` : ""}`,
+    type: "product",
+  });
 }
 
 export async function action({ request, params }: Route.ActionArgs) { // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
@@ -343,5 +353,46 @@ export async function action({ request, params }: Route.ActionArgs) { // eslint-
 import DesignPage from "../features/design/design-page";
 
 export default function DesignRoute(props: Route.ComponentProps) {
-  return <DesignPage {...props} />;
+  const loaded = props.loaderData;
+  if (!("design" in loaded)) {
+    return <DesignPage {...props} />;
+  }
+  const { design, canonicalURL } = loaded;
+  const prices = design.prices
+    .map((price) => price.price_minor)
+    .filter((price) => price > 0);
+  const lowPrice = prices.length > 0 ? Math.min(...prices) : null;
+  const highPrice = prices.length > 0 ? Math.max(...prices) : null;
+  const schema = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: design.title,
+    description: design.description || undefined,
+    image: design.images,
+    url: canonicalURL,
+    brand: design.store?.name
+      ? { "@type": "Brand", name: design.store.name }
+      : { "@type": "Brand", name: "Xtiitch" },
+    offers:
+      lowPrice === null
+        ? undefined
+        : {
+            "@type": "AggregateOffer",
+            priceCurrency: "GHS",
+            lowPrice: (lowPrice / 100).toFixed(2),
+            highPrice: ((highPrice ?? lowPrice) / 100).toFixed(2),
+            offerCount: prices.length,
+            availability: "https://schema.org/InStock",
+            url: canonicalURL,
+          },
+  };
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: structuredDataJSON(schema) }}
+      />
+      <DesignPage {...props} />
+    </>
+  );
 }
