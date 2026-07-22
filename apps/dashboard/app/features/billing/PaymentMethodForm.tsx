@@ -1,6 +1,6 @@
 import { Form, Link as RouterLink, useSearchParams } from "react-router";
 import MuiLink from "@mui/material/Link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -78,21 +78,38 @@ export function PaymentMethodForm({
     searchParams.get("cadence") === "quarterly" ? "quarterly" : "yearly",
   );
 
+  // This screen is taller than an iPhone viewport. Safari can preserve the
+  // previous route's scroll position when owners arrive here from Packages,
+  // leaving the title and first option behind the browser chrome. Billing is a
+  // fresh step, so always begin it at the top without changing later scrolls.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, []);
+
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         bgcolor: "background.default",
         display: "grid",
-        placeItems: "center",
-        p: 2,
+        justifyItems: "center",
+        // A centred item that is taller than the mobile viewport can overflow
+        // above the scroll origin. Pin long forms to the top on phones; retain
+        // the centred desktop presentation when the card fits comfortably.
+        alignItems: { xs: "start", md: "center" },
+        px: { xs: 1, sm: 2 },
+        pt: {
+          xs: "calc(8px + env(safe-area-inset-top))",
+          sm: "calc(16px + env(safe-area-inset-top))",
+        },
+        pb: "calc(16px + env(safe-area-inset-bottom))",
       }}
     >
-      <Container maxWidth="sm">
+      <Container maxWidth="sm" disableGutters>
         <Paper
           elevation={0}
           sx={{
-            p: { xs: 3, md: 4 },
+            p: { xs: 2, sm: 3, md: 4 },
             border: "1px solid",
             borderColor: alpha(tokens.ink, 0.12),
             borderRadius: 3,

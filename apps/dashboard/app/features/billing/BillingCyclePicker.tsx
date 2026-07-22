@@ -29,7 +29,7 @@ export function BillingCyclePicker({
   renewalOnly?: boolean;
 }) {
   return (
-    <Box sx={{ textAlign: "left" }}>
+    <Box sx={{ textAlign: "left", color: tokens.ink }}>
       <Typography sx={{ fontWeight: 800, mb: 1 }}>
         Choose your billing cycle
       </Typography>
@@ -73,6 +73,10 @@ export function BillingCyclePicker({
                   bgcolor: selected
                     ? alpha(tokens.burgundy, 0.04)
                     : "transparent",
+                  // This picker sits on an intentionally light card even when
+                  // the dashboard itself is in dark mode. Keep every native
+                  // label/control readable instead of inheriting white text.
+                  color: tokens.ink,
                 }}
               >
                 <FormControlLabel
@@ -82,6 +86,12 @@ export function BillingCyclePicker({
                     m: 0,
                     width: "100%",
                     alignItems: "flex-start",
+                    color: tokens.ink,
+                    gap: { xs: 0.25, sm: 0.5 },
+                    "& .MuiFormControlLabel-label": {
+                      minWidth: 0,
+                      color: tokens.ink,
+                    },
                   }}
                   label={
                     <Box>
