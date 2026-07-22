@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import Badge from "@mui/material/Badge";
+import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Tooltip from "@mui/material/Tooltip";
@@ -12,12 +13,14 @@ import HelpOutlineRounded from "@mui/icons-material/HelpOutlineRounded";
 import LightModeRounded from "@mui/icons-material/LightModeRounded";
 import MenuRounded from "@mui/icons-material/MenuRounded";
 import NotificationsActiveRounded from "@mui/icons-material/NotificationsActiveRounded";
+import RocketLaunchRounded from "@mui/icons-material/RocketLaunchRounded";
 import { tokens } from "../../theme";
 import type { AdminSession } from "../../lib/session";
 import { AdminNavItem, Section } from "../shared/types";
 import { AdminUserMenu } from "./AdminUserMenu";
 
-export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- shell renders responsive navigation and all global actions in one stable toolbar
+export function AdminTopBar({
   admin,
   currentSection,
   collapsed,
@@ -28,6 +31,8 @@ export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-f
   onToggleDarkChrome,
   onSelect,
   onOpenHelp,
+  launchEnabledCount,
+  onOpenLaunchControls,
 }: {
   admin: AdminSession;
   currentSection: AdminNavItem;
@@ -39,6 +44,8 @@ export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-f
   onToggleDarkChrome: (origin?: { x: number; y: number }) => void;
   onSelect: (section: Section) => void;
   onOpenHelp: () => void;
+  launchEnabledCount: number;
+  onOpenLaunchControls: () => void;
 }) {
   return (
     <Box
@@ -165,6 +172,31 @@ export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-f
           spacing={{ xs: 0.5, sm: 0.75 }}
           sx={{ alignItems: "center", flexShrink: 0 }}
         >
+          <Tooltip
+            title={`Launch controls · ${launchEnabledCount}/4 links live`}
+          >
+            <Button
+              aria-label="Open launch controls"
+              onClick={onOpenLaunchControls}
+              variant={launchEnabledCount === 4 ? "outlined" : "contained"}
+              color={launchEnabledCount === 4 ? "success" : "primary"}
+              startIcon={<RocketLaunchRounded />}
+              sx={{
+                minWidth: { xs: 40, sm: "auto" },
+                width: { xs: 40, sm: "auto" },
+                height: { xs: 40, sm: 44 },
+                px: { xs: 0, sm: 1.5 },
+                "& .MuiButton-startIcon": { m: { xs: 0, sm: "0 8px 0 -4px" } },
+              }}
+            >
+              <Box
+                component="span"
+                sx={{ display: { xs: "none", sm: "inline" } }}
+              >
+                Launch · {launchEnabledCount}/4
+              </Box>
+            </Button>
+          </Tooltip>
           <Tooltip title="Notifications">
             <IconButton
               aria-label="Open notifications"
@@ -203,7 +235,11 @@ export function AdminTopBar({ // eslint-disable-line complexity, max-lines-per-f
               {darkChrome ? <LightModeRounded /> : <DarkModeRounded />}
             </IconButton>
           </Tooltip>
-          <AdminUserMenu admin={admin} darkChrome={darkChrome} onSelect={onSelect} />
+          <AdminUserMenu
+            admin={admin}
+            darkChrome={darkChrome}
+            onSelect={onSelect}
+          />
         </Stack>
       </Stack>
     </Box>

@@ -31,6 +31,7 @@ import { SectionSkeleton } from "../features/shared/SectionSkeleton";
 import { AdminRail } from "../features/shell/AdminRail";
 import { AdminTopBar } from "../features/shell/AdminTopBar";
 import { AdminDashboardBody } from "../features/shell/AdminDashboardBody";
+import { LaunchControlDialog } from "../features/settings/LaunchControlDialog";
 
 export function meta(): Route.MetaDescriptors {
   return [
@@ -52,9 +53,8 @@ export function shouldRevalidate({
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
-  const { loadAdminDashboardData } = await import(
-    "../features/shared/adminLoader"
-  );
+  const { loadAdminDashboardData } =
+    await import("../features/shared/adminLoader");
   return loadAdminDashboardData(request);
 }
 
@@ -66,9 +66,8 @@ export async function action({ request }: Route.ActionArgs) {
   }
   if (intent === "admin-export:download") {
     const { accessToken } = await requireAdminContext(request);
-    const { readAdminExportDataset, adminExportFilename } = await import(
-      "../features/shared/formReaders"
-    );
+    const { readAdminExportDataset, adminExportFilename } =
+      await import("../features/shared/formReaders");
     const dataset = readAdminExportDataset(form.get("dataset"));
     const csv = await adminApi.exportDataset(accessToken, dataset);
     return new Response(csv, {
@@ -85,7 +84,8 @@ export async function action({ request }: Route.ActionArgs) {
   return actionModule.handleAdminAction({ request, intent, form });
 }
 
-export default function AdminDashboard({ // eslint-disable-line complexity, max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
+// eslint-disable-next-line complexity, max-lines-per-function -- route coordinates loader-backed sections and global console state
+export default function AdminDashboard({
   loaderData,
   actionData,
 }: Route.ComponentProps) {
@@ -95,6 +95,7 @@ export default function AdminDashboard({ // eslint-disable-line complexity, max-
     profileSettingsError,
     platformSettings,
     platformSettingsError,
+    roleCatalog,
     verificationCases,
     backendNotifications,
     platformMetrics,
@@ -137,6 +138,7 @@ export default function AdminDashboard({ // eslint-disable-line complexity, max-
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [launchControlsOpen, setLaunchControlsOpen] = useState(false);
   const settingsFeedback =
     actionFeedback?.section === "settings" && actionFeedback.message
       ? actionFeedback
@@ -147,8 +149,7 @@ export default function AdminDashboard({ // eslint-disable-line complexity, max-
   const { isDark: darkChrome, toggleMode } = useThemeMode();
   const navigation = useNavigation();
   const isBusy = navigation.state !== "idle";
-  const isNavLoading =
-    navigation.state === "loading" && !navigation.formMethod;
+  const isNavLoading = navigation.state === "loading" && !navigation.formMethod;
 
   const pendingCount = verificationCases.filter(
     (item) => item.status === "pending" || item.status === "unverified",
@@ -179,9 +180,11 @@ export default function AdminDashboard({ // eslint-disable-line complexity, max-
   const notificationCount = adminNotifications.filter(
     (notification) => notification.id !== "all-clear",
   ).length;
-  const currentSection = (
-    navItems.find((item) => item.id === section) ?? navItems[0]
-  ) as AdminNavItem;
+  const currentSection = (navItems.find((item) => item.id === section) ??
+    navItems[0]) as AdminNavItem;
+  const launchEnabledCount = Object.values(
+    platformSettings.marketingFlags,
+  ).filter(Boolean).length;
 
   useEffect(() => {
     if (settingsFeedback) {
@@ -304,6 +307,15 @@ export default function AdminDashboard({ // eslint-disable-line complexity, max-
           onToggleDarkChrome={toggleMode}
           onSelect={setSection}
           onOpenHelp={() => setHelpOpen(true)}
+          launchEnabledCount={launchEnabledCount}
+          onOpenLaunchControls={() => setLaunchControlsOpen(true)}
+        />
+        <LaunchControlDialog
+          open={launchControlsOpen}
+          onClose={() => setLaunchControlsOpen(false)}
+          admin={admin}
+          platformSettings={platformSettings}
+          roles={roleCatalog}
         />
         <HelpDrawer
           open={helpOpen}
