@@ -41,7 +41,7 @@ type CheckoutQuoteResult struct {
 
 // CheckoutQuote computes the fee/tax/pass-down breakdown for a store basket
 // without recording anything, so the storefront can show the items total, the
-// combined "Transaction fee" line, the "Tax (VAT)" line and the grand total
+// combined "Transaction fee" line, the "Tax fee" line and the grand total
 // BEFORE the customer pays (§4.5). It prices lines exactly as PlaceCartOrder
 // does and quotes through the same computation InitiateCharge charges, so the
 // displayed breakdown always matches what is charged. When the owner absorbs

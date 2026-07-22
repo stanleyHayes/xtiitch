@@ -15,7 +15,7 @@ import { Link as RouterLink } from "react-router";
 import { tokens } from "../../theme";
 import type { PlanChangeResult, PublicPlan } from "./billing-helpers";
 import { upgradeBillingHref } from "./billing-helpers";
-import { formatPrice, vatNote } from "./PaymentMethodForm";
+import { formatPrice, taxFeeNote } from "./PaymentMethodForm";
 import {
   POPULAR_PLAN_CODE,
   cadencePriceCopy,
@@ -72,7 +72,7 @@ export function ChangePlanView({
   const others = plans
     .filter((item) => item.code !== currentPlan.code)
     .sort((a, b) => a.monthly_fee_minor - b.monthly_fee_minor);
-  const vat = vatNote(currentPlan);
+  const vat = taxFeeNote(currentPlan);
   return (
     <Box
       sx={{
@@ -260,8 +260,7 @@ export function ChangePlanView({
               color: alpha(tokens.ink, 0.6),
             }}
           >
-            {vat} A Transaction fee is added at checkout, so your package price
-            reaches Xtiitch untouched.
+            {vat}
           </Typography>
         ) : null}
 

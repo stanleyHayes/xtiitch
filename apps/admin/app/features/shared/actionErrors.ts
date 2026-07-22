@@ -71,7 +71,7 @@ export function adminSettingsActionError(error: unknown): string {
       case "forbidden":
         return "Your role does not have permission to change platform settings.";
       case "invalid_input":
-        return "Check the email, digest time, SLA hours, payout threshold, and VAT rate.";
+        return "Check the email, digest time, SLA hours, payout threshold, and tax fee rate.";
       case "not_found":
         return "Those settings could not be found.";
       default:

@@ -38,22 +38,18 @@ export function vatGross(minor: number, vat: VATPolicy): number {
   return minor + Math.round((minor * vat.vat_rate_bps) / 10000);
 }
 
-// One-line VAT disclosure for the billing screen, or "" when VAT is disabled.
-export function vatNote(vat: VATPolicy): string {
+// Customer-facing fee disclosure for the billing screen. Keep the accounting
+// term VAT internal; the product language consistently calls it a Tax fee.
+export function taxFeeNote(vat: VATPolicy): string {
   if (vat.vat_rate_bps <= 0) {
     return "";
   }
-  const pct = (vat.vat_rate_bps / 100).toLocaleString("en-GH", {
-    maximumFractionDigits: 2,
-  });
-  return vat.vat_inclusive
-    ? `Prices include ${pct}% VAT.`
-    : `${pct}% VAT is added to each charge at checkout.`;
+  return "Tax fee and transaction fee apply.";
 }
 
 // The Pricing Book bills the FIRST figure on the first paid cycle and the
 // RENEWAL figure on every renewal. The cadence figures and their full
-// package + Tax (VAT) + Transaction fee totals render in BillingCyclePicker;
+// package + Tax fee + Transaction fee totals render in BillingCyclePicker;
 // the §4.6 gross-up maths lives in lib/billing-fees.ts.
 
 // eslint-disable-next-line complexity, max-lines-per-function -- one presentational form covers activation and upgrade copy/states

@@ -10,7 +10,7 @@ import { alpha } from "@mui/material/styles";
 import { tokens } from "../../theme";
 import { subscriptionCharge } from "../../lib/billing-fees";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
-import { formatPrice, vatNote } from "./PaymentMethodForm";
+import { formatPrice, taxFeeNote } from "./PaymentMethodForm";
 
 // The "Choose your billing cycle" block of the payment screen. Every total it
 // shows is the FULL checkout figure — package + Tax fee + Transaction fee —
@@ -126,7 +126,7 @@ export function BillingCyclePicker({
           })}
         </Stack>
       </RadioGroup>
-      {vatNote(plan) ? (
+      {taxFeeNote(plan) ? (
         <Typography
           variant="caption"
           sx={{
@@ -135,7 +135,7 @@ export function BillingCyclePicker({
             color: alpha(tokens.ink, 0.6),
           }}
         >
-          {vatNote(plan)}
+          {taxFeeNote(plan)}
         </Typography>
       ) : null}
       <Divider sx={{ mt: 2 }} />

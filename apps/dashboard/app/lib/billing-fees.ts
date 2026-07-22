@@ -3,7 +3,7 @@
 // down at checkout, the charge is grossed up so the protected amounts survive
 // Paystack's cut exactly:
 //   C = (every amount that must arrive intact) / (1 - 0.0195)
-// and the displayed "Transaction fee" line = C - (package + Tax (VAT)).
+// and the displayed "Transaction fee" line = C - (package + Tax fee).
 // §4.7 rounding: Paystack works in two decimal places, so every computed fee
 // is rounded half-up to the pesewa (1.255 -> 1.26 — a trailing 5 rounds UP).
 // The dashboard displays with exactly this maths so the checkout summary
@@ -42,7 +42,7 @@ export type SubscriptionCharge = {
   // The "Transaction fee" line — the grossed-up Paystack fee, branded exactly
   // "Transaction fee", never "Paystack fee" (§4.5).
   transactionFeeMinor: number;
-  // What the payer actually pays: package + Tax (VAT) + Transaction fee.
+  // What the payer actually pays: package + Tax fee + Transaction fee.
   totalMinor: number;
 };
 

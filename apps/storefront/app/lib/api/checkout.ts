@@ -41,7 +41,7 @@ export const placeCartOrder = (
 
 // §4.5: the read-only fee breakdown for a basket. Same payload shape as
 // cart-orders (customer fields optional/ignored); the checkout page renders
-// these exact lines — combined "Transaction fee" and "Tax (VAT)" lines, both
+// these exact lines — combined "Transaction fee" and "Tax fee" lines, both
 // 0 when the owner absorbs the fees — so what the customer sees is what the
 // charge asks for. POST because a browser fetch cannot body-GET.
 export const checkoutQuote = (

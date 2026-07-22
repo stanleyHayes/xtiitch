@@ -248,7 +248,7 @@ func (s Service) sendLeadDayEmail(
 	body := fmt.Sprintf(
 		"Hello %s,\n\n"+
 			"Your Xtiitch %s subscription renews %s (%s).\n"+
-			"Amount due: %s (package + VAT + transaction fee).\n\n"+
+			"Amount due: %s (package + Tax fee + transaction fee).\n\n"+
 			"Pay here to keep your paid features: %s\n\n"+
 			"If your plan is set to auto-renew by card, this is a heads-up — no action is needed.\n",
 		strings.TrimSpace(subscription.BusinessName),

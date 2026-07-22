@@ -29,7 +29,7 @@ type Service interface {
 	) (checkoutapp.PlaceHomeVisitBookingResult, error)
 	// CheckoutQuote prices a store basket's fee breakdown without recording
 	// anything (§4.5): the storefront renders the lines, the combined
-	// "Transaction fee" line, the "Tax (VAT)" line and the grand total before
+	// "Transaction fee" line, the "Tax fee" line and the grand total before
 	// the customer pays.
 	CheckoutQuote(ctx context.Context, command checkoutapp.CheckoutQuoteCommand) (checkoutapp.CheckoutQuoteResult, error)
 	// VerifyStorePayment settles a checkout payment against the provider when

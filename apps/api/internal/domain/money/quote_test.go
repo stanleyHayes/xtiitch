@@ -212,7 +212,7 @@ func TestQuoteStoreSalePreservesPassedTaxWhenAmountRoundsToZero(t *testing.T) {
 
 // §4.3/§4.4 with a promotion override: the override replaces the computed fee
 // and VAT is charged on the override TOTAL — the same vat × commission rule as
-// the per-design path. Whenever fee_pass_tax is ticked the "Tax (VAT)" line
+// the per-design path. Whenever fee_pass_tax is ticked the "Tax fee" line
 // must be present: never dropped, never computed on a different base than the
 // commission actually charged.
 func TestQuoteStoreSaleOverrideKeepsTaxLine(t *testing.T) {

@@ -170,7 +170,7 @@ func GrossUp(netMinor int64, rateBps int) (totalMinor int64, feeMinor int64) {
 }
 
 // SubscriptionQuote is the §4.1 subscription checkout breakdown: the package
-// price, the Tax (VAT) line on it, and the "Transaction fee" line grossed up so
+// price, the Tax fee line on it, and the "Transaction fee" line grossed up so
 // XCreativs nets package + VAT exactly after Paystack takes 1.95% of the total.
 // All amounts are GHS minor units (pesewas).
 type SubscriptionQuote struct {

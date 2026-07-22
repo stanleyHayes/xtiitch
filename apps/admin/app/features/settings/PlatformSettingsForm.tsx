@@ -148,7 +148,7 @@ export function PlatformSettingsForm({ // eslint-disable-line max-lines-per-func
             />
             <TextField
               name="vat_rate_percent"
-              label="Tax (VAT) rate"
+              label="Tax fee rate"
               type="number"
               defaultValue={vatRatePercent}
               required

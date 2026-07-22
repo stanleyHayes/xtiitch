@@ -14,7 +14,7 @@ import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import { tokens } from "../../theme";
 import type { BillingCadence, PublicPlan } from "./billing-helpers";
-import { formatPrice, vatNote } from "./PaymentMethodForm";
+import { formatPrice, taxFeeNote } from "./PaymentMethodForm";
 
 // The plan code that carries the "Most Popular" ribbon on the plans list.
 export const POPULAR_PLAN_CODE = "growth";
@@ -22,7 +22,7 @@ export const POPULAR_PLAN_CODE = "growth";
 // First-purchase vs renewal disclosure for the chosen cadence (Pricing Book:
 // the FIRST figure bills once, the RENEWAL figure bills every cycle after) —
 // e.g. "GHS 891 year one, then GHS 1,188/year". These are package figures;
-// Tax (VAT) and the Transaction fee are added at checkout (§4.1/§4.6) and
+// Tax fee and the Transaction fee are added at checkout (§4.1/§4.6) and
 // itemised on the payment screen.
 export function cadencePriceCopy(
   plan: PublicPlan,
@@ -289,8 +289,7 @@ export function PlansView({ // eslint-disable-line max-lines-per-function -- lar
               color: alpha(tokens.ink, 0.6),
             }}
           >
-            {vatNote(vat)} A Transaction fee is added at checkout, so your
-            package price reaches Xtiitch untouched.
+            {taxFeeNote(vat)}
           </Typography>
         ) : null}
 

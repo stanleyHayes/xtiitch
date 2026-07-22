@@ -304,7 +304,7 @@ type ChargeResult struct {
 	CommissionMinor  int64
 	// Quote is the full §4.2–§4.6 fee breakdown behind the charge, so the
 	// checkout response can render exactly what the customer pays (the combined
-	// "Transaction fee" line, the "Tax (VAT)" line, and the grand total).
+	// "Transaction fee" line, the "Tax fee" line, and the grand total).
 	Quote money.StoreSaleQuote
 }
 
