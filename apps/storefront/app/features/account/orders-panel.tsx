@@ -3,20 +3,16 @@ import { Form, Link as RouterLink } from "react-router";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
+import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
+import { alpha, type Theme } from "@mui/material/styles";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
-import CallRounded from "@mui/icons-material/CallRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
-import CloseRounded from "@mui/icons-material/CloseRounded";
-import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
-import PaymentRounded from "@mui/icons-material/PaymentRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import { formatGHS } from "../../lib/format";
-import { tokens } from "../../theme";
 import type { CustomerOrder } from "../../lib/discovery";
 import {
   groupOrdersByStore,
@@ -24,7 +20,12 @@ import {
   splitTabs,
   type OrderBasket,
 } from "../../lib/orders";
-import { formatDate, orderStatus } from "./utils";
+import { OrderActions } from "./order-actions";
+import {
+  formatDate,
+  orderStatus,
+  type OrderStatusTone,
+} from "./utils";
 
 // §5.3: the customer account's orders panel — grouped by store basket exactly
 // as bought, segmented into "Current orders" and "Archived orders" tabs, with
@@ -65,7 +66,7 @@ export function OrdersPanel({
       ) : null}
       {hasAwaitingPayment ? (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Awaiting-payment orders expire after 24 hours. Pay now or close an
+          Awaiting payment orders expire after 24 hours. Pay now or close an
           order you no longer want.
         </Alert>
       ) : null}
@@ -73,7 +74,20 @@ export function OrdersPanel({
       <Tabs
         value={tab}
         onChange={(_event, value: "current" | "archived") => setTab(value)}
-        sx={{ mb: 2 }}
+        variant="fullWidth"
+        aria-label="Order history"
+        sx={{
+          mb: 2,
+          minHeight: 44,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          "& .MuiTab-root": {
+            minWidth: 0,
+            minHeight: 44,
+            px: { xs: 0.5, sm: 2 },
+            whiteSpace: "nowrap",
+          },
+        }}
       >
         <Tab
           value="current"
@@ -90,7 +104,7 @@ export function OrdersPanel({
       {groups.length === 0 ? (
         <Box sx={{ textAlign: "center", py: 6 }}>
           <StorefrontRounded
-            sx={{ fontSize: 40, color: alpha(tokens.ink, 0.25) }}
+            sx={{ fontSize: 40, color: "text.disabled" }}
           />
           <Typography sx={{ mt: 1, fontWeight: 800 }}>
             {tab === "current" ? "No current orders" : "Nothing archived yet"}
@@ -153,7 +167,7 @@ function BasketCard({
         p: 1.75,
         borderRadius: "10px",
         border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.1),
+        borderColor: "divider",
         bgcolor: "rgba(var(--surface-rgb), 0.6)",
       }}
     >
@@ -176,7 +190,7 @@ function BasketCard({
           </Typography>
         </Stack>
       ) : null}
-      <Stack spacing={1.25}>
+      <Stack spacing={1.5} divider={<Divider flexItem />}>
         {basket.orders.map((order) => (
           <OrderRow key={order.order_id} order={order} archived={archived} />
         ))}
@@ -214,6 +228,7 @@ function OrderRow({
   archived: boolean;
 }) {
   const status = orderStatus(order.status);
+  const toneColor = (theme: Theme) => orderStatusColor(theme, status.tone);
   return (
     <Box>
       <Stack
@@ -238,114 +253,38 @@ function OrderRow({
             px: 1,
             py: 0.35,
             borderRadius: 999,
-            bgcolor: alpha(status.color, 0.12),
-            color: status.color,
-            border: `1px solid ${alpha(status.color, 0.4)}`,
+            bgcolor: (theme) => alpha(toneColor(theme), 0.12),
+            color: toneColor,
+            border: "1px solid",
+            borderColor: (theme) => alpha(toneColor(theme), 0.4),
             fontSize: 12,
             fontWeight: 800,
+            lineHeight: 1.35,
+            whiteSpace: "nowrap",
           }}
         >
           {status.label}
         </Box>
       </Stack>
       <Stack
-        direction="row"
-        useFlexGap
-        spacing={1}
         sx={{
           mt: 1,
-          justifyContent: "space-between",
-          alignItems: "center",
-          flexWrap: "wrap",
+          gap: 1.25,
+          alignItems: "stretch",
         }}
       >
-        <Typography sx={{ fontWeight: 900, color: tokens.burgundy }}>
+        <Typography sx={{ fontWeight: 900, color: "primary.main" }}>
           {order.agreed_total_minor > 0
             ? formatGHS(order.agreed_total_minor)
             : "Price on confirmation"}
         </Typography>
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
-          {/* A draft order is a payment that was started but never completed
-              (e.g. the customer backed out of Paystack). It must never be a
-              dead end: Pay now mints a fresh Paystack link for the SAME order
-              and sends the customer straight to it. */}
-          {order.status.toLowerCase() === "draft" ? (
-            <>
-              <Form method="post" reloadDocument>
-                <input type="hidden" name="intent" value="pay_order" />
-                <input type="hidden" name="order_id" value={order.order_id} />
-                <input
-                  type="hidden"
-                  name="store_handle"
-                  value={order.business_handle}
-                />
-                <Button
-                  type="submit"
-                  size="small"
-                  variant="contained"
-                  startIcon={<PaymentRounded />}
-                >
-                  Pay now
-                </Button>
-              </Form>
-              <Form method="post">
-                <input
-                  type="hidden"
-                  name="intent"
-                  value="close_awaiting_payment"
-                />
-                <input type="hidden" name="order_id" value={order.order_id} />
-                <Button
-                  type="submit"
-                  size="small"
-                  variant="outlined"
-                  color="inherit"
-                  startIcon={<CloseRounded />}
-                >
-                  Close
-                </Button>
-              </Form>
-            </>
-          ) : null}
-          {/* §5.3.3: the store's phone rides on every order. */}
-          {order.store_phone ? (
-            <Button
-              href={`tel:${order.store_phone}`}
-              size="small"
-              variant="text"
-              startIcon={<CallRounded />}
-              aria-label={`Call the store about this order (${order.store_phone})`}
-            >
-              Call the store
-            </Button>
-          ) : null}
-          <Button
-            component={RouterLink}
-            to={`/track/${order.order_id}`}
-            size="small"
-            variant="text"
-            startIcon={<LocalShippingRounded />}
-          >
-            Track
-          </Button>
-          {/* §5.3.2: an archived design carries "Received" until the customer
-              acknowledges it; then it disappears from the tab. */}
-          {archived ? (
-            <Form method="post">
-              <input type="hidden" name="intent" value="mark_received" />
-              <input type="hidden" name="order_id" value={order.order_id} />
-              <Button
-                type="submit"
-                size="small"
-                variant="contained"
-                startIcon={<CheckCircleRounded />}
-              >
-                Received
-              </Button>
-            </Form>
-          ) : null}
-        </Stack>
+        <OrderActions order={order} archived={archived} />
       </Stack>
     </Box>
   );
+}
+
+function orderStatusColor(theme: Theme, tone: OrderStatusTone): string {
+  if (tone === "neutral") return theme.palette.text.secondary;
+  return theme.palette[tone].main;
 }

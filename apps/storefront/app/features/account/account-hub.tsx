@@ -6,7 +6,7 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import Alert from "@mui/material/Alert";
-import { alpha } from "@mui/material/styles";
+import { alpha, type SxProps, type Theme } from "@mui/material/styles";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
@@ -17,7 +17,6 @@ import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
 import TextField from "../../components/form-text-field";
-import { tokens } from "../../theme";
 import type { CustomerOrder, CustomerProfile } from "../../lib/discovery";
 import { OrdersPanel } from "./orders-panel";
 
@@ -42,28 +41,48 @@ export function AccountHub({ // eslint-disable-line complexity, max-lines-per-fu
   orderNotice?: string;
   orderError?: string;
 }) {
-  const cardSx = {
+  const cardSx: SxProps<Theme> = {
     p: { xs: 2.25, md: 3 },
     borderRadius: "14px",
     border: "1px solid",
-    borderColor: alpha(tokens.ink, 0.1),
+    borderColor: "divider",
     bgcolor: "rgba(var(--surface-rgb), 0.94)",
-    boxShadow: `0 18px 50px ${alpha(tokens.ink, 0.1)}`,
-  } as const;
+    boxShadow: (theme) =>
+      `0 18px 50px ${alpha(
+        theme.palette.common.black,
+        theme.palette.mode === "dark" ? 0.32 : 0.1,
+      )}`,
+  };
 
   return (
     <Box
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
+        backgroundImage: (theme) => {
+          const grid = alpha(
+            theme.palette.primary.main,
+            theme.palette.mode === "dark" ? 0.06 : 0.045,
+          );
+          return `linear-gradient(${grid} 1px, transparent 1px), linear-gradient(90deg, ${grid} 1px, transparent 1px)`;
+        },
         backgroundSize: "36px 36px",
       }}
     >
       <Container sx={{ py: { xs: 4, md: 6 }, maxWidth: "lg" }}>
         <Stack
           direction="row"
-          sx={{ justifyContent: "space-between", alignItems: "center", mb: 3 }}
+          sx={{
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: 1,
+            mb: 3,
+            "& .MuiButton-root": {
+              minWidth: 0,
+              px: { xs: 0.5, sm: 1 },
+              whiteSpace: "nowrap",
+            },
+          }}
         >
           <Button
             component={RouterLink}
@@ -114,7 +133,7 @@ export function AccountHub({ // eslint-disable-line complexity, max-lines-per-fu
               spacing={1.25}
               sx={{ alignItems: "center", mb: 2 }}
             >
-              <PersonRounded sx={{ color: tokens.burgundy }} />
+              <PersonRounded sx={{ color: "primary.main" }} />
               <Typography variant="h6" component="h2">
                 Profile
               </Typography>
@@ -237,7 +256,7 @@ export function AccountHub({ // eslint-disable-line complexity, max-lines-per-fu
               spacing={1.25}
               sx={{ alignItems: "center", mb: 2 }}
             >
-              <ReceiptLongRounded sx={{ color: tokens.burgundy }} />
+              <ReceiptLongRounded sx={{ color: "primary.main" }} />
               <Typography variant="h6" component="h2">
                 Your orders
               </Typography>

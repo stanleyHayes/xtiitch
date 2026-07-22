@@ -1,5 +1,3 @@
-import { alpha } from "@mui/material/styles";
-import { tokens } from "../../theme";
 import type { OtpChannel } from "./types";
 
 export function normalizeChannel(raw: unknown): OtpChannel {
@@ -38,19 +36,24 @@ export function formatDate(iso: string): string {
   return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-export function orderStatus(status: string): { label: string; color: string } {
+export type OrderStatusTone = "success" | "warning" | "primary" | "neutral";
+
+export function orderStatus(status: string): {
+  label: string;
+  tone: OrderStatusTone;
+} {
   const s = status.toLowerCase();
   if (["completed", "delivered", "fulfilled", "handed_over"].includes(s)) {
-    return { label: "Completed", color: tokens.success };
+    return { label: "Completed", tone: "success" };
   }
   if (["cancelled", "canceled", "discarded", "refunded"].includes(s)) {
-    return { label: "Cancelled", color: alpha(tokens.ink, 0.55) };
+    return { label: "Cancelled", tone: "neutral" };
   }
   if (s === "draft") {
-    return { label: "Awaiting payment", color: tokens.gold };
+    return { label: "Awaiting payment", tone: "warning" };
   }
   return {
     label: s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-    color: tokens.burgundy,
+    tone: "primary",
   };
 }
