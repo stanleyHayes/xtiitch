@@ -287,11 +287,10 @@ func renewalReminderRecipient(subscription ports.AdminSubscriptionRecord) string
 func (s Service) emitRenewalReminder(
 	ctx context.Context,
 	subscription ports.AdminSubscriptionRecord,
-	kind notification.Kind,
 	graceEndsAt *time.Time,
 	record *ports.AdminSubscriptionRecurringSweepRecord,
 ) error {
-	enqueued, err := s.enqueueRenewalReminder(ctx, subscription, kind, graceEndsAt)
+	enqueued, err := s.enqueueRenewalReminder(ctx, subscription, notification.KindSubscriptionRenewalPastDue, graceEndsAt)
 	if err != nil {
 		return err
 	}

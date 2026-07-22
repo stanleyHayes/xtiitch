@@ -1,7 +1,6 @@
 import { data, redirect } from "react-router";
 import type { Route } from "./+types/checkout";
 import { api } from "../lib/api";
-import type { CartOrderLine, CheckoutQuote } from "../lib/api";
 import {
   cartTotalMinor,
   clearStoreItems,
@@ -9,92 +8,18 @@ import {
   itemsForStore,
   setPendingCartPayment,
   storeHandlesInCart,
-  type CartItem,
 } from "../lib/cart";
 import { getSession } from "../lib/session";
 import { requestTenant } from "../lib/tenant";
 import { fetchCustomerProfile, requestPaymentLink } from "../lib/discovery";
 import Checkout from "../features/checkout/Checkout";
-
-// §3b: paying requires a verified customer session. Guests are sent to sign in
-// and returned to the same checkout URL (keeping any ?store= selection) with the
-// cart intact.
-function signInRedirect(url: URL): string {
-  return `/account?redirectTo=${encodeURIComponent("/checkout" + url.search)}`;
-}
-
-// resolveCheckoutStore picks which store's basket lines this checkout settles:
-// the ?store= param, or the sole store when the unified basket has just one.
-function resolveCheckoutStore(url: URL, stores: string[]): string {
-  const requested = url.searchParams.get("store") ?? "";
-  if (requested) {
-    return requested;
-  }
-  return stores.length === 1 ? (stores[0] ?? "") : "";
-}
-
-// cartOrderLines maps the basket's cookie lines onto the wire shape the
-// cart-orders and checkout-quote endpoints share.
-function cartOrderLines(items: CartItem[]): CartOrderLine[] {
-  return items.flatMap((item) =>
-    Array.from({ length: item.quantity }, () => ({
-      design_handle: item.design_handle,
-      size_band_id: item.size_band_id,
-      kind: item.kind,
-      size_mode: item.size_mode,
-      measurements: item.measurements,
-      note: item.note || undefined,
-    })),
-  );
-}
-
-// fetchQuote prices the basket through the read-only checkout-quote endpoint
-// (§4.5), so the breakdown the page renders — combined "Transaction fee" line,
-// "Tax (VAT)" line, total — comes from the same engine that will charge. A
-// failure leaves the quote null and the page falls back to items + delivery.
-async function fetchQuote(
-  storeHandle: string,
-  items: CartItem[],
-  deliveryZoneID: string,
-  tenant: string | null,
-): Promise<CheckoutQuote | null> {
-  const response = await api
-    .checkoutQuote(
-      storeHandle,
-      {
-        items: cartOrderLines(items),
-        ...(deliveryZoneID ? { delivery_zone_id: deliveryZoneID } : {}),
-      },
-      tenant,
-    )
-    .catch(() => null);
-  return response?.ok ? response.result : null;
-}
-
-// paymentReturnState verifies the reference Paystack appended to the checkout
-// callback (?reference=...&trxref=...). Only "succeeded" may clear a basket;
-// "pending" blocks a second charge, "retry" keeps the exact draft available
-// for another attempt, and "unconfirmed" blocks retry until Paystack can be
-// reached. All non-success states keep the cart intact.
-async function paymentReturnState(
-  reference: string,
-  storeHandle: string,
-  tenant: string | null,
-): Promise<"succeeded" | "pending" | "retry" | "unconfirmed" | null> {
-  if (!reference) {
-    return null;
-  }
-  const verification = await api
-    .verifyPayment(storeHandle, reference, tenant)
-    .catch(() => null);
-  if (!verification?.ok) {
-    return "unconfirmed";
-  }
-  if (verification.result.status === "succeeded") {
-    return "succeeded";
-  }
-  return verification.result.status === "pending" ? "pending" : "retry";
-}
+import {
+  cartOrderLines,
+  fetchQuote,
+  paymentReturnState,
+  resolveCheckoutStore,
+  signInRedirect,
+} from "./checkout-helpers";
 
 export function meta(): Route.MetaDescriptors {
   return [

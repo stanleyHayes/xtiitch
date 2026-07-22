@@ -15,6 +15,7 @@ func (CSVWriter) Format() string      { return "csv" }
 func (CSVWriter) ContentType() string { return "text/csv; charset=utf-8" }
 func (CSVWriter) Ext() string         { return "csv" }
 
+//nolint:gocognit // serializes the report's optional sections in their stable export order
 func (CSVWriter) Write(report Report) ([]byte, error) {
 	var buf bytes.Buffer
 	out := csv.NewWriter(&buf)

@@ -20,6 +20,7 @@ func (XLSXWriter) ContentType() string {
 }
 func (XLSXWriter) Ext() string { return "xlsx" }
 
+//nolint:gocognit,gocyclo // serializes the report's optional sections in their stable export order
 func (XLSXWriter) Write(report Report) ([]byte, error) {
 	file := excelize.NewFile()
 	defer func() { _ = file.Close() }()

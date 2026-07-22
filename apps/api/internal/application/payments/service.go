@@ -156,6 +156,8 @@ type VerifyBusinessCommand struct {
 // the existing subaccount rather than creating a second one, and requires a fresh
 // OTP on the new number: changing where money lands is exactly the action worth
 // proving.
+//
+//nolint:gocyclo // verification deliberately keeps role, identity, OTP, and payout-detail guards together
 func (s Service) VerifyBusiness(ctx context.Context, cmd VerifyBusinessCommand) error {
 	if err := authorizeMoneyManagement(common.TenantScope{BusinessID: cmd.BusinessID}, cmd.ActorRole); err != nil {
 		return err
@@ -310,6 +312,8 @@ type ChargeResult struct {
 // receives its share to its subaccount, the platform its commission, in one
 // provider transaction. The payment is recorded as initiated; it is advanced to
 // succeeded only by a confirmed webhook (HandleProviderEvent).
+//
+//nolint:gocyclo // charge validation and provider initialization form one fail-closed payment boundary
 func (s Service) InitiateCharge(ctx context.Context, cmd InitiateChargeCommand) (ChargeResult, error) {
 	if cmd.RequireMoneyManagementRole {
 		if err := authorizeMoneyManagement(cmd.Scope, cmd.ActorRole); err != nil {

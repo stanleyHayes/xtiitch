@@ -7,20 +7,9 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
-
-// CustomerAuthRepository persists phone OTP challenges and resolves customer
-// identities. Customers are a global identity, so it runs under the RLS bypass.
-type CustomerAuthRepository struct {
-	pool *pgxpool.Pool
-}
-
-func NewCustomerAuthRepository(pool *pgxpool.Pool) CustomerAuthRepository {
-	return CustomerAuthRepository{pool: pool}
-}
 
 // ListCustomerOrders returns a customer's orders across every shop they've
 // bought from (cross-tenant, RLS bypass), newest first.
@@ -596,36 +585,4 @@ func (repo CustomerAuthRepository) UpsertVerifiedCustomerByEmail(ctx context.Con
 		return common.ID(""), err
 	}
 	return newID, nil
-}
-
-// nullIfEmpty maps an empty string to a SQL NULL so the unused identifier column
-// (phone for an email challenge, or vice versa) stays null rather than blank.
-func nullIfEmpty(value string) any {
-	if value == "" {
-		return nil
-	}
-	return value
-}
-
-// commitOrErr closes out a mark-received transaction whose outcome was already
-// decided by the guarded reads above (found / already-received / not-final):
-// nothing was written, but the repo's convention is to end every transaction
-// explicitly rather than relying on the deferred rollback.
-func commitOrErr(ctx context.Context, tx pgx.Tx) error {
-	return tx.Commit(ctx)
-}
-
-func (repo CustomerAuthRepository) execBypass(ctx context.Context, sql string, args ...any) error {
-	tx, err := repo.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer rollbackUnlessCommitted(ctx, tx)
-	if err := setTenantBypass(ctx, tx); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(ctx, sql, args...); err != nil {
-		return err
-	}
-	return tx.Commit(ctx)
 }

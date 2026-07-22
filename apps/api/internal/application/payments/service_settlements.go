@@ -57,14 +57,7 @@ func (s Service) SyncSettlements(ctx context.Context, cmd SyncSettlementsCommand
 
 	inputs := make([]ports.ProviderSettlementInput, 0, len(settlements))
 	for _, settlement := range settlements {
-		inputs = append(inputs, ports.ProviderSettlementInput{
-			ProviderReference: settlement.ProviderReference,
-			SubaccountCode:    settlement.SubaccountCode,
-			AmountMinor:       settlement.AmountMinor,
-			Status:            settlement.Status,
-			SettledAt:         settlement.SettledAt,
-			RawPayload:        settlement.RawPayload,
-		})
+		inputs = append(inputs, ports.ProviderSettlementInput(settlement))
 	}
 	upserted, err := s.payments.UpsertProviderSettlements(ctx, info.BusinessID, inputs)
 	if err != nil {

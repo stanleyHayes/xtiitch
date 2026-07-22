@@ -150,6 +150,7 @@ func assertBespokeStageExists(ctx context.Context, tx pgx.Tx, businessID common.
 	return nil
 }
 
+//nolint:funlen // one transaction creates the custom order, quote, status history, and outbox record atomically
 func (repo OrderRepository) CreateCustomOrderConfirmed(
 	ctx context.Context,
 	scope common.TenantScope,

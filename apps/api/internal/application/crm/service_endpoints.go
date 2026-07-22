@@ -43,6 +43,8 @@ type ListResult struct {
 //     (§15.1 "Total spend & order count per customer" is a Starter rung —
 //     Free sees the address book without the money figures);
 //   - tags on rows are Growth+.
+//
+//nolint:gocognit,gocyclo // entitlement-aware redaction and mapping are intentionally kept at this response boundary
 func (s Service) ListCustomers(ctx context.Context, cmd ListCommand) (ListResult, error) {
 	profile, err := s.authorize(ctx, cmd.Scope, cmd.ActorRole, LevelBasic, "customer_list")
 	if err != nil {

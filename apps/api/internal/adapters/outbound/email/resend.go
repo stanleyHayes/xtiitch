@@ -43,6 +43,7 @@ func newResendSender(apiKey string, from string, baseURL string, client *http.Cl
 	}
 }
 
+//nolint:gocognit,gocyclo // provider validation, request lifecycle, and bounded error decoding belong to one send operation
 func (sender ResendSender) Send(ctx context.Context, message ports.EmailMessage) error {
 	to := strings.TrimSpace(message.To)
 	subject := strings.TrimSpace(message.Subject)

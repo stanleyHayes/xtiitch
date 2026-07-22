@@ -34,7 +34,7 @@ linters:
     gocyclo:
       min-complexity: 15
     lll:
-      line-length: 140
+      line-length: 170
     revive:
       rules:
         - name: early-return
@@ -54,6 +54,12 @@ linters:
           - funlen
           - gocognit
           - gocyclo
+        path: _test\.go
+      # Interface fakes and table helpers intentionally carry parameters that a
+      # particular test does not inspect.
+      - linters:
+          - revive
+          - unparam
         path: _test\.go
     paths:
       - third_party$

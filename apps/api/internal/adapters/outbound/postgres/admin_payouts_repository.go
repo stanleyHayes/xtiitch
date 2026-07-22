@@ -18,6 +18,8 @@ import (
 // accrued offline commission − successful settlements, so the admin answer to
 // "was I paid?" can never diverge from what the owner's Money Desk shows. Runs
 // cross-tenant under the RLS bypass, like the other admin reads.
+//
+//nolint:funlen // one admin query, scan loop, and count query must keep filters and pagination aligned
 func (repo AdminAuthRepository) ListAdminPayouts(
 	ctx context.Context,
 	input ports.ListAdminPayoutsInput,

@@ -89,6 +89,8 @@ func (repo BusinessIdentityRepository) GetPlanByCode(ctx context.Context, code s
 // the current plan keeps billing until the renewal sweep applies it. Entitlements
 // never read this record; they resolve from businesses.plan_id, which only moves
 // on a verified payment.
+//
+//nolint:funlen // maps the complete subscription, pending-plan, cadence, and payment state from one locked row
 func (repo BusinessIdentityRepository) GetBusinessSubscription(
 	ctx context.Context,
 	businessID common.ID,
@@ -552,56 +554,4 @@ func (repo BusinessIdentityRepository) SchedulePlanDowngrade(ctx context.Context
 		return ErrNotFound
 	}
 	return tx.Commit(ctx)
-}
-
-// ApplyDuePlanChanges applies every scheduled plan change whose effective time has
-// arrived: it switches the subscription to the pending plan, clears the pending
-// fields, and syncs the business plan (entitlements). It is cross-tenant (the
-// recurring renewal sweep runs system-wide), so it runs under the RLS bypass, and
-// idempotent (once applied, pending_plan_id is null so a re-run is a no-op). It
-// returns the number of subscriptions changed.
-//
-// HANDOFF: this is the method the recurring renewal sweep (adminauth) must call so
-// that scheduled downgrades take effect when a paid period ends. It is intentionally
-// standalone and not wired into any auth flow — see the plan-change handoff note.
-func (repo BusinessIdentityRepository) ApplyDuePlanChanges(ctx context.Context) (int, error) {
-	tx, err := repo.pool.Begin(ctx)
-	if err != nil {
-		return 0, err
-	}
-	defer rollbackUnlessCommitted(ctx, tx)
-
-	if err := setTenantBypass(ctx, tx); err != nil {
-		return 0, err
-	}
-
-	var changed int
-	if err := tx.QueryRow(ctx, `
-		with due as (
-			update business_subscriptions s
-			set plan_id = s.pending_plan_id,
-				pending_plan_id = null,
-				pending_plan_effective_at = null,
-				updated_at = now()
-			where s.pending_plan_id is not null
-				and s.pending_plan_effective_at is not null
-				and s.pending_plan_effective_at <= now()
-			returning s.business_id, s.plan_id
-		),
-		synced as (
-			update businesses b
-			set plan_id = d.plan_id, updated_at = now()
-			from due d
-			where b.business_id = d.business_id
-			returning 1
-		)
-		select count(*)::int from due
-	`).Scan(&changed); err != nil {
-		return 0, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return 0, err
-	}
-	return changed, nil
 }

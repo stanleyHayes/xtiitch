@@ -37,6 +37,8 @@ var renewalReminderLeadDays = []int{0, 3, 7, 15}
 // renewal timestamp), so daily sweeps never repeat a reminder; a new billing
 // period re-arms every lead day. The email half rides the same log entry, so
 // one lead day = one SMS + one email, never a drip.
+//
+//nolint:funlen,gocognit // one sweep must coordinate eligibility, both channels, and the shared delivery log consistently
 func (s Service) RunSubscriptionReminderSweep(
 	ctx context.Context,
 	cmd RunSubscriptionReminderSweepCommand,

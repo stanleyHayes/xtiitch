@@ -368,7 +368,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 		if subscriptionUsesMoMo(subscription) {
 			record.ChargesSkipped++
 			if err := s.emitRenewalReminder(
-				ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record,
+				ctx, subscription, subscription.GraceEndsAt, &record,
 			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
@@ -384,7 +384,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 		if !subscriptionRecurringChargeReady(subscription) {
 			record.ChargesSkipped++
 			if err := s.emitRenewalReminder(
-				ctx, subscription, notification.KindSubscriptionRenewalPastDue, subscription.GraceEndsAt, &record,
+				ctx, subscription, subscription.GraceEndsAt, &record,
 			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
@@ -462,7 +462,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 			// (b) The card charge failed and the subscription is now past due / in
 			// grace: remind the business to re-pay before the grace window ends.
 			if err := s.emitRenewalReminder(
-				ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record,
+				ctx, subscription, failed.GraceEndsAt, &record,
 			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}
@@ -494,7 +494,7 @@ func (s Service) RunSubscriptionRecurringSweep(
 			// (b) A non-success provider status is also a failed renewal: remind the
 			// business to re-pay before the grace window ends.
 			if err := s.emitRenewalReminder(
-				ctx, subscription, notification.KindSubscriptionRenewalPastDue, failed.GraceEndsAt, &record,
+				ctx, subscription, failed.GraceEndsAt, &record,
 			); err != nil {
 				return ports.AdminSubscriptionRecurringSweepRecord{}, err
 			}

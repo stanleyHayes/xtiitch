@@ -18,6 +18,8 @@ import (
 // tenant-owned note/tags. A customer with no relationship to this store — or
 // an erased identity — is ports.ErrNotFound (cross-tenant reads fail closed
 // as an ordinary 404, §6).
+//
+//nolint:funlen,gocognit,gocyclo // builds one customer profile snapshot from optional identity, order, note, and measurement rows
 func (repo CRMRepository) GetCustomerProfile(ctx context.Context, scope common.TenantScope, customerID common.ID) (ports.CRMCustomerProfile, error) {
 	tx, err := repo.beginScoped(ctx, scope)
 	if err != nil {

@@ -68,6 +68,7 @@ func (repo StoreSettingsRepository) Get(ctx context.Context, scope common.Tenant
 	return settings, nil
 }
 
+//nolint:funlen,gocognit // assembles the tenant profile and optional store settings inside one scoped read transaction
 func (repo StoreSettingsRepository) GetProfile(ctx context.Context, scope common.TenantScope) (ports.StoreProfile, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {

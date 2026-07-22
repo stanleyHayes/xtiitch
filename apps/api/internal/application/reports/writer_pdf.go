@@ -18,6 +18,7 @@ func (PDFWriter) Format() string      { return "pdf" }
 func (PDFWriter) ContentType() string { return "application/pdf" }
 func (PDFWriter) Ext() string         { return "pdf" }
 
+//nolint:gocognit // serializes the report's optional sections in their stable export order
 func (PDFWriter) Write(report Report) ([]byte, error) {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetMargins(10, 10, 10)

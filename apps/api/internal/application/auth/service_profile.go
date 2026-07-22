@@ -49,6 +49,8 @@ type UpdateOwnProfileCommand struct {
 // It is scoped by the authenticated user id, so it can never touch another
 // user's row — and, unlike the team-management update, it works for the owner
 // row, which is exactly the row §9 is about.
+//
+//nolint:gocognit,gocyclo // keeps validation, authorization, upload cleanup, and persistence in one atomic profile workflow
 func (s Service) UpdateOwnProfile(ctx context.Context, cmd UpdateOwnProfileCommand) (ports.BusinessUserProfileRecord, error) {
 	if cmd.Scope.BusinessID.IsZero() || cmd.UserID.IsZero() {
 		return ports.BusinessUserProfileRecord{}, authdomain.ErrInvalidInput

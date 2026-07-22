@@ -214,6 +214,7 @@ const revenueBreakdownCTE = `
 			and ($2::timestamptz is null or p.created_at >= $2) and p.created_at < $3
 	)`
 
+//nolint:funlen,gocognit,gocyclo // all breakdown dimensions share one tenant-scoped snapshot and identical row/error handling
 func (repo AnalyticsRepository) RevenueBreakdowns(ctx context.Context, scope common.TenantScope, window ports.AnalyticsWindow) (ports.RevenueBreakdowns, error) {
 	tx, err := repo.beginScoped(ctx, scope)
 	if err != nil {

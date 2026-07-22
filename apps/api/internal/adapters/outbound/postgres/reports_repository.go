@@ -20,6 +20,7 @@ func NewReportsRepository(pool *pgxpool.Pool) ReportsRepository {
 	return ReportsRepository{pool: pool}
 }
 
+//nolint:funlen,gocognit,gocyclo // the report is a single consistent snapshot composed from several optional aggregates
 func (repo ReportsRepository) FinancialReport(ctx context.Context, scope common.TenantScope, window ports.AnalyticsWindow) (ports.FinancialReportData, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
