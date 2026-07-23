@@ -1,78 +1,227 @@
+import type { SvgIconComponent } from "@mui/icons-material";
 import Box from "@mui/material/Box";
-import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import CircleIcon from "@mui/icons-material/Circle";
+import Typography from "@mui/material/Typography";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import CircleIcon from "@mui/icons-material/Circle";
 import { bespokeStages } from "../../content";
 import { riseInSx, statusColour } from "./shared";
 
-export function ProductPreview() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
-  const workflow = [
-    {
-      label: "Share the store",
-      title: "A link customers can trust",
-      body: "Every design or collection can be sent to WhatsApp, Instagram, Facebook or a customer directly.",
-    },
-    {
-      label: "Collect the order",
-      title: "Choices, measurements and payment together",
-      body: "Standard orders, custom requests, bookings and deposits arrive as complete records.",
-    },
-    {
-      label: "Move the work",
-      title: "Customers see progress without chasing",
-      body: "As the business updates stages, the customer gets a simple red, yellow or green tracking view.",
-    },
-  ] as const;
-  const signals = [
-    {
-      label: "Public storefront",
-      value: "Browse",
-      Icon: StorefrontRoundedIcon,
-      accent: "#800020",
-    },
-    {
-      label: "Order record",
-      value: "Confirm",
-      Icon: ReceiptLongRoundedIcon,
-      accent: "#b87914",
-    },
-    {
-      label: "Customer tracking",
-      value: "Follow",
-      Icon: ChecklistRoundedIcon,
-      accent: "#237a4b",
-    },
-  ];
+type JourneyStep = {
+  label: string;
+  value: string;
+  title: string;
+  body: string;
+  accent: string;
+  Icon: SvgIconComponent;
+};
 
+const journey: JourneyStep[] = [
+  {
+    label: "Public storefront",
+    value: "Browse",
+    title: "Share one beautiful storefront",
+    body: "Customers discover designs, options and prices without digging through old chats.",
+    accent: "#800020",
+    Icon: StorefrontRoundedIcon,
+  },
+  {
+    label: "Order record",
+    value: "Confirm",
+    title: "Capture the whole order",
+    body: "Selections, measurements, visits and payment arrive together in one clean record.",
+    accent: "#b87914",
+    Icon: ReceiptLongRoundedIcon,
+  },
+  {
+    label: "Customer tracking",
+    value: "Follow",
+    title: "Make progress visible",
+    body: "Every stage becomes a calm update customers can understand at a glance.",
+    accent: "#237a4b",
+    Icon: ChecklistRoundedIcon,
+  },
+];
+
+function JourneyCard({
+  item,
+  index,
+}: {
+  item: JourneyStep;
+  index: number;
+}) {
+  const Icon = item.Icon;
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        zIndex: 1,
+        display: "grid",
+        gridTemplateColumns: "auto minmax(0,1fr) auto",
+        gap: { xs: 1.5, sm: 2 },
+        alignItems: "center",
+        p: { xs: 2, sm: 2.5 },
+        border: "1px solid",
+        borderColor: index === 0 ? `${item.accent}38` : "divider",
+        borderRadius: 2,
+        bgcolor: "rgba(var(--surface-rgb),0.94)",
+        boxShadow:
+          index === 0
+            ? "0 24px 56px -42px rgba(128,0,32,0.62)"
+            : "0 16px 44px -42px rgba(21,17,26,0.5)",
+        transition:
+          "transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease",
+        ...riseInSx(160 + index * 90),
+        "&:hover": {
+          transform: "translateX(4px)",
+          borderColor: `${item.accent}52`,
+          boxShadow: `0 24px 56px -44px ${item.accent}`,
+        },
+      }}
+    >
+      <Box
+        aria-hidden
+        sx={{
+          width: { xs: 46, sm: 52 },
+          height: { xs: 46, sm: 52 },
+          borderRadius: 1.5,
+          display: "grid",
+          placeItems: "center",
+          color: item.accent,
+          bgcolor: `${item.accent}10`,
+          border: "1px solid",
+          borderColor: `${item.accent}28`,
+        }}
+      >
+        <Icon fontSize="small" />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          variant="overline"
+          sx={{
+            display: "block",
+            color: item.accent,
+            fontWeight: 850,
+            letterSpacing: "0.09em",
+            lineHeight: 1.2,
+          }}
+        >
+          0{index + 1} · {item.label}
+        </Typography>
+        <Typography sx={{ mt: 0.65, fontWeight: 850, lineHeight: 1.25 }}>
+          {item.title}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{
+            mt: 0.5,
+            color: "text.secondary",
+            display: { xs: "none", sm: "block" },
+          }}
+        >
+          {item.body}
+        </Typography>
+      </Box>
+      <Box sx={{ textAlign: "right" }}>
+        <Typography
+          sx={{
+            color: item.accent,
+            fontFamily: "inherit",
+            fontWeight: 900,
+            fontSize: { xs: 14, sm: 16 },
+          }}
+        >
+          {item.value}
+        </Typography>
+        <ArrowForwardRoundedIcon
+          aria-hidden
+          sx={{ mt: 0.25, color: item.accent, fontSize: 19 }}
+        />
+      </Box>
+    </Box>
+  );
+}
+
+function CustomerStatusStrip() {
   return (
     <Box
       sx={{
         display: "grid",
-        gap: { xs: 3, md: 4 },
-        gridTemplateColumns: { xs: "1fr", lg: "1.08fr 0.92fr" },
-        alignItems: "start",
+        gridTemplateColumns: { xs: "1fr", sm: "auto minmax(0,1fr)" },
+        alignItems: "center",
+        gap: 1.5,
+        p: { xs: 2, sm: 2.5 },
+        borderRadius: 2,
+        color: "common.white",
+        bgcolor: "secondary.main",
+        boxShadow: "0 24px 58px -46px rgba(21,17,26,0.78)",
+      }}
+    >
+      <Box>
+        <Typography
+          variant="overline"
+          sx={{ color: "rgba(255,255,255,0.58)", letterSpacing: "0.1em" }}
+        >
+          Live customer view
+        </Typography>
+        <Typography sx={{ fontWeight: 850 }}>One shared progress story</Typography>
+      </Box>
+      <Box
+        sx={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 0.75,
+          justifyContent: { sm: "flex-end" },
+        }}
+      >
+        {bespokeStages.slice(0, 3).map((stage, index) => (
+          <Chip
+            key={stage.label}
+            size="small"
+            color={statusColour[stage.colour]}
+            label={stage.customerText}
+            icon={<CircleIcon />}
+            sx={{
+              maxWidth: "100%",
+              fontWeight: 800,
+              opacity: index === 2 ? 0.72 : 1,
+              "& .MuiChip-label": { overflow: "hidden", textOverflow: "ellipsis" },
+            }}
+          />
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+export function ProductPreview() {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gap: { xs: 2.5, md: 3.5 },
+        gridTemplateColumns: { xs: "1fr", lg: "0.84fr 1.16fr" },
+        alignItems: "stretch",
       }}
     >
       <Box
         sx={{
           position: "relative",
-          minHeight: { xs: 360, md: 560 },
-          border: "1px solid",
-          borderColor: "rgba(255,255,255,0.36)",
-          borderRadius: 1,
+          minHeight: { xs: 390, md: 580 },
           overflow: "hidden",
-          bgcolor: "background.paper",
-          boxShadow: "0 34px 80px -48px rgba(21,17,26,0.62)",
+          borderRadius: 3,
+          border: "1px solid rgba(255,255,255,0.28)",
+          boxShadow: "0 36px 90px -50px rgba(21,17,26,0.68)",
           ...riseInSx(80),
         }}
       >
         <Box
           component="img"
           src="/images/atelier-review.webp"
-          alt="Fashion designer and customer reviewing a burgundy kente-trim garment in an atelier"
+          alt="Fashion designer and customer reviewing a garment in an atelier"
           loading="lazy"
           decoding="async"
           sx={{
@@ -82,10 +231,6 @@ export function ProductPreview() { // eslint-disable-line max-lines-per-function
             height: "100%",
             objectFit: "cover",
             objectPosition: "center",
-            animation: "xtiitch-hero-zoom 1200ms ease-out both",
-            "@media (prefers-reduced-motion: reduce)": {
-              animation: "none",
-            },
           }}
         />
         <Box
@@ -94,258 +239,73 @@ export function ProductPreview() { // eslint-disable-line max-lines-per-function
             position: "absolute",
             inset: 0,
             background:
-              "linear-gradient(180deg, rgba(21,17,26,0.02) 15%, rgba(21,17,26,0.72) 100%), linear-gradient(90deg, rgba(128,0,32,0.18), rgba(21,17,26,0.05))",
+              "linear-gradient(180deg, rgba(21,17,26,0.04) 20%, rgba(21,17,26,0.9) 100%)",
           }}
         />
         <Box
           sx={{
             position: "relative",
             zIndex: 1,
-            minHeight: { xs: 360, md: 560 },
+            minHeight: "inherit",
             display: "flex",
-            alignItems: "flex-end",
-            p: { xs: 2.5, md: 4 },
+            flexDirection: "column",
+            justifyContent: "space-between",
+            p: { xs: 2.5, sm: 3.5 },
             color: "common.white",
           }}
         >
-          <Box sx={{ maxWidth: 520 }}>
-            <Typography variant="h3" component="h3">
-              The public store is only the front door.
+          <Chip
+            label="Storefront → studio floor"
+            size="small"
+            sx={{
+              alignSelf: "flex-start",
+              color: "common.white",
+              bgcolor: "rgba(21,17,26,0.58)",
+              backdropFilter: "blur(10px)",
+              border: "1px solid rgba(255,255,255,0.16)",
+            }}
+          />
+          <Box sx={{ maxWidth: 460 }}>
+            <Typography
+              variant="overline"
+              sx={{ color: "rgba(255,255,255,0.66)", letterSpacing: "0.12em" }}
+            >
+              Everything stays connected
             </Typography>
-            <Typography sx={{ mt: 1.5, color: "rgba(255,255,255,0.78)" }}>
-              Behind every link is the work itself: measurements, deposits,
-              fittings, delivery choices, and the customer’s progress view.
+            <Typography variant="h3" component="h3" sx={{ mt: 0.75 }}>
+              A beautiful front door. A calmer business behind it.
+            </Typography>
+            <Typography sx={{ mt: 1.5, color: "rgba(255,255,255,0.74)" }}>
+              The public store brings customers in. Xtiitch keeps the choices,
+              payment and making journey moving after that.
             </Typography>
           </Box>
         </Box>
       </Box>
 
-      <Box sx={{ display: "grid", gap: 2.5 }}>
-        {workflow.map((item, index) => (
-          <Box
-            key={item.label}
-            sx={{
-              display: "grid",
-              gridTemplateColumns: "auto 1fr",
-              gap: 2,
-              p: { xs: 2.5, md: 3 },
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "rgba(var(--surface-rgb), 0.84)",
-              boxShadow:
-                index === 0 ? "0 24px 60px -48px rgba(128,0,32,0.78)" : "none",
-              backdropFilter: "blur(10px)",
-              transition:
-                "transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease",
-              ...riseInSx(150 + index * 80),
-              "&:hover": {
-                transform: "translateY(-3px)",
-                borderColor: "rgba(128,0,32,0.22)",
-                boxShadow: "0 26px 64px -50px rgba(128,0,32,0.65)",
-              },
-            }}
-          >
-            <Box
-              aria-hidden
-              sx={{
-                width: 38,
-                height: 38,
-                borderRadius: 1,
-                bgcolor: index === 0 ? "primary.main" : "background.default",
-                color: index === 0 ? "primary.contrastText" : "primary.main",
-                border: "1px solid",
-                borderColor: index === 0 ? "primary.main" : "divider",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 800,
-              }}
-            >
-              {index + 1}
-            </Box>
-            <Box>
-              <Typography
-                variant="body2"
-                sx={{ color: "primary.main", fontWeight: 700, mb: 0.5 }}
-              >
-                {item.label}
-              </Typography>
-              <Typography variant="h5" component="h3">
-                {item.title}
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{ color: "text.secondary", mt: 1 }}
-              >
-                {item.body}
-              </Typography>
-            </Box>
-          </Box>
-        ))}
-
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         <Box
-          aria-label="Storefront to tracking workflow"
+          aria-label="Storefront to customer tracking journey"
           sx={{
             position: "relative",
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" },
-            gap: { xs: 1.25, sm: 0 },
-            p: { xs: 1, sm: 1.25 },
-            border: "1px solid",
-            borderColor: "rgba(128,0,32,0.14)",
-            borderRadius: 1,
-            bgcolor: "rgba(var(--surface-rgb), 0.72)",
-            boxShadow: "0 22px 60px -48px rgba(21,17,26,0.62)",
-            overflow: "hidden",
+            gap: 1.25,
             "&:before": {
               content: '""',
               position: "absolute",
-              left: { xs: 25, sm: 32 },
-              right: { xs: "auto", sm: 32 },
-              top: { xs: 30, sm: "50%" },
-              bottom: { xs: 30, sm: "auto" },
-              width: { xs: 2, sm: "auto" },
-              height: { xs: "auto", sm: 2 },
-              transform: { xs: "none", sm: "translateY(-50%)" },
-              borderRadius: 1,
-              background:
-                "linear-gradient(180deg, rgba(128,0,32,0.26), rgba(184,121,20,0.34), rgba(35,122,75,0.3))",
-              "@media (min-width: 600px)": {
-                background:
-                  "linear-gradient(90deg, rgba(128,0,32,0.26), rgba(184,121,20,0.34), rgba(35,122,75,0.3))",
-              },
+              top: 50,
+              bottom: 50,
+              left: { xs: 44, sm: 49 },
+              width: 2,
+              bgcolor: "divider",
             },
           }}
         >
-          {signals.map((signal, index) => {
-            const Icon = signal.Icon;
-            return (
-              <Box
-                key={signal.label}
-                sx={{
-                  position: "relative",
-                  zIndex: 1,
-                  display: "grid",
-                  gridTemplateColumns: { xs: "auto 1fr", sm: "1fr" },
-                  alignItems: { xs: "center", sm: "stretch" },
-                  gap: { xs: 1.5, sm: 1.75 },
-                  minHeight: { xs: 96, sm: 152 },
-                  p: { xs: 1.75, sm: 2 },
-                  borderRadius: 1,
-                  bgcolor:
-                    index === 1
-                      ? "rgba(var(--surface-rgb),0.96)"
-                      : "rgba(var(--surface-rgb),0.9)",
-                  border: "1px solid",
-                  borderColor:
-                    index === 1 ? "rgba(128,0,32,0.18)" : "transparent",
-                  boxShadow:
-                    index === 1
-                      ? "0 20px 52px -44px rgba(128,0,32,0.62)"
-                      : "none",
-                  transition:
-                    "transform 190ms ease, border-color 190ms ease, box-shadow 190ms ease",
-                  ...riseInSx(260 + index * 80),
-                  "&:hover": {
-                    transform: "translateY(-3px)",
-                    borderColor: `${signal.accent}2e`,
-                    boxShadow: `0 24px 56px -48px ${signal.accent}`,
-                  },
-                }}
-              >
-                <Box
-                  sx={{
-                    display: "flex",
-                    justifyContent: { xs: "flex-start", sm: "space-between" },
-                    alignItems: "center",
-                    gap: 1.25,
-                  }}
-                >
-                  <Box
-                    aria-hidden
-                    sx={{
-                      width: 48,
-                      height: 48,
-                      borderRadius: 1,
-                      display: "grid",
-                      placeItems: "center",
-                      color: signal.accent,
-                      bgcolor: `${signal.accent}12`,
-                      border: "1px solid",
-                      borderColor: `${signal.accent}24`,
-                    }}
-                  >
-                    <Icon fontSize="small" />
-                  </Box>
-                  <Typography
-                    aria-hidden
-                    sx={{
-                      display: { xs: "none", sm: "block" },
-                      fontSize: 12,
-                      fontWeight: 900,
-                      color: "text.secondary",
-                    }}
-                  >
-                    0{index + 1}
-                  </Typography>
-                </Box>
-                <Box sx={{ alignSelf: "end", minWidth: 0 }}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      color: "text.secondary",
-                      fontWeight: 700,
-                      maxWidth: 150,
-                    }}
-                  >
-                    {signal.label}
-                  </Typography>
-                  <Typography
-                    variant="h4"
-                    component="p"
-                    sx={{
-                      mt: 0.25,
-                      color: "primary.main",
-                      lineHeight: 1.1,
-                    }}
-                  >
-                    {signal.value}
-                  </Typography>
-                </Box>
-              </Box>
-            );
-          })}
-        </Box>
-
-        <Box
-          sx={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 1,
-            alignItems: "center",
-            p: 2.5,
-            border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 1,
-            bgcolor: "secondary.main",
-            color: "common.white",
-            boxShadow: "0 26px 60px -48px rgba(21,17,26,0.7)",
-          }}
-        >
-          <Typography sx={{ fontWeight: 700, mr: 1 }}>
-            Customer view:
-          </Typography>
-          {bespokeStages.slice(0, 3).map((stage, index) => (
-            <Chip
-              key={stage.label}
-              size="small"
-              color={statusColour[stage.colour]}
-              label={stage.customerText}
-              icon={index < 2 ? <CircleIcon /> : undefined}
-              sx={{ fontWeight: 700 }}
-            />
+          {journey.map((item, index) => (
+            <JourneyCard key={item.label} item={item} index={index} />
           ))}
         </Box>
+        <CustomerStatusStrip />
       </Box>
     </Box>
   );

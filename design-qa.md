@@ -48,6 +48,82 @@ final result: passed
 
 ---
 
+# Marketing component redesign QA
+
+## Evidence
+
+- Source visual truth: the three marketing-section screenshots attached to the
+  23 July 2026 user request (workflow, tracking card, and FAQ list).
+- Desktop implementation:
+  `/tmp/xtiitch-marketing-workflow-desktop.png`.
+- Mobile implementation: `/tmp/xtiitch-marketing-faq-mobile.png`.
+- Desktop viewport: 1419 x 774 CSS px at density 1.
+- Mobile viewport: 390 x 844 CSS px at density 1.
+- State: light theme; workflow and tracking examples visible; FAQ collapsed by
+  default with the first answer also tested expanded.
+
+## Full-view comparison
+
+The redesign preserves the source sections' content and purpose while replacing
+the flat, oversized card treatment with Xtiitch's editorial image, burgundy,
+brass, green, and dark-ink system. The workflow reads as one connected journey;
+tracking has a clear current-state hierarchy and vertical progress rail; FAQ
+questions are grouped by task instead of one undifferentiated wall.
+
+No horizontal overflow was measured at either viewport. Desktop cards remain
+aligned and mobile modules collapse to one readable column without clipped
+controls or two-line button labels.
+
+## Focused comparison
+
+- Workflow: the three source steps remain in the same order with equal card
+  dimensions, clearer action verbs, a visible connector, and a compact
+  customer-status band.
+- Tracking: store, order, current state, estimated readiness, and every customer
+  stage remain visible. Position, text, icon, and colour reinforce the current
+  state.
+- FAQ: all 14 source questions remain available. Group headers add navigation
+  context, while the accordion exposes the original answer copy.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing Xtiitch display and body families are retained;
+  display type is reserved for editorial headings and operational UI uses the
+  body face at readable weights and line heights.
+- Spacing and layout rhythm: consistent spacing, aligned internal padding, equal
+  card radii, and responsive one-column stacks.
+- Colours and visual tokens: burgundy, brass, green, ink, paper, divider, and
+  semantic status colours stay within the established product language.
+- Image quality and asset fidelity: the workflow uses the existing production
+  atelier photograph with a deliberate crop. Existing MUI icons provide the
+  interface imagery; no placeholder or handmade icon assets were introduced.
+- Copy and content: the original meaning, stage labels, ETA, customer status
+  language, and all FAQ answers are preserved. Supporting copy was shortened
+  where needed for scanning.
+
+## Interaction, findings, and comparison history
+
+- The first FAQ accordion opened through its accessible button name and its
+  answer was confirmed visible.
+- Desktop and mobile pages rendered with zero measured horizontal overflow.
+- Browser logs contained only the known Chrome-extension message-channel
+  warning; no application error was observed.
+- Pass 1 found no actionable P0, P1, or P2 differences. No corrective design-QA
+  iteration was required.
+- P3 follow-up: animation timing can be tuned after observing real production
+  scrolling; reduced-motion support already remains in place.
+
+## Automated verification
+
+- Marketing type generation and TypeScript: passed
+- Marketing ESLint with zero warnings: passed
+- Marketing production client and SSR builds: passed
+- `git diff --check`: passed
+
+final result: passed
+
+---
+
 # Admin operations redesign QA
 
 ## Evidence
