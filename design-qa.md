@@ -48,6 +48,92 @@ final result: passed
 
 ---
 
+# Landing proof and journey controls design QA
+
+## Evidence
+
+- Source visual truth: the two screenshots attached to the 23 July 2026 user
+  request, showing the clipped Browse/Confirm/Follow actions and the oversized
+  three-card proof section.
+- Mobile journey implementation:
+  `/Users/shayford/Desktop/Dev/Projects/xtiitch/.artifacts/design-qa/home-journey-actions-mobile.png`.
+- Mobile proof implementation:
+  `/Users/shayford/Desktop/Dev/Projects/xtiitch/.artifacts/design-qa/home-proof-mobile.png`.
+- Desktop proof implementation:
+  `/Users/shayford/Desktop/Dev/Projects/xtiitch/.artifacts/design-qa/home-proof-desktop.png`.
+- Mobile source and implementation target: 390 x 844 CSS px at density 1;
+  implementation captures are 390 x 844 px.
+- Desktop implementation target: 1440 x 1000 CSS px at density 1; capture is
+  1440 x 1000 px.
+- State: landing page, light theme, journey actions and first post-hero proof
+  section visible.
+
+## Full-view comparison
+
+The first post-hero section now reads as a compact product promise rather than
+three independent oversized cards. A strong editorial statement sits beside
+one connected proof panel on desktop; mobile stacks the same content in a
+single bordered surface. The original GHS 0, plain-language status colors, and
+direct-settlement promise remain intact.
+
+The journey cards now use a two-row mobile grid with a dedicated action area.
+Browse, Confirm, and Follow remain fully inside every card with their arrows on
+the same line.
+
+## Focused comparison
+
+- The focused 390 px journey capture shows all three actions at full width,
+  with no clipping or label/arrow separation.
+- Browser measurements confirm each action uses `white-space: nowrap`, remains
+  within the 390 px viewport, and produces zero document overflow.
+- The desktop proof capture confirms the three facts share equal tracks inside
+  one panel and no longer create large empty cards.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing Xtiitch display and UI families are retained;
+  the proof headline has clearer hierarchy and action labels remain single-line.
+- Spacing and layout rhythm: the proof section is shorter, its facts share one
+  surface, and mobile journey cards use consistent padding and vertical rhythm.
+- Colors and visual tokens: burgundy, brass, green, paper, ink, and divider
+  tokens remain unchanged.
+- Image quality and asset fidelity: the existing production workflow photograph
+  remains sharp and correctly cropped; MUI icons are retained with no invented
+  or placeholder artwork.
+- Copy and content: the original three promises and Browse/Confirm/Follow
+  journey remain present. Supporting copy is unchanged in meaning.
+
+## Findings and comparison history
+
+1. **Resolved P1 - journey actions clipped on mobile.** The original
+   three-column card compressed the text column and separated the action label
+   from its arrow. The responsive grid now gives actions their own row and
+   enforces a non-wrapping inline control.
+2. **Resolved P2 - post-hero cards felt oversized and disconnected.** Three
+   tall cards with large unused areas were replaced by one compact proof panel
+   paired with an editorial explanation.
+3. **No remaining P0, P1, or P2 findings.** The final 390 px and 1440 px
+   captures show zero horizontal overflow and stable light/dark theme controls.
+
+## Interaction and browser checks
+
+- Browse, Confirm, and Follow render as real route links: passed
+- Browse, Confirm, and Follow labels and arrows stay on one line: passed
+- Light/dark mode controls after redesign: passed
+- Desktop and 390 px mobile layouts: passed; no horizontal overflow
+- Browser application errors: none observed. The existing browser-extension
+  message-channel errors remain external to the application.
+
+## Automated verification
+
+- Marketing type generation and TypeScript: passed
+- Targeted marketing ESLint with zero warnings: passed
+- `git diff --check`: passed
+
+final result: passed
+
+---
+
 # Landing hero provenance badge design QA
 
 ## Evidence

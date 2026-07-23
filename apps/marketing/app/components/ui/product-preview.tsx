@@ -1,7 +1,9 @@
 import type { SvgIconComponent } from "@mui/icons-material";
+import { Link as RouterLink } from "react-router";
 import Box from "@mui/material/Box";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import ChecklistRoundedIcon from "@mui/icons-material/ChecklistRounded";
@@ -15,6 +17,7 @@ type JourneyStep = {
   value: string;
   title: string;
   body: string;
+  href: string;
   accent: string;
   Icon: SvgIconComponent;
 };
@@ -25,6 +28,7 @@ const journey: JourneyStep[] = [
     value: "Browse",
     title: "Share one beautiful storefront",
     body: "Customers discover designs, options and prices without digging through old chats.",
+    href: "/discover",
     accent: "#800020",
     Icon: StorefrontRoundedIcon,
   },
@@ -33,6 +37,7 @@ const journey: JourneyStep[] = [
     value: "Confirm",
     title: "Capture the whole order",
     body: "Selections, measurements, visits and payment arrive together in one clean record.",
+    href: "/features",
     accent: "#b87914",
     Icon: ReceiptLongRoundedIcon,
   },
@@ -41,6 +46,7 @@ const journey: JourneyStep[] = [
     value: "Follow",
     title: "Make progress visible",
     body: "Every stage becomes a calm update customers can understand at a glance.",
+    href: "/for-customers",
     accent: "#237a4b",
     Icon: ChecklistRoundedIcon,
   },
@@ -60,10 +66,20 @@ function JourneyCard({
         position: "relative",
         zIndex: 1,
         display: "grid",
-        gridTemplateColumns: "auto minmax(0,1fr) auto",
+        gridTemplateColumns: {
+          xs: "auto minmax(0,1fr)",
+          sm: "auto minmax(0,1fr) auto",
+        },
+        gridTemplateAreas: {
+          xs: '"icon content" "action action"',
+          sm: '"icon content action"',
+        },
         gap: { xs: 1.5, sm: 2 },
         alignItems: "center",
         p: { xs: 2, sm: 2.5 },
+        width: "100%",
+        minWidth: 0,
+        overflow: "hidden",
         border: "1px solid",
         borderColor: index === 0 ? `${item.accent}38` : "divider",
         borderRadius: 2,
@@ -85,6 +101,7 @@ function JourneyCard({
       <Box
         aria-hidden
         sx={{
+          gridArea: "icon",
           width: { xs: 46, sm: 52 },
           height: { xs: 46, sm: 52 },
           borderRadius: 1.5,
@@ -98,7 +115,7 @@ function JourneyCard({
       >
         <Icon fontSize="small" />
       </Box>
-      <Box sx={{ minWidth: 0 }}>
+      <Box sx={{ gridArea: "content", minWidth: 0 }}>
         <Typography
           variant="overline"
           sx={{
@@ -125,22 +142,32 @@ function JourneyCard({
           {item.body}
         </Typography>
       </Box>
-      <Box sx={{ textAlign: "right" }}>
-        <Typography
-          sx={{
-            color: item.accent,
-            fontFamily: "inherit",
-            fontWeight: 900,
-            fontSize: { xs: 14, sm: 16 },
-          }}
-        >
+      <Button
+        component={RouterLink}
+        to={item.href}
+        variant="text"
+        endIcon={<ArrowForwardRoundedIcon aria-hidden />}
+        sx={{
+          gridArea: "action",
+          justifySelf: { xs: "end", sm: "stretch" },
+          minWidth: "max-content",
+          px: { xs: 1.5, sm: 1 },
+          py: 0.75,
+          color: item.accent,
+          borderRadius: 999,
+          fontWeight: 900,
+          fontSize: { xs: 14, sm: 15 },
+          lineHeight: 1,
+          whiteSpace: "nowrap",
+          "& .MuiButton-endIcon": {
+            ml: 0.75,
+            "& .MuiSvgIcon-root": { fontSize: 19 },
+          },
+          "&:hover": { bgcolor: `${item.accent}0d` },
+        }}
+      >
           {item.value}
-        </Typography>
-        <ArrowForwardRoundedIcon
-          aria-hidden
-          sx={{ mt: 0.25, color: item.accent, fontSize: 19 }}
-        />
-      </Box>
+      </Button>
     </Box>
   );
 }
@@ -205,6 +232,8 @@ export function ProductPreview() {
         gap: { xs: 2.5, md: 3.5 },
         gridTemplateColumns: { xs: "1fr", lg: "0.84fr 1.16fr" },
         alignItems: "stretch",
+        width: "100%",
+        minWidth: 0,
       }}
     >
       <Box
@@ -283,7 +312,15 @@ export function ProductPreview() {
         </Box>
       </Box>
 
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 1.5,
+          width: "100%",
+          minWidth: 0,
+        }}
+      >
         <Box
           aria-label="Storefront to customer tracking journey"
           sx={{

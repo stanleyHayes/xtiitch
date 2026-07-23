@@ -72,51 +72,93 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
       <Container
         sx={{
           position: "relative",
-          pt: { xs: 3, md: 5 },
-          pb: { xs: 4, md: 5 },
+          py: { xs: 5, md: 7 },
         }}
       >
         <Box
           sx={{
-            position: "relative",
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-            gap: { xs: 2, md: 3 },
+            gridTemplateColumns: { xs: "1fr", lg: "0.72fr 1.28fr" },
+            gap: { xs: 3.5, lg: 7 },
+            alignItems: "center",
             ...homeRiseSx(240),
           }}
         >
+          <Box sx={{ maxWidth: { xs: 540, lg: 430 } }}>
+            <Typography
+              variant="overline"
+              sx={{
+                display: "block",
+                color: "primary.main",
+                fontWeight: 850,
+                letterSpacing: "0.1em",
+              }}
+            >
+              Why businesses choose Xtiitch
+            </Typography>
+            <Typography
+              variant="h2"
+              component="h2"
+              sx={{
+                mt: 1,
+                fontSize: { xs: 34, sm: 42, lg: 48 },
+                lineHeight: 1.02,
+              }}
+            >
+              Simple to start. Clear all the way through.
+            </Typography>
+            <Typography
+              sx={{
+                mt: 2,
+                color: "text.secondary",
+                fontSize: { xs: 15, sm: 17 },
+                maxWidth: 410,
+              }}
+            >
+              Open your store without pressure, keep every order easy to
+              understand, and receive payments directly through Paystack.
+            </Typography>
+          </Box>
+
+          <Box
+            sx={{
+              position: "relative",
+              display: "grid",
+              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0,1fr))" },
+              overflow: "hidden",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 3,
+              bgcolor: "background.paper",
+              boxShadow: "0 28px 72px -56px rgba(21,17,26,0.72)",
+            }}
+          >
           {stats.map((stat, index) => (
             <Box
               key={stat.label}
               sx={{
                 position: "relative",
-                overflow: "hidden",
-                minHeight: { xs: "auto", md: 224 },
-                p: { xs: 3, md: 3.5 },
+                minWidth: 0,
+                minHeight: { xs: 0, sm: 238 },
+                p: { xs: 2.5, sm: 2.25, md: 3 },
                 display: "flex",
                 flexDirection: "column",
-                gap: 2.5,
-                borderRadius: 3,
-                bgcolor: "background.paper",
-                border: "1px solid",
-                borderColor: "divider",
-                boxShadow: "0 24px 60px -50px rgba(21,17,26,0.6)",
-                transition:
-                  "transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease",
-                ...homeRiseSx(300 + index * 90),
-                "&:before": {
-                  content: '""',
-                  position: "absolute",
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: 3,
-                  background: `linear-gradient(90deg, ${stat.accent}, ${stat.accent}33)`,
+                gap: { xs: 2, sm: 3 },
+                borderTop: {
+                  xs: index === 0 ? "none" : "1px solid",
+                  sm: "none",
                 },
+                borderLeft: {
+                  xs: "none",
+                  sm: index === 0 ? "none" : "1px solid",
+                },
+                borderColor: "divider",
+                transition:
+                  "background-color 180ms ease, transform 180ms ease",
+                ...homeRiseSx(300 + index * 90),
                 "&:hover": {
-                  transform: "translateY(-4px)",
-                  borderColor: `${stat.accent}66`,
-                  boxShadow: `0 30px 72px -46px ${stat.accent}88`,
+                  bgcolor: `${stat.accent}08`,
+                  transform: { sm: "translateY(-3px)" },
                 },
               }}
             >
@@ -128,13 +170,16 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                 <Box
                   aria-hidden
                   sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: 1,
+                    width: 40,
+                    height: 40,
+                    flex: "0 0 auto",
+                    borderRadius: 1.25,
                     display: "grid",
                     placeItems: "center",
                     color: stat.accent,
                     bgcolor: `${stat.accent}12`,
+                    border: "1px solid",
+                    borderColor: `${stat.accent}24`,
                   }}
                 >
                   <stat.Icon sx={{ fontSize: 22 }} />
@@ -143,10 +188,11 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                   component="p"
                   sx={{
                     color: "text.secondary",
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: 800,
                     textTransform: "uppercase",
-                    letterSpacing: 0,
+                    letterSpacing: "0.055em",
+                    lineHeight: 1.35,
                   }}
                 >
                   {stat.eyebrow}
@@ -162,7 +208,8 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                     sx={{
                       mb: 1.25,
                       flexWrap: "wrap",
-                      rowGap: 1,
+                      rowGap: 0.75,
+                      columnGap: 0.5,
                     }}
                   >
                     {stat.statuses.map((status) => (
@@ -172,7 +219,7 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                           display: "inline-flex",
                           alignItems: "center",
                           gap: 0.75,
-                          px: 1.25,
+                          px: 1,
                           py: 0.6,
                           borderRadius: 999,
                           bgcolor: `${status.color}14`,
@@ -191,7 +238,7 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                           sx={{
                             color: status.color,
                             fontWeight: 800,
-                            fontSize: 13,
+                            fontSize: 12,
                           }}
                         >
                           {status.label}
@@ -205,9 +252,9 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                     sx={{
                       color: stat.accent,
                       fontWeight: 800,
-                      lineHeight: 0.95,
+                      lineHeight: 1,
                       letterSpacing: "-0.02em",
-                      fontSize: { xs: 46, md: 58 },
+                      fontSize: { xs: 42, sm: 45, md: 50 },
                       mb: 1,
                     }}
                   >
@@ -218,15 +265,16 @@ export function StatsSection() { // eslint-disable-line max-lines-per-function -
                   variant="body2"
                   sx={{
                     color: "text.secondary",
-                    maxWidth: 250,
-                    fontSize: { xs: 15, md: 16 },
-                  }}
-                >
-                  {stat.label}
+                  maxWidth: 250,
+                  fontSize: { xs: 14, md: 15 },
+                }}
+              >
+                {stat.label}
                 </Typography>
               </Box>
             </Box>
           ))}
+          </Box>
         </Box>
       </Container>
     </Box>
