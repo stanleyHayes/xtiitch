@@ -8,11 +8,11 @@ import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import BoltRounded from "@mui/icons-material/BoltRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import WorkspacePremiumRounded from "@mui/icons-material/WorkspacePremiumRounded";
 import type { Route } from "./+types/discover";
 import TextField from "../components/form-text-field";
@@ -166,7 +166,7 @@ export default function Discover({ loaderData }: Route.ComponentProps) { // esli
             component={RouterLink}
             to="/"
             variant="text"
-            startIcon={<StorefrontRounded />}
+            startIcon={<ArrowBackRounded />}
             sx={{
               px: 0,
               minHeight: 36,

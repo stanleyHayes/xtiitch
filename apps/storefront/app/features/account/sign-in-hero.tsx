@@ -4,11 +4,11 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import { tokens } from "../../theme";
 
 const JOURNEY_PREVIEW = [
@@ -28,7 +28,7 @@ export function SignInHero() {
           component={RouterLink}
           to="/"
           variant="text"
-          startIcon={<StorefrontRounded />}
+          startIcon={<ArrowBackRounded />}
           sx={{
             px: 0,
             minHeight: 36,

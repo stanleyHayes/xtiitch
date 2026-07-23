@@ -34,6 +34,7 @@ import { PlanStatTile } from "../../plans/PlanStatTile";
 import { SubscriptionDiscountCodeFormFields } from "../SubscriptionDiscountCodeFormFields";
 import { DialogHeading } from "../DialogHeading";
 import { DialogActionsRow } from "../DialogActionsRow";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 
 export function DiscountCodePanel({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   discountCodes,
@@ -124,27 +125,29 @@ export function DiscountCodePanel({ // eslint-disable-line max-lines-per-functio
             },
           }}
         >
-          <PlanStatTile
-            label="Active codes"
-            value={String(activeDiscounts.length)}
-            helper={`${discountCodes.length} total`}
-          />
-          <PlanStatTile
-            label="Applied redemptions"
-            value={String(appliedCount)}
-            helper="Subscription discounts"
-          />
-          <PlanStatTile
-            label="Discount value"
-            value={formatGHS(discountMinor)}
-            helper="Recorded applied value"
-          />
+          <PlanStatTile label="Active codes" value={String(activeDiscounts.length)} helper={`${discountCodes.length} total`} />
+          <PlanStatTile label="Applied redemptions" value={String(appliedCount)} helper="Subscription discounts" />
+          <PlanStatTile label="Discount value" value={formatGHS(discountMinor)} helper="Recorded applied value" />
         </Box>
 
         {!discountCodesError && discountCodes.length === 0 ? (
-          <Alert severity="info">
-            No subscription discount codes have been created yet.
-          </Alert>
+          <AdminEmptyState
+            icon={<LocalOfferRounded />}
+            eyebrow="Subscription discounts"
+            title="No discount codes yet"
+            helper="Create the first subscription incentive for a plan, billing cycle, institution batch, or first-purchase offer. Usage and discount value will stay visible here."
+            action={
+              <Button
+                type="button"
+                variant="contained"
+                startIcon={<LocalOfferRounded />}
+                onClick={() => onCreateOpenChange(true)}
+                sx={{ whiteSpace: "nowrap" }}
+              >
+                Create first code
+              </Button>
+            }
+          />
         ) : null}
 
         {!discountCodesError && discountCodes.length > 0 ? (

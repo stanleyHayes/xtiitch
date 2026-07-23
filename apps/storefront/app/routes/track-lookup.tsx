@@ -7,12 +7,12 @@ import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import LinkRounded from "@mui/icons-material/LinkRounded";
 import LocalShippingRounded from "@mui/icons-material/LocalShippingRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import SecurityRounded from "@mui/icons-material/SecurityRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import type { Route } from "./+types/track-lookup";
 import TextField from "../components/form-text-field";
 import { tokens } from "../theme";
@@ -135,7 +135,7 @@ export default function TrackLookup() { // eslint-disable-line max-lines-per-fun
                 component={RouterLink}
                 to="/"
                 variant="text"
-                startIcon={<StorefrontRounded />}
+                startIcon={<ArrowBackRounded />}
                 sx={{
                   px: 0,
                   minHeight: 36,

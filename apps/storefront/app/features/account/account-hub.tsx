@@ -8,12 +8,12 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import AlternateEmailRounded from "@mui/icons-material/AlternateEmailRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import AutoAwesomeRounded from "@mui/icons-material/AutoAwesomeRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import LogoutRounded from "@mui/icons-material/LogoutRounded";
 import PersonRounded from "@mui/icons-material/PersonRounded";
 import PhoneIphoneRounded from "@mui/icons-material/PhoneIphoneRounded";
-import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
 import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
 import TextField from "../../components/form-text-field";
 import type { CustomerOrder, CustomerProfile } from "../../lib/discovery";
@@ -73,7 +73,7 @@ export function AccountHub({ // eslint-disable-line complexity, max-lines-per-fu
             component={RouterLink}
             to="/"
             variant="text"
-            startIcon={<StorefrontRounded />}
+            startIcon={<ArrowBackRounded />}
             sx={{ px: 0, color: "text.secondary", fontWeight: 850 }}
           >
             Back to storefront

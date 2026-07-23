@@ -4,10 +4,10 @@ import Divider from "@mui/material/Divider";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import Alert from "@mui/material/Alert";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import WorkspacePremiumRounded from "@mui/icons-material/WorkspacePremiumRounded";
 import { tokens } from "../../../theme";
+import { AdminEmptyState } from "../../../components/ui/AdminEmptyState";
 import { Panel } from "../../../components/ui/Panel";
 import { shortTime } from "../../shared/dates";
 import type { AdminSubscriptionEvent } from "../../../lib/api";
@@ -42,9 +42,22 @@ export function SubscriptionEventsPanel({
         </Stack>
         <Divider />
         {events.length === 0 ? (
-          <Alert severity="info">
-            No lifecycle events have been recorded yet.
-          </Alert>
+          <AdminEmptyState
+            icon={<WorkspacePremiumRounded />}
+            eyebrow="Lifecycle events"
+            title="No lifecycle events yet"
+            helper="Plan activations, renewals, upgrades, downgrades, cancellations, and payment callbacks will be recorded here once they happen."
+            action={
+              <Button
+                variant="outlined"
+                endIcon={<ArrowForwardRounded />}
+                onClick={onSelectMoney}
+                sx={{ whiteSpace: "nowrap" }}
+              >
+                Review money rails
+              </Button>
+            }
+          />
         ) : null}
         {events.map((event) => (
           <Box
@@ -71,14 +84,16 @@ export function SubscriptionEventsPanel({
             </Typography>
           </Box>
         ))}
-        <Button
-          variant="outlined"
-          endIcon={<ArrowForwardRounded />}
-          onClick={onSelectMoney}
-          sx={{ whiteSpace: "nowrap" }}
-        >
-          Review money rails
-        </Button>
+        {events.length > 0 ? (
+          <Button
+            variant="outlined"
+            endIcon={<ArrowForwardRounded />}
+            onClick={onSelectMoney}
+            sx={{ whiteSpace: "nowrap" }}
+          >
+            Review money rails
+          </Button>
+        ) : null}
       </Stack>
     </Panel>
   );
