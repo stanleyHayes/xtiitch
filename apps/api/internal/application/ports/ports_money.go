@@ -52,7 +52,10 @@ type PaymentRepository interface {
 	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ManualTakingRecord, error)
 	// MoneySummary aggregates the business's income: succeeded through-platform
 	// payments and their commission, plus off-platform manual takings.
-	MoneySummary(ctx context.Context, scope common.TenantScope) (MoneySummary, error)
+	MoneySummary(ctx context.Context, scope common.TenantScope, period MoneyPeriod) (MoneySummary, error)
+	// ListMoneyTransactions lists successful storefront transactions with the
+	// full persisted fee/take-home breakdown shown in Money Desk.
+	ListMoneyTransactions(ctx context.Context, scope common.TenantScope, period MoneyPeriod, limit int, offset int) ([]MoneyTransactionRecord, error)
 	// RecordProviderEvent writes the webhook idempotency row for a non-charge
 	// event (transfer.*) and reports whether this was a first delivery, so a
 	// re-delivered event is a no-op. Same ledger ConfirmFromProvider uses.
@@ -66,7 +69,7 @@ type PaymentRepository interface {
 	UpsertProviderSettlements(ctx context.Context, businessID common.ID, settlements []ProviderSettlementInput) (int, error)
 	// ListProviderSettlements lists a business's mirrored settlement (payout)
 	// rows, most recent first, paged by limit/offset.
-	ListProviderSettlements(ctx context.Context, scope common.TenantScope, limit int, offset int) ([]ProviderSettlementRecord, error)
+	ListProviderSettlements(ctx context.Context, scope common.TenantScope, period MoneyPeriod, limit int, offset int) ([]ProviderSettlementRecord, error)
 	// MarkSettlementsSynced stamps the business's settlement-sync watermark,
 	// which throttles read-path syncs (§3.3).
 	MarkSettlementsSynced(ctx context.Context, businessID common.ID) error

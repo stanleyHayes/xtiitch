@@ -129,6 +129,7 @@ func (repo PaymentRepository) UpsertProviderSettlements(
 func (repo PaymentRepository) ListProviderSettlements(
 	ctx context.Context,
 	scope common.TenantScope,
+	period ports.MoneyPeriod,
 	limit int,
 	offset int,
 ) ([]ports.ProviderSettlementRecord, error) {
@@ -146,9 +147,11 @@ func (repo PaymentRepository) ListProviderSettlements(
 		select settlement_id, provider_reference, amount_minor, status, settled_at, created_at
 		from paystack_settlements
 		where business_id = $1
-		order by created_at desc
-		limit $2 offset $3
-	`, scope.BusinessID.String(), limit, offset)
+			and ($2::timestamptz is null or coalesce(settled_at, created_at) >= $2)
+			and ($3::timestamptz is null or coalesce(settled_at, created_at) < $3)
+		order by coalesce(settled_at, created_at) desc, created_at desc
+		limit $4 offset $5
+	`, scope.BusinessID.String(), period.From, period.To, limit, offset)
 	if err != nil {
 		return nil, err
 	}

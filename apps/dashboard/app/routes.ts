@@ -52,5 +52,6 @@ export default [
   // with the session token). See routes/ai-assist.ts.
   route("ai/assist", "routes/ai-assist.ts"),
   route("help", "routes/help.tsx"),
+  route("splash", "routes/splash.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

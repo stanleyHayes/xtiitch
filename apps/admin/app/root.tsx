@@ -8,14 +8,12 @@ import {
   isRouteErrorResponse,
   type LinksFunction,
   useNavigation,
+  useRouteError,
 } from "react-router";
 import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
-import { alpha } from "@mui/material/styles";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
+import { AdminSystemPage } from "./components/system-pages";
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -134,10 +132,28 @@ function RouteProgressBar() {
   );
 }
 
+function errorStatus(error: unknown): number | undefined {
+  if (isRouteErrorResponse(error)) {
+    return error.status;
+  }
+  if (error instanceof Response) {
+    return error.status;
+  }
+  if (typeof error === "object" && error !== null) {
+    const status = (error as { status?: unknown; statusCode?: unknown }).status;
+    const statusCode = (error as { status?: unknown; statusCode?: unknown })
+      .statusCode;
+    if (typeof status === "number") return status;
+    if (typeof statusCode === "number") return statusCode;
+  }
+  return undefined;
+}
+
 export function ErrorBoundary({ error }: { error: unknown }) {
-  const is404 = isRouteErrorResponse(error) && error.status === 404;
-  const isAPIUnavailable =
-    isRouteErrorResponse(error) && [502, 503].includes(error.status);
+  const routeError = useRouteError();
+  const status = errorStatus(error ?? routeError);
+  const is404 = status === 404;
+  const isAPIUnavailable = status !== undefined && [502, 503].includes(status);
   const title = is404
     ? "Admin page not found"
     : isAPIUnavailable
@@ -151,112 +167,14 @@ export function ErrorBoundary({ error }: { error: unknown }) {
   const code = is404 ? "404" : isAPIUnavailable ? "503" : "Error";
 
   return (
-    <Box
-      sx={{
-        minHeight: "100vh",
-        position: "relative",
-        overflow: "hidden",
-        display: "grid",
-        placeItems: "center",
-        px: 3,
-        color: tokens.white,
-        background: `radial-gradient(circle at 50% 16%, ${alpha(tokens.burgundy, 0.42)}, transparent 56%), linear-gradient(160deg, ${tokens.ink} 0%, ${tokens.charcoal} 100%)`,
-      }}
-    >
-      {/* Faint operator grid, masked to a soft vignette. */}
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px)`,
-          backgroundSize: "42px 42px",
-          maskImage:
-            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
-          WebkitMaskImage:
-            "radial-gradient(circle at 50% 40%, #000 0%, transparent 72%)",
-        }}
-      />
-      <Container
-        sx={{ position: "relative", textAlign: "center", maxWidth: 560 }}
-      >
-        <Box
-          component="img"
-          src="/favicon.svg"
-          alt="Xtiitch"
-          sx={{
-            width: 54,
-            height: 54,
-            borderRadius: "15px",
-            mb: 3,
-            boxShadow: `0 18px 50px ${alpha(tokens.ink, 0.6)}`,
-          }}
-        />
-        <Typography
-          aria-hidden
-          sx={{
-            fontFamily: '"Fraunces", Georgia, serif',
-            fontWeight: 600,
-            fontSize: { xs: 78, md: 110 },
-            lineHeight: 0.95,
-            letterSpacing: "-0.04em",
-            color: tokens.white,
-          }}
-        >
-          {code}
-        </Typography>
-        <Box
-          aria-hidden
-          sx={{
-            width: 132,
-            mx: "auto",
-            my: 2.5,
-            borderBottom: `2px dashed ${alpha(tokens.white, 0.32)}`,
-          }}
-        />
-        <Typography
-          variant="h5"
-          component="h1"
-          sx={{
-            fontFamily: '"Fraunces", Georgia, serif',
-            fontWeight: 600,
-            color: tokens.white,
-          }}
-        >
-          {title}
-        </Typography>
-        <Typography
-          sx={{
-            mt: 1.5,
-            color: alpha(tokens.white, 0.7),
-            maxWidth: 440,
-            mx: "auto",
-            lineHeight: 1.6,
-          }}
-        >
-          {message}
-        </Typography>
-        <Button
-          type="button"
-          onClick={() => window.location.reload()}
-          variant="contained"
-          size="large"
-          sx={{ mt: 4, bgcolor: tokens.burgundy }}
-        >
-          Reload console
-        </Button>
-        <Typography
-          sx={{
-            mt: 5,
-            color: alpha(tokens.white, 0.42),
-            fontSize: 11,
-            letterSpacing: 2,
-            textTransform: "uppercase",
-          }}
-        >
-          Xtiitch operations
-        </Typography>
-      </Container>
-    </Box>
+    <AdminSystemPage
+      code={code}
+      eyebrow={is404 ? "404 · Not found" : "Operations alert"}
+      title={title}
+      message={message}
+      actionHref="/admin"
+      actionLabel={isAPIUnavailable ? "Reload console" : "Open console"}
+      reload={!is404}
+    />
   );
 }

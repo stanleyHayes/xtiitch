@@ -174,7 +174,7 @@ func TestUpsertProviderSettlementsIsIdempotent(t *testing.T) {
 	})
 
 	// And the rows are tenant-scoped: another business's scope sees nothing.
-	records, err := repo.ListProviderSettlements(ctx, common.TenantScope{BusinessID: common.ID(itSettleBizOther)}, 50, 0)
+	records, err := repo.ListProviderSettlements(ctx, common.TenantScope{BusinessID: common.ID(itSettleBizOther)}, ports.MoneyPeriod{}, 50, 0)
 	if err != nil {
 		t.Fatalf("list other business settlements: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestMoneySummaryReflectsPersistedFiguresAndPayouts(t *testing.T) {
 	ctx := context.Background()
 	scope := common.TenantScope{BusinessID: common.ID(itSettleBiz)}
 
-	summary, err := repo.MoneySummary(ctx, scope)
+	summary, err := repo.MoneySummary(ctx, scope, ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("money summary: %v", err)
 	}
@@ -241,7 +241,7 @@ func TestMoneySummaryReflectsPersistedFiguresAndPayouts(t *testing.T) {
 		t.Fatalf("upsert pending settlement: %v", err)
 	}
 
-	summary, err = repo.MoneySummary(ctx, scope)
+	summary, err = repo.MoneySummary(ctx, scope, ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("money summary after payout: %v", err)
 	}
@@ -256,14 +256,14 @@ func TestMoneySummaryReflectsPersistedFiguresAndPayouts(t *testing.T) {
 	}
 
 	// The payout history endpoint's read pages the mirrored rows, newest first.
-	records, err := repo.ListProviderSettlements(ctx, scope, 1, 0)
+	records, err := repo.ListProviderSettlements(ctx, scope, ports.MoneyPeriod{}, 1, 0)
 	if err != nil {
 		t.Fatalf("list settlements page 1: %v", err)
 	}
 	if len(records) != 1 || records[0].ProviderReference != itSettleRef2 {
 		t.Fatalf("expected the newest settlement paged first, got %+v", records)
 	}
-	rest, err := repo.ListProviderSettlements(ctx, scope, 1, 1)
+	rest, err := repo.ListProviderSettlements(ctx, scope, ports.MoneyPeriod{}, 1, 1)
 	if err != nil {
 		t.Fatalf("list settlements page 2: %v", err)
 	}

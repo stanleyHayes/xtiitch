@@ -26,12 +26,14 @@ const (
 // exact field set must be validated against a Paystack test account before
 // going live, like the subaccount endpoints above.
 type settlementItem struct {
-	ID             json.RawMessage `json:"id"`
-	Amount         int64           `json:"amount"`
-	Status         string          `json:"status"`
-	SettledAt      *time.Time      `json:"settled_at"`
-	SettlementDate *time.Time      `json:"settlement_date"`
-	CreatedAt      *time.Time      `json:"created_at"`
+	ID              json.RawMessage `json:"id"`
+	Amount          int64           `json:"amount"`
+	EffectiveAmount int64           `json:"effective_amount"`
+	TotalAmount     int64           `json:"total_amount"`
+	Status          string          `json:"status"`
+	SettledAt       *time.Time      `json:"settled_at"`
+	SettlementDate  *time.Time      `json:"settlement_date"`
+	CreatedAt       *time.Time      `json:"created_at"`
 	Subaccount     *struct {
 		SubaccountCode string `json:"subaccount_code"`
 	} `json:"subaccount"`
@@ -139,11 +141,21 @@ func mapSettlementItem(item settlementItem) (ports.ProviderSettlement, error) {
 	return ports.ProviderSettlement{
 		ProviderReference: reference,
 		SubaccountCode:    subaccountCode,
-		AmountMinor:       item.Amount,
+		AmountMinor:       settlementAmount(item),
 		Status:            item.Status,
 		SettledAt:         settledAt,
 		RawPayload:        raw,
 	}, nil
+}
+
+func settlementAmount(item settlementItem) int64 {
+	if item.Amount > 0 {
+		return item.Amount
+	}
+	if item.EffectiveAmount > 0 {
+		return item.EffectiveAmount
+	}
+	return item.TotalAmount
 }
 
 // settlementReference normalizes the settlement id — Paystack returns it as a

@@ -74,9 +74,10 @@ func (s Service) SyncSettlements(ctx context.Context, cmd SyncSettlementsCommand
 // ListPayouts pages the store's mirrored settlement rows — the §3.3 payout
 // history behind the Money Desk's payout table. Same read posture as
 // ListPayments: any authenticated member of the business may view it.
-func (s Service) ListPayouts(ctx context.Context, scope common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+func (s Service) ListPayouts(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
 	if scope.BusinessID.IsZero() {
 		return nil, ErrInvalidCharge
 	}
-	return s.payments.ListProviderSettlements(ctx, scope, limit, offset)
+	_, _ = s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: scope.BusinessID})
+	return s.payments.ListProviderSettlements(ctx, scope, period, limit, offset)
 }

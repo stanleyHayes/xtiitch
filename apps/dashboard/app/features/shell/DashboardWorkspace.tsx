@@ -48,6 +48,8 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     stages,
     measurementFields,
     moneySummary,
+    moneyPeriod,
+    moneyTransactions,
     manualTakings,
     payouts,
     bookings,
@@ -345,6 +347,8 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               stages={stages}
               measurementFields={measurementFields}
               moneySummary={moneySummary}
+              moneyPeriod={moneyPeriod}
+              moneyTransactions={moneyTransactions}
               manualTakings={manualTakings}
               payouts={payouts}
               bookings={bookings}

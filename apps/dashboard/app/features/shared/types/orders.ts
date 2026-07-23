@@ -76,6 +76,30 @@ export type MoneySummary = {
   net_income_minor: number;
 };
 
+export type MoneyPeriod =
+  | "today"
+  | "last_7_days"
+  | "this_month"
+  | "last_month"
+  | "all_time";
+
+export type MoneyTransaction = {
+  payment_id: string;
+  order_id: string;
+  reference: string;
+  purpose: string;
+  method: string;
+  amount_minor: number;
+  design_cost_minor: number;
+  paystack_fee_minor: number;
+  xtiitch_fee_minor: number;
+  xtiitch_tax_minor: number;
+  take_home_minor: number;
+  design_title: string;
+  customer_name: string;
+  created_at: string;
+};
+
 // §3.3 payout history row: one mirrored Paystack settlement to the store's
 // MoMo subaccount (automatic T+1 cycle, §4.10).
 export type MoneyPayout = {

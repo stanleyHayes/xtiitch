@@ -1,5 +1,5 @@
 import { tokens } from "../../theme";
-import { StoreSettings, MoneySummary, OrderFilter } from "./types";
+import { StoreSettings, MoneySummary, OrderFilter, MoneyPeriod } from "./types";
 
 export const dashboardRailWidth = 304;
 
@@ -39,6 +39,14 @@ export const defaultMoneySummary: MoneySummary = {
   all_time_income_minor: 0,
   net_income_minor: 0,
 };
+
+export const moneyPeriodOptions: { value: MoneyPeriod; label: string }[] = [
+  { value: "today", label: "Today" },
+  { value: "last_7_days", label: "Last 7 days" },
+  { value: "this_month", label: "This month" },
+  { value: "last_month", label: "Last month" },
+  { value: "all_time", label: "All time" },
+];
 
 export const orderFilters: { value: OrderFilter; label: string }[] = [
   { value: "all", label: "All" },

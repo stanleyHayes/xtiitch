@@ -29,7 +29,9 @@ import type {
   ManualTaking,
   MeasurementField,
   MoneyPayout,
+  MoneyPeriod,
   MoneySummary,
+  MoneyTransaction,
   NotificationSummary,
   OrderSummary,
   Profile,
@@ -47,6 +49,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   stages,
   measurementFields,
   moneySummary,
+  moneyPeriod,
+  moneyTransactions,
   manualTakings,
   payouts,
   bookings,
@@ -103,6 +107,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   stages: Stage[];
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
+  moneyPeriod: MoneyPeriod;
+  moneyTransactions: MoneyTransaction[];
   manualTakings: ManualTaking[];
   payouts: MoneyPayout[];
   bookings: BookingSummary[];
@@ -218,6 +224,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
             {canManage && section === "money" && (
               <MoneySection
                 summary={moneySummary}
+                period={moneyPeriod}
+                transactions={moneyTransactions}
                 takings={manualTakings}
                 orders={orders}
                 payouts={payouts}

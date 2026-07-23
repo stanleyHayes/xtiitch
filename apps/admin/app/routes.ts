@@ -10,5 +10,6 @@ export default [
   route("admin/payouts", "routes/payouts.tsx"),
   route("admin/payouts/:businessId/history", "routes/payout-history.tsx"),
   route("help", "routes/help.tsx"),
+  route("splash", "routes/splash.tsx"),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

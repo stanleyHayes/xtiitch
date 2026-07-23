@@ -40,7 +40,7 @@ func TestClientListSettlementsFiltersPagesAndMaps(t *testing.T) {
 			],"meta":{"page":1,"pageCount":2}}`))
 		case "2":
 			_, _ = w.Write([]byte(`{"status":true,"data":[
-				{"id": 902, "amount": 4850, "status": "pending", "created_at": "2026-07-19T08:00:00.000Z"}
+				{"id": 902, "effective_amount": 4850, "total_amount": 5000, "status": "pending", "created_at": "2026-07-19T08:00:00.000Z"}
 			],"meta":{"page":2,"pageCount":2}}`))
 		default:
 			t.Errorf("unexpected page %q", query.Get("page"))
@@ -81,6 +81,9 @@ func TestClientListSettlementsFiltersPagesAndMaps(t *testing.T) {
 
 	// The second record has no settled_at: the mapping falls back to created_at.
 	second := settlements[1]
+	if second.AmountMinor != 4850 {
+		t.Fatalf("expected effective_amount fallback for settlement amount, got %+v", second)
+	}
 	if second.SettledAt == nil || second.SettledAt.Day() != 19 {
 		t.Fatalf("expected the created_at fallback for an unsettled row, got %+v", second.SettledAt)
 	}

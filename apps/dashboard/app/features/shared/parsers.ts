@@ -1,11 +1,17 @@
 import { redirect } from "react-router";
-import { OrderFilter, DashboardSection } from "./types";
-import { orderFilters } from "./constants";
+import { OrderFilter, DashboardSection, MoneyPeriod } from "./types";
+import { orderFilters, moneyPeriodOptions } from "./constants";
 
 export function parseOrderFilter(value: string | null): OrderFilter {
   return orderFilters.some((filter) => filter.value === value)
     ? (value as OrderFilter)
     : "all";
+}
+
+export function parseMoneyPeriod(value: string | null): MoneyPeriod {
+  return moneyPeriodOptions.some((option) => option.value === value)
+    ? (value as MoneyPeriod)
+    : "today";
 }
 
 export function parseDashboardSection(

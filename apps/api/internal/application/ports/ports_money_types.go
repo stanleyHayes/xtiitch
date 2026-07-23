@@ -230,6 +230,33 @@ type ProviderSettlementRecord struct {
 	CreatedAt         time.Time
 }
 
+// MoneyPeriod bounds a Money Desk read. Nil dates mean "all time".
+type MoneyPeriod struct {
+	From *time.Time
+	To   *time.Time
+}
+
+// MoneyTransactionRecord is one successful storefront payment as displayed in
+// the business Money Desk. Every fee column is persisted provider/quote data,
+// not recomputed at read time; TakeHomeMinor is a sum expression over those
+// stored figures.
+type MoneyTransactionRecord struct {
+	PaymentID         common.ID
+	OrderID           *common.ID
+	ProviderReference string
+	Purpose           string
+	Method            string
+	AmountMinor       int64
+	DesignCostMinor   int64
+	PaystackFeeMinor  int64
+	XtiitchFeeMinor   int64
+	XtiitchTaxMinor   int64
+	TakeHomeMinor     int64
+	DesignTitle       string
+	CustomerName      string
+	CreatedAt         time.Time
+}
+
 // SettlementSyncResult reports one SyncSettlements run. Skipped means no sync
 // was attempted (no subaccount on file, or the per-business throttle window
 // has not elapsed); Upserted counts the rows written when it did run.

@@ -201,7 +201,7 @@ func TestMoneySummarySyncFailureNeverBreaksTheRead(t *testing.T) {
 		IDs: &sequenceIDs{ids: []common.ID{"unused"}},
 	})
 
-	summary, err := service.MoneySummary(context.Background(), common.TenantScope{BusinessID: "business-1"})
+	summary, err := service.MoneySummary(context.Background(), common.TenantScope{BusinessID: "business-1"}, ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("money summary must survive a sync failure: %v", err)
 	}
@@ -336,11 +336,13 @@ func TestListPayoutsPassesScopeAndPaging(t *testing.T) {
 		},
 	}
 	service := NewService(Dependencies{
-		Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{},
+		Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{context: ports.BusinessChargeContext{
+			BusinessID: "business-1", SubaccountRef: "ACCT_1",
+		}},
 		IDs: &sequenceIDs{ids: []common.ID{"unused"}},
 	})
 
-	records, err := service.ListPayouts(context.Background(), common.TenantScope{BusinessID: "business-1"}, 25, 50)
+	records, err := service.ListPayouts(context.Background(), common.TenantScope{BusinessID: "business-1"}, ports.MoneyPeriod{}, 25, 50)
 	if err != nil {
 		t.Fatalf("list payouts: %v", err)
 	}
@@ -349,5 +351,8 @@ func TestListPayoutsPassesScopeAndPaging(t *testing.T) {
 	}
 	if payments.settlementsPaging[0] != 25 || payments.settlementsPaging[1] != 50 {
 		t.Fatalf("expected limit/offset passthrough, got %+v", payments.settlementsPaging)
+	}
+	if len(payments.syncedMarked) != 1 {
+		t.Fatalf("expected payout history read to attempt settlement sync first, got %+v", payments.syncedMarked)
 	}
 }

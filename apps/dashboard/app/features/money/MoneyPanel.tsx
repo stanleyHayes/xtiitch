@@ -16,7 +16,6 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
-import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SavingsRounded from "@mui/icons-material/SavingsRounded";
 import WarningAmberRounded from "@mui/icons-material/WarningAmberRounded";
 import TextField from "../../components/form-text-field";
@@ -123,24 +122,6 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             value={formatGHS(summary.through_platform_minor)}
             helper="Total received through checkout"
             tone={tokens.success}
-          />
-          {/* §3.1/§4.5: Paystack's own fee on the transactions, as reported by
-              Paystack — branded exactly "Transaction fee", never "Paystack
-              fee". These are the persisted Paystack figures (§3.2), never
-              derived locally, so the dashboard mirrors the Paystack splits. */}
-          <MiniStat
-            icon={<ReceiptLongRounded fontSize="small" />}
-            label="Transaction fee"
-            value={formatGHS(summary.paystack_fee_minor)}
-            helper="Paystack's cut, as reported by Paystack"
-            tone={tokens.warning}
-          />
-          <MiniStat
-            icon={<ReceiptLongRounded fontSize="small" />}
-            label="Xtiitch fee"
-            value={formatGHS(summary.xtiitch_fee_minor)}
-            helper="Our share per design sold, already split online"
-            tone={tokens.warning}
           />
           <MiniStat
             icon={<AccountBalanceWalletRounded fontSize="small" />}

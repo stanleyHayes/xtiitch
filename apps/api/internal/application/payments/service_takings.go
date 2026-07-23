@@ -84,7 +84,7 @@ func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope
 // throttled settlement sync (§3.2/§3.3): the desk must reflect payouts near
 // real time, but a provider hiccup must never break the read — a failed sync
 // is swallowed and the desk renders the last mirrored figures.
-func (s Service) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
+func (s Service) MoneySummary(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) (ports.MoneySummary, error) {
 	_, _ = s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: scope.BusinessID})
-	return s.payments.MoneySummary(ctx, scope)
+	return s.payments.MoneySummary(ctx, scope, period)
 }

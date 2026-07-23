@@ -18,6 +18,7 @@ export default [
   route("checkout", "routes/checkout.tsx"),
   route("track", "routes/track-lookup.tsx"),
   route("track/:orderId", "routes/track.tsx"),
+  route("splash", "routes/splash.tsx"),
   route("robots.txt", "routes/robots.tsx"),
   route("sitemap.xml", "routes/sitemap.tsx"),
   route("*", "routes/not-found.tsx"),

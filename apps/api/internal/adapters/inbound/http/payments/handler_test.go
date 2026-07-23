@@ -351,11 +351,21 @@ func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope)
 	return nil, nil
 }
 
-func (s *fakeService) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
+func (s *fakeService) MoneySummary(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod) (ports.MoneySummary, error) {
 	return ports.MoneySummary{}, nil
 }
 
-func (s *fakeService) ListPayouts(_ context.Context, _ common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+func (s *fakeService) ListMoneyTransactions(
+	_ context.Context,
+	_ common.TenantScope,
+	_ ports.MoneyPeriod,
+	_ int,
+	_ int,
+) ([]ports.MoneyTransactionRecord, error) {
+	return nil, nil
+}
+
+func (s *fakeService) ListPayouts(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
 	s.payoutsLimit = limit
 	s.payoutsOffset = offset
 	return s.payouts, nil

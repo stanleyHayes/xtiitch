@@ -30,8 +30,9 @@ type Service interface {
 	ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error)
 	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error)
 	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error)
-	MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error)
-	ListPayouts(ctx context.Context, scope common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error)
+	MoneySummary(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) (ports.MoneySummary, error)
+	ListMoneyTransactions(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.MoneyTransactionRecord, error)
+	ListPayouts(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error)
 }
 
 type Handler struct {
@@ -55,6 +56,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/money/takings", handler.logTaking)
 		protected.Get("/money/takings", handler.listTakings)
 		protected.Get("/money/summary", handler.moneySummary)
+		protected.Get("/money/transactions", handler.listMoneyTransactions)
 		protected.Get("/money/payouts", handler.listPayouts)
 	})
 }
@@ -310,7 +312,7 @@ func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	summary, err := handler.service.MoneySummary(r.Context(), principal.TenantScope())
+	summary, err := handler.service.MoneySummary(r.Context(), principal.TenantScope(), parseMoneyPeriod(r.URL.Query().Get("period"), time.Now))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
@@ -333,6 +335,32 @@ func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listMoneyTransactions is the Money Desk transaction ledger: every successful
+// storefront payment with the exact persisted split/take-home breakdown.
+func (handler Handler) listMoneyTransactions(w http.ResponseWriter, r *http.Request) {
+	principal, ok := authhttp.PrincipalFromContext(r.Context())
+	if !ok {
+		writeError(w, http.StatusUnauthorized, "invalid_token")
+		return
+	}
+	records, err := handler.service.ListMoneyTransactions(
+		r.Context(),
+		principal.TenantScope(),
+		parseMoneyPeriod(r.URL.Query().Get("period"), time.Now),
+		parsePagingLimit(r.URL.Query().Get("limit")),
+		parsePagingOffset(r.URL.Query().Get("offset")),
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal_error")
+		return
+	}
+	response := make([]transactionResponse, 0, len(records))
+	for _, record := range records {
+		response = append(response, newTransactionResponse(record))
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"transactions": response})
+}
+
 // listPayouts is the §3.3 payout history table: the store's mirrored Paystack
 // settlement rows (amount, status, settled_at, reference), paged.
 func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
@@ -344,6 +372,7 @@ func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
 	records, err := handler.service.ListPayouts(
 		r.Context(),
 		principal.TenantScope(),
+		parseMoneyPeriod(r.URL.Query().Get("period"), time.Now),
 		parsePagingLimit(r.URL.Query().Get("limit")),
 		parsePagingOffset(r.URL.Query().Get("offset")),
 	)
@@ -356,6 +385,46 @@ func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
 		response = append(response, newPayoutResponse(record))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"payouts": response})
+}
+
+type transactionResponse struct {
+	PaymentID         string `json:"payment_id"`
+	OrderID           string `json:"order_id"`
+	Reference         string `json:"reference"`
+	Purpose           string `json:"purpose"`
+	Method            string `json:"method"`
+	AmountMinor       int64  `json:"amount_minor"`
+	DesignCostMinor   int64  `json:"design_cost_minor"`
+	PaystackFeeMinor  int64  `json:"paystack_fee_minor"`
+	XtiitchFeeMinor   int64  `json:"xtiitch_fee_minor"`
+	XtiitchTaxMinor   int64  `json:"xtiitch_tax_minor"`
+	TakeHomeMinor     int64  `json:"take_home_minor"`
+	DesignTitle       string `json:"design_title"`
+	CustomerName      string `json:"customer_name"`
+	CreatedAt         string `json:"created_at"`
+}
+
+func newTransactionResponse(record ports.MoneyTransactionRecord) transactionResponse {
+	orderID := ""
+	if record.OrderID != nil {
+		orderID = record.OrderID.String()
+	}
+	return transactionResponse{
+		PaymentID:        record.PaymentID.String(),
+		OrderID:          orderID,
+		Reference:        record.ProviderReference,
+		Purpose:          record.Purpose,
+		Method:           record.Method,
+		AmountMinor:      record.AmountMinor,
+		DesignCostMinor:  record.DesignCostMinor,
+		PaystackFeeMinor: record.PaystackFeeMinor,
+		XtiitchFeeMinor:  record.XtiitchFeeMinor,
+		XtiitchTaxMinor:  record.XtiitchTaxMinor,
+		TakeHomeMinor:    record.TakeHomeMinor,
+		DesignTitle:      record.DesignTitle,
+		CustomerName:     record.CustomerName,
+		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
+	}
 }
 
 type payoutResponse struct {
@@ -388,6 +457,29 @@ const (
 	defaultPayoutPageLimit = 50
 	maxPayoutPageLimit     = 200
 )
+
+func parseMoneyPeriod(value string, now func() time.Time) ports.MoneyPeriod {
+	current := now().UTC()
+	today := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, time.UTC)
+	thisMonth := time.Date(current.Year(), current.Month(), 1, 0, 0, 0, 0, time.UTC)
+	switch strings.TrimSpace(strings.ToLower(value)) {
+	case "today":
+		to := today.AddDate(0, 0, 1)
+		return ports.MoneyPeriod{From: &today, To: &to}
+	case "last_7_days", "last7", "7_days":
+		from := today.AddDate(0, 0, -6)
+		to := today.AddDate(0, 0, 1)
+		return ports.MoneyPeriod{From: &from, To: &to}
+	case "this_month", "month":
+		to := thisMonth.AddDate(0, 1, 0)
+		return ports.MoneyPeriod{From: &thisMonth, To: &to}
+	case "last_month":
+		from := thisMonth.AddDate(0, -1, 0)
+		return ports.MoneyPeriod{From: &from, To: &thisMonth}
+	default:
+		return ports.MoneyPeriod{}
+	}
+}
 
 func parsePagingLimit(value string) int {
 	parsed, err := strconv.Atoi(strings.TrimSpace(value))

@@ -500,6 +500,19 @@ func (s Service) ListPayments(ctx context.Context, scope common.TenantScope) ([]
 	return s.payments.ListByBusiness(ctx, scope)
 }
 
+func (s Service) ListMoneyTransactions(
+	ctx context.Context,
+	scope common.TenantScope,
+	period ports.MoneyPeriod,
+	limit int,
+	offset int,
+) ([]ports.MoneyTransactionRecord, error) {
+	if scope.BusinessID.IsZero() {
+		return nil, ErrInvalidCharge
+	}
+	return s.payments.ListMoneyTransactions(ctx, scope, period, limit, offset)
+}
+
 func authorizeMoneyManagement(scope common.TenantScope, role business.UserRole) error {
 	if scope.BusinessID.IsZero() {
 		return ErrInvalidCharge

@@ -9,14 +9,13 @@ import {
   type LinksFunction,
   useLocation,
   useNavigation,
+  useRouteError,
 } from "react-router";
 import Box from "@mui/material/Box";
-import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
-import Button from "@mui/material/Button";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 import { fetchWithTimeout } from "./lib/server-fetch";
+import { StorefrontSystemPage } from "./components/system-pages";
 
 const readBrandingEnv = (key: string): string | undefined =>
   typeof process !== "undefined" ? process.env[key] : undefined;
@@ -153,39 +152,42 @@ function RouteProgressBar() {
   );
 }
 
+function errorStatus(error: unknown): number | undefined {
+  if (isRouteErrorResponse(error)) {
+    return error.status;
+  }
+  if (error instanceof Response) {
+    return error.status;
+  }
+  if (typeof error === "object" && error !== null) {
+    const status = (error as { status?: unknown; statusCode?: unknown }).status;
+    const statusCode = (error as { status?: unknown; statusCode?: unknown })
+      .statusCode;
+    if (typeof status === "number") return status;
+    if (typeof statusCode === "number") return statusCode;
+  }
+  return undefined;
+}
+
 export function ErrorBoundary({ error }: { error: unknown }) {
-  const is404 = isRouteErrorResponse(error) && error.status === 404;
+  const routeError = useRouteError();
+  const status = errorStatus(error ?? routeError);
+  const is404 = status === 404;
   const title = is404 ? "Not found" : "Something went wrong";
   const message = is404
-    ? "This store or design is not available. The link may be wrong, or the item may have been removed."
+    ? "This store, design or order page is not available. The link may be wrong, or the item may have been removed."
     : "We hit an unexpected error. Please try again in a moment.";
 
   return (
-    <Box
-      sx={{
-        minHeight: "80vh",
-        display: "grid",
-        placeItems: "center",
-        bgcolor: "background.default",
-      }}
-    >
-      <Container sx={{ textAlign: "center", maxWidth: 520 }}>
-        <Typography
-          variant="overline"
-          sx={{ color: "primary.main", fontWeight: 700 }}
-        >
-          {is404 ? "404" : "Error"}
-        </Typography>
-        <Typography variant="h4" component="h1" sx={{ mt: 1 }}>
-          {title}
-        </Typography>
-        <Typography sx={{ mt: 2, color: "text.secondary" }}>
-          {message}
-        </Typography>
-        <Button href="/" variant="contained" size="large" sx={{ mt: 4 }}>
-          Go home
-        </Button>
-      </Container>
-    </Box>
+    <StorefrontSystemPage
+      code={is404 ? "404" : "Error"}
+      eyebrow={is404 ? "404 · Not found" : "Storefront error"}
+      title={title}
+      message={message}
+      primaryHref="/"
+      primaryLabel="Back to storefront"
+      secondaryHref={is404 ? "/discover" : undefined}
+      secondaryLabel={is404 ? "Browse studios" : undefined}
+    />
   );
 }

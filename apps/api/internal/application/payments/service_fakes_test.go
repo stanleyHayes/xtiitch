@@ -180,8 +180,18 @@ func (r *fakePaymentRepo) ListManualTakings(_ context.Context, _ common.TenantSc
 	return nil, nil
 }
 
-func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope) (ports.MoneySummary, error) {
+func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod) (ports.MoneySummary, error) {
 	return r.summary, nil
+}
+
+func (r *fakePaymentRepo) ListMoneyTransactions(
+	_ context.Context,
+	_ common.TenantScope,
+	_ ports.MoneyPeriod,
+	_ int,
+	_ int,
+) ([]ports.MoneyTransactionRecord, error) {
+	return nil, nil
 }
 
 func (r *fakePaymentRepo) RecordProviderEvent(_ context.Context, input ports.RecordProviderEventInput) (bool, error) {
@@ -208,7 +218,7 @@ func (r *fakePaymentRepo) UpsertProviderSettlements(_ context.Context, _ common.
 	return len(settlements), nil
 }
 
-func (r *fakePaymentRepo) ListProviderSettlements(_ context.Context, _ common.TenantScope, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+func (r *fakePaymentRepo) ListProviderSettlements(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
 	r.settlementsPaging = []int{limit, offset}
 	return r.settlementsList, nil
 }

@@ -85,7 +85,7 @@ func TestMoneySummaryAggregatesTenantIncome(t *testing.T) {
 	seedMoneyFixtures(t, pool)
 	defer cleanupMoneyFixtures(t, pool)
 
-	summary, err := NewPaymentRepository(pool).MoneySummary(context.Background(), mtScope())
+	summary, err := NewPaymentRepository(pool).MoneySummary(context.Background(), mtScope(), ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("money summary: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestRecordAndListManualTakings(t *testing.T) {
 		t.Fatalf("expected fee-free offline taking, got %+v", takings[0])
 	}
 
-	summary, err := repo.MoneySummary(ctx, mtScope())
+	summary, err := repo.MoneySummary(ctx, mtScope(), ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("summary: %v", err)
 	}

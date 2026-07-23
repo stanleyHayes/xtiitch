@@ -372,7 +372,7 @@ func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope commo
 // per the mirrored Paystack settlements — so it rises with sales and drops the
 // moment a payout sync lands (§3.3). All-time income is the same figure without
 // the payout deduction: cumulative earnings since joining, never reduced.
-func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.TenantScope) (ports.MoneySummary, error) {
+func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) (ports.MoneySummary, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.MoneySummary{}, err
@@ -393,7 +393,9 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 			coalesce(sum(amount_minor - commission_minor - coalesce(provider_fee_minor, 0)), 0)
 		from payments
 		where business_id = $1 and status = 'succeeded' and through_platform = true
-	`, scope.BusinessID.String()).Scan(
+			and ($2::timestamptz is null or created_at >= $2)
+			and ($3::timestamptz is null or created_at < $3)
+	`, scope.BusinessID.String(), period.From, period.To).Scan(
 		&summary.ThroughPlatformMinor,
 		&summary.CommissionMinor,
 		&summary.XtiitchTaxMinor,
@@ -406,19 +408,27 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 		select coalesce(sum(amount_minor), 0)
 		from paystack_settlements
 		where business_id = $1 and status = 'success'
-	`, scope.BusinessID.String()).Scan(&summary.SettledPayoutsMinor); err != nil {
+			and ($2::timestamptz is null or coalesce(settled_at, created_at) >= $2)
+			and ($3::timestamptz is null or coalesce(settled_at, created_at) < $3)
+	`, scope.BusinessID.String(), period.From, period.To).Scan(&summary.SettledPayoutsMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
 	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(amount_minor), 0) from manual_takings where business_id = $1
-	`, scope.BusinessID.String()).Scan(&summary.ManualTakingsMinor); err != nil {
+		select coalesce(sum(amount_minor), 0)
+		from manual_takings
+		where business_id = $1
+			and ($2::timestamptz is null or taken_at >= $2)
+			and ($3::timestamptz is null or taken_at < $3)
+	`, scope.BusinessID.String(), period.From, period.To).Scan(&summary.ManualTakingsMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
 	if err := tx.QueryRow(ctx, `
 		select coalesce(sum(commission_minor), 0)
 		from manual_takings
 		where business_id = $1 and commission_status in ('due', 'invoiced')
-	`, scope.BusinessID.String()).Scan(&summary.OfflineCommissionDueMinor); err != nil {
+			and ($2::timestamptz is null or taken_at >= $2)
+			and ($3::timestamptz is null or taken_at < $3)
+	`, scope.BusinessID.String(), period.From, period.To).Scan(&summary.OfflineCommissionDueMinor); err != nil {
 		return ports.MoneySummary{}, err
 	}
 
@@ -433,6 +443,95 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 		return ports.MoneySummary{}, err
 	}
 	return summary, nil
+}
+
+func (repo PaymentRepository) ListMoneyTransactions(
+	ctx context.Context,
+	scope common.TenantScope,
+	period ports.MoneyPeriod,
+	limit int,
+	offset int,
+) ([]ports.MoneyTransactionRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer rollbackPaymentUnlessCommitted(ctx, tx)
+
+	if err := setTenantScope(ctx, tx, scope); err != nil {
+		return nil, err
+	}
+
+	rows, err := tx.Query(ctx, `
+		select p.payment_id::text,
+			p.order_id::text,
+			p.provider_reference,
+			p.purpose,
+			coalesce(p.method, ''),
+			p.amount_minor,
+			coalesce(p.settle_amount_minor, p.amount_minor) as design_cost_minor,
+			coalesce(p.provider_fee_minor, 0) as paystack_fee_minor,
+			greatest(p.commission_minor - coalesce(p.xtiitch_tax_minor, 0), 0) as xtiitch_fee_minor,
+			coalesce(p.xtiitch_tax_minor, 0) as xtiitch_tax_minor,
+			p.amount_minor - p.commission_minor - coalesce(p.provider_fee_minor, 0) as take_home_minor,
+			coalesce(d.title, ''),
+			coalesce(c.display_name, ''),
+			p.created_at
+		from payments p
+		left join orders o on o.order_id = p.order_id and o.business_id = p.business_id
+		left join designs d on d.design_id = o.design_id and d.business_id = p.business_id
+		left join customers c on c.customer_id = o.customer_id
+		where p.business_id = $1
+			and p.status = 'succeeded'
+			and p.through_platform = true
+			and ($2::timestamptz is null or p.created_at >= $2)
+			and ($3::timestamptz is null or p.created_at < $3)
+		order by p.created_at desc
+		limit $4 offset $5
+	`, scope.BusinessID.String(), period.From, period.To, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []ports.MoneyTransactionRecord
+	for rows.Next() {
+		var record ports.MoneyTransactionRecord
+		var paymentID string
+		var orderID sql.NullString
+		if err := rows.Scan(
+			&paymentID,
+			&orderID,
+			&record.ProviderReference,
+			&record.Purpose,
+			&record.Method,
+			&record.AmountMinor,
+			&record.DesignCostMinor,
+			&record.PaystackFeeMinor,
+			&record.XtiitchFeeMinor,
+			&record.XtiitchTaxMinor,
+			&record.TakeHomeMinor,
+			&record.DesignTitle,
+			&record.CustomerName,
+			&record.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		record.PaymentID = common.ID(paymentID)
+		if orderID.Valid {
+			value := common.ID(orderID.String)
+			record.OrderID = &value
+		}
+		records = append(records, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
 }
 
 func rollbackPaymentUnlessCommitted(ctx context.Context, tx pgx.Tx) {

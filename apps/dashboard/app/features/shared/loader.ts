@@ -8,7 +8,11 @@ import {
   loadDashboardJSON,
   readDashboardJSON,
 } from "./api";
-import { parseDashboardSection, parseOrderFilter } from "./parsers";
+import {
+  parseDashboardSection,
+  parseMoneyPeriod,
+  parseOrderFilter,
+} from "./parsers";
 import {
   canManageDashboard,
   stripStaffMoneyDetails,
@@ -31,7 +35,9 @@ import type {
   ManualTaking,
   MeasurementField,
   MoneyPayout,
+  MoneyPeriod,
   MoneySummary,
+  MoneyTransaction,
   NotificationSummary,
   OrderFilter,
   OrderSummary,
@@ -51,6 +57,8 @@ export type DashboardLoaderData = {
   stages: Stage[];
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
+  moneyPeriod: MoneyPeriod;
+  moneyTransactions: MoneyTransaction[];
   manualTakings: ManualTaking[];
   payouts: MoneyPayout[];
   bookings: BookingSummary[];
@@ -97,6 +105,9 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   ]);
   const canManage = canManageDashboard(currentUser.role);
   const section = parseDashboardSection(params.section, canManage);
+  const moneyPeriod = parseMoneyPeriod(
+    url.searchParams.get("money") ?? (section === "money" ? "today" : "all_time"),
+  );
   const dataWarnings: string[] = [];
   const readResult = <T,>(result: { data: T; warning: string | null }): T => {
     if (result.warning) {
@@ -159,6 +170,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
 
   let designs: Design[] = [];
   let moneySummary: MoneySummary = defaultMoneySummary;
+  let moneyTransactions: MoneyTransaction[] = [];
   let manualTakings: ManualTaking[] = [];
   let payouts: MoneyPayout[] = [];
   let availabilityWindows: AvailabilityWindow[] = [];
@@ -179,6 +191,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     const [
       designsResult,
       moneySummaryResult,
+      moneyTransactionsResult,
       takingsResult,
       payoutsResult,
       availabilityResult,
@@ -198,9 +211,15 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       ),
       loadDashboardJSON<MoneySummary>(
         request,
-        "/money/summary",
+        `/money/summary?period=${encodeURIComponent(moneyPeriod)}`,
         defaultMoneySummary,
         "Money summary could not be loaded right now.",
+      ),
+      loadDashboardJSON<{ transactions: MoneyTransaction[] }>(
+        request,
+        `/money/transactions?period=${encodeURIComponent(moneyPeriod)}&limit=100&offset=0`,
+        { transactions: [] },
+        "Today's transactions could not be loaded right now.",
       ),
       loadDashboardJSON<{ takings: ManualTaking[] }>(
         request,
@@ -212,7 +231,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       // table pages client-side, the same treatment as manual takings.
       loadDashboardJSON<{ payouts: MoneyPayout[] }>(
         request,
-        "/money/payouts?limit=50&offset=0",
+        `/money/payouts?period=${encodeURIComponent(moneyPeriod)}&limit=100&offset=0`,
         { payouts: [] },
         "Payout history could not be loaded right now.",
       ),
@@ -269,6 +288,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     ]);
     const designsData = readResult(designsResult);
     const moneySummaryData = readResult(moneySummaryResult);
+    const moneyTransactionsData = readResult(moneyTransactionsResult);
     const takingsData = readResult(takingsResult);
     const payoutsData = readResult(payoutsResult);
     const availabilityData = readResult(availabilityResult);
@@ -313,6 +333,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       all_time_income_minor: moneySummaryData.all_time_income_minor ?? 0,
       net_income_minor: moneySummaryData.net_income_minor ?? 0,
     };
+    moneyTransactions = moneyTransactionsData.transactions ?? [];
     manualTakings = takingsData.takings ?? [];
     payouts = payoutsData.payouts ?? [];
     availabilityWindows = availabilityData.windows ?? [];
@@ -356,6 +377,8 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     stages: stagesData.stages ?? [],
     measurementFields: fieldsData.fields ?? [],
     moneySummary,
+    moneyPeriod,
+    moneyTransactions,
     manualTakings,
     payouts,
     bookings: bookingsData.bookings ?? [],
