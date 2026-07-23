@@ -169,7 +169,7 @@ export function Footer() {
           >
             <Box>
               <Typography sx={{ fontWeight: 850, fontSize: 18 }}>
-                Follow the stitch
+                Follow Xtiitch
               </Typography>
               <Typography
                 variant="body2"
