@@ -199,6 +199,7 @@ export default function Home() {
       <CtaBand
         title="Get your fashion business online"
         body="Create your store now and start on the Free plan. No monthly cost to get online."
+        image="/images/cta-welcome.webp"
       />
     </>
   );

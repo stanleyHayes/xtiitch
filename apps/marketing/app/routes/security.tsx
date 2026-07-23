@@ -218,6 +218,7 @@ export default function Security() { // eslint-disable-line max-lines-per-functi
       <CtaBand
         title="Payments you and your customers can trust"
         body="Create your store and start taking secure payments through your connected Paystack account."
+        image="/images/cta-security.webp"
       />
     </>
   );

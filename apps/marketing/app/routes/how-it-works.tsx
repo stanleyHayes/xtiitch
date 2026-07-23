@@ -129,6 +129,7 @@ export default function HowItWorks() {
       <CtaBand
         title="Ready to set up your store?"
         body="Create your store for free and set up your first designs, sizes and production stages."
+        image="/images/cta-how-it-works.webp"
       />
     </>
   );

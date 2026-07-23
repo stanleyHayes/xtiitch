@@ -11,7 +11,16 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { site } from "../../content";
 import { riseInSx } from "./shared";
 
-export function CtaBand({ title, body }: { title: string; body: string }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function CtaBand({
+  title,
+  body,
+  image,
+}: {
+  title: string;
+  body: string;
+  image: string;
+}) {
   const rootData = useRouteLoaderData("root") as
     | { signupUrl?: string }
     | undefined;
@@ -27,7 +36,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) { // e
     >
       <Box
         component="img"
-        src="/images/cta-welcome.webp"
+        src={image}
         alt=""
         aria-hidden
         loading="lazy"

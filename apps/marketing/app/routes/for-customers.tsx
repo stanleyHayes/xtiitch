@@ -134,6 +134,7 @@ export default function ForCustomers() {
       <CtaBand
         title="Run a fashion business?"
         body="Give your customers this experience. Create your store for free today."
+        image="/images/cta-customers.webp"
       />
     </>
   );

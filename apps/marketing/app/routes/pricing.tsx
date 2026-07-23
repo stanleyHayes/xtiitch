@@ -127,6 +127,7 @@ export default function Pricing() {
       <CtaBand
         title="Start on Free, upgrade when it pays off"
         body="There’s no monthly cost to get online. Create your store now and choose a paid plan whenever the lower sales fee and added tools make sense."
+        image="/images/cta-pricing.webp"
       />
     </>
   );

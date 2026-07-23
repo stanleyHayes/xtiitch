@@ -230,6 +230,7 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
       <CtaBand
         title="Ready to grow with a cleaner system?"
         body="Start your store for free. Referral, affiliate and sponsored programmes remain operator-managed, while promotion codes are currently parked."
+        image="/images/cta-growth.webp"
       />
     </>
   );

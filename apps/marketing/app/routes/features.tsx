@@ -151,6 +151,7 @@ export default function Features() {
       <CtaBand
         title="See it working for your shop"
         body="Start for free and set up your store, sizes and first designs today."
+        image="/images/cta-features.webp"
       />
     </>
   );

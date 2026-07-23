@@ -137,6 +137,7 @@ export default function Faq() {
       <CtaBand
         title="Still have a question?"
         body="Start your store for free, add what you sell, and contact support whenever you need help."
+        image="/images/cta-faq.webp"
       />
     </>
   );
