@@ -9,11 +9,17 @@ import { pageMeta } from "../components/seo";
 import {
   CtaBand,
   PageHero,
+  PlanCapabilityMatrix,
   PlanCards,
   Section,
   SectionHeading,
 } from "../components/ui";
-import { growthProgrammes, plans, pricingNotes } from "../content";
+import {
+  growthProgrammes,
+  planCapabilityRows,
+  plans,
+  pricingNotes,
+} from "../content";
 import { loadLivePlanPricing, withLivePricing } from "../lib/pricing";
 
 export function meta(): MetaDescriptor[] {
@@ -48,6 +54,15 @@ export default function Pricing() {
       </Section>
 
       <Section alt>
+        <SectionHeading
+          eyebrow="Plan capability matrix"
+          title="The limits and unlocks, side by side"
+          subtitle="Orders and customers stay unlimited on every tier. The plan changes catalogue capacity, branding, team size, insight depth, export formats, report schedules and support."
+        />
+        <PlanCapabilityMatrix rows={planCapabilityRows} />
+      </Section>
+
+      <Section>
         <SectionHeading
           eyebrow="Platform programmes"
           title="Operator-managed programmes sit outside plan entitlements"
@@ -92,7 +107,7 @@ export default function Pricing() {
         </Box>
       </Section>
 
-      <Section>
+      <Section alt>
         <SectionHeading
           eyebrow="The fine print, in plain words"
           title="How the sales fee works"

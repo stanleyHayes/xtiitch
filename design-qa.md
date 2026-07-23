@@ -48,6 +48,57 @@ final result: passed
 
 ---
 
+# Landing hero provenance badge design QA
+
+## Evidence
+
+- Source visual truth: user-provided conversation screenshot of the former outlined “Built for Ghanaian fashion businesses” label.
+- Desktop implementation: `/Users/shayford/Desktop/Dev/Projects/xtiitch/.artifacts/design-qa/landing-badge-desktop.png`.
+- Mobile implementation: `/Users/shayford/Desktop/Dev/Projects/xtiitch/.artifacts/design-qa/landing-badge-mobile.png`.
+- Desktop viewport: 1419 × 774 CSS px at density 1; focused crop 270 × 100 px.
+- Mobile viewport and capture: 390 × 844 CSS px at density 1.
+- State: landing-page hero, initial state.
+
+## Comparison
+
+The old source read like a large outlined button and competed with the headline.
+The implementation is a compact 48 px provenance marker with an MUI location
+icon, a gold “Built in Ghana” eyebrow, and a supporting “For fashion
+businesses” line. Its smaller translucent surface preserves the established
+burgundy, cream, gold, and photographic hero language.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing product font stack retained; the two copy
+  levels are legible, optically distinct, and do not wrap.
+- Spacing and layout rhythm: balanced icon-to-copy gap and the existing 24 px
+  separation before the headline remain intact.
+- Colors and visual tokens: existing cream, gold, and dark hero colors retained
+  with strong contrast against the photograph.
+- Image quality and asset fidelity: no image asset was added or altered; the
+  existing hero crop remains unobstructed.
+- Copy and content: the original meaning is preserved with clearer hierarchy.
+
+## Findings and comparison history
+
+- Resolved P2: the former label resembled a disabled button and carried too much
+  visual weight.
+- Desktop and 390 px mobile captures show no wrapping or horizontal overflow.
+- No application-generated browser error was observed; installed-extension
+  listener warnings were excluded.
+- No actionable P0, P1, or P2 finding remains.
+
+## Automated verification
+
+- Marketing type generation and TypeScript: passed
+- Marketing ESLint with zero warnings: passed
+- Marketing production client and SSR builds: passed
+- `git diff --check`: passed
+
+final result: passed
+
+---
+
 # Marketing component redesign QA
 
 ## Evidence

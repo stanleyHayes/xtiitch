@@ -13,6 +13,8 @@ import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import MailRoundedIcon from "@mui/icons-material/MailRounded";
 import ArticleRoundedIcon from "@mui/icons-material/ArticleRounded";
 import PrivacyTipRoundedIcon from "@mui/icons-material/PrivacyTipRounded";
+import ExploreRoundedIcon from "@mui/icons-material/ExploreRounded";
+import CheckroomRoundedIcon from "@mui/icons-material/CheckroomRounded";
 
 export const footerGroups: {
   heading: string;
@@ -42,6 +44,21 @@ export const footerGroups: {
     icon: <GroupsRoundedIcon />,
     links: [
       {
+        label: "Explore Xtiitch",
+        href: "/discover",
+        icon: <ExploreRoundedIcon />,
+      },
+      {
+        label: "Browse shops",
+        href: "/shops",
+        icon: <StorefrontRoundedIcon />,
+      },
+      {
+        label: "Browse designs",
+        href: "/designs",
+        icon: <CheckroomRoundedIcon />,
+      },
+      {
         label: "For customers",
         href: "/for-customers",
         icon: <GroupsRoundedIcon />,
@@ -55,8 +72,8 @@ export const footerGroups: {
     links: [
       { label: "Security", href: "/security", icon: <SecurityRoundedIcon /> },
       {
-        label: "Contact support",
-        href: "mailto:support@xtiitch.com",
+        label: "Contact",
+        href: "/contact",
         icon: <MailRoundedIcon />,
       },
     ],

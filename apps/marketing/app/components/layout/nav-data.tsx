@@ -8,6 +8,8 @@ import TrendingUpRoundedIcon from "@mui/icons-material/TrendingUpRounded";
 import GroupsRoundedIcon from "@mui/icons-material/GroupsRounded";
 import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
+import ExploreRoundedIcon from "@mui/icons-material/ExploreRounded";
+import MailRoundedIcon from "@mui/icons-material/MailRounded";
 
 export type NavItem = {
   label: string;
@@ -26,6 +28,12 @@ export const navGroups: NavGroup[] = [
     label: "Discover",
     blurb: "Browse real shops and designs on Xtiitch.",
     items: [
+      {
+        label: "Explore Xtiitch",
+        href: "/discover",
+        description: "Search across studios, styles and available pieces.",
+        icon: <ExploreRoundedIcon />,
+      },
       {
         label: "Shops",
         href: "/shops",
@@ -91,6 +99,12 @@ export const navGroups: NavGroup[] = [
         href: "/faq",
         description: "Answers on payments, deposits, refunds and safety.",
         icon: <HelpRoundedIcon />,
+      },
+      {
+        label: "Contact",
+        href: "/contact",
+        description: "Talk to Xtiitch about support, partnerships or your store.",
+        icon: <MailRoundedIcon />,
       },
     ],
   },

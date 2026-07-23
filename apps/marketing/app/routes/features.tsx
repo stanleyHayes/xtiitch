@@ -6,20 +6,27 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { pageMeta } from "../components/seo";
 import {
   CtaBand,
+  CapabilityDirectory,
   Eyebrow,
   FeatureGrid,
   MeasurementRouteGrid,
   PageHero,
+  ProductTour,
   Section,
   SectionHeading,
 } from "../components/ui";
-import { features, growthProgrammes, measurementRoutes } from "../content";
+import {
+  capabilityAreas,
+  features,
+  growthProgrammes,
+  measurementRoutes,
+} from "../content";
 
 export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Features",
     description:
-      "Storefront, catalogue, orders, tracking, payments, bookings, money tracker, notifications, plan-based branding, design waiting lists and two-step security — everything a Ghanaian fashion business needs in one dashboard.",
+      "See every Xtiitch capability across the business workspace, customer storefront, payments, fulfilment, CRM, analytics, team access and security — including what varies by plan.",
     path: "/features",
   });
 }
@@ -34,6 +41,20 @@ export default function Features() {
       />
 
       <Section>
+        <SectionHeading
+          eyebrow="See the product"
+          title="From discovery to delivery, on screen"
+          subtitle="These are real Xtiitch interfaces from the storefront and customer experience. The product tour shows what customers use before the full capability directory explains every operational tool."
+        />
+        <ProductTour />
+      </Section>
+
+      <Section alt>
+        <SectionHeading
+          eyebrow="Selling essentials"
+          title="The customer journey, from link to handover"
+          subtitle="These are the core building blocks customers and fashion businesses use most often. Availability notes show where setup or a plan affects the experience."
+        />
         <FeatureGrid items={features} />
         <Box
           sx={{
@@ -137,6 +158,15 @@ export default function Features() {
             ))}
           </Box>
         </Box>
+      </Section>
+
+      <Section>
+        <SectionHeading
+          eyebrow="Complete capability map"
+          title="What the business, staff and customer can actually do"
+          subtitle="Nothing important is hidden behind a vague feature name. This map covers the operational dashboard, public storefront and the safeguards around both."
+        />
+        <CapabilityDirectory areas={capabilityAreas} />
       </Section>
 
       <Section alt>

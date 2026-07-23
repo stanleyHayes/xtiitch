@@ -2,11 +2,11 @@ import { Link as RouterLink, useRouteLoaderData } from "react-router";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
 import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
 import { site } from "../../content";
 
 const homeRiseSx = (delayMs = 0) => ({
@@ -116,18 +116,67 @@ export function Hero() { // eslint-disable-line max-lines-per-function -- large 
           }}
         >
           <Box sx={{ maxWidth: 720, color: "common.white" }}>
-            <Chip
-              label="Built for Ghanaian fashion businesses"
+            <Box
               sx={{
                 mb: 3,
-                fontWeight: 700,
-                color: "common.white",
-                borderColor: "rgba(255,255,255,0.6)",
-                bgcolor: "rgba(var(--surface-rgb), 0.08)",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 1.25,
+                py: 0.75,
+                pr: 2,
+                pl: 0.75,
+                border: "1px solid rgba(255,255,255,0.24)",
+                borderRadius: 999,
+                bgcolor: "rgba(21,17,26,0.52)",
+                boxShadow: "0 12px 34px rgba(0,0,0,0.2)",
+                backdropFilter: "blur(14px)",
                 ...homeRiseSx(80),
               }}
-              variant="outlined"
-            />
+            >
+              <Box
+                sx={{
+                  width: 34,
+                  height: 34,
+                  display: "grid",
+                  placeItems: "center",
+                  borderRadius: "50%",
+                  bgcolor: "rgba(250,246,242,0.14)",
+                  color: "#f1c46b",
+                }}
+              >
+                <LocationOnRoundedIcon sx={{ fontSize: 20 }} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  component="span"
+                  sx={{
+                    display: "block",
+                    color: "#f1c46b",
+                    fontSize: 10,
+                    lineHeight: 1.2,
+                    fontWeight: 800,
+                    letterSpacing: "0.16em",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Built in Ghana
+                </Typography>
+                <Typography
+                  component="span"
+                  sx={{
+                    display: "block",
+                    mt: 0.25,
+                    color: "common.white",
+                    fontSize: { xs: 13, sm: 14 },
+                    lineHeight: 1.2,
+                    fontWeight: 750,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  For fashion businesses
+                </Typography>
+              </Box>
+            </Box>
             <Typography
               variant="h1"
               component="h1"

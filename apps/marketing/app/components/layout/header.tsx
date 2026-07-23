@@ -49,7 +49,7 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
       color="transparent"
       sx={{
         top: 0,
-        py: { xs: 1, md: 1.25 },
+        py: { xs: 0.75, md: 1.25 },
         backdropFilter: "saturate(180%) blur(14px)",
         backgroundColor: "rgba(var(--surface-rgb), 0.78)",
         borderBottom: "1px solid rgba(233,222,214,0.72)",
@@ -63,15 +63,33 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
         <Toolbar
           disableGutters
           sx={{
-            minHeight: { xs: 58, md: 62 },
+            minHeight: { xs: 54, md: 62 },
             gap: 2,
-            px: { xs: 1.25, md: 1.5 },
-            py: 0.75,
+            px: { xs: 1.5, md: 1.5 },
+            py: { xs: 0.5, md: 0.75 },
             border: "1px solid",
-            borderColor: "divider",
-            borderRadius: 1,
-            bgcolor: "rgba(var(--surface-rgb), 0.8)",
-            boxShadow: "0 18px 44px -34px rgba(21,17,26,0.52)",
+            borderColor: {
+              xs: "rgba(128,0,32,0.13)",
+              md: "divider",
+            },
+            borderRadius: { xs: 2.25, md: 1 },
+            bgcolor: "rgba(var(--surface-rgb), 0.88)",
+            boxShadow: {
+              xs: "0 16px 42px -32px rgba(21,17,26,0.62)",
+              md: "0 18px 44px -34px rgba(21,17,26,0.52)",
+            },
+            "&::after": {
+              content: '""',
+              position: "absolute",
+              left: { xs: 18, md: 24 },
+              right: { xs: 18, md: 24 },
+              bottom: -1,
+              height: "1px",
+              pointerEvents: "none",
+              background:
+                "linear-gradient(90deg, transparent, rgba(128,0,32,0.62), transparent)",
+              opacity: { xs: 1, md: 0 },
+            },
           }}
         >
           <Logo />
@@ -121,34 +139,43 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
               {site.primaryCta.label}
             </Button>
           </Stack>
-          {/* The menu trigger is wrapped in the same bordered "box" treatment as
-              the logo tile so the two read as a matched pair on mobile/tablet
-              (the logo sits in a box; the hamburger now does too). */}
-          <Box
+          <Stack
+            direction="row"
+            spacing={0.75}
             sx={{
-              display: { xs: "inline-flex", md: "none" },
+              display: { xs: "flex", md: "none" },
               ml: "auto",
-              p: 0.5,
-              borderRadius: 1.5,
-              bgcolor: "rgba(var(--surface-rgb),0.8)",
-              border: "1px solid",
-              borderColor: "divider",
+              alignItems: "center",
             }}
           >
-            <IconButton
-              aria-label="Open menu"
-              edge={false}
-              onClick={() => {
-                setOpen(true);
-              }}
+            <ThemeModeToggle
               sx={{
                 width: 40,
                 height: 40,
+                bgcolor: "rgba(var(--surface-rgb),0.72)",
+              }}
+            />
+            <Button
+              aria-label="Open menu"
+              onClick={() => {
+                setOpen(true);
+              }}
+              variant="contained"
+              startIcon={<MenuIcon />}
+              sx={{
+                minWidth: 0,
+                minHeight: 40,
+                px: 1.5,
                 color: "common.white",
                 bgcolor: "primary.main",
-                borderRadius: 1.25,
-                boxShadow: "0 10px 24px -12px rgba(128,0,32,0.7)",
+                borderRadius: 999,
+                fontSize: 13,
+                boxShadow: "0 12px 28px -16px rgba(128,0,32,0.82)",
                 transition: "transform 180ms ease, background-color 180ms ease",
+                "& .MuiButton-startIcon": {
+                  mr: 0.65,
+                  "& .MuiSvgIcon-root": { fontSize: 20 },
+                },
                 "&:hover": {
                   bgcolor: "primary.dark",
                   transform: "translateY(-1px)",
@@ -156,9 +183,9 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
                 "&:active": { transform: "translateY(0)" },
               }}
             >
-              <MenuIcon />
-            </IconButton>
-          </Box>
+              Menu
+            </Button>
+          </Stack>
         </Toolbar>
       </Container>
 

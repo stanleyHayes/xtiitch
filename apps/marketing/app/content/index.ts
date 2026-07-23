@@ -5,5 +5,6 @@ export * from "./plans";
 export * from "./trust";
 export * from "./growth";
 export * from "./customers";
+export * from "./capabilities";
 export * from "./faq";
 export * from "./measurement";

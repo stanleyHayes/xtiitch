@@ -17,6 +17,14 @@ import { readableBrandText, resolveStoreBrand } from "./store-brand";
 import { StoreNavMenu } from "./store-nav-menu";
 
 const fallbackHero = "/images/storefront-atelier-hero.webp";
+const navControlSx = {
+  width: 44,
+  height: 44,
+  p: 0,
+  color: "text.primary",
+  borderRadius: 1.5,
+  "& .MuiSvgIcon-root": { fontSize: 24 },
+} as const;
 
 export function StoreHeader({ store }: { store: StoreSummary }) {
   const brand = resolveStoreBrand(store.brand_color);
@@ -140,7 +148,7 @@ function StoreNavBar({
 
         <Stack
           direction="row"
-          spacing={0.5}
+          spacing={0.75}
           sx={{ alignItems: "center", flexShrink: 0 }}
         >
           <Stack
@@ -185,7 +193,7 @@ function StoreNavBar({
               About Xtiitch
             </Button>
           </Stack>
-          <ThemeModeToggle sx={{ color: "text.primary" }} />
+          <ThemeModeToggle sx={navControlSx} />
           <StoreNavMenu />
         </Stack>
       </Container>

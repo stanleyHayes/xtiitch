@@ -28,10 +28,14 @@ export function StoreNavMenu({ onBrand }: { onBrand?: string }) {
         onClick={(event) => setAnchor(event.currentTarget)}
         sx={{
           display: { xs: "inline-flex", md: "none" },
+          width: 44,
+          height: 44,
+          p: 0,
           color: onBrand || "text.primary",
           border: "1px solid",
           borderColor: onBrand ? alpha(onBrand, 0.32) : "divider",
           borderRadius: 1.5,
+          "& .MuiSvgIcon-root": { fontSize: 24 },
         }}
       >
         <MenuRounded />
