@@ -1,6 +1,7 @@
 package ports
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/catalogue"
@@ -177,6 +178,22 @@ type SizeBandUpdateInput struct {
 	Label      string
 	Chart      []catalogue.SizeChartItem
 	Sequence   int
+}
+
+type FeedbackReportInput struct {
+	ReportID     common.ID
+	BusinessID   *common.ID
+	ReporterType string
+	Surface      string
+	Kind         string
+	Priority     string
+	Subject      string
+	Message      string
+	PageURL      string
+	UserAgent    string
+	Contact      string
+	Context      json.RawMessage
+	Stack        string
 }
 
 // PublicShopDesign is a lightweight design sample for the discovery directory.

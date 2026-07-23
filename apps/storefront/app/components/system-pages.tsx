@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import StorefrontRounded from "@mui/icons-material/StorefrontRounded";
@@ -18,6 +19,7 @@ type StorefrontSystemPageProps = {
   primaryLabel: string;
   secondaryHref?: string;
   secondaryLabel?: string;
+  beforeContent?: ReactNode;
 };
 
 export function StorefrontSystemPage({
@@ -29,6 +31,7 @@ export function StorefrontSystemPage({
   primaryLabel,
   secondaryHref,
   secondaryLabel,
+  beforeContent,
 }: StorefrontSystemPageProps) {
   return (
     <Box
@@ -43,6 +46,7 @@ export function StorefrontSystemPage({
         bgcolor: "background.default",
       }}
     >
+      {beforeContent}
       <Box
         aria-hidden
         sx={{

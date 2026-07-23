@@ -17,7 +17,7 @@ func NewCatalogueRepository(pool *pgxpool.Pool) CatalogueRepository {
 }
 
 func nullableIDArg(id *common.ID) any {
-	if id == nil {
+	if id == nil || id.IsZero() {
 		return nil
 	}
 	return id.String()

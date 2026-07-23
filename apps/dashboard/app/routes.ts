@@ -51,6 +51,7 @@ export default [
   // Resource route for the ✨ AI writing assistant (no UI; proxies to the API
   // with the session token). See routes/ai-assist.ts.
   route("ai/assist", "routes/ai-assist.ts"),
+  route("feedback", "routes/feedback.ts"),
   route("help", "routes/help.tsx"),
   route("splash", "routes/splash.tsx"),
   route("*", "routes/not-found.tsx"),

@@ -36,6 +36,7 @@ func (handler Handler) Register(router chi.Router) {
 	router.Get("/public/designs/{handle}", handler.publicDesign)
 	router.Get("/public/collections/{handle}", handler.publicCollection)
 	router.Post("/public/stores/{handle}/designs/{design_handle}/waitlist", handler.joinWaitlist)
+	router.Post("/public/feedback", handler.publicFeedback)
 
 	// Dashboard — owner-scoped catalogue management.
 	router.Group(func(protected chi.Router) {
@@ -44,6 +45,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/businesses/me", handler.getProfile)
 		protected.Get("/store-settings", handler.getSettings)
 		protected.Patch("/store-settings", handler.updateSettings)
+		protected.Post("/feedback", handler.businessFeedback)
 
 		protected.Get("/waitlist-entries", handler.listWaitlist)
 		protected.Patch("/waitlist-entries/{id}", handler.updateWaitlistStatus)

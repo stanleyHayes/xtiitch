@@ -25,6 +25,7 @@ type CatalogueRepository interface {
 	GetDesign(ctx context.Context, scope common.TenantScope, designID common.ID) (catalogue.Design, error)
 	UpdateDesign(ctx context.Context, scope common.TenantScope, input DesignInput) error
 	SetDesignStatus(ctx context.Context, scope common.TenantScope, designID common.ID, status catalogue.Status) error
+	CreateFeedbackReport(ctx context.Context, input FeedbackReportInput) error
 
 	ListDesignVariations(ctx context.Context, scope common.TenantScope, designID common.ID) ([]catalogue.DesignVariation, error)
 	CreateDesignVariation(ctx context.Context, scope common.TenantScope, input DesignVariationInput) error

@@ -15,6 +15,10 @@ import Box from "@mui/material/Box";
 import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 import { WorkspaceSystemPage } from "./components/system-pages";
+import {
+  CrashReportEffect,
+  FeedbackReporter,
+} from "./components/feedback/FeedbackReporter";
 
 export const links: LinksFunction = () => [
   { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
@@ -153,6 +157,7 @@ export default function App() {
       >
         <Outlet />
       </Box>
+      <FeedbackReporter />
     </>
   );
 }
@@ -225,6 +230,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
   const code = is404 ? "404" : isAPIUnavailable ? "503" : "Error";
   return (
     <WorkspaceSystemPage
+      beforeContent={<CrashReportEffect error={error ?? routeError} />}
       code={code}
       eyebrow={is404 ? "404 · Not found" : "Workspace alert"}
       title={title}

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import DashboardCustomizeRounded from "@mui/icons-material/DashboardCustomizeRounded";
 import ReplayRounded from "@mui/icons-material/ReplayRounded";
@@ -17,6 +18,7 @@ type WorkspaceSystemPageProps = {
   actionLabel: string;
   actionHref?: string;
   reload?: boolean;
+  beforeContent?: ReactNode;
 };
 
 export function WorkspaceSystemPage({
@@ -27,6 +29,7 @@ export function WorkspaceSystemPage({
   actionLabel,
   actionHref,
   reload = false,
+  beforeContent,
 }: WorkspaceSystemPageProps) {
   const actionProps = reload
     ? { type: "button" as const, onClick: () => window.location.reload() }
@@ -46,6 +49,7 @@ export function WorkspaceSystemPage({
         background: `linear-gradient(160deg, ${tokens.ink} 0%, ${tokens.charcoal} 58%, ${tokens.burgundy} 140%)`,
       }}
     >
+      {beforeContent}
       <Box
         aria-hidden
         sx={{

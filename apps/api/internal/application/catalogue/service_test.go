@@ -124,6 +124,7 @@ type fakeCatalogueRepo struct {
 	overrideWasSet       bool
 	overrideDeletedBand  common.ID
 	overrideWasDeleted   bool
+	feedbackReport       ports.FeedbackReportInput
 	listDesignPricesFunc func() []catalogue.BandPrice
 }
 
@@ -156,6 +157,10 @@ func (r *fakeCatalogueRepo) UpdateDesign(_ context.Context, _ common.TenantScope
 	return nil
 }
 func (r *fakeCatalogueRepo) SetDesignStatus(_ context.Context, _ common.TenantScope, _ common.ID, _ catalogue.Status) error {
+	return nil
+}
+func (r *fakeCatalogueRepo) CreateFeedbackReport(_ context.Context, input ports.FeedbackReportInput) error {
+	r.feedbackReport = input
 	return nil
 }
 func (r *fakeCatalogueRepo) CreateSizeBand(_ context.Context, _ common.TenantScope, input ports.SizeBandInput) error {

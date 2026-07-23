@@ -80,7 +80,7 @@ func (repo AdminAuthRepository) UpdateAdminSupportTicket(
 			updated_by_admin_user_id = excluded.updated_by_admin_user_id,
 			updated_at = now()
 	`, input.TicketKey,
-		current.BusinessID.String(),
+		nullableIDArg(&current.BusinessID),
 		input.Status,
 		input.Note,
 		input.Assignment,
@@ -243,10 +243,48 @@ func queryAdminSupportTickets(
 			join businesses b on b.business_id = h.business_id
 			where h.status in ('pending', 'dispatched')
 				and h.updated_at <= now() - interval '24 hours'
+
+			union all
+
+			select
+				'feedback_report:' || fr.feedback_report_id::text as ticket_key,
+				fr.business_id,
+				case
+					when fr.kind = 'crash' then 'App crash report'
+					when coalesce(nullif(fr.subject, ''), '') <> '' then fr.subject
+					else 'Customer feedback'
+				end as subject,
+				coalesce(b.name, initcap(fr.surface) || ' user') as business_name,
+				fr.priority,
+				trim(both ' ' from
+					case
+						when fr.message <> '' then fr.message
+						else 'Crash captured from ' || fr.surface || '.'
+					end
+					|| case
+						when fr.page_url <> '' then ' Page: ' || fr.page_url
+						else ''
+					end
+					|| case
+						when fr.contact <> '' then ' Contact: ' || fr.contact
+						else ''
+					end
+					|| case
+						when fr.stack <> '' then ' Stack: ' || left(fr.stack, 600)
+						else ''
+					end
+				) as summary,
+				case
+					when fr.kind = 'crash' then 'App crashes'
+					else 'Feedback'
+				end as category,
+				fr.created_at as signal_at
+			from feedback_reports fr
+			left join businesses b on b.business_id = fr.business_id
 		)
 		select
 			s.ticket_key,
-			s.business_id::text,
+			coalesce(s.business_id::text, ''),
 			s.subject,
 			s.business_name,
 			s.priority,

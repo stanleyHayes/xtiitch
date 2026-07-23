@@ -16,6 +16,10 @@ import { fontStylesheetHref, tokens } from "./theme";
 import { ThemeModeProvider } from "./theme-mode";
 import { fetchWithTimeout } from "./lib/server-fetch";
 import { StorefrontSystemPage } from "./components/system-pages";
+import {
+  CrashReportEffect,
+  FeedbackReporter,
+} from "./components/feedback/FeedbackReporter";
 
 const readBrandingEnv = (key: string): string | undefined =>
   typeof process !== "undefined" ? process.env[key] : undefined;
@@ -116,6 +120,7 @@ export default function App() {
       >
         <Outlet />
       </Box>
+      <FeedbackReporter />
     </>
   );
 }
@@ -180,6 +185,7 @@ export function ErrorBoundary({ error }: { error: unknown }) {
 
   return (
     <StorefrontSystemPage
+      beforeContent={<CrashReportEffect error={error ?? routeError} />}
       code={is404 ? "404" : "Error"}
       eyebrow={is404 ? "404 · Not found" : "Storefront error"}
       title={title}
