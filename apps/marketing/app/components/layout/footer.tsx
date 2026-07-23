@@ -12,6 +12,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { site } from "../../content";
+import { useMarketingFlags } from "../../root";
 import { tokens } from "../../theme";
 import { footerGroups, footerProof } from "./footer-data";
 import { Logo } from "./logo";
@@ -47,6 +48,18 @@ export function Footer() {
     | { signupUrl?: string }
     | undefined;
   const signupUrl = rootData?.signupUrl ?? site.primaryCta.href;
+  const flags = useMarketingFlags();
+  const visibleFooterGroups = footerGroups
+    .map((group) => ({
+      ...group,
+      links: group.links.filter((item) => {
+        if (["/discover", "/shops", "/designs"].includes(item.href)) {
+          return flags.discover;
+        }
+        return true;
+      }),
+    }))
+    .filter((group) => group.links.length > 0);
 
   return (
     <Box
@@ -302,7 +315,7 @@ export function Footer() {
               gap: { xs: 3, md: 4 },
             }}
           >
-            {footerGroups.map((group) => (
+            {visibleFooterGroups.map((group) => (
               <Box key={group.heading}>
                 <Typography
                   sx={{ mb: 1.25, color: tokens.white, fontWeight: 850 }}

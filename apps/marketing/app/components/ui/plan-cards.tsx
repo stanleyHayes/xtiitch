@@ -10,11 +10,276 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import Chip from "@mui/material/Chip";
 import Divider from "@mui/material/Divider";
+import { alpha } from "@mui/material/styles";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import { type Plan, site } from "../../content";
+import { tokens } from "../../theme";
 import { fadeInSx } from "./shared";
 
-export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+function splitPlanName(name: string): { title: string; subtitle: string } {
+  const [title, ...rest] = name.split(" — ");
+  return { title: title ?? name, subtitle: rest.join(" — ") };
+}
+
+function getSupportLine(plan: Plan, yearly: boolean): string {
+  if (yearly && plan.yearlySaving) return plan.yearlySaving;
+  if (plan.quarterlyPrice) return `${plan.quarterlyPrice} quarterly`;
+  return "Start without monthly cost";
+}
+
+function PlanCardHeader({
+  accent,
+  plan,
+  subtitle,
+  title,
+}: {
+  accent: string;
+  plan: Plan;
+  subtitle: string;
+  title: string;
+}) {
+  return (
+    <Stack
+      direction="row"
+      sx={{
+        alignItems: "flex-start",
+        justifyContent: "space-between",
+        gap: 1.5,
+      }}
+    >
+      <Box>
+        <Box
+          sx={{
+            width: 46,
+            height: 46,
+            borderRadius: 2,
+            display: "grid",
+            placeItems: "center",
+            color: plan.highlight ? tokens.white : accent,
+            bgcolor: plan.highlight ? accent : alpha(accent, 0.12),
+            border: `1px solid ${alpha(accent, 0.22)}`,
+            mb: 1.5,
+          }}
+        >
+          <AutoAwesomeRoundedIcon />
+        </Box>
+        <Typography variant="h5" component="h3">
+          {title}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={{ mt: 0.4, color: "text.secondary", fontWeight: 750 }}
+        >
+          {subtitle}
+        </Typography>
+      </Box>
+      {plan.badge ? (
+        <Chip
+          size="small"
+          label={plan.badge}
+          sx={{
+            bgcolor: alpha(accent, plan.highlight ? 0.16 : 0.1),
+            color: accent,
+            fontWeight: 900,
+          }}
+        />
+      ) : null}
+    </Stack>
+  );
+}
+
+function PlanPricePanel({
+  accent,
+  plan,
+  yearly,
+}: {
+  accent: string;
+  plan: Plan;
+  yearly: boolean;
+}) {
+  return (
+    <Box
+      sx={{
+        p: 2,
+        borderRadius: 3,
+        bgcolor: alpha(accent, plan.highlight ? 0.1 : 0.07),
+        border: `1px solid ${alpha(accent, 0.14)}`,
+      }}
+    >
+      <Stack direction="row" sx={{ alignItems: "baseline", gap: 1 }}>
+        <Typography
+          variant="h3"
+          component="p"
+          sx={{ color: accent, letterSpacing: "-0.04em" }}
+        >
+          {yearly ? plan.yearlyPrice : plan.monthlyPrice}
+        </Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }}>
+          {yearly ? "/year" : "/month"}
+        </Typography>
+      </Stack>
+      <Typography variant="body2" sx={{ mt: 0.75, color: "text.secondary" }}>
+        {getSupportLine(plan, yearly)}
+      </Typography>
+    </Box>
+  );
+}
+
+function PlanIncludedList({
+  accent,
+  includes,
+}: {
+  accent: string;
+  includes: string[];
+}) {
+  const included = includes.slice(0, 5);
+  const extraCount = Math.max(includes.length - included.length, 0);
+
+  return (
+    <Stack spacing={1.1} sx={{ flexGrow: 1 }}>
+      {included.map((line) => (
+        <Box
+          key={line}
+          sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}
+        >
+          <CheckCircleRoundedIcon
+            fontSize="small"
+            sx={{ color: accent, mt: "2px" }}
+            aria-hidden
+          />
+          <Typography variant="body2">{line}</Typography>
+        </Box>
+      ))}
+      {extraCount > 0 ? (
+        <Typography
+          variant="caption"
+          sx={{ color: "text.secondary", fontWeight: 850, pl: 3.6 }}
+        >
+          + {extraCount} more plan benefits
+        </Typography>
+      ) : null}
+    </Stack>
+  );
+}
+
+function PlanButton({
+  plan,
+  signupUrl,
+  title,
+}: {
+  plan: Plan;
+  signupUrl: string;
+  title: string;
+}) {
+  const label = plan.code === "free" ? "Start for free" : `Choose ${title}`;
+
+  return (
+    <Button
+      component="a"
+      href={signupUrl}
+      variant={plan.highlight ? "contained" : "outlined"}
+      size="large"
+      disabled={!plan.available}
+      endIcon={<ArrowForwardRoundedIcon />}
+      sx={{
+        mt: 3,
+        borderRadius: 999,
+        whiteSpace: "nowrap",
+        ...(plan.highlight ? { bgcolor: tokens.burgundy } : null),
+      }}
+    >
+      {plan.available ? label : "Coming later"}
+    </Button>
+  );
+}
+
+function PlanCard({
+  plan,
+  index,
+  signupUrl,
+  yearly,
+}: {
+  plan: Plan;
+  index: number;
+  signupUrl: string;
+  yearly: boolean;
+}) {
+  const { title, subtitle } = splitPlanName(plan.name);
+  const accent = plan.highlight ? tokens.burgundy : tokens.gold;
+
+  return (
+    <Card
+      key={plan.name}
+      sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        overflow: "hidden",
+        borderRadius: 4,
+        border: "1px solid",
+        borderColor: plan.highlight
+          ? alpha(tokens.burgundy, 0.42)
+          : alpha(tokens.ink, 0.1),
+        opacity: plan.available ? 1 : 0.88,
+        bgcolor: "rgba(var(--surface-rgb),0.94)",
+        boxShadow: plan.highlight
+          ? `0 34px 90px ${alpha(tokens.burgundy, 0.22)}`
+          : `0 24px 70px ${alpha(tokens.ink, 0.08)}`,
+        ...fadeInSx(80 + index * 80),
+        "&::before": {
+          content: '""',
+          position: "absolute",
+          inset: 0,
+          pointerEvents: "none",
+          background: plan.highlight
+            ? `radial-gradient(circle at 20% 0%, ${alpha(tokens.burgundy, 0.2)}, transparent 38%)`
+            : `radial-gradient(circle at 20% 0%, ${alpha(tokens.gold, 0.14)}, transparent 38%)`,
+        },
+        "&:hover": {
+          transform: "translateY(-6px)",
+          boxShadow: plan.highlight
+            ? `0 42px 100px ${alpha(tokens.burgundy, 0.28)}`
+            : `0 34px 82px ${alpha(tokens.ink, 0.14)}`,
+        },
+      }}
+    >
+      <CardContent
+        sx={{
+          position: "relative",
+          p: { xs: 2.5, md: 3 },
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+        }}
+      >
+        <Stack spacing={2}>
+          <PlanCardHeader
+            accent={accent}
+            plan={plan}
+            subtitle={subtitle}
+            title={title}
+          />
+          <PlanPricePanel accent={accent} plan={plan} yearly={yearly} />
+        </Stack>
+
+        <Typography
+          variant="body2"
+          sx={{ mt: 2.25, color: "text.secondary", lineHeight: 1.7 }}
+        >
+          {plan.summary}
+        </Typography>
+        <Divider sx={{ my: 2.25 }} />
+        <PlanIncludedList accent={accent} includes={plan.includes} />
+        <PlanButton plan={plan} signupUrl={signupUrl} title={title} />
+      </CardContent>
+    </Card>
+  );
+}
+
+export function PlanCards({ items }: { items: Plan[] }) {
   const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
   const yearly = period === "yearly";
   // Picking a plan should start signup (self-serve register), not the waitlist.
@@ -75,142 +340,14 @@ export function PlanCards({ items }: { items: Plan[] }) { // eslint-disable-line
           alignItems: "stretch",
         }}
       >
-        {items.map((plan, index) => ( // eslint-disable-line complexity -- large presentational component; refactor in follow-up
-        <Card
-          key={plan.name}
-          sx={{
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-            position: "relative",
-            overflow: "hidden",
-            borderColor: plan.highlight ? "primary.main" : "divider",
-            borderWidth: plan.highlight ? 2 : 1,
-            opacity: plan.available ? 1 : 0.92,
-            bgcolor: plan.highlight
-              ? "rgba(var(--surface-rgb),0.98)"
-              : "background.paper",
-            transform: plan.highlight ? { md: "translateY(-10px)" } : "none",
-            boxShadow: plan.highlight
-              ? "0 34px 86px -52px rgba(128,0,32,0.76)"
-              : undefined,
-            ...fadeInSx(80 + index * 80),
-            "&:hover": {
-              transform: plan.highlight
-                ? { xs: "translateY(-4px)", md: "translateY(-14px)" }
-                : "translateY(-4px)",
-              boxShadow: plan.highlight
-                ? "0 38px 92px -50px rgba(128,0,32,0.82)"
-                : "0 30px 70px -50px rgba(21,17,26,0.55)",
-            },
-          }}
-        >
-          <Box
-            aria-hidden
-            sx={{
-              height: 8,
-              bgcolor: plan.highlight ? "primary.main" : "rgba(128,0,32,0.12)",
-            }}
+        {items.map((plan, index) => (
+          <PlanCard
+            key={plan.name}
+            plan={plan}
+            index={index}
+            signupUrl={signupUrl}
+            yearly={yearly}
           />
-          <CardContent
-            sx={{
-              p: { xs: 3, md: 3.25 },
-              display: "flex",
-              flexDirection: "column",
-              height: "100%",
-            }}
-          >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                mb: 1,
-              }}
-            >
-              <Typography variant="h5" component="h3">
-                {plan.name}
-              </Typography>
-              {plan.badge ? (
-                <Chip
-                  size="small"
-                  label={plan.badge}
-                  color={plan.highlight ? "primary" : "default"}
-                  variant={plan.highlight ? "filled" : "outlined"}
-                />
-              ) : null}
-            </Box>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "baseline",
-                gap: 1,
-                mt: 1.5,
-              }}
-            >
-              <Typography
-                variant="h3"
-                component="p"
-                sx={{ color: "primary.main" }}
-              >
-                {yearly ? plan.yearlyPrice : plan.monthlyPrice}
-              </Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                {yearly ? "per year" : "per month"}
-              </Typography>
-            </Box>
-            {yearly && plan.yearlySaving ? (
-              <Chip
-                size="small"
-                label={plan.yearlySaving}
-                color="success"
-                variant="outlined"
-                sx={{ alignSelf: "flex-start", mt: 1, fontWeight: 800 }}
-              />
-            ) : null}
-            {!yearly && plan.quarterlyPrice ? (
-              <Typography
-                variant="body2"
-                sx={{ mt: 0.75, color: "text.secondary" }}
-              >
-                or {plan.quarterlyPrice} · save 20%
-              </Typography>
-            ) : null}
-            <Typography variant="body2" sx={{ mt: 2, color: "text.secondary" }}>
-              {plan.summary}
-            </Typography>
-            <Divider sx={{ my: 2 }} />
-            <Stack spacing={1.25} sx={{ flexGrow: 1 }}>
-              {plan.includes.map((line) => (
-                <Box
-                  key={line}
-                  sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}
-                >
-                  <CheckCircleRoundedIcon
-                    fontSize="small"
-                    sx={{ color: "success.main", mt: "2px" }}
-                    aria-hidden
-                  />
-                  <Typography variant="body2">{line}</Typography>
-                </Box>
-              ))}
-            </Stack>
-            <Button
-              component="a"
-              href={signupUrl}
-              variant={plan.highlight ? "contained" : "outlined"}
-              size="large"
-              disabled={!plan.available}
-              sx={{ mt: 3 }}
-            >
-              {plan.available
-                ? plan.code === "free"
-                  ? "Start for free"
-                  : `Choose ${plan.name.split(" — ")[0]}`
-                : "Coming later"}
-            </Button>
-          </CardContent>
-        </Card>
         ))}
       </Box>
     </Box>
