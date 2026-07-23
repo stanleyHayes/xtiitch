@@ -114,6 +114,7 @@ type DesignInput struct {
 	CollectionID         *common.ID
 	Title                string
 	Description          string
+	StyleCategory        string
 	Images               []string
 	CustomisationAllowed bool
 	DepositOverrideMinor *int64
@@ -180,10 +181,11 @@ type SizeBandUpdateInput struct {
 
 // PublicShopDesign is a lightweight design sample for the discovery directory.
 type PublicShopDesign struct {
-	Title      string
-	Handle     string
-	Image      string
-	PriceMinor int64
+	Title         string
+	Handle        string
+	StyleCategory string
+	Image         string
+	PriceMinor    int64
 }
 
 // PublicShop is a single verified, active storefront as listed in the public

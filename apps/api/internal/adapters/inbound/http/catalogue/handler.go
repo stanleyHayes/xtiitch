@@ -120,6 +120,7 @@ type designResponse struct {
 	CollectionID         *string             `json:"collection_id"`
 	Title                string              `json:"title"`
 	Description          string              `json:"description"`
+	StyleCategory        string              `json:"style_category"`
 	Images               []string            `json:"images"`
 	CustomisationAllowed bool                `json:"customisation_allowed"`
 	DepositOverrideMinor *int64              `json:"deposit_override_minor"`
@@ -203,7 +204,7 @@ func toDesignResponse(d catalogue.Design, prices []catalogue.BandPrice) designRe
 	}
 	resp := designResponse{
 		DesignID: d.ID.String(), Title: d.Title, Description: d.Description,
-		Images: images, CustomisationAllowed: d.CustomisationAllowed,
+		StyleCategory: d.StyleCategory, Images: images, CustomisationAllowed: d.CustomisationAllowed,
 		DepositOverrideMinor: d.DepositOverrideMinor, BespokeDisplayMinor: d.BespokeDisplayMinor,
 		Handle: d.Handle, Status: string(d.Status), Sequence: d.Sequence, Prices: toPrices(prices),
 		Variations: toVariationResponses(d.Variations),

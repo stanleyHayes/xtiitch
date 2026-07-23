@@ -16,6 +16,7 @@ import AiAssistField from "../../components/ai-assist";
 import { ImageDropzone } from "../shared/ImageDropzone";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
+import { styleCategories } from "./styleCategories";
 
 // eslint-disable-next-line max-lines-per-function -- renders the complete add-design form.
 export function CatalogueAddDesign({
@@ -75,6 +76,21 @@ export function CatalogueAddDesign({
           <Stack spacing={1.75}>
             {designError ? <Alert severity="error">{designError}</Alert> : null}
             <TextField name="title" label="Title" required fullWidth />
+            <TextField
+              name="style_category"
+              label="Style category"
+              select
+              defaultValue=""
+              helperText="Used by Explore by style and storefront filters."
+              fullWidth
+            >
+              <MenuItem value="">Choose later</MenuItem>
+              {styleCategories.map((category) => (
+                <MenuItem key={category.slug} value={category.slug}>
+                  {category.label} — {category.helper}
+                </MenuItem>
+              ))}
+            </TextField>
             <TextField
               name="collection_id"
               label="Collection"

@@ -18,6 +18,7 @@ type Design struct {
 	CollectionID         *common.ID
 	Title                string
 	Description          string
+	StyleCategory        string
 	Images               []string
 	CustomisationAllowed bool
 	DepositOverrideMinor *int64

@@ -6,45 +6,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { tokens } from "../../theme";
-
-const categories = [
-  {
-    label: "Wedding guest",
-    helper: "Elegant looks",
-    query: "wedding guest",
-    image: "/images/style-wedding-guest.webp",
-  },
-  {
-    label: "Kente & Adire",
-    helper: "Heritage weaves",
-    query: "kente adire",
-    image: "/images/style-kente-adire.webp",
-  },
-  {
-    label: "Menswear",
-    helper: "Sharp & modern",
-    query: "menswear",
-    image: "/images/style-menswear.webp",
-  },
-  {
-    label: "Ready to wear",
-    helper: "Everyday styles",
-    query: "ready to wear",
-    image: "/images/style-ready-to-wear.webp",
-  },
-  {
-    label: "Accessories",
-    helper: "Finishing touches",
-    query: "accessories",
-    image: "/images/style-accessories.webp",
-  },
-  {
-    label: "Bridal",
-    helper: "Timeless beauty",
-    query: "bridal",
-    image: "/images/style-bridal.webp",
-  },
-] as const;
+import { styleCategories } from "./style-categories";
 
 export function StyleRail() {
   return (
@@ -78,12 +40,12 @@ export function StyleRail() {
             spacing={{ xs: 2.5, md: 4 }}
             sx={{ overflowX: "auto", flex: 1, pb: 0.5, scrollbarWidth: "thin" }}
           >
-            {categories.map((category) => {
+            {styleCategories.map((category) => {
               return (
                 <Stack
                   key={category.label}
                   component={RouterLink}
-                  to={`/discover?q=${encodeURIComponent(category.query)}`}
+                  to={`/discover?style=${encodeURIComponent(category.slug)}&q=${encodeURIComponent(category.query)}`}
                   direction="row"
                   spacing={1.15}
                   sx={{

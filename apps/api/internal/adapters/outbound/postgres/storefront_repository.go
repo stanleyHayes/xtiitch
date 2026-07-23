@@ -119,7 +119,7 @@ func (repo StorefrontRepository) ListPublicShops(ctx context.Context) ([]ports.P
 
 func loadShopSamples(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]ports.PublicShopDesign, error) {
 	rows, err := tx.Query(ctx, `
-		select d.title, d.handle, d.images,
+		select d.title, d.handle, coalesce(d.style_category, ''), d.images,
 			coalesce((select min(dp.price_minor) from design_prices dp
 				where dp.design_id = d.design_id), 0)
 		from designs d
@@ -137,7 +137,7 @@ func loadShopSamples(ctx context.Context, tx pgx.Tx, businessID common.ID) ([]po
 	for rows.Next() {
 		var sample ports.PublicShopDesign
 		var images []string
-		if err := rows.Scan(&sample.Title, &sample.Handle, &images, &sample.PriceMinor); err != nil {
+		if err := rows.Scan(&sample.Title, &sample.Handle, &sample.StyleCategory, &images, &sample.PriceMinor); err != nil {
 			return nil, err
 		}
 		if len(images) > 0 {
@@ -169,7 +169,14 @@ func (repo StorefrontRepository) SearchActiveDesigns(
 ) {
 	var results []ports.StorefrontDesign
 	err := repo.inBypassTx(ctx, func(tx pgx.Tx) error {
-		designs, err := queryActiveDesigns(ctx, tx, `business_id = $1 and title ilike '%' || $2 || '%'`, businessID.String(), query)
+		designs, err := queryActiveDesigns(ctx, tx, `
+			business_id = $1
+			and (
+				title ilike '%' || $2 || '%'
+				or description ilike '%' || $2 || '%'
+				or style_category ilike '%' || $2 || '%'
+			)
+		`, businessID.String(), query)
 		if err != nil {
 			return err
 		}

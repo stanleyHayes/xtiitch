@@ -62,8 +62,10 @@ export function designPatchBody(
     collection_id: design.collection_id,
     title: design.title,
     description: design.description,
+    style_category: design.style_category ?? "",
     customisation_allowed: design.customisation_allowed,
     deposit_override_minor: design.deposit_override_minor,
+    bespoke_display_minor: design.bespoke_display_minor ?? 0,
     sequence: design.sequence,
     images,
   };

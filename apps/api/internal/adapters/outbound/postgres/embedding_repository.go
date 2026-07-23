@@ -39,6 +39,7 @@ func (repo EmbeddingRepository) DesignsNeedingEmbedding(
 				trim(both ' ' from
 					coalesce(d.title, '') || ' ' ||
 					coalesce(d.description, '') || ' ' ||
+					coalesce(d.style_category, '') || ' ' ||
 					coalesce(c.name, '') || ' ' ||
 					coalesce(b.name, '')
 				) as content
@@ -120,7 +121,7 @@ func (repo EmbeddingRepository) SearchCandidates(ctx context.Context) ([]ports.E
 			coalesce(min(dp.price_minor), 0),
 			b.name,
 			b.handle,
-			lower(coalesce(d.title, '') || ' ' || coalesce(d.description, '') || ' ' || coalesce(c.name, '')),
+			lower(coalesce(d.title, '') || ' ' || coalesce(d.description, '') || ' ' || coalesce(d.style_category, '') || ' ' || coalesce(c.name, '')),
 			de.embedding
 		from design_embeddings de
 		join designs d on d.design_id = de.design_id and d.status = 'active'
@@ -131,7 +132,7 @@ func (repo EmbeddingRepository) SearchCandidates(ctx context.Context) ([]ports.E
 		where b.verification_status = 'verified'
 			and b.operational_status = 'active'
 			and coalesce((p.features->>'online_ordering')::boolean, false) = true
-		group by de.design_id, d.title, d.handle, d.images, b.name, b.handle, c.name, d.description, de.embedding
+		group by de.design_id, d.title, d.handle, d.images, b.name, b.handle, c.name, d.description, d.style_category, de.embedding
 	`)
 	if err != nil {
 		return nil, err

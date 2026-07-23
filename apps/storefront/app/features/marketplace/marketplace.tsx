@@ -23,26 +23,28 @@ import { MarketplaceHeader } from "./marketplace-header";
 import { MarketplaceHero } from "./marketplace-hero";
 import { StudioCard } from "./studio-card";
 import { StyleRail } from "./style-rail";
+import { styleCategories } from "./style-categories";
 import type { FlatDesign, SortKey, Tab } from "./types";
 
-const catalogueFilters = [
-  { label: "Contemporary", query: "contemporary" },
-  { label: "Heritage & print", query: "kente print heritage adire" },
-  { label: "Bridal", query: "bridal wedding bride" },
-  { label: "Menswear", query: "men menswear shirt kaftan" },
-  { label: "Ready to wear", query: "ready casual everyday" },
-] as const;
-
 function shopSearchText(shop: PublicShop): string {
-  return [shop.name, ...shop.designs.map((design) => design.title)]
+  return [
+    shop.name,
+    ...shop.designs.flatMap((design) => [
+      design.title,
+      design.style_category ?? "",
+    ]),
+  ]
     .join(" ")
     .toLowerCase();
 }
 
 function matchesCatalogueFilter(shop: PublicShop, filter: string): boolean {
   if (!filter) return true;
-  const config = catalogueFilters.find((item) => item.label === filter);
+  const config = styleCategories.find((item) => item.slug === filter);
   if (!config) return true;
+  if (shop.designs.some((design) => design.style_category === config.slug)) {
+    return true;
+  }
   const text = shopSearchText(shop);
   return config.query.split(" ").some((keyword) => text.includes(keyword));
 }
@@ -105,12 +107,13 @@ export function Marketplace({
 
   const visibleDesigns = useMemo(() => {
     let list = designs;
-    const filterConfig = catalogueFilters.find(
-      (item) => item.label === catalogueFilter,
+    const filterConfig = styleCategories.find(
+      (item) => item.slug === catalogueFilter,
     );
     if (filterConfig) {
       const keywords = filterConfig.query.split(" ");
       list = list.filter((design) =>
+        design.style_category === filterConfig.slug ||
         keywords.some((keyword) =>
           design.title.toLowerCase().includes(keyword),
         ),
@@ -118,7 +121,9 @@ export function Marketplace({
     }
     if (q)
       list = list.filter((design) =>
-        `${design.title} ${design.store_name}`.toLowerCase().includes(q),
+        `${design.title} ${design.store_name} ${design.style_category ?? ""}`
+          .toLowerCase()
+          .includes(q),
       );
     const sorted = [...list];
     if (sort === "price_low")
@@ -185,17 +190,17 @@ export function Marketplace({
                 Style & occasion
               </Typography>
               <Stack>
-                {catalogueFilters.map((filter) => (
+                {styleCategories.map((filter) => (
                   <FormControlLabel
-                    key={filter.label}
+                    key={filter.slug}
                     label={filter.label}
                     control={
                       <Checkbox
                         size="small"
-                        checked={catalogueFilter === filter.label}
+                        checked={catalogueFilter === filter.slug}
                         onChange={() =>
                           setCatalogueFilter((current) =>
-                            current === filter.label ? "" : filter.label,
+                            current === filter.slug ? "" : filter.slug,
                           )
                         }
                       />

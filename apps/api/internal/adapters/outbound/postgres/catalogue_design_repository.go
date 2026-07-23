@@ -26,12 +26,12 @@ func (repo CatalogueRepository) CreateDesign(ctx context.Context, scope common.T
 		_, err := tx.Exec(ctx, `
 			insert into designs (
 				design_id, business_id, collection_id, title, description, images,
-				customisation_allowed, deposit_override_minor, bespoke_display_minor,
-				handle, status, sequence
+				style_category, customisation_allowed, deposit_override_minor,
+				bespoke_display_minor, handle, status, sequence
 			)
-			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active', $11)
+			values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'active', $12)
 		`, input.DesignID.String(), input.BusinessID.String(), nullableIDArg(input.CollectionID),
-			input.Title, input.Description, images, input.CustomisationAllowed,
+			input.Title, input.Description, images, input.StyleCategory, input.CustomisationAllowed,
 			nullableInt64Arg(input.DepositOverrideMinor), input.BespokeDisplayMinor,
 			input.Handle, input.Sequence)
 		return err
@@ -45,7 +45,7 @@ func scanDesign(rows pgx.Rows) (catalogue.Design, error) {
 	var status string
 	if err := rows.Scan(
 		&d.ID, &d.BusinessID, &collectionID, &d.Title, &d.Description, &d.Images,
-		&d.CustomisationAllowed, &depositOverride, &d.BespokeDisplayMinor, &d.Handle, &status, &d.Sequence,
+		&d.StyleCategory, &d.CustomisationAllowed, &depositOverride, &d.BespokeDisplayMinor, &d.Handle, &status, &d.Sequence,
 	); err != nil {
 		return catalogue.Design{}, err
 	}
@@ -62,7 +62,7 @@ func scanDesign(rows pgx.Rows) (catalogue.Design, error) {
 }
 
 const designColumns = `design_id, business_id, collection_id, title, description, images,
-	customisation_allowed, deposit_override_minor, bespoke_display_minor, handle, status, sequence`
+	style_category, customisation_allowed, deposit_override_minor, bespoke_display_minor, handle, status, sequence`
 
 func (repo CatalogueRepository) ListDesigns(ctx context.Context, scope common.TenantScope) ([]catalogue.Design, error) {
 	var designs []catalogue.Design
@@ -122,12 +122,12 @@ func (repo CatalogueRepository) UpdateDesign(ctx context.Context, scope common.T
 		tag, err := tx.Exec(ctx, `
 			update designs
 			set collection_id = $3, title = $4, description = $5, images = $6,
-				customisation_allowed = $7, deposit_override_minor = $8,
-				bespoke_display_minor = $9, sequence = $10,
+				style_category = $7, customisation_allowed = $8, deposit_override_minor = $9,
+				bespoke_display_minor = $10, sequence = $11,
 				updated_at = now()
 			where design_id = $1 and business_id = $2 and status <> 'deleted'
 		`, input.DesignID.String(), input.BusinessID.String(), nullableIDArg(input.CollectionID),
-			input.Title, input.Description, images, input.CustomisationAllowed,
+			input.Title, input.Description, images, input.StyleCategory, input.CustomisationAllowed,
 			nullableInt64Arg(input.DepositOverrideMinor), input.BespokeDisplayMinor, input.Sequence)
 		if err != nil {
 			return err

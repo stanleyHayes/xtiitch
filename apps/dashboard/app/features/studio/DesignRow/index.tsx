@@ -27,6 +27,7 @@ import { DesignImagesField } from "../DesignImagesField";
 import { DesignPricesSection } from "../DesignPricesSection";
 import { DesignExtrasEditor } from "../DesignExtrasEditor";
 import type { Design } from "../../../lib/api";
+import { styleCategories } from "../../catalogue/styleCategories";
 import { DesignRowStatus } from "./DesignRowStatus";
 import { DialogActions, RowActions } from "./DesignRowActions";
 
@@ -213,6 +214,22 @@ export function DesignRow({
                           {collection.name}
                         </MenuItem>
                       ))}
+                  </TextField>
+                  <TextField
+                    name="style_category"
+                    label="Style category"
+                    select
+                    defaultValue={design.style_category ?? ""}
+                    size="small"
+                    helperText="Powers public style filters."
+                    sx={{ gridColumn: { md: "1 / -1" } }}
+                  >
+                    <MenuItem value="">Choose later</MenuItem>
+                    {styleCategories.map((category) => (
+                      <MenuItem key={category.slug} value={category.slug}>
+                        {category.label} — {category.helper}
+                      </MenuItem>
+                    ))}
                   </TextField>
                   <AiAssistField
                     name="description"

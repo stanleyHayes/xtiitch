@@ -15,6 +15,7 @@ type designBody struct {
 	CollectionID         *string  `json:"collection_id"`
 	Title                string   `json:"title"`
 	Description          string   `json:"description"`
+	StyleCategory        string   `json:"style_category"`
 	Images               []string `json:"images"`
 	CustomisationAllowed bool     `json:"customisation_allowed"`
 	DepositOverrideMinor *int64   `json:"deposit_override_minor"`
@@ -29,6 +30,7 @@ func (body designBody) toCommand(scope common.TenantScope, role business.UserRol
 		DesignID:             designID,
 		Title:                body.Title,
 		Description:          body.Description,
+		StyleCategory:        body.StyleCategory,
 		Images:               body.Images,
 		CustomisationAllowed: body.CustomisationAllowed,
 		DepositOverrideMinor: body.DepositOverrideMinor,

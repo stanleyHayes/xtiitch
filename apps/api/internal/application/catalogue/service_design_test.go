@@ -60,6 +60,47 @@ func TestCreateDesignRejectsDepositOverrideBelowFloor(t *testing.T) {
 		t.Fatal("expected no design created when deposit is below the floor")
 	}
 }
+
+func TestCreateDesignNormalizesStyleCategory(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:         common.TenantScope{BusinessID: "business-1"},
+		ActorRole:     business.UserRoleOwner,
+		Title:         "Engagement gown",
+		StyleCategory: "Kente Adire",
+	})
+	if err != nil {
+		t.Fatalf("create design: %v", err)
+	}
+	if repo.design.StyleCategory != "kente_adire" {
+		t.Fatalf("expected normalized category, got %q", repo.design.StyleCategory)
+	}
+}
+
+func TestCreateDesignRejectsUnknownStyleCategory(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeCatalogueRepo{}
+	service := newService(repo)
+
+	_, err := service.CreateDesign(context.Background(), DesignCommand{
+		Scope:         common.TenantScope{BusinessID: "business-1"},
+		ActorRole:     business.UserRoleOwner,
+		Title:         "Mystery piece",
+		StyleCategory: "costumes",
+	})
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected invalid input, got %v", err)
+	}
+	if repo.created {
+		t.Fatal("expected no design created for an unknown style category")
+	}
+}
+
 func TestCustomisationDesignZeroDepositMeansUnset(t *testing.T) {
 	t.Parallel()
 	repo := &fakeCatalogueRepo{}

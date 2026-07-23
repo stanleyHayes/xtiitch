@@ -129,10 +129,11 @@ type publicDesignResponse struct {
 }
 
 type publicShopDesignResponse struct {
-	Title      string `json:"title"`
-	Handle     string `json:"handle"`
-	Image      string `json:"image"`
-	PriceMinor int64  `json:"price_minor"`
+	Title         string `json:"title"`
+	Handle        string `json:"handle"`
+	StyleCategory string `json:"style_category"`
+	Image         string `json:"image"`
+	PriceMinor    int64  `json:"price_minor"`
 }
 
 type publicShopResponse struct {
@@ -149,7 +150,8 @@ func toPublicShopResponse(shop ports.PublicShop) publicShopResponse {
 	designs := make([]publicShopDesignResponse, 0, len(shop.Designs))
 	for _, d := range shop.Designs {
 		designs = append(designs, publicShopDesignResponse{
-			Title: d.Title, Handle: d.Handle, Image: d.Image, PriceMinor: d.PriceMinor,
+			Title: d.Title, Handle: d.Handle, StyleCategory: d.StyleCategory,
+			Image: d.Image, PriceMinor: d.PriceMinor,
 		})
 	}
 	return publicShopResponse{

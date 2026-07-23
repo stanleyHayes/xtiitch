@@ -19,6 +19,7 @@ type DesignCommand struct {
 	CollectionID         *common.ID
 	Title                string
 	Description          string
+	StyleCategory        string
 	Images               []string
 	CustomisationAllowed bool
 	DepositOverrideMinor *int64
@@ -41,6 +42,26 @@ func (cmd DesignCommand) validate() (string, error) {
 	}
 	return title, nil
 }
+
+var allowedStyleCategories = map[string]struct{}{
+	"":              {},
+	"wedding_guest": {},
+	"kente_adire":   {},
+	"menswear":      {},
+	"ready_to_wear": {},
+	"accessories":   {},
+	"bridal":        {},
+}
+
+func normalizeStyleCategory(value string) (string, error) {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	normalized = strings.ReplaceAll(normalized, "-", "_")
+	normalized = strings.ReplaceAll(normalized, " ", "_")
+	if _, ok := allowedStyleCategories[normalized]; !ok {
+		return "", ErrInvalidInput
+	}
+	return normalized, nil
+}
 func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID, error) {
 	if err := authorizeCatalogueManagement(cmd.Scope, cmd.ActorRole); err != nil {
 		return "", err
@@ -59,6 +80,10 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 	if err != nil {
 		return "", err
 	}
+	styleCategory, err := normalizeStyleCategory(cmd.StyleCategory)
+	if err != nil {
+		return "", err
+	}
 	id := s.ids.NewID()
 	createErr := s.catalogue.CreateDesign(ctx, cmd.Scope, ports.DesignInput{
 		DesignID:             id,
@@ -66,6 +91,7 @@ func (s Service) CreateDesign(ctx context.Context, cmd DesignCommand) (common.ID
 		CollectionID:         cmd.CollectionID,
 		Title:                title,
 		Description:          strings.TrimSpace(cmd.Description),
+		StyleCategory:        styleCategory,
 		Images:               cmd.Images,
 		CustomisationAllowed: cmd.CustomisationAllowed,
 		DepositOverrideMinor: cmd.depositForMode(),
@@ -118,12 +144,17 @@ func (s Service) UpdateDesign(ctx context.Context, cmd DesignCommand) error {
 	if err != nil {
 		return err
 	}
+	styleCategory, err := normalizeStyleCategory(cmd.StyleCategory)
+	if err != nil {
+		return err
+	}
 	return s.catalogue.UpdateDesign(ctx, cmd.Scope, ports.DesignInput{
 		DesignID:             cmd.DesignID,
 		BusinessID:           cmd.Scope.BusinessID,
 		CollectionID:         cmd.CollectionID,
 		Title:                title,
 		Description:          strings.TrimSpace(cmd.Description),
+		StyleCategory:        styleCategory,
 		Images:               cmd.Images,
 		CustomisationAllowed: cmd.CustomisationAllowed,
 		DepositOverrideMinor: cmd.depositForMode(),

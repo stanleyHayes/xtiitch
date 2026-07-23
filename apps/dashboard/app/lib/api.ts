@@ -42,6 +42,7 @@ export type Design = {
   collection_id: string | null;
   title: string;
   description: string;
+  style_category?: string;
   images: string[];
   customisation_allowed: boolean;
   deposit_override_minor: number | null;
