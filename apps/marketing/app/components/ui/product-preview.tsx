@@ -220,8 +220,8 @@ export function ProductPreview() {
       >
         <Box
           component="img"
-          src="/images/atelier-review.webp"
-          alt="Fashion designer and customer reviewing a garment in an atelier"
+          src="/images/workflow-canvas.webp"
+          alt="Fashion studio workflow arranged with fabric, patterns, measurements and an order phone"
           loading="lazy"
           decoding="async"
           sx={{

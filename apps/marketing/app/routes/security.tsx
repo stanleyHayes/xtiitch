@@ -82,8 +82,8 @@ export default function Security() { // eslint-disable-line max-lines-per-functi
           >
             <Box
               component="img"
-              src="/images/payment-handoff.webp"
-              alt="Fashion business owner handing a packaged garment to a customer"
+              src="/images/security-settlement.webp"
+              alt="Ghanaian fashion business owner confirming a secure digital settlement beside prepared orders"
               loading="lazy"
               decoding="async"
               sx={{

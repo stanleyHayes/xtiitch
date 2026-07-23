@@ -27,7 +27,7 @@ export function CtaBand({ title, body }: { title: string; body: string }) { // e
     >
       <Box
         component="img"
-        src="/images/payment-handoff.webp"
+        src="/images/cta-welcome.webp"
         alt=""
         aria-hidden
         loading="lazy"

@@ -16,9 +16,10 @@ const homeRiseSx = (delayMs = 0) => ({
 });
 
 const sponsoredFallbackImages = [
-  "/images/atelier-review.webp",
-  "/images/payment-handoff.webp",
-  "/images/tracking-fitting.webp",
+  "/images/sponsored-menswear.webp",
+  "/images/sponsored-bridal.webp",
+  "/images/sponsored-accessories.webp",
+  "/images/sponsored-ready-to-wear.webp",
 ] as const;
 
 function getSponsoredVisitorID(): string {

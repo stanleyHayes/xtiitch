@@ -78,8 +78,8 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
           >
             <Box
               component="img"
-              src="/images/payment-handoff.webp"
-              alt="Fashion business packaging a garment while a customer confirms the order"
+              src="/images/growth-campaign.webp"
+              alt="Ghanaian fashion business owner planning a new collection campaign"
               loading="lazy"
               decoding="async"
               sx={{

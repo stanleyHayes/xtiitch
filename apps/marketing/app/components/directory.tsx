@@ -228,9 +228,10 @@ export function DesignCard({ design }: { design: DirectoryDesign }) {
 }
 
 const sponsoredFallback = [
-  "/images/atelier-review.webp",
-  "/images/payment-handoff.webp",
-  "/images/tracking-fitting.webp",
+  "/images/directory-craft.webp",
+  "/images/directory-adire.webp",
+  "/images/directory-fitting.webp",
+  "/images/directory-accessories.webp",
 ] as const;
 
 export function SponsoredRail({ placements }: { placements: SponsoredPlacement[] }) {
