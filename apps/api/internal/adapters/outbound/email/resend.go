@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 const resendAPIURL = "https://api.resend.com"
@@ -52,11 +53,19 @@ func (sender ResendSender) Send(ctx context.Context, message ports.EmailMessage)
 		return errors.New("email sender is not configured")
 	}
 
+	// Every automated message carries a working Reply-To that reaches a human:
+	// money mail sets billing@ on the message, everything else defaults to the
+	// operational support@ inbox. Sending stays isolated on the noreply@ `from`.
+	replyTo := strings.TrimSpace(message.ReplyTo)
+	if replyTo == "" {
+		replyTo = notification.ReplyToOperational
+	}
 	payload := map[string]any{
-		"from":    sender.from,
-		"to":      []string{to},
-		"subject": subject,
-		"text":    body,
+		"from":     sender.from,
+		"to":       []string{to},
+		"subject":  subject,
+		"text":     body,
+		"reply_to": replyTo,
 	}
 	if len(message.Attachments) > 0 {
 		// Resend takes attachments as base64 content beside the filename (and an

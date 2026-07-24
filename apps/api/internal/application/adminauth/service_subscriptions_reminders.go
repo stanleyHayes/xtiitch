@@ -263,6 +263,8 @@ func (s Service) sendLeadDayEmail(
 		To:      ownerEmail,
 		Subject: fmt.Sprintf("Your Xtiitch %s plan renews %s — %s due", strings.TrimSpace(subscription.PlanName), when, amount),
 		Body:    body,
+		// Renewal is money mail: replies route to billing@, not the operational default.
+		ReplyTo: notification.ReplyToBilling,
 	})
 	if err != nil {
 		return false, err

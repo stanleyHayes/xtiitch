@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/notification"
 )
 
 func TestResendSenderPostsEmailPayload(t *testing.T) {
@@ -120,5 +121,43 @@ func TestResendSenderRejectsUnusableAttachment(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("an attachment without a filename must be rejected")
+	}
+}
+
+// Every automated message must carry a working Reply-To: money mail sets
+// billing@ explicitly, and everything else defaults to the operational
+// support@ inbox — so a recipient who hits reply always reaches a human.
+func TestResendSenderSetsReplyTo(t *testing.T) {
+	t.Parallel()
+
+	capture := func(message ports.EmailMessage) map[string]any {
+		var payload map[string]any
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+				t.Fatalf("decode payload: %v", err)
+			}
+			w.WriteHeader(http.StatusAccepted)
+		}))
+		defer server.Close()
+
+		sender := newResendSender("secret", "Xtiitch <noreply@xtiitch.com>", server.URL, server.Client())
+		if err := sender.Send(context.Background(), message); err != nil {
+			t.Fatalf("send email: %v", err)
+		}
+		return payload
+	}
+
+	base := ports.EmailMessage{To: "ama@example.com", Subject: "Hi", Body: "Body."}
+
+	defaulted := capture(base)
+	if defaulted["reply_to"] != notification.ReplyToOperational {
+		t.Fatalf("operational mail must default Reply-To to %q, got %v", notification.ReplyToOperational, defaulted["reply_to"])
+	}
+
+	money := base
+	money.ReplyTo = notification.ReplyToBilling
+	billed := capture(money)
+	if billed["reply_to"] != notification.ReplyToBilling {
+		t.Fatalf("money mail must set Reply-To to %q, got %v", notification.ReplyToBilling, billed["reply_to"])
 	}
 }

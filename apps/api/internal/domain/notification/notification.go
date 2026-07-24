@@ -20,6 +20,17 @@ func (c Channel) Valid() bool {
 	return c == ChannelWhatsApp || c == ChannelSMS
 }
 
+// Reply-To addresses for automated email. Every automated message is SENT from
+// the noreply@ address but must carry a working Reply-To that reaches a human:
+// operational mail (orders, verification, account) routes replies to support@,
+// and money mail (receipts, renewals, payouts) routes replies to billing@.
+// Automated mail is never SENT through support@/billing@ — only replied-to
+// there, which keeps high-volume sending isolated on noreply@.
+const (
+	ReplyToOperational = "support@xtiitch.com"
+	ReplyToBilling     = "billing@xtiitch.com"
+)
+
 // Kind is the lifecycle event a message announces. Each kind fires at most once
 // per reference (see DedupKey).
 type Kind string

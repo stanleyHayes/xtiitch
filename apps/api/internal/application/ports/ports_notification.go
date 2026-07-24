@@ -11,6 +11,11 @@ type EmailMessage struct {
 	To      string
 	Subject string
 	Body    string
+	// ReplyTo is the human inbox a recipient reaches if they hit reply. Money
+	// mail (receipts, renewals, payouts) sets billing@; everything else may leave
+	// it empty and the sender defaults it to the operational support@ inbox, so
+	// every automated message carries a working Reply-To.
+	ReplyTo string
 	// Attachments carries files sent alongside the plain-text body (§14.1
 	// scheduled reports email the generated CSV/PDF/... rather than only a
 	// digest). Empty for every other mail.
