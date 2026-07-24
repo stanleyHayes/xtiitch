@@ -183,10 +183,13 @@ type SubscriptionQuote struct {
 // QuoteSubscriptionCharge prices a subscription charge (activation, first
 // purchase, upgrade proration, recurring renewal): package + VAT on the package
 // + a Transaction fee grossed up over package + VAT (§4.1 worked example:
-// 147.00 + 29.40 + 3.51 = 179.91, and XCreativs nets 176.40). The VAT treatment
-// (added-at-checkout vs inclusive) follows the same flag as money.ApplyVAT.
+// 147.00 + 29.40 + 3.51 = 179.91, and XCreativs nets 176.40). Package VAT is
+// always added on top of the listed package figure; the vatInclusive argument is
+// kept only for API compatibility with older callers and is intentionally
+// ignored for package purchases.
 func QuoteSubscriptionCharge(packageMinor int64, vatBps int, vatInclusive bool, paystackBps int) SubscriptionQuote {
-	vat := ApplyVAT(packageMinor, vatBps, vatInclusive)
+	_ = vatInclusive
+	vat := ApplyVAT(packageMinor, vatBps, false)
 	total, fee := GrossUp(vat.GrossMinor, paystackBps)
 	return SubscriptionQuote{
 		PackageMinor:        vat.NetMinor,

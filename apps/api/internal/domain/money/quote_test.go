@@ -353,17 +353,17 @@ func TestQuoteSubscriptionChargeEdgeRates(t *testing.T) {
 	}
 }
 
-func TestQuoteSubscriptionChargeItemizesInclusiveVAT(t *testing.T) {
+func TestQuoteSubscriptionChargeAlwaysAddsVATOnPackagePurchases(t *testing.T) {
 	t.Parallel()
 
 	quote := QuoteSubscriptionCharge(200, 2000, true, PaystackFeeRateBps)
 	want := SubscriptionQuote{
-		PackageMinor:        167,
-		VATMinor:            33,
-		TransactionFeeMinor: 4,
-		TotalChargeMinor:    204,
+		PackageMinor:        200,
+		VATMinor:            40,
+		TransactionFeeMinor: 5,
+		TotalChargeMinor:    245,
 	}
 	if quote != want {
-		t.Fatalf("inclusive subscription quote = %+v, want %+v", quote, want)
+		t.Fatalf("package VAT must be added on top even when legacy inclusive flag is true: got %+v, want %+v", quote, want)
 	}
 }

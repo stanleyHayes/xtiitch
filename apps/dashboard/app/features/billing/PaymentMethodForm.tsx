@@ -28,11 +28,12 @@ export function formatPrice(minor: number): string {
   }).format(minor / 100);
 }
 
-// Mirror of the API's money.ApplyVAT so displayed charges match what the API
-// bills. rate 0 (default) or inclusive pricing returns the figure unchanged;
-// added-at-checkout grosses it up by the VAT rate, rounded to the nearest pesewa.
+// Mirror the package-purchase VAT policy: rate 0 (default) returns the figure
+// unchanged; otherwise tax is added on top of the listed package fee. The
+// vat_inclusive field is legacy and intentionally ignored for packages.
 export function vatGross(minor: number, vat: VATPolicy): number {
-  if (vat.vat_rate_bps <= 0 || minor <= 0 || vat.vat_inclusive) {
+  void vat.vat_inclusive;
+  if (vat.vat_rate_bps <= 0 || minor <= 0) {
     return minor;
   }
   return minor + Math.round((minor * vat.vat_rate_bps) / 10000);

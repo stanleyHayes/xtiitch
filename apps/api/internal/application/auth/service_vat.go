@@ -27,9 +27,11 @@ func (s Service) resolveVATRateBps(ctx context.Context) int {
 
 // SubscriptionVATPolicy reports the configured VAT rate (basis points) and
 // treatment applied to subscription charges, so the public /plans endpoint can
-// disclose it. A zero rate means VAT is disabled.
+// disclose it. A zero rate means VAT is disabled. Package purchases always add
+// tax on top of the listed package fee; the legacy inclusive config is no longer
+// exposed for subscription/package checkout.
 func (s Service) SubscriptionVATPolicy(ctx context.Context) (rateBps int, inclusive bool) {
-	return s.resolveVATRateBps(ctx), s.vatInclusive
+	return s.resolveVATRateBps(ctx), false
 }
 
 // subscriptionChargeTotal prices a subscription charge (activation, first

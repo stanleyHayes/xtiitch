@@ -109,6 +109,17 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   requires Paystack test credentials/callback evidence and remains an external
   go-live check rather than something a source-only audit can claim.
 
+### Refined updates follow-up — 2026-07-24
+
+- ✅ Item 1 package-purchase tax correction: verified the PDF assumption against
+  the actual subscription/package quote path and found the remaining inclusive
+  VAT branch could back tax out of the plan fee. Subscription activation,
+  upgrade/proration, renewal-sweep and dashboard billing previews now always
+  calculate package tax on the listed package fee and add it on top before the
+  Paystack transaction-fee gross-up. Verified with focused Go subscription/money
+  tests, dashboard billing-fee tests, dashboard typecheck, focused ESLint,
+  dashboard production build, and `git diff --check`.
+
 ### Review follow-up — 2026-07-03
 
 - ✅ Rechecked `Version_one_system_review_business.xtiitch.com, store.xtiitch.com.pdf`

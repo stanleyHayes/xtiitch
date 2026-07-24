@@ -18,19 +18,17 @@ export function roundHalfUpMinor(value: number): number {
   return Math.floor(value + 0.5);
 }
 
-// Tax fee on a package figure, in minor units. Inclusive pricing extracts the
-// tax already contained in the listed figure; exclusive pricing adds it on top.
+// Tax fee on a package figure, in minor units. Package purchases always add tax
+// on top of the listed plan/package fee; vatInclusive is kept in the signature
+// only so older API payloads cannot make the UI back tax out of the package.
 export function vatMinor(
   packageMinor: number,
   vatRateBps: number,
   vatInclusive: boolean,
 ): number {
+  void vatInclusive;
   if (packageMinor <= 0 || vatRateBps <= 0) {
     return 0;
-  }
-  if (vatInclusive) {
-    const net = roundHalfUpMinor((packageMinor * 10000) / (10000 + vatRateBps));
-    return packageMinor - net;
   }
   return roundHalfUpMinor((packageMinor * vatRateBps) / 10000);
 }
@@ -47,20 +45,18 @@ export type SubscriptionCharge = {
 };
 
 // The full checkout breakdown for a subscription charge (§4.1): package price
-// + Tax fee + the grossed-up Transaction fee. For inclusive prices, packageMinor
-// in the returned breakdown is the ex-tax portion so every displayed line sums
-// exactly to totalMinor without charging VAT twice.
+// + Tax fee + the grossed-up Transaction fee. Package purchases always display
+// and charge the listed package price first, then add the Tax fee on top.
 export function subscriptionCharge(
   packageMinor: number,
   vatRateBps: number,
   vatInclusive: boolean,
 ): SubscriptionCharge {
   const tax = vatMinor(packageMinor, vatRateBps, vatInclusive);
-  const displayedPackage = vatInclusive ? packageMinor - tax : packageMinor;
-  const grossBeforeFee = vatInclusive ? packageMinor : packageMinor + tax;
+  const grossBeforeFee = packageMinor + tax;
   const total = roundHalfUpMinor(grossBeforeFee / (1 - PAYSTACK_FEE_RATE));
   return {
-    packageMinor: displayedPackage,
+    packageMinor,
     vatMinor: tax,
     transactionFeeMinor: total - grossBeforeFee,
     totalMinor: total,

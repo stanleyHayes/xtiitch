@@ -26,23 +26,23 @@ test("subscriptionCharge disables VAT only when the configured rate is zero", ()
   );
 
   const inclusive = subscriptionCharge(14700, 2000, true);
-  assert.equal(inclusive.packageMinor, 12250);
-  assert.equal(inclusive.vatMinor, 2450);
-  assert.equal(inclusive.transactionFeeMinor, 292);
-  assert.equal(inclusive.totalMinor, 14992);
+  assert.equal(inclusive.packageMinor, 14700);
+  assert.equal(inclusive.vatMinor, 2940);
+  assert.equal(inclusive.transactionFeeMinor, 351);
+  assert.equal(inclusive.totalMinor, 17991);
   assert.equal(
     inclusive.packageMinor + inclusive.vatMinor + inclusive.transactionFeeMinor,
     inclusive.totalMinor,
   );
 });
 
-test("inclusive GHS 2 at 20% shows GHS 1.67 package + GHS 0.33 tax fee", () => {
+test("legacy inclusive flag cannot back tax out of a package purchase", () => {
   const charge = subscriptionCharge(200, 2000, true);
   assert.deepEqual(charge, {
-    packageMinor: 167,
-    vatMinor: 33,
-    transactionFeeMinor: 4,
-    totalMinor: 204,
+    packageMinor: 200,
+    vatMinor: 40,
+    transactionFeeMinor: 5,
+    totalMinor: 245,
   });
 });
 
@@ -51,7 +51,7 @@ test("vatMinor rounds half-up to the pesewa (§4.7)", () => {
   // 1001 * 20% = 200.2 -> 200; 1003 * 20% = 200.6 -> 201.
   assert.equal(vatMinor(1001, 2000, false), 200);
   assert.equal(vatMinor(1003, 2000, false), 201);
-  assert.equal(vatMinor(200, 2000, true), 33);
+  assert.equal(vatMinor(200, 2000, true), 40);
 });
 
 test("roundHalfUpMinor rounds a trailing 5 up, never down (§4.7)", () => {

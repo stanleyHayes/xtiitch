@@ -14,9 +14,9 @@ export type PublicPlan = {
   quarterly_renewal_minor: number;
   yearly_first_minor: number;
   yearly_renewal_minor: number;
-  // VAT applied to subscription charges (Pricing Book tax decision flag). Same
-  // policy for every plan/cadence: 0 = no VAT; vat_inclusive=false means VAT is
-  // added on top of the figures above at checkout, true means they include it.
+  // VAT applied to subscription charges. Same policy for every plan/cadence:
+  // 0 = no VAT. Package purchases always add VAT on top of the listed figures;
+  // vat_inclusive is a legacy field and should be false for this surface.
   vat_rate_bps: number;
   vat_inclusive: boolean;
 };

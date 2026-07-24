@@ -13,10 +13,10 @@ type publicPlanResponse struct {
 	QuarterlyRenewalMinor int `json:"quarterly_renewal_minor"`
 	YearlyFirstMinor      int `json:"yearly_first_minor"`
 	YearlyRenewalMinor    int `json:"yearly_renewal_minor"`
-	// VAT applied to subscription charges (Pricing Book tax decision flag). The
-	// same policy applies to every plan and cadence: vat_rate_bps 0 means no VAT;
-	// vat_inclusive=false means VAT is added on top of the figures above at
-	// checkout, true means the figures already include it.
+	// VAT applied to subscription charges. The same policy applies to every plan
+	// and cadence: vat_rate_bps 0 means no VAT. Package purchases always add VAT
+	// on top of the listed figures; vat_inclusive is retained for older clients
+	// and should be false for this surface.
 	VATRateBps   int  `json:"vat_rate_bps"`
 	VATInclusive bool `json:"vat_inclusive"`
 }
