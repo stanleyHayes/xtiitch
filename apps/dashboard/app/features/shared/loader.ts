@@ -1,8 +1,5 @@
 import type { BandPrice, Design } from "../../lib/api";
-import {
-  fetchActivationStatus,
-  type ActivationStatus,
-} from "../../lib/activation";
+import { fetchActivationStatus } from "../../lib/activation";
 import {
   loadCurrentUser,
   loadDashboardJSON,
@@ -20,26 +17,22 @@ import {
 } from "./utils";
 import { defaultMoneySummary, defaultStoreSettings } from "./constants";
 import { loadAnalyticsData } from "../analytics/loadAnalytics";
-import { defaultAnalyticsData, type AnalyticsData } from "../analytics/types";
+import { defaultAnalyticsData } from "../analytics/types";
 import { loadCrmData } from "../crm/loadCrm";
-import { defaultCrmData, type CrmData } from "../crm/types";
+import { defaultCrmData } from "../crm/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
   BusinessUser,
   CollectionSummary,
-  CurrentUser,
-  DashboardSection,
   DeliveryZone,
   HandoverSummary,
   ManualTaking,
   MeasurementField,
   MoneyPayout,
-  MoneyPeriod,
   MoneySummary,
   MoneyTransaction,
   NotificationSummary,
-  OrderFilter,
   OrderSummary,
   Profile,
   SizeBand,
@@ -48,42 +41,10 @@ import type {
   WaitlistEntry,
 } from "./types";
 
-export type DashboardLoaderData = {
-  profile: Profile;
-  currentUser: CurrentUser;
-  activation: ActivationStatus;
-  designs: Design[];
-  orders: OrderSummary[];
-  stages: Stage[];
-  measurementFields: MeasurementField[];
-  moneySummary: MoneySummary;
-  moneyPeriod: MoneyPeriod;
-  moneyFrom: string;
-  moneyTo: string;
-  moneyTransactions: MoneyTransaction[];
-  manualTakings: ManualTaking[];
-  payouts: MoneyPayout[];
-  bookings: BookingSummary[];
-  handovers: HandoverSummary[];
-  notifications: NotificationSummary[];
-  availabilityWindows: AvailabilityWindow[];
-  blackoutDates: string[];
-  businessUsers: BusinessUser[];
-  storeSettings: StoreSettings;
-  collections: CollectionSummary[];
-  sizeBands: SizeBand[];
-  waitlistEntries: WaitlistEntry[];
-  deliveryZones: DeliveryZone[];
-  // §14/§15: fetched ONLY when the matching section is open (nine analytics
-  // endpoints on every page load would be waste) and only as far as the
-  // plan's analytics_level / crm_level entitles — the slices default to their
-  // empty states on every other section.
-  analytics: AnalyticsData;
-  crm: CrmData;
-  section: DashboardSection;
-  orderFilter: OrderFilter;
-  dataWarnings: string[];
-};
+// DashboardLoaderData now lives in loader-data.ts (file-size budget); re-export
+// it here so importers keep importing it from "../shared/loader".
+import type { DashboardLoaderData } from "./loader-data";
+export type { DashboardLoaderData };
 
 export async function loadDashboardData({ // eslint-disable-line complexity, max-lines-per-function -- large function with conditional branches; refactor in follow-up
   request,

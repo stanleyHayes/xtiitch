@@ -128,15 +128,9 @@ export function CrashReportEffect({ error }: { error?: unknown }) {
 
 type SupportView = "menu" | "feedback" | "contact";
 
-export function FeedbackReporter() {
-  const [open, setOpen] = useState(false);
-  const [view, setView] = useState<SupportView>("menu");
-  const [message, setMessage] = useState("");
-  const [contact, setContact] = useState("");
-  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(
-    "idle",
-  );
-
+// Auto-reports uncaught runtime errors and unhandled rejections. Kept as its
+// own hook so FeedbackReporter's body stays small.
+function useCrashReporting() {
   useEffect(() => {
     const report = (event: ErrorEvent | PromiseRejectionEvent) => {
       const reason =
@@ -159,33 +153,17 @@ export function FeedbackReporter() {
       window.removeEventListener("unhandledrejection", report);
     };
   }, []);
+}
+
+export function FeedbackReporter() {
+  const [open, setOpen] = useState(false);
+  const [view, setView] = useState<SupportView>("menu");
+  useCrashReporting();
 
   const closeSupport = () => {
     setOpen(false);
     // Reset to the menu for the next open, once the close animation has run.
     window.setTimeout(() => setView("menu"), 200);
-  };
-
-  const submit = async () => {
-    if (!message.trim()) return;
-    setState("sending");
-    try {
-      const response = await sendFeedback({
-        reporter_type: "business",
-        surface: "business",
-        kind: "feedback",
-        subject: "Business dashboard feedback",
-        message,
-        context: { contact },
-      });
-      setState(response.ok ? "sent" : "error");
-      if (response.ok) {
-        setMessage("");
-        setContact("");
-      }
-    } catch {
-      setState("error");
-    }
   };
 
   const title =
@@ -245,81 +223,117 @@ export function FeedbackReporter() {
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
-          {view === "menu" ? (
-            <Stack spacing={1.25}>
-              <SupportChoice
-                icon={<ChatBubbleOutlineRounded />}
-                title="Send feedback"
-                helper="Report a bug or share an idea"
-                onClick={() => {
-                  setState("idle");
-                  setView("feedback");
-                }}
-              />
-              <SupportChoice
-                icon={<SupportAgentRounded />}
-                title="Contact us"
-                helper="Reach support, billing, privacy, or WhatsApp"
-                onClick={() => setView("contact")}
-              />
-            </Stack>
-          ) : null}
-
-          {view === "contact" ? (
-            <Stack spacing={1}>
-              {CONTACT_CHANNELS.map((channel) => (
-                <SupportChoice
-                  key={channel.label}
-                  icon={channel.icon}
-                  title={channel.label}
-                  helper={channel.detail}
-                  href={channel.href}
-                />
-              ))}
-            </Stack>
-          ) : null}
-
-          {view === "feedback" ? (
-            <Stack spacing={2}>
-              {state === "sent" ? (
-                <Alert severity="success">
-                  Thanks — this is now in the support queue.
-                </Alert>
-              ) : null}
-              {state === "error" ? (
-                <Alert severity="error">
-                  Couldn’t send that yet. Please try again.
-                </Alert>
-              ) : null}
-              <TextField
-                label="What happened?"
-                multiline
-                minRows={4}
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                placeholder="Tell us what you expected, what happened, and what you were trying to do."
-                required
-              />
-              <TextField
-                label="Contact or note (optional)"
-                value={contact}
-                onChange={(event) => setContact(event.target.value)}
-                placeholder="Email, phone, order reference, or anything useful"
-              />
-              <Button
-                onClick={submit}
-                disabled={!message.trim() || state === "sending"}
-                variant="contained"
-                endIcon={<SendRounded />}
-                sx={{ alignSelf: "flex-start", bgcolor: tokens.burgundy }}
-              >
-                {state === "sending" ? "Sending…" : "Send report"}
-              </Button>
-            </Stack>
-          ) : null}
+          {view === "menu" ? <SupportMenu onPick={setView} /> : null}
+          {view === "contact" ? <ContactList /> : null}
+          {view === "feedback" ? <FeedbackForm /> : null}
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// The landing menu: the two top-level Support choices.
+function SupportMenu({ onPick }: { onPick: (view: SupportView) => void }) {
+  return (
+    <Stack spacing={1.25}>
+      <SupportChoice
+        icon={<ChatBubbleOutlineRounded />}
+        title="Send feedback"
+        helper="Report a bug or share an idea"
+        onClick={() => onPick("feedback")}
+      />
+      <SupportChoice
+        icon={<SupportAgentRounded />}
+        title="Contact us"
+        helper="Reach support, billing, privacy, or WhatsApp"
+        onClick={() => onPick("contact")}
+      />
+    </Stack>
+  );
+}
+
+// The Contact us channels — email (mailto) and WhatsApp (wa.me).
+function ContactList() {
+  return (
+    <Stack spacing={1}>
+      {CONTACT_CHANNELS.map((channel) => (
+        <SupportChoice
+          key={channel.label}
+          icon={channel.icon}
+          title={channel.label}
+          helper={channel.detail}
+          href={channel.href}
+        />
+      ))}
+    </Stack>
+  );
+}
+
+// The feedback form owns its own submission state, unchanged from before.
+function FeedbackForm() {
+  const [message, setMessage] = useState("");
+  const [contact, setContact] = useState("");
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(
+    "idle",
+  );
+
+  const submit = async () => {
+    if (!message.trim()) return;
+    setState("sending");
+    try {
+      const response = await sendFeedback({
+        reporter_type: "business",
+        surface: "business",
+        kind: "feedback",
+        subject: "Business dashboard feedback",
+        message,
+        context: { contact },
+      });
+      setState(response.ok ? "sent" : "error");
+      if (response.ok) {
+        setMessage("");
+        setContact("");
+      }
+    } catch {
+      setState("error");
+    }
+  };
+
+  return (
+    <Stack spacing={2}>
+      {state === "sent" ? (
+        <Alert severity="success">
+          Thanks — this is now in the support queue.
+        </Alert>
+      ) : null}
+      {state === "error" ? (
+        <Alert severity="error">Couldn’t send that yet. Please try again.</Alert>
+      ) : null}
+      <TextField
+        label="What happened?"
+        multiline
+        minRows={4}
+        value={message}
+        onChange={(event) => setMessage(event.target.value)}
+        placeholder="Tell us what you expected, what happened, and what you were trying to do."
+        required
+      />
+      <TextField
+        label="Contact or note (optional)"
+        value={contact}
+        onChange={(event) => setContact(event.target.value)}
+        placeholder="Email, phone, order reference, or anything useful"
+      />
+      <Button
+        onClick={submit}
+        disabled={!message.trim() || state === "sending"}
+        variant="contained"
+        endIcon={<SendRounded />}
+        sx={{ alignSelf: "flex-start", bgcolor: tokens.burgundy }}
+      >
+        {state === "sending" ? "Sending…" : "Send report"}
+      </Button>
+    </Stack>
   );
 }
 

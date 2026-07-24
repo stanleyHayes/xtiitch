@@ -24,30 +24,8 @@ import { MarketplaceHero } from "./marketplace-hero";
 import { StudioCard } from "./studio-card";
 import { StyleRail } from "./style-rail";
 import { styleCategories } from "./style-categories";
+import { matchesCatalogueFilter, shopSearchText } from "./marketplace-filters";
 import type { FlatDesign, SortKey, Tab } from "./types";
-
-function shopSearchText(shop: PublicShop): string {
-  return [
-    shop.name,
-    ...shop.designs.flatMap((design) => [
-      design.title,
-      design.style_category ?? "",
-    ]),
-  ]
-    .join(" ")
-    .toLowerCase();
-}
-
-function matchesCatalogueFilter(shop: PublicShop, filter: string): boolean {
-  if (!filter) return true;
-  const config = styleCategories.find((item) => item.slug === filter);
-  if (!config) return true;
-  if (shop.designs.some((design) => design.style_category === config.slug)) {
-    return true;
-  }
-  const text = shopSearchText(shop);
-  return config.query.split(" ").some((keyword) => text.includes(keyword));
-}
 
 // eslint-disable-next-line max-lines-per-function -- selected marketplace screen keeps filters, tabs and results coordinated
 export function Marketplace({
