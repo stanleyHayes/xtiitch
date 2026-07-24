@@ -154,6 +154,16 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   regression with a future date range: filtered cards return zero while
   All-time and Net income stay cumulative. Verified with focused postgres and
   payments tests plus `git diff --check`.
+- ✅ Item 6 pricing-page clarity correction: verified business billing already
+  shows quarterly/yearly first-vs-renewal figures, but the marketing pricing
+  cards still used a Monthly/Yearly toggle and surrounding copy implied monthly
+  billing. Marketing pricing now presents only Quarterly and Yearly cycles:
+  quarterly shows the 20% first-payment discount and the normal quarterly
+  renewal; yearly shows first year with three months free and the normal yearly
+  renewal. Each plan card visibly shows the Xtiitch sales-fee percentage, and
+  live `/plans` pricing now overlays both first-cycle and renewal-cycle figures.
+  Verified with marketing typecheck, focused ESLint, marketing production build,
+  and `git diff --check`.
 
 ### Review follow-up — 2026-07-03
 

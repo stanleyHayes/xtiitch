@@ -23,10 +23,34 @@ function splitPlanName(name: string): { title: string; subtitle: string } {
   return { title: title ?? name, subtitle: rest.join(" — ") };
 }
 
-function getSupportLine(plan: Plan, yearly: boolean): string {
-  if (yearly && plan.yearlySaving) return plan.yearlySaving;
-  if (plan.quarterlyPrice) return `${plan.quarterlyPrice} quarterly`;
-  return "Start without monthly cost";
+type PricingCadence = "quarterly" | "yearly";
+
+function planCycleCopy(
+  plan: Plan,
+  cadence: PricingCadence,
+): { headline: string; period: string; detail: string; offer: string } {
+  if (plan.code === "free") {
+    return {
+      headline: "GHS 0",
+      period: "/month",
+      detail: "No package charge. Start selling, then upgrade when ready.",
+      offer: "Free plan",
+    };
+  }
+  if (cadence === "quarterly") {
+    return {
+      headline: plan.quarterlyPrice ?? plan.monthlyPrice,
+      period: "",
+      detail: `First 3 months with 20% discount, then ${plan.quarterlyRenewalPrice ?? "the normal quarterly price"}.`,
+      offer: "Quarterly first payment",
+    };
+  }
+  return {
+    headline: plan.yearlyPrice,
+    period: "",
+    detail: `First year includes 3 months free, then ${plan.yearlyRenewalPrice ?? "the normal yearly price"}.`,
+    offer: plan.yearlySaving ?? "Yearly first payment",
+  };
 }
 
 function PlanCardHeader({
@@ -92,13 +116,14 @@ function PlanCardHeader({
 
 function PlanPricePanel({
   accent,
+  cadence,
   plan,
-  yearly,
 }: {
   accent: string;
+  cadence: PricingCadence;
   plan: Plan;
-  yearly: boolean;
 }) {
+  const copy = planCycleCopy(plan, cadence);
   return (
     <Box
       sx={{
@@ -108,21 +133,39 @@ function PlanPricePanel({
         border: `1px solid ${alpha(accent, 0.14)}`,
       }}
     >
+      <Typography
+        variant="caption"
+        sx={{ color: accent, fontWeight: 950, textTransform: "uppercase" }}
+      >
+        {copy.offer}
+      </Typography>
       <Stack direction="row" sx={{ alignItems: "baseline", gap: 1 }}>
         <Typography
           variant="h3"
           component="p"
           sx={{ color: accent, letterSpacing: "-0.04em" }}
         >
-          {yearly ? plan.yearlyPrice : plan.monthlyPrice}
+          {copy.headline}
         </Typography>
-        <Typography variant="body2" sx={{ color: "text.secondary" }}>
-          {yearly ? "/year" : "/month"}
-        </Typography>
+        {copy.period ? (
+          <Typography variant="body2" sx={{ color: "text.secondary" }}>
+            {copy.period}
+          </Typography>
+        ) : null}
       </Stack>
       <Typography variant="body2" sx={{ mt: 0.75, color: "text.secondary" }}>
-        {getSupportLine(plan, yearly)}
+        {copy.detail}
       </Typography>
+      <Chip
+        size="small"
+        label={`${plan.salesFee} Xtiitch sales fee`}
+        sx={{
+          mt: 1.25,
+          bgcolor: alpha(accent, 0.12),
+          color: accent,
+          fontWeight: 900,
+        }}
+      />
     </Box>
   );
 }
@@ -196,15 +239,15 @@ function PlanButton({
 }
 
 function PlanCard({
+  cadence,
   plan,
   index,
   signupUrl,
-  yearly,
 }: {
+  cadence: PricingCadence;
   plan: Plan;
   index: number;
   signupUrl: string;
-  yearly: boolean;
 }) {
   const { title, subtitle } = splitPlanName(plan.name);
   const accent = plan.highlight ? tokens.burgundy : tokens.gold;
@@ -262,7 +305,7 @@ function PlanCard({
             subtitle={subtitle}
             title={title}
           />
-          <PlanPricePanel accent={accent} plan={plan} yearly={yearly} />
+          <PlanPricePanel accent={accent} cadence={cadence} plan={plan} />
         </Stack>
 
         <Typography
@@ -280,8 +323,7 @@ function PlanCard({
 }
 
 export function PlanCards({ items }: { items: Plan[] }) {
-  const [period, setPeriod] = useState<"monthly" | "yearly">("monthly");
-  const yearly = period === "yearly";
+  const [period, setPeriod] = useState<PricingCadence>("quarterly");
   // Picking a plan should start signup (self-serve register), not the waitlist.
   const rootData = useRouteLoaderData("root") as
     | { signupUrl?: string }
@@ -296,7 +338,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
           value={period}
           exclusive
           onChange={(_event, next) => {
-            if (next) setPeriod(next as "monthly" | "yearly");
+            if (next) setPeriod(next as PricingCadence);
           }}
           aria-label="Billing period"
           sx={{
@@ -324,7 +366,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
             },
           }}
         >
-          <ToggleButton value="monthly">Monthly</ToggleButton>
+          <ToggleButton value="quarterly">Quarterly · 20% off</ToggleButton>
           <ToggleButton value="yearly">Yearly · 3 months free</ToggleButton>
         </ToggleButtonGroup>
       </Box>
@@ -343,10 +385,10 @@ export function PlanCards({ items }: { items: Plan[] }) {
         {items.map((plan, index) => (
           <PlanCard
             key={plan.name}
+            cadence={period}
             plan={plan}
             index={index}
             signupUrl={signupUrl}
-            yearly={yearly}
           />
         ))}
       </Box>

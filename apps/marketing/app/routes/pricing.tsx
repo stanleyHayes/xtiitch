@@ -26,7 +26,7 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Pricing",
     description:
-      "Start free with a real storefront and a 3% share on online sales, then move to a simple monthly plan as you grow — Starter GHS 49, Growth GHS 99, Studio GHS 199. Money you take outside Xtiitch is always yours, fee-free.",
+      "Start free with a real storefront and a 3% share on online sales, then choose quarterly or yearly billing as you grow. Quarterly first payments get 20% off; yearly first payments include three months free. Money you take outside Xtiitch is always yours, fee-free.",
     path: "/pricing",
   });
 }
@@ -45,8 +45,8 @@ export default function Pricing() {
     <>
       <PageHero
         eyebrow="Pricing"
-        title="Small monthly fee, small share of online sales"
-        subtitle="Priced for real Ghanaian SME budgets. Start free with a real storefront, then move to a simple monthly plan as you grow — money you take outside Xtiitch is always yours, fee-free."
+        title="Clear package pricing, small share of online sales"
+        subtitle="Priced for real Ghanaian SME budgets. Start free with a real storefront, then choose quarterly or yearly billing as you grow — money you take outside Xtiitch is always yours, fee-free."
       />
 
       <Section>
@@ -141,7 +141,7 @@ export default function Pricing() {
 
       <CtaBand
         title="Start on Free, upgrade when it pays off"
-        body="There’s no monthly cost to get online. Create your store now and choose a paid plan whenever the lower sales fee and added tools make sense."
+        body="There’s no package charge to get online. Create your store now and choose a paid plan whenever the lower sales fee and added tools make sense."
         image="/images/cta-pricing.webp"
       />
     </>

@@ -6,10 +6,13 @@ export type Plan = {
   badge?: string;
   monthlyPrice: string;
   yearlyPrice: string;
+  yearlyRenewalPrice?: string;
   // Shown beneath the headline price as the alternative billing cycle.
   quarterlyPrice?: string;
+  quarterlyRenewalPrice?: string;
   // Shown on the yearly toggle when the annual price beats 12× monthly.
   yearlySaving?: string;
+  salesFee: string;
   available: boolean;
   highlight: boolean;
   summary: string;
@@ -29,6 +32,7 @@ export const plans: Plan[] = [
     name: "Free — Get Online",
     monthlyPrice: "GHS 0",
     yearlyPrice: "GHS 0",
+    salesFee: "3%",
     available: true,
     highlight: false,
     summary:
@@ -49,8 +53,11 @@ export const plans: Plan[] = [
     name: "Starter — Start Selling",
     monthlyPrice: "GHS 49",
     quarterlyPrice: "GHS 118 / quarter",
+    quarterlyRenewalPrice: "GHS 147 / quarter",
     yearlyPrice: "GHS 441",
+    yearlyRenewalPrice: "GHS 588 / year",
     yearlySaving: "3 months free",
+    salesFee: "1.5%",
     available: true,
     highlight: false,
     summary:
@@ -74,8 +81,11 @@ export const plans: Plan[] = [
     badge: "Most popular",
     monthlyPrice: "GHS 99",
     quarterlyPrice: "GHS 238 / quarter",
+    quarterlyRenewalPrice: "GHS 297 / quarter",
     yearlyPrice: "GHS 891",
+    yearlyRenewalPrice: "GHS 1,188 / year",
     yearlySaving: "3 months free",
+    salesFee: "1%",
     available: true,
     highlight: true,
     summary:
@@ -98,8 +108,11 @@ export const plans: Plan[] = [
     badge: "Best for scale",
     monthlyPrice: "GHS 199",
     quarterlyPrice: "GHS 478 / quarter",
+    quarterlyRenewalPrice: "GHS 597 / quarter",
     yearlyPrice: "GHS 1,791",
+    yearlyRenewalPrice: "GHS 2,388 / year",
     yearlySaving: "3 months free",
+    salesFee: "0.5%",
     available: true,
     highlight: false,
     summary:
@@ -123,5 +136,5 @@ export const pricingNotes: string[] = [
   "A Tax fee is calculated at the configured tax rate on the Xtiitch sales fee. Each store chooses whether the customer or the business bears the Xtiitch fee, Tax fee and Paystack transaction fee; checkout shows only charges passed to the customer.",
   "For eligible mobile-money settlements, Paystack may also deduct its approximately GHS 1 payout fee from the business’s settlement; it is a per-settlement provider charge, not a per-order customer fee.",
   "Money taken outside Xtiitch — cash, or mobile money sent to you directly — carries no fee at all. It never passed through the platform, so it’s always 100% yours.",
-  "Once you’re selling steadily online, a paid plan usually works out cheaper overall than Free: the lower sales fee more than covers the small monthly cost.",
+  "Once you’re selling steadily online, a paid plan usually works out cheaper overall than Free: the lower sales fee can more than cover the package charge.",
 ];

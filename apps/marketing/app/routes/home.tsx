@@ -182,7 +182,7 @@ export default function Home() {
         <SectionHeading
           eyebrow="Pricing built for real budgets"
           title="Start free, then grow into it"
-          subtitle="A small monthly fee and a small share of online sales. Money taken outside Xtiitch is always yours, fee-free."
+          subtitle="Quarterly or yearly package pricing plus a small share of online sales. Money taken outside Xtiitch is always yours, fee-free."
         />
         <PlanCards items={plans} />
       </Section>
@@ -198,7 +198,7 @@ export default function Home() {
 
       <CtaBand
         title="Get your fashion business online"
-        body="Create your store now and start on the Free plan. No monthly cost to get online."
+        body="Create your store now and start on the Free plan. No package charge to get online."
         image="/images/cta-welcome.webp"
       />
     </>

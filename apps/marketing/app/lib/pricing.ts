@@ -87,7 +87,9 @@ export function withLivePricing<T extends { code: string }>(
       ...plan,
       monthlyPrice: formatCedis(pricing.monthlyFeeMinor),
       quarterlyPrice: `${formatCedis(pricing.quarterlyFirstMinor)} / quarter`,
+      quarterlyRenewalPrice: `${formatCedis(pricing.quarterlyRenewalMinor)} / quarter`,
       yearlyPrice: formatCedis(pricing.yearlyFirstMinor),
+      yearlyRenewalPrice: `${formatCedis(pricing.yearlyRenewalMinor)} / year`,
     };
   });
 }

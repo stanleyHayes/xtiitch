@@ -14,7 +14,7 @@ export const faqs: Faq[] = [
   {
     question: "What does it cost?",
     answer:
-      "Free costs nothing per month, with a 3% share on sales made through Xtiitch. The paid plans are Starter at GHS 49 a month, Growth at GHS 99 a month, and Studio at GHS 199 a month — each one taking a smaller share of your sales than the last, so the more you grow, the less you pay per sale. You can pay quarterly and save 20%, or pay yearly and get three months free. Whichever plan you’re on, our share sits on top of Paystack’s 1.95% transaction fee, and only ever applies to money that actually passes through Xtiitch. You can switch your plan or billing cycle yourself from the dashboard anytime.",
+      "Free has no package charge, with a 3% share on sales made through Xtiitch. Paid plans use quarterly or yearly billing: quarterly gives a 20% discount on the first payment, and yearly gives three months free on the first year before the normal renewal price. Starter, Growth and Studio each take a smaller Xtiitch sales fee than the last, so the more you grow, the less you pay per sale. Whichever plan you’re on, our share sits alongside Paystack’s 1.95% transaction fee and only applies to money that actually passes through Xtiitch. You can switch your plan or billing cycle yourself from the dashboard anytime.",
   },
   {
     question: "Do customers order and pay online?",
