@@ -357,13 +357,17 @@ func TestListPayoutsPassesScopeAndPaging(t *testing.T) {
 	}
 }
 
-func TestListPayoutsIsAllTimeAndPrependsPendingOnlinePayout(t *testing.T) {
+// Payout history is all-time (it ignores the Money Desk period filter) and
+// mirrors ONLY Paystack's real settlement rows — it never synthesizes a local
+// "pending" row, so the owner's status always matches what Paystack reports.
+func TestListPayoutsIsAllTimeAndMirrorsProviderRowsOnly(t *testing.T) {
 	t.Parallel()
 
 	settledAt := time.Date(2026, 7, 18, 9, 30, 0, 0, time.UTC)
 	from := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
 	to := from.Add(24 * time.Hour)
 	payments := &fakePaymentRepo{
+		// A non-zero unpaid net share must NOT conjure a synthetic pending row.
 		summary: ports.MoneySummary{
 			ThroughPlatformMinor: 30000,
 			CommissionMinor:      720,
@@ -372,6 +376,7 @@ func TestListPayoutsIsAllTimeAndPrependsPendingOnlinePayout(t *testing.T) {
 		},
 		settlementsList: []ports.ProviderSettlementRecord{
 			{SettlementID: "s-1", ProviderReference: "paystack_settlement:11", AmountMinor: 10000, Status: "success", SettledAt: &settledAt},
+			{SettlementID: "s-2", ProviderReference: "paystack_settlement:12", AmountMinor: 4850, Status: "pending"},
 		},
 	}
 	service := NewService(Dependencies{
@@ -391,19 +396,18 @@ func TestListPayoutsIsAllTimeAndPrependsPendingOnlinePayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list payouts: %v", err)
 	}
-	if payments.settlementsPeriod.From != nil || payments.settlementsPeriod.To != nil ||
-		payments.summaryPeriod.From != nil || payments.summaryPeriod.To != nil {
-		t.Fatalf("payout history must ignore Money Desk filters, got settlements=%+v summary=%+v",
-			payments.settlementsPeriod, payments.summaryPeriod)
+	if payments.settlementsPeriod.From != nil || payments.settlementsPeriod.To != nil {
+		t.Fatalf("payout history must ignore Money Desk filters, got settlements=%+v", payments.settlementsPeriod)
 	}
 	if len(records) != 2 {
-		t.Fatalf("expected pending payout plus mirrored settlement, got %+v", records)
+		t.Fatalf("expected exactly the two mirrored settlement rows, got %+v", records)
 	}
-	if records[0].Status != "pending" || records[0].AmountMinor != 18890 ||
-		records[0].ProviderReference != "pending_payout:current_net_income" {
-		t.Fatalf("unexpected pending payout row: %+v", records[0])
+	for _, record := range records {
+		if record.ProviderReference == "pending_payout:current_net_income" {
+			t.Fatalf("payout history must never synthesize a local pending row, got %+v", records)
+		}
 	}
-	if records[1].ProviderReference != "paystack_settlement:11" {
-		t.Fatalf("expected mirrored settlement after pending row, got %+v", records)
+	if records[0].ProviderReference != "paystack_settlement:11" || records[1].ProviderReference != "paystack_settlement:12" {
+		t.Fatalf("expected the mirrored Paystack settlements verbatim, got %+v", records)
 	}
 }

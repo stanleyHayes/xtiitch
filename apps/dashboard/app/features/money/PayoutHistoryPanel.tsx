@@ -35,9 +35,11 @@ function statusLabel(status: string): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-// §3.3 payout history: every payout the moment Paystack makes it (automatic
-// T+1 cycle, §4.10), plus the current unpaid online amount as a pending row.
-// This stays all-time even when the Money Desk cards are filtered.
+// §3.3 payout history: the mirrored Paystack settlements verbatim — each row
+// carries Paystack's own status (Pending/Processing/Success), so what the owner
+// sees here always matches what Paystack reports. It never derives a local
+// "pending" figure (that only ever read as a phantom the owner could not find
+// on Paystack). This stays all-time even when the Money Desk cards are filtered.
 export function PayoutHistoryPanel({ payouts }: { payouts: MoneyPayout[] }) {
   const { page, pageCount, pagedItems, setPage } = usePagedItems(
     payouts,
@@ -77,7 +79,7 @@ export function PayoutHistoryPanel({ payouts }: { payouts: MoneyPayout[] }) {
             <InlineEmptyState
               icon={<AccountBalanceRounded sx={{ fontSize: 38 }} />}
               title="No payouts yet"
-              helper="Pending payouts appear here once online sales clear; paid payouts update from Paystack settlements."
+              helper="Payouts appear here on Paystack's automatic T+1 cycle once your online sales settle to your MoMo number."
             />
           </Box>
         ) : (

@@ -71,41 +71,22 @@ func (s Service) SyncSettlements(ctx context.Context, cmd SyncSettlementsCommand
 	return result, nil
 }
 
-// ListPayouts pages the store's payout history — mirrored Paystack settlement
-// rows plus the current unpaid through-platform share as a pending payout row.
+// ListPayouts pages the store's payout history — the mirrored Paystack
+// settlement rows, each carrying Paystack's OWN status (pending, processing,
+// success, failed) so the history reflects exactly what the provider reports.
+// It never synthesizes a row: a locally-derived "pending" figure (accrued net
+// income minus settled payouts) can never reconcile to the pesewa against
+// Paystack's actual settlement amounts and always trails the T+1 cycle, so it
+// read as a phantom "Pending" the owner could not find on Paystack. The unpaid
+// amount owed is the Money Desk net-income card's job, not the payout ledger's.
+//
 // Payout history is intentionally all-time: the Money Desk period filters the
 // cards/transactions, but payouts stay a complete ledger so owners can always
-// see what has landed and what is still pending.
+// see what has landed and what is still in flight.
 func (s Service) ListPayouts(ctx context.Context, scope common.TenantScope, _ ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
 	if scope.BusinessID.IsZero() {
 		return nil, ErrInvalidCharge
 	}
 	_, _ = s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: scope.BusinessID})
-	records, err := s.payments.ListProviderSettlements(ctx, scope, ports.MoneyPeriod{}, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	if offset > 0 {
-		return records, nil
-	}
-	summary, err := s.payments.MoneySummary(ctx, scope, ports.MoneyPeriod{})
-	if err != nil {
-		return records, nil
-	}
-	pendingMinor := summary.ThroughPlatformMinor - summary.CommissionMinor - summary.PaystackFeeMinor - summary.SettledPayoutsMinor
-	if pendingMinor <= 0 {
-		return records, nil
-	}
-	pending := ports.ProviderSettlementRecord{
-		SettlementID:      common.ID("pending-payout:" + scope.BusinessID.String()),
-		ProviderReference: "pending_payout:current_net_income",
-		AmountMinor:       pendingMinor,
-		Status:            "pending",
-		CreatedAt:         time.Now().UTC(),
-	}
-	records = append([]ports.ProviderSettlementRecord{pending}, records...)
-	if limit > 0 && len(records) > limit {
-		records = records[:limit]
-	}
-	return records, nil
+	return s.payments.ListProviderSettlements(ctx, scope, ports.MoneyPeriod{}, limit, offset)
 }
