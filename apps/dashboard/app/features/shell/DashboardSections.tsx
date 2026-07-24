@@ -50,6 +50,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   measurementFields,
   moneySummary,
   moneyPeriod,
+  moneyFrom,
+  moneyTo,
   moneyTransactions,
   manualTakings,
   payouts,
@@ -108,6 +110,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
   moneyPeriod: MoneyPeriod;
+  moneyFrom: string;
+  moneyTo: string;
   moneyTransactions: MoneyTransaction[];
   manualTakings: ManualTaking[];
   payouts: MoneyPayout[];
@@ -225,6 +229,8 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
               <MoneySection
                 summary={moneySummary}
                 period={moneyPeriod}
+                customFrom={moneyFrom}
+                customTo={moneyTo}
                 transactions={moneyTransactions}
                 takings={manualTakings}
                 orders={orders}

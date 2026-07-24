@@ -165,7 +165,7 @@ func TestRecordAndListManualTakings(t *testing.T) {
 		t.Fatalf("record taking: %v", err)
 	}
 
-	takings, err := repo.ListManualTakings(ctx, mtScope())
+	takings, err := repo.ListManualTakings(ctx, mtScope(), ports.MoneyPeriod{})
 	if err != nil {
 		t.Fatalf("list takings: %v", err)
 	}

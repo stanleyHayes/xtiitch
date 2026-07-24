@@ -137,20 +137,22 @@ export function MoneyPanel({ // eslint-disable-line max-lines-per-function -- la
             helper="Invoice or reconcile later"
             tone={tokens.warning}
           />
-          {/* §3.1: doubles as the amount due for payout — it rises as sales
-              come in and drops in real time when a payout settles (§3.3). */}
+          {/* §1: the selected period's take-home — store share + manual takings
+              less offline commission. Defaulting to Today, it resets to zero at
+              the start of each day; other periods (§3) show their own window. */}
           <MiniStat
             icon={<CheckCircleRounded fontSize="small" />}
             label="Net income"
             value={formatGHS(summary.net_income_minor)}
-            helper="Amount due for payout — drops when a payout lands"
+            helper="Earnings for the selected period — resets each day"
             tone={tokens.burgundy}
           />
+          {/* §3: exempt from the time filter — always cumulative since joining. */}
           <MiniStat
             icon={<SavingsRounded fontSize="small" />}
             label="All-time income"
             value={formatGHS(summary.all_time_income_minor)}
-            helper="Since joining Xtiitch"
+            helper="Since joining Xtiitch — not affected by filters"
             tone={tokens.info}
           />
         </Box>

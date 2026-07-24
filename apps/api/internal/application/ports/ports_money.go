@@ -48,8 +48,9 @@ type PaymentRepository interface {
 	// does not move this money, so any platform commission is only an accrued
 	// offline receivable for later invoice/reconciliation.
 	RecordManualTaking(ctx context.Context, scope common.TenantScope, input ManualTakingInput) error
-	// ListManualTakings lists a business's off-platform takings, most recent first.
-	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ManualTakingRecord, error)
+	// ListManualTakings lists a business's off-platform takings for the given
+	// period (§3 time filter), most recent first. A zero-value period lists all.
+	ListManualTakings(ctx context.Context, scope common.TenantScope, period MoneyPeriod) ([]ManualTakingRecord, error)
 	// MoneySummary aggregates the business's income: succeeded through-platform
 	// payments and their commission, plus off-platform manual takings.
 	MoneySummary(ctx context.Context, scope common.TenantScope, period MoneyPeriod) (MoneySummary, error)

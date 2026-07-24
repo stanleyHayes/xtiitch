@@ -347,7 +347,7 @@ func (s *fakeService) LogManualTaking(
 	return paymentsapp.LogManualTakingResult{TakingID: "taking-1", CommissionStatus: "due"}, nil
 }
 
-func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope) ([]ports.ManualTakingRecord, error) {
+func (s *fakeService) ListManualTakings(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod) ([]ports.ManualTakingRecord, error) {
 	return nil, nil
 }
 
@@ -369,4 +369,36 @@ func (s *fakeService) ListPayouts(_ context.Context, _ common.TenantScope, _ por
 	s.payoutsLimit = limit
 	s.payoutsOffset = offset
 	return s.payouts, nil
+}
+
+// §3: the Money Desk time filter must cover yesterday and a custom date range,
+// alongside the existing named periods. The clock is pinned so the day
+// boundaries are deterministic.
+func TestParseMoneyPeriodYesterdayAndCustom(t *testing.T) {
+	t.Parallel()
+
+	now := func() time.Time { return time.Date(2026, 7, 24, 15, 4, 0, 0, time.UTC) }
+
+	yesterday := parseMoneyPeriod("yesterday", now)
+	wantFrom := time.Date(2026, 7, 23, 0, 0, 0, 0, time.UTC)
+	wantTo := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
+	if yesterday.From == nil || yesterday.To == nil || !yesterday.From.Equal(wantFrom) || !yesterday.To.Equal(wantTo) {
+		t.Fatalf("yesterday: got %+v, want [%s, %s)", yesterday, wantFrom, wantTo)
+	}
+
+	// Custom range: the end date is inclusive to the owner, so the half-open
+	// upper bound advances one day past it.
+	custom := customMoneyPeriod("2026-07-01", "2026-07-15")
+	customFrom := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	customTo := time.Date(2026, 7, 16, 0, 0, 0, 0, time.UTC)
+	if custom.From == nil || custom.To == nil || !custom.From.Equal(customFrom) || !custom.To.Equal(customTo) {
+		t.Fatalf("custom: got %+v, want [%s, %s)", custom, customFrom, customTo)
+	}
+
+	// A malformed bound is left open rather than erroring, so a one-sided custom
+	// range still filters.
+	oneSided := customMoneyPeriod("2026-07-01", "not-a-date")
+	if oneSided.From == nil || oneSided.To != nil {
+		t.Fatalf("one-sided custom: got %+v, want From set and To open", oneSided)
+	}
 }

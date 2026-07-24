@@ -78,10 +78,12 @@ export type MoneySummary = {
 
 export type MoneyPeriod =
   | "today"
+  | "yesterday"
   | "last_7_days"
   | "this_month"
   | "last_month"
-  | "all_time";
+  | "all_time"
+  | "custom";
 
 export type MoneyTransaction = {
   payment_id: string;

@@ -42,10 +42,12 @@ export const defaultMoneySummary: MoneySummary = {
 
 export const moneyPeriodOptions: { value: MoneyPeriod; label: string }[] = [
   { value: "today", label: "Today" },
+  { value: "yesterday", label: "Yesterday" },
   { value: "last_7_days", label: "Last 7 days" },
   { value: "this_month", label: "This month" },
   { value: "last_month", label: "Last month" },
   { value: "all_time", label: "All time" },
+  { value: "custom", label: "Custom" },
 ];
 
 export const orderFilters: { value: OrderFilter; label: string }[] = [

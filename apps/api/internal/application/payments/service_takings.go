@@ -76,8 +76,8 @@ func (s Service) LogManualTaking(ctx context.Context, cmd LogManualTakingCommand
 	}, nil
 }
 
-func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {
-	return s.payments.ListManualTakings(ctx, scope)
+func (s Service) ListManualTakings(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) ([]ports.ManualTakingRecord, error) {
+	return s.payments.ListManualTakings(ctx, scope, period)
 }
 
 // MoneySummary reads the Money Desk aggregates. It first kicks a BEST-EFFORT,

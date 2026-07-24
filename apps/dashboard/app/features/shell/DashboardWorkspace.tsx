@@ -49,6 +49,8 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     measurementFields,
     moneySummary,
     moneyPeriod,
+    moneyFrom,
+    moneyTo,
     moneyTransactions,
     manualTakings,
     payouts,
@@ -348,6 +350,8 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               measurementFields={measurementFields}
               moneySummary={moneySummary}
               moneyPeriod={moneyPeriod}
+              moneyFrom={moneyFrom}
+              moneyTo={moneyTo}
               moneyTransactions={moneyTransactions}
               manualTakings={manualTakings}
               payouts={payouts}

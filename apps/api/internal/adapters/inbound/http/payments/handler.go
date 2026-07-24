@@ -29,7 +29,7 @@ type Service interface {
 	HandleProviderEvent(ctx context.Context, payload []byte, signature string) error
 	ListPayments(ctx context.Context, scope common.TenantScope) ([]ports.PaymentRecord, error)
 	LogManualTaking(ctx context.Context, command paymentsapp.LogManualTakingCommand) (paymentsapp.LogManualTakingResult, error)
-	ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error)
+	ListManualTakings(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) ([]ports.ManualTakingRecord, error)
 	MoneySummary(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) (ports.MoneySummary, error)
 	ListMoneyTransactions(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.MoneyTransactionRecord, error)
 	ListPayouts(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error)
@@ -284,7 +284,7 @@ func (handler Handler) listTakings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	records, err := handler.service.ListManualTakings(r.Context(), principal.TenantScope())
+	records, err := handler.service.ListManualTakings(r.Context(), principal.TenantScope(), moneyPeriodFromRequest(r, time.Now))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
@@ -312,7 +312,7 @@ func (handler Handler) moneySummary(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "invalid_token")
 		return
 	}
-	summary, err := handler.service.MoneySummary(r.Context(), principal.TenantScope(), parseMoneyPeriod(r.URL.Query().Get("period"), time.Now))
+	summary, err := handler.service.MoneySummary(r.Context(), principal.TenantScope(), moneyPeriodFromRequest(r, time.Now))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "internal_error")
 		return
@@ -346,7 +346,7 @@ func (handler Handler) listMoneyTransactions(w http.ResponseWriter, r *http.Requ
 	records, err := handler.service.ListMoneyTransactions(
 		r.Context(),
 		principal.TenantScope(),
-		parseMoneyPeriod(r.URL.Query().Get("period"), time.Now),
+		moneyPeriodFromRequest(r, time.Now),
 		parsePagingLimit(r.URL.Query().Get("limit")),
 		parsePagingOffset(r.URL.Query().Get("offset")),
 	)
@@ -372,7 +372,7 @@ func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
 	records, err := handler.service.ListPayouts(
 		r.Context(),
 		principal.TenantScope(),
-		parseMoneyPeriod(r.URL.Query().Get("period"), time.Now),
+		moneyPeriodFromRequest(r, time.Now),
 		parsePagingLimit(r.URL.Query().Get("limit")),
 		parsePagingOffset(r.URL.Query().Get("offset")),
 	)
@@ -388,20 +388,20 @@ func (handler Handler) listPayouts(w http.ResponseWriter, r *http.Request) {
 }
 
 type transactionResponse struct {
-	PaymentID         string `json:"payment_id"`
-	OrderID           string `json:"order_id"`
-	Reference         string `json:"reference"`
-	Purpose           string `json:"purpose"`
-	Method            string `json:"method"`
-	AmountMinor       int64  `json:"amount_minor"`
-	DesignCostMinor   int64  `json:"design_cost_minor"`
-	PaystackFeeMinor  int64  `json:"paystack_fee_minor"`
-	XtiitchFeeMinor   int64  `json:"xtiitch_fee_minor"`
-	XtiitchTaxMinor   int64  `json:"xtiitch_tax_minor"`
-	TakeHomeMinor     int64  `json:"take_home_minor"`
-	DesignTitle       string `json:"design_title"`
-	CustomerName      string `json:"customer_name"`
-	CreatedAt         string `json:"created_at"`
+	PaymentID        string `json:"payment_id"`
+	OrderID          string `json:"order_id"`
+	Reference        string `json:"reference"`
+	Purpose          string `json:"purpose"`
+	Method           string `json:"method"`
+	AmountMinor      int64  `json:"amount_minor"`
+	DesignCostMinor  int64  `json:"design_cost_minor"`
+	PaystackFeeMinor int64  `json:"paystack_fee_minor"`
+	XtiitchFeeMinor  int64  `json:"xtiitch_fee_minor"`
+	XtiitchTaxMinor  int64  `json:"xtiitch_tax_minor"`
+	TakeHomeMinor    int64  `json:"take_home_minor"`
+	DesignTitle      string `json:"design_title"`
+	CustomerName     string `json:"customer_name"`
+	CreatedAt        string `json:"created_at"`
 }
 
 func newTransactionResponse(record ports.MoneyTransactionRecord) transactionResponse {
@@ -458,6 +458,36 @@ const (
 	maxPayoutPageLimit     = 200
 )
 
+// moneyPeriodFromRequest resolves the Money Desk time filter (§3) from the
+// request: the named periods are derived from the clock, while "custom" reads
+// the from/to date query params. Kept separate from parseMoneyPeriod so the
+// named-period logic stays a pure, clock-only function.
+func moneyPeriodFromRequest(r *http.Request, now func() time.Time) ports.MoneyPeriod {
+	query := r.URL.Query()
+	if strings.TrimSpace(strings.ToLower(query.Get("period"))) == "custom" {
+		return customMoneyPeriod(query.Get("from"), query.Get("to"))
+	}
+	return parseMoneyPeriod(query.Get("period"), now)
+}
+
+// customMoneyPeriod builds a half-open [from, to) range from two YYYY-MM-DD
+// dates (§3 custom range). The end date is inclusive to the owner, so it is
+// advanced one day to the next midnight. A missing or malformed bound is simply
+// left open, so a one-sided custom range still works.
+func customMoneyPeriod(fromValue, toValue string) ports.MoneyPeriod {
+	const dateLayout = "2006-01-02"
+	var period ports.MoneyPeriod
+	if from, err := time.Parse(dateLayout, strings.TrimSpace(fromValue)); err == nil {
+		start := from.UTC()
+		period.From = &start
+	}
+	if to, err := time.Parse(dateLayout, strings.TrimSpace(toValue)); err == nil {
+		end := to.AddDate(0, 0, 1).UTC()
+		period.To = &end
+	}
+	return period
+}
+
 func parseMoneyPeriod(value string, now func() time.Time) ports.MoneyPeriod {
 	current := now().UTC()
 	today := time.Date(current.Year(), current.Month(), current.Day(), 0, 0, 0, 0, time.UTC)
@@ -466,6 +496,9 @@ func parseMoneyPeriod(value string, now func() time.Time) ports.MoneyPeriod {
 	case "today":
 		to := today.AddDate(0, 0, 1)
 		return ports.MoneyPeriod{From: &today, To: &to}
+	case "yesterday":
+		from := today.AddDate(0, 0, -1)
+		return ports.MoneyPeriod{From: &from, To: &today}
 	case "last_7_days", "last7", "7_days":
 		from := today.AddDate(0, 0, -6)
 		to := today.AddDate(0, 0, 1)

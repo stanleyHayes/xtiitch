@@ -311,7 +311,7 @@ func (repo PaymentRepository) RecordManualTaking(ctx context.Context, scope comm
 	return tx.Commit(ctx)
 }
 
-func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope common.TenantScope) ([]ports.ManualTakingRecord, error) {
+func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope common.TenantScope, period ports.MoneyPeriod) ([]ports.ManualTakingRecord, error) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -322,12 +322,17 @@ func (repo PaymentRepository) ListManualTakings(ctx context.Context, scope commo
 		return nil, err
 	}
 
+	// §3: the manual takings list obeys the same time filter as the cards and the
+	// transactions ledger. A nil bound leaves that side open (all time).
 	rows, err := tx.Query(ctx, `
 		select taking_id, amount_minor, method, what_for,
 			commission_bps, commission_minor, commission_status, commission_note, taken_at
-		from manual_takings where business_id = $1
+		from manual_takings
+		where business_id = $1
+			and ($2::timestamptz is null or taken_at >= $2)
+			and ($3::timestamptz is null or taken_at < $3)
 		order by taken_at desc
-	`, scope.BusinessID.String())
+	`, scope.BusinessID.String(), period.From, period.To)
 	if err != nil {
 		return nil, err
 	}
@@ -437,43 +442,63 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 	// minus the persisted tax — still a pure function of stored figures.
 	summary.XtiitchFeeMinor = summary.CommissionMinor - summary.XtiitchTaxMinor
 
-	var allTimeStoreShareMinor, allTimeManualTakingsMinor, allTimeOfflineCommissionDueMinor, allTimeSettledPayoutsMinor int64
-	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(amount_minor - commission_minor - coalesce(provider_fee_minor, 0)), 0)
-		from payments
-		where business_id = $1 and status = 'succeeded' and through_platform = true
-	`, scope.BusinessID.String()).Scan(&allTimeStoreShareMinor); err != nil {
-		return ports.MoneySummary{}, err
-	}
-	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(amount_minor), 0)
-		from paystack_settlements
-		where business_id = $1 and status = 'success'
-	`, scope.BusinessID.String()).Scan(&allTimeSettledPayoutsMinor); err != nil {
-		return ports.MoneySummary{}, err
-	}
-	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(amount_minor), 0)
-		from manual_takings
-		where business_id = $1
-	`, scope.BusinessID.String()).Scan(&allTimeManualTakingsMinor); err != nil {
-		return ports.MoneySummary{}, err
-	}
-	if err := tx.QueryRow(ctx, `
-		select coalesce(sum(commission_minor), 0)
-		from manual_takings
-		where business_id = $1 and commission_status in ('due', 'invoiced')
-	`, scope.BusinessID.String()).Scan(&allTimeOfflineCommissionDueMinor); err != nil {
+	allTimeIncomeMinor, allTimeSettledPayoutsMinor, err := allTimeMoneyFigures(ctx, tx, scope.BusinessID.String())
+	if err != nil {
 		return ports.MoneySummary{}, err
 	}
 	summary.SettledPayoutsMinor = allTimeSettledPayoutsMinor
-	summary.AllTimeIncomeMinor = allTimeStoreShareMinor + allTimeManualTakingsMinor - allTimeOfflineCommissionDueMinor
-	summary.NetIncomeMinor = summary.AllTimeIncomeMinor - summary.SettledPayoutsMinor
+	summary.AllTimeIncomeMinor = allTimeIncomeMinor
+	// §1: net income is the SELECTED PERIOD's earnings — the store share plus
+	// manual takings, less offline commission due, all scoped to the period above.
+	// Defaulting the Money Desk to "today" makes it reset to zero at the start of
+	// each day and never carry a prior day forward. All-time income (above) stays
+	// cumulative and is exempt from the filter (§3). A payout is a cash-out event,
+	// not earnings, so it no longer reduces this figure — settlements live in the
+	// payout ledger, and amount-owed is Paystack's pending settlements.
+	summary.NetIncomeMinor = storeShareMinor + summary.ManualTakingsMinor - summary.OfflineCommissionDueMinor
 
 	if err := tx.Commit(ctx); err != nil {
 		return ports.MoneySummary{}, err
 	}
 	return summary, nil
+}
+
+// allTimeMoneyFigures runs the unfiltered aggregates that back the all-time
+// income card (§3, exempt from the period filter) and the settled-payouts
+// total. All-time income is the accrued store share plus off-platform takings,
+// less accrued offline commission — cumulative since joining, never reduced by
+// payouts. Kept out of MoneySummary so that read stays within its length bound.
+func allTimeMoneyFigures(ctx context.Context, tx pgx.Tx, businessID string) (income, settledPayouts int64, err error) {
+	var storeShare, manualTakings, offlineCommissionDue int64
+	if err = tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor - commission_minor - coalesce(provider_fee_minor, 0)), 0)
+		from payments
+		where business_id = $1 and status = 'succeeded' and through_platform = true
+	`, businessID).Scan(&storeShare); err != nil {
+		return 0, 0, err
+	}
+	if err = tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0)
+		from paystack_settlements
+		where business_id = $1 and status = 'success'
+	`, businessID).Scan(&settledPayouts); err != nil {
+		return 0, 0, err
+	}
+	if err = tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0)
+		from manual_takings
+		where business_id = $1
+	`, businessID).Scan(&manualTakings); err != nil {
+		return 0, 0, err
+	}
+	if err = tx.QueryRow(ctx, `
+		select coalesce(sum(commission_minor), 0)
+		from manual_takings
+		where business_id = $1 and commission_status in ('due', 'invoiced')
+	`, businessID).Scan(&offlineCommissionDue); err != nil {
+		return 0, 0, err
+	}
+	return storeShare + manualTakings - offlineCommissionDue, settledPayouts, nil
 }
 
 func (repo PaymentRepository) ListMoneyTransactions(
@@ -525,6 +550,20 @@ func (repo PaymentRepository) ListMoneyTransactions(
 	}
 	defer rows.Close()
 
+	records, err := scanMoneyTransactionRows(rows)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return records, nil
+}
+
+// scanMoneyTransactionRows drains the Money Desk ledger query into records.
+// Split out of ListMoneyTransactions so that read stays within its length bound.
+func scanMoneyTransactionRows(rows pgx.Rows) ([]ports.MoneyTransactionRecord, error) {
 	var records []ports.MoneyTransactionRecord
 	for rows.Next() {
 		var record ports.MoneyTransactionRecord
@@ -556,10 +595,6 @@ func (repo PaymentRepository) ListMoneyTransactions(
 		records = append(records, record)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return records, nil

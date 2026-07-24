@@ -34,7 +34,7 @@ type settlementItem struct {
 	SettledAt       *time.Time      `json:"settled_at"`
 	SettlementDate  *time.Time      `json:"settlement_date"`
 	CreatedAt       *time.Time      `json:"created_at"`
-	Subaccount     *struct {
+	Subaccount      *struct {
 		SubaccountCode string `json:"subaccount_code"`
 	} `json:"subaccount"`
 }

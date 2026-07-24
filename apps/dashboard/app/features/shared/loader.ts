@@ -58,6 +58,8 @@ export type DashboardLoaderData = {
   measurementFields: MeasurementField[];
   moneySummary: MoneySummary;
   moneyPeriod: MoneyPeriod;
+  moneyFrom: string;
+  moneyTo: string;
   moneyTransactions: MoneyTransaction[];
   manualTakings: ManualTaking[];
   payouts: MoneyPayout[];
@@ -108,6 +110,16 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   const moneyPeriod = parseMoneyPeriod(
     url.searchParams.get("money") ?? (section === "money" ? "today" : "all_time"),
   );
+  // §3 custom range: the date bounds ride alongside the period as their own
+  // search params so a shared/bookmarked URL restores the exact filter.
+  const moneyFrom = url.searchParams.get("money_from") ?? "";
+  const moneyTo = url.searchParams.get("money_to") ?? "";
+  // Every money endpoint takes the same filter. Custom carries the date bounds;
+  // the named periods are resolved server-side from the clock.
+  const moneyQuery =
+    moneyPeriod === "custom"
+      ? `period=custom&from=${encodeURIComponent(moneyFrom)}&to=${encodeURIComponent(moneyTo)}`
+      : `period=${encodeURIComponent(moneyPeriod)}`;
   const dataWarnings: string[] = [];
   const readResult = <T,>(result: { data: T; warning: string | null }): T => {
     if (result.warning) {
@@ -211,19 +223,20 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       ),
       loadDashboardJSON<MoneySummary>(
         request,
-        `/money/summary?period=${encodeURIComponent(moneyPeriod)}`,
+        `/money/summary?${moneyQuery}`,
         defaultMoneySummary,
         "Money summary could not be loaded right now.",
       ),
       loadDashboardJSON<{ transactions: MoneyTransaction[] }>(
         request,
-        `/money/transactions?period=${encodeURIComponent(moneyPeriod)}&limit=100&offset=0`,
+        `/money/transactions?${moneyQuery}&limit=100&offset=0`,
         { transactions: [] },
         "Today's transactions could not be loaded right now.",
       ),
+      // §3: manual takings obey the same time filter as the cards/transactions.
       loadDashboardJSON<{ takings: ManualTaking[] }>(
         request,
-        "/money/takings",
+        `/money/takings?${moneyQuery}`,
         { takings: [] },
         "Manual takings could not be loaded right now.",
       ),
@@ -379,6 +392,8 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     measurementFields: fieldsData.fields ?? [],
     moneySummary,
     moneyPeriod,
+    moneyFrom,
+    moneyTo,
     moneyTransactions,
     manualTakings,
     payouts,
