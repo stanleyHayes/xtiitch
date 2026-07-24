@@ -128,6 +128,14 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   total. Verified with focused Go money/payments/checkout tests, storefront tax
   line tests, storefront typecheck, focused ESLint, storefront production build,
   and `git diff --check`.
+- ✅ Item 3 transaction-breakdown correction: verified Money Desk transaction
+  details already expose separate persisted Paystack fee, Xtiitch fee, tax fee,
+  design cost and business take-home fields instead of reusing the checkout's
+  combined `Transaction fee` label. Added a real Postgres integration regression
+  for the GHS1 Studio-style payment so `Design cost = GHS1.00`, `Paystack fee =
+  GHS0.02`, `Xtiitch fee = GHS0.01`, `Tax fee = GHS0.00`, and `Business
+  take-home = GHS1.00` read back without double counting. Verified with focused
+  payments HTTP/application/postgres tests and `git diff --check`.
 
 ### Review follow-up — 2026-07-03
 

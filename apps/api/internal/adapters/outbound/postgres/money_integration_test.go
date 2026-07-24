@@ -103,6 +103,50 @@ func TestMoneySummaryAggregatesTenantIncome(t *testing.T) {
 	}
 }
 
+func TestListMoneyTransactionsSplitsFeesWithoutDoubleCounting(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedMoneyFixtures(t, pool)
+	defer cleanupMoneyFixtures(t, pool)
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into payments (
+				payment_id, business_id, purpose, amount_minor, currency, method,
+				provider_reference, status, through_platform, commission_minor,
+				xtiitch_tax_minor, provider_fee_minor, settle_amount_minor, created_at
+			)
+			values (
+				gen_random_uuid(), $1, 'standard_full', 103, 'GHS', 'card',
+				'xt_mt_breakdown', 'succeeded', true, 1,
+				0, 2, 100, '2026-07-24T12:00:00Z'
+			)
+		`, mtBiz)
+	})
+
+	records, err := NewPaymentRepository(pool).ListMoneyTransactions(context.Background(), mtScope(), ports.MoneyPeriod{}, 20, 0)
+	if err != nil {
+		t.Fatalf("list money transactions: %v", err)
+	}
+	var found *ports.MoneyTransactionRecord
+	for i := range records {
+		if records[i].ProviderReference == "xt_mt_breakdown" {
+			found = &records[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatalf("expected seeded breakdown transaction, got %+v", records)
+	}
+	if found.AmountMinor != 103 || found.DesignCostMinor != 100 || found.PaystackFeeMinor != 2 ||
+		found.XtiitchFeeMinor != 1 || found.XtiitchTaxMinor != 0 || found.TakeHomeMinor != 100 {
+		t.Fatalf(
+			"breakdown should split Paystack/Xtiitch/tax from the GHS1 sale without double counting: %+v",
+			*found,
+		)
+	}
+}
+
 // TestRecordAndListManualTakings: a logged taking is tenant-scoped, carries no
 // commission, and shows up in the list and the summary.
 func TestRecordAndListManualTakings(t *testing.T) {
