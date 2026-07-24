@@ -227,11 +227,12 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
         { takings: [] },
         "Manual takings could not be loaded right now.",
       ),
-      // §3.3: the payout history table. The first page (50) is loaded and the
-      // table pages client-side, the same treatment as manual takings.
+      // §3.3: payout history is an all-time ledger even when the Money Desk
+      // cards/transactions are period-filtered. It includes Paystack settlement
+      // rows plus the current pending online payout amount.
       loadDashboardJSON<{ payouts: MoneyPayout[] }>(
         request,
-        `/money/payouts?period=${encodeURIComponent(moneyPeriod)}&limit=100&offset=0`,
+        "/money/payouts?period=all_time&limit=100&offset=0",
         { payouts: [] },
         "Payout history could not be loaded right now.",
       ),

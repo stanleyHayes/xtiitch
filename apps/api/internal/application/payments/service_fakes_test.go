@@ -123,6 +123,7 @@ type fakePaymentRepo struct {
 	list          []ports.PaymentRecord
 	taking        ports.ManualTakingInput
 	summary       ports.MoneySummary
+	summaryPeriod ports.MoneyPeriod
 
 	byReference    map[string]ports.PaymentRecord
 	byReferenceErr error
@@ -141,6 +142,7 @@ type fakePaymentRepo struct {
 
 	settlementsList   []ports.ProviderSettlementRecord
 	settlementsPaging []int
+	settlementsPeriod ports.MoneyPeriod
 	syncedMarked      []common.ID
 	markSyncedErr     error
 }
@@ -180,7 +182,8 @@ func (r *fakePaymentRepo) ListManualTakings(_ context.Context, _ common.TenantSc
 	return nil, nil
 }
 
-func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod) (ports.MoneySummary, error) {
+func (r *fakePaymentRepo) MoneySummary(_ context.Context, _ common.TenantScope, period ports.MoneyPeriod) (ports.MoneySummary, error) {
+	r.summaryPeriod = period
 	return r.summary, nil
 }
 
@@ -218,7 +221,8 @@ func (r *fakePaymentRepo) UpsertProviderSettlements(_ context.Context, _ common.
 	return len(settlements), nil
 }
 
-func (r *fakePaymentRepo) ListProviderSettlements(_ context.Context, _ common.TenantScope, _ ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+func (r *fakePaymentRepo) ListProviderSettlements(_ context.Context, _ common.TenantScope, period ports.MoneyPeriod, limit int, offset int) ([]ports.ProviderSettlementRecord, error) {
+	r.settlementsPeriod = period
 	r.settlementsPaging = []int{limit, offset}
 	return r.settlementsList, nil
 }

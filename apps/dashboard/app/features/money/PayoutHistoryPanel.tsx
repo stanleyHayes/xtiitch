@@ -36,9 +36,8 @@ function statusLabel(status: string): string {
 }
 
 // §3.3 payout history: every payout the moment Paystack makes it (automatic
-// T+1 cycle, §4.10), so the owner can track what landed and when. The figures
-// are the mirrored Paystack settlement rows (§3.2) — Paystack is the source
-// of truth, this table never derives amounts locally.
+// T+1 cycle, §4.10), plus the current unpaid online amount as a pending row.
+// This stays all-time even when the Money Desk cards are filtered.
 export function PayoutHistoryPanel({ payouts }: { payouts: MoneyPayout[] }) {
   const { page, pageCount, pagedItems, setPage } = usePagedItems(
     payouts,
@@ -61,12 +60,12 @@ export function PayoutHistoryPanel({ payouts }: { payouts: MoneyPayout[] }) {
             <Box>
               <Typography sx={{ fontWeight: 900 }}>Payout history</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Every settlement Paystack has paid out to your MoMo number.
+                Pending and paid Paystack payouts to your MoMo number.
               </Typography>
             </Box>
           </Stack>
           <ToneChip
-            label={`${payouts.length} payouts`}
+            label={`${payouts.length} records`}
             tone={tokens.success}
           />
         </Stack>
@@ -78,7 +77,7 @@ export function PayoutHistoryPanel({ payouts }: { payouts: MoneyPayout[] }) {
             <InlineEmptyState
               icon={<AccountBalanceRounded sx={{ fontSize: 38 }} />}
               title="No payouts yet"
-              helper="Payouts land automatically on Paystack's T+1 cycle once sales settle."
+              helper="Pending payouts appear here once online sales clear; paid payouts update from Paystack settlements."
             />
           </Box>
         ) : (

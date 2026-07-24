@@ -356,3 +356,54 @@ func TestListPayoutsPassesScopeAndPaging(t *testing.T) {
 		t.Fatalf("expected payout history read to attempt settlement sync first, got %+v", payments.syncedMarked)
 	}
 }
+
+func TestListPayoutsIsAllTimeAndPrependsPendingOnlinePayout(t *testing.T) {
+	t.Parallel()
+
+	settledAt := time.Date(2026, 7, 18, 9, 30, 0, 0, time.UTC)
+	from := time.Date(2026, 7, 24, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+	payments := &fakePaymentRepo{
+		summary: ports.MoneySummary{
+			ThroughPlatformMinor: 30000,
+			CommissionMinor:      720,
+			PaystackFeeMinor:     390,
+			SettledPayoutsMinor:  10000,
+		},
+		settlementsList: []ports.ProviderSettlementRecord{
+			{SettlementID: "s-1", ProviderReference: "paystack_settlement:11", AmountMinor: 10000, Status: "success", SettledAt: &settledAt},
+		},
+	}
+	service := NewService(Dependencies{
+		Provider: &fakeProvider{}, Payments: payments, Businesses: &fakeChargeRepo{context: ports.BusinessChargeContext{
+			BusinessID: "business-1", SubaccountRef: "ACCT_1",
+		}},
+		IDs: &sequenceIDs{ids: []common.ID{"unused"}},
+	})
+
+	records, err := service.ListPayouts(
+		context.Background(),
+		common.TenantScope{BusinessID: "business-1"},
+		ports.MoneyPeriod{From: &from, To: &to},
+		25,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("list payouts: %v", err)
+	}
+	if payments.settlementsPeriod.From != nil || payments.settlementsPeriod.To != nil ||
+		payments.summaryPeriod.From != nil || payments.summaryPeriod.To != nil {
+		t.Fatalf("payout history must ignore Money Desk filters, got settlements=%+v summary=%+v",
+			payments.settlementsPeriod, payments.summaryPeriod)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected pending payout plus mirrored settlement, got %+v", records)
+	}
+	if records[0].Status != "pending" || records[0].AmountMinor != 18890 ||
+		records[0].ProviderReference != "pending_payout:current_net_income" {
+		t.Fatalf("unexpected pending payout row: %+v", records[0])
+	}
+	if records[1].ProviderReference != "paystack_settlement:11" {
+		t.Fatalf("expected mirrored settlement after pending row, got %+v", records)
+	}
+}

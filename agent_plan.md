@@ -136,6 +136,16 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   GHS0.02`, `Xtiitch fee = GHS0.01`, `Tax fee = GHS0.00`, and `Business
   take-home = GHS1.00` read back without double counting. Verified with focused
   payments HTTP/application/postgres tests and `git diff --check`.
+- ✅ Item 4 payout-history correction: verified transfer webhooks already force a
+  Paystack settlement refresh and successful mirrored settlements already reduce
+  net income. Fixed the remaining payout-history gaps: business payout history
+  now ignores Money Desk period filters (all-time ledger), and the service
+  prepends a `pending` payout row for the unpaid through-platform store share
+  (`gross - Xtiitch fee/tax - Paystack fee - successful settlements`) until
+  Paystack settlement rows arrive. Dashboard copy now describes pending and paid
+  payouts. Verified with focused payments service/HTTP/postgres tests,
+  dashboard typecheck, focused ESLint, dashboard production build, and
+  `git diff --check`.
 
 ### Review follow-up — 2026-07-03
 
