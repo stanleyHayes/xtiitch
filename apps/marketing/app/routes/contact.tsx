@@ -7,8 +7,11 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import MailRoundedIcon from "@mui/icons-material/MailRounded";
+import PrivacyTipRoundedIcon from "@mui/icons-material/PrivacyTipRounded";
+import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import SupportAgentRoundedIcon from "@mui/icons-material/SupportAgentRounded";
+import WhatsAppIcon from "@mui/icons-material/WhatsApp";
 import { pageMeta } from "../components/seo";
 import { PageHero, Section } from "../components/ui";
 import { site } from "../content";
@@ -17,32 +20,48 @@ export function meta(): MetaDescriptor[] {
   return pageMeta({
     title: "Contact Xtiitch",
     description:
-      "Create your Xtiitch store or contact the support team for account, payment, privacy and product help.",
+      "Create your Xtiitch store or reach the team for support, billing, privacy, or general enquiries.",
     path: "/contact",
   });
 }
 
-const contactOptions = [
+// The five public channels (Updates Doc §5). Emails open the mail client;
+// WhatsApp uses the wa.me deep link (Ghana number in international form).
+const contactChannels = [
   {
-    title: "Create your store",
-    body: "Registration is open. Start on the Free plan, publish your storefront and upgrade whenever the added tools make sense.",
-    action: "Start for free",
-    href: "signup",
-    icon: <StorefrontRoundedIcon />,
+    channel: "General",
+    address: "hello@xtiitch.com",
+    href: "mailto:hello@xtiitch.com",
+    note: "General enquiries",
+    icon: <MailRoundedIcon />,
   },
   {
-    title: "Get product support",
-    body: "Ask about setup, billing, orders, payments or your storefront. Include your business name and payment reference when relevant.",
-    action: "Email support",
+    channel: "Support",
+    address: "support@xtiitch.com",
     href: "mailto:support@xtiitch.com",
+    note: "Help using the platform",
     icon: <SupportAgentRoundedIcon />,
   },
   {
-    title: "Privacy and legal requests",
-    body: "Use the same support address for privacy rights, policy questions, account closure or a formal complaint.",
-    action: "Contact the team",
-    href: "mailto:support@xtiitch.com",
-    icon: <MailRoundedIcon />,
+    channel: "Billing",
+    address: "billing@xtiitch.com",
+    href: "mailto:billing@xtiitch.com",
+    note: "Payments, subscriptions, payouts",
+    icon: <ReceiptLongRoundedIcon />,
+  },
+  {
+    channel: "Privacy",
+    address: "privacy@xtiitch.com",
+    href: "mailto:privacy@xtiitch.com",
+    note: "Data protection requests",
+    icon: <PrivacyTipRoundedIcon />,
+  },
+  {
+    channel: "WhatsApp",
+    address: "0594667183",
+    href: "https://wa.me/233594667183",
+    note: "Quick help",
+    icon: <WhatsAppIcon />,
   },
 ] as const;
 
@@ -57,67 +76,133 @@ export default function Contact() {
       <PageHero
         eyebrow="Contact"
         title="Start your store or talk to us"
-        subtitle="Self-serve registration is open, and the Xtiitch team is available when you need help with the product, payments or your information."
+        subtitle="Registration is open, and the Xtiitch team is a message away when you need help."
       />
       <Section>
-        <Box
-          sx={{
-            display: "grid",
-            gap: 2.5,
-            gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" },
-          }}
-        >
-          {contactOptions.map((option) => {
-            const href = option.href === "signup" ? signupUrl : option.href;
-            return (
-              <Paper
-                key={option.title}
-                elevation={0}
+        <Stack spacing={2.5}>
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 3, md: 3.5 },
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 1,
+              bgcolor: "rgba(var(--surface-rgb), 0.9)",
+              display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
+              gap: 2.5,
+              alignItems: { xs: "flex-start", sm: "center" },
+              justifyContent: "space-between",
+            }}
+          >
+            <Stack direction="row" spacing={2} sx={{ alignItems: "center" }}>
+              <Box
+                aria-hidden
                 sx={{
-                  p: { xs: 3, md: 3.5 },
-                  border: "1px solid",
-                  borderColor: "divider",
+                  width: 48,
+                  height: 48,
+                  display: "grid",
+                  placeItems: "center",
                   borderRadius: 1,
-                  bgcolor: "rgba(var(--surface-rgb), 0.9)",
-                  display: "flex",
-                  flexDirection: "column",
-                  minHeight: 300,
+                  color: "primary.main",
+                  bgcolor: "rgba(128,0,32,0.08)",
+                  flexShrink: 0,
                 }}
               >
-                <Box
-                  aria-hidden
+                <StorefrontRoundedIcon />
+              </Box>
+              <Box>
+                <Typography variant="h5" component="h2">
+                  Create your store
+                </Typography>
+                <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
+                  Start free, publish your storefront, upgrade when it helps.
+                </Typography>
+              </Box>
+            </Stack>
+            <Button
+              component="a"
+              href={signupUrl}
+              variant="contained"
+              endIcon={<ArrowForwardRoundedIcon />}
+              sx={{ flexShrink: 0 }}
+            >
+              Start for free
+            </Button>
+          </Paper>
+
+          <Box>
+            <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+              Ways to reach us
+            </Typography>
+            <Box
+              sx={{
+                display: "grid",
+                gap: 1.5,
+                gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" },
+              }}
+            >
+              {contactChannels.map((channel) => (
+                <Paper
+                  key={channel.channel}
+                  component="a"
+                  href={channel.href}
+                  {...(channel.href.startsWith("http")
+                    ? { target: "_blank", rel: "noopener noreferrer" }
+                    : {})}
+                  elevation={0}
                   sx={{
-                    width: 48,
-                    height: 48,
-                    display: "grid",
-                    placeItems: "center",
+                    p: 2.25,
+                    border: "1px solid",
+                    borderColor: "divider",
                     borderRadius: 1,
-                    color: "primary.main",
-                    bgcolor: "rgba(128,0,32,0.08)",
+                    bgcolor: "rgba(var(--surface-rgb), 0.9)",
+                    display: "flex",
+                    gap: 1.75,
+                    alignItems: "center",
+                    textDecoration: "none",
+                    color: "inherit",
+                    transition: "border-color 120ms ease",
+                    "&:hover": { borderColor: "primary.main" },
                   }}
                 >
-                  {option.icon}
-                </Box>
-                <Typography variant="h5" component="h2" sx={{ mt: 2.5 }}>
-                  {option.title}
-                </Typography>
-                <Typography sx={{ mt: 1.25, color: "text.secondary" }}>
-                  {option.body}
-                </Typography>
-                <Stack sx={{ mt: "auto", pt: 3 }}>
-                  <Button
-                    component="a"
-                    href={href}
-                    variant={option.href === "signup" ? "contained" : "outlined"}
-                    endIcon={<ArrowForwardRoundedIcon />}
+                  <Box
+                    aria-hidden
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      display: "grid",
+                      placeItems: "center",
+                      borderRadius: 1,
+                      color: "primary.main",
+                      bgcolor: "rgba(128,0,32,0.08)",
+                      flexShrink: 0,
+                    }}
                   >
-                    {option.action}
-                  </Button>
-                </Stack>
-              </Paper>
-            );
-          })}
-        </Box>
+                    {channel.icon}
+                  </Box>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      sx={{ alignItems: "baseline", flexWrap: "wrap" }}
+                    >
+                      <Typography sx={{ fontWeight: 700 }}>
+                        {channel.channel}
+                      </Typography>
+                      <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                        {channel.note}
+                      </Typography>
+                    </Stack>
+                    <Typography sx={{ color: "primary.main" }} noWrap>
+                      {channel.address}
+                    </Typography>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          </Box>
+        </Stack>
       </Section>
     </>
   );
