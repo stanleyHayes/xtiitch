@@ -119,6 +119,15 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   Paystack transaction-fee gross-up. Verified with focused Go subscription/money
   tests, dashboard billing-fee tests, dashboard typecheck, focused ESLint,
   dashboard production build, and `git diff --check`.
+- ✅ Item 2 storefront design-purchase tax correction: verified the current
+  checkout path already reads the live admin VAT rate, computes tax on the
+  Xtiitch fee even when the store absorbs it, and uses `tax_passed_down` to show
+  the customer-facing `Tax fee` line. Added the exact GHS1 Studio worked-example
+  regression from the PDF: GHS1 item + 0.5% Xtiitch fee + 20% tax + 1.95%
+  Paystack fee => GHS0.03 transaction fee, GHS0.00 Tax fee displayed, GHS1.03
+  total. Verified with focused Go money/payments/checkout tests, storefront tax
+  line tests, storefront typecheck, focused ESLint, storefront production build,
+  and `git diff --check`.
 
 ### Review follow-up — 2026-07-03
 

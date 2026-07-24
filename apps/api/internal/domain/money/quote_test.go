@@ -210,6 +210,38 @@ func TestQuoteStoreSalePreservesPassedTaxWhenAmountRoundsToZero(t *testing.T) {
 	}
 }
 
+// Xtiitch-Updates-Document-Refined.pdf item 2: a GHS1 Studio sale (0.5% fee)
+// still needs to disclose the passed-down Tax fee line even though 20% VAT on
+// the 1p commission rounds to GHS0.00. The customer sees GHS0.03 transaction
+// fee (1p Xtiitch + 2p Paystack), GHS0.00 tax and a GHS1.03 total.
+func TestQuoteStoreSaleStudioOneCediPassedTaxWorkedExample(t *testing.T) {
+	t.Parallel()
+
+	quote := QuoteStoreSale(StoreSaleQuoteInput{
+		LineAmountsMinor: []int64{100},
+		CommissionBps:    50,
+		VATBps:           2000,
+		PaystackBps:      PaystackFeeRateBps,
+		PassDown:         PassDownFlags{XtiitchFee: true, Tax: true, PaystackFee: true},
+	})
+
+	want := StoreSaleQuote{
+		ItemsTotalMinor:     100,
+		VATRateBps:          2000,
+		XtiitchFeeMinor:     1,
+		TaxMinor:            0,
+		PaystackFeeMinor:    2,
+		TransactionFeeMinor: 3,
+		TaxLineMinor:        0,
+		TaxPassedDown:       true,
+		TotalChargeMinor:    103,
+		StoreNetMinor:       100,
+	}
+	if quote != want {
+		t.Fatalf("studio GHS1 quote = %+v, want %+v", quote, want)
+	}
+}
+
 // §4.3/§4.4 with a promotion override: the override replaces the computed fee
 // and VAT is charged on the override TOTAL — the same vat × commission rule as
 // the per-design path. Whenever fee_pass_tax is ticked the "Tax fee" line
