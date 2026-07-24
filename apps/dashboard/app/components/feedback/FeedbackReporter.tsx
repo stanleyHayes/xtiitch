@@ -9,9 +9,16 @@ import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import BugReportRounded from "@mui/icons-material/BugReportRounded";
+import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
+import ChatBubbleOutlineRounded from "@mui/icons-material/ChatBubbleOutlineRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
+import ContactSupportRounded from "@mui/icons-material/ContactSupportRounded";
+import PrivacyTipRounded from "@mui/icons-material/PrivacyTipRounded";
+import ReceiptLongRounded from "@mui/icons-material/ReceiptLongRounded";
 import SendRounded from "@mui/icons-material/SendRounded";
+import SupportAgentRounded from "@mui/icons-material/SupportAgentRounded";
+import WhatsApp from "@mui/icons-material/WhatsApp";
+import type { ReactNode } from "react";
 import { tokens } from "../../theme";
 
 type FeedbackPayload = {
@@ -26,6 +33,43 @@ type FeedbackPayload = {
   context?: Record<string, unknown>;
   stack?: string;
 };
+
+// §4 Contact us channels. Each email opens the user's mail client with a
+// starting subject; WhatsApp uses the wa.me deep link (the Ghana number in
+// international form, no leading zero) while still showing the local number.
+type ContactChannel = {
+  label: string;
+  detail: string;
+  href: string;
+  icon: ReactNode;
+};
+
+const CONTACT_CHANNELS: ContactChannel[] = [
+  {
+    label: "Request support",
+    detail: "support@xtiitch.com",
+    href: "mailto:support@xtiitch.com?subject=Support%20request",
+    icon: <SupportAgentRounded />,
+  },
+  {
+    label: "Inquire about billing",
+    detail: "billing@xtiitch.com",
+    href: "mailto:billing@xtiitch.com?subject=Billing%20enquiry",
+    icon: <ReceiptLongRounded />,
+  },
+  {
+    label: "Inquire about privacy",
+    detail: "privacy@xtiitch.com",
+    href: "mailto:privacy@xtiitch.com?subject=Privacy%20request",
+    icon: <PrivacyTipRounded />,
+  },
+  {
+    label: "WhatsApp",
+    detail: "0594667183",
+    href: "https://wa.me/233594667183",
+    icon: <WhatsApp />,
+  },
+];
 
 function pageContext() {
   return {
@@ -82,8 +126,11 @@ export function CrashReportEffect({ error }: { error?: unknown }) {
   return null;
 }
 
+type SupportView = "menu" | "feedback" | "contact";
+
 export function FeedbackReporter() {
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<SupportView>("menu");
   const [message, setMessage] = useState("");
   const [contact, setContact] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">(
@@ -113,6 +160,12 @@ export function FeedbackReporter() {
     };
   }, []);
 
+  const closeSupport = () => {
+    setOpen(false);
+    // Reset to the menu for the next open, once the close animation has run.
+    window.setTimeout(() => setView("menu"), 200);
+  };
+
   const submit = async () => {
     if (!message.trim()) return;
     setState("sending");
@@ -135,12 +188,19 @@ export function FeedbackReporter() {
     }
   };
 
+  const title =
+    view === "feedback"
+      ? "Send feedback"
+      : view === "contact"
+        ? "Contact us"
+        : "Support";
+
   return (
     <>
       <Button
         onClick={() => setOpen(true)}
         variant="contained"
-        startIcon={<BugReportRounded />}
+        startIcon={<ContactSupportRounded />}
         sx={{
           position: "fixed",
           right: { xs: 16, md: 24 },
@@ -151,57 +211,164 @@ export function FeedbackReporter() {
           whiteSpace: "nowrap",
         }}
       >
-        Send feedback
+        Support
       </Button>
-      <Dialog open={open} onClose={() => setOpen(false)} fullWidth maxWidth="sm">
+      <Dialog open={open} onClose={closeSupport} fullWidth maxWidth="sm">
         <DialogTitle>
-          <Stack direction="row" sx={{ alignItems: "center", justifyContent: "space-between" }}>
-            <Box>
-              <Typography variant="h6">Send feedback</Typography>
-              <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                We’ll include your current page and browser context.
-              </Typography>
-            </Box>
-            <IconButton aria-label="Close feedback" onClick={() => setOpen(false)}>
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{ alignItems: "center", justifyContent: "space-between" }}
+          >
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: "center" }}>
+              {view !== "menu" ? (
+                <IconButton
+                  aria-label="Back"
+                  size="small"
+                  onClick={() => setView("menu")}
+                >
+                  <ArrowBackRounded />
+                </IconButton>
+              ) : null}
+              <Box>
+                <Typography variant="h6">{title}</Typography>
+                {view === "feedback" ? (
+                  <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                    We’ll include your current page and browser context.
+                  </Typography>
+                ) : null}
+              </Box>
+            </Stack>
+            <IconButton aria-label="Close support" onClick={closeSupport}>
               <CloseRounded />
             </IconButton>
           </Stack>
         </DialogTitle>
         <DialogContent dividers>
-          <Stack spacing={2}>
-            {state === "sent" ? (
-              <Alert severity="success">Thanks — this is now in the support queue.</Alert>
-            ) : null}
-            {state === "error" ? (
-              <Alert severity="error">Couldn’t send that yet. Please try again.</Alert>
-            ) : null}
-            <TextField
-              label="What happened?"
-              multiline
-              minRows={4}
-              value={message}
-              onChange={(event) => setMessage(event.target.value)}
-              placeholder="Tell us what you expected, what happened, and what you were trying to do."
-              required
-            />
-            <TextField
-              label="Contact or note (optional)"
-              value={contact}
-              onChange={(event) => setContact(event.target.value)}
-              placeholder="Email, phone, order reference, or anything useful"
-            />
-            <Button
-              onClick={submit}
-              disabled={!message.trim() || state === "sending"}
-              variant="contained"
-              endIcon={<SendRounded />}
-              sx={{ alignSelf: "flex-start", bgcolor: tokens.burgundy }}
-            >
-              {state === "sending" ? "Sending…" : "Send report"}
-            </Button>
-          </Stack>
+          {view === "menu" ? (
+            <Stack spacing={1.25}>
+              <SupportChoice
+                icon={<ChatBubbleOutlineRounded />}
+                title="Send feedback"
+                helper="Report a bug or share an idea"
+                onClick={() => {
+                  setState("idle");
+                  setView("feedback");
+                }}
+              />
+              <SupportChoice
+                icon={<SupportAgentRounded />}
+                title="Contact us"
+                helper="Reach support, billing, privacy, or WhatsApp"
+                onClick={() => setView("contact")}
+              />
+            </Stack>
+          ) : null}
+
+          {view === "contact" ? (
+            <Stack spacing={1}>
+              {CONTACT_CHANNELS.map((channel) => (
+                <SupportChoice
+                  key={channel.label}
+                  icon={channel.icon}
+                  title={channel.label}
+                  helper={channel.detail}
+                  href={channel.href}
+                />
+              ))}
+            </Stack>
+          ) : null}
+
+          {view === "feedback" ? (
+            <Stack spacing={2}>
+              {state === "sent" ? (
+                <Alert severity="success">
+                  Thanks — this is now in the support queue.
+                </Alert>
+              ) : null}
+              {state === "error" ? (
+                <Alert severity="error">
+                  Couldn’t send that yet. Please try again.
+                </Alert>
+              ) : null}
+              <TextField
+                label="What happened?"
+                multiline
+                minRows={4}
+                value={message}
+                onChange={(event) => setMessage(event.target.value)}
+                placeholder="Tell us what you expected, what happened, and what you were trying to do."
+                required
+              />
+              <TextField
+                label="Contact or note (optional)"
+                value={contact}
+                onChange={(event) => setContact(event.target.value)}
+                placeholder="Email, phone, order reference, or anything useful"
+              />
+              <Button
+                onClick={submit}
+                disabled={!message.trim() || state === "sending"}
+                variant="contained"
+                endIcon={<SendRounded />}
+                sx={{ alignSelf: "flex-start", bgcolor: tokens.burgundy }}
+              >
+                {state === "sending" ? "Sending…" : "Send report"}
+              </Button>
+            </Stack>
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+// One tappable row in the Support menu / contact list. Renders as a link when
+// an href is given (email or WhatsApp), otherwise as a button that switches view.
+function SupportChoice({
+  icon,
+  title,
+  helper,
+  onClick,
+  href,
+}: {
+  icon: ReactNode;
+  title: string;
+  helper: string;
+  onClick?: () => void;
+  href?: string;
+}) {
+  return (
+    <Button
+      {...(href
+        ? {
+            component: "a",
+            href,
+            target: href.startsWith("http") ? "_blank" : undefined,
+            rel: href.startsWith("http") ? "noopener noreferrer" : undefined,
+          }
+        : { onClick })}
+      variant="outlined"
+      startIcon={icon}
+      fullWidth
+      sx={{
+        justifyContent: "flex-start",
+        textAlign: "left",
+        textTransform: "none",
+        color: "text.primary",
+        borderColor: "divider",
+        px: 1.75,
+        py: 1.25,
+      }}
+    >
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontWeight: 800 }} noWrap>
+          {title}
+        </Typography>
+        <Typography variant="body2" sx={{ color: "text.secondary" }} noWrap>
+          {helper}
+        </Typography>
+      </Box>
+    </Button>
   );
 }
