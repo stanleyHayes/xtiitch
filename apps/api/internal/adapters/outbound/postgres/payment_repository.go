@@ -436,7 +436,38 @@ func (repo PaymentRepository) MoneySummary(ctx context.Context, scope common.Ten
 	// split's transaction_charge), so the fee card is the persisted commission
 	// minus the persisted tax — still a pure function of stored figures.
 	summary.XtiitchFeeMinor = summary.CommissionMinor - summary.XtiitchTaxMinor
-	summary.AllTimeIncomeMinor = storeShareMinor + summary.ManualTakingsMinor - summary.OfflineCommissionDueMinor
+
+	var allTimeStoreShareMinor, allTimeManualTakingsMinor, allTimeOfflineCommissionDueMinor, allTimeSettledPayoutsMinor int64
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor - commission_minor - coalesce(provider_fee_minor, 0)), 0)
+		from payments
+		where business_id = $1 and status = 'succeeded' and through_platform = true
+	`, scope.BusinessID.String()).Scan(&allTimeStoreShareMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0)
+		from paystack_settlements
+		where business_id = $1 and status = 'success'
+	`, scope.BusinessID.String()).Scan(&allTimeSettledPayoutsMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(amount_minor), 0)
+		from manual_takings
+		where business_id = $1
+	`, scope.BusinessID.String()).Scan(&allTimeManualTakingsMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	if err := tx.QueryRow(ctx, `
+		select coalesce(sum(commission_minor), 0)
+		from manual_takings
+		where business_id = $1 and commission_status in ('due', 'invoiced')
+	`, scope.BusinessID.String()).Scan(&allTimeOfflineCommissionDueMinor); err != nil {
+		return ports.MoneySummary{}, err
+	}
+	summary.SettledPayoutsMinor = allTimeSettledPayoutsMinor
+	summary.AllTimeIncomeMinor = allTimeStoreShareMinor + allTimeManualTakingsMinor - allTimeOfflineCommissionDueMinor
 	summary.NetIncomeMinor = summary.AllTimeIncomeMinor - summary.SettledPayoutsMinor
 
 	if err := tx.Commit(ctx); err != nil {

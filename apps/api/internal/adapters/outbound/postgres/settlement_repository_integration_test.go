@@ -272,6 +272,31 @@ func TestMoneySummaryReflectsPersistedFiguresAndPayouts(t *testing.T) {
 	}
 }
 
+func TestMoneySummaryKeepsAllTimeIncomeOutsidePeriodFilters(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+	seedSettlementFixtures(t, pool)
+	defer cleanupSettlementFixtures(t, pool)
+
+	repo := NewPaymentRepository(pool)
+	ctx := context.Background()
+	scope := common.TenantScope{BusinessID: common.ID(itSettleBiz)}
+	from := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	to := from.Add(24 * time.Hour)
+
+	summary, err := repo.MoneySummary(ctx, scope, ports.MoneyPeriod{From: &from, To: &to})
+	if err != nil {
+		t.Fatalf("money summary: %v", err)
+	}
+	if summary.ThroughPlatformMinor != 0 || summary.ManualTakingsMinor != 0 || summary.OfflineCommissionDueMinor != 0 {
+		t.Fatalf("period-filtered cards should be empty for future range, got %+v", summary)
+	}
+	if summary.AllTimeIncomeMinor != 33390 || summary.NetIncomeMinor != 33390 {
+		t.Fatalf("all-time/net income must remain cumulative outside filters, got all-time=%d net=%d",
+			summary.AllTimeIncomeMinor, summary.NetIncomeMinor)
+	}
+}
+
 // The transfer-webhook plumbing: the idempotency ledger dedupes, the
 // subaccount resolves to its business, and the sync watermark stamps.
 func TestSettlementWebhookPlumbing(t *testing.T) {

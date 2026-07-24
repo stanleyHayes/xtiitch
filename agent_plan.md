@@ -146,6 +146,14 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   payouts. Verified with focused payments service/HTTP/postgres tests,
   dashboard typecheck, focused ESLint, dashboard production build, and
   `git diff --check`.
+- ✅ Item 5 all-time-income correction: verified `all_time_income_minor` was
+  still derived from the period-filtered Money Desk query, so selecting a range
+  with no sales could reset the All-time card. MoneySummary now keeps
+  period-filtered cards/transactions separate from cumulative `all_time_income`,
+  all-time successful payouts and `net_income`/payout-due. Added a real Postgres
+  regression with a future date range: filtered cards return zero while
+  All-time and Net income stay cumulative. Verified with focused postgres and
+  payments tests plus `git diff --check`.
 
 ### Review follow-up — 2026-07-03
 
