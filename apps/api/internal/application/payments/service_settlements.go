@@ -2,6 +2,7 @@ package paymentsapp
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
@@ -87,6 +88,13 @@ func (s Service) ListPayouts(ctx context.Context, scope common.TenantScope, _ po
 	if scope.BusinessID.IsZero() {
 		return nil, ErrInvalidCharge
 	}
-	_, _ = s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: scope.BusinessID})
+	if _, err := s.SyncSettlements(ctx, SyncSettlementsCommand{BusinessID: scope.BusinessID}); err != nil {
+		// Never fail the read on a sync hiccup — the last mirror is still worth
+		// showing — but never hide the failure either: an always-empty payout
+		// history is exactly how a silently broken sync surfaces.
+		slog.Default().Warn("settlement sync failed on the payout-history read path",
+			slog.String("business_id", scope.BusinessID.String()),
+			slog.String("error", err.Error()))
+	}
 	return s.payments.ListProviderSettlements(ctx, scope, ports.MoneyPeriod{}, limit, offset)
 }

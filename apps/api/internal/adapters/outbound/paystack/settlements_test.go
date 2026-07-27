@@ -21,12 +21,21 @@ func TestClientListSettlementsFiltersPagesAndMaps(t *testing.T) {
 
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// The ACCT_ code resolves to the numeric subaccount id first — the
+		// settlement filter only matches the id.
+		if strings.HasPrefix(r.URL.Path, "/subaccount/") {
+			if r.URL.Path != "/subaccount/ACCT_1" {
+				t.Errorf("expected the subaccount lookup for ACCT_1, hit %q", r.URL.Path)
+			}
+			_, _ = w.Write([]byte(`{"status":true,"data":{"id":4242,"subaccount_code":"ACCT_1"}}`))
+			return
+		}
 		if !strings.HasPrefix(r.URL.Path, "/settlement") {
 			t.Errorf("expected /settlement, hit %q", r.URL.Path)
 		}
 		query := r.URL.Query()
-		if query.Get("subaccount") != "ACCT_1" {
-			t.Errorf("expected the subaccount filter ACCT_1, got %q", query.Get("subaccount"))
+		if query.Get("subaccount") != "4242" {
+			t.Errorf("expected the resolved subaccount id 4242, got %q", query.Get("subaccount"))
 		}
 		if query.Get("from") != "2026-07-01" || query.Get("to") != "2026-07-19" || query.Get("status") != "success" {
 			t.Errorf("unexpected date-range/status filters: %s", r.URL.RawQuery)
@@ -100,7 +109,8 @@ func TestClientListSettlementsStopsOnShortPage(t *testing.T) {
 	defer server.Close()
 
 	client := newTestClient(server.URL)
-	settlements, err := client.ListSettlements(context.Background(), ports.ListSettlementsInput{SubaccountRef: "ACCT_1"})
+	// A numeric ref passes through as-is — no code resolution round-trip.
+	settlements, err := client.ListSettlements(context.Background(), ports.ListSettlementsInput{SubaccountRef: "42"})
 	if err != nil {
 		t.Fatalf("list settlements: %v", err)
 	}

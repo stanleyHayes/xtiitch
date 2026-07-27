@@ -33,8 +33,11 @@ type settlementItem struct {
 	Status          string          `json:"status"`
 	SettledAt       *time.Time      `json:"settled_at"`
 	SettlementDate  *time.Time      `json:"settlement_date"`
-	CreatedAt       *time.Time      `json:"created_at"`
-	Subaccount      *struct {
+	// Paystack's live payload uses camelCase createdAt; the snake variant is
+	// kept for older/proxied shapes (and the unit-test fixtures).
+	CreatedAt      *time.Time `json:"createdAt"`
+	CreatedAtSnake *time.Time `json:"created_at"`
+	Subaccount     *struct {
 		SubaccountCode string `json:"subaccount_code"`
 	} `json:"subaccount"`
 }
@@ -45,6 +48,18 @@ type settlementItem struct {
 // walked page by page. Each record keeps its raw payload for dispute evidence
 // (§11.5).
 func (c Client) ListSettlements(ctx context.Context, input ports.ListSettlementsInput) ([]ports.ProviderSettlement, error) {
+	// Paystack's settlement filter only matches the NUMERIC subaccount id —
+	// passing the ACCT_ code (which is what we store) returns 200 with zero
+	// rows and no error, which silently emptied every store's payout history.
+	// Resolve the code to the id first.
+	if input.SubaccountRef != "" && !isNumericRef(input.SubaccountRef) {
+		id, err := c.fetchSubaccountID(ctx, input.SubaccountRef)
+		if err != nil {
+			return nil, err
+		}
+		input.SubaccountRef = strconv.FormatInt(id, 10)
+	}
+
 	var settlements []ports.ProviderSettlement
 	for page := 1; page <= settlementMaxPages; page++ {
 		result, err := c.listSettlementsPage(ctx, input, page)
@@ -57,6 +72,29 @@ func (c Client) ListSettlements(ctx context.Context, input ports.ListSettlements
 		}
 	}
 	return settlements, nil
+}
+
+func isNumericRef(ref string) bool {
+	_, err := strconv.ParseInt(ref, 10, 64)
+	return err == nil
+}
+
+// fetchSubaccountID resolves a subaccount code (ACCT_...) to the numeric id
+// the Settlements API filters by.
+func (c Client) fetchSubaccountID(ctx context.Context, code string) (int64, error) {
+	var response struct {
+		Status bool `json:"status"`
+		Data   struct {
+			ID int64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := c.get(ctx, "/subaccount/"+url.PathEscape(code), &response); err != nil {
+		return 0, err
+	}
+	if response.Data.ID == 0 {
+		return 0, fmt.Errorf("paystack subaccount %s: missing id in response", code)
+	}
+	return response.Data.ID, nil
 }
 
 type settlementsPageResult struct {
@@ -131,6 +169,9 @@ func mapSettlementItem(item settlementItem) (ports.ProviderSettlement, error) {
 	}
 	if settledAt == nil {
 		settledAt = item.CreatedAt
+	}
+	if settledAt == nil {
+		settledAt = item.CreatedAtSnake
 	}
 
 	subaccountCode := ""

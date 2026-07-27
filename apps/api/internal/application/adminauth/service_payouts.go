@@ -2,6 +2,7 @@ package adminauth
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	paymentsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/payments"
@@ -113,6 +114,11 @@ func (s Service) RunSettlementSync(ctx context.Context, cmd RunSettlementSyncCom
 	for _, businessID := range businessIDs {
 		result, err := s.settlementSyncer.SyncSettlements(ctx, paymentsapp.SyncSettlementsCommand{BusinessID: businessID, Force: true})
 		if err != nil {
+			// A failing store must not abort the run — but the reason must reach
+			// the logs, or an always-empty payout history stays invisible.
+			slog.Default().Warn("settlement sync failed for store",
+				slog.String("business_id", businessID.String()),
+				slog.String("error", err.Error()))
 			record.Failed++
 			continue
 		}
