@@ -20,6 +20,7 @@ import SupportAgentRounded from "@mui/icons-material/SupportAgentRounded";
 import WhatsApp from "@mui/icons-material/WhatsApp";
 import type { ReactNode } from "react";
 import { tokens } from "../../theme";
+import { errorMessage, errorStack } from "./error-format";
 
 type FeedbackPayload = {
   reporter_type: "business" | "system";
@@ -77,6 +78,9 @@ function pageContext() {
     search: window.location.search,
     hash: window.location.hash,
     viewport: `${window.innerWidth}x${window.innerHeight}`,
+    // Offline/flaky connections are the usual cause of Safari's "Load failed"
+    // fetch rejections, so record the browser's own connectivity read.
+    online: navigator.onLine,
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     theme: document.documentElement.dataset.muiColorScheme ?? "",
   };
@@ -94,36 +98,6 @@ function sendFeedback(payload: FeedbackPayload) {
     }),
     keepalive: payload.kind === "crash",
   });
-}
-
-function errorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string" && message !== "") return message;
-  }
-  return serializeReason(error) || "Unknown client error";
-}
-
-function errorStack(error: unknown): string {
-  if (error instanceof Error) return error.stack ?? error.message;
-  return serializeReason(error);
-}
-
-// Rejection reasons are not always Error objects — failed API calls often
-// reject with plain objects, and older Safari surfaces non-Error values.
-// String() on those yields "[object Object]", so serialize them instead.
-function serializeReason(error: unknown): string {
-  if (error === null || error === undefined) return "";
-  if (typeof error === "string") return error;
-  try {
-    const json = JSON.stringify(error);
-    if (json && json !== "{}") return json;
-    return String(error);
-  } catch {
-    return Object.prototype.toString.call(error);
-  }
 }
 
 export function CrashReportEffect({ error }: { error?: unknown }) {
@@ -151,17 +125,29 @@ type SupportView = "menu" | "feedback" | "contact";
 // own hook so FeedbackReporter's body stays small.
 function useCrashReporting() {
   useEffect(() => {
+    // Browsers can fire both `error` and `unhandledrejection` for one
+    // failure, and retry loops spam identical reports — collapse repeats
+    // of the same error within a short window.
+    let lastKey = "";
+    let lastAt = 0;
     const report = (event: ErrorEvent | PromiseRejectionEvent) => {
       const reason =
         "reason" in event ? event.reason : event.error ?? event.message;
+      const message = errorMessage(reason);
+      const stack = errorStack(reason);
+      const key = `${event.type}:${message}:${stack}`;
+      const now = Date.now();
+      if (key === lastKey && now - lastAt < 30_000) return;
+      lastKey = key;
+      lastAt = now;
       void sendFeedback({
         reporter_type: "system",
         surface: "business",
         kind: "crash",
         priority: "urgent",
         subject: "Business dashboard runtime error",
-        message: errorMessage(reason),
-        stack: errorStack(reason),
+        message,
+        stack,
         context: { source: event.type },
       }).catch(() => undefined);
     };

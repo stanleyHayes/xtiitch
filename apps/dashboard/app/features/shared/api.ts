@@ -53,8 +53,31 @@ export async function loadDashboardJSON<T>(
   }
 }
 
+// The reads a page cannot render without (business profile, signed-in user)
+// get one automatic retry on an upstream 5xx before the whole page fails —
+// a transient API blip should cost a beat of latency, not a crash page.
+export async function readCriticalDashboardJSON<T>(
+  request: Request,
+  path: string,
+  failureMessage: string,
+): Promise<T> {
+  try {
+    return await readDashboardJSON<T>(request, path, failureMessage);
+  } catch (error) {
+    if (
+      isRedirectResponse(error) ||
+      !(error instanceof Response) ||
+      ![502, 503].includes(error.status)
+    ) {
+      throw error;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    return readDashboardJSON<T>(request, path, failureMessage);
+  }
+}
+
 export async function loadCurrentUser(request: Request): Promise<CurrentUser> {
-  return readDashboardJSON<CurrentUser>(
+  return readCriticalDashboardJSON<CurrentUser>(
     request,
     "/auth/business/me",
     "The signed-in business user could not be loaded. Start the API and refresh this dashboard.",

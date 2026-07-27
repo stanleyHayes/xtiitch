@@ -1,8 +1,13 @@
+import { useState } from "react";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
+import {
+  isImageUploadAllowed,
+  MAX_IMAGE_UPLOAD_MB,
+} from "../../lib/upload-limits";
 
 // A dashed-border upload dropzone for one side of the Ghana Card. Shows an icon,
 // a prompt, and the size/format hint; flips to a "selected" state with the file
@@ -20,6 +25,11 @@ export function CardDropzone({
   onFile: (value: string) => void;
 }>) {
   const chosen = fileName.length > 0;
+  // Oversized photos are refused here, at pick time: Vercel rejects a
+  // multipart body over 4.5 MB before the action runs, which used to surface
+  // as a crash page. The paired dropzone shares the budget, so each side is
+  // capped at MAX_IMAGE_UPLOAD_MB.
+  const [tooLarge, setTooLarge] = useState(false);
   return (
     <Box
       component="label"
@@ -72,15 +82,33 @@ export function CardDropzone({
       >
         {chosen ? fileName : `${side} of Ghana Card`}
       </Typography>
-      <Typography variant="caption" sx={{ color: "text.secondary" }}>
-        {chosen ? "Tap to replace" : "PNG or JPG · up to 5 MB"}
+      <Typography
+        variant="caption"
+        sx={{ color: tooLarge ? "error.main" : "text.secondary" }}
+      >
+        {tooLarge
+          ? `That photo is over ${MAX_IMAGE_UPLOAD_MB} MB — crop or export a smaller copy.`
+          : chosen
+            ? "Tap to replace"
+            : `PNG or JPG · up to ${MAX_IMAGE_UPLOAD_MB} MB`}
       </Typography>
       <input
         type="file"
         name={name}
         accept="image/png,image/jpeg"
         hidden
-        onChange={(event) => onFile(event.target.files?.[0]?.name ?? "")}
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file && !isImageUploadAllowed(file)) {
+            // Drop the oversized pick so it never reaches the form body.
+            event.target.value = "";
+            setTooLarge(true);
+            onFile("");
+            return;
+          }
+          setTooLarge(false);
+          onFile(file?.name ?? "");
+        }}
       />
     </Box>
   );

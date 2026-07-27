@@ -1,6 +1,10 @@
 import { apiFetch } from "../../lib/auth";
 import { apiErrorCode } from "../shared/utils";
 import { isValidGhanaCardNumber } from "../../lib/ghana-card";
+import {
+  isImageUploadAllowed,
+  MAX_IMAGE_UPLOAD_MB,
+} from "../../lib/upload-limits";
 import { tokens } from "../../theme";
 import { uploadDesignImage } from "../studio/utils";
 
@@ -53,18 +57,36 @@ if (intent === "save_store_settings") {
     let logoURL = String(form.get("logo_url_existing") ?? "").trim();
     const logoFile = form.get("logo_file");
     if (logoFile instanceof File && logoFile.size > 0) {
-      const uploaded = await uploadDesignImage(request, logoFile);
-      if (uploaded) {
-        logoURL = uploaded;
+      if (!isImageUploadAllowed(logoFile)) {
+        return {
+          settingsError: `That logo image is over ${MAX_IMAGE_UPLOAD_MB} MB. Export a smaller copy and try again.`,
+        };
       }
+      const uploaded = await uploadDesignImage(request, logoFile);
+      if (!uploaded) {
+        return {
+          settingsError:
+            "The logo image could not be uploaded. Check your connection and try again.",
+        };
+      }
+      logoURL = uploaded;
     }
     let bannerURL = String(form.get("banner_url_existing") ?? "").trim();
     const bannerFile = form.get("banner_file");
     if (bannerFile instanceof File && bannerFile.size > 0) {
-      const uploaded = await uploadDesignImage(request, bannerFile);
-      if (uploaded) {
-        bannerURL = uploaded;
+      if (!isImageUploadAllowed(bannerFile)) {
+        return {
+          settingsError: `That banner image is over ${MAX_IMAGE_UPLOAD_MB} MB. Export a smaller copy and try again.`,
+        };
       }
+      const uploaded = await uploadDesignImage(request, bannerFile);
+      if (!uploaded) {
+        return {
+          settingsError:
+            "The banner image could not be uploaded. Check your connection and try again.",
+        };
+      }
+      bannerURL = uploaded;
     }
     const response = await apiFetch(request, "/store-settings", {
       method: "PATCH",
@@ -195,10 +217,19 @@ if (intent === "submit_identity_verification") {
     let photoURL = String(form.get("id_photo_url_existing") ?? "").trim();
     const photoFile = form.get("id_photo_file");
     if (photoFile instanceof File && photoFile.size > 0) {
-      const uploaded = await uploadDesignImage(request, photoFile);
-      if (uploaded) {
-        photoURL = uploaded;
+      if (!isImageUploadAllowed(photoFile)) {
+        return {
+          verificationError: `The front photo is over ${MAX_IMAGE_UPLOAD_MB} MB. Crop or export a smaller copy and try again.`,
+        };
       }
+      const uploaded = await uploadDesignImage(request, photoFile);
+      if (!uploaded) {
+        return {
+          verificationError:
+            "The front photo could not be uploaded. Check your connection and try again.",
+        };
+      }
+      photoURL = uploaded;
     }
     if (!photoURL) {
       return {
@@ -210,10 +241,19 @@ if (intent === "submit_identity_verification") {
     ).trim();
     const photoBackFile = form.get("id_photo_back_file");
     if (photoBackFile instanceof File && photoBackFile.size > 0) {
-      const uploaded = await uploadDesignImage(request, photoBackFile);
-      if (uploaded) {
-        photoBackURL = uploaded;
+      if (!isImageUploadAllowed(photoBackFile)) {
+        return {
+          verificationError: `The back photo is over ${MAX_IMAGE_UPLOAD_MB} MB. Crop or export a smaller copy and try again.`,
+        };
       }
+      const uploaded = await uploadDesignImage(request, photoBackFile);
+      if (!uploaded) {
+        return {
+          verificationError:
+            "The back photo could not be uploaded. Check your connection and try again.",
+        };
+      }
+      photoBackURL = uploaded;
     }
     if (!photoBackURL) {
       return {

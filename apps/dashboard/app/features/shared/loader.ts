@@ -3,7 +3,7 @@ import { fetchActivationStatus } from "../../lib/activation";
 import {
   loadCurrentUser,
   loadDashboardJSON,
-  readDashboardJSON,
+  readCriticalDashboardJSON,
 } from "./api";
 import {
   parseDashboardSection,
@@ -56,7 +56,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   const url = new URL(request.url);
   const orderFilter = parseOrderFilter(url.searchParams.get("orders"));
   const [profile, currentUser, activation] = await Promise.all([
-    readDashboardJSON<Profile>(
+    readCriticalDashboardJSON<Profile>(
       request,
       "/businesses/me",
       "The business dashboard API is unavailable. Start the API and refresh this dashboard.",

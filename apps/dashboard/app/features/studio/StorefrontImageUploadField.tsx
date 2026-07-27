@@ -4,6 +4,10 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
+import {
+  isImageUploadAllowed,
+  MAX_IMAGE_UPLOAD_MB,
+} from "../../lib/upload-limits";
 
 export function StorefrontImageUploadField({
   name,
@@ -13,6 +17,10 @@ export function StorefrontImageUploadField({
   currentUrl: string;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
+  // Oversized images are refused at pick time: the multipart form also
+  // carries the second image, and Vercel rejects a combined body over 4.5 MB
+  // before the action runs — which used to surface as a crash page.
+  const [tooLarge, setTooLarge] = useState(false);
   return (
     <Box>
       <input type="hidden" name={`${name}_url_existing`} value={currentUrl} />
@@ -56,9 +64,18 @@ export function StorefrontImageUploadField({
               name={`${name}_file`}
               accept="image/*"
               hidden
-              onChange={(event) =>
-                setPicked(event.target.files?.[0]?.name ?? null)
-              }
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file && !isImageUploadAllowed(file)) {
+                  // Drop the oversized pick so it never reaches the form body.
+                  event.target.value = "";
+                  setPicked(null);
+                  setTooLarge(true);
+                  return;
+                }
+                setTooLarge(false);
+                setPicked(file?.name ?? null);
+              }}
             />
           </Button>
           <Typography
@@ -66,13 +83,15 @@ export function StorefrontImageUploadField({
             sx={{
               display: "block",
               mt: 0.5,
-              color: "text.secondary",
+              color: tooLarge ? "error.main" : "text.secondary",
               overflowWrap: "anywhere",
             }}
           >
-            {picked
-              ? `Selected: ${picked}`
-              : "PNG or JPG — uploaded to Cloudinary when you save."}
+            {tooLarge
+              ? `That image is over ${MAX_IMAGE_UPLOAD_MB} MB — export a smaller copy.`
+              : picked
+                ? `Selected: ${picked}`
+                : `PNG or JPG up to ${MAX_IMAGE_UPLOAD_MB} MB — uploaded to Cloudinary when you save.`}
           </Typography>
         </Box>
       </Stack>

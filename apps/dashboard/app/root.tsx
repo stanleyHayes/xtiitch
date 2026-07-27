@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import {
   Links,
   Meta,
@@ -126,9 +126,34 @@ export function Layout({ children }: { children: ReactNode }) {
   );
 }
 
+// Failures that are usually transient (dropped connection, API restarting)
+// get exactly one automatic reload. The sessionStorage flag makes it one
+// attempt per visit — a persistent problem lands on the recovery page with a
+// manual button instead of a reload loop. A successfully rendered page
+// clears the flag (see App), so the next genuine failure can retry again.
+const AUTO_RETRY_KEY = "xtiitch:error-auto-retry";
+
+function isNetworkError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  // A failed fetch rejects as TypeError — Safari says "Load failed", Chrome
+  // "Failed to fetch". React Router's data request rejects this way when the
+  // connection drops mid-navigation.
+  return (
+    error instanceof TypeError ||
+    /load failed|failed to fetch|networkerror/i.test(error.message)
+  );
+}
+
 export default function App() {
   const navigation = useNavigation();
   const location = useLocation();
+  useEffect(() => {
+    try {
+      window.sessionStorage.removeItem(AUTO_RETRY_KEY);
+    } catch {
+      // Storage unavailable (private mode) — the auto-retry simply never arms.
+    }
+  }, [location.pathname]);
   return (
     <>
       {navigation.state !== "idle" ? <RouteProgressBar /> : null}
@@ -211,33 +236,101 @@ function errorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+// Claims the one automatic retry for this visit: true only on the first
+// call. When storage is unavailable (private mode) it refuses — retrying
+// blind could reload-loop every 3 seconds on a persistent error.
+function claimAutoRetry(): boolean {
+  try {
+    if (window.sessionStorage.getItem(AUTO_RETRY_KEY)) return false;
+    window.sessionStorage.setItem(AUTO_RETRY_KEY, "1");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Transient-looking failures (dropped connection, API restarting) retry once
+// on their own; everything else waits for the owner to choose — the report is
+// already on its way either way.
+function useAutoRetryOnce(active: boolean) {
+  useEffect(() => {
+    if (!active || typeof window === "undefined" || !claimAutoRetry()) return;
+    const timer = window.setTimeout(() => window.location.reload(), 3000);
+    return () => window.clearTimeout(timer);
+  }, [active]);
+}
+
+type RecoveryView = {
+  title: string;
+  message: string;
+  code: string;
+  actionLabel: string;
+  reload: boolean;
+  canAutoRetry: boolean;
+};
+
+function recoveryView(
+  error: unknown,
+  status: number | undefined,
+): RecoveryView {
+  if (status === 404) {
+    return {
+      title: "Dashboard page not found",
+      message:
+        "That dashboard route is not available. It may have moved, or the link may be stale.",
+      code: "404",
+      actionLabel: "Return to dashboard",
+      reload: false,
+      canAutoRetry: false,
+    };
+  }
+  if (status !== undefined && [502, 503].includes(status)) {
+    return {
+      title: "Dashboard API unavailable",
+      message:
+        "The dashboard app is running, but the API did not respond with the business session data it needs. We're retrying automatically in a few seconds.",
+      code: "503",
+      actionLabel: "Refresh dashboard",
+      reload: true,
+      canAutoRetry: true,
+    };
+  }
+  if (isNetworkError(error)) {
+    return {
+      title: "Connection problem",
+      message:
+        "The dashboard couldn't reach the server — your connection may have dropped. We're retrying automatically in a few seconds.",
+      code: "Error",
+      actionLabel: "Try again now",
+      reload: true,
+      canAutoRetry: true,
+    };
+  }
+  return {
+    title: "Something came loose",
+    message: "We hit an unexpected error. Please try again in a moment.",
+    code: "Error",
+    actionLabel: "Return to dashboard",
+    reload: false,
+    canAutoRetry: false,
+  };
+}
+
 export function ErrorBoundary({ error }: { error: unknown }) {
   const routeError = useRouteError();
-  const status = errorStatus(error ?? routeError);
-  const is404 = status === 404;
-  const isAPIUnavailable = status !== undefined && [502, 503].includes(status);
-  const title = is404
-    ? "Dashboard page not found"
-    : isAPIUnavailable
-      ? "Dashboard API unavailable"
-      : "Something came loose";
-  const message = is404
-    ? "That dashboard route is not available. It may have moved, or the link may be stale."
-    : isAPIUnavailable
-      ? "The dashboard app is running, but the API did not respond with the business session data it needs. Start the API, then refresh."
-      : "We hit an unexpected error. Please try again in a moment.";
-
-  const code = is404 ? "404" : isAPIUnavailable ? "503" : "Error";
+  const resolvedError = error ?? routeError;
+  const view = recoveryView(resolvedError, errorStatus(resolvedError));
+  useAutoRetryOnce(view.canAutoRetry);
   return (
     <WorkspaceSystemPage
-      beforeContent={<CrashReportEffect error={error ?? routeError} />}
-      code={code}
-      eyebrow={is404 ? "404 · Not found" : "Workspace alert"}
-      title={title}
-      message={message}
+      beforeContent={<CrashReportEffect error={resolvedError} />}
+      code={view.code}
+      eyebrow={view.code === "404" ? "404 · Not found" : "Workspace alert"}
+      title={view.title}
+      message={view.message}
       actionHref="/dashboard"
-      actionLabel={isAPIUnavailable ? "Refresh dashboard" : "Return to dashboard"}
-      reload={isAPIUnavailable}
+      actionLabel={view.actionLabel}
+      reload={view.reload}
     />
   );
 }
