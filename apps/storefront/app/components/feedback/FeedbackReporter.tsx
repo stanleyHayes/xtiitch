@@ -75,12 +75,31 @@ function sendFeedback(payload: FeedbackPayload) {
 function errorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
-  return "Unknown client error";
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === "string" && message !== "") return message;
+  }
+  return serializeReason(error) || "Unknown client error";
 }
 
 function errorStack(error: unknown): string {
   if (error instanceof Error) return error.stack ?? error.message;
-  return String(error ?? "");
+  return serializeReason(error);
+}
+
+// Rejection reasons are not always Error objects — failed API calls often
+// reject with plain objects, and older Safari surfaces non-Error values.
+// String() on those yields "[object Object]", so serialize them instead.
+function serializeReason(error: unknown): string {
+  if (error === null || error === undefined) return "";
+  if (typeof error === "string") return error;
+  try {
+    const json = JSON.stringify(error);
+    if (json && json !== "{}") return json;
+    return String(error);
+  } catch {
+    return Object.prototype.toString.call(error);
+  }
 }
 
 export function CrashReportEffect({ error }: { error?: unknown }) {
