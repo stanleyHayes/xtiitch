@@ -1,20 +1,73 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { formatGHS, type PlaceOrderResult } from "../../../src/api";
+import { checkoutSupport } from "../../../src/checkoutSupport";
 import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme";
 import { useTheme } from "../../../src/theme-mode";
 
 type DesignOrderConfirmationProps = {
   order: PlaceOrderResult;
+  storeHandle: string;
   onTrack: () => void;
+};
+
+type PaymentCheck = {
+  tone: "success" | "muted" | "danger";
+  text: string;
 };
 
 export default function DesignOrderConfirmation({
   order,
+  storeHandle,
   onTrack,
 }: DesignOrderConfirmationProps) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
+  const [checking, setChecking] = useState(false);
+  const [paymentCheck, setPaymentCheck] = useState<PaymentCheck | null>(null);
+
+  // After the customer returns from the Paystack-hosted page, confirm the
+  // charge with the store-scoped reference instead of trusting the redirect.
+  const checkPayment = async () => {
+    if (!order.reference || checking) return;
+    setChecking(true);
+    const result = await checkoutSupport.verifyPayment(
+      storeHandle,
+      order.reference,
+    );
+    setChecking(false);
+    if (!result.ok) {
+      setPaymentCheck({
+        tone: "muted",
+        text: "Couldn't check right now — try again.",
+      });
+      return;
+    }
+    if (result.data.status === "succeeded") {
+      setPaymentCheck({
+        tone: "success",
+        text: "Payment confirmed — the store has your order.",
+      });
+    } else if (result.data.status === "pending") {
+      setPaymentCheck({
+        tone: "muted",
+        text: "Still processing — check back in a moment.",
+      });
+    } else {
+      setPaymentCheck({
+        tone: "danger",
+        text: "That payment did not go through — you can try again.",
+      });
+    }
+  };
+
+  const checkToneStyle =
+    paymentCheck?.tone === "success"
+      ? styles.checkSuccess
+      : paymentCheck?.tone === "danger"
+        ? styles.checkDanger
+        : styles.checkMuted;
+
   return (
     <View style={styles.confirm}>
       <Text style={styles.confirmTitle}>Order placed</Text>
@@ -38,7 +91,9 @@ export default function DesignOrderConfirmation({
       {order.authorization_url ? (
         <Pressable
           style={styles.cta}
-          onPress={() => Linking.openURL(order.authorization_url)}
+          onPress={() => {
+            void Linking.openURL(order.authorization_url).catch(() => undefined);
+          }}
         >
           <Text style={styles.ctaText}>Pay {formatGHS(order.amount_minor)}</Text>
         </Pressable>
@@ -49,6 +104,22 @@ export default function DesignOrderConfirmation({
           <Text style={styles.ctaText}>Track this order</Text>
         </Pressable>
       )}
+      {order.reference && storeHandle ? (
+        <Pressable
+          style={styles.secondaryCta}
+          onPress={checkPayment}
+          disabled={checking}
+        >
+          <Text style={styles.secondaryCtaText}>
+            {checking ? "Checking…" : "Check payment status"}
+          </Text>
+        </Pressable>
+      ) : null}
+      {paymentCheck ? (
+        <Text style={[styles.checkText, checkToneStyle]}>
+          {paymentCheck.text}
+        </Text>
+      ) : null}
       {order.authorization_url ? (
         <Pressable style={styles.secondaryCta} onPress={onTrack}>
           <Text style={styles.secondaryCtaText}>Track this order</Text>
@@ -114,4 +185,14 @@ const makeStyles = (palette: Palette) =>
       fontSize: 15,
       fontWeight: "800",
     },
+    checkText: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      fontWeight: "700",
+      marginTop: spacing(1.5),
+      lineHeight: 19,
+    },
+    checkSuccess: { color: palette.success },
+    checkMuted: { color: palette.mutedText },
+    checkDanger: { color: palette.danger },
   });

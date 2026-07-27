@@ -19,6 +19,7 @@ import DesignDeliveryFields, {
 } from "./DesignDeliveryFields";
 import DesignOrderingDisabled from "./DesignOrderingDisabled";
 import DesignPaymentNotice from "./DesignPaymentNotice";
+import DesignQuoteCard, { type QuoteRequest } from "./DesignQuoteCard";
 import DesignRewardFields, {
   type RewardFieldValues,
 } from "./DesignRewardFields";
@@ -171,6 +172,26 @@ export default function DesignOrderForm({
     (selectedBand?.price_minor ?? 0) + deliveryFeeMinor(delivery, zones);
   const canSubmit = canSubmitOrder(bandId, contact, delivery, submitting);
 
+  // Server-priced preview of exactly what submit() sends (single made-to-wear
+  // line; zone only once delivery has one). Hidden until a size is picked; a
+  // failed quote falls back to no card and never blocks ordering.
+  const quoteRequest = useMemo<QuoteRequest>(() => {
+    if (!bandId) return null;
+    return {
+      items: [
+        {
+          design_handle: design.handle,
+          size_band_id: bandId,
+          kind: "made_to_wear",
+        },
+      ],
+      delivery_zone_id:
+        delivery.fulfilment === "delivery" && delivery.zoneId
+          ? delivery.zoneId
+          : undefined,
+    };
+  }, [bandId, design.handle, delivery.fulfilment, delivery.zoneId]);
+
   const submit = async () => {
     if (!bandId) return;
     // §3b gate: no payment without a verified customer session. Guests are
@@ -236,6 +257,8 @@ export default function DesignOrderForm({
 
       <Text style={styles.sectionLabel}>Payment</Text>
       <DesignPaymentNotice />
+
+      <DesignQuoteCard storeHandle={store.handle} request={quoteRequest} />
 
       {orderError ? <Text style={styles.error}>{orderError}</Text> : null}
 

@@ -5,6 +5,10 @@
 // EXPO_PUBLIC_XTIITCH_API_URL (must include the `/v1` prefix), e.g.
 // `http://localhost:8085/v1`.
 import { resolveApiBaseUrl } from "./surfaces.mjs";
+// Function-level-only use below (never at module top level) — customerAuth
+// imports apiBaseUrl from this module, so this import must stay lazy to keep
+// the cycle safe (same pattern as customerAuth ↔ customerOrders).
+import { loadSession } from "./customerAuth";
 
 export type StoreSettings = {
   bespoke_enabled: boolean;
@@ -201,11 +205,23 @@ async function getJSON<T>(path: string): Promise<ApiResult<T>> {
 
 async function postJSON<T>(path: string, input: unknown): Promise<ApiResult<T>> {
   try {
+    // Attach the customer Bearer token when a session exists, so orders placed
+    // while signed in are bound to the customer (and show in "Your orders").
+    // Never let session loading fail the request — orders stay placeable
+    // signed out.
+    let authorization: string | null = null;
+    try {
+      const session = await loadSession();
+      if (session) authorization = `Bearer ${session.access_token}`;
+    } catch {
+      authorization = null;
+    }
     const response = await fetch(`${apiBaseUrl()}${path}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
+        ...(authorization ? { Authorization: authorization } : {}),
       },
       body: JSON.stringify(input),
     });

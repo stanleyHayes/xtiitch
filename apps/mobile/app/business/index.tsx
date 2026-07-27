@@ -21,7 +21,7 @@ import { CenterState, OrderRow } from "../../src/ui";
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
 
-export default function BusinessDashboardScreen() {
+export default function BusinessDashboardScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const { palette } = useTheme();
   const styles = useMemo(() => makeStyles(palette), [palette]);
   const router = useRouter();
@@ -166,9 +166,41 @@ export default function BusinessDashboardScreen() {
       </Pressable>
 
       <RecentOrders orders={recent} />
+
+      <View style={styles.sectionHead}>
+        <Text style={styles.sectionLabel}>Manage</Text>
+      </View>
+      <View style={styles.menuGrid}>
+        {MENU_ITEMS.map((item) => (
+          <Pressable
+            key={item.href}
+            style={({ pressed }) => [
+              styles.menuItem,
+              pressed && { opacity: 0.85 },
+            ]}
+            onPress={() => router.push(item.href)}
+          >
+            <Text style={styles.menuTitle}>{item.title}</Text>
+            <Text style={styles.menuHint}>{item.hint}</Text>
+          </Pressable>
+        ))}
+      </View>
     </ScrollView>
   );
 }
+
+// Business-lane sections beyond orders — one tile per route under
+// app/business/. Keep titles short; the hint says what lives inside.
+const MENU_ITEMS: { href: string; title: string; hint: string }[] = [
+  { href: "/business/money", title: "Money", hint: "Income, transactions & takings" },
+  { href: "/business/bookings", title: "Bookings", hint: "Appointments & availability" },
+  { href: "/business/handovers", title: "Handovers", hint: "Pickups & deliveries" },
+  { href: "/business/customers", title: "Customers", hint: "CRM list & profiles" },
+  { href: "/business/promotions", title: "Promotions", hint: "Discount codes" },
+  { href: "/business/waitlist", title: "Waitlist", hint: "Design demand" },
+  { href: "/business/team", title: "Team", hint: "Members & roles" },
+  { href: "/business/notifications", title: "Notifications", hint: "Message log" },
+];
 
 function RecentOrders({ orders }: { orders: BusinessOrder[] }) {
   const { palette } = useTheme();
@@ -312,6 +344,28 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
     color: palette.burgundy,
   },
   orderList: { gap: spacing(1.5) },
+  menuGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing(1.5) },
+  menuItem: {
+    flexGrow: 1,
+    flexBasis: "44%",
+    backgroundColor: palette.white,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: palette.softBorder,
+    padding: spacing(2),
+  },
+  menuTitle: {
+    fontFamily: fonts.body,
+    fontSize: 15,
+    fontWeight: "800",
+    color: palette.ink,
+  },
+  menuHint: {
+    fontFamily: fonts.body,
+    fontSize: 12,
+    color: palette.mutedText,
+    marginTop: spacing(0.5),
+  },
   empty: {
     backgroundColor: palette.panel,
     borderRadius: radius.md,

@@ -41,15 +41,19 @@ export type CustomerProfile = {
   whatsapp_phone: string;
 };
 
-export type CustomerOrder = {
-  order_id: string;
-  business_name: string;
-  business_handle: string;
-  design_title: string;
-  status: string;
-  agreed_total_minor: number;
-  created_at: string;
-};
+// The order model + order actions (pay-now, close, mark-received) live in
+// customerOrders.ts (file-size budget); re-exported so existing imports from
+// "./customerAuth" keep working.
+export {
+  canMarkReceived,
+  closeOrder,
+  fetchCustomerOrders,
+  isPayableDraft,
+  markBasketReceived,
+  markOrderReceived,
+  requestOrderPaymentLink,
+} from "./customerOrders";
+export type { ActionOutcome, CustomerOrder } from "./customerOrders";
 
 // undefined = not yet read from storage; null = read, no session.
 let cached: CustomerSession | null | undefined;
@@ -220,11 +224,34 @@ export async function fetchCustomerProfile(): Promise<CustomerProfile | null> {
   return (await response.json()) as CustomerProfile;
 }
 
-export async function fetchCustomerOrders(): Promise<CustomerOrder[]> {
-  const response = await authedFetch("/customer/orders");
-  if (!response.ok) return [];
-  const body = (await response.json()) as { orders?: CustomerOrder[] };
-  return body.orders ?? [];
+// Editable profile fields (PATCH /customer/me) — phone is NOT editable; the
+// strict decoder rejects unknown keys, so send exactly these three.
+export type UpdateProfileInput = {
+  display_name: string;
+  email: string;
+  whatsapp_phone: string;
+};
+
+export async function updateCustomerProfile(
+  input: UpdateProfileInput,
+): Promise<{ ok: true; profile: CustomerProfile } | { ok: false; error: string }> {
+  try {
+    const response = await authedFetch("/customer/me", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      return { ok: false, error: payload?.error ?? "Could not save your details." };
+    }
+    return { ok: true, profile: (await response.json()) as CustomerProfile };
+  } catch (error) {
+    if (error instanceof CustomerSessionExpiredError) throw error;
+    return { ok: false, error: "Network error — check your connection and retry." };
+  }
 }
 
 // No server-side revoke exists for customer tokens — signing out is local,

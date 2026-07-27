@@ -13,6 +13,7 @@ import { fonts, radius, shadow, spacing, type Palette } from "../../../src/theme
 import { useTheme } from "../../../src/theme-mode";
 import { bespokeRoutes, resolveDepositMinor } from "./bespoke-routes";
 import DesignHomeVisitForm from "./DesignHomeVisitForm";
+import DesignQuoteCard, { type QuoteRequest } from "./DesignQuoteCard";
 import DesignSelfMeasureForm from "./DesignSelfMeasureForm";
 import DesignShopReserveForm from "./DesignShopReserveForm";
 
@@ -42,6 +43,24 @@ export default function DesignBespokePanel({
   );
   const [selectedMode, setSelectedMode] = useState<CustomSizeMode | null>(null);
   const activeRoute = routes.find((route) => route.mode === selectedMode) ?? null;
+
+  // Server-priced preview of the bespoke line the active route's form submits
+  // (kind "bespoke" + its size mode). The quote endpoint only accepts
+  // "self_measure" bespoke lines (the server 400s anything else), so home-visit
+  // and come-to-shop routes get no card. A failed quote never blocks ordering.
+  const quoteRequest = useMemo<QuoteRequest>(() => {
+    if (!activeRoute || !activeRoute.enabled) return null;
+    if (activeRoute.mode !== "self_measure") return null;
+    return {
+      items: [
+        {
+          design_handle: design.handle,
+          kind: "bespoke",
+          size_mode: activeRoute.mode,
+        },
+      ],
+    };
+  }, [activeRoute, design.handle]);
 
   return (
     <View style={styles.panel}>
@@ -82,15 +101,21 @@ export default function DesignBespokePanel({
         <View>
           <Text style={styles.helper}>{activeRoute.helper}</Text>
           {activeRoute.enabled ? (
-            <ActiveRouteForm
-              mode={activeRoute.mode}
-              buttonLabel={activeRoute.buttonLabel}
-              design={design}
-              store={store}
-              visitSlots={visitSlots}
-              depositMinor={depositMinor}
-              onOrdered={onOrdered}
-            />
+            <View>
+              <DesignQuoteCard
+                storeHandle={store.handle}
+                request={quoteRequest}
+              />
+              <ActiveRouteForm
+                mode={activeRoute.mode}
+                buttonLabel={activeRoute.buttonLabel}
+                design={design}
+                store={store}
+                visitSlots={visitSlots}
+                depositMinor={depositMinor}
+                onOrdered={onOrdered}
+              />
+            </View>
           ) : (
             <Text style={styles.infoNote}>{activeRoute.disabledReason}</Text>
           )}

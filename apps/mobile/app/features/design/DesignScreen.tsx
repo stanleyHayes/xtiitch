@@ -113,6 +113,7 @@ export default function DesignScreen() {
       {order ? (
         <DesignOrderConfirmation
           order={order}
+          storeHandle={store?.handle ?? ""}
           onTrack={() => router.push(`/track/${order.order_id}`)}
         />
       ) : store ? (

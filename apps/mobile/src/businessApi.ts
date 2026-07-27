@@ -39,7 +39,10 @@ export type AuthedResult<T> =
   | { ok: true; data: T }
   | { ok: false; expired: boolean; error: string };
 
-async function request<T>(
+// Shared request wrapper — also used by the sibling businessOpsApi /
+// businessAdminApi modules so every business call gets the same Bearer +
+// silent-refresh handling and the same result envelope.
+export async function request<T>(
   path: string,
   init?: RequestInit,
 ): Promise<AuthedResult<T>> {
@@ -84,6 +87,58 @@ export type CreateWalkInInput = {
   customer_phone: string;
   customer_email: string;
   agreed_total_minor?: number;
+};
+
+// Bespoke walk-in (POST /orders/custom). DisallowUnknownFields is on
+// server-side — send exactly these keys. measurements maps field_id → value,
+// keys must exist in the studio's measurement-fields template.
+export type CreateCustomWalkInInput = {
+  design_id: string;
+  customer_name: string;
+  customer_phone?: string;
+  customer_email?: string;
+  measurements?: Record<string, string>;
+};
+
+// The studio's production stages (read-only — the API has no stage-management
+// endpoints; templates are seeded at registration). flow is "ready_made"
+// (standard orders) or "bespoke" (custom orders).
+export type Stage = {
+  name: string;
+  colour: string;
+  flow: string;
+  sequence: number;
+};
+
+// Handover (pickup/delivery) contracts — delivery/handler.go. Statuses:
+// pending → dispatched → completed (delivery), pending → completed (pickup),
+// or cancelled.
+export type HandoverSummary = {
+  handover_id: string;
+  order_id: string;
+  customer_name: string;
+  customer_phone: string;
+  design_title: string;
+  method: "pickup" | "delivery";
+  status: string;
+  recipient_name: string;
+  recipient_phone: string;
+  address: string;
+  courier: string;
+  note: string;
+  created_at: string;
+};
+
+// address is required server-side (400 address_required) when method is
+// "delivery"; everything beyond order_id + method is optional for pickup.
+export type ArrangeHandoverInput = {
+  order_id: string;
+  method: "pickup" | "delivery";
+  recipient_name?: string;
+  recipient_phone?: string;
+  address?: string;
+  courier?: string;
+  note?: string;
 };
 
 // The staff-taken measurement routes the API accepts (measurementapp
@@ -159,6 +214,39 @@ export const businessApi = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     }),
+  // Record a bespoke (made-to-measure) walk-in order, optionally with
+  // measurements taken on the spot. 409 order_not_advanceable when the studio
+  // has no bespoke stage configured.
+  createCustomWalkIn: (input: CreateCustomWalkInInput) =>
+    request<{ order_id: string }>("/orders/custom", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  stages: () => request<{ stages: Stage[] }>("/stages"),
+  handovers: () => request<{ handovers: HandoverSummary[] }>("/handovers"),
+  arrangeHandover: (input: ArrangeHandoverInput) =>
+    request<{ handover_id: string; status: string }>("/handovers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  // Advance to the next handover state (pickup: pending→completed; delivery:
+  // pending→dispatched→completed). 409 invalid_handover_state when terminal.
+  advanceHandover: (handoverId: string, note?: { courier?: string; note?: string }) =>
+    request<{ status: string }>(
+      `/handovers/${encodeURIComponent(handoverId)}/advance`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(note ?? {}),
+      },
+    ),
+  cancelHandover: (handoverId: string) =>
+    request<{ status: string }>(
+      `/handovers/${encodeURIComponent(handoverId)}/cancel`,
+      { method: "POST" },
+    ),
 };
 
 // The real domain statuses are draft / awaiting_deposit / confirmed /

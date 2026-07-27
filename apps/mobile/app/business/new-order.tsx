@@ -4,12 +4,12 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 
 import { loadSession } from "../../src/auth";
+import type { MeasurementField } from "../../src/api";
 import {
   businessApi,
   type BusinessDesign,
@@ -19,6 +19,12 @@ import { CenterState, LoadingButtonLabel } from "../../src/ui";
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
 import { DesignPicker } from "../features/business/new-order/DesignPicker";
+import { Field } from "../features/business/new-order/Field";
+import { MeasurementInputs } from "../features/business/new-order/MeasurementInputs";
+import {
+  OrderTypeToggle,
+  type NewOrderType,
+} from "../features/business/new-order/OrderTypeToggle";
 
 export default function NewOrderScreen() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   const { palette } = useTheme();
@@ -29,6 +35,7 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
+  const [orderType, setOrderType] = useState<NewOrderType>("ready");
   const [designId, setDesignId] = useState<string | null>(null);
   const [bandId, setBandId] = useState<string | null>(null);
   const [name, setName] = useState("");
@@ -37,6 +44,17 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
   const [total, setTotal] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Bespoke-only: the studio's measurement template (null = not loaded yet)
+  // and the values keyed by field_id.
+  const [measureFields, setMeasureFields] = useState<MeasurementField[] | null>(
+    null,
+  );
+  const [measureLoading, setMeasureLoading] = useState(false);
+  const [measureError, setMeasureError] = useState(false);
+  const [measureValues, setMeasureValues] = useState<Record<string, string>>(
+    {},
+  );
 
   const toLogin = useCallback(
     () => router.replace("/business/login"),
@@ -67,6 +85,24 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
     if (bandsResult.ok) setBands(bandsResult.data.size_bands);
   }, [toLogin]);
 
+  // The measurement template is only needed for bespoke orders, so it loads
+  // lazily the first time the toggle flips to Bespoke.
+  const loadMeasurements = useCallback(async () => {
+    setMeasureLoading(true);
+    setMeasureError(false);
+    const result = await businessApi.measurementFields();
+    setMeasureLoading(false);
+    if (!result.ok && result.expired) {
+      toLogin();
+      return;
+    }
+    if (!result.ok) {
+      setMeasureError(true);
+      return;
+    }
+    setMeasureFields(result.data.fields);
+  }, [toLogin]);
+
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -90,10 +126,55 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
     void loadCatalogue().finally(() => setLoading(false));
   };
 
+  const selectOrderType = (next: NewOrderType) => {
+    setOrderType(next);
+    setError(null);
+    if (next === "bespoke" && measureFields === null && !measureLoading) {
+      void loadMeasurements();
+    }
+  };
+
   const canSubmit = Boolean(designId) && name.trim().length > 1 && !submitting;
+
+  const submitBespoke = async () => {
+    if (!designId) return;
+    setSubmitting(true);
+    setError(null);
+    // Drop empty values — the API only accepts template field IDs, and an
+    // empty map is fine (no minimum for on-the-spot capture here).
+    const measurements: Record<string, string> = {};
+    for (const [fieldId, value] of Object.entries(measureValues)) {
+      const trimmed = value.trim();
+      if (trimmed) measurements[fieldId] = trimmed;
+    }
+    const trimmedPhone = phone.trim();
+    const trimmedEmail = email.trim();
+    const result = await businessApi.createCustomWalkIn({
+      design_id: designId,
+      customer_name: name.trim(),
+      ...(trimmedPhone ? { customer_phone: trimmedPhone } : {}),
+      ...(trimmedEmail ? { customer_email: trimmedEmail } : {}),
+      measurements,
+    });
+    setSubmitting(false);
+    if (result.ok) {
+      router.replace(`/business/order/${result.data.order_id}`);
+    } else if (result.expired) {
+      toLogin();
+    } else if (result.error === "upstream_409") {
+      // 409 order_not_advanceable — no bespoke stage seeded for the studio.
+      setError("Bespoke stages are not configured for this studio yet.");
+    } else {
+      setError("Couldn't create the order. Check the details and retry.");
+    }
+  };
 
   const submit = async () => {
     if (!designId) return;
+    if (orderType === "bespoke") {
+      await submitBespoke();
+      return;
+    }
     setSubmitting(true);
     setError(null);
     const parsed = total.trim()
@@ -152,10 +233,13 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <Text style={styles.sectionLabel}>Order type</Text>
+      <OrderTypeToggle value={orderType} onChange={selectOrderType} />
+
       <Text style={styles.sectionLabel}>Design</Text>
       <DesignPicker designs={designs} designId={designId} onSelect={setDesignId} />
 
-      {bands.length > 0 ? (
+      {orderType === "ready" && bands.length > 0 ? (
         <>
           <Text style={styles.sectionLabel}>Size (optional)</Text>
           <View style={styles.bandRow}>
@@ -192,6 +276,19 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
         </>
       ) : null}
 
+      {orderType === "bespoke" ? (
+        <MeasurementInputs
+          fields={measureFields}
+          loading={measureLoading}
+          error={measureError}
+          onRetry={() => void loadMeasurements()}
+          values={measureValues}
+          onChange={(fieldId, next) =>
+            setMeasureValues((prev) => ({ ...prev, [fieldId]: next }))
+          }
+        />
+      ) : null}
+
       <Text style={styles.sectionLabel}>Customer</Text>
       <View style={styles.form}>
         <Field
@@ -214,13 +311,15 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
           placeholder="customer@example.com"
           keyboardType="email-address"
         />
-        <Field
-          label="Agreed total (GH₵, optional)"
-          value={total}
-          onChange={setTotal}
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-        />
+        {orderType === "ready" ? (
+          <Field
+            label="Agreed total (GH₵, optional)"
+            value={total}
+            onChange={setTotal}
+            placeholder="0.00"
+            keyboardType="decimal-pad"
+          />
+        ) : null}
       </View>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -237,38 +336,6 @@ export default function NewOrderScreen() { // eslint-disable-line max-lines-per-
         )}
       </Pressable>
     </ScrollView>
-  );
-}
-
-function Field({
-  label,
-  value,
-  onChange,
-  placeholder,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChange: (next: string) => void;
-  placeholder: string;
-  keyboardType?: "phone-pad" | "email-address" | "decimal-pad";
-}) {
-  const { palette } = useTheme();
-  const styles = useMemo(() => makeStyles(palette), [palette]);
-  return (
-    <View>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={palette.mutedText}
-        autoCapitalize={keyboardType === "email-address" ? "none" : "words"}
-        autoCorrect={false}
-        keyboardType={keyboardType}
-        style={styles.input}
-      />
-    </View>
   );
 }
 
@@ -306,24 +373,6 @@ const makeStyles = (palette: Palette) => StyleSheet.create({
   },
   bandTextActive: { color: palette.burgundy },
   form: { gap: spacing(1.75) },
-  fieldLabel: {
-    fontFamily: fonts.body,
-    fontSize: 13,
-    fontWeight: "700",
-    color: palette.ink,
-    marginBottom: spacing(0.75),
-  },
-  input: {
-    backgroundColor: palette.white,
-    borderWidth: 1,
-    borderColor: palette.softBorder,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing(2),
-    paddingVertical: spacing(1.75),
-    fontFamily: fonts.body,
-    fontSize: 15,
-    color: palette.ink,
-  },
   error: {
     fontFamily: fonts.body,
     fontSize: 14,
