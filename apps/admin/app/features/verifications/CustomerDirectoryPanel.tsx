@@ -3,7 +3,7 @@ import Box from "@mui/material/Box";
 import Drawer from "@mui/material/Drawer";
 import InputAdornment from "@mui/material/InputAdornment";
 import Stack from "@mui/material/Stack";
-import Typography from "@mui/material/Typography";
+import GroupOffRounded from "@mui/icons-material/GroupOffRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import TextField from "../../components/form-text-field";
 import { AdminCustomer } from "../shared/types";
@@ -15,6 +15,7 @@ import { CustomerStat } from "./CustomerStat";
 import { CustomerTable } from "./CustomerTable";
 import { CustomerInspector } from "./CustomerInspector";
 import { SectionHeader } from "../../components/ui/SectionHeader";
+import { AdminEmptyState } from "../../components/ui/AdminEmptyState";
 
 
 
@@ -112,14 +113,20 @@ export function CustomerDirectoryPanel({
         />
       </Panel>
       {!error && visibleCustomers.length === 0 ? (
-        <Panel sx={{ p: 3, textAlign: "center" }}>
-          <Typography sx={{ fontWeight: 800 }}>
-            No customers match this view.
-          </Typography>
-          <Typography sx={{ mt: 0.5, color: "text.secondary" }}>
-            Clear the search to return to the full customer directory.
-          </Typography>
-        </Panel>
+        <AdminEmptyState
+          icon={<GroupOffRounded />}
+          eyebrow={query.trim() ? "No search results" : "Customer directory"}
+          title={
+            query.trim()
+              ? "No customers match this view"
+              : "No customers recorded yet"
+          }
+          helper={
+            query.trim()
+              ? "Clear or change the search to return to the full customer directory."
+              : "Customer profiles will appear here after they place an order with a business."
+          }
+        />
       ) : (
         <Stack spacing={1.5}>
           <CustomerTable

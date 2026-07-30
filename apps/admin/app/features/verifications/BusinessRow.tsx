@@ -9,7 +9,7 @@ import { tokens } from "../../theme";
 import { AdminBusiness, AdminBusinessOperationalStatus } from "../shared/types";
 import { formatGHS } from "../shared/formatting";
 import { statusColor } from "../shared/colors";
-import { shortTime } from "../shared/dates";
+import { shortTimeOrFallback } from "../shared/dates";
 import { Panel } from "../../components/ui/Panel";
 import { RiskChip } from "../shared/RiskChip";
 import { StatusChip } from "../shared/StatusChip";
@@ -92,6 +92,12 @@ export function BusinessRow({ // eslint-disable-line max-lines-per-function -- l
             sx={{ color: "text.secondary", mt: 0.5, overflowWrap: "anywhere" }}
           >
             {business.handle}.xtiitch.com · {business.ownerEmail}
+            {business.ownerPhone
+              ? ` · Phone ${business.ownerPhone}`
+              : ""}
+            {business.ownerWhatsApp
+              ? ` · WhatsApp ${business.ownerWhatsApp}`
+              : ""}
           </Typography>
         </Box>
         <Box>
@@ -124,7 +130,7 @@ export function BusinessRow({ // eslint-disable-line max-lines-per-function -- l
             Last active
           </Typography>
           <Typography sx={{ fontWeight: 800 }}>
-            {shortTime(business.lastActive)}
+            {shortTimeOrFallback(business.lastActive, "Unknown")}
           </Typography>
         </Box>
         <Stack

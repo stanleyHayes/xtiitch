@@ -1,17 +1,24 @@
-
-
 export function shortTime(value: string): string {
-  return new Intl.DateTimeFormat("en-GH", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+  try {
+    return new Intl.DateTimeFormat("en-GH", {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date);
+  } catch {
+    return "Unknown time";
+  }
 }
 
-
-
-export function shortTimeOrFallback(value?: string, fallback = "Not set"): string {
+export function shortTimeOrFallback(
+  value?: string,
+  fallback = "Not set",
+): string {
   if (!value) {
     return fallback;
   }
@@ -19,16 +26,13 @@ export function shortTimeOrFallback(value?: string, fallback = "Not set"): strin
   if (Number.isNaN(date.getTime())) {
     return fallback;
   }
-  return shortTime(value);
+  const formatted = shortTime(value);
+  return formatted === "Unknown time" ? fallback : formatted;
 }
-
-
 
 export function shortID(value: string): string {
   return value.slice(0, 8);
 }
-
-
 
 export function datetimeLocalDefault(value?: string): string {
   if (!value) {
@@ -40,8 +44,6 @@ export function datetimeLocalDefault(value?: string): string {
   }
   return date.toISOString().slice(0, 16);
 }
-
-
 
 export function splitDateTimeInputValue(value = ""): {
   date: string;
@@ -60,8 +62,6 @@ export function splitDateTimeInputValue(value = ""): {
   };
 }
 
-
-
 export function normaliseTimeInput(value: string): string | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value.trim());
   if (!match) {
@@ -74,8 +74,6 @@ export function normaliseTimeInput(value: string): string | null {
   }
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }
-
-
 
 export function splitTimeParts(value: string): {
   hour: string;
@@ -96,8 +94,6 @@ export function splitTimeParts(value: string): {
     period,
   };
 }
-
-
 
 export function composeTimeInputValue(
   hour: string,

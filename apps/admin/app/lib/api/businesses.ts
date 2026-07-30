@@ -40,6 +40,8 @@ export type AdminBusiness = {
   handle: string;
   ownerName: string;
   ownerEmail: string;
+  ownerPhone: string;
+  ownerWhatsApp: string;
   status: AdminBusinessStatus;
   verificationStatus: AdminVerificationStatus;
   operationalStatus: AdminBusinessOperationalStatus;
@@ -77,6 +79,8 @@ type AdminBusinessPayload = {
   handle: string;
   owner_name: string;
   owner_email: string;
+  owner_phone?: string;
+  owner_whatsapp?: string;
   status: AdminBusinessStatus;
   verification_status: AdminVerificationStatus;
   operational_status: AdminBusinessOperationalStatus;
@@ -115,6 +119,8 @@ function mapBusiness(payload: AdminBusinessPayload): AdminBusiness {
     handle: payload.handle,
     ownerName: payload.owner_name,
     ownerEmail: payload.owner_email,
+    ownerPhone: payload.owner_phone ?? "",
+    ownerWhatsApp: payload.owner_whatsapp ?? "",
     status: payload.status,
     verificationStatus: payload.verification_status,
     operationalStatus: payload.operational_status,

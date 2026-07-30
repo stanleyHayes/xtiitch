@@ -47,6 +47,8 @@ func (repo AdminAuthRepository) ListAdminBusinesses(ctx context.Context) ([]port
 			b.handle,
 			coalesce(owner.display_name, ''),
 			coalesce(owner.email, ''),
+			coalesce(owner.phone, ''),
+			coalesce(owner.whatsapp_number, ''),
 			p.name,
 			p.code,
 			b.verification_status,
@@ -70,7 +72,7 @@ func (repo AdminAuthRepository) ListAdminBusinesses(ctx context.Context) ([]port
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.display_name, u.email
+			select u.display_name, u.email, u.phone, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
@@ -161,6 +163,8 @@ func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 			b.handle,
 			coalesce(owner.display_name, ''),
 			coalesce(owner.email, ''),
+			coalesce(owner.phone, ''),
+			coalesce(owner.whatsapp_number, ''),
 			p.name,
 			p.code,
 			b.verification_status,
@@ -184,7 +188,7 @@ func (repo AdminAuthRepository) UpdateAdminBusinessStatus(
 		left join order_stats os on os.business_id = b.business_id
 		left join money_stats ms on ms.business_id = b.business_id
 		left join lateral (
-			select u.display_name, u.email
+			select u.display_name, u.email, u.phone, u.whatsapp_number
 			from business_users u
 			where u.business_id = b.business_id and u.role = 'owner'
 			order by u.created_at
@@ -221,6 +225,8 @@ func scanAdminBusinessRecord(row pgx.Row) (ports.AdminBusinessRecord, error) {
 		&record.Handle,
 		&record.OwnerName,
 		&record.OwnerEmail,
+		&record.OwnerPhone,
+		&record.OwnerWhatsApp,
 		&record.PlanName,
 		&record.PlanCode,
 		&verificationStatus,

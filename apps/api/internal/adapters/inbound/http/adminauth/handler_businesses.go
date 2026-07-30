@@ -37,6 +37,8 @@ type businessResponse struct {
 	Handle             string `json:"handle"`
 	OwnerName          string `json:"owner_name"`
 	OwnerEmail         string `json:"owner_email"`
+	OwnerPhone         string `json:"owner_phone"`
+	OwnerWhatsApp      string `json:"owner_whatsapp"`
 	Status             string `json:"status"`
 	VerificationStatus string `json:"verification_status"`
 	OperationalStatus  string `json:"operational_status"`
@@ -244,6 +246,8 @@ func newBusinessResponse(record ports.AdminBusinessRecord) businessResponse {
 		Handle:             record.Handle,
 		OwnerName:          fallbackText(record.OwnerName, "Owner pending"),
 		OwnerEmail:         fallbackText(record.OwnerEmail, "owner email pending"),
+		OwnerPhone:         strings.TrimSpace(record.OwnerPhone),
+		OwnerWhatsApp:      strings.TrimSpace(record.OwnerWhatsApp),
 		Status:             businessListStatus(record),
 		VerificationStatus: string(record.VerificationStatus),
 		OperationalStatus:  string(record.OperationalStatus),

@@ -123,6 +123,14 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   feed SQL/scan path now coalesces sparse unverified-tenant fields, skips
   malformed rows, and the admin proxy returns in-band errors so the tab cannot
   crash the console.
+- ✅ Business directory list item + detail redesign: clearer hierarchy, owner
+  phone + WhatsApp on list/detail (API `owner_phone` / `owner_whatsapp`,
+  clickable `tel:` / `wa.me`), search includes contact fields. Activity tab
+  wrapped in an error boundary; `shortTime` no longer throws on bad dates.
+- ✅ Follow-up visual pass moves suspend/reactivate/delete controls into a
+  right-side Manage drawer, adds a four-metric overview and account-state rail,
+  and gives every owner-contact/business-record datum its own vertically
+  centred icon. Customer search empties now use `AdminEmptyState`.
 
 ### Registration verification + payout onboarding emails — 2026-07-30
 

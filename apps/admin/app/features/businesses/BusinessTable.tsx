@@ -9,7 +9,7 @@ import IconButton from "@mui/material/IconButton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { formatGHS } from "../shared/formatting";
-import { shortTime } from "../shared/dates";
+import { shortTimeOrFallback } from "../shared/dates";
 import { Panel } from "../../components/ui/Panel";
 import { RiskChip } from "../shared/RiskChip";
 import { StatusChip } from "../shared/StatusChip";
@@ -83,6 +83,12 @@ export function BusinessTable({
                     sx={{ color: "text.secondary", overflowWrap: "anywhere" }}
                   >
                     {business.handle}.xtiitch.com · {business.ownerEmail}
+                    {business.ownerPhone
+                      ? ` · ${business.ownerPhone}`
+                      : ""}
+                    {business.ownerWhatsApp
+                      ? ` · WA ${business.ownerWhatsApp}`
+                      : ""}
                   </Typography>
                 </TableCell>
                 <TableCell align="right">
@@ -97,7 +103,7 @@ export function BusinessTable({
                 </TableCell>
                 <TableCell>
                   <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                    {shortTime(business.lastActive)}
+                    {shortTimeOrFallback(business.lastActive, "Unknown")}
                   </Typography>
                 </TableCell>
                 <TableCell

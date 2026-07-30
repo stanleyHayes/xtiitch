@@ -13,6 +13,8 @@ type AdminBusinessRecord struct {
 	Handle               string
 	OwnerName            string
 	OwnerEmail           string
+	OwnerPhone           string
+	OwnerWhatsApp        string
 	PlanName             string
 	PlanCode             string
 	VerificationStatus   business.VerificationStatus
