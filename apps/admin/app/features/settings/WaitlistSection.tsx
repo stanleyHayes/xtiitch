@@ -16,11 +16,14 @@ import Typography from "@mui/material/Typography";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import EmailRounded from "@mui/icons-material/EmailRounded";
+import HowToRegRounded from "@mui/icons-material/HowToRegRounded";
 import PhoneRounded from "@mui/icons-material/PhoneRounded";
+import SearchOffRounded from "@mui/icons-material/SearchOffRounded";
 import SearchRounded from "@mui/icons-material/SearchRounded";
 import TextField from "../../components/form-text-field";
 import type { AdminWaitlistLead } from "../shared/types";
 import { shortTime } from "../shared/dates";
+import { AdminEmptyState } from "../../components/ui/AdminEmptyState";
 import { Panel } from "../../components/ui/Panel";
 import { MetricCard } from "../../components/ui/MetricCard";
 import { SectionHeader } from "../../components/ui/SectionHeader";
@@ -139,16 +142,23 @@ export function WaitlistSection({
           </Stack>
         </Panel>
       ) : filteredLeads.length === 0 ? (
-        <Panel sx={{ p: 3 }}>
-          <Typography variant="h6">
-            {leads.length ? "No matching leads" : "No waitlist signups yet"}
-          </Typography>
-          <Typography sx={{ color: "text.secondary" }}>
-            {leads.length
-              ? "Try a different search."
-              : "New marketing signups will appear here automatically."}
-          </Typography>
-        </Panel>
+        leads.length ? (
+          <AdminEmptyState
+            compact
+            icon={<SearchOffRounded />}
+            eyebrow="No matches"
+            title="No matching leads"
+            helper="Try a different search to widen the waitlist results."
+          />
+        ) : (
+          <AdminEmptyState
+            compact
+            icon={<HowToRegRounded />}
+            eyebrow="Marketing waitlist"
+            title="No waitlist signups yet"
+            helper="New marketing signups will appear here automatically as leads join from the public site."
+          />
+        )
       ) : (
         <Box
           sx={{

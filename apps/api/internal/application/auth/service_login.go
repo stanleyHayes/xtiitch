@@ -183,13 +183,27 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 		return AuthResult{}, err
 	}
 
-	return s.issueSession(ctx, issueSessionInput{
+	result, err := s.issueSession(ctx, issueSessionInput{
 		BusinessID:     identity.BusinessID,
 		BusinessUserID: identity.BusinessUserID,
 		Role:           identity.Role,
 		UserAgent:      cmd.UserAgent,
 		IPAddress:      cmd.IPAddress,
 	})
+	if err != nil {
+		return AuthResult{}, err
+	}
+
+	// Best-effort: point the new owner at verification (+ later payouts) from
+	// noreply@. Failures are logged inside; registration already succeeded.
+	s.sendRegistrationWelcomeEmail(
+		ctx,
+		normalized.OwnerEmail,
+		normalized.OwnerDisplayName,
+		normalized.BusinessName,
+	)
+
+	return result, nil
 }
 
 // HandleAvailability is the result of a store-handle availability check, used by

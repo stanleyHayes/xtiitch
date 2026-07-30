@@ -19,6 +19,7 @@ type fakeAdminSweeps struct {
 	recurringCmd  adminauthapp.RunSubscriptionRecurringSweepCommand
 	reminderCmd   adminauthapp.RunSubscriptionReminderSweepCommand
 	settlementCmd adminauthapp.RunSettlementSyncCommand
+	nudgeCmd      adminauthapp.RunVerificationNudgeSweepCommand
 	err           error
 }
 
@@ -44,6 +45,14 @@ func (fake *fakeAdminSweeps) RunSettlementSync(
 ) (ports.AdminSettlementSyncRecord, error) {
 	fake.settlementCmd = cmd
 	return ports.AdminSettlementSyncRecord{Synced: 4, Upserted: 9}, fake.err
+}
+
+func (fake *fakeAdminSweeps) RunVerificationNudgeSweep(
+	_ context.Context,
+	cmd adminauthapp.RunVerificationNudgeSweepCommand,
+) (ports.AdminVerificationNudgeSweepRecord, error) {
+	fake.nudgeCmd = cmd
+	return ports.AdminVerificationNudgeSweepRecord{Candidates: 2, EmailsSent: 2}, fake.err
 }
 
 type fakeReportsSweeps struct {
@@ -102,6 +111,10 @@ func TestInternalEndpointsCallThroughAsSystemActor(t *testing.T) {
 			return admin.reminderCmd.ActorUserID == adminauthapp.SystemActorUserID &&
 				admin.reminderCmd.ActorRole == admindomain.RoleOwner
 		}},
+		{"/v1/internal/sweeps/verification-nudges", func() bool {
+			return admin.nudgeCmd.ActorUserID == adminauthapp.SystemActorUserID &&
+				admin.nudgeCmd.ActorRole == admindomain.RoleOwner
+		}},
 		{"/v1/internal/settlements/sync", func() bool {
 			return admin.settlementCmd.ActorUserID == adminauthapp.SystemActorUserID &&
 				admin.settlementCmd.ActorRole == admindomain.RoleOwner
@@ -130,6 +143,7 @@ func TestInternalEndpointsTokenMatrix(t *testing.T) {
 	paths := []string{
 		"/v1/internal/sweeps/recurring-charges",
 		"/v1/internal/sweeps/renewal-reminders",
+		"/v1/internal/sweeps/verification-nudges",
 		"/v1/internal/reports/run-scheduled",
 		"/v1/internal/settlements/sync",
 	}

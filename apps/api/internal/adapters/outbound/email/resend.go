@@ -67,6 +67,9 @@ func (sender ResendSender) Send(ctx context.Context, message ports.EmailMessage)
 		"text":     body,
 		"reply_to": replyTo,
 	}
+	if html := strings.TrimSpace(message.HTMLBody); html != "" {
+		payload["html"] = html
+	}
 	if len(message.Attachments) > 0 {
 		// Resend takes attachments as base64 content beside the filename (and an
 		// optional content type); the port carries raw bytes so callers never

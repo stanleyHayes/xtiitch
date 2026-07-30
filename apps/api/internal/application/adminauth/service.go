@@ -76,6 +76,9 @@ type Service struct {
 	// goes through the notification outbox). Nil-safe: with no sender configured
 	// the reminder sweep still enqueues SMS and counts the skipped emails.
 	emails ports.EmailSender
+	// dashboardURL is the business dashboard origin used for onboarding deep
+	// links (verification / payouts) in registration follow-up emails.
+	dashboardURL string
 	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
 	// vatRateBps is the configured seed/fallback used when no reader is wired or
 	// the read fails. vatInclusive mirrors the activation path's treatment.
@@ -127,6 +130,9 @@ type Dependencies struct {
 	// synchronous sender as the auth flows — the notification outbox has no
 	// email channel). Nil-safe: nil skips the email half only.
 	Emails ports.EmailSender
+	// DashboardURL is the business dashboard origin for onboarding deep links
+	// (verification / payouts). Empty falls back to https://app.xtiitch.com.
+	DashboardURL string
 	// VAT applied to subscription charges, matching the activation path.
 	// VATRates reads the live admin-editable rate from the platform settings
 	// (§4.1); VATRateBps is only the seed/fallback default, used when no reader
@@ -160,6 +166,7 @@ func NewService(deps Dependencies) Service {
 		planChanges:      deps.PlanChanges,
 		settlementSyncer: deps.SettlementSyncer,
 		emails:           deps.Emails,
+		dashboardURL:     strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 		vatRates:         deps.VATRates,
 		vatRateBps:       deps.VATRateBps,
 		vatInclusive:     deps.VATInclusive,

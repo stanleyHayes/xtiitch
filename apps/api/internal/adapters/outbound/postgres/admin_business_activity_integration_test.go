@@ -186,6 +186,50 @@ func TestListAdminBusinessActivityEmptyAndUnknownBusiness(t *testing.T) {
 	}
 }
 
+// Unverified / pending tenants often have identity docs and no money rails yet.
+// Sparse related rows must not 500 the operator activity tab.
+func TestListAdminBusinessActivityUnverifiedWithIdentityDocs(t *testing.T) {
+	pool := openIntegrationPool(t)
+	defer pool.Close()
+
+	const unverifiedBiz = "56565656-2222-2222-2222-222222222210"
+	cleanup := func() {
+		inBypass(t, pool, func(tx pgx.Tx) {
+			mustExec(t, tx, `delete from businesses where business_id = $1`, unverifiedBiz)
+		})
+	}
+	cleanup()
+	defer cleanup()
+
+	var planID string
+	if err := pool.QueryRow(context.Background(), `select plan_id from plans where code = 'starter' limit 1`).Scan(&planID); err != nil {
+		t.Fatalf("probe starter plan: %v", err)
+	}
+
+	inBypass(t, pool, func(tx pgx.Tx) {
+		mustExec(t, tx, `
+			insert into businesses (business_id, plan_id, name, handle, verification_status, operational_status)
+			values ($1, $2, 'IT Unverified Shop', 'it-unverified-shop', 'unverified', 'active')
+		`, unverifiedBiz, planID)
+		mustExec(t, tx, `
+			insert into business_identity_documents (business_id, card_number, id_photo_url, full_legal_name, submitted_at)
+			values ($1, 'GHA-000000000-0', 'https://example.test/card.jpg', 'Ama Unverified', now() - interval '2 hours')
+		`, unverifiedBiz)
+	})
+
+	repo := NewAdminAuthRepository(pool)
+	records, err := repo.ListAdminBusinessActivity(context.Background(), ports.ListAdminBusinessActivityInput{
+		BusinessID: common.ID(unverifiedBiz),
+		Limit:      50,
+	})
+	if err != nil {
+		t.Fatalf("unverified business activity must succeed, got %v", err)
+	}
+	if len(records) != 1 || records[0].EventType != "verification_submitted" {
+		t.Fatalf("expected the identity submission row, got %+v", records)
+	}
+}
+
 //nolint:funlen // fixture: one event per feed arm with explicit, ordered timestamps
 func seedActivityFixture(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import Stack from "@mui/material/Stack";
 import Alert from "@mui/material/Alert";
-import Typography from "@mui/material/Typography";
-import { SectionHeader, Panel, PaginationFooter } from "../../components/ui";
+import VerifiedUserRounded from "@mui/icons-material/VerifiedUserRounded";
+import { AdminEmptyState, SectionHeader, PaginationFooter } from "../../components/ui";
 import { usePagedItems } from "../shared/usePagedItems";
 import { useActionSuccess } from "../shared/useActionSuccess";
 import { AdminVerificationCase, AdminActionFeedback } from "../shared/types";
@@ -56,15 +56,13 @@ export function VerificationsSection({
         <Alert severity="warning">{verificationQueueError}</Alert>
       ) : null}
       {verificationCases.length === 0 && !verificationQueueError ? (
-        <Panel sx={{ p: { xs: 2, md: 3 } }}>
-          <Stack spacing={1}>
-            <Typography variant="h6">No verification cases</Typography>
-            <Typography sx={{ color: "text.secondary" }}>
-              New businesses will appear here as soon as they need an operator
-              decision.
-            </Typography>
-          </Stack>
-        </Panel>
+        <AdminEmptyState
+          compact
+          icon={<VerifiedUserRounded />}
+          eyebrow="Verification queue"
+          title="No verification cases"
+          helper="New businesses will appear here as soon as they need an operator decision."
+        />
       ) : null}
       {pagedVerificationCases.map((item) => (
         <VerificationCard

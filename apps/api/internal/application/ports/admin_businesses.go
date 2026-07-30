@@ -2,6 +2,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
@@ -111,4 +112,19 @@ type AdminBusinessRepository interface {
 	SetAdminRiskReviewStatus(ctx context.Context, input SetAdminRiskReviewStatusInput) (AdminRiskReviewRecord, error)
 	ListAdminSupportTickets(ctx context.Context) ([]AdminSupportTicketRecord, error)
 	UpdateAdminSupportTicket(ctx context.Context, input UpdateAdminSupportTicketInput) (AdminSupportTicketRecord, error)
+	// ListBusinessesForVerificationNudge returns unverified tenants older than
+	// olderThan that have not yet received the given onboarding reminder kind.
+	ListBusinessesForVerificationNudge(
+		ctx context.Context,
+		olderThan time.Time,
+		kind string,
+		limit int,
+	) ([]BusinessOnboardingNudgeCandidate, error)
+	// ClaimOnboardingReminder inserts the idempotency row for (business, kind).
+	// Returns claimed=false when that reminder was already sent.
+	ClaimOnboardingReminder(
+		ctx context.Context,
+		businessID common.ID,
+		kind string,
+	) (claimed bool, err error)
 }

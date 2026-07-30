@@ -189,10 +189,30 @@ type AdminSupportTicketRecord struct {
 	UpdatedAt           time.Time
 }
 
+// BusinessOnboardingNudgeCandidate is one unverified store due a follow-up email
+// to finish Ghana Card verification (and later payout setup).
+type BusinessOnboardingNudgeCandidate struct {
+	BusinessID   common.ID
+	BusinessName string
+	Handle       string
+	OwnerName    string
+	OwnerEmail   string
+	CreatedAt    time.Time
+}
+
 type UpdateAdminSupportTicketInput struct {
 	TicketKey      string
 	Status         string
 	Assignment     string
 	Note           string
 	ActorAdminUser common.ID
+}
+
+// AdminVerificationNudgeSweepRecord reports one run of the stalled-verification
+// onboarding email sweep.
+type AdminVerificationNudgeSweepRecord struct {
+	Candidates   int
+	EmailsSent   int
+	EmailsFailed int
+	RanAt        time.Time
 }

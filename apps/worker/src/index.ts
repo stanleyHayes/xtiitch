@@ -34,6 +34,12 @@ const internalSweeps = [
     path: "/sweeps/renewal-reminders",
     intervalMs: config.renewalRemindersSweepIntervalMs,
   },
+  // Every 6 hours: nudge unverified stores that stalled after registration.
+  {
+    name: "run-verification-nudges-sweep",
+    path: "/sweeps/verification-nudges",
+    intervalMs: config.verificationNudgesSweepIntervalMs,
+  },
   // Daily: generate + email due scheduled reports (§14.1; cadence math DB-side).
   {
     name: "run-scheduled-reports",
@@ -106,6 +112,7 @@ const worker = new Worker(
       }
       case "run-recurring-charges-sweep":
       case "run-renewal-reminders-sweep":
+      case "run-verification-nudges-sweep":
       case "run-scheduled-reports":
       case "run-settlement-sync": {
         const sweep = internalSweeps.find((entry) => entry.name === job.name);

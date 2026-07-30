@@ -11,6 +11,10 @@ type EmailMessage struct {
 	To      string
 	Subject string
 	Body    string
+	// HTMLBody is an optional HTML alternative. When set, Resend sends both
+	// text and html so clients that render HTML see a button/CTA while plain
+	// clients still get the Body.
+	HTMLBody string
 	// ReplyTo is the human inbox a recipient reaches if they hit reply. Money
 	// mail (receipts, renewals, payouts) sets billing@; everything else may leave
 	// it empty and the sender defaults it to the operational support@ inbox, so

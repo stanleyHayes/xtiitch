@@ -54,6 +54,7 @@ export type WorkerConfig = {
   internalApi?: InternalApiConfig;
   recurringChargesSweepIntervalMs: number;
   renewalRemindersSweepIntervalMs: number;
+  verificationNudgesSweepIntervalMs: number;
   scheduledReportsIntervalMs: number;
   settlementSyncIntervalMs: number;
   notificationTransport: NotificationTransportName;
@@ -106,6 +107,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     renewalRemindersSweepIntervalMs: parsePositiveInteger(
       env.RENEWAL_REMINDERS_SWEEP_INTERVAL_MS,
       86_400_000, // daily: the 15/7/3/0 lead-day math is server-side (§13.3)
+    ),
+    verificationNudgesSweepIntervalMs: parsePositiveInteger(
+      env.VERIFICATION_NUDGES_SWEEP_INTERVAL_MS,
+      21_600_000, // every 6 hours: stalled Ghana Card verification follow-up
     ),
     scheduledReportsIntervalMs: parsePositiveInteger(
       env.SCHEDULED_REPORTS_INTERVAL_MS,

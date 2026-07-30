@@ -1,6 +1,6 @@
 # Xtiitch Agent Plan
 
-Last updated: 2026-07-21 GMT
+Last updated: 2026-07-30 GMT
 
 This document is the build guide and living work ledger for Xtiitch. Every agent working in this repository must read this file before making changes, update the status sections as work moves, and leave the repo in a verifiable state after each feature.
 
@@ -108,6 +108,31 @@ each feature does and [architecture.md](architecture.md) for where it lives.
   React Router v8 future-flag warning. Live hosted-payment completion still
   requires Paystack test credentials/callback evidence and remains an external
   go-live check rather than something a source-only audit can claim.
+
+### Admin business detail + empty states — 2026-07-30
+
+- ✅ Admin business record overview now shows the full tenant snapshot (id,
+  handle, owner name/email, verification, operational status, plan, risk,
+  subaccount, orders, GMV, commission, last active, created/updated, and
+  suspension fields when present). `created_at` is included on the admin
+  businesses API response and mapped through the admin client.
+- ✅ Activity-feed empty copy uses `AdminEmptyState` (all vs filtered). The same
+  plain-text empty pattern was replaced on payout history, waitlist, and the
+  verification queue. Chart/Alert informational empties were left as-is.
+- ✅ Activity tab loading uses skeleton rows instead of `LinearProgress`. The
+  feed SQL/scan path now coalesces sparse unverified-tenant fields, skips
+  malformed rows, and the admin proxy returns in-band errors so the tab cannot
+  crash the console.
+
+### Registration verification + payout onboarding emails — 2026-07-30
+
+- ✅ After business registration, best-effort Resend email from noreply@ with
+  HTML CTA to `/dashboard/settings#verification` (and payout deep link for
+  after admin approval). Failures never roll back signup.
+- ✅ Worker sweep every 6h (`VERIFICATION_NUDGES_SWEEP_INTERVAL_MS`) hits
+  `POST /v1/internal/sweeps/verification-nudges`: unverified tenants older than
+  12h get one follow-up email. Deduped via `business_onboarding_reminders`
+  (migration `000126`).
 
 ### Refined updates follow-up — 2026-07-24
 

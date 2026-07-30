@@ -52,6 +52,7 @@ export type AdminBusiness = {
   subaccountRef: string;
   suspensionReason: string;
   suspendedAt?: string;
+  createdAt: string;
   updatedAt: string;
 };
 
@@ -88,6 +89,7 @@ type AdminBusinessPayload = {
   subaccount_ref: string;
   suspension_reason: string;
   suspended_at?: string;
+  created_at: string;
   updated_at: string;
 };
 
@@ -125,7 +127,8 @@ function mapBusiness(payload: AdminBusinessPayload): AdminBusiness {
     subaccountRef: payload.subaccount_ref,
     suspensionReason: payload.suspension_reason,
     suspendedAt: payload.suspended_at,
-    updatedAt: payload.updated_at,
+    createdAt: payload.created_at ?? "",
+    updatedAt: payload.updated_at ?? "",
   };
 }
 
@@ -165,17 +168,22 @@ type AdminBusinessDeletePayload = {
   deleted: boolean;
 };
 
+function optionalAmountMinor(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function mapBusinessActivityEvent(
   payload: AdminBusinessActivityEventPayload,
 ): AdminBusinessActivityEvent {
+  const row = payload ?? ({} as AdminBusinessActivityEventPayload);
   return {
-    eventType: payload.event_type,
-    category: payload.category,
-    occurredAt: payload.occurred_at,
-    summary: payload.summary,
-    actor: payload.actor,
-    refId: payload.ref_id,
-    amountMinor: payload.amount_minor,
+    eventType: row.event_type || "",
+    category: row.category || "admin",
+    occurredAt: row.occurred_at || "",
+    summary: row.summary || "Activity recorded",
+    actor: row.actor || "",
+    refId: row.ref_id || "",
+    amountMinor: optionalAmountMinor(row.amount_minor),
   };
 }
 

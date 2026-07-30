@@ -235,6 +235,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// §13.3 renewal reminders go by SMS (outbox) AND email — the same
 		// synchronous Resend sender as the auth flows; nil-safe when unset.
 		Emails: emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		DashboardURL: cfg.BusinessDashboardBaseURL,
 	})
 	for _, command := range adminBootstrapUsers {
 		adminUser, err := adminAuthService.BootstrapAdmin(ctx, command)

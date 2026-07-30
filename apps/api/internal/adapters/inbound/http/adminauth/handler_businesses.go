@@ -49,6 +49,7 @@ type businessResponse struct {
 	SubaccountRef      string `json:"subaccount_ref"`
 	SuspensionReason   string `json:"suspension_reason"`
 	SuspendedAt        string `json:"suspended_at,omitempty"`
+	CreatedAt          string `json:"created_at"`
 	UpdatedAt          string `json:"updated_at"`
 }
 
@@ -255,6 +256,7 @@ func newBusinessResponse(record ports.AdminBusinessRecord) businessResponse {
 		SubaccountRef:      record.SettlementSubaccount,
 		SuspensionReason:   record.SuspensionReason,
 		SuspendedAt:        suspendedAt,
+		CreatedAt:          record.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:          record.UpdatedAt.Format(time.RFC3339),
 	}
 }

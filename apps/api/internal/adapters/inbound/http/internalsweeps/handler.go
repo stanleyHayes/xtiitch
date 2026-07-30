@@ -46,6 +46,10 @@ type AdminSweepService interface {
 		ctx context.Context,
 		command adminauthapp.RunSettlementSyncCommand,
 	) (ports.AdminSettlementSyncRecord, error)
+	RunVerificationNudgeSweep(
+		ctx context.Context,
+		command adminauthapp.RunVerificationNudgeSweepCommand,
+	) (ports.AdminVerificationNudgeSweepRecord, error)
 }
 
 // ReportsSweepService is the reports service surface the internal trigger
@@ -75,6 +79,7 @@ func (handler Handler) Register(router chi.Router) {
 		internal.Use(handler.requireInternalToken)
 		internal.Post("/internal/sweeps/recurring-charges", handler.recurringCharges)
 		internal.Post("/internal/sweeps/renewal-reminders", handler.renewalReminders)
+		internal.Post("/internal/sweeps/verification-nudges", handler.verificationNudges)
 		internal.Post("/internal/reports/run-scheduled", handler.runScheduledReports)
 		internal.Post("/internal/settlements/sync", handler.settlementSync)
 	})
@@ -138,6 +143,26 @@ func (handler Handler) renewalReminders(w http.ResponseWriter, r *http.Request) 
 		"emails_sent":             record.EmailsSent,
 		"emails_failed":           record.EmailsFailed,
 		"ran_at":                  record.RanAt,
+	})
+}
+
+func (handler Handler) verificationNudges(w http.ResponseWriter, r *http.Request) {
+	record, err := handler.admin.RunVerificationNudgeSweep(r.Context(), adminauthapp.RunVerificationNudgeSweepCommand{
+		ActorUserID: adminauthapp.SystemActorUserID,
+		ActorRole:   admindomain.RoleOwner,
+		Reason:      "Scheduled worker verification onboarding nudge.",
+		UserAgent:   r.UserAgent(),
+		IPAddress:   remoteIP(r),
+	})
+	if err != nil {
+		writeServiceError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"candidates":    record.Candidates,
+		"emails_sent":   record.EmailsSent,
+		"emails_failed": record.EmailsFailed,
+		"ran_at":        record.RanAt,
 	})
 }
 

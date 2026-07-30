@@ -315,6 +315,9 @@ type fakeAdminBusinesses struct {
 	activity                   []ports.AdminBusinessActivityRecord
 	activityInput              ports.ListAdminBusinessActivityInput
 	activityErr                error
+	nudgeCandidates            []ports.BusinessOnboardingNudgeCandidate
+	claimAlreadySent           bool
+	claimedReminders           []common.ID
 }
 
 func (repo *fakeAdminBusinesses) ListAdminPayouts(_ context.Context, input ports.ListAdminPayoutsInput) ([]ports.AdminPayoutRecord, error) {
@@ -328,6 +331,27 @@ func (repo *fakeAdminBusinesses) ListAdminPayoutHistory(_ context.Context, _ com
 
 func (repo *fakeAdminBusinesses) ListSubaccountedBusinessIDs(_ context.Context) ([]common.ID, error) {
 	return repo.subaccountedBusinessIDs, nil
+}
+
+func (repo *fakeAdminBusinesses) ListBusinessesForVerificationNudge(
+	_ context.Context,
+	_ time.Time,
+	_ string,
+	_ int,
+) ([]ports.BusinessOnboardingNudgeCandidate, error) {
+	return repo.nudgeCandidates, nil
+}
+
+func (repo *fakeAdminBusinesses) ClaimOnboardingReminder(
+	_ context.Context,
+	businessID common.ID,
+	_ string,
+) (bool, error) {
+	repo.claimedReminders = append(repo.claimedReminders, businessID)
+	if repo.claimAlreadySent {
+		return false, nil
+	}
+	return true, nil
 }
 
 func (repo *fakeAdminBusinesses) ArchiveAdminAdCampaign(

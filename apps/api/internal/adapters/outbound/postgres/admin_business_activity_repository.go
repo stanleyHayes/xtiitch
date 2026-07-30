@@ -16,6 +16,10 @@ import (
 // Timestamps per source: orders/stage entries use their own created/entered
 // stamps; a confirmed payment uses updated_at (the moment it flipped to
 // succeeded); payouts prefer settled_at; everything else uses created_at.
+//
+// Every text/timestamp expression is coalesced so a sparse unverified tenant
+// (missing purpose/method/status/subaccount/submitted_at) cannot NULL a UNION
+// arm and fail the whole feed scan.
 const adminBusinessActivitySQL = `
 	select category, event_type, occurred_at, summary, actor, ref_id, amount_minor
 	from (
@@ -23,12 +27,14 @@ const adminBusinessActivitySQL = `
 			'orders' as category,
 			'order_created' as event_type,
 			o.created_at as occurred_at,
-			initcap(o.order_type) || ' order placed · status ' || o.status as summary,
+			coalesce(initcap(o.order_type), 'Order')
+				|| ' order placed · status '
+				|| coalesce(o.status, 'unknown') as summary,
 			'customer' as actor,
 			o.order_id::text as ref_id,
 			o.agreed_total_minor as amount_minor
 		from orders o
-		where o.business_id = $1
+		where o.business_id::text = $1
 
 		union all
 
@@ -42,7 +48,7 @@ const adminBusinessActivitySQL = `
 			null
 		from stage_events se
 		left join stage_templates st on st.stage_id = se.stage_id
-		where se.business_id = $1
+		where se.business_id::text = $1
 
 		union all
 
@@ -50,25 +56,28 @@ const adminBusinessActivitySQL = `
 			'payments',
 			'payment_confirmed',
 			p.updated_at,
-			'Payment confirmed · ' || p.purpose || ' · ' || p.method,
+			'Payment confirmed · '
+				|| coalesce(p.purpose, 'unknown')
+				|| ' · '
+				|| coalesce(p.method, 'unknown'),
 			'customer',
 			p.payment_id::text,
 			p.amount_minor
 		from payments p
-		where p.business_id = $1 and p.status = 'succeeded'
+		where p.business_id::text = $1 and p.status = 'succeeded'
 
 		union all
 
 		select
 			'billing',
-			e.event_type,
+			coalesce(e.event_type, 'billing_event'),
 			e.created_at,
-			e.summary,
+			coalesce(e.summary, 'Subscription billing event'),
 			case when e.actor_admin_user_id is not null then 'admin' else 'system' end,
 			e.subscription_event_id::text,
 			null
 		from business_subscription_events e
-		where e.business_id = $1
+		where e.business_id::text = $1
 
 		union all
 
@@ -76,19 +85,22 @@ const adminBusinessActivitySQL = `
 			'payouts',
 			'payout_recorded',
 			coalesce(s.settled_at, s.created_at),
-			'Payout ' || s.status || ' · subaccount ' || s.subaccount_code,
+			'Payout '
+				|| coalesce(s.status, 'unknown')
+				|| ' · subaccount '
+				|| coalesce(nullif(s.subaccount_code, ''), 'none'),
 			'system',
 			s.settlement_id::text,
 			s.amount_minor
 		from paystack_settlements s
-		where s.business_id = $1
+		where s.business_id::text = $1
 
 		union all
 
 		select
 			'verification',
 			'verification_submitted',
-			d.submitted_at,
+			coalesce(d.submitted_at, d.created_at, d.updated_at),
 			'Identity documents submitted'
 				|| case when coalesce(d.full_legal_name, '') = ''
 					then ''
@@ -98,7 +110,7 @@ const adminBusinessActivitySQL = `
 			d.business_id::text,
 			null
 		from business_identity_documents d
-		where d.business_id = $1
+		where d.business_id::text = $1
 
 		union all
 
@@ -106,27 +118,31 @@ const adminBusinessActivitySQL = `
 			'admin',
 			'admin_action',
 			a.created_at,
-			a.action || ' — ' || a.summary,
+			coalesce(a.action, 'admin') || ' — ' || coalesce(a.summary, 'Operator action'),
 			'admin',
 			a.audit_event_id::text,
 			null
 		from admin_audit_events a
-		where a.target_type = 'business' and a.target_id = $1::text
+		where a.target_type = 'business' and a.target_id = $1
 
 		union all
 
 		select
 			'takings',
 			'manual_taking_recorded',
-			m.taken_at,
-			'Manual taking recorded · ' || m.method || ' · ' || m.what_for,
+			coalesce(m.taken_at, m.created_at),
+			'Manual taking recorded · '
+				|| coalesce(m.method, 'unknown')
+				|| ' · '
+				|| coalesce(nullif(m.what_for, ''), 'unspecified'),
 			'owner',
 			m.taking_id::text,
 			m.amount_minor
 		from manual_takings m
-		where m.business_id = $1
+		where m.business_id::text = $1
 	) feed
 	where ($2 = '' or feed.category = $2)
+		and feed.occurred_at is not null
 	order by feed.occurred_at desc, feed.ref_id desc
 	limit $3 offset $4
 `
@@ -148,10 +164,15 @@ func (repo AdminAuthRepository) ListAdminBusinessActivity(
 		return nil, err
 	}
 
+	businessID := input.BusinessID.String()
+	if businessID == "" {
+		return nil, ErrNotFound
+	}
+
 	var exists bool
 	if err := tx.QueryRow(ctx, `
-		select exists(select 1 from businesses where business_id = $1)
-	`, input.BusinessID.String()).Scan(&exists); err != nil {
+		select exists(select 1 from businesses where business_id::text = $1)
+	`, businessID).Scan(&exists); err != nil {
 		return nil, err
 	}
 	if !exists {
@@ -159,7 +180,7 @@ func (repo AdminAuthRepository) ListAdminBusinessActivity(
 	}
 
 	rows, err := tx.Query(ctx, adminBusinessActivitySQL,
-		input.BusinessID.String(),
+		businessID,
 		input.Category,
 		input.Limit,
 		input.Offset,
@@ -171,22 +192,11 @@ func (repo AdminAuthRepository) ListAdminBusinessActivity(
 
 	records := []ports.AdminBusinessActivityRecord{}
 	for rows.Next() {
-		var record ports.AdminBusinessActivityRecord
-		var amount pgtype.Int8
-		if err := rows.Scan(
-			&record.Category,
-			&record.EventType,
-			&record.OccurredAt,
-			&record.Summary,
-			&record.Actor,
-			&record.RefID,
-			&amount,
-		); err != nil {
-			return nil, err
-		}
-		if amount.Valid {
-			value := amount.Int64
-			record.AmountMinor = &value
+		record, ok := scanBusinessActivityRow(rows)
+		if !ok {
+			// Skip a malformed arm rather than failing the whole tenant feed —
+			// unverified/pending stores often have sparse related rows.
+			continue
 		}
 		records = append(records, record)
 	}
@@ -200,4 +210,47 @@ func (repo AdminAuthRepository) ListAdminBusinessActivity(
 	}
 
 	return records, nil
+}
+
+type activityRowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanBusinessActivityRow(row activityRowScanner) (ports.AdminBusinessActivityRecord, bool) {
+	var (
+		record     ports.AdminBusinessActivityRecord
+		occurredAt pgtype.Timestamptz
+		summary    pgtype.Text
+		actor      pgtype.Text
+		amount     pgtype.Int8
+	)
+	if err := row.Scan(
+		&record.Category,
+		&record.EventType,
+		&occurredAt,
+		&summary,
+		&actor,
+		&record.RefID,
+		&amount,
+	); err != nil {
+		return ports.AdminBusinessActivityRecord{}, false
+	}
+	if !occurredAt.Valid || occurredAt.Time.IsZero() {
+		return ports.AdminBusinessActivityRecord{}, false
+	}
+	record.OccurredAt = occurredAt.Time
+	if summary.Valid {
+		record.Summary = summary.String
+	}
+	if record.Summary == "" {
+		record.Summary = "Activity recorded"
+	}
+	if actor.Valid {
+		record.Actor = actor.String
+	}
+	if amount.Valid {
+		value := amount.Int64
+		record.AmountMinor = &value
+	}
+	return record, true
 }

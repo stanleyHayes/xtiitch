@@ -6,8 +6,10 @@ import Divider from "@mui/material/Divider";
 import LinearProgress from "@mui/material/LinearProgress";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import PaymentsRounded from "@mui/icons-material/PaymentsRounded";
 import { formatGHS } from "../shared/formatting";
 import { shortTime } from "../shared/dates";
+import { AdminEmptyState } from "../../components/ui/AdminEmptyState";
 import { PaginationFooter } from "../../components/ui/PaginationFooter";
 import { AdminRecordPage } from "../../components/ui/AdminRecordPage";
 import { ADMIN_PAGE_SIZE } from "../shared/types";
@@ -74,9 +76,13 @@ export function PayoutHistoryDrawer({
             <Alert severity="warning">{fetcher.data.error}</Alert>
           ) : null}
           {fetcher.data?.ok && history.length === 0 ? (
-            <Typography sx={{ color: "text.secondary" }}>
-              No payouts recorded yet for this store.
-            </Typography>
+            <AdminEmptyState
+              compact
+              icon={<PaymentsRounded />}
+              eyebrow="Payout history"
+              title="No payouts recorded yet"
+              helper="Settlements for this store will appear here once Paystack records a payout against the subaccount."
+            />
           ) : null}
           {history.map((entry, index) => (
             <Stack key={entry.settlementId} direction="row" spacing={1.25} sx={{ p: 1.5, alignItems: "center", justifyContent: "space-between", borderBottom: index === history.length - 1 ? 0 : "1px solid", borderColor: "divider" }}>
