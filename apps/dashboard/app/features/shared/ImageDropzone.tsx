@@ -2,11 +2,14 @@ import { useEffect } from "react";
 import { useRef } from "react";
 import { useState } from "react";
 import Box from "@mui/material/Box";
+import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import { tokens } from "../../theme";
+import { useImageUploadField } from "../../lib/use-image-upload-field";
+import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
 
 export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   name,
@@ -27,6 +30,10 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
   const [fileNames, setFileNames] = useState<string[]>([]);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  // Photos are resized in the browser before they reach the form body: the
+  // action runs on Vercel, which refuses a request over 4.5 MB before it gets
+  // there. See use-image-upload-field.ts.
+  const uploads = useImageUploadField(inputRef);
 
   useEffect(
     () => () => {
@@ -37,10 +44,7 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
     [previewUrl],
   );
 
-  const applyFiles = (selected: FileList | File[] | null | undefined) => {
-    const files = Array.from(selected ?? [])
-      .filter((file) => file.type.startsWith("image/"))
-      .slice(0, maxFiles ?? undefined);
+  const showPreview = (files: File[]) => {
     const first = files[0] ?? null;
     setPreviewUrl((current) => {
       if (current) {
@@ -50,23 +54,18 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
     });
     setFileNames(files.map((file) => file.name));
   };
-  const capInputFiles = (input: HTMLInputElement) => {
-    if (
-      !multiple ||
-      !maxFiles ||
-      !input.files ||
-      input.files.length <= maxFiles
-    ) {
-      return;
-    }
-    const transfer = new DataTransfer();
-    Array.from(input.files)
-      .slice(0, maxFiles)
-      .forEach((file) => {
-        transfer.items.add(file);
-      });
-    input.files = transfer.files;
+
+  const applyFiles = async (selected: FileList | File[] | null | undefined) => {
+    const picked = Array.from(selected ?? []);
+    // Preview the raw pick immediately so the field reacts to the tap, then
+    // swap in whatever survives resizing and the size budget.
+    showPreview(picked.filter((file) => file.type.startsWith("image/")));
+    showPreview(await uploads.prepare(picked, maxFiles));
   };
+
+  const sizeHint = multiple
+    ? `Up to ${MAX_UPLOAD_BUDGET_MB} MB per upload in total — large photos are optimised automatically.`
+    : `Up to ${MAX_UPLOAD_BUDGET_MB} MB — large photos are optimised automatically.`;
 
   return (
     <Box
@@ -89,14 +88,7 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
           : [event.dataTransfer.files?.[0]].filter((file): file is File =>
               Boolean(file),
             );
-        if (dropped.length > 0 && inputRef.current) {
-          const transfer = new DataTransfer();
-          dropped.slice(0, maxFiles ?? undefined).forEach((file) => {
-            transfer.items.add(file);
-          });
-          inputRef.current.files = transfer.files;
-        }
-        applyFiles(dropped);
+        void applyFiles(dropped);
       }}
       sx={{
         display: "block",
@@ -105,7 +97,11 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
         borderRadius: 2,
         p: previewUrl ? 1.25 : 2.5,
         border: "1.5px dashed",
-        borderColor: dragging ? tokens.burgundy : alpha(tokens.ink, 0.22),
+        borderColor: uploads.error
+          ? "error.main"
+          : dragging
+            ? tokens.burgundy
+            : alpha(tokens.ink, 0.22),
         bgcolor: dragging
           ? alpha(tokens.burgundy, 0.05)
           : alpha(tokens.burgundy, 0.02),
@@ -127,8 +123,7 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
         required={required}
         disabled={disabled}
         onChange={(event) => {
-          capInputFiles(event.currentTarget);
-          applyFiles(event.currentTarget.files);
+          void applyFiles(event.currentTarget.files);
         }}
         style={{
           position: "absolute",
@@ -207,6 +202,26 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
           ) : null}
         </Stack>
       )}
+      {uploads.busy ? (
+        <Skeleton
+          variant="rounded"
+          height={8}
+          sx={{ mt: 1.25, borderRadius: 1 }}
+          aria-label="Optimising images"
+        />
+      ) : null}
+      <Typography
+        variant="caption"
+        sx={{
+          display: "block",
+          mt: 0.75,
+          textAlign: "center",
+          fontWeight: uploads.error ? 700 : 400,
+          color: uploads.error ? "error.main" : "text.secondary",
+        }}
+      >
+        {uploads.error ?? sizeHint}
+      </Typography>
     </Box>
   );
 }

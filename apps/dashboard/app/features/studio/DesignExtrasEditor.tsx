@@ -13,6 +13,7 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import TextField from "../../components/form-text-field";
 import { SizeBand, DesignExtrasData } from "../shared/types";
 import { DesignImagesField } from "./DesignImagesField";
+import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
 import { VariationRow } from "./VariationRow";
 import { SizeBandOverrideForm } from "./SizeBandOverrideForm";
 
@@ -136,6 +137,13 @@ export function DesignExtrasEditor({ // eslint-disable-line complexity, max-line
           <Alert severity="warning" sx={{ mb: 1.5 }}>
             That variation has too many images for your plan (max{" "}
             {perVariationImageLimit}).
+          </Alert>
+        ) : null}
+        {write.data?.error === "upload_failed" ? (
+          <Alert severity="warning" sx={{ mb: 1.5 }}>
+            Those images could not be uploaded — one upload can carry{" "}
+            {MAX_UPLOAD_BUDGET_MB} MB in total. Add fewer at a time, or export
+            smaller copies. Nothing was saved.
           </Alert>
         ) : null}
 

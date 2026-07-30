@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { apiFetch } from "../lib/auth";
 import { uploadImage } from "../lib/media";
+import { MAX_UPLOAD_BUDGET_BYTES } from "../lib/upload-limits";
 
 // Resource route backing the design editor's colour-variation and per-design
 // size-band-override panels. The dashboard's API tokens live in an httpOnly
@@ -29,8 +30,6 @@ type SizeBandOverride = {
   chart: SizeChartItem[];
   chart_set: boolean;
 };
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 // loadExtras reads the design's current variations and size-band overrides. The
 // loader returns these, and each successful write returns the fresh set too so
@@ -83,11 +82,17 @@ async function uploadNewImages(
   files: File[],
 ): Promise<string[] | null> {
   const urls: string[] = [];
+  // Backstop only: the editor resizes photos before submitting, and Vercel
+  // refuses a body over 4.5 MB before this route runs. Both the per-file and
+  // running-total checks matter — variation images arrive as a multi-file field,
+  // so files that each fit can still sum past the budget.
+  let total = 0;
   for (const file of files) {
     if (!file.type.startsWith("image/")) {
       return null;
     }
-    if (file.size > MAX_IMAGE_BYTES) {
+    total += file.size;
+    if (file.size > MAX_UPLOAD_BUDGET_BYTES || total > MAX_UPLOAD_BUDGET_BYTES) {
       return null;
     }
     const url = await uploadImage(request, file);

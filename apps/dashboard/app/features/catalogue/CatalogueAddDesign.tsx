@@ -136,8 +136,8 @@ export function CatalogueAddDesign({
                 maxFiles={imageLimit ?? undefined}
                 helper={
                   imageLimit !== null
-                    ? `JPG, PNG, or WebP up to 10 MB each — up to ${imageLimit} images on your plan.`
-                    : "JPG, PNG, or WebP up to 10 MB each."
+                    ? `JPG, PNG, or WebP — up to ${imageLimit} images on your plan.`
+                    : "JPG, PNG, or WebP."
                 }
               />
             </Box>

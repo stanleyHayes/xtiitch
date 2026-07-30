@@ -74,7 +74,7 @@ export function DesignImageUploadPanel({
             name="image_file"
             required
             disabled={uploadableDesigns.length === 0}
-            helper="JPG, PNG, or WebP up to 10 MB. Becomes the first catalogue image."
+            helper="JPG, PNG, or WebP. Becomes the first catalogue image."
           />
           <Button
             type="submit"

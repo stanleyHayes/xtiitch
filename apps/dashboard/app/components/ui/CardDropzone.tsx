@@ -5,8 +5,9 @@ import { alpha } from "@mui/material/styles";
 import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import {
-  isImageUploadAllowed,
-  MAX_IMAGE_UPLOAD_MB,
+  isPairedImageAllowed,
+  MAX_PAIRED_IMAGE_MB,
+  MAX_UPLOAD_BUDGET_MB,
 } from "../../lib/upload-limits";
 
 // A dashed-border upload dropzone for one side of the Ghana Card. Shows an icon,
@@ -27,8 +28,8 @@ export function CardDropzone({
   const chosen = fileName.length > 0;
   // Oversized photos are refused here, at pick time: Vercel rejects a
   // multipart body over 4.5 MB before the action runs, which used to surface
-  // as a crash page. The paired dropzone shares the budget, so each side is
-  // capped at MAX_IMAGE_UPLOAD_MB.
+  // as a crash page. Front and back ride in the same body and neither side
+  // knows the other's size, so each is capped at half the upload budget.
   const [tooLarge, setTooLarge] = useState(false);
   return (
     <Box
@@ -87,10 +88,10 @@ export function CardDropzone({
         sx={{ color: tooLarge ? "error.main" : "text.secondary" }}
       >
         {tooLarge
-          ? `That photo is over ${MAX_IMAGE_UPLOAD_MB} MB — crop or export a smaller copy.`
+          ? `That photo is over ${MAX_PAIRED_IMAGE_MB} MB — crop or export a smaller copy.`
           : chosen
             ? "Tap to replace"
-            : `PNG or JPG · up to ${MAX_IMAGE_UPLOAD_MB} MB`}
+            : `PNG or JPG · up to ${MAX_PAIRED_IMAGE_MB} MB each (${MAX_UPLOAD_BUDGET_MB} MB per upload)`}
       </Typography>
       <input
         type="file"
@@ -99,7 +100,7 @@ export function CardDropzone({
         hidden
         onChange={(event) => {
           const file = event.target.files?.[0];
-          if (file && !isImageUploadAllowed(file)) {
+          if (file && !isPairedImageAllowed(file)) {
             // Drop the oversized pick so it never reaches the form body.
             event.target.value = "";
             setTooLarge(true);

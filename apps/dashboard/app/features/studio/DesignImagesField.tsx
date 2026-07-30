@@ -1,14 +1,60 @@
 import { Link as RouterLink } from "react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
 import MuiLink from "@mui/material/Link";
+import Skeleton from "@mui/material/Skeleton";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import AddRounded from "@mui/icons-material/AddRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
+import { useImageUploadField } from "../../lib/use-image-upload-field";
+import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
+
+// The line under the "Add images" button: a skeleton while photos are being
+// resized, then either what went wrong or the size ceiling. The ceiling is
+// stated up front rather than only on failure, so nobody has to discover it by
+// hitting it.
+function UploadStatus({
+  busy,
+  error,
+  pendingNames,
+}: Readonly<{ busy: boolean; error: string | null; pendingNames: string[] }>) {
+  return (
+    <>
+      {busy ? (
+        <Skeleton
+          variant="text"
+          width={180}
+          sx={{ mt: 0.5, fontSize: "0.75rem" }}
+          aria-label="Optimising images"
+        />
+      ) : null}
+      {!busy && pendingNames.length > 0 ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", mt: 0.5, color: "text.secondary" }}
+        >
+          To upload: {pendingNames.join(", ")}
+        </Typography>
+      ) : null}
+      <Typography
+        variant="caption"
+        sx={{
+          display: "block",
+          mt: 0.5,
+          fontWeight: error ? 700 : 400,
+          color: error ? "error.main" : "text.secondary",
+        }}
+      >
+        {error ??
+          `Up to ${MAX_UPLOAD_BUDGET_MB} MB per upload in total — large photos are optimised automatically.`}
+      </Typography>
+    </>
+  );
+}
 
 export function DesignImagesField({
   images,
@@ -23,9 +69,26 @@ export function DesignImagesField({
 }) {
   const [kept, setKept] = useState<string[]>(images);
   const [pendingNames, setPendingNames] = useState<string[]>([]);
+  // How many of the picked images the plan cap left behind. The pick is capped
+  // before resizing, so this is the only place the owner learns their choice was
+  // trimmed — the counter alone would just look wrong.
+  const [droppedByPlan, setDroppedByPlan] = useState(0);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // Photos are resized in the browser before they reach the form body: this
+  // form posts to a route action on Vercel, which refuses a request over 4.5 MB
+  // before it gets there. See use-image-upload-field.ts.
+  const uploads = useImageUploadField(inputRef);
   const full = imageLimit !== null && kept.length >= imageLimit;
-  const overLimit =
-    imageLimit !== null && kept.length + pendingNames.length > imageLimit;
+  const remaining =
+    imageLimit === null ? undefined : Math.max(imageLimit - kept.length, 0);
+
+  const pick = async (selected: FileList | null) => {
+    const picked = Array.from(selected ?? []);
+    setDroppedByPlan(
+      remaining === undefined ? 0 : Math.max(picked.length - remaining, 0),
+    );
+    setPendingNames((await uploads.prepare(picked, remaining)).map((f) => f.name));
+  };
   return (
     <Box>
       <Stack
@@ -89,30 +152,26 @@ export function DesignImagesField({
         variant="outlined"
         size="small"
         startIcon={<AddRounded />}
-        disabled={full}
+        disabled={full || uploads.busy}
       >
         Add images
         <input
+          ref={inputRef}
           type="file"
           name="image_files"
           accept="image/*"
           multiple
           hidden
-          onChange={(event) =>
-            setPendingNames(
-              Array.from(event.target.files ?? []).map((file) => file.name),
-            )
-          }
+          onChange={(event) => {
+            void pick(event.target.files);
+          }}
         />
       </Button>
-      {pendingNames.length > 0 ? (
-        <Typography
-          variant="caption"
-          sx={{ display: "block", mt: 0.5, color: "text.secondary" }}
-        >
-          To upload: {pendingNames.join(", ")}
-        </Typography>
-      ) : null}
+      <UploadStatus
+        busy={uploads.busy}
+        error={uploads.error}
+        pendingNames={pendingNames}
+      />
       {full ? (
         <Typography
           variant="caption"
@@ -131,10 +190,10 @@ export function DesignImagesField({
           )}
         </Typography>
       ) : null}
-      {overLimit ? (
+      {droppedByPlan > 0 ? (
         <Alert severity="warning" sx={{ mt: 1 }}>
-          Only {imageLimit} images are allowed on your plan — extra selections
-          will be rejected on save.
+          Only {imageLimit} images are allowed on your plan, so {droppedByPlan}{" "}
+          of your selections {droppedByPlan === 1 ? "was" : "were"} left out.
         </Alert>
       ) : null}
     </Box>

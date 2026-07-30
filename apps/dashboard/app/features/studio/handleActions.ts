@@ -13,6 +13,29 @@ import {
   designWriteErrorMessage,
   uploadDesignImage,
 } from "./utils";
+import {
+  MAX_UPLOAD_BUDGET_BYTES,
+  MAX_UPLOAD_BUDGET_MB,
+} from "../../lib/upload-limits";
+
+// Backstop for the browser-side resize in use-image-upload-field.ts. A request
+// this large normally never reaches the action — Vercel refuses it at 4.5 MB
+// first — so this catches the paths the dropzone cannot: scripted posts and
+// browsers where the resize could not run. The message names the same limit the
+// field's label quotes so the two never disagree.
+function oversizeImageError(files: readonly File[]): string | null {
+  let total = 0;
+  for (const file of files) {
+    if (!file.type.startsWith("image/")) {
+      return "Upload image files such as JPG, PNG, or WebP.";
+    }
+    total += file.size;
+    if (file.size > MAX_UPLOAD_BUDGET_BYTES || total > MAX_UPLOAD_BUDGET_BYTES) {
+      return `That upload is too large — one upload can carry ${MAX_UPLOAD_BUDGET_MB} MB in total. Add fewer images at a time, or export smaller copies.`;
+    }
+  }
+  return null;
+}
 
 export async function handleStudioActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
@@ -28,11 +51,9 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
     if (!(file instanceof File) || file.size === 0) {
       return { mediaError: "Choose an image file before uploading." };
     }
-    if (!file.type.startsWith("image/")) {
-      return { mediaError: "Upload an image file such as JPG, PNG, or WebP." };
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      return { mediaError: "Keep design images under 10 MB." };
+    const oversize = oversizeImageError([file]);
+    if (oversize) {
+      return { mediaError: oversize };
     }
 
     const designResponse = await apiFetch(
@@ -94,14 +115,12 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
       .filter(
         (entry): entry is File => entry instanceof File && entry.size > 0,
       );
+    const newFilesOversize = oversizeImageError(newFiles);
+    if (newFilesOversize) {
+      return { designError: newFilesOversize };
+    }
     const uploaded: string[] = [];
     for (const file of newFiles) {
-      if (!file.type.startsWith("image/")) {
-        return { designError: "Upload image files such as JPG, PNG, or WebP." };
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        return { designError: "Keep each design image under 10 MB." };
-      }
       const url = await uploadDesignImage(request, file);
       if (url) {
         uploaded.push(url);
@@ -195,16 +214,12 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
         designError: `You can upload up to ${imageLimit} images on your plan.`,
       };
     }
+    const imageFilesOversize = oversizeImageError(imageFiles);
+    if (imageFilesOversize) {
+      return { designError: imageFilesOversize };
+    }
     const images: string[] = [];
     for (const file of imageFiles) {
-      if (!file.type.startsWith("image/")) {
-        return {
-          designError: "Upload image files such as JPG, PNG, or WebP.",
-        };
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        return { designError: "Keep each design image under 10 MB." };
-      }
       const imageUrl = await uploadDesignImage(request, file);
       if (!imageUrl) {
         return {

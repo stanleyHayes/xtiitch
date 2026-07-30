@@ -284,6 +284,23 @@ function recoveryView(
       canAutoRetry: false,
     };
   }
+  // Vercel answers 413 for any request body over 4.5 MB, and it does so at the
+  // edge — no action runs, so no form can turn it into a field error. The
+  // upload fields resize photos to stay well under the limit; this is what the
+  // owner sees if one slips through anyway (JS blocked, or a very large file
+  // the resize could not rescue). Retrying the same submit would only repeat
+  // it, so this one does not auto-retry.
+  if (status === 413) {
+    return {
+      title: "That upload was too large",
+      message:
+        "The images you attached were over the 4 MB an upload can carry. Nothing was saved. Go back, add fewer images at a time, or export smaller copies, and try again.",
+      code: "413",
+      actionLabel: "Return to dashboard",
+      reload: false,
+      canAutoRetry: false,
+    };
+  }
   if (status !== undefined && [502, 503].includes(status)) {
     return {
       title: "Dashboard API unavailable",

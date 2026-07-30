@@ -5,8 +5,9 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import {
-  isImageUploadAllowed,
-  MAX_IMAGE_UPLOAD_MB,
+  isPairedImageAllowed,
+  MAX_PAIRED_IMAGE_MB,
+  MAX_UPLOAD_BUDGET_MB,
 } from "../../lib/upload-limits";
 
 export function StorefrontImageUploadField({
@@ -66,7 +67,7 @@ export function StorefrontImageUploadField({
               hidden
               onChange={(event) => {
                 const file = event.target.files?.[0];
-                if (file && !isImageUploadAllowed(file)) {
+                if (file && !isPairedImageAllowed(file)) {
                   // Drop the oversized pick so it never reaches the form body.
                   event.target.value = "";
                   setPicked(null);
@@ -88,10 +89,10 @@ export function StorefrontImageUploadField({
             }}
           >
             {tooLarge
-              ? `That image is over ${MAX_IMAGE_UPLOAD_MB} MB — export a smaller copy.`
+              ? `That image is over ${MAX_PAIRED_IMAGE_MB} MB — export a smaller copy.`
               : picked
                 ? `Selected: ${picked}`
-                : `PNG or JPG up to ${MAX_IMAGE_UPLOAD_MB} MB — uploaded to Cloudinary when you save.`}
+                : `PNG or JPG up to ${MAX_PAIRED_IMAGE_MB} MB each (${MAX_UPLOAD_BUDGET_MB} MB per upload) — uploaded to Cloudinary when you save.`}
           </Typography>
         </Box>
       </Stack>
