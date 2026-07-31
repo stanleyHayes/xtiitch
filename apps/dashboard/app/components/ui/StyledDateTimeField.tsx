@@ -238,9 +238,7 @@ export const StyledTemporalField = styled(Box)(({ theme }) => {
   return {
     border: `1px solid ${borderColor}`,
     borderRadius: 20,
-    background: dark
-      ? `linear-gradient(180deg, ${alpha(tokens.white, 0.075)}, ${alpha(tokens.white, 0.035)})`
-      : `linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.78))`,
+    backgroundColor: fieldBg,
     padding: theme.spacing(0.9),
     boxShadow: dark ? `inset 0 1px 0 ${alpha(tokens.white, 0.08)}` : "none",
     transition:

@@ -13,7 +13,7 @@ import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import { Eyebrow } from "./primitives";
-import { riseInSx } from "./shared";
+import { perspectiveGridSx, riseInSx } from "./shared";
 
 const pageHeroIcons: Record<string, SvgIconComponent> = {
   FAQ: HelpRoundedIcon,
@@ -48,16 +48,7 @@ export function PageHero({
         borderColor: "divider",
       }}
     >
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(90deg, rgba(128,0,32,0.06) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.04) 1px, transparent 1px)",
-          backgroundSize: "38px 38px",
-        }}
-      />
+      <Box aria-hidden sx={perspectiveGridSx()} />
       <Container sx={{ position: "relative", py: { xs: 6, md: 10 } }}>
         <Box
           sx={{

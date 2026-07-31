@@ -2,10 +2,14 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
+import TextField from "../../components/form-text-field";
 import { tokens } from "../../theme";
 import { formatPlanPrice } from "./Register";
 
 export function RegisterStepPlan({
+  affiliateCode,
+  affiliateCodeFromLink,
+  onAffiliateCodeChange,
   plans,
   selectedPlan,
   onSelectPlan,
@@ -18,6 +22,11 @@ export function RegisterStepPlan({
   }[];
   selectedPlan: string;
   onSelectPlan: (code: string) => void;
+  affiliateCode: string;
+  // True when it arrived on the invite link, so the copy can confirm it was
+  // applied rather than inviting the owner to fill in something they don't have.
+  affiliateCodeFromLink: boolean;
+  onAffiliateCodeChange: (code: string) => void;
 }) {
   return (
     <Box>
@@ -119,6 +128,35 @@ export function RegisterStepPlan({
           </Typography>
         </Box>
       )}
+
+      {/* Last thing before submitting: "who sent you?". The value posts through
+          the hidden affiliate_code input the form already carried — this just
+          makes it reachable when the link's query string did not survive. */}
+      <Box sx={{ mt: 3 }}>
+        <TextField
+          label="Referral code (optional)"
+          value={affiliateCode}
+          onChange={(event) =>
+            // The API upper-cases and trims before matching; doing it here too
+            // means the field shows exactly what will be submitted.
+            onAffiliateCodeChange(event.target.value.toUpperCase().trim())
+          }
+          helperText={
+            affiliateCodeFromLink
+              ? "Applied from the link you followed. You can change it if you were given a different code."
+              : "Were you referred by an Xtiitch affiliate? Enter their code so they get credited."
+          }
+          fullWidth
+          slotProps={{
+            htmlInput: {
+              autoCapitalize: "characters",
+              spellCheck: false,
+              maxLength: 32,
+              "aria-label": "Referral code",
+            },
+          }}
+        />
+      </Box>
     </Box>
   );
 }

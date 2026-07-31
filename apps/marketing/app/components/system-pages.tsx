@@ -8,6 +8,7 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { tokens } from "../theme";
+import { perspectiveGridSx } from "./ui/shared";
 
 type SystemPageProps = {
   code?: string;
@@ -45,23 +46,11 @@ export function MarketingSystemPage({
       <Box
         aria-hidden
         sx={{
-          position: "absolute",
-          inset: 0,
-          opacity: 0.8,
-          pointerEvents: "none",
-          backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.07)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.07)} 1px, transparent 1px)`,
-          backgroundSize: "34px 34px",
-          maskImage:
-            "radial-gradient(circle at 50% 46%, #000 0%, transparent 72%)",
-          WebkitMaskImage:
-            "radial-gradient(circle at 50% 46%, #000 0%, transparent 72%)",
+          ...perspectiveGridSx(),
         }}
       />
       <Container sx={{ position: "relative", maxWidth: 720 }}>
-        <Stack
-          spacing={3.5}
-          sx={{ alignItems: "center", textAlign: "center" }}
-        >
+        <Stack spacing={3.5} sx={{ alignItems: "center", textAlign: "center" }}>
           <Box
             sx={{
               width: 82,

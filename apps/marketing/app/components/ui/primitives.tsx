@@ -8,7 +8,7 @@ import Stack from "@mui/material/Stack";
 import type { SxProps, Theme } from "@mui/material/styles";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import { site } from "../../content";
-import { riseInSx } from "./shared";
+import { perspectiveGridSx, riseInSx } from "./shared";
 
 export function Eyebrow({
   children,
@@ -65,29 +65,11 @@ export function Section({
         borderTop: alt ? "1px solid" : "none",
         borderBottom: alt ? "1px solid" : "none",
         borderColor: "divider",
-        "&:before": alt
-          ? {
-              content: '""',
-              position: "absolute",
-              inset: 0,
-              opacity: 0.72,
-              background: [
-                "linear-gradient(90deg, rgba(128,0,32,0.035) 1px, transparent 1px)",
-                "linear-gradient(180deg, rgba(21,17,26,0.026) 1px, transparent 1px)",
-                "radial-gradient(circle, rgba(128,0,32,0.09) 1px, transparent 1.5px)",
-              ].join(", "),
-              backgroundSize: "42px 42px, 42px 42px, 14px 14px",
-              animation: "xtiitch-thread-drift 24s linear infinite",
-              pointerEvents: "none",
-              "@media (prefers-reduced-motion: reduce)": {
-                animation: "none",
-              },
-            }
-          : undefined,
+        "&:before": perspectiveGridSx({ opacity: alt ? 1 : 0.72 }),
         ...sx,
       }}
     >
-      <Container sx={{ position: "relative" }}>{children}</Container>
+      <Container sx={{ position: "relative", zIndex: 1 }}>{children}</Container>
     </Box>
   );
 }

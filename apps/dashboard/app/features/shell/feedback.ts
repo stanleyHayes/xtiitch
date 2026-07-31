@@ -10,6 +10,12 @@ export type DashboardFeedback = {
 // workspace renders whatever surfaces first. Success-first ordering per
 // section pair keeps a stale error from masking a fresh confirmation.
 export function dashboardFeedback(action: DashboardActionData): DashboardFeedback {
+  if (action.affiliateSuccess) {
+    return { message: action.affiliateSuccess, severity: "success" };
+  }
+  if (action.affiliateError) {
+    return { message: action.affiliateError, severity: "error" };
+  }
   if (action.settingsSuccess) {
     return { message: action.settingsSuccess, severity: "success" };
   }

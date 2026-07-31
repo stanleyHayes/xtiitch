@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- affiliate API contracts and mappers stay colocated */
 import { requestJSON } from "./utils";
 
 export type AdminAffiliateEntityType = "person" | "business" | "agency";
@@ -15,6 +16,11 @@ export type AdminAffiliateStatus =
 
 export type AdminAffiliate = {
   affiliateId: string;
+  affiliateProgrammeId: string;
+  programmeName: string;
+  ownerType: "platform" | "business";
+  ownerBusinessId?: string;
+  ownerBusinessName?: string;
   entityType: AdminAffiliateEntityType;
   code: string;
   displayName: string;
@@ -24,11 +30,15 @@ export type AdminAffiliate = {
   websiteUrl: string;
   commissionModel: AdminAffiliateCommissionModel;
   commissionRate: number;
+  purchaseCommissionBps: number;
+  firstPaidPlanCommissionBps: number;
   cookieWindowDays: number;
   payoutMode: AdminAffiliatePayoutMode;
   payoutReference: string;
   status: AdminAffiliateStatus;
   notes: string;
+  targetScope: "platform" | "store" | "collection" | "design" | "product";
+  targetRefId?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -55,7 +65,10 @@ export type AdminAffiliateConversion = {
   affiliateId: string;
   businessId: string;
   businessName: string;
-  orderId: string;
+  conversionType: "purchase" | "paid_plan_signup";
+  orderId?: string;
+  subscriptionId?: string;
+  paymentReference?: string;
   grossMinor: number;
   commissionMinor: number;
   status: "pending" | "approved" | "settled" | "reversed";
@@ -81,6 +94,11 @@ export type AdminAffiliatePayout = {
 };
 type AdminAffiliatePayload = {
   affiliate_id: string;
+  affiliate_programme_id: string;
+  programme_name: string;
+  owner_type: AdminAffiliate["ownerType"];
+  owner_business_id?: string;
+  owner_business_name?: string;
   entity_type: AdminAffiliateEntityType;
   code: string;
   display_name: string;
@@ -90,11 +108,15 @@ type AdminAffiliatePayload = {
   website_url: string;
   commission_model: AdminAffiliateCommissionModel;
   commission_rate: number;
+  purchase_commission_bps: number;
+  first_paid_plan_commission_bps: number;
   cookie_window_days: number;
   payout_mode: AdminAffiliatePayoutMode;
   payout_reference: string;
   status: AdminAffiliateStatus;
   notes: string;
+  target_scope: AdminAffiliate["targetScope"];
+  target_ref_id?: string;
   created_at: string;
   updated_at: string;
 };
@@ -121,7 +143,10 @@ type AdminAffiliateConversionPayload = {
   affiliate_id: string;
   business_id: string;
   business_name: string;
-  order_id: string;
+  conversion_type: AdminAffiliateConversion["conversionType"];
+  order_id?: string;
+  subscription_id?: string;
+  payment_reference?: string;
   gross_minor: number;
   commission_minor: number;
   status: AdminAffiliateConversion["status"];
@@ -148,6 +173,11 @@ type AdminAffiliatePayoutPayload = {
 function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
   return {
     affiliateId: payload.affiliate_id,
+    affiliateProgrammeId: payload.affiliate_programme_id,
+    programmeName: payload.programme_name,
+    ownerType: payload.owner_type,
+    ownerBusinessId: payload.owner_business_id,
+    ownerBusinessName: payload.owner_business_name,
     entityType: payload.entity_type,
     code: payload.code,
     displayName: payload.display_name,
@@ -157,11 +187,15 @@ function mapAffiliate(payload: AdminAffiliatePayload): AdminAffiliate {
     websiteUrl: payload.website_url,
     commissionModel: payload.commission_model,
     commissionRate: payload.commission_rate,
+    purchaseCommissionBps: payload.purchase_commission_bps,
+    firstPaidPlanCommissionBps: payload.first_paid_plan_commission_bps,
     cookieWindowDays: payload.cookie_window_days,
     payoutMode: payload.payout_mode,
     payoutReference: payload.payout_reference,
     status: payload.status,
     notes: payload.notes,
+    targetScope: payload.target_scope,
+    targetRefId: payload.target_ref_id,
     createdAt: payload.created_at,
     updatedAt: payload.updated_at,
   };
@@ -196,7 +230,10 @@ function mapAffiliateConversion(
     affiliateId: payload.affiliate_id,
     businessId: payload.business_id,
     businessName: payload.business_name,
+    conversionType: payload.conversion_type,
     orderId: payload.order_id,
+    subscriptionId: payload.subscription_id,
+    paymentReference: payload.payment_reference,
     grossMinor: payload.gross_minor,
     commissionMinor: payload.commission_minor,
     status: payload.status,
@@ -296,6 +333,8 @@ export const affiliatesApi = {
       websiteUrl: string;
       commissionModel: AdminAffiliateCommissionModel;
       commissionRate: number;
+      purchaseCommissionBps: number;
+      firstPaidPlanCommissionBps: number;
       cookieWindowDays: number;
       payoutMode: AdminAffiliatePayoutMode;
       payoutReference: string;
@@ -316,6 +355,8 @@ export const affiliatesApi = {
         website_url: input.websiteUrl,
         commission_model: input.commissionModel,
         commission_rate: input.commissionRate,
+        purchase_commission_bps: input.purchaseCommissionBps,
+        first_paid_plan_commission_bps: input.firstPaidPlanCommissionBps,
         cookie_window_days: input.cookieWindowDays,
         payout_mode: input.payoutMode,
         payout_reference: input.payoutReference,
@@ -336,6 +377,8 @@ export const affiliatesApi = {
       websiteUrl: string;
       commissionModel: AdminAffiliateCommissionModel;
       commissionRate: number;
+      purchaseCommissionBps: number;
+      firstPaidPlanCommissionBps: number;
       cookieWindowDays: number;
       payoutMode: AdminAffiliatePayoutMode;
       payoutReference: string;
@@ -358,6 +401,8 @@ export const affiliatesApi = {
           website_url: input.websiteUrl,
           commission_model: input.commissionModel,
           commission_rate: input.commissionRate,
+          purchase_commission_bps: input.purchaseCommissionBps,
+          first_paid_plan_commission_bps: input.firstPaidPlanCommissionBps,
           cookie_window_days: input.cookieWindowDays,
           payout_mode: input.payoutMode,
           payout_reference: input.payoutReference,

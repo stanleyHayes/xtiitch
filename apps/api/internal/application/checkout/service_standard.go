@@ -122,6 +122,11 @@ func (s Service) PlaceStandardOrder(ctx context.Context, cmd PlaceStandardOrderC
 	}); err != nil {
 		return PlaceStandardOrderResult{}, err
 	}
+	s.recordCustomerAffiliateSignup(ctx, customerID, customerCreated, affiliateCheckoutInput{
+		code:      cmd.AffiliateCode,
+		clickID:   cmd.AffiliateClickID,
+		visitorID: cmd.AffiliateVisitorID,
+	})
 
 	promotion, err := s.reservePromotion(ctx, scope, promotionCheckoutInput{
 		code:          cmd.PromoCode,

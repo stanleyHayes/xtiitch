@@ -35,9 +35,19 @@ export function Header() { // eslint-disable-line max-lines-per-function -- larg
   // the discover flag is live; the "Browse the store" button only when
   // browse_store is live. Both default hidden.
   const flags = useMarketingFlags();
-  const visibleGroups = flags.discover
-    ? navGroups
-    : navGroups.filter((group) => group.label !== "Discover");
+  // Group-level gate first (Discover), then item-level: an item carrying a
+  // `flag` only survives when that flag is on. A group left with no items is
+  // dropped rather than rendering an empty dropdown.
+  const visibleGroups = (
+    flags.discover
+      ? navGroups
+      : navGroups.filter((group) => group.label !== "Discover")
+  )
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => !item.flag || flags[item.flag]),
+    }))
+    .filter((group) => group.items.length > 0);
   const close = () => {
     setOpen(false);
   };

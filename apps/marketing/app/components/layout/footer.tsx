@@ -16,6 +16,7 @@ import { useMarketingFlags } from "../../root";
 import { tokens } from "../../theme";
 import { footerGroups, footerProof } from "./footer-data";
 import { Logo } from "./logo";
+import { perspectiveGridSx } from "../ui/shared";
 
 const socialLinks = [
   {
@@ -56,6 +57,12 @@ export function Footer() {
         if (["/discover", "/shops", "/designs"].includes(item.href)) {
           return flags.discover;
         }
+        // Hiding this in the header only would leave the footer advertising a
+        // page that redirects home — the programme has more than one entry
+        // point, so the gate has to cover each of them.
+        if (item.href === "/affiliates") {
+          return flags.affiliate_signup;
+        }
         return true;
       }),
     }))
@@ -75,12 +82,8 @@ export function Footer() {
       <Box
         aria-hidden
         sx={{
-          position: "absolute",
-          inset: 0,
-          pointerEvents: "none",
-          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.035)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.035)} 1px, transparent 1px), radial-gradient(circle at 82% 4%, ${alpha(tokens.burgundy, 0.58)}, transparent 34%)`,
-          backgroundSize: "42px 42px, 42px 42px, auto",
-          maskImage: "linear-gradient(to bottom, black, rgba(0,0,0,.78))",
+          ...perspectiveGridSx({ lightOnDark: true }),
+          backgroundColor: alpha(tokens.burgundy, 0.015),
         }}
       />
 

@@ -74,7 +74,10 @@ export function AffiliateConversionsPanel({ // eslint-disable-line max-lines-per
                         variant="body2"
                         sx={{ color: "text.secondary" }}
                       >
-                        {shortID(conversion.orderId)} ·{" "}
+                        {conversion.orderId
+                          ? shortID(conversion.orderId)
+                          : `Plan ${shortID(conversion.subscriptionId ?? "")}`}{" "}
+                        ·{" "}
                         {conversion.attributionModel.replace("_", " ")}
                       </Typography>
                     </Box>

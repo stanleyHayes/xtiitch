@@ -7,9 +7,11 @@ import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
+import AspectRatioRounded from "@mui/icons-material/AspectRatioRounded";
 import { tokens } from "../../theme";
 import { useImageUploadField } from "../../lib/use-image-upload-field";
 import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
+import type { ImageSpec } from "../../lib/image-specs";
 
 export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   name,
@@ -18,6 +20,7 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
   disabled = false,
   multiple = false,
   maxFiles,
+  spec,
 }: {
   name: string;
   helper?: string;
@@ -25,6 +28,11 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
   disabled?: boolean;
   multiple?: boolean;
   maxFiles?: number;
+  // Recommended dimensions for this surface. Shown as its own prominent line
+  // rather than buried in the helper prose — a merchant photographing stock
+  // needs the target size before they shoot, not after they have uploaded a
+  // landscape photo the storefront crops the hem off.
+  spec?: ImageSpec;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [fileNames, setFileNames] = useState<string[]>([]);
@@ -195,9 +203,37 @@ export function ImageDropzone({ // eslint-disable-line complexity, max-lines-per
                 ? "Drag & drop, or click to choose images"
                 : "Drag & drop, or click to choose"}
           </Typography>
+          {spec ? (
+            <Box
+              sx={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 0.5,
+                px: 0.85,
+                py: 0.3,
+                borderRadius: 1,
+                color: tokens.burgundy,
+                bgcolor: alpha(tokens.burgundy, 0.08),
+                fontSize: 12,
+                fontWeight: 800,
+                letterSpacing: "0.01em",
+              }}
+            >
+              <AspectRatioRounded sx={{ fontSize: 14 }} />
+              {spec.dimensions} · {spec.ratio}
+            </Box>
+          ) : null}
           {helper ? (
             <Typography variant="caption" sx={{ color: "text.secondary" }}>
               {helper}
+            </Typography>
+          ) : null}
+          {spec ? (
+            <Typography
+              variant="caption"
+              sx={{ color: "text.secondary", maxWidth: 340 }}
+            >
+              {spec.note}
             </Typography>
           ) : null}
         </Stack>

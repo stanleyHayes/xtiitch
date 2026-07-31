@@ -50,3 +50,19 @@ Xtiitch-Technical-Specification.pdf
 # Generated documentation PDFs (rebuild from architecture.md / user-guide.md)
 /architecture.pdf
 /user-guide.pdf
+
+# Local agent/tooling working directories. Not project source: .raven holds
+# session state and pre-compact caches, .artifacts holds QA screenshots. Both
+# were untracked AND unignored, so any `git add -A` would have swept several MB
+# of local scratch into a commit.
+#
+# Unanchored on purpose — these also appear per-app (apps/api/.raven,
+# apps/dashboard/.raven, apps/affiliate/.raven), which a leading-slash rule
+# would miss.
+.raven/
+.artifacts/
+
+# `node_modules/` above matches DIRECTORIES only, so a node_modules SYMLINK is
+# not ignored — pnpm/workspace tooling leaves those around, and `git add -A`
+# would happily commit the link. The slash-less form catches both.
+node_modules

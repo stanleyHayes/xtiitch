@@ -14,6 +14,7 @@ import { CtaBand, PageHero, Section, SectionHeading } from "../components/ui";
 import { growthGuardrails, growthProgrammes, site } from "../content";
 import { GrowthLoop } from "../features/growth/growth-loop";
 import { ProgrammeCard } from "../features/growth/programme-card";
+import { useMarketingFlags } from "../root";
 
 const accents = ["#800020", "#315f8f", "#2f6b4f", "#b87914"] as const;
 
@@ -27,6 +28,7 @@ export function meta(): MetaDescriptor[] {
 }
 
 export default function Growth() { // eslint-disable-line max-lines-per-function -- route action/loader with many conditional branches; refactor in follow-up
+  const flags = useMarketingFlags();
   return (
     <>
       <PageHero
@@ -60,9 +62,18 @@ export default function Growth() { // eslint-disable-line max-lines-per-function
               >
                 Start for free
               </Button>
-              <Button component={RouterLink} to="/pricing" variant="outlined">
-                See pricing
-              </Button>
+              {/* Third entry point to the programme. Gated like the header and
+                  footer so switching it off in admin does not leave a button
+                  here that just redirects home. */}
+              {flags.affiliate_signup ? (
+                <Button
+                  component={RouterLink}
+                  to="/affiliates"
+                  variant="outlined"
+                >
+                  Become an affiliate
+                </Button>
+              ) : null}
             </Stack>
           </Box>
           <Box

@@ -23,6 +23,31 @@ type AffiliateClickRecord struct {
 	ClickedAt   time.Time
 }
 
+type SubmitAffiliateApplicationInput struct {
+	ApplicationID     common.ID
+	ApplicantType     string
+	DisplayName       string
+	ContactName       string
+	Email             string
+	Phone             string
+	WebsiteURL        string
+	RequestedCode     string
+	AudienceSummary   string
+	PromotionChannels []string
+	ConsentAt         time.Time
+	IPHash            string
+	UserAgent         string
+}
+
+type AffiliateApplicationRecord struct {
+	ApplicationID common.ID
+	DisplayName   string
+	Email         string
+	RequestedCode string
+	Status        string
+	CreatedAt     time.Time
+}
+
 type ReserveAffiliateAttributionInput struct {
 	ReservationID common.ID
 	BusinessID    common.ID
@@ -41,6 +66,74 @@ type AffiliateAttributionReservation struct {
 	OrderID          common.ID
 	GrossMinor       int64
 	CommissionMinor  int64
+}
+
+type RecordAffiliateSignupInput struct {
+	SignupID    common.ID
+	Code        string
+	ClickID     common.ID
+	VisitorID   string
+	SubjectType string
+	CustomerID  common.ID
+	BusinessID  common.ID
+}
+
+type AffiliateSignupRecord struct {
+	SignupID    common.ID
+	AffiliateID common.ID
+	SubjectType string
+	CustomerID  *common.ID
+	BusinessID  *common.ID
+	QualifiedAt time.Time
+}
+
+type ReserveFirstPaidPlanAttributionInput struct {
+	ReservationID    common.ID
+	BusinessID       common.ID
+	SubscriptionID   common.ID
+	PaymentReference string
+	GrossMinor       int64
+}
+
+type AffiliatePlanAttributionReservation struct {
+	ReservationID    common.ID
+	AffiliateID      common.ID
+	AffiliateClickID *common.ID
+	ProgrammeID      common.ID
+	BusinessID       common.ID
+	SubscriptionID   common.ID
+	PaymentReference string
+	GrossMinor       int64
+	CommissionMinor  int64
+	CommissionRate   int
+	HoldDays         int
+}
+
+type FinalizeFirstPaidPlanAttributionInput struct {
+	ConversionID     common.ID
+	BusinessID       common.ID
+	SubscriptionID   common.ID
+	PaymentReference string
+}
+
+type AffiliatePlanConversionRecord struct {
+	ConversionID     common.ID
+	AffiliateID      common.ID
+	ProgrammeID      common.ID
+	BusinessID       common.ID
+	SubscriptionID   common.ID
+	PaymentReference string
+	GrossMinor       int64
+	CommissionMinor  int64
+	Status           string
+	Created          bool
+}
+
+type ApplyFirstPaidPlanProviderEventInput struct {
+	ConversionID     common.ID
+	PaymentReference string
+	EventType        string
+	Succeeded        bool
 }
 
 type ListActiveSponsoredPlacementsInput struct {

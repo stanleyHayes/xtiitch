@@ -92,7 +92,18 @@ func (s Service) PlaceCustomOrder(ctx context.Context, cmd PlaceCustomOrderComma
 		if normalizeCheckoutPromotionCode(cmd.PromoCode) != "" {
 			return PlaceCustomOrderResult{}, ErrPromotionUnavailable
 		}
-		return s.placeComeToShop(ctx, scope, store.BusinessID, design.ID, customer)
+		return s.placeComeToShop(
+			ctx,
+			scope,
+			store.BusinessID,
+			design.ID,
+			customer,
+			affiliateCheckoutInput{
+				code:      cmd.AffiliateCode,
+				clickID:   cmd.AffiliateClickID,
+				visitorID: cmd.AffiliateVisitorID,
+			},
+		)
 	}
 	return s.placeDepositCustomOrder(ctx, scope, store, design, mode, customer, cmd)
 }
@@ -130,9 +141,10 @@ func (s Service) placeComeToShop(
 	scope common.TenantScope,
 	businessID, designID common.ID,
 	customer customerDetails,
+	affiliate affiliateCheckoutInput,
 ) (PlaceCustomOrderResult, error) {
 	orderID := s.ids.NewID()
-	customerID, _, err := s.resolveCustomerByPhone(ctx, customer.phone)
+	customerID, customerCreated, err := s.resolveCustomerByPhone(ctx, customer.phone)
 	if err != nil {
 		return PlaceCustomOrderResult{}, err
 	}
@@ -149,6 +161,7 @@ func (s Service) placeComeToShop(
 	}); err != nil {
 		return PlaceCustomOrderResult{}, err
 	}
+	s.recordCustomerAffiliateSignup(ctx, customerID, customerCreated, affiliate)
 	return PlaceCustomOrderResult{OrderID: orderID}, nil
 }
 
@@ -218,6 +231,11 @@ func (s Service) placeDepositCustomOrder(
 		}
 		return PlaceCustomOrderResult{}, err
 	}
+	s.recordCustomerAffiliateSignup(ctx, customerID, customerCreated, affiliateCheckoutInput{
+		code:      cmd.AffiliateCode,
+		clickID:   cmd.AffiliateClickID,
+		visitorID: cmd.AffiliateVisitorID,
+	})
 
 	promotion, err := s.reservePromotion(ctx, scope, promotionCheckoutInput{
 		code:          cmd.PromoCode,

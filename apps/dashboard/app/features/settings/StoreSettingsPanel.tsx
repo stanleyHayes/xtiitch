@@ -19,6 +19,7 @@ import { ToneChip } from "../../components/ui/ToneChip";
 import { enabledStoreSettings, storeFeatureSwitches } from "./utils";
 import { PlanGatedControl } from "../../components/ui/PlanGatedControl";
 import { StorefrontImageUploadField } from "../studio/StorefrontImageUploadField";
+import { BANNER_IMAGE_SPEC, LOGO_IMAGE_SPEC } from "../../lib/image-specs";
 import {
   ACTIVATION_PATH,
   activationPlanLabel,
@@ -128,10 +129,6 @@ export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-functi
                   theme.palette.mode === "dark"
                     ? alpha(tokens.white, 0.04)
                     : "rgba(var(--surface-rgb), 0.76)",
-                backgroundImage: `linear-gradient(135deg, ${alpha(
-                  settings.brand_color || tokens.burgundy,
-                  0.11,
-                )}, transparent 52%)`,
               }}
             >
               <Stack
@@ -221,6 +218,7 @@ export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-functi
                   <StorefrontImageUploadField
                     name="logo"
                     currentUrl={settings.logo_url}
+                    spec={LOGO_IMAGE_SPEC}
                   />
                 </PlanGatedControl>
                 <PlanGatedControl
@@ -231,6 +229,7 @@ export function StoreSettingsPanel({ // eslint-disable-line max-lines-per-functi
                   <StorefrontImageUploadField
                     name="banner"
                     currentUrl={settings.banner_url}
+                    spec={BANNER_IMAGE_SPEC}
                   />
                 </PlanGatedControl>
                 <PlanGatedControl

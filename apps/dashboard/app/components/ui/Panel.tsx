@@ -22,13 +22,11 @@ export function Panel({
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: "rgba(var(--surface-rgb), 0.96)",
-        backgroundImage: `linear-gradient(180deg, rgba(var(--surface-rgb), 0.78), rgba(var(--surface-rgb), 0.5))`,
-        boxShadow: `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
+        bgcolor: "background.paper",
+        boxShadow: `0 16px 44px ${alpha(tokens.ink, 0.055)}`,
         minWidth: 0,
         maxWidth: "100%",
         overflow: "hidden",
-        backdropFilter: "blur(10px)",
         transition:
           "transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease",
         "@media (prefers-reduced-motion: no-preference)": {

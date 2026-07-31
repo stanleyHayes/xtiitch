@@ -267,6 +267,26 @@ func (s Service) InitializeSubscriptionAuthorization(
 	// top of the package figure, so Xtiitch nets the exact table figure.
 	gross := s.subscriptionChargeTotal(ctx, chargeMinor)
 	checkoutRef := fmt.Sprintf("%s_%d", activation.Ref, s.clock.Now().Unix())
+	reservedAffiliate := false
+	if s.planAffiliates != nil {
+		_, reserveErr := s.planAffiliates.ReserveFirstPaidPlanAttribution(
+			ctx,
+			ports.ReserveFirstPaidPlanAttributionInput{
+				ReservationID:    s.ids.NewID(),
+				BusinessID:       subscription.BusinessID,
+				SubscriptionID:   subscription.SubscriptionID,
+				PaymentReference: checkoutRef,
+				GrossMinor:       int64(chargeMinor),
+			},
+		)
+		switch {
+		case reserveErr == nil:
+			reservedAffiliate = true
+		case errors.Is(reserveErr, ports.ErrNotFound):
+		default:
+			return SubscriptionAuthorizationLink{}, reserveErr
+		}
+	}
 	result, err := s.payments.InitializeAuthorization(ctx, ports.InitializeAuthorizationInput{
 		BusinessID:    subscription.BusinessID,
 		CustomerEmail: ownerEmail,
@@ -276,6 +296,14 @@ func (s Service) InitializeSubscriptionAuthorization(
 		Reference:     checkoutRef,
 	})
 	if err != nil {
+		if reservedAffiliate {
+			_ = s.planAffiliates.VoidFirstPaidPlanAttribution(
+				ctx,
+				subscription.BusinessID,
+				checkoutRef,
+				"payment_initialization_failed",
+			)
+		}
 		return SubscriptionAuthorizationLink{}, err
 	}
 	if strings.TrimSpace(result.RedirectURL) == "" || strings.TrimSpace(result.Reference) == "" {
@@ -434,6 +462,20 @@ func (s Service) VerifySubscriptionAuthorization(
 	if activation.ShouldCharge {
 		if err := s.bookFirstPeriodPaid(ctx, cmd.Scope, subscription, cadence, activation, result.AmountMinor); err != nil {
 			return SubscriptionAuthorizationResult{}, err
+		}
+		if s.planAffiliates != nil {
+			_, finalizeErr := s.planAffiliates.FinalizeFirstPaidPlanAttribution(
+				ctx,
+				ports.FinalizeFirstPaidPlanAttributionInput{
+					ConversionID:     s.ids.NewID(),
+					BusinessID:       subscription.BusinessID,
+					SubscriptionID:   subscription.SubscriptionID,
+					PaymentReference: reference,
+				},
+			)
+			if finalizeErr != nil && !errors.Is(finalizeErr, ports.ErrNotFound) {
+				return SubscriptionAuthorizationResult{}, finalizeErr
+			}
 		}
 	}
 

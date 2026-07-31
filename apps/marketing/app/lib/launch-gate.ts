@@ -4,7 +4,12 @@ const API_BASE =
   (typeof process !== "undefined" ? process.env.XTIITCH_API_URL : undefined) ??
   "http://localhost:8080";
 
-type FlagKey = "browse_store" | "discover" | "create_store" | "pricing";
+export type FlagKey =
+  | "browse_store"
+  | "discover"
+  | "create_store"
+  | "pricing"
+  | "affiliate_signup";
 
 // Server-side gate for pre-launch marketing routes. A loader calls this so a
 // flag-gated page can't be reached by direct URL before launch — matching the

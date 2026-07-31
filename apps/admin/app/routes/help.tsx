@@ -30,8 +30,6 @@ export default function Help() {
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.04)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.04)} 1px, transparent 1px)`,
-        backgroundSize: "36px 36px",
       }}
     >
       <Container sx={{ py: { xs: 4, md: 7 }, maxWidth: "md" }}>

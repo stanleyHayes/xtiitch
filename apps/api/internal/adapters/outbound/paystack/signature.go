@@ -48,6 +48,12 @@ type webhookEnvelope struct {
 			SubaccountCode string `json:"subaccount_code"`
 		} `json:"subaccount"`
 		SubaccountCode string `json:"subaccount_code"`
+		// Refund and dispute webhooks identify the original charge under
+		// data.transaction.reference rather than data.reference. Resolving this
+		// lets downstream ledgers reverse the exact payment they credited.
+		Transaction *struct {
+			Reference string `json:"reference"`
+		} `json:"transaction"`
 	} `json:"data"`
 }
 
@@ -74,17 +80,22 @@ func parseChargeEvent(payload []byte) (ports.ProviderChargeEvent, error) {
 	if err := json.Unmarshal(payload, &envelope); err != nil {
 		return ports.ProviderChargeEvent{}, err
 	}
-	if envelope.Event == "" || envelope.Data.Reference == "" {
+	reference := envelope.Data.Reference
+	if envelope.Data.Transaction != nil &&
+		envelope.Data.Transaction.Reference != "" {
+		reference = envelope.Data.Transaction.Reference
+	}
+	if envelope.Event == "" || reference == "" {
 		return ports.ProviderChargeEvent{}, ErrUnparseableEvent
 	}
 
 	return ports.ProviderChargeEvent{
 		EventType:         envelope.Event,
-		ProviderReference: envelope.Data.Reference,
+		ProviderReference: reference,
 		Succeeded:         envelope.Event == "charge.success" && envelope.Data.Status == "success",
 		AmountMinor:       envelope.Data.Amount,
 		FeeMinor:          resolveProviderFee(envelope),
-		Signature:         "paystack:" + envelope.Event + ":" + envelope.Data.Reference,
+		Signature:         "paystack:" + envelope.Event + ":" + reference,
 	}, nil
 }
 

@@ -36,6 +36,10 @@ var ErrPromotionUnavailable = errors.New("promotion unavailable")
 // non-archived promotion using a code that is already active for that scope.
 var ErrPromotionCodeTaken = errors.New("promotion code already exists")
 
+// ErrAffiliateCodeTaken is returned when an affiliate or pending application
+// already owns the requested public code.
+var ErrAffiliateCodeTaken = errors.New("affiliate code already exists")
+
 // ErrSubscriptionBillingUnavailable is returned when an admin billing action is
 // attempted for a free, canceled, or otherwise non-billable subscription.
 var ErrSubscriptionBillingUnavailable = errors.New("subscription billing unavailable")

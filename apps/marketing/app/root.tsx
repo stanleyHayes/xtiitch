@@ -73,6 +73,10 @@ export type MarketingFlags = {
   discover: boolean;
   create_store: boolean;
   pricing: boolean;
+  // Gates the public "become an affiliate" entry point. Off does not disable
+  // the affiliate portal — existing affiliates keep signing in and earning; it
+  // only hides the invitation to apply.
+  affiliate_signup: boolean;
 };
 
 const DEFAULT_MARKETING_FLAGS: MarketingFlags = {
@@ -80,6 +84,7 @@ const DEFAULT_MARKETING_FLAGS: MarketingFlags = {
   discover: false,
   create_store: false,
   pricing: false,
+  affiliate_signup: false,
 };
 
 function coerceMarketingFlags(input: unknown): MarketingFlags {
@@ -92,6 +97,7 @@ function coerceMarketingFlags(input: unknown): MarketingFlags {
     discover: flags.discover === true,
     create_store: flags.create_store === true,
     pricing: flags.pricing === true,
+    affiliate_signup: flags.affiliate_signup === true,
   };
 }
 

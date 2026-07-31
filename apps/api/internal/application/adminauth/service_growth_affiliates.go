@@ -41,46 +41,50 @@ type CreateAffiliatePayoutCommand struct {
 }
 
 type CreateAffiliateCommand struct {
-	ActorUserID      common.ID
-	ActorRole        admindomain.Role
-	EntityType       string
-	Code             string
-	DisplayName      string
-	ContactName      string
-	Email            string
-	Phone            string
-	WebsiteURL       string
-	CommissionModel  string
-	CommissionRate   int64
-	CookieWindowDays int
-	PayoutMode       string
-	PayoutReference  string
-	Status           string
-	Notes            string
-	UserAgent        string
-	IPAddress        string
+	ActorUserID                common.ID
+	ActorRole                  admindomain.Role
+	EntityType                 string
+	Code                       string
+	DisplayName                string
+	ContactName                string
+	Email                      string
+	Phone                      string
+	WebsiteURL                 string
+	CommissionModel            string
+	CommissionRate             int64
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	PayoutReference            string
+	Status                     string
+	Notes                      string
+	UserAgent                  string
+	IPAddress                  string
 }
 
 type UpdateAffiliateCommand struct {
-	ActorUserID      common.ID
-	ActorRole        admindomain.Role
-	AffiliateID      common.ID
-	EntityType       string
-	Code             string
-	DisplayName      string
-	ContactName      string
-	Email            string
-	Phone            string
-	WebsiteURL       string
-	CommissionModel  string
-	CommissionRate   int64
-	CookieWindowDays int
-	PayoutMode       string
-	PayoutReference  string
-	Status           string
-	Notes            string
-	UserAgent        string
-	IPAddress        string
+	ActorUserID                common.ID
+	ActorRole                  admindomain.Role
+	AffiliateID                common.ID
+	EntityType                 string
+	Code                       string
+	DisplayName                string
+	ContactName                string
+	Email                      string
+	Phone                      string
+	WebsiteURL                 string
+	CommissionModel            string
+	CommissionRate             int64
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	PayoutReference            string
+	Status                     string
+	Notes                      string
+	UserAgent                  string
+	IPAddress                  string
 }
 
 type ArchiveAffiliateCommand struct {
@@ -398,23 +402,34 @@ func normalizeCreateAffiliateInput(
 	if err != nil {
 		return ports.CreateAdminAffiliateInput{}, err
 	}
+	purchaseBPS, err := affiliateCommissionBPS(
+		cmd.PurchaseCommissionBPS,
+		cmd.FirstPaidPlanCommissionBPS,
+		normalized.CommissionModel,
+		normalized.CommissionRate,
+	)
+	if err != nil {
+		return ports.CreateAdminAffiliateInput{}, err
+	}
 	return ports.CreateAdminAffiliateInput{
-		AffiliateID:      affiliateID,
-		EntityType:       normalized.EntityType,
-		Code:             normalized.Code,
-		DisplayName:      normalized.DisplayName,
-		ContactName:      normalized.ContactName,
-		Email:            normalized.Email,
-		Phone:            normalized.Phone,
-		WebsiteURL:       normalized.WebsiteURL,
-		CommissionModel:  normalized.CommissionModel,
-		CommissionRate:   normalized.CommissionRate,
-		CookieWindowDays: normalized.CookieWindowDays,
-		PayoutMode:       normalized.PayoutMode,
-		PayoutReference:  normalized.PayoutReference,
-		Status:           normalized.Status,
-		Notes:            normalized.Notes,
-		ActorAdminUser:   cmd.ActorUserID,
+		AffiliateID:                affiliateID,
+		EntityType:                 normalized.EntityType,
+		Code:                       normalized.Code,
+		DisplayName:                normalized.DisplayName,
+		ContactName:                normalized.ContactName,
+		Email:                      normalized.Email,
+		Phone:                      normalized.Phone,
+		WebsiteURL:                 normalized.WebsiteURL,
+		CommissionModel:            normalized.CommissionModel,
+		CommissionRate:             normalized.CommissionRate,
+		PurchaseCommissionBPS:      purchaseBPS,
+		FirstPaidPlanCommissionBPS: cmd.FirstPaidPlanCommissionBPS,
+		CookieWindowDays:           normalized.CookieWindowDays,
+		PayoutMode:                 normalized.PayoutMode,
+		PayoutReference:            normalized.PayoutReference,
+		Status:                     normalized.Status,
+		Notes:                      normalized.Notes,
+		ActorAdminUser:             cmd.ActorUserID,
 	}, nil
 }
 
@@ -438,24 +453,50 @@ func normalizeUpdateAffiliateInput(cmd UpdateAffiliateCommand) (ports.UpdateAdmi
 	if err != nil {
 		return ports.UpdateAdminAffiliateInput{}, err
 	}
+	purchaseBPS, err := affiliateCommissionBPS(
+		cmd.PurchaseCommissionBPS,
+		cmd.FirstPaidPlanCommissionBPS,
+		normalized.CommissionModel,
+		normalized.CommissionRate,
+	)
+	if err != nil {
+		return ports.UpdateAdminAffiliateInput{}, err
+	}
 	return ports.UpdateAdminAffiliateInput{
-		AffiliateID:      cmd.AffiliateID,
-		EntityType:       normalized.EntityType,
-		Code:             normalized.Code,
-		DisplayName:      normalized.DisplayName,
-		ContactName:      normalized.ContactName,
-		Email:            normalized.Email,
-		Phone:            normalized.Phone,
-		WebsiteURL:       normalized.WebsiteURL,
-		CommissionModel:  normalized.CommissionModel,
-		CommissionRate:   normalized.CommissionRate,
-		CookieWindowDays: normalized.CookieWindowDays,
-		PayoutMode:       normalized.PayoutMode,
-		PayoutReference:  normalized.PayoutReference,
-		Status:           normalized.Status,
-		Notes:            normalized.Notes,
-		ActorAdminUser:   cmd.ActorUserID,
+		AffiliateID:                cmd.AffiliateID,
+		EntityType:                 normalized.EntityType,
+		Code:                       normalized.Code,
+		DisplayName:                normalized.DisplayName,
+		ContactName:                normalized.ContactName,
+		Email:                      normalized.Email,
+		Phone:                      normalized.Phone,
+		WebsiteURL:                 normalized.WebsiteURL,
+		CommissionModel:            normalized.CommissionModel,
+		CommissionRate:             normalized.CommissionRate,
+		PurchaseCommissionBPS:      purchaseBPS,
+		FirstPaidPlanCommissionBPS: cmd.FirstPaidPlanCommissionBPS,
+		CookieWindowDays:           normalized.CookieWindowDays,
+		PayoutMode:                 normalized.PayoutMode,
+		PayoutReference:            normalized.PayoutReference,
+		Status:                     normalized.Status,
+		Notes:                      normalized.Notes,
+		ActorAdminUser:             cmd.ActorUserID,
 	}, nil
+}
+
+func affiliateCommissionBPS(
+	purchaseBPS int,
+	paidPlanBPS int,
+	legacyModel string,
+	legacyRate int64,
+) (int, error) {
+	if purchaseBPS == 0 && legacyModel == "percentage" {
+		purchaseBPS = int(legacyRate)
+	}
+	if purchaseBPS < 0 || purchaseBPS > 10000 || paidPlanBPS < 0 || paidPlanBPS > 10000 {
+		return 0, authdomain.ErrInvalidInput
+	}
+	return purchaseBPS, nil
 }
 
 type affiliateFields struct {

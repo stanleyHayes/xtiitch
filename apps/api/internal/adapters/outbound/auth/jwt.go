@@ -247,6 +247,60 @@ func (issuer JWTIssuer) VerifyCustomerAccessToken(_ context.Context, tokenString
 	}, nil
 }
 
+func (issuer JWTIssuer) IssueAffiliateAccessToken(
+	_ context.Context,
+	input ports.AffiliateAccessTokenInput,
+) (string, error) {
+	claims := jwt.MapClaims{
+		"account_id":   input.AccountID.String(),
+		"affiliate_id": input.AffiliateID.String(),
+		"aud":          issuer.audience,
+		"exp":          input.ExpiresAt.Unix(),
+		"iat":          input.IssuedAt.Unix(),
+		"iss":          issuer.issuer,
+		"scope":        "affiliate",
+		"sub":          input.AccountID.String(),
+		"typ":          "affiliate_access",
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	token.Header["kid"] = "default"
+	return token.SignedString(issuer.signingKey)
+}
+
+func (issuer JWTIssuer) VerifyAffiliateAccessToken(
+	_ context.Context,
+	tokenString string,
+) (ports.VerifiedAffiliateAccessToken, error) {
+	claims := jwt.MapClaims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(*jwt.Token) (any, error) {
+		return issuer.signingKey, nil
+	},
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		jwt.WithIssuer(issuer.issuer),
+		jwt.WithAudience(issuer.audience),
+		jwt.WithExpirationRequired(),
+	)
+	if err != nil || !token.Valid {
+		return ports.VerifiedAffiliateAccessToken{}, ErrInvalidToken
+	}
+	if tokenType, _ := claims["typ"].(string); tokenType != "affiliate_access" {
+		return ports.VerifiedAffiliateAccessToken{}, ErrInvalidToken
+	}
+	if scope, _ := claims["scope"].(string); scope != "affiliate" {
+		return ports.VerifiedAffiliateAccessToken{}, ErrInvalidToken
+	}
+	accountID, _ := claims["account_id"].(string)
+	affiliateID, _ := claims["affiliate_id"].(string)
+	subject, _ := claims["sub"].(string)
+	if accountID == "" || affiliateID == "" || subject != accountID {
+		return ports.VerifiedAffiliateAccessToken{}, ErrInvalidToken
+	}
+	return ports.VerifiedAffiliateAccessToken{
+		AccountID:   common.ID(accountID),
+		AffiliateID: common.ID(affiliateID),
+	}, nil
+}
+
 func AccessTokenTTL(now time.Time) time.Time {
 	return now.Add(15 * time.Minute)
 }

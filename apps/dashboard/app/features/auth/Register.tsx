@@ -22,17 +22,54 @@ export function meta(): Route.MetaDescriptors {
 }
 
 // Active plan catalogue for the picker; failures degrade to a free-only signup.
-export async function loader() {
+export async function loader({ request }: Route.LoaderArgs) {
   let plans: PublicPlan[] = [];
+  const url = new URL(request.url);
+  const affiliateCode = (url.searchParams.get("affiliate_code") ?? "")
+    .trim()
+    .toUpperCase();
+  const affiliateVisitorID = crypto.randomUUID();
+  let affiliateClickID = "";
+  const plansPromise = fetchApi("/plans", { method: "GET" });
+  const clickPromise = affiliateCode
+    ? fetchApi(
+        `/public/affiliates/${encodeURIComponent(affiliateCode)}/clicks`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            visitor_id: affiliateVisitorID,
+            landing_url: request.url,
+            referrer_url: request.headers.get("referer") ?? "",
+          }),
+        },
+      )
+    : Promise.resolve(null);
   try {
-    const response = await fetchApi("/plans", { method: "GET" });
+    const response = await plansPromise;
     if (response.ok) {
       plans = (await response.json()) as PublicPlan[];
     }
   } catch {
     plans = [];
   }
-  return { plans };
+  try {
+    const response = await clickPromise;
+    if (response?.ok) {
+      const body = (await response.json()) as { affiliate_click_id?: string };
+      affiliateClickID = body.affiliate_click_id ?? "";
+    }
+  } catch {
+    affiliateClickID = "";
+  }
+  return {
+    plans,
+    attribution: {
+      affiliateCode,
+      affiliateClickID,
+      affiliateVisitorID: affiliateCode ? affiliateVisitorID : "",
+    },
+  };
 }
 
 export async function action({ request }: Route.ActionArgs) { // eslint-disable-line complexity -- route action/loader with many conditional branches; refactor in follow-up
@@ -53,6 +90,11 @@ export async function action({ request }: Route.ActionArgs) { // eslint-disable-
     owner_phone_code: String(form.get("owner_phone_code") ?? "").trim(),
     whatsapp_number: String(form.get("whatsapp_number") ?? "").trim(),
     plan_code: String(form.get("plan_code") ?? "free"),
+    affiliate_code: String(form.get("affiliate_code") ?? "").trim(),
+    affiliate_click_id: String(form.get("affiliate_click_id") ?? "").trim(),
+    affiliate_visitor_id: String(
+      form.get("affiliate_visitor_id") ?? "",
+    ).trim(),
   };
 
   if (payload.owner_password.length < 8) {
@@ -146,6 +188,7 @@ export default function Register({
       plans={plans}
       isSubmitting={isSubmitting}
       result={result}
+      attribution={loaderData?.attribution}
     />
   );
 }

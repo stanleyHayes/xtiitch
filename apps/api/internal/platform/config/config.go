@@ -21,6 +21,7 @@ type Config struct {
 	// pesewas for GHS) charged for the AI Assistant paid add-on. Default GHS 50.00.
 	AIAssistantAddonPriceMinor int
 	BusinessDashboardBaseURL   string
+	AffiliatePortalBaseURL     string
 	CloudinaryURL              string
 	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
 	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
@@ -119,6 +120,7 @@ func Load() Config {
 		AnthropicQueryModel:        getenv("ANTHROPIC_QUERY_MODEL", "claude-haiku-4-5-20251001"),
 		AIAssistantAddonPriceMinor: getenvInt("AI_ASSISTANT_ADDON_PRICE_MINOR", 5000),
 		BusinessDashboardBaseURL:   getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
+		AffiliatePortalBaseURL:     getenv("AFFILIATE_PORTAL_BASE_URL", "http://localhost:3404"),
 		CloudinaryURL:              getenv("CLOUDINARY_URL", ""),
 		CORSAllowedOrigins: getenvList(
 			"CORS_ALLOWED_ORIGINS",

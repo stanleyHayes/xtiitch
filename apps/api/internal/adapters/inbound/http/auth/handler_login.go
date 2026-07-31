@@ -14,17 +14,20 @@ func (handler Handler) registerBusiness(w http.ResponseWriter, r *http.Request) 
 	}
 
 	result, err := handler.service.RegisterBusiness(r.Context(), authapp.RegisterBusinessCommand{
-		BusinessName:     request.BusinessName,
-		BusinessHandle:   request.BusinessHandle,
-		OwnerDisplayName: request.OwnerDisplayName,
-		OwnerEmail:       request.OwnerEmail,
-		OwnerPassword:    request.OwnerPassword,
-		PlanCode:         request.PlanCode,
-		OwnerPhone:       request.OwnerPhone,
-		WhatsAppNumber:   request.WhatsAppNumber,
-		OwnerPhoneCode:   request.OwnerPhoneCode,
-		UserAgent:        r.UserAgent(),
-		IPAddress:        requestIP(r),
+		BusinessName:       request.BusinessName,
+		BusinessHandle:     request.BusinessHandle,
+		OwnerDisplayName:   request.OwnerDisplayName,
+		OwnerEmail:         request.OwnerEmail,
+		OwnerPassword:      request.OwnerPassword,
+		PlanCode:           request.PlanCode,
+		OwnerPhone:         request.OwnerPhone,
+		WhatsAppNumber:     request.WhatsAppNumber,
+		OwnerPhoneCode:     request.OwnerPhoneCode,
+		AffiliateCode:      request.AffiliateCode,
+		AffiliateClickID:   request.AffiliateClickID,
+		AffiliateVisitorID: request.AffiliateVisitorID,
+		UserAgent:          r.UserAgent(),
+		IPAddress:          requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)

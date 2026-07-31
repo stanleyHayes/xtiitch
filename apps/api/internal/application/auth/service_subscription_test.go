@@ -11,6 +11,50 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+type fakePlanAffiliateAttribution struct {
+	reserved  ports.ReserveFirstPaidPlanAttributionInput
+	finalized ports.FinalizeFirstPaidPlanAttributionInput
+	voidedRef string
+}
+
+func (fake *fakePlanAffiliateAttribution) ReserveFirstPaidPlanAttribution(
+	_ context.Context,
+	input ports.ReserveFirstPaidPlanAttributionInput,
+) (ports.AffiliatePlanAttributionReservation, error) {
+	fake.reserved = input
+	return ports.AffiliatePlanAttributionReservation{
+		ReservationID: input.ReservationID,
+	}, nil
+}
+
+func (fake *fakePlanAffiliateAttribution) FinalizeFirstPaidPlanAttribution(
+	_ context.Context,
+	input ports.FinalizeFirstPaidPlanAttributionInput,
+) (ports.AffiliatePlanConversionRecord, error) {
+	fake.finalized = input
+	return ports.AffiliatePlanConversionRecord{
+		ConversionID: input.ConversionID,
+		Created:      true,
+	}, nil
+}
+
+func (fake *fakePlanAffiliateAttribution) VoidFirstPaidPlanAttribution(
+	_ context.Context,
+	_ common.ID,
+	paymentReference string,
+	_ string,
+) error {
+	fake.voidedRef = paymentReference
+	return nil
+}
+
+func (*fakePlanAffiliateAttribution) ApplyFirstPaidPlanProviderEvent(
+	context.Context,
+	ports.ApplyFirstPaidPlanProviderEventInput,
+) error {
+	return nil
+}
+
 // A free store activating a paid plan gets a Paystack checkout priced on the
 // target plan, but the plan itself is only PARKED as payment-pending at
 // initialize — never switched before Paystack verifies the payment, so an
@@ -368,6 +412,60 @@ func TestVerifySubscriptionAuthorizationChargesFirstPeriod(t *testing.T) {
 	}
 	if businesses.activationPayment.BillingCadence != "yearly" {
 		t.Fatalf("expected the activation payment to carry the yearly cadence, got %q", businesses.activationPayment.BillingCadence)
+	}
+}
+
+func TestSubscriptionFirstPaymentFinalizesAffiliateAttribution(t *testing.T) {
+	t.Parallel()
+
+	businesses := &fakeBusinessIdentityRepository{
+		subscription: ports.BusinessSubscriptionRecord{
+			SubscriptionID:   "sub-1",
+			BusinessID:       "business-1",
+			OwnerEmail:       "owner@example.com",
+			MonthlyFeeMinor:  9900,
+			Status:           "trialing",
+			BillingCadence:   "yearly",
+			YearlyFirstMinor: 89100,
+		},
+	}
+	payments := &fakeSubscriptionPayments{}
+	attribution := &fakePlanAffiliateAttribution{}
+	service := newSubscriptionTestService(businesses, payments)
+	service.planAffiliates = attribution
+	service.ids = &sequenceIDs{ids: []common.ID{"reservation-1", "conversion-1"}}
+
+	link, err := service.InitializeSubscriptionAuthorization(
+		context.Background(),
+		InitializeSubscriptionAuthorizationCommand{
+			Scope:          common.TenantScope{BusinessID: "business-1"},
+			CallbackURL:    "https://example.com/callback",
+			BillingCadence: "yearly",
+		},
+	)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+	if attribution.reserved.SubscriptionID != "sub-1" ||
+		attribution.reserved.PaymentReference != link.Reference ||
+		attribution.reserved.GrossMinor != 89100 {
+		t.Fatalf("unexpected paid-plan attribution reservation: %+v", attribution.reserved)
+	}
+
+	_, err = service.VerifySubscriptionAuthorization(
+		context.Background(),
+		VerifySubscriptionAuthorizationCommand{
+			Scope:     common.TenantScope{BusinessID: "business-1"},
+			Reference: link.Reference,
+		},
+	)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if attribution.finalized.SubscriptionID != "sub-1" ||
+		attribution.finalized.PaymentReference != link.Reference ||
+		attribution.finalized.ConversionID != "conversion-1" {
+		t.Fatalf("unexpected paid-plan conversion: %+v", attribution.finalized)
 	}
 }
 

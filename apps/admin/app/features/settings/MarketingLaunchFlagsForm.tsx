@@ -117,6 +117,13 @@ export function MarketingLaunchFlagsForm({
               defaultChecked={platformSettings.marketingFlags.pricing}
               disabled={!canManagePlatformSettings}
             />
+            <BooleanPreference
+              name="affiliate_signup"
+              label="Affiliate programme sign-up"
+              helper="Show “Affiliate programme” in the marketing menu and accept new applications. Off also closes the application page itself; affiliates who already have an account keep signing in and earning either way."
+              defaultChecked={platformSettings.marketingFlags.affiliateSignup}
+              disabled={!canManagePlatformSettings}
+            />
           </Box>
 
           <Button

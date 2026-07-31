@@ -456,6 +456,8 @@ func (f *fakePromotions) VoidPendingPromotionRedemptions(_ context.Context, _ co
 type fakeAffiliates struct {
 	reserveCalled bool
 	reserve       ports.ReserveAffiliateAttributionInput
+	signupCalled  bool
+	signup        ports.RecordAffiliateSignupInput
 	err           error
 }
 
@@ -481,6 +483,22 @@ func (f *fakeAffiliates) ReserveAffiliateAttribution(
 		OrderID:         input.OrderID,
 		GrossMinor:      input.GrossMinor,
 		CommissionMinor: 5000,
+	}, nil
+}
+
+func (f *fakeAffiliates) RecordAffiliateSignup(
+	_ context.Context,
+	input ports.RecordAffiliateSignupInput,
+) (ports.AffiliateSignupRecord, error) {
+	f.signupCalled = true
+	f.signup = input
+	if f.err != nil {
+		return ports.AffiliateSignupRecord{}, f.err
+	}
+	return ports.AffiliateSignupRecord{
+		SignupID:    input.SignupID,
+		AffiliateID: "affiliate-1",
+		SubjectType: input.SubjectType,
 	}, nil
 }
 

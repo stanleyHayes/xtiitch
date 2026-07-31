@@ -32,6 +32,7 @@ export function AdminTopBar({
   onSelect,
   onOpenHelp,
   launchEnabledCount,
+  launchTotalCount,
   onOpenLaunchControls,
 }: {
   admin: AdminSession;
@@ -45,6 +46,7 @@ export function AdminTopBar({
   onSelect: (section: Section) => void;
   onOpenHelp: () => void;
   launchEnabledCount: number;
+  launchTotalCount: number;
   onOpenLaunchControls: () => void;
 }) {
   return (
@@ -56,13 +58,8 @@ export function AdminTopBar({
         borderColor: darkChrome
           ? alpha(tokens.white, 0.12)
           : alpha(tokens.ink, 0.09),
-        bgcolor: darkChrome
-          ? alpha(tokens.charcoal, 0.94)
-          : alpha(tokens.white, 0.86),
         color: darkChrome ? tokens.white : tokens.ink,
-        backgroundImage: darkChrome
-          ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
-          : `linear-gradient(90deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.74))`,
+        bgcolor: darkChrome ? tokens.charcoal : "background.paper",
         position: "sticky",
         top: 0,
         zIndex: 3,
@@ -174,13 +171,13 @@ export function AdminTopBar({
           sx={{ alignItems: "center", flexShrink: 0 }}
         >
           <Tooltip
-            title={`Launch controls · ${launchEnabledCount}/4 links live`}
+            title={`Launch controls · ${launchEnabledCount}/${launchTotalCount} links live`}
           >
             <Button
               aria-label="Open launch controls"
               onClick={onOpenLaunchControls}
-              variant={launchEnabledCount === 4 ? "outlined" : "contained"}
-              color={launchEnabledCount === 4 ? "success" : "primary"}
+              variant={launchEnabledCount === launchTotalCount ? "outlined" : "contained"}
+              color={launchEnabledCount === launchTotalCount ? "success" : "primary"}
               startIcon={<RocketLaunchRounded />}
               sx={{
                 minWidth: { xs: 40, sm: "auto" },
@@ -194,7 +191,7 @@ export function AdminTopBar({
                 component="span"
                 sx={{ display: { xs: "none", sm: "inline" } }}
               >
-                Launch · {launchEnabledCount}/4
+                Launch · {launchEnabledCount}/{launchTotalCount}
               </Box>
             </Button>
           </Tooltip>

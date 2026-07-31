@@ -36,8 +36,6 @@ export default function Login(_props: Route.ComponentProps) { // eslint-disable-
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px)`,
-        backgroundSize: "34px 34px",
       }}
     >
       <Container
@@ -231,7 +229,13 @@ export default function Login(_props: Route.ComponentProps) { // eslint-disable-
                   },
                 },
               },
-              "& .MuiInputAdornment-root, & .MuiSvgIcon-root": {
+              // Scoped to input adornments on purpose. This used to also match
+              // a bare `& .MuiSvgIcon-root`, which caught every icon in the
+              // card — including the contained Sign in button's endIcon, whose
+              // label is white. The icon came out dim ink on burgundy while the
+              // text beside it stayed white. Adornment icons inherit this
+              // colour; buttons and chips keep their own.
+              "& .MuiInputAdornment-root": {
                 color: alpha(tokens.ink, 0.62),
               },
               "& input::placeholder": {

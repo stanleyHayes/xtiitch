@@ -12,7 +12,10 @@ type registerBusinessRequest struct {
 	OwnerPhone     string `json:"owner_phone"`
 	OwnerPhoneCode string `json:"owner_phone_code"`
 	// WhatsApp is chat-only and is stored unproven, so it carries no code.
-	WhatsAppNumber string `json:"whatsapp_number"`
+	WhatsAppNumber     string `json:"whatsapp_number"`
+	AffiliateCode      string `json:"affiliate_code"`
+	AffiliateClickID   string `json:"affiliate_click_id"`
+	AffiliateVisitorID string `json:"affiliate_visitor_id"`
 }
 
 type loginBusinessRequest struct {

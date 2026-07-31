@@ -5,13 +5,12 @@ import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import CloudUploadRounded from "@mui/icons-material/CloudUploadRounded";
 import TextField from "../../components/form-text-field";
 import type { Design } from "../../lib/api";
-import { tokens } from "../../theme";
 import { Panel } from "../../components/ui/Panel";
 import { ImageDropzone } from "../shared/ImageDropzone";
+import { DESIGN_IMAGE_SPEC } from "../../lib/image-specs";
 
 export function DesignImageUploadPanel({
   designs,
@@ -28,7 +27,7 @@ export function DesignImageUploadPanel({
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.07)}, transparent 50%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.74))`,
+        bgcolor: "background.paper",
       }}
     >
       <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
@@ -73,6 +72,7 @@ export function DesignImageUploadPanel({
           <ImageDropzone
             name="image_file"
             required
+            spec={DESIGN_IMAGE_SPEC}
             disabled={uploadableDesigns.length === 0}
             helper="JPG, PNG, or WebP. Becomes the first catalogue image."
           />

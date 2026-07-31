@@ -375,6 +375,15 @@ func (repo SubscriptionDiscountRepository) MarkRedemptionApplied(
 		update subscription_discount_redemptions
 		set status = 'applied',
 			discount_minor = $2,
+			invoice_id = coalesce(invoice_id, (
+				select invoice_id
+				from business_subscription_invoices invoice
+				where invoice.subscription_id =
+					subscription_discount_redemptions.subscription_id
+					and invoice.status = 'paid'
+				order by invoice.paid_at desc nulls last, invoice.created_at desc
+				limit 1
+			)),
 			applied_at = now(),
 			updated_at = now()
 		where redemption_id = $1 and status = 'pending'

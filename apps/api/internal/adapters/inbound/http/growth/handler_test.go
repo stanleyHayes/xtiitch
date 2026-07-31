@@ -101,6 +101,59 @@ func TestRecordAffiliateClickRejectsUnknownJSON(t *testing.T) {
 	}
 }
 
+func TestSubmitAffiliateApplicationReturnsPendingApplication(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeGrowthService{}
+	router := chi.NewRouter()
+	NewHandler(service).Register(router)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/public/affiliate-applications",
+		strings.NewReader(`{"applicant_type":"person","display_name":"Ama Creates",`+
+			`"contact_name":"Ama Mensah","email":"ama@example.com","phone":"+233200000000",`+
+			`"website_url":"https://example.com","requested_code":"AMACREATES",`+
+			`"audience_summary":"Fashion shoppers in Ghana","promotion_channels":["instagram"],"consent":true}`),
+	)
+	request.RemoteAddr = "198.51.100.10:4444"
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d body=%s", response.Code, response.Body.String())
+	}
+	if service.applicationCommand.Email != "ama@example.com" ||
+		service.applicationCommand.RequestedCode != "AMACREATES" ||
+		service.applicationCommand.IPAddress != "198.51.100.10" {
+		t.Fatalf("unexpected application command: %+v", service.applicationCommand)
+	}
+	if !strings.Contains(response.Body.String(), `"application_id":"application-1"`) ||
+		!strings.Contains(response.Body.String(), `"status":"pending_review"`) {
+		t.Fatalf("unexpected response: %s", response.Body.String())
+	}
+}
+
+func TestSubmitAffiliateApplicationMapsCodeConflict(t *testing.T) {
+	t.Parallel()
+
+	router := chi.NewRouter()
+	NewHandler(&fakeGrowthService{applicationErr: growthapp.ErrAffiliateCodeTaken}).Register(router)
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/public/affiliate-applications",
+		strings.NewReader(`{"consent":true}`),
+	)
+	response := httptest.NewRecorder()
+
+	router.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict ||
+		!strings.Contains(response.Body.String(), `"error":"affiliate_code_taken"`) {
+		t.Fatalf("expected code conflict, got %d body=%s", response.Code, response.Body.String())
+	}
+}
+
 func TestReferralCodeReturnsPublicRewardDetails(t *testing.T) {
 	t.Parallel()
 
@@ -219,13 +272,15 @@ func TestRecordSponsoredEventMapsMissingCampaign(t *testing.T) {
 }
 
 type fakeGrowthService struct {
-	command         growthapp.RecordAffiliateClickCommand
-	sponsoredEvent  growthapp.RecordSponsoredAdEventCommand
-	referralCommand growthapp.ResolveReferralCodeCommand
-	sponsoredLimit  int
-	err             error
-	sponsoredErr    error
-	referralErr     error
+	command            growthapp.RecordAffiliateClickCommand
+	applicationCommand growthapp.SubmitAffiliateApplicationCommand
+	sponsoredEvent     growthapp.RecordSponsoredAdEventCommand
+	referralCommand    growthapp.ResolveReferralCodeCommand
+	sponsoredLimit     int
+	err                error
+	applicationErr     error
+	sponsoredErr       error
+	referralErr        error
 }
 
 func (service *fakeGrowthService) RecordAffiliateClick(
@@ -241,6 +296,24 @@ func (service *fakeGrowthService) RecordAffiliateClick(
 		AffiliateID: "affiliate-1",
 		Code:        command.Code,
 		ClickedAt:   time.Date(2026, 6, 17, 12, 0, 0, 0, time.UTC),
+	}, nil
+}
+
+func (service *fakeGrowthService) SubmitAffiliateApplication(
+	_ context.Context,
+	command growthapp.SubmitAffiliateApplicationCommand,
+) (ports.AffiliateApplicationRecord, error) {
+	service.applicationCommand = command
+	if service.applicationErr != nil {
+		return ports.AffiliateApplicationRecord{}, service.applicationErr
+	}
+	return ports.AffiliateApplicationRecord{
+		ApplicationID: "application-1",
+		DisplayName:   command.DisplayName,
+		Email:         command.Email,
+		RequestedCode: command.RequestedCode,
+		Status:        "pending_review",
+		CreatedAt:     time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC),
 	}, nil
 }
 

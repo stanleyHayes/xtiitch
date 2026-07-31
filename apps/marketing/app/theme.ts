@@ -24,7 +24,8 @@ export const fontStylesheetHref = xtiitchFonts.googleFontsHref;
 const controlRadius = 8;
 const buttonRadius = 999;
 
-export function createAppTheme(mode: AppThemeMode = "light"): Theme { // eslint-disable-line max-lines-per-function -- large function with conditional branches; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large function with conditional branches; refactor in follow-up
+export function createAppTheme(mode: AppThemeMode = "light"): Theme {
   const colors = getXtiitchThemeColors(mode);
 
   return createTheme({
@@ -107,8 +108,6 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme { // eslint-
           body: {
             overflowX: "hidden",
             backgroundColor: colors.background,
-            background: `linear-gradient(90deg, ${colors.gridLine} 1px, transparent 1px), linear-gradient(180deg, ${colors.gridLine} 1px, transparent 1px)`,
-            backgroundSize: "34px 34px",
             color: colors.text,
             textRendering: "optimizeLegibility",
             WebkitFontSmoothing: "antialiased",
@@ -131,6 +130,10 @@ export function createAppTheme(mode: AppThemeMode = "light"): Theme { // eslint-
           "@keyframes xtiitch-thread-drift": {
             "0%": { backgroundPosition: "0 0, 0 0, 0 0" },
             "100%": { backgroundPosition: "42px 0, 0 42px, 14px 14px" },
+          },
+          "@keyframes xtiitch-perspective-drift": {
+            "0%": { backgroundPosition: "0 0, 0 0, center" },
+            "100%": { backgroundPosition: "0 56px, 56px 0, center" },
           },
           "@keyframes xtiitch-hero-zoom": {
             "0%": { transform: "scale(1.035)" },

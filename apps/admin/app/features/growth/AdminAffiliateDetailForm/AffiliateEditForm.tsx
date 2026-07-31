@@ -124,6 +124,24 @@ export function AffiliateEditForm({ // eslint-disable-line max-lines-per-functio
             slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
           />
           <TextField
+            label="Purchase commission (%)"
+            name="purchase_commission_value"
+            type="number"
+            size="small"
+            defaultValue={affiliate.purchaseCommissionBps / 100}
+            disabled={archived}
+            slotProps={{ htmlInput: { min: 0, max: 100, step: "0.01" } }}
+          />
+          <TextField
+            label="First paid-plan commission (%)"
+            name="paid_plan_commission_value"
+            type="number"
+            size="small"
+            defaultValue={affiliate.firstPaidPlanCommissionBps / 100}
+            disabled={archived}
+            slotProps={{ htmlInput: { min: 0, max: 100, step: "0.01" } }}
+          />
+          <TextField
             label="Cookie window"
             name="cookie_window_days"
             type="number"

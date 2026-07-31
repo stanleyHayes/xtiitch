@@ -24,6 +24,14 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
   intent: string;
   form: FormData;
 }): Promise<AdminActionFeedback | null> {
+  if (intent === "admin-affiliate-programme:update") {
+    return handleAffiliateProgrammeUpdate(request, form);
+  }
+
+  if (intent === "admin-affiliate-application:decide") {
+    return handleAffiliateApplicationDecision(request, form);
+  }
+
   if (
     intent === "admin-affiliate:create" ||
     intent === "admin-affiliate:update" ||
@@ -59,6 +67,14 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
         commissionRate: readAffiliateCommissionValue(
           form.get("commission_model"),
           form.get("commission_value"),
+        ),
+        purchaseCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("purchase_commission_value"),
+        ),
+        firstPaidPlanCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("paid_plan_commission_value"),
         ),
         cookieWindowDays: readInt(form.get("cookie_window_days"), 30),
         payoutMode: readAffiliatePayoutMode(form.get("payout_mode")),
@@ -149,4 +165,99 @@ export async function handleAffiliatesAction({ // eslint-disable-line complexity
   }
 
   return null;
+}
+
+async function handleAffiliateProgrammeUpdate(
+  request: Request,
+  form: FormData,
+): Promise<AdminActionFeedback> {
+  const { accessToken } = await requireAdminContext(request);
+  try {
+    await adminApi.updateAffiliateProgramme(
+      accessToken,
+      String(form.get("affiliate_programme_id") ?? ""),
+      {
+        name: String(form.get("name") ?? ""),
+        description: String(form.get("description") ?? ""),
+        status: String(form.get("status") ?? "active") as
+          | "draft"
+          | "active"
+          | "paused"
+          | "archived",
+        defaultPurchaseCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("purchase_commission_value"),
+        ),
+        defaultFirstPaidPlanCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("paid_plan_commission_value"),
+        ),
+        cookieWindowDays: readInt(form.get("cookie_window_days"), 30),
+        holdDays: readInt(form.get("hold_days"), 14),
+        payoutMode: readAffiliatePayoutMode(form.get("payout_mode")),
+        minimumPayoutMinor: Math.round(
+          Number(form.get("minimum_payout_value") ?? 0) * 100,
+        ),
+        allowedTargetScope: String(
+          form.get("allowed_target_scope") ?? "platform",
+        ) as "platform" | "store" | "collection" | "design" | "product",
+      },
+    );
+    return {
+      section: "affiliates",
+      severity: "success",
+      message: "Affiliate programme policy updated.",
+    };
+  } catch (error) {
+    return {
+      section: "affiliates",
+      severity: "error",
+      message: adminAffiliateActionError(error),
+    };
+  }
+}
+
+async function handleAffiliateApplicationDecision(
+  request: Request,
+  form: FormData,
+): Promise<AdminActionFeedback> {
+  const { accessToken } = await requireAdminContext(request);
+  const decision =
+    String(form.get("decision") ?? "") === "approved"
+      ? "approved"
+      : "rejected";
+  try {
+    await adminApi.decideAffiliateApplication(
+      accessToken,
+      String(form.get("application_id") ?? ""),
+      {
+        decision,
+        reviewNote: String(form.get("review_note") ?? ""),
+        purchaseCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("purchase_commission_value"),
+        ),
+        firstPaidPlanCommissionBps: readAffiliateCommissionValue(
+          "percentage",
+          form.get("paid_plan_commission_value"),
+        ),
+        cookieWindowDays: readInt(form.get("cookie_window_days"), 30),
+        payoutMode: readAffiliatePayoutMode(form.get("payout_mode")),
+      },
+    );
+    return {
+      section: "affiliates",
+      severity: "success",
+      message:
+        decision === "approved"
+          ? "Affiliate application approved and dashboard invite created."
+          : "Affiliate application rejected.",
+    };
+  } catch (error) {
+    return {
+      section: "affiliates",
+      severity: "error",
+      message: adminAffiliateActionError(error),
+    };
+  }
 }

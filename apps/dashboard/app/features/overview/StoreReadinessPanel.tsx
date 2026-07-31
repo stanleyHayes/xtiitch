@@ -37,7 +37,7 @@ export function StoreReadinessPanel({ // eslint-disable-line max-lines-per-funct
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.info, 0.075)}, transparent 48%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.74))`,
+        bgcolor: "background.paper",
       }}
     >
       <Stack

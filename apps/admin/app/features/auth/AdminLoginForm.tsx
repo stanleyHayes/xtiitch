@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Form, useNavigation } from "react-router";
+import { getXtiitchThemeColors } from "@xtiitch/design-tokens";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -22,7 +23,7 @@ export default function AdminLoginForm({ actionData }: { actionData?: { error?: 
   const submitting = navigation.state === "submitting";
   const [showPassword, setShowPassword] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
-  return <Box sx={{ position: "relative", display: "grid", placeItems: "center", p: { xs: 3, sm: 5, xl: 8 }, bgcolor: tokens.panel }}>
+  return <Box sx={{ position: "relative", display: "grid", placeItems: "center", p: { xs: 3, sm: 5, xl: 8 }, bgcolor: (theme) => getXtiitchThemeColors(theme.palette.mode).panel }}>
     <Box sx={{ width: "100%", maxWidth: 500 }}>
       <Stack direction="row" spacing={1.25} sx={{ display: { xs: "flex", lg: "none" }, alignItems: "center", mb: 6 }}><Box component="img" src="/favicon.svg" alt="Xtiitch" sx={{ width: 44, height: 44, borderRadius: 1.5 }} /><Box><Typography variant="h6" sx={{ lineHeight: 1 }}>Xtiitch</Typography><Typography variant="caption" sx={{ color: "text.secondary", fontWeight: 900 }}>OPERATIONS</Typography></Box></Stack>
       <Box sx={{ width: 48, height: 48, borderRadius: 2, display: "grid", placeItems: "center", bgcolor: alpha(tokens.burgundy, .09), color: tokens.burgundy, mb: 2.5 }}><ShieldRounded /></Box>

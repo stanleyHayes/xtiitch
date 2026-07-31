@@ -29,13 +29,6 @@ export function InlineEmptyState({
           theme.palette.mode === "dark"
             ? alpha(tokens.white, 0.035)
             : "rgba(var(--surface-rgb), 0.7)",
-        backgroundImage: (theme) => {
-          const tone = alpha(
-            theme.palette.primary.main,
-            theme.palette.mode === "dark" ? 0.12 : 0.045,
-          );
-          return `linear-gradient(135deg, ${tone}, transparent 48%)`;
-        },
       }}
     >
       <Box

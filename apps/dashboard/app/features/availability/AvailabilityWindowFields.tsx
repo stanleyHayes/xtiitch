@@ -27,10 +27,6 @@ export function AvailabilityWindowFields({ window }: { window?: AvailabilityWind
           theme.palette.mode === "dark"
             ? alpha(tokens.white, 0.045)
             : alpha(tokens.panel, 0.5),
-        backgroundImage: (theme) =>
-          theme.palette.mode === "dark"
-            ? `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.12)}, transparent 46%)`
-            : "none",
         boxShadow: (theme) =>
           theme.palette.mode === "dark"
             ? `inset 0 1px 0 ${alpha(tokens.white, 0.06)}`

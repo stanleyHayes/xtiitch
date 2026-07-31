@@ -105,11 +105,7 @@ export function SubscriptionList({ // eslint-disable-line max-lines-per-function
                     border: "1px solid",
                     borderColor: alpha(color, 0.18),
                     borderRadius: 2,
-                    bgcolor: "rgba(var(--surface-rgb), 0.82)",
-                    backgroundImage: `
-                      linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 34%),
-                      linear-gradient(180deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.62))
-                    `,
+                    bgcolor: alpha(color, 0.025),
                     boxShadow: `0 16px 40px ${alpha(tokens.ink, 0.045)}`,
                   }}
                 >

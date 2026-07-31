@@ -22,10 +22,16 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   plans,
   isSubmitting,
   result,
+  attribution,
 }: {
   plans: { code: string; name: string; monthly_fee_minor: number; commission_bps: number; design_limit?: number | null }[];
   isSubmitting: boolean;
   result: { error?: string };
+  attribution?: {
+    affiliateCode: string;
+    affiliateClickID: string;
+    affiliateVisitorID: string;
+  };
 }) {
   const branding = useRouteLoaderData("root") as
     | { brandLogoUrl?: string }
@@ -43,6 +49,15 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   const [showPassword, setShowPassword] = useState(false);
   const [whatsappNumber, setWhatsappNumber] = useState("");
   const [selectedPlan, setSelectedPlan] = useState("");
+  // Seeded from ?affiliate_code= when the visitor arrived on an affiliate link,
+  // but editable: a code passed on verbally, or a link shared through an app
+  // that strips query strings, previously had nowhere to go — the field was
+  // hidden, so that referral was silently lost and the affiliate never credited.
+  // Attribution needs only the code; the click id is optional server-side.
+  const [affiliateCode, setAffiliateCode] = useState(
+    attribution?.affiliateCode ?? "",
+  );
+  const affiliateCodeFromLink = Boolean(attribution?.affiliateCode);
 
   const handleOk = /^[a-z0-9-]{2,}$/.test(handle.trim().toLowerCase());
   const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -130,8 +145,6 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px)`,
-        backgroundSize: "34px 34px",
       }}
     >
       <Container
@@ -178,7 +191,9 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
                 },
               },
             },
-            "& .MuiInputAdornment-root, & .MuiSvgIcon-root": {
+            // Adornments only — a bare `& .MuiSvgIcon-root` here also dimmed
+            // the Back/Continue button icons against their own label colour.
+            "& .MuiInputAdornment-root": {
               color: alpha(tokens.ink, 0.62),
             },
           }}
@@ -267,6 +282,17 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
             <input type="hidden" name="owner_password" value={password} />
             <input type="hidden" name="owner_phone" value={ownerPhone} />
             <input type="hidden" name="whatsapp_number" value={whatsappNumber} />
+            <input type="hidden" name="affiliate_code" value={affiliateCode} />
+            <input
+              type="hidden"
+              name="affiliate_click_id"
+              value={attribution?.affiliateClickID ?? ""}
+            />
+            <input
+              type="hidden"
+              name="affiliate_visitor_id"
+              value={attribution?.affiliateVisitorID ?? ""}
+            />
             {/* Kept for backward compatibility: the API accepts a verified
                 phone with or without the code, and an unverified one with it. */}
             <input
@@ -317,6 +343,9 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
                 plans={plans}
                 selectedPlan={selectedPlan}
                 onSelectPlan={setSelectedPlan}
+                affiliateCode={affiliateCode}
+                affiliateCodeFromLink={affiliateCodeFromLink}
+                onAffiliateCodeChange={setAffiliateCode}
               />
             ) : null}
 

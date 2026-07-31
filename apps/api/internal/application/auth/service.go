@@ -9,21 +9,23 @@ import (
 )
 
 type Service struct {
-	businesses    ports.BusinessIdentityRepository
-	payments      ports.PaymentProvider
-	sessions      ports.AuthSessionRepository
-	passwords     ports.PasswordHasher
-	accessTokens  ports.TokenIssuer
-	refreshTokens ports.RefreshTokenIssuer
-	emails        ports.EmailSender
-	resets        ports.PasswordResetRepository
-	dashboardURL  string
-	ids           ports.IDGenerator
-	clock         ports.Clock
-	mfa           ports.MFARepository
-	mfaSecrets    ports.MFASecrets
-	mfaChallenges ports.MFAChallengeIssuer
-	mfaVerifier   ports.MFAChallengeVerifier
+	businesses       ports.BusinessIdentityRepository
+	payments         ports.PaymentProvider
+	sessions         ports.AuthSessionRepository
+	passwords        ports.PasswordHasher
+	accessTokens     ports.TokenIssuer
+	refreshTokens    ports.RefreshTokenIssuer
+	emails           ports.EmailSender
+	resets           ports.PasswordResetRepository
+	affiliateSignups ports.AffiliateSignupRepository
+	planAffiliates   ports.SubscriptionAffiliateAttributionRepository
+	dashboardURL     string
+	ids              ports.IDGenerator
+	clock            ports.Clock
+	mfa              ports.MFARepository
+	mfaSecrets       ports.MFASecrets
+	mfaChallenges    ports.MFAChallengeIssuer
+	mfaVerifier      ports.MFAChallengeVerifier
 	// WhatsApp one-time-code sign-in is optional (like MFA): when any is nil the
 	// WhatsApp auth endpoints are disabled and password login is unaffected.
 	whatsAppAuth ports.BusinessWhatsAppAuthRepository
@@ -46,17 +48,19 @@ type Service struct {
 }
 
 type Dependencies struct {
-	Businesses    ports.BusinessIdentityRepository
-	Payments      ports.PaymentProvider
-	Sessions      ports.AuthSessionRepository
-	Passwords     ports.PasswordHasher
-	AccessTokens  ports.TokenIssuer
-	RefreshTokens ports.RefreshTokenIssuer
-	Emails        ports.EmailSender
-	Resets        ports.PasswordResetRepository
-	DashboardURL  string
-	IDs           ports.IDGenerator
-	Clock         ports.Clock
+	Businesses       ports.BusinessIdentityRepository
+	Payments         ports.PaymentProvider
+	Sessions         ports.AuthSessionRepository
+	Passwords        ports.PasswordHasher
+	AccessTokens     ports.TokenIssuer
+	RefreshTokens    ports.RefreshTokenIssuer
+	Emails           ports.EmailSender
+	Resets           ports.PasswordResetRepository
+	AffiliateSignups ports.AffiliateSignupRepository
+	PlanAffiliates   ports.SubscriptionAffiliateAttributionRepository
+	DashboardURL     string
+	IDs              ports.IDGenerator
+	Clock            ports.Clock
 	// MFA dependencies are optional: when any is nil, MFA enrolment/verification
 	// is disabled and login always issues a session directly.
 	MFA           ports.MFARepository
@@ -88,29 +92,31 @@ func NewService(deps Dependencies) Service {
 		logger = slog.Default()
 	}
 	return Service{
-		businesses:    deps.Businesses,
-		payments:      deps.Payments,
-		sessions:      deps.Sessions,
-		passwords:     deps.Passwords,
-		accessTokens:  deps.AccessTokens,
-		refreshTokens: deps.RefreshTokens,
-		emails:        deps.Emails,
-		resets:        deps.Resets,
-		dashboardURL:  strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
-		ids:           deps.IDs,
-		clock:         deps.Clock,
-		mfa:           deps.MFA,
-		mfaSecrets:    deps.MFASecrets,
-		mfaChallenges: deps.MFAChallenges,
-		mfaVerifier:   deps.MFAVerifier,
-		whatsAppAuth:  deps.WhatsAppAuth,
-		otpGen:        deps.OTPGen,
-		whatsAppOTP:   deps.WhatsAppOTP,
-		discounts:     deps.Discounts,
-		vatRates:      deps.VATRates,
-		vatRateBps:    deps.VATRateBps,
-		vatInclusive:  deps.VATInclusive,
-		logger:        logger,
+		businesses:       deps.Businesses,
+		payments:         deps.Payments,
+		sessions:         deps.Sessions,
+		passwords:        deps.Passwords,
+		accessTokens:     deps.AccessTokens,
+		refreshTokens:    deps.RefreshTokens,
+		emails:           deps.Emails,
+		resets:           deps.Resets,
+		affiliateSignups: deps.AffiliateSignups,
+		planAffiliates:   deps.PlanAffiliates,
+		dashboardURL:     strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
+		ids:              deps.IDs,
+		clock:            deps.Clock,
+		mfa:              deps.MFA,
+		mfaSecrets:       deps.MFASecrets,
+		mfaChallenges:    deps.MFAChallenges,
+		mfaVerifier:      deps.MFAVerifier,
+		whatsAppAuth:     deps.WhatsAppAuth,
+		otpGen:           deps.OTPGen,
+		whatsAppOTP:      deps.WhatsAppOTP,
+		discounts:        deps.Discounts,
+		vatRates:         deps.VATRates,
+		vatRateBps:       deps.VATRateBps,
+		vatInclusive:     deps.VATInclusive,
+		logger:           logger,
 	}
 }
 

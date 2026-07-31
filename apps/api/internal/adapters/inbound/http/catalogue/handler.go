@@ -86,6 +86,15 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Post("/promotions", handler.createPromotion)
 		protected.Patch("/promotions/{id}", handler.updatePromotion)
 		protected.Post("/promotions/{id}/archive", handler.archivePromotion)
+
+		protected.Get("/business/affiliate-programmes", handler.listAffiliateProgrammes)
+		protected.Post("/business/affiliate-programmes", handler.createAffiliateProgramme)
+		protected.Patch("/business/affiliate-programmes/{id}", handler.updateAffiliateProgramme)
+		protected.Get("/business/affiliates", handler.listBusinessAffiliates)
+		protected.Post("/business/affiliates", handler.createBusinessAffiliate)
+		protected.Patch("/business/affiliates/{id}", handler.updateBusinessAffiliate)
+		protected.Post("/business/affiliates/{id}/pause", handler.pauseBusinessAffiliate)
+		protected.Get("/business/affiliate-attribution", handler.businessAffiliateAttribution)
 	})
 }
 

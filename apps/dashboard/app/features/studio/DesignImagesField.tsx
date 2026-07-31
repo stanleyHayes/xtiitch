@@ -12,6 +12,7 @@ import AddRounded from "@mui/icons-material/AddRounded";
 import DeleteOutlineRounded from "@mui/icons-material/DeleteOutlineRounded";
 import { useImageUploadField } from "../../lib/use-image-upload-field";
 import { MAX_UPLOAD_BUDGET_MB } from "../../lib/upload-limits";
+import { DESIGN_IMAGE_SPEC, specSummary } from "../../lib/image-specs";
 
 // The line under the "Add images" button: a skeleton while photos are being
 // resized, then either what went wrong or the size ceiling. The ceiling is
@@ -50,7 +51,7 @@ function UploadStatus({
         }}
       >
         {error ??
-          `Up to ${MAX_UPLOAD_BUDGET_MB} MB per upload in total — large photos are optimised automatically.`}
+          `${specSummary(DESIGN_IMAGE_SPEC)} · up to ${MAX_UPLOAD_BUDGET_MB} MB per upload in total — large photos are optimised automatically.`}
       </Typography>
     </>
   );

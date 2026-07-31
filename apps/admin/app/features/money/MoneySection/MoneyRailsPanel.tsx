@@ -80,10 +80,6 @@ export function MoneyRailsPanel({
                 textAlign: "left",
                 font: "inherit",
                 cursor: "pointer",
-                backgroundImage: `linear-gradient(90deg, ${alpha(
-                  replayed ? tokens.info : webhookColor(event.status),
-                  0.075,
-                )}, transparent 36%)`,
                 transition: "transform 180ms ease, border-color 180ms ease",
                 "&:hover": {
                   transform: "translateX(3px)",

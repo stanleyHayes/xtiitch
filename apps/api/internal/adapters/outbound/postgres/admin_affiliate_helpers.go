@@ -13,8 +13,15 @@ import (
 
 func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 	var record ports.AdminAffiliateRecord
+	var ownerBusinessID pgtype.Text
+	var targetRefID pgtype.Text
 	if err := row.Scan(
 		&record.AffiliateID,
+		&record.AffiliateProgrammeID,
+		&record.ProgrammeName,
+		&record.OwnerType,
+		&ownerBusinessID,
+		&record.OwnerBusinessName,
 		&record.EntityType,
 		&record.Code,
 		&record.DisplayName,
@@ -24,15 +31,27 @@ func scanAdminAffiliateRecord(row pgx.Row) (ports.AdminAffiliateRecord, error) {
 		&record.WebsiteURL,
 		&record.CommissionModel,
 		&record.CommissionRate,
+		&record.PurchaseCommissionBPS,
+		&record.FirstPaidPlanCommissionBPS,
 		&record.CookieWindowDays,
 		&record.PayoutMode,
 		&record.PayoutReference,
 		&record.Status,
 		&record.Notes,
+		&record.TargetScope,
+		&targetRefID,
 		&record.CreatedAt,
 		&record.UpdatedAt,
 	); err != nil {
 		return ports.AdminAffiliateRecord{}, err
+	}
+	if ownerBusinessID.Valid {
+		value := common.ID(ownerBusinessID.String)
+		record.OwnerBusinessID = &value
+	}
+	if targetRefID.Valid {
+		value := common.ID(targetRefID.String)
+		record.TargetRefID = &value
 	}
 	return record, nil
 }
@@ -56,7 +75,10 @@ func listAdminAffiliateConversions(
 			r.affiliate_id::text,
 			r.business_id::text,
 			coalesce(b.name, '') as business_name,
-			r.order_id::text,
+			r.conversion_type,
+			coalesce(r.order_id::text, ''),
+			coalesce(r.subscription_id::text, ''),
+			r.payment_reference,
 			r.gross_minor,
 			r.commission_minor,
 			r.status,
@@ -83,7 +105,10 @@ func listAdminAffiliateConversions(
 			&record.AffiliateID,
 			&record.BusinessID,
 			&record.BusinessName,
+			&record.ConversionType,
 			&record.OrderID,
+			&record.SubscriptionID,
+			&record.PaymentReference,
 			&record.GrossMinor,
 			&record.CommissionMinor,
 			&record.Status,
@@ -167,7 +192,10 @@ func queryAdminAffiliateConversion(
 			ac.affiliate_id::text,
 			ac.business_id::text,
 			coalesce(b.name, '') as business_name,
-			ac.order_id::text,
+			ac.conversion_type,
+			coalesce(ac.order_id::text, ''),
+			coalesce(ac.subscription_id::text, ''),
+			ac.payment_reference,
 			ac.gross_minor,
 			ac.commission_minor,
 			ac.status,
@@ -189,7 +217,10 @@ func scanAdminAffiliateConversionRecord(row pgx.Row) (ports.AdminAffiliateConver
 		&record.AffiliateID,
 		&record.BusinessID,
 		&record.BusinessName,
+		&record.ConversionType,
 		&record.OrderID,
+		&record.SubscriptionID,
+		&record.PaymentReference,
 		&record.GrossMinor,
 		&record.CommissionMinor,
 		&record.Status,
@@ -253,6 +284,11 @@ func adminAffiliateSelect(source string) string {
 	return `
 		select
 			a.affiliate_id::text,
+			a.affiliate_programme_id::text,
+			ap.name,
+			ap.owner_type,
+			a.owner_business_id::text,
+			coalesce(owner_business.name, ''),
 			a.entity_type,
 			a.code,
 			a.display_name,
@@ -262,18 +298,36 @@ func adminAffiliateSelect(source string) string {
 			a.website_url,
 			a.commission_model,
 			a.commission_rate::bigint,
+			a.purchase_commission_bps::int,
+			a.first_paid_plan_commission_bps::int,
 			a.cookie_window_days::int,
 			a.payout_mode,
 			a.payout_reference,
 			a.status,
 			a.notes,
+			a.target_scope,
+			a.target_ref_id::text,
 			a.created_at,
 			a.updated_at
 		from ` + source + ` a
+		join affiliate_programmes ap
+			on ap.affiliate_programme_id = a.affiliate_programme_id
+		left join businesses owner_business
+			on owner_business.business_id = a.owner_business_id
 	`
 }
 
 func affiliateCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "affiliates_code_unique_idx"
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		(pgErr.ConstraintName == "affiliates_code_unique_idx" ||
+			pgErr.ConstraintName == "growth_codes_pkey")
+}
+
+func affiliateAccountEmailTaken(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		pgErr.ConstraintName == "affiliate_accounts_email_unique_idx"
 }

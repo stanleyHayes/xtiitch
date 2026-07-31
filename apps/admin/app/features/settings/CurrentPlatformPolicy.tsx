@@ -19,10 +19,7 @@ export function CurrentPlatformPolicy({
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.info, 0.16),
-        backgroundImage: `
-          linear-gradient(135deg, ${alpha(tokens.info, 0.08)}, transparent 38%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack spacing={2}>

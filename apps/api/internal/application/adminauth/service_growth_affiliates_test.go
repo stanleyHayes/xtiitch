@@ -329,6 +329,63 @@ func (repo *fakeAdminBusinesses) ListAdminAffiliates(context.Context) ([]ports.A
 	)}, nil
 }
 
+func (repo *fakeAdminBusinesses) ListAdminAffiliateProgrammes(
+	context.Context,
+) ([]ports.AdminAffiliateProgrammeRecord, error) {
+	return nil, nil
+}
+
+func (repo *fakeAdminBusinesses) CreateAdminAffiliateProgramme(
+	_ context.Context,
+	input ports.CreateAdminAffiliateProgrammeInput,
+) (ports.AdminAffiliateProgrammeRecord, error) {
+	return ports.AdminAffiliateProgrammeRecord{
+		AffiliateProgrammeID: input.AffiliateProgrammeID,
+		Name:                 input.Name,
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) UpdateAdminAffiliateProgramme(
+	_ context.Context,
+	input ports.UpdateAdminAffiliateProgrammeInput,
+) (ports.AdminAffiliateProgrammeRecord, error) {
+	return ports.AdminAffiliateProgrammeRecord{
+		AffiliateProgrammeID: input.AffiliateProgrammeID,
+		Name:                 input.Name,
+	}, nil
+}
+
+func (repo *fakeAdminBusinesses) ListAdminAffiliateApplications(
+	context.Context,
+) ([]ports.AdminAffiliateApplicationRecord, error) {
+	return repo.affiliateApplications, nil
+}
+
+func (repo *fakeAdminBusinesses) DecideAdminAffiliateApplication(
+	_ context.Context,
+	input ports.DecideAdminAffiliateApplicationInput,
+) (ports.AdminAffiliateApplicationRecord, error) {
+	repo.decidedAffiliateApplication = input
+	now := time.Now()
+	record := ports.AdminAffiliateApplicationRecord{
+		ApplicationID: input.ApplicationID,
+		ApplicantType: "person",
+		DisplayName:   "Ama Creates",
+		ContactName:   "Ama Mensah",
+		Email:         "ama@example.com",
+		RequestedCode: "AMACREATES",
+		Status:        input.Decision,
+		ReviewNote:    input.ReviewNote,
+		ReviewedAt:    &now,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if input.Decision == "approved" {
+		record.AffiliateID = &input.AffiliateID
+	}
+	return record, nil
+}
+
 func (repo *fakeAdminBusinesses) ListAdminAffiliateAttribution(context.Context) ([]ports.AdminAffiliateAttributionRecord, error) {
 	if repo.affiliateAttribution != nil {
 		return repo.affiliateAttribution, nil

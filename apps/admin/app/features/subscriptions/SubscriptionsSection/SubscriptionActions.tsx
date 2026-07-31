@@ -27,10 +27,7 @@ export function SubscriptionActions({
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.success, 0.2),
-        backgroundImage: `
-          radial-gradient(circle at 96% 6%, ${alpha(tokens.success, 0.12)}, transparent 30%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack spacing={2}>

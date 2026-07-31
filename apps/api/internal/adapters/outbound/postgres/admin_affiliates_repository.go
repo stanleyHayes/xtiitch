@@ -376,6 +376,8 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 				website_url,
 				commission_model,
 				commission_rate,
+				purchase_commission_bps,
+				first_paid_plan_commission_bps,
 				cookie_window_days,
 				payout_mode,
 				payout_reference,
@@ -400,8 +402,10 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 				$13,
 				$14,
 				$15,
-				$16::uuid,
-				$16::uuid
+				$16,
+				$17,
+				$18::uuid,
+				$18::uuid
 			)
 			returning *
 		)
@@ -416,6 +420,8 @@ func (repo AdminAuthRepository) CreateAdminAffiliate(
 		input.WebsiteURL,
 		input.CommissionModel,
 		input.CommissionRate,
+		input.PurchaseCommissionBPS,
+		input.FirstPaidPlanCommissionBPS,
 		input.CookieWindowDays,
 		input.PayoutMode,
 		input.PayoutReference,
@@ -463,12 +469,14 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 				website_url = $8,
 				commission_model = $9,
 				commission_rate = $10,
-				cookie_window_days = $11,
-				payout_mode = $12,
-				payout_reference = $13,
-				status = $14,
-				notes = $15,
-				updated_by_admin_user_id = $16::uuid,
+				purchase_commission_bps = $11,
+				first_paid_plan_commission_bps = $12,
+				cookie_window_days = $13,
+				payout_mode = $14,
+				payout_reference = $15,
+				status = $16,
+				notes = $17,
+				updated_by_admin_user_id = $18::uuid,
 				updated_at = now()
 			where affiliate_id = $1::uuid
 				and status <> 'archived'
@@ -485,6 +493,8 @@ func (repo AdminAuthRepository) UpdateAdminAffiliate(
 		input.WebsiteURL,
 		input.CommissionModel,
 		input.CommissionRate,
+		input.PurchaseCommissionBPS,
+		input.FirstPaidPlanCommissionBPS,
 		input.CookieWindowDays,
 		input.PayoutMode,
 		input.PayoutReference,

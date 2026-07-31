@@ -17,6 +17,7 @@ import type {
   AdminRoleDefinition,
 } from "../shared/types";
 import { MarketingLaunchFlagsForm } from "./MarketingLaunchFlagsForm";
+import { MARKETING_FLAG_FIELDS } from "./marketingFlagFields";
 
 export function LaunchControlDialog({
   open,
@@ -34,6 +35,9 @@ export function LaunchControlDialog({
   const enabledCount = Object.values(platformSettings.marketingFlags).filter(
     Boolean,
   ).length;
+  // Derived from the flags themselves — a hardcoded 4 here read "5/4" the
+  // moment a fifth flag existed.
+  const totalCount = Object.keys(platformSettings.marketingFlags).length;
   const roleDefinition = roles.find((role) => role.role === admin.adminRole);
   const canManage =
     roleDefinition?.permissions.includes("manage_settings") ??
@@ -63,8 +67,8 @@ export function LaunchControlDialog({
               <Typography variant="h5">Launch controls</Typography>
               <Chip
                 size="small"
-                color={enabledCount === 4 ? "success" : "warning"}
-                label={`${enabledCount}/4 links live`}
+                color={enabledCount === totalCount ? "success" : "warning"}
+                label={`${enabledCount}/${totalCount} links live`}
               />
             </Stack>
             <Typography
@@ -94,16 +98,20 @@ export function LaunchControlDialog({
                 name="intent"
                 value="admin-marketing-flags:update"
               />
-              {(
-                ["browse_store", "discover", "create_store", "pricing"] as const
-              ).map((name) => (
-                <input key={name} type="hidden" name={name} value="on" />
+              {/* Two bugs lived here. The list was hardcoded to the original
+                  four, so "enable all" silently switched the affiliate flag
+                  OFF; and the value was "on", while readBoolean matches the
+                  string "true" — so this button actually cleared every flag
+                  instead of setting it. Driving it off the live flag object
+                  keeps it correct as flags are added. */}
+              {MARKETING_FLAG_FIELDS.map((name) => (
+                <input key={name} type="hidden" name={name} value="true" />
               ))}
               <Button
                 type="submit"
                 variant="contained"
                 startIcon={<RocketLaunchRounded />}
-                disabled={!canManage || enabledCount === 4}
+                disabled={!canManage || enabledCount === totalCount}
               >
                 Enable all public links
               </Button>

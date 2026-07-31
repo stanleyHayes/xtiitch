@@ -131,11 +131,32 @@ type Service interface {
 		ctx context.Context,
 		command adminauthapp.CollectAdCampaignPaymentCommand,
 	) (adminauthapp.AdCampaignPaymentResult, error)
+	ListAffiliateApplications(
+		ctx context.Context,
+		command adminauthapp.ListAffiliateApplicationsCommand,
+	) ([]ports.AdminAffiliateApplicationRecord, error)
+	DecideAffiliateApplication(
+		ctx context.Context,
+		command adminauthapp.DecideAffiliateApplicationCommand,
+	) (ports.AdminAffiliateApplicationRecord, error)
+	ListAffiliateProgrammes(
+		ctx context.Context,
+		command adminauthapp.ListAffiliateProgrammesCommand,
+	) ([]ports.AdminAffiliateProgrammeRecord, error)
+	CreateAffiliateProgramme(
+		ctx context.Context,
+		command adminauthapp.CreateAffiliateProgrammeCommand,
+	) (ports.AdminAffiliateProgrammeRecord, error)
+	UpdateAffiliateProgramme(
+		ctx context.Context,
+		command adminauthapp.UpdateAffiliateProgrammeCommand,
+	) (ports.AdminAffiliateProgrammeRecord, error)
 	ListAffiliates(ctx context.Context, command adminauthapp.ListAffiliatesCommand) ([]ports.AdminAffiliateRecord, error)
 	ListAffiliateAttribution(
 		ctx context.Context,
 		command adminauthapp.ListAffiliateAttributionCommand,
 	) ([]ports.AdminAffiliateAttributionRecord, error)
+	GrowthReport(context.Context, adminauthapp.GrowthReportCommand) (ports.AdminGrowthReportRecord, error)
 	UpdateAffiliateConversionStatus(
 		ctx context.Context,
 		command adminauthapp.UpdateAffiliateConversionStatusCommand,
@@ -239,6 +260,8 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Get("/admin/plan-entitlements", handler.planEntitlements)
 		protected.Patch("/admin/plan-entitlements", handler.updatePlanEntitlements)
 		protected.Get("/admin/promotions", handler.promotions)
+		protected.Get("/admin/growth-report", handler.growthReport)
+		protected.Get("/admin/growth-report.csv", handler.growthReportCSV)
 		protected.Post("/admin/promotions", handler.createPromotion)
 		protected.Patch("/admin/promotions/{id}", handler.updatePromotion)
 		protected.Post("/admin/promotions/{id}/archive", handler.archivePromotion)
@@ -247,6 +270,11 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/ad-campaigns/{id}", handler.updateAdCampaign)
 		protected.Post("/admin/ad-campaigns/{id}/payments", handler.collectAdCampaignPayment)
 		protected.Post("/admin/ad-campaigns/{id}/archive", handler.archiveAdCampaign)
+		protected.Get("/admin/affiliate-applications", handler.affiliateApplications)
+		protected.Post("/admin/affiliate-applications/{id}/decision", handler.decideAffiliateApplication)
+		protected.Get("/admin/affiliate-programmes", handler.affiliateProgrammes)
+		protected.Post("/admin/affiliate-programmes", handler.createAffiliateProgramme)
+		protected.Patch("/admin/affiliate-programmes/{id}", handler.updateAffiliateProgramme)
 		protected.Get("/admin/affiliates", handler.affiliates)
 		protected.Get("/admin/affiliate-attribution", handler.affiliateAttribution)
 		protected.Patch("/admin/affiliate-conversions/{id}/status", handler.updateAffiliateConversionStatus)

@@ -63,6 +63,15 @@ func TestParseChargeEvent(t *testing.T) {
 		t.Fatal("expected non-success data status to be not succeeded")
 	}
 
+	refund, err := parseChargeEvent([]byte(
+		`{"event":"refund.processed","data":{"reference":"refund_1","status":"processed","transaction":{"reference":"xtsub_act_1"}}}`))
+	if err != nil {
+		t.Fatalf("parse refund event: %v", err)
+	}
+	if refund.ProviderReference != "xtsub_act_1" || refund.Succeeded {
+		t.Fatalf("expected refund to identify and reverse its original charge: %+v", refund)
+	}
+
 	if _, err := parseChargeEvent([]byte(`{"event":"","data":{}}`)); !errors.Is(err, ErrUnparseableEvent) {
 		t.Fatalf("expected unparseable event error, got %v", err)
 	}

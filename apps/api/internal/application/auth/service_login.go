@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
 	authdomain "github.com/xcreativs/xtiitch/apps/api/internal/domain/auth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/business"
@@ -92,7 +93,10 @@ type RegisterBusinessCommand struct {
 	// WhatsAppNumber is used for owner<->customer chat, not as an identity, so it
 	// is stored as given and NOT verified. (Signup used to demand an OTP for this
 	// number instead of the phone, which is what actually receives our SMS.)
-	WhatsAppNumber string
+	WhatsAppNumber     string
+	AffiliateCode      string
+	AffiliateClickID   string
+	AffiliateVisitorID string
 }
 
 type LoginBusinessCommand struct {
@@ -182,6 +186,7 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 	if err != nil {
 		return AuthResult{}, err
 	}
+	s.recordBusinessAffiliateSignup(ctx, identity.BusinessID, cmd)
 
 	result, err := s.issueSession(ctx, issueSessionInput{
 		BusinessID:     identity.BusinessID,
@@ -204,6 +209,42 @@ func (s Service) RegisterBusiness(ctx context.Context, cmd RegisterBusinessComma
 	)
 
 	return result, nil
+}
+
+func (s Service) recordBusinessAffiliateSignup(
+	ctx context.Context,
+	businessID common.ID,
+	cmd RegisterBusinessCommand,
+) {
+	code := strings.ToUpper(strings.TrimSpace(cmd.AffiliateCode))
+	if s.affiliateSignups == nil || code == "" || businessID.IsZero() {
+		return
+	}
+	var clickID common.ID
+	if parsed, err := uuid.Parse(strings.TrimSpace(cmd.AffiliateClickID)); err == nil {
+		clickID = common.ID(parsed.String())
+	}
+	_, err := s.affiliateSignups.RecordAffiliateSignup(
+		ctx,
+		ports.RecordAffiliateSignupInput{
+			SignupID:    s.ids.NewID(),
+			Code:        code,
+			ClickID:     clickID,
+			VisitorID:   strings.TrimSpace(cmd.AffiliateVisitorID),
+			SubjectType: "business",
+			BusinessID:  businessID,
+		},
+	)
+	if err != nil && !errors.Is(err, ports.ErrNotFound) {
+		s.logger.ErrorContext(
+			ctx,
+			"auth: failed to record business affiliate signup",
+			"business_id",
+			businessID.String(),
+			"error",
+			err,
+		)
+	}
 }
 
 // HandleAvailability is the result of a store-handle availability check, used by

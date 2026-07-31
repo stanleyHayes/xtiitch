@@ -114,8 +114,6 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) { /
       sx={{
         minHeight: "100vh",
         bgcolor: "background.default",
-        backgroundImage: `linear-gradient(${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.055)} 1px, transparent 1px)`,
-        backgroundSize: "34px 34px",
       }}
     >
       <Container
@@ -162,7 +160,9 @@ export default function ForgotPassword({ actionData }: Route.ComponentProps) { /
                 },
               },
             },
-            "& .MuiInputAdornment-root, & .MuiSvgIcon-root": {
+            // Adornments only — a bare `& .MuiSvgIcon-root` here also dimmed
+            // the submit buttons' arrow icons against their white labels.
+            "& .MuiInputAdornment-root": {
               color: alpha(tokens.ink, 0.62),
             },
           }}

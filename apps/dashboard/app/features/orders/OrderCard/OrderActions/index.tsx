@@ -60,8 +60,7 @@ export function OrderActions({
             borderColor: alpha(tokens.burgundy, 0.14),
             borderRadius: 2,
             p: 1.25,
-            bgcolor: "rgba(var(--surface-rgb), 0.72)",
-            backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.055)}, transparent 48%)`,
+            bgcolor: alpha(tokens.burgundy, 0.025),
           }}
         >
           <Stack

@@ -73,6 +73,85 @@ func TestRecordAffiliateClickRequiresIdentifierAndKnownAffiliate(t *testing.T) {
 	}
 }
 
+func TestSubmitAffiliateApplicationNormalizesInput(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeAffiliateApplications{}
+	emails := &fakeGrowthEmailSender{}
+	service := NewService(Dependencies{
+		Applications: repo,
+		Emails:       emails,
+		IDs:          sequenceIDs{ids: []common.ID{"application-1"}},
+	})
+
+	record, err := service.SubmitAffiliateApplication(
+		context.Background(),
+		SubmitAffiliateApplicationCommand{
+			ApplicantType:     " Person ",
+			DisplayName:       " Ama Creates ",
+			ContactName:       " Ama Mensah ",
+			Email:             " AMA@EXAMPLE.COM ",
+			Phone:             " +233 20 000 0000 ",
+			WebsiteURL:        "https://example.com/ama",
+			RequestedCode:     " ama-creates ",
+			AudienceSummary:   " Ghana fashion shoppers ",
+			PromotionChannels: []string{" Instagram ", "instagram", "WhatsApp"},
+			Consent:           true,
+			IPAddress:         "203.0.113.50",
+			UserAgent:         "Test browser",
+		},
+	)
+	if err != nil {
+		t.Fatalf("submit application: %v", err)
+	}
+	if record.ApplicationID != "application-1" ||
+		repo.input.Email != "ama@example.com" ||
+		repo.input.RequestedCode != "AMA-CREATES" ||
+		len(repo.input.PromotionChannels) != 2 ||
+		repo.input.IPHash == "" ||
+		repo.input.IPHash == "203.0.113.50" ||
+		repo.input.ConsentAt.IsZero() {
+		t.Fatalf("unexpected normalized application: %+v", repo.input)
+	}
+	if len(emails.sent) != 1 ||
+		emails.sent[0].To != "ama@example.com" ||
+		emails.sent[0].Subject != "We received your Xtiitch affiliate application" {
+		t.Fatalf("unexpected application email: %+v", emails.sent)
+	}
+}
+
+func TestSubmitAffiliateApplicationValidatesConsentAndCodeConflict(t *testing.T) {
+	t.Parallel()
+
+	service := NewService(Dependencies{
+		Applications: &fakeAffiliateApplications{err: ports.ErrAffiliateCodeTaken},
+		IDs:          sequenceIDs{ids: []common.ID{"application-1"}},
+	})
+
+	_, err := service.SubmitAffiliateApplication(
+		context.Background(),
+		SubmitAffiliateApplicationCommand{Consent: false},
+	)
+	if !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("expected consent validation, got %v", err)
+	}
+
+	_, err = service.SubmitAffiliateApplication(
+		context.Background(),
+		SubmitAffiliateApplicationCommand{
+			DisplayName:       "Ama Creates",
+			ContactName:       "Ama Mensah",
+			Email:             "ama@example.com",
+			RequestedCode:     "AMACREATES",
+			PromotionChannels: []string{"instagram"},
+			Consent:           true,
+		},
+	)
+	if !errors.Is(err, ErrAffiliateCodeTaken) {
+		t.Fatalf("expected affiliate code conflict, got %v", err)
+	}
+}
+
 func TestListSponsoredPlacementsCapsLimit(t *testing.T) {
 	t.Parallel()
 
@@ -152,6 +231,41 @@ func TestRecordSponsoredAdEventRequiresValidTypeAndIdentifier(t *testing.T) {
 type fakeAffiliateClicks struct {
 	input ports.RecordAffiliateClickInput
 	err   error
+}
+
+type fakeAffiliateApplications struct {
+	input ports.SubmitAffiliateApplicationInput
+	err   error
+}
+
+type fakeGrowthEmailSender struct {
+	sent []ports.EmailMessage
+}
+
+func (sender *fakeGrowthEmailSender) Send(
+	_ context.Context,
+	message ports.EmailMessage,
+) error {
+	sender.sent = append(sender.sent, message)
+	return nil
+}
+
+func (repo *fakeAffiliateApplications) SubmitAffiliateApplication(
+	_ context.Context,
+	input ports.SubmitAffiliateApplicationInput,
+) (ports.AffiliateApplicationRecord, error) {
+	repo.input = input
+	if repo.err != nil {
+		return ports.AffiliateApplicationRecord{}, repo.err
+	}
+	return ports.AffiliateApplicationRecord{
+		ApplicationID: input.ApplicationID,
+		DisplayName:   input.DisplayName,
+		Email:         input.Email,
+		RequestedCode: input.RequestedCode,
+		Status:        "pending_review",
+		CreatedAt:     time.Now(),
+	}, nil
 }
 
 func (repo *fakeAffiliateClicks) RecordAffiliateClick(

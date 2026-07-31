@@ -14,7 +14,10 @@ import {
   type AdminPromotion,
   type AdminAdCampaign,
   type AdminAffiliate,
+  type AdminAffiliateProgramme,
+  type AdminAffiliateApplication,
   type AdminAffiliateAttribution,
+  type AdminGrowthReport,
   type AdminReferralProgramme,
   type AdminRiskReview,
   type AdminSupportTicket,
@@ -166,11 +169,41 @@ export async function loadAdminDashboardData(request: Request) { // eslint-disab
     "Your role cannot manage affiliate programmes.",
     "Affiliate programmes could not be loaded right now.",
   );
+  const affiliateProgrammesResult = await loadAdminResource(
+    () => adminApi.affiliateProgrammes(accessToken),
+    [] as AdminAffiliateProgramme[],
+    "Your role cannot manage affiliate programme settings.",
+    "Affiliate programme settings could not be loaded right now.",
+  );
+  const affiliateApplicationsResult = await loadAdminResource(
+    () => adminApi.affiliateApplications(accessToken),
+    [] as AdminAffiliateApplication[],
+    "Your role cannot review affiliate applications.",
+    "Affiliate applications could not be loaded right now.",
+  );
   const affiliateAttributionResult = await loadAdminResource(
     () => adminApi.affiliateAttribution(accessToken),
     [] as AdminAffiliateAttribution[],
     "Your role cannot view affiliate performance.",
     "Affiliate performance could not be loaded right now.",
+  );
+  const growthReportResult = await loadAdminResource(
+    () => adminApi.growthReport(accessToken),
+    {
+      from: "",
+      to: "",
+      metrics: {
+        clicks: 0, customer_signups: 0, business_signups: 0,
+        purchase_conversions: 0, paid_plan_conversions: 0,
+        gross_eligible_minor: 0, store_discount_minor: 0,
+        paid_plan_discount_minor: 0, pending_commission_minor: 0,
+        approved_commission_minor: 0, settled_commission_minor: 0,
+        reversed_commission_minor: 0, payout_batches: 0,
+        payout_commission_minor: 0,
+      },
+    } satisfies AdminGrowthReport,
+    "Your role cannot view growth reporting.",
+    "Growth reporting could not be loaded right now.",
   );
   const referralProgrammesResult = await loadAdminResource(
     () => adminApi.referralProgrammes(accessToken),
@@ -247,8 +280,14 @@ export async function loadAdminDashboardData(request: Request) { // eslint-disab
     adCampaignsError: adCampaignsResult.error,
     affiliates: affiliatesResult.data,
     affiliatesError: affiliatesResult.error,
+    affiliateProgrammes: affiliateProgrammesResult.data,
+    affiliateProgrammesError: affiliateProgrammesResult.error,
+    affiliateApplications: affiliateApplicationsResult.data,
+    affiliateApplicationsError: affiliateApplicationsResult.error,
     affiliateAttribution: affiliateAttributionResult.data,
     affiliateAttributionError: affiliateAttributionResult.error,
+    growthReport: growthReportResult.data,
+    growthReportError: growthReportResult.error,
     referralProgrammes: referralProgrammesResult.data,
     referralProgrammesError: referralProgrammesResult.error,
     riskReviews: riskReviewsResult.data,

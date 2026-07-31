@@ -55,13 +55,8 @@ export function WorkspaceTopBar({
         borderColor: darkChrome
           ? alpha(tokens.white, 0.12)
           : alpha(tokens.ink, 0.09),
-        bgcolor: darkChrome
-          ? alpha(tokens.charcoal, 0.94)
-          : alpha(tokens.white, 0.86),
         color: darkChrome ? tokens.white : tokens.ink,
-        backgroundImage: darkChrome
-          ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.24)}, ${alpha(tokens.charcoal, 0.94)})`
-          : `linear-gradient(90deg, rgba(var(--surface-rgb), 0.96), rgba(var(--surface-rgb), 0.74))`,
+        bgcolor: darkChrome ? tokens.charcoal : "background.paper",
         boxShadow: darkChrome
           ? `0 18px 40px ${alpha(tokens.ink, 0.5)}`
           : `0 18px 40px ${alpha(tokens.ink, 0.1)}`,

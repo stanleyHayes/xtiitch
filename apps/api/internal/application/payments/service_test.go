@@ -405,6 +405,30 @@ func TestHandleProviderEventConfirmsVerifiedEvent(t *testing.T) {
 	}
 }
 
+func TestHandleProviderEventFinalizesFirstPaidPlanAttribution(t *testing.T) {
+	t.Parallel()
+	provider := &fakeProvider{verifySig: true, event: ports.ProviderChargeEvent{
+		EventType: "charge.success", ProviderReference: "xtsub_act_1",
+		Succeeded: true, Signature: "paystack:charge.success:xtsub_act_1",
+	}}
+	events := &fakePlanAffiliateEvents{}
+	service := NewService(Dependencies{
+		Provider: provider, Payments: &fakePaymentRepo{},
+		Businesses:     &fakeChargeRepo{},
+		IDs:            &sequenceIDs{ids: []common.ID{"conversion-1"}},
+		PlanAffiliates: events,
+	})
+
+	if err := service.HandleProviderEvent(context.Background(), []byte(`{}`), "good"); err != nil {
+		t.Fatalf("handle provider event: %v", err)
+	}
+	if events.applied.PaymentReference != "xtsub_act_1" ||
+		events.applied.ConversionID != "conversion-1" ||
+		!events.applied.Succeeded {
+		t.Fatalf("unexpected affiliate provider event: %+v", events.applied)
+	}
+}
+
 func TestVerifyBusinessProvisionsSubaccount(t *testing.T) {
 	t.Parallel()
 

@@ -22,6 +22,7 @@ const adminPlatformSettingsColumns = `
 	marketing_show_discover,
 	marketing_show_create_store,
 	marketing_show_pricing,
+	marketing_show_affiliate_signup,
 	ai_assistant_addon_enabled,
 	vat_rate_bps,
 	updated_at
@@ -118,6 +119,7 @@ func (repo AdminAuthRepository) UpdateAdminMarketingFlags(
 			marketing_show_discover = coalesce($2, marketing_show_discover),
 			marketing_show_create_store = coalesce($3, marketing_show_create_store),
 			marketing_show_pricing = coalesce($4, marketing_show_pricing),
+			marketing_show_affiliate_signup = coalesce($5, marketing_show_affiliate_signup),
 			updated_at = now()
 		where settings_id = true
 		returning `+adminPlatformSettingsColumns,
@@ -125,6 +127,7 @@ func (repo AdminAuthRepository) UpdateAdminMarketingFlags(
 		input.Discover,
 		input.CreateStore,
 		input.Pricing,
+		input.AffiliateSignup,
 	))
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
@@ -146,6 +149,7 @@ func scanAdminPlatformSettingsRecord(row pgx.Row) (ports.AdminPlatformSettingsRe
 		&settings.MarketingFlags.Discover,
 		&settings.MarketingFlags.CreateStore,
 		&settings.MarketingFlags.Pricing,
+		&settings.MarketingFlags.AffiliateSignup,
 		&settings.AIAssistantAddonEnabled,
 		&settings.VATRateBps,
 		&settings.UpdatedAt,

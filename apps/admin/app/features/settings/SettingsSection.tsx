@@ -150,6 +150,7 @@ export function SettingsSection({
   const launchEnabledCount = Object.values(
     platformSettings.marketingFlags,
   ).filter(Boolean).length;
+  const launchTotalCount = Object.keys(platformSettings.marketingFlags).length;
 
   return (
     <Stack spacing={2.5}>
@@ -228,7 +229,7 @@ export function SettingsSection({
           icon={<RocketLaunchRounded />}
           title="Marketing launch"
           helper="Reveal public marketing links without a redeploy."
-          value={`${launchEnabledCount}/4 public links live`}
+          value={`${launchEnabledCount}/${launchTotalCount} public links live`}
           action="Open launch controls"
           onOpen={() => setActivePanel("launch")}
         />

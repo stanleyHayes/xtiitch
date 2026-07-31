@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import Box from "@mui/material/Box";
-import { alpha } from "@mui/material/styles";
 import { HelpDrawer } from "../../help-center";
 import { ProductTour } from "../../product-tour";
 import { tokens } from "../../theme";
@@ -24,10 +23,7 @@ import { DashboardSnackbar } from "./DashboardSnackbar";
 import { DashboardAlerts } from "./DashboardAlerts";
 import { filterOrders } from "../orders/utils";
 import { usePagedItems } from "../shared/hooks";
-import {
-  dashboardRailWidth,
-  dashboardRailCollapsedWidth,
-} from "../shared/constants";
+import { dashboardRailWidth, dashboardRailCollapsedWidth } from "../shared/constants";
 export function DashboardWorkspace({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
   loaderData,
   actionData,
@@ -189,15 +185,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
     <Box
       sx={{
         minHeight: "100vh",
-        bgcolor: darkChrome ? alpha(tokens.ink, 0.96) : "background.default",
-        backgroundImage: darkChrome
-          ? `
-            radial-gradient(circle at 100% 0%, ${alpha(tokens.burgundy, 0.2)}, transparent 30%),
-            radial-gradient(circle at 58% 12%, ${alpha(tokens.info, 0.16)}, transparent 28%),
-            linear-gradient(180deg, ${tokens.ink}, ${tokens.charcoal})
-          `
-          : `linear-gradient(${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.burgundy, 0.045)} 1px, transparent 1px)`,
-        backgroundSize: darkChrome ? "auto" : "36px 36px",
+        bgcolor: darkChrome ? tokens.ink : "background.default",
         overflowX: "hidden",
         "@keyframes dashboardRailSlide": {
           from: { opacity: 0, transform: "translateX(-16px)" },
@@ -367,6 +355,7 @@ export function DashboardWorkspace({ // eslint-disable-line complexity, max-line
               waitlistEntries={waitlistEntries}
               deliveryZones={deliveryZones}
               designs={designs}
+              affiliates={loaderData.affiliates}
               currentUser={currentUser}
               orderFilter={orderFilter}
               action={action}

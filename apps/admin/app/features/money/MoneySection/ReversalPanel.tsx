@@ -35,10 +35,7 @@ export function ReversalPanel({
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.warning, 0.16),
-        backgroundImage: `
-          radial-gradient(circle at 92% 2%, ${alpha(tokens.warning, 0.14)}, transparent 34%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack direction="row" spacing={1.5} sx={{ alignItems: "center", mb: 2 }}>
@@ -69,10 +66,6 @@ export function ReversalPanel({
                 bgcolor: held
                   ? alpha(tokens.danger, 0.04)
                   : "rgba(var(--surface-rgb), 0.82)",
-                backgroundImage: `linear-gradient(90deg, ${alpha(
-                  held ? tokens.danger : payoutColor(review.status),
-                  0.075,
-                )}, transparent 38%)`,
                 transition: "transform 180ms ease, border-color 180ms ease",
                 "&:hover": {
                   transform: "translateX(3px)",

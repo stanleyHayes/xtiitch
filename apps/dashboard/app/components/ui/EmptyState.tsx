@@ -21,8 +21,7 @@ export function EmptyState({
         textAlign: "center",
         borderStyle: "dashed",
         borderColor: alpha(tokens.burgundy, 0.25),
-        bgcolor: "rgba(var(--surface-rgb), 0.72)",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.05)}, transparent 48%)`,
+        bgcolor: alpha(tokens.burgundy, 0.025),
       }}
     >
       <Box

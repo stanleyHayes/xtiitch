@@ -14,6 +14,7 @@ import { Panel } from "../../components/ui/Panel";
 import TextField from "../../components/form-text-field";
 import AiAssistField from "../../components/ai-assist";
 import { ImageDropzone } from "../shared/ImageDropzone";
+import { DESIGN_IMAGE_SPEC } from "../../lib/image-specs";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
 import { styleCategories } from "./styleCategories";
@@ -133,6 +134,7 @@ export function CatalogueAddDesign({
               <ImageDropzone
                 name="image_files"
                 multiple
+                spec={DESIGN_IMAGE_SPEC}
                 maxFiles={imageLimit ?? undefined}
                 helper={
                   imageLimit !== null

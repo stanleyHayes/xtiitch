@@ -51,10 +51,7 @@ export function NotificationList({
             sx={{
               p: { xs: 2, md: 2.5 },
               borderColor: alpha(color, 0.22),
-              backgroundImage: `
-                linear-gradient(90deg, ${alpha(color, 0.08)}, transparent 38%),
-                linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-              `,
+              bgcolor: alpha(color, 0.025),
               "&:hover": {
                 transform: "translateY(-2px)",
                 borderColor: alpha(color, 0.36),

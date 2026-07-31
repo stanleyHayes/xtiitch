@@ -74,10 +74,7 @@ export function DiscountCodePanel({ // eslint-disable-line max-lines-per-functio
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.burgundy, 0.16),
-        backgroundImage: `
-          radial-gradient(circle at 96% 0%, ${alpha(tokens.burgundy, 0.1)}, transparent 34%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack spacing={2}>

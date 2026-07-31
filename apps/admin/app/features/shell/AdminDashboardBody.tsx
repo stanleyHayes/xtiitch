@@ -83,8 +83,14 @@ export function AdminDashboardBody({ // eslint-disable-line complexity, max-line
     adCampaignsError,
     affiliates,
     affiliatesError,
+    affiliateProgrammes,
+    affiliateProgrammesError,
+    affiliateApplications,
+    affiliateApplicationsError,
     affiliateAttribution,
     affiliateAttributionError,
+    growthReport,
+    growthReportError,
     referralProgrammes,
     referralProgrammesError,
     riskReviews,
@@ -237,8 +243,14 @@ export function AdminDashboardBody({ // eslint-disable-line complexity, max-line
                 <AffiliatesSection
                   affiliates={affiliates}
                   affiliatesError={affiliatesError}
+                  programmes={affiliateProgrammes}
+                  programmesError={affiliateProgrammesError}
+                  applications={affiliateApplications}
+                  applicationsError={affiliateApplicationsError}
                   affiliateAttribution={affiliateAttribution}
                   affiliateAttributionError={affiliateAttributionError}
+                  growthReport={growthReport}
+                  growthReportError={growthReportError}
                   actionData={actionFeedback}
                 />
               ) : null}

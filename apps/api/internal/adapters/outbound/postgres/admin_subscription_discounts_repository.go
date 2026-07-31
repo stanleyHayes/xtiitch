@@ -410,5 +410,8 @@ func listAdminSubscriptionDiscountRedemptions(
 
 func subscriptionDiscountCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "subscription_discount_codes_code_key"
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		(pgErr.ConstraintName == "subscription_discount_codes_code_key" ||
+			pgErr.ConstraintName == "growth_codes_pkey")
 }

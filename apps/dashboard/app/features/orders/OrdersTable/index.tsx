@@ -244,11 +244,8 @@ export function OrdersTable({ // eslint-disable-line complexity, max-lines-per-f
               gap: 1.5,
               borderBottom: "1px solid",
               borderColor: "divider",
-              background: (theme) =>
-                `linear-gradient(135deg, ${alpha(
-                  menuOrderColour,
-                  theme.palette.mode === "dark" ? 0.32 : 0.13,
-                )}, ${alpha(menuOrderColour, 0)} 78%)`,
+              bgcolor: (theme) =>
+                alpha(menuOrderColour, theme.palette.mode === "dark" ? 0.18 : 0.07),
             }}
           >
             <Box

@@ -29,8 +29,6 @@ export function UpgradeNudge({
       sx={{
         p: { xs: 2.25, md: 3 },
         borderStyle: "dashed",
-        backgroundImage: (theme) =>
-          `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.1 : 0.05)}, transparent 55%)`,
       }}
     >
       <Stack

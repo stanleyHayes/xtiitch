@@ -35,13 +35,6 @@ export function PlanGatedControl({
           theme.palette.mode === "dark"
             ? alpha(tokens.white, locked ? 0.032 : 0.05)
             : "rgba(var(--surface-rgb), 0.66)",
-        backgroundImage: (theme) =>
-          locked
-            ? "none"
-            : `linear-gradient(135deg, ${alpha(
-                theme.palette.primary.main,
-                theme.palette.mode === "dark" ? 0.12 : 0.05,
-              )}, transparent 58%)`,
       }}
     >
       <Stack

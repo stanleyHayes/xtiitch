@@ -44,11 +44,43 @@ func (repo AffiliateRepository) ReserveAffiliateAttribution(
 			select
 				affiliate_id,
 				commission_model,
-				commission_rate,
+				case
+					when commission_model = 'percentage'
+						then purchase_commission_bps::bigint
+					else commission_rate
+				end as commission_rate,
 				cookie_window_days
 			from affiliates
 			where lower(code) = lower($2)
 				and status = 'active'
+				and (
+					owner_business_id is null
+					or (
+						owner_business_id = $5::uuid
+						and (
+							target_scope = 'store'
+							or (
+								target_scope in ('design', 'product')
+								and target_ref_id = (
+									select o.design_id
+									from orders o
+									where o.order_id = $6::uuid
+										and o.business_id = $5::uuid
+								)
+							)
+							or (
+								target_scope = 'collection'
+								and target_ref_id = (
+									select d.collection_id
+									from orders o
+									join designs d on d.design_id = o.design_id
+									where o.order_id = $6::uuid
+										and o.business_id = $5::uuid
+								)
+							)
+						)
+					)
+				)
 			limit 1
 		),
 		selected_click as (

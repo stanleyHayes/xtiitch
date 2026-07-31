@@ -81,10 +81,7 @@ export function VerificationCard({ // eslint-disable-line max-lines-per-function
         p: { xs: 2, md: 2.5 },
         position: "relative",
         borderColor: alpha(accent, 0.2),
-        backgroundImage: `
-          linear-gradient(135deg, ${alpha(accent, 0.08)}, transparent 38%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: alpha(accent, 0.025),
         "&:hover": {
           transform: "translateY(-2px)",
           borderColor: alpha(accent, 0.34),

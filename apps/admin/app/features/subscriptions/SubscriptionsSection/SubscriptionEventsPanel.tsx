@@ -24,10 +24,7 @@ export function SubscriptionEventsPanel({
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.info, 0.18),
-        backgroundImage: `
-          radial-gradient(circle at 96% 0%, ${alpha(tokens.info, 0.14)}, transparent 35%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack spacing={1.5}>

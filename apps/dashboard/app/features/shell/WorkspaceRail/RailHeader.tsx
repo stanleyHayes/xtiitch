@@ -53,7 +53,7 @@ export function RailHeader({
               placeItems: "center",
               flexShrink: 0,
               color: tokens.white,
-              backgroundImage: `linear-gradient(155deg, ${tokens.burgundy} 0%, ${tokens.charcoal} 100%)`,
+              bgcolor: tokens.burgundy,
               border: `1px solid ${alpha(tokens.gold, 0.5)}`,
               boxShadow: `0 10px 24px ${alpha(tokens.burgundy, 0.4)}, inset 0 1px 0 ${alpha(tokens.white, 0.22)}`,
             }}

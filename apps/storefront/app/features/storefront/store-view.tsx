@@ -18,6 +18,7 @@ import { tokens } from "../../theme";
 import { CollectionStrip } from "./collection-strip";
 import { DesignGrid } from "./design-grid";
 import { MarketplaceStrip } from "./marketplace-strip";
+import { NotLiveStoreView } from "./not-live-store";
 import { PoweredByBadge } from "./powered-by-badge";
 import { readableBrandText, resolveStoreBrand } from "./store-brand";
 import { StoreHeader } from "./store-header";
@@ -26,7 +27,7 @@ import { StoreServiceBand } from "./store-service-band";
 
 export function StoreView(props: StoreViewProps) {
   if (props.store.live === false) {
-    return <NotLiveStoreView {...props} />;
+    return <NotLiveStoreView store={props.store} />;
   }
   return <LiveStoreView {...props} />;
 }
@@ -39,15 +40,6 @@ type StoreViewProps = {
   marketplace?: PublicShop[];
   tenantHost?: boolean;
 };
-
-function NotLiveStoreView({ store }: StoreViewProps) {
-  return (
-    <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
-      <StoreHeader store={store} />
-      <NotLiveNotice storeName={store.name} />
-    </Box>
-  );
-}
 
 // Optional storefront modules are independently plan and route gated.
 // eslint-disable-next-line complexity
@@ -276,18 +268,5 @@ function StoreCatalogueEmpty({
         ) : null}
       </Stack>
     </Stack>
-  );
-}
-
-function NotLiveNotice({ storeName }: { storeName: string }) {
-  return (
-    <Container sx={{ py: { xs: 6, md: 10 } }}>
-      <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
-        This store is not live yet
-      </Typography>
-      <Typography sx={{ color: "text.secondary", maxWidth: 620 }}>
-        {storeName} has not opened its storefront. Check back soon.
-      </Typography>
-    </Container>
   );
 }

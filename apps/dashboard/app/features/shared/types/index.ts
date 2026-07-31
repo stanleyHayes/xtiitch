@@ -138,6 +138,7 @@ export type DashboardSection =
   | "customers"
   | "orders"
   | "money"
+  | "affiliates"
   | "visits"
   | "handovers"
   | "catalogue"
@@ -185,6 +186,8 @@ export type DashboardActionData = {
   sizeBandError?: string;
   priceError?: string;
   promotionError?: string;
+  affiliateError?: string;
+  affiliateSuccess?: string;
   walkInError?: string;
   // §14/§15: analytics report-schedule and CRM note/tag mutations surface
   // their own feedback so the snackbar can confirm §1.2 resets.

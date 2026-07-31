@@ -77,6 +77,7 @@ type Service struct {
 	storefront ports.StorefrontRepository
 	settings   ports.StoreSettingsRepository
 	promotions ports.PromotionRepository
+	affiliates ports.BusinessAffiliateRepository
 	waitlist   ports.DesignWaitlistRepository
 	views      ports.DesignViewRecorder
 	ids        ports.IDGenerator
@@ -86,6 +87,7 @@ type Dependencies struct {
 	Storefront ports.StorefrontRepository
 	Settings   ports.StoreSettingsRepository
 	Promotions ports.PromotionRepository
+	Affiliates ports.BusinessAffiliateRepository
 	Waitlist   ports.DesignWaitlistRepository
 	// Views counts public design detail reads for §14.1 design performance.
 	// Optional (nil-safe): the read must never fail because a counter did.
@@ -99,6 +101,7 @@ func NewService(deps Dependencies) Service {
 		storefront: deps.Storefront,
 		settings:   deps.Settings,
 		promotions: deps.Promotions,
+		affiliates: deps.Affiliates,
 		waitlist:   deps.Waitlist,
 		views:      deps.Views,
 		ids:        deps.IDs,

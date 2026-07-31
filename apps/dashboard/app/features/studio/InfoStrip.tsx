@@ -25,8 +25,7 @@ export function InfoStrip({
         borderRadius: 2,
         border: "1px solid",
         borderColor: alpha(tone, 0.18),
-        bgcolor: "rgba(var(--surface-rgb), 0.72)",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.075)}, transparent 52%)`,
+        bgcolor: alpha(tone, 0.035),
         minWidth: 0,
         boxShadow: `0 10px 26px ${alpha(tokens.ink, 0.04)}`,
       }}

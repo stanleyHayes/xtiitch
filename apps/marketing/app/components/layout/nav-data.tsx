@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { FlagKey } from "../../lib/launch-gate";
 import StorefrontRoundedIcon from "@mui/icons-material/StorefrontRounded";
 import CheckroomRoundedIcon from "@mui/icons-material/CheckroomRounded";
 import Inventory2RoundedIcon from "@mui/icons-material/Inventory2Rounded";
@@ -10,12 +11,17 @@ import SecurityRoundedIcon from "@mui/icons-material/SecurityRounded";
 import HelpRoundedIcon from "@mui/icons-material/HelpRounded";
 import ExploreRoundedIcon from "@mui/icons-material/ExploreRounded";
 import MailRoundedIcon from "@mui/icons-material/MailRounded";
+import CampaignRoundedIcon from "@mui/icons-material/CampaignRounded";
 
 export type NavItem = {
   label: string;
   href: string;
   description: string;
   icon: ReactNode;
+  // When set, the item only appears once that marketing launch flag is on.
+  // Declaring the gate on the item keeps the header's filter generic — a new
+  // pre-launch entry is one field here, not another branch in the header.
+  flag?: FlagKey;
 };
 
 export type NavGroup = { label: string; blurb: string; items: NavItem[] };
@@ -75,6 +81,13 @@ export const navGroups: NavGroup[] = [
         href: "/growth",
         description: "Promotions, referrals, affiliates and sponsored slots.",
         icon: <TrendingUpRoundedIcon />,
+      },
+      {
+        label: "Affiliate programme",
+        href: "/affiliates",
+        description: "Apply for a trackable partner code.",
+        icon: <CampaignRoundedIcon />,
+        flag: "affiliate_signup",
       },
     ],
   },

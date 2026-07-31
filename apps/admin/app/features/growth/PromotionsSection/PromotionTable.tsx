@@ -82,10 +82,7 @@ export function PromotionTable({
                   sx={{
                     p: { xs: 2, md: 2.5 },
                     borderColor: alpha(color, archived ? 0.12 : 0.2),
-                    backgroundImage: `linear-gradient(180deg, ${alpha(
-                      color,
-                      archived ? 0.035 : 0.075,
-                    )}, transparent 42%)`,
+                    bgcolor: alpha(color, archived ? 0.02 : 0.035),
                   }}
                 >
                   <Stack spacing={1.5}>

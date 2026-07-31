@@ -20,6 +20,8 @@ import { loadAnalyticsData } from "../analytics/loadAnalytics";
 import { defaultAnalyticsData } from "../analytics/types";
 import { loadCrmData } from "../crm/loadCrm";
 import { defaultCrmData } from "../crm/types";
+import { loadBusinessAffiliateData } from "../affiliates/loadAffiliates";
+import { defaultBusinessAffiliateData } from "../affiliates/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
@@ -324,6 +326,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
   // §14/§15 section data, level-laddered inside the feature loaders.
   let analytics = defaultAnalyticsData;
   let crm = defaultCrmData;
+  let affiliates = defaultBusinessAffiliateData;
   if (canManage && section === "analytics") {
     const result = await loadAnalyticsData({
       request,
@@ -340,6 +343,11 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       searchParams: url.searchParams,
     });
     crm = result.data;
+    dataWarnings.push(...result.warnings);
+  }
+  if (canManage && section === "affiliates") {
+    const result = await loadBusinessAffiliateData(request);
+    affiliates = result.data;
     dataWarnings.push(...result.warnings);
   }
 
@@ -371,6 +379,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     deliveryZones,
     analytics,
     crm,
+    affiliates,
     section,
     orderFilter,
     dataWarnings: uniqueDashboardWarnings(dataWarnings),

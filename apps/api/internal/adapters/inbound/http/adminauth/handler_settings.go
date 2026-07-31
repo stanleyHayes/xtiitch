@@ -69,14 +69,15 @@ func (handler Handler) updateMarketingFlags(w http.ResponseWriter, r *http.Reque
 	}
 
 	settings, err := handler.service.UpdateMarketingFlags(r.Context(), adminauthapp.UpdateMarketingFlagsCommand{
-		ActorUserID: principal.AdminUserID,
-		ActorRole:   principal.Role,
-		BrowseStore: request.BrowseStore,
-		Discover:    request.Discover,
-		CreateStore: request.CreateStore,
-		Pricing:     request.Pricing,
-		UserAgent:   r.UserAgent(),
-		IPAddress:   requestIP(r),
+		ActorUserID:     principal.AdminUserID,
+		ActorRole:       principal.Role,
+		BrowseStore:     request.BrowseStore,
+		Discover:        request.Discover,
+		CreateStore:     request.CreateStore,
+		Pricing:         request.Pricing,
+		AffiliateSignup: request.AffiliateSignup,
+		UserAgent:       r.UserAgent(),
+		IPAddress:       requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -245,10 +246,11 @@ func newPlatformSettingsResponse(settings ports.AdminPlatformSettingsRecord) pla
 
 func newMarketingFlagsResponse(flags ports.MarketingFlags) marketingFlagsResponse {
 	return marketingFlagsResponse{
-		BrowseStore: flags.BrowseStore,
-		Discover:    flags.Discover,
-		CreateStore: flags.CreateStore,
-		Pricing:     flags.Pricing,
+		BrowseStore:     flags.BrowseStore,
+		Discover:        flags.Discover,
+		CreateStore:     flags.CreateStore,
+		Pricing:         flags.Pricing,
+		AffiliateSignup: flags.AffiliateSignup,
 	}
 }
 

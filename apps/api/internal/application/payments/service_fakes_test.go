@@ -147,6 +147,41 @@ type fakePaymentRepo struct {
 	markSyncedErr     error
 }
 
+type fakePlanAffiliateEvents struct {
+	applied ports.ApplyFirstPaidPlanProviderEventInput
+}
+
+func (*fakePlanAffiliateEvents) ReserveFirstPaidPlanAttribution(
+	context.Context,
+	ports.ReserveFirstPaidPlanAttributionInput,
+) (ports.AffiliatePlanAttributionReservation, error) {
+	return ports.AffiliatePlanAttributionReservation{}, nil
+}
+
+func (*fakePlanAffiliateEvents) FinalizeFirstPaidPlanAttribution(
+	context.Context,
+	ports.FinalizeFirstPaidPlanAttributionInput,
+) (ports.AffiliatePlanConversionRecord, error) {
+	return ports.AffiliatePlanConversionRecord{}, nil
+}
+
+func (*fakePlanAffiliateEvents) VoidFirstPaidPlanAttribution(
+	context.Context,
+	common.ID,
+	string,
+	string,
+) error {
+	return nil
+}
+
+func (fake *fakePlanAffiliateEvents) ApplyFirstPaidPlanProviderEvent(
+	_ context.Context,
+	input ports.ApplyFirstPaidPlanProviderEventInput,
+) error {
+	fake.applied = input
+	return nil
+}
+
 func (r *fakePaymentRepo) Create(_ context.Context, input ports.CreatePaymentInput) error {
 	r.created = append(r.created, input)
 	return nil

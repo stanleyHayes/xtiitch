@@ -43,7 +43,7 @@ export function AdminRecordPage({
         sx={{
           overflow: "hidden",
           borderColor: alpha(statusColor, 0.24),
-          backgroundImage: `radial-gradient(circle at 100% 0%, ${alpha(statusColor, 0.13)}, transparent 34%)`,
+          bgcolor: alpha(statusColor, 0.035),
         }}
       >
         <Box sx={{ p: { xs: 2.25, md: 3.5 } }}>

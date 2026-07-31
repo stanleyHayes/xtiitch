@@ -8,6 +8,7 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
 import { site } from "../../content";
+import { perspectiveGridSx } from "../../components/ui/shared";
 
 const homeRiseSx = (delayMs = 0) => ({
   animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
@@ -22,7 +23,8 @@ const heroSignals = [
   { label: "Tracking shared", detail: "Yellow: being made", color: "#237a4b" },
 ] as const;
 
-export function Hero() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function Hero() {
   // Self-serve signup URL (the business dashboard's /register, a separate
   // origin) comes from the root loader.
   const rootData = useRouteLoaderData("root") as
@@ -93,17 +95,8 @@ export function Hero() { // eslint-disable-line max-lines-per-function -- large 
       <Box
         aria-hidden
         sx={{
-          position: "absolute",
-          inset: 0,
+          ...perspectiveGridSx({ lightOnDark: true, opacity: 0.9 }),
           zIndex: 3,
-          background:
-            "linear-gradient(90deg, rgba(255,255,255,0.08) 1px, transparent 1px), linear-gradient(180deg, rgba(255,255,255,0.05) 1px, transparent 1px)",
-          backgroundSize: "44px 44px, 44px 44px",
-          opacity: 0.16,
-          animation: "xtiitch-thread-drift 30s linear infinite",
-          "@media (prefers-reduced-motion: reduce)": {
-            animation: "none",
-          },
         }}
       />
       <Container sx={{ position: "relative", zIndex: 4, py: { xs: 5, md: 8 } }}>

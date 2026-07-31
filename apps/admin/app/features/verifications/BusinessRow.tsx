@@ -13,10 +13,7 @@ import { shortTimeOrFallback } from "../shared/dates";
 import { Panel } from "../../components/ui/Panel";
 import { RiskChip } from "../shared/RiskChip";
 import { StatusChip } from "../shared/StatusChip";
-
-
-
-export function BusinessRow({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function BusinessRow({ // eslint-disable-line max-lines-per-function, complexity -- presentational status matrix
   business,
   selected,
   onInspect,
@@ -41,10 +38,7 @@ export function BusinessRow({ // eslint-disable-line max-lines-per-function -- l
         borderColor: selected
           ? alpha(tokens.burgundy, 0.42)
           : alpha(accent, 0.2),
-        backgroundImage: `
-          linear-gradient(90deg, ${alpha(accent, selected ? 0.11 : 0.065)}, transparent 34%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: alpha(accent, selected ? 0.055 : 0.025),
         "&::before": {
           content: '""',
           position: "absolute",

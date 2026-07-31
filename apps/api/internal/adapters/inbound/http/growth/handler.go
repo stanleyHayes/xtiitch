@@ -13,27 +13,41 @@ import (
 	"github.com/go-chi/chi/v5"
 	growthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/growth"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"golang.org/x/time/rate"
 )
 
 const maxBodyBytes = 1 << 20
 
 type Service interface {
 	RecordAffiliateClick(ctx context.Context, command growthapp.RecordAffiliateClickCommand) (ports.AffiliateClickRecord, error)
+	SubmitAffiliateApplication(
+		ctx context.Context,
+		command growthapp.SubmitAffiliateApplicationCommand,
+	) (ports.AffiliateApplicationRecord, error)
 	ListSponsoredPlacements(ctx context.Context, command growthapp.ListSponsoredPlacementsCommand) ([]ports.SponsoredPlacementRecord, error)
 	RecordSponsoredAdEvent(ctx context.Context, command growthapp.RecordSponsoredAdEventCommand) (ports.SponsoredAdEventRecord, error)
 	ResolveReferralCode(ctx context.Context, command growthapp.ResolveReferralCodeCommand) (ports.ReferralCodeRecord, error)
 }
 
 type Handler struct {
-	service Service
+	service            Service
+	applicationLimiter *routeRateLimiter
+	clickLimiter       *routeRateLimiter
 }
 
 func NewHandler(service Service) Handler {
-	return Handler{service: service}
+	return Handler{
+		service:            service,
+		applicationLimiter: newRouteRateLimiter(rate.Every(20*time.Second), 3),
+		clickLimiter:       newRouteRateLimiter(rate.Every(100*time.Millisecond), 20),
+	}
 }
 
 func (handler Handler) Register(router chi.Router) {
-	router.Post("/public/affiliates/{code}/clicks", handler.recordAffiliateClick)
+	router.With(handler.applicationLimiter.middleware).
+		Post("/public/affiliate-applications", handler.submitAffiliateApplication)
+	router.With(handler.clickLimiter.middleware).
+		Post("/public/affiliates/{code}/clicks", handler.recordAffiliateClick)
 	router.Get("/public/sponsored", handler.sponsoredPlacements)
 	router.Post("/public/sponsored/{id}/events", handler.recordSponsoredEvent)
 	router.Get("/public/referrals/{code}", handler.referralCode)

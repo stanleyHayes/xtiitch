@@ -1,6 +1,9 @@
 import type {
   AdminAffiliate,
+  AdminAffiliateApplication,
   AdminAffiliateAttribution,
+  AdminAffiliateProgramme,
+  AdminGrowthReport,
 } from "../../../lib/api";
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
@@ -20,18 +23,33 @@ import { useActionSuccess } from "../../shared/useActionSuccess";
 import { SectionHeader } from "../../../components/ui/SectionHeader";
 import { AdminAffiliateDetailForm } from "../AdminAffiliateDetailForm";
 import { AffiliateTable } from "./AffiliateTable";
+import { AffiliateApplicationsPanel } from "./AffiliateApplicationsPanel";
+import { AffiliateProgrammesPanel } from "./AffiliateProgrammesPanel";
+import { GrowthReportPanel } from "./GrowthReportPanel";
 
 export function AffiliatesSection({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   affiliates,
   affiliatesError,
+  programmes,
+  programmesError,
+  applications,
+  applicationsError,
   affiliateAttribution,
   affiliateAttributionError,
+  growthReport,
+  growthReportError,
   actionData,
 }: {
   affiliates: AdminAffiliate[];
   affiliatesError: string | null;
+  programmes: AdminAffiliateProgramme[];
+  programmesError: string | null;
+  applications: AdminAffiliateApplication[];
+  applicationsError: string | null;
   affiliateAttribution: AdminAffiliateAttribution[];
   affiliateAttributionError: string | null;
+  growthReport: AdminGrowthReport;
+  growthReportError: string | null;
   actionData?: AdminActionFeedback;
 }) {
   const [detailID, setDetailID] = useState<string | null>(null);
@@ -121,6 +139,13 @@ export function AffiliatesSection({ // eslint-disable-line max-lines-per-functio
       {affiliateAttributionError ? (
         <Alert severity="warning">{affiliateAttributionError}</Alert>
       ) : null}
+
+      <AffiliateApplicationsPanel
+        applications={applications}
+        error={applicationsError}
+      />
+      <AffiliateProgrammesPanel programmes={programmes} error={programmesError} />
+      <GrowthReportPanel report={growthReport} error={growthReportError} />
 
       <Box
         sx={{

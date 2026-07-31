@@ -111,6 +111,7 @@ export async function handleSettingsAction({ // eslint-disable-line complexity -
         discover: readBoolean(form, "discover"),
         createStore: readBoolean(form, "create_store"),
         pricing: readBoolean(form, "pricing"),
+        affiliateSignup: readBoolean(form, "affiliate_signup"),
       });
       return {
         section: "settings",

@@ -40,13 +40,6 @@ export function ReportList({ // eslint-disable-line max-lines-per-function -- la
       theme.palette.mode === "dark"
         ? alpha(theme.palette.common.white, 0.035)
         : alpha(theme.palette.common.black, 0.018),
-    backgroundImage: (theme) =>
-      theme.palette.mode === "dark"
-        ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)}, ${alpha(
-            theme.palette.common.white,
-            0.018,
-          )})`
-        : "none",
   };
   const reportHeaderSx: SxProps<Theme> = {
     px: 1.75,
@@ -56,10 +49,6 @@ export function ReportList({ // eslint-disable-line max-lines-per-function -- la
         ? alpha(theme.palette.common.white, 0.055)
         : tokens.panel,
     color: "text.primary",
-    backgroundImage: (theme) =>
-      theme.palette.mode === "dark"
-        ? `linear-gradient(90deg, ${alpha(tokens.burgundy, 0.16)}, transparent 62%)`
-        : "none",
   };
 
   return (

@@ -152,8 +152,8 @@ export function AdminUserMenu({ // eslint-disable-line max-lines-per-function --
             gap: 1.5,
             borderBottom: "1px solid",
             borderColor: "divider",
-            background: (theme) =>
-              `linear-gradient(135deg, ${alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.3 : 0.12)}, ${alpha(theme.palette.primary.main, 0)} 78%)`,
+            bgcolor: (theme) =>
+              alpha(theme.palette.primary.main, theme.palette.mode === "dark" ? 0.18 : 0.08),
           }}
         >
           <Avatar

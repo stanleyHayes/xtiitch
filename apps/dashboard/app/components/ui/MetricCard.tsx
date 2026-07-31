@@ -29,7 +29,7 @@ function MetricCardContent({
         minHeight: 142,
         position: "relative",
         overflow: "hidden",
-        backgroundImage: `linear-gradient(135deg, ${alpha(tone, 0.12)}, transparent 46%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.9), rgba(var(--surface-rgb), 0.58))`,
+        bgcolor: "background.paper",
         "&::before": {
           content: '""',
           position: "absolute",

@@ -24,10 +24,6 @@ export function ReportDetail({
         border: "1px solid",
         borderColor: alpha(color, 0.2),
         bgcolor: alpha(color, 0.045),
-        backgroundImage: `linear-gradient(90deg, ${alpha(
-          color,
-          0.07,
-        )}, transparent 36%)`,
       }}
     >
       <Stack

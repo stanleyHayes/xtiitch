@@ -13,10 +13,10 @@ import Divider from "@mui/material/Divider";
 import { alpha } from "@mui/material/styles";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
-import AutoAwesomeRoundedIcon from "@mui/icons-material/AutoAwesomeRounded";
 import { type Plan, site } from "../../content";
 import { tokens } from "../../theme";
 import { fadeInSx } from "./shared";
+import { PlanCardHeader } from "./plan-card-header";
 
 function splitPlanName(name: string): { title: string; subtitle: string } {
   const [title, ...rest] = name.split(" — ");
@@ -53,67 +53,6 @@ function planCycleCopy(
   };
 }
 
-function PlanCardHeader({
-  accent,
-  plan,
-  subtitle,
-  title,
-}: {
-  accent: string;
-  plan: Plan;
-  subtitle: string;
-  title: string;
-}) {
-  return (
-    <Stack
-      direction="row"
-      sx={{
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: 1.5,
-      }}
-    >
-      <Box>
-        <Box
-          sx={{
-            width: 46,
-            height: 46,
-            borderRadius: 2,
-            display: "grid",
-            placeItems: "center",
-            color: plan.highlight ? tokens.white : accent,
-            bgcolor: plan.highlight ? accent : alpha(accent, 0.12),
-            border: `1px solid ${alpha(accent, 0.22)}`,
-            mb: 1.5,
-          }}
-        >
-          <AutoAwesomeRoundedIcon />
-        </Box>
-        <Typography variant="h5" component="h3">
-          {title}
-        </Typography>
-        <Typography
-          variant="body2"
-          sx={{ mt: 0.4, color: "text.secondary", fontWeight: 750 }}
-        >
-          {subtitle}
-        </Typography>
-      </Box>
-      {plan.badge ? (
-        <Chip
-          size="small"
-          label={plan.badge}
-          sx={{
-            bgcolor: alpha(accent, plan.highlight ? 0.16 : 0.1),
-            color: accent,
-            fontWeight: 900,
-          }}
-        />
-      ) : null}
-    </Stack>
-  );
-}
-
 function PlanPricePanel({
   accent,
   cadence,
@@ -127,23 +66,30 @@ function PlanPricePanel({
   return (
     <Box
       sx={{
-        p: 2,
-        borderRadius: 3,
-        bgcolor: alpha(accent, plan.highlight ? 0.1 : 0.07),
-        border: `1px solid ${alpha(accent, 0.14)}`,
+        py: 2,
+        borderTop: "1px solid",
+        borderBottom: "1px solid",
+        borderColor: alpha(accent, 0.16),
       }}
     >
       <Typography
         variant="caption"
-        sx={{ color: accent, fontWeight: 950, textTransform: "uppercase" }}
+        sx={{ color: "text.secondary", fontWeight: 850 }}
       >
         {copy.offer}
       </Typography>
-      <Stack direction="row" sx={{ alignItems: "baseline", gap: 1 }}>
+      <Stack
+        direction="row"
+        sx={{ mt: 0.35, alignItems: "baseline", gap: 0.75 }}
+      >
         <Typography
           variant="h3"
           component="p"
-          sx={{ color: accent, letterSpacing: "-0.04em" }}
+          sx={{
+            color: plan.highlight ? accent : "text.primary",
+            fontSize: { xs: 32, md: 35 },
+            fontVariantNumeric: "tabular-nums",
+          }}
         >
           {copy.headline}
         </Typography>
@@ -153,15 +99,19 @@ function PlanPricePanel({
           </Typography>
         ) : null}
       </Stack>
-      <Typography variant="body2" sx={{ mt: 0.75, color: "text.secondary" }}>
+      <Typography
+        variant="body2"
+        sx={{ mt: 0.75, minHeight: 50, color: "text.secondary" }}
+      >
         {copy.detail}
       </Typography>
       <Chip
         size="small"
         label={`${plan.salesFee} Xtiitch sales fee`}
         sx={{
-          mt: 1.25,
-          bgcolor: alpha(accent, 0.12),
+          mt: 1.5,
+          height: 24,
+          bgcolor: alpha(accent, 0.08),
           color: accent,
           fontWeight: 900,
         }}
@@ -177,11 +127,17 @@ function PlanIncludedList({
   accent: string;
   includes: string[];
 }) {
-  const included = includes.slice(0, 5);
+  const included = includes.slice(0, 4);
   const extraCount = Math.max(includes.length - included.length, 0);
 
   return (
     <Stack spacing={1.1} sx={{ flexGrow: 1 }}>
+      <Typography
+        variant="caption"
+        sx={{ mb: 0.2, color: "text.secondary", fontWeight: 900 }}
+      >
+        Included
+      </Typography>
       {included.map((line) => (
         <Box
           key={line}
@@ -189,7 +145,7 @@ function PlanIncludedList({
         >
           <CheckCircleRoundedIcon
             fontSize="small"
-            sx={{ color: accent, mt: "2px" }}
+            sx={{ color: accent, mt: "2px", fontSize: 18 }}
             aria-hidden
           />
           <Typography variant="body2">{line}</Typography>
@@ -198,7 +154,7 @@ function PlanIncludedList({
       {extraCount > 0 ? (
         <Typography
           variant="caption"
-          sx={{ color: "text.secondary", fontWeight: 850, pl: 3.6 }}
+          sx={{ color: "text.secondary", fontWeight: 850, pl: 3.25 }}
         >
           + {extraCount} more plan benefits
         </Typography>
@@ -227,7 +183,7 @@ function PlanButton({
       disabled={!plan.available}
       endIcon={<ArrowForwardRoundedIcon />}
       sx={{
-        mt: 3,
+        mt: 2.5,
         borderRadius: 999,
         whiteSpace: "nowrap",
         ...(plan.highlight ? { bgcolor: tokens.burgundy } : null),
@@ -250,7 +206,7 @@ function PlanCard({
   signupUrl: string;
 }) {
   const { title, subtitle } = splitPlanName(plan.name);
-  const accent = plan.highlight ? tokens.burgundy : tokens.gold;
+  const accent = tokens.burgundy;
 
   return (
     <Card
@@ -261,46 +217,52 @@ function PlanCard({
         flexDirection: "column",
         position: "relative",
         overflow: "hidden",
-        borderRadius: 4,
+        borderRadius: 3,
         border: "1px solid",
         borderColor: plan.highlight
-          ? alpha(tokens.burgundy, 0.42)
-          : alpha(tokens.ink, 0.1),
+          ? alpha(tokens.burgundy, 0.5)
+          : alpha(tokens.ink, 0.12),
         opacity: plan.available ? 1 : 0.88,
-        bgcolor: "rgba(var(--surface-rgb),0.94)",
+        bgcolor: plan.highlight
+          ? alpha(tokens.burgundy, 0.045)
+          : "rgba(var(--surface-rgb),0.94)",
         boxShadow: plan.highlight
-          ? `0 34px 90px ${alpha(tokens.burgundy, 0.22)}`
-          : `0 24px 70px ${alpha(tokens.ink, 0.08)}`,
+          ? `0 30px 80px ${alpha(tokens.burgundy, 0.18)}`
+          : `0 18px 54px ${alpha(tokens.ink, 0.07)}`,
         ...fadeInSx(80 + index * 80),
         "&::before": {
           content: '""',
           position: "absolute",
-          inset: 0,
+          top: 0,
+          right: 0,
+          left: 0,
+          height: 4,
           pointerEvents: "none",
           background: plan.highlight
-            ? `radial-gradient(circle at 20% 0%, ${alpha(tokens.burgundy, 0.2)}, transparent 38%)`
-            : `radial-gradient(circle at 20% 0%, ${alpha(tokens.gold, 0.14)}, transparent 38%)`,
+            ? tokens.burgundy
+            : alpha(tokens.burgundy, 0.2),
         },
         "&:hover": {
-          transform: "translateY(-6px)",
+          transform: "translateY(-5px)",
           boxShadow: plan.highlight
-            ? `0 42px 100px ${alpha(tokens.burgundy, 0.28)}`
-            : `0 34px 82px ${alpha(tokens.ink, 0.14)}`,
+            ? `0 36px 88px ${alpha(tokens.burgundy, 0.24)}`
+            : `0 28px 70px ${alpha(tokens.ink, 0.11)}`,
         },
       }}
     >
       <CardContent
         sx={{
           position: "relative",
-          p: { xs: 2.5, md: 3 },
+          p: { xs: 2.5, md: 2.75 },
           display: "flex",
           flexDirection: "column",
           height: "100%",
         }}
       >
-        <Stack spacing={2}>
+        <Stack spacing={2.25}>
           <PlanCardHeader
             accent={accent}
+            index={index}
             plan={plan}
             subtitle={subtitle}
             title={title}
@@ -310,11 +272,16 @@ function PlanCard({
 
         <Typography
           variant="body2"
-          sx={{ mt: 2.25, color: "text.secondary", lineHeight: 1.7 }}
+          sx={{
+            mt: 2,
+            minHeight: { lg: 124 },
+            color: "text.secondary",
+            lineHeight: 1.65,
+          }}
         >
           {plan.summary}
         </Typography>
-        <Divider sx={{ my: 2.25 }} />
+        <Divider sx={{ my: 2 }} />
         <PlanIncludedList accent={accent} includes={plan.includes} />
         <PlanButton plan={plan} signupUrl={signupUrl} title={title} />
       </CardContent>
@@ -332,7 +299,11 @@ export function PlanCards({ items }: { items: Plan[] }) {
   return (
     <Box>
       <Box
-        sx={{ display: "flex", justifyContent: "center", mb: { xs: 3.5, md: 5 } }}
+        sx={{
+          display: "flex",
+          justifyContent: "center",
+          mb: { xs: 3.5, md: 5 },
+        }}
       >
         <ToggleButtonGroup
           value={period}
@@ -373,7 +344,7 @@ export function PlanCards({ items }: { items: Plan[] }) {
       <Box
         sx={{
           display: "grid",
-          gap: 3,
+          gap: { xs: 2, md: 2.25 },
           gridTemplateColumns: {
             xs: "1fr",
             sm: "repeat(2, 1fr)",

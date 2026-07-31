@@ -5,6 +5,7 @@ const PATHS = [
   "",
   "features",
   "growth",
+  "affiliates",
   "how-it-works",
   "pricing",
   "for-customers",

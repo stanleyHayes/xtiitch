@@ -50,10 +50,7 @@ export function NotificationPreferences({ // eslint-disable-line max-lines-per-f
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(tokens.warning, 0.18),
-        backgroundImage: `
-          radial-gradient(circle at 96% 0%, ${alpha(tokens.warning, 0.16)}, transparent 36%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-        `,
+        bgcolor: "background.paper",
       }}
     >
       <Stack spacing={1.75}>

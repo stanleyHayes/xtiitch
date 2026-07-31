@@ -32,14 +32,7 @@ export function AdminEmptyState({
         border: "1px dashed",
         borderColor: alpha(tokens.burgundy, 0.28),
         borderRadius: 2,
-        bgcolor: "rgba(var(--surface-rgb), 0.8)",
-        backgroundImage: `radial-gradient(circle at 90% 10%, ${alpha(
-          tokens.burgundy,
-          0.12,
-        )}, transparent 30%), linear-gradient(135deg, ${alpha(
-          tokens.info,
-          0.055,
-        )}, transparent 48%)`,
+        bgcolor: alpha(tokens.burgundy, 0.025),
       }}
     >
       <Stack

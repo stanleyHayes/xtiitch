@@ -138,24 +138,26 @@ func (handler Handler) createAffiliate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record, err := handler.service.CreateAffiliate(r.Context(), adminauthapp.CreateAffiliateCommand{
-		ActorUserID:      principal.AdminUserID,
-		ActorRole:        principal.Role,
-		EntityType:       request.EntityType,
-		Code:             request.Code,
-		DisplayName:      request.DisplayName,
-		ContactName:      request.ContactName,
-		Email:            request.Email,
-		Phone:            request.Phone,
-		WebsiteURL:       request.WebsiteURL,
-		CommissionModel:  request.CommissionModel,
-		CommissionRate:   request.CommissionRate,
-		CookieWindowDays: request.CookieWindowDays,
-		PayoutMode:       request.PayoutMode,
-		PayoutReference:  request.PayoutReference,
-		Status:           request.Status,
-		Notes:            request.Notes,
-		UserAgent:        r.UserAgent(),
-		IPAddress:        requestIP(r),
+		ActorUserID:                principal.AdminUserID,
+		ActorRole:                  principal.Role,
+		EntityType:                 request.EntityType,
+		Code:                       request.Code,
+		DisplayName:                request.DisplayName,
+		ContactName:                request.ContactName,
+		Email:                      request.Email,
+		Phone:                      request.Phone,
+		WebsiteURL:                 request.WebsiteURL,
+		CommissionModel:            request.CommissionModel,
+		CommissionRate:             request.CommissionRate,
+		PurchaseCommissionBPS:      request.PurchaseCommissionBPS,
+		FirstPaidPlanCommissionBPS: request.FirstPaidPlanCommissionBPS,
+		CookieWindowDays:           request.CookieWindowDays,
+		PayoutMode:                 request.PayoutMode,
+		PayoutReference:            request.PayoutReference,
+		Status:                     request.Status,
+		Notes:                      request.Notes,
+		UserAgent:                  r.UserAgent(),
+		IPAddress:                  requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -180,25 +182,27 @@ func (handler Handler) updateAffiliate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	record, err := handler.service.UpdateAffiliate(r.Context(), adminauthapp.UpdateAffiliateCommand{
-		ActorUserID:      principal.AdminUserID,
-		ActorRole:        principal.Role,
-		AffiliateID:      common.ID(chi.URLParam(r, "id")),
-		EntityType:       request.EntityType,
-		Code:             request.Code,
-		DisplayName:      request.DisplayName,
-		ContactName:      request.ContactName,
-		Email:            request.Email,
-		Phone:            request.Phone,
-		WebsiteURL:       request.WebsiteURL,
-		CommissionModel:  request.CommissionModel,
-		CommissionRate:   request.CommissionRate,
-		CookieWindowDays: request.CookieWindowDays,
-		PayoutMode:       request.PayoutMode,
-		PayoutReference:  request.PayoutReference,
-		Status:           request.Status,
-		Notes:            request.Notes,
-		UserAgent:        r.UserAgent(),
-		IPAddress:        requestIP(r),
+		ActorUserID:                principal.AdminUserID,
+		ActorRole:                  principal.Role,
+		AffiliateID:                common.ID(chi.URLParam(r, "id")),
+		EntityType:                 request.EntityType,
+		Code:                       request.Code,
+		DisplayName:                request.DisplayName,
+		ContactName:                request.ContactName,
+		Email:                      request.Email,
+		Phone:                      request.Phone,
+		WebsiteURL:                 request.WebsiteURL,
+		CommissionModel:            request.CommissionModel,
+		CommissionRate:             request.CommissionRate,
+		PurchaseCommissionBPS:      request.PurchaseCommissionBPS,
+		FirstPaidPlanCommissionBPS: request.FirstPaidPlanCommissionBPS,
+		CookieWindowDays:           request.CookieWindowDays,
+		PayoutMode:                 request.PayoutMode,
+		PayoutReference:            request.PayoutReference,
+		Status:                     request.Status,
+		Notes:                      request.Notes,
+		UserAgent:                  r.UserAgent(),
+		IPAddress:                  requestIP(r),
 	})
 	if err != nil {
 		status, code := authError(err)
@@ -240,25 +244,39 @@ func (handler Handler) archiveAffiliate(w http.ResponseWriter, r *http.Request) 
 }
 
 func newAffiliateResponse(record ports.AdminAffiliateRecord) affiliateResponse {
-	return affiliateResponse{
-		AffiliateID:      record.AffiliateID.String(),
-		EntityType:       record.EntityType,
-		Code:             record.Code,
-		DisplayName:      record.DisplayName,
-		ContactName:      record.ContactName,
-		Email:            record.Email,
-		Phone:            record.Phone,
-		WebsiteURL:       record.WebsiteURL,
-		CommissionModel:  record.CommissionModel,
-		CommissionRate:   record.CommissionRate,
-		CookieWindowDays: record.CookieWindowDays,
-		PayoutMode:       record.PayoutMode,
-		PayoutReference:  record.PayoutReference,
-		Status:           record.Status,
-		Notes:            record.Notes,
-		CreatedAt:        record.CreatedAt.Format(time.RFC3339),
-		UpdatedAt:        record.UpdatedAt.Format(time.RFC3339),
+	response := affiliateResponse{
+		AffiliateID:                record.AffiliateID.String(),
+		AffiliateProgrammeID:       record.AffiliateProgrammeID.String(),
+		ProgrammeName:              record.ProgrammeName,
+		OwnerType:                  record.OwnerType,
+		OwnerBusinessName:          record.OwnerBusinessName,
+		EntityType:                 record.EntityType,
+		Code:                       record.Code,
+		DisplayName:                record.DisplayName,
+		ContactName:                record.ContactName,
+		Email:                      record.Email,
+		Phone:                      record.Phone,
+		WebsiteURL:                 record.WebsiteURL,
+		CommissionModel:            record.CommissionModel,
+		CommissionRate:             record.CommissionRate,
+		PurchaseCommissionBPS:      record.PurchaseCommissionBPS,
+		FirstPaidPlanCommissionBPS: record.FirstPaidPlanCommissionBPS,
+		CookieWindowDays:           record.CookieWindowDays,
+		PayoutMode:                 record.PayoutMode,
+		PayoutReference:            record.PayoutReference,
+		Status:                     record.Status,
+		Notes:                      record.Notes,
+		TargetScope:                record.TargetScope,
+		CreatedAt:                  record.CreatedAt.Format(time.RFC3339),
+		UpdatedAt:                  record.UpdatedAt.Format(time.RFC3339),
 	}
+	if record.OwnerBusinessID != nil {
+		response.OwnerBusinessID = record.OwnerBusinessID.String()
+	}
+	if record.TargetRefID != nil {
+		response.TargetRefID = record.TargetRefID.String()
+	}
+	return response
 }
 
 func newAffiliateAttributionResponse(record ports.AdminAffiliateAttributionRecord) affiliateAttributionResponse {
@@ -295,7 +313,10 @@ func newAffiliateConversionResponse(record ports.AdminAffiliateConversionRecord)
 		AffiliateID:      record.AffiliateID.String(),
 		BusinessID:       record.BusinessID.String(),
 		BusinessName:     record.BusinessName,
+		ConversionType:   record.ConversionType,
 		OrderID:          record.OrderID.String(),
+		SubscriptionID:   record.SubscriptionID.String(),
+		PaymentReference: record.PaymentReference,
 		GrossMinor:       record.GrossMinor,
 		CommissionMinor:  record.CommissionMinor,
 		Status:           record.Status,

@@ -5,8 +5,10 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/xcreativs/xtiitch/apps/api/internal/application/ports"
+	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
 type AffiliateRepository struct {
@@ -15,6 +17,122 @@ type AffiliateRepository struct {
 
 func NewAffiliateRepository(pool *pgxpool.Pool) AffiliateRepository {
 	return AffiliateRepository{pool: pool}
+}
+
+func (repo AffiliateRepository) RecordAffiliateSignup(
+	ctx context.Context,
+	input ports.RecordAffiliateSignupInput,
+) (ports.AffiliateSignupRecord, error) {
+	tx, err := repo.pool.Begin(ctx)
+	if err != nil {
+		return ports.AffiliateSignupRecord{}, err
+	}
+	defer rollbackUnlessCommitted(ctx, tx)
+	if err := setTenantBypass(ctx, tx); err != nil {
+		return ports.AffiliateSignupRecord{}, err
+	}
+	var customerID *common.ID
+	var businessID *common.ID
+	var clickID *common.ID
+	if !input.ClickID.IsZero() {
+		clickID = &input.ClickID
+	}
+	if !input.CustomerID.IsZero() {
+		customerID = &input.CustomerID
+	}
+	if !input.BusinessID.IsZero() {
+		businessID = &input.BusinessID
+	}
+	var record ports.AffiliateSignupRecord
+	var scannedCustomerID pgtype.Text
+	var scannedBusinessID pgtype.Text
+	err = tx.QueryRow(ctx, `
+		with active_affiliate as (
+			select affiliate_id, code, cookie_window_days
+			from affiliates
+			where lower(code) = lower($2)
+				and status = 'active'
+			limit 1
+		),
+		selected_click as (
+			select c.affiliate_click_id
+			from affiliate_clicks c
+			join active_affiliate a on a.affiliate_id = c.affiliate_id
+			where c.clicked_at >=
+				now() - make_interval(days => a.cookie_window_days)
+				and (
+					($3::uuid is not null and c.affiliate_click_id = $3::uuid)
+					or ($4 <> '' and c.visitor_id = $4)
+				)
+			order by
+				case when $3::uuid is not null
+					and c.affiliate_click_id = $3::uuid then 0 else 1 end,
+				c.clicked_at desc
+			limit 1
+		),
+		inserted as (
+			insert into affiliate_signups (
+				affiliate_signup_id,
+				affiliate_id,
+				affiliate_click_id,
+				subject_type,
+				customer_id,
+				business_id,
+				code,
+				attribution_model,
+				status
+			)
+			select
+				$1::uuid,
+				a.affiliate_id,
+				selected_click.affiliate_click_id,
+				$5,
+				$6::uuid,
+				$7::uuid,
+				a.code,
+				'last_click',
+				'qualified'
+			from active_affiliate a
+			join selected_click on true
+			on conflict do nothing
+			returning *
+		)
+		select
+			affiliate_signup_id::text,
+			affiliate_id::text,
+			subject_type,
+			customer_id::text,
+			business_id::text,
+			qualified_at
+		from inserted
+	`, input.SignupID.String(), input.Code, nullableIDArg(clickID),
+		input.VisitorID, input.SubjectType, nullableIDArg(customerID),
+		nullableIDArg(businessID)).Scan(
+		&record.SignupID,
+		&record.AffiliateID,
+		&record.SubjectType,
+		&scannedCustomerID,
+		&scannedBusinessID,
+		&record.QualifiedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ports.AffiliateSignupRecord{}, ports.ErrNotFound
+		}
+		return ports.AffiliateSignupRecord{}, err
+	}
+	if scannedCustomerID.Valid {
+		id := common.ID(scannedCustomerID.String)
+		record.CustomerID = &id
+	}
+	if scannedBusinessID.Valid {
+		id := common.ID(scannedBusinessID.String)
+		record.BusinessID = &id
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ports.AffiliateSignupRecord{}, err
+	}
+	return record, nil
 }
 
 func (repo AffiliateRepository) RecordAffiliateClick(
@@ -34,7 +152,13 @@ func (repo AffiliateRepository) RecordAffiliateClick(
 	var record ports.AffiliateClickRecord
 	if err := tx.QueryRow(ctx, `
 		with active_affiliate as (
-			select affiliate_id, code
+			select
+				affiliate_id,
+				code,
+				affiliate_programme_id,
+				owner_business_id,
+				target_scope,
+				target_ref_id
 			from affiliates
 			where lower(code) = lower($2)
 				and status = 'active'
@@ -59,7 +183,14 @@ func (repo AffiliateRepository) RecordAffiliateClick(
 				$5,
 				$6,
 				$7,
-				jsonb_build_object('source', 'public_api')
+				jsonb_build_object(
+					'source', 'public_api',
+					'affiliate_programme_id',
+						active_affiliate.affiliate_programme_id,
+					'owner_business_id', active_affiliate.owner_business_id,
+					'target_scope', active_affiliate.target_scope,
+					'target_ref_id', active_affiliate.target_ref_id
+				)
 			from active_affiliate
 			returning affiliate_click_id, affiliate_id, clicked_at
 		)

@@ -27,11 +27,7 @@ export function MetricCard({
         display: "flex",
         alignItems: "stretch",
         borderColor: alpha(tokens.burgundy, 0.16),
-        backgroundImage: `
-          radial-gradient(circle at 88% 18%, ${alpha(tokens.warning, 0.18)} 0, transparent 30%),
-          linear-gradient(135deg, ${alpha(tokens.burgundy, 0.1)}, transparent 48%),
-          linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.74))
-        `,
+        bgcolor: "background.paper",
         "&::before": {
           content: '""',
           position: "absolute",

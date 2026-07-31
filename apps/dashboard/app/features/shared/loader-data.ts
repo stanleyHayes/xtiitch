@@ -2,6 +2,7 @@ import type { Design } from "../../lib/api";
 import type { ActivationStatus } from "../../lib/activation";
 import type { AnalyticsData } from "../analytics/types";
 import type { CrmData } from "../crm/types";
+import type { BusinessAffiliateData } from "../affiliates/types";
 import type {
   AvailabilityWindow,
   BookingSummary,
@@ -62,6 +63,7 @@ export type DashboardLoaderData = {
   // empty states on every other section.
   analytics: AnalyticsData;
   crm: CrmData;
+  affiliates: BusinessAffiliateData;
   section: DashboardSection;
   orderFilter: OrderFilter;
   dataWarnings: string[];

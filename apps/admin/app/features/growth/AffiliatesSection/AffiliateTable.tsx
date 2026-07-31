@@ -197,6 +197,24 @@ export function AffiliateTable({
                       slotProps={{ htmlInput: { min: 0, step: "0.01" } }}
                     />
                     <TextField
+                      label="Purchase commission (%)"
+                      name="purchase_commission_value"
+                      type="number"
+                      defaultValue={10}
+                      slotProps={{
+                        htmlInput: { min: 0, max: 100, step: "0.01" },
+                      }}
+                    />
+                    <TextField
+                      label="First paid-plan commission (%)"
+                      name="paid_plan_commission_value"
+                      type="number"
+                      defaultValue={15}
+                      slotProps={{
+                        htmlInput: { min: 0, max: 100, step: "0.01" },
+                      }}
+                    />
+                    <TextField
                       label="Cookie window"
                       name="cookie_window_days"
                       type="number"

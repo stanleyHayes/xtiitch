@@ -41,10 +41,12 @@ export function WorkspaceHeader({
         p: { xs: 2.25, md: 3 },
         mb: 2.5,
         position: "relative",
-        bgcolor: tokens.charcoal,
         color: "common.white",
         borderColor: alpha(tokens.ink, 0.1),
-        backgroundImage: `linear-gradient(135deg, ${alpha(meta.tone, 0.32)}, transparent 44%), linear-gradient(180deg, ${alpha(tokens.white, 0.08)}, transparent)`,
+        // The section-tone tint wins (it was declared last, so this is already
+        // what renders); the dead `tokens.charcoal` above it is removed rather
+        // than the tint, so the header keeps its current appearance.
+        bgcolor: alpha(meta.tone, 0.24),
       }}
     >
       <Box

@@ -3,7 +3,7 @@ import Checkbox from "@mui/material/Checkbox";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
-import { tokens } from "../../theme";
+import { getXtiitchThemeColors } from "@xtiitch/design-tokens";
 
 
 
@@ -25,11 +25,18 @@ export function BooleanPreference({
       sx={{
         p: 1.25,
         border: "1px solid",
-        borderColor: alpha(tokens.ink, 0.08),
         borderRadius: 1.5,
-        bgcolor: disabled
-          ? alpha(tokens.ink, 0.035)
-          : alpha(tokens.white, 0.62),
+        // `tokens` is the STATIC palette, so `alpha(tokens.white, 0.62)` painted
+        // a 62%-opacity white card regardless of theme — a pale grey slab on the
+        // dark console, carrying the dark theme's light `text.secondary` on top
+        // of it. These read the per-mode set instead, so the card is white on
+        // light and a raised dark surface on dark.
+        borderColor: (theme) =>
+          getXtiitchThemeColors(theme.palette.mode).border,
+        bgcolor: (theme) =>
+          disabled
+            ? alpha(getXtiitchThemeColors(theme.palette.mode).elevated, 0.5)
+            : getXtiitchThemeColors(theme.palette.mode).elevated,
       }}
     >
       <input type="hidden" name={name} value="false" />

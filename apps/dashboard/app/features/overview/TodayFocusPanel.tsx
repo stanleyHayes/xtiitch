@@ -30,12 +30,6 @@ export function TodayFocusPanel({
         bgcolor: tokens.charcoal,
         color: tokens.white,
         position: "relative",
-        backgroundImage: `
-          linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px),
-          linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px),
-          linear-gradient(145deg, ${alpha(tokens.burgundy, 0.42)}, transparent 54%)
-        `,
-        backgroundSize: "34px 34px, 34px 34px, auto",
       }}
     >
       <Stack spacing={1.75}>

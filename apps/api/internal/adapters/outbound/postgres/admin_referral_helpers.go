@@ -207,5 +207,8 @@ func referralProgrammeCodeTaken(err error) bool {
 
 func referralCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "referral_codes_code_unique_idx"
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		(pgErr.ConstraintName == "referral_codes_code_unique_idx" ||
+			pgErr.ConstraintName == "growth_codes_pkey")
 }

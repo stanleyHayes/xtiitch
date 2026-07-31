@@ -15,6 +15,41 @@ type AffiliateClickRepository interface {
 	) (AffiliateAttributionReservation, error)
 }
 
+type AffiliateApplicationRepository interface {
+	SubmitAffiliateApplication(
+		ctx context.Context,
+		input SubmitAffiliateApplicationInput,
+	) (AffiliateApplicationRecord, error)
+}
+
+type AffiliateSignupRepository interface {
+	RecordAffiliateSignup(
+		ctx context.Context,
+		input RecordAffiliateSignupInput,
+	) (AffiliateSignupRecord, error)
+}
+
+type SubscriptionAffiliateAttributionRepository interface {
+	ReserveFirstPaidPlanAttribution(
+		ctx context.Context,
+		input ReserveFirstPaidPlanAttributionInput,
+	) (AffiliatePlanAttributionReservation, error)
+	FinalizeFirstPaidPlanAttribution(
+		ctx context.Context,
+		input FinalizeFirstPaidPlanAttributionInput,
+	) (AffiliatePlanConversionRecord, error)
+	VoidFirstPaidPlanAttribution(
+		ctx context.Context,
+		businessID common.ID,
+		paymentReference string,
+		reason string,
+	) error
+	ApplyFirstPaidPlanProviderEvent(
+		ctx context.Context,
+		input ApplyFirstPaidPlanProviderEventInput,
+	) error
+}
+
 type SponsoredPlacementRepository interface {
 	ListActiveSponsoredPlacements(ctx context.Context, input ListActiveSponsoredPlacementsInput) ([]SponsoredPlacementRecord, error)
 	RecordSponsoredAdEvent(ctx context.Context, input RecordSponsoredAdEventInput) (SponsoredAdEventRecord, error)

@@ -191,59 +191,155 @@ type CreateAdminAdCampaignPaymentInput struct {
 	ActorAdminUser    common.ID
 }
 type AdminAffiliateRecord struct {
-	AffiliateID      common.ID
-	EntityType       string
-	Code             string
-	DisplayName      string
-	ContactName      string
-	Email            string
-	Phone            string
-	WebsiteURL       string
-	CommissionModel  string
-	CommissionRate   int64
-	CookieWindowDays int
-	PayoutMode       string
-	PayoutReference  string
-	Status           string
-	Notes            string
-	CreatedAt        time.Time
-	UpdatedAt        time.Time
+	AffiliateID                common.ID
+	AffiliateProgrammeID       common.ID
+	ProgrammeName              string
+	OwnerType                  string
+	OwnerBusinessID            *common.ID
+	OwnerBusinessName          string
+	EntityType                 string
+	Code                       string
+	DisplayName                string
+	ContactName                string
+	Email                      string
+	Phone                      string
+	WebsiteURL                 string
+	CommissionModel            string
+	CommissionRate             int64
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	PayoutReference            string
+	Status                     string
+	Notes                      string
+	TargetScope                string
+	TargetRefID                *common.ID
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
+}
+type AdminAffiliateProgrammeRecord struct {
+	AffiliateProgrammeID              common.ID
+	OwnerType                         string
+	BusinessID                        *common.ID
+	BusinessName                      string
+	IsDefault                         bool
+	Name                              string
+	Description                       string
+	Status                            string
+	DefaultPurchaseCommissionBPS      int
+	DefaultFirstPaidPlanCommissionBPS int
+	CookieWindowDays                  int
+	HoldDays                          int
+	PayoutMode                        string
+	MinimumPayoutMinor                int64
+	AllowedTargetScope                string
+	AffiliateCount                    int64
+	CreatedAt                         time.Time
+	UpdatedAt                         time.Time
+}
+type CreateAdminAffiliateProgrammeInput struct {
+	AffiliateProgrammeID              common.ID
+	OwnerType                         string
+	BusinessID                        *common.ID
+	Name                              string
+	Description                       string
+	Status                            string
+	DefaultPurchaseCommissionBPS      int
+	DefaultFirstPaidPlanCommissionBPS int
+	CookieWindowDays                  int
+	HoldDays                          int
+	PayoutMode                        string
+	MinimumPayoutMinor                int64
+	AllowedTargetScope                string
+	ActorAdminUser                    common.ID
+}
+type UpdateAdminAffiliateProgrammeInput struct {
+	AffiliateProgrammeID              common.ID
+	Name                              string
+	Description                       string
+	Status                            string
+	DefaultPurchaseCommissionBPS      int
+	DefaultFirstPaidPlanCommissionBPS int
+	CookieWindowDays                  int
+	HoldDays                          int
+	PayoutMode                        string
+	MinimumPayoutMinor                int64
+	AllowedTargetScope                string
+	ActorAdminUser                    common.ID
+}
+type AdminAffiliateApplicationRecord struct {
+	ApplicationID     common.ID
+	ApplicantType     string
+	DisplayName       string
+	ContactName       string
+	Email             string
+	Phone             string
+	WebsiteURL        string
+	RequestedCode     string
+	AudienceSummary   string
+	PromotionChannels []string
+	Status            string
+	AffiliateID       *common.ID
+	ReviewNote        string
+	ReviewedAt        *time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+}
+type DecideAdminAffiliateApplicationInput struct {
+	ApplicationID              common.ID
+	Decision                   string
+	ReviewNote                 string
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	AffiliateID                common.ID
+	AffiliateAccountID         common.ID
+	ActivationTokenID          common.ID
+	ActivationTokenHash        string
+	ActivationTokenExpiresAt   time.Time
+	ActorAdminUser             common.ID
 }
 type CreateAdminAffiliateInput struct {
-	AffiliateID      common.ID
-	EntityType       string
-	Code             string
-	DisplayName      string
-	ContactName      string
-	Email            string
-	Phone            string
-	WebsiteURL       string
-	CommissionModel  string
-	CommissionRate   int64
-	CookieWindowDays int
-	PayoutMode       string
-	PayoutReference  string
-	Status           string
-	Notes            string
-	ActorAdminUser   common.ID
+	AffiliateID                common.ID
+	EntityType                 string
+	Code                       string
+	DisplayName                string
+	ContactName                string
+	Email                      string
+	Phone                      string
+	WebsiteURL                 string
+	CommissionModel            string
+	CommissionRate             int64
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	PayoutReference            string
+	Status                     string
+	Notes                      string
+	ActorAdminUser             common.ID
 }
 type UpdateAdminAffiliateInput struct {
-	AffiliateID      common.ID
-	EntityType       string
-	Code             string
-	DisplayName      string
-	ContactName      string
-	Email            string
-	Phone            string
-	WebsiteURL       string
-	CommissionModel  string
-	CommissionRate   int64
-	CookieWindowDays int
-	PayoutMode       string
-	PayoutReference  string
-	Status           string
-	Notes            string
-	ActorAdminUser   common.ID
+	AffiliateID                common.ID
+	EntityType                 string
+	Code                       string
+	DisplayName                string
+	ContactName                string
+	Email                      string
+	Phone                      string
+	WebsiteURL                 string
+	CommissionModel            string
+	CommissionRate             int64
+	PurchaseCommissionBPS      int
+	FirstPaidPlanCommissionBPS int
+	CookieWindowDays           int
+	PayoutMode                 string
+	PayoutReference            string
+	Status                     string
+	Notes                      string
+	ActorAdminUser             common.ID
 }
 type ArchiveAdminAffiliateInput struct {
 	AffiliateID    common.ID
@@ -270,7 +366,10 @@ type AdminAffiliateConversionRecord struct {
 	AffiliateID      common.ID
 	BusinessID       common.ID
 	BusinessName     string
+	ConversionType   string
 	OrderID          common.ID
+	SubscriptionID   common.ID
+	PaymentReference string
 	GrossMinor       int64
 	CommissionMinor  int64
 	Status           string
@@ -298,6 +397,23 @@ type AdminAffiliatePayoutRecord struct {
 	Notes           string
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
+}
+
+type AdminGrowthReportRecord struct {
+	ClickCount              int64
+	CustomerSignupCount     int64
+	BusinessSignupCount     int64
+	PurchaseConversionCount int64
+	PaidPlanConversionCount int64
+	GrossEligibleMinor      int64
+	StoreDiscountMinor      int64
+	PaidPlanDiscountMinor   int64
+	PendingCommissionMinor  int64
+	ApprovedCommissionMinor int64
+	SettledCommissionMinor  int64
+	ReversedCommissionMinor int64
+	PayoutBatchCount        int64
+	PayoutCommissionMinor   int64
 }
 type CreateAdminAffiliatePayoutInput struct {
 	PayoutBatchID   common.ID

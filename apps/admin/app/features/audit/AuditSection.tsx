@@ -20,10 +20,7 @@ function AuditEventRow({ event }: { event: AuditEvent }) {
       sx={{
         p: 2,
         borderColor: alpha(auditColor(event.severity), 0.18),
-        backgroundImage: `linear-gradient(90deg, ${alpha(
-          auditColor(event.severity),
-          0.065,
-        )}, transparent 36%)`,
+        bgcolor: alpha(auditColor(event.severity), 0.025),
         "&:hover": {
           transform: "translateY(-2px)",
           borderColor: alpha(auditColor(event.severity), 0.32),

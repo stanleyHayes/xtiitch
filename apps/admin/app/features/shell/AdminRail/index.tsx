@@ -33,16 +33,12 @@ export function AdminRail({
   onSelect: (section: Section) => void;
 }) {
   const railSx = {
-    bgcolor: tokens.charcoal,
     color: tokens.white,
     overflowX: "hidden",
     overflowY: "auto",
     scrollbarWidth: "none",
     "&::-webkit-scrollbar": { display: "none" },
-    backgroundImage: `
-      linear-gradient(180deg, ${alpha(tokens.white, 0.06)} 0%, transparent 22%),
-      linear-gradient(155deg, ${alpha(tokens.burgundy, 0.66)} 0%, ${tokens.charcoal} 48%, ${alpha(tokens.ink, 0.98)} 100%)
-    `,
+    bgcolor: tokens.charcoal,
     boxShadow: `inset -1px 0 0 ${alpha(tokens.white, 0.08)}`,
   };
 

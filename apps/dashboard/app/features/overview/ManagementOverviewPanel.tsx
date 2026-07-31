@@ -16,7 +16,7 @@ export function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.burgundy, 0.065)}, transparent 44%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.7))`,
+        bgcolor: "background.paper",
       }}
     >
       <SectionHeader
@@ -47,8 +47,7 @@ export function ManagementOverviewPanel({ rooms }: { rooms: OverviewRoom[] }) {
               border: "1px solid",
               borderColor: alpha(room.tone, 0.2),
               borderRadius: 2,
-              bgcolor: "rgba(var(--surface-rgb), 0.78)",
-              backgroundImage: `linear-gradient(135deg, ${alpha(room.tone, 0.08)}, transparent 48%)`,
+              bgcolor: alpha(room.tone, 0.035),
               color: "text.primary",
               minWidth: 0,
               display: "grid",

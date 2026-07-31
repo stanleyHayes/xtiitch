@@ -157,6 +157,11 @@ func (s Service) holdAndCharge(
 		s.discardBooking(ctx, scope, bookingID, orderID, cleanupCustomerID)
 		return PlaceHomeVisitBookingResult{}, err
 	}
+	s.recordCustomerAffiliateSignup(ctx, customerID, customerCreated, affiliateCheckoutInput{
+		code:      cmd.AffiliateCode,
+		clickID:   cmd.AffiliateClickID,
+		visitorID: cmd.AffiliateVisitorID,
+	})
 	s.reserveAffiliateAttribution(ctx, scope, affiliateCheckoutInput{
 		code:       cmd.AffiliateCode,
 		clickID:    cmd.AffiliateClickID,

@@ -13,11 +13,8 @@ export function Panel({ children, sx }: { children: ReactNode; sx?: SxProps<Them
         border: "1px solid",
         borderColor: alpha(tokens.ink, 0.1),
         borderRadius: 2,
-        bgcolor: "rgba(var(--surface-rgb), 0.96)",
-        backgroundImage:
-          "linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.66))",
-        boxShadow: `0 22px 60px ${alpha(tokens.ink, 0.065)}`,
-        backdropFilter: "blur(10px)",
+        bgcolor: "background.paper",
+        boxShadow: `0 16px 44px ${alpha(tokens.ink, 0.055)}`,
         minWidth: 0,
         maxWidth: "100%",
         overflow: "hidden",

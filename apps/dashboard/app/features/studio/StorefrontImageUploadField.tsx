@@ -9,13 +9,18 @@ import {
   MAX_PAIRED_IMAGE_MB,
   MAX_UPLOAD_BUDGET_MB,
 } from "../../lib/upload-limits";
+import type { ImageSpec } from "../../lib/image-specs";
 
 export function StorefrontImageUploadField({
   name,
   currentUrl,
+  spec,
 }: {
   name: string;
   currentUrl: string;
+  // Logo and banner are cropped very differently by the storefront, so each
+  // carries its own target rather than a shared "upload an image" hint.
+  spec?: ImageSpec;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   // Oversized images are refused at pick time: the multipart form also
@@ -92,7 +97,9 @@ export function StorefrontImageUploadField({
               ? `That image is over ${MAX_PAIRED_IMAGE_MB} MB — export a smaller copy.`
               : picked
                 ? `Selected: ${picked}`
-                : `PNG or JPG up to ${MAX_PAIRED_IMAGE_MB} MB each (${MAX_UPLOAD_BUDGET_MB} MB per upload) — uploaded to Cloudinary when you save.`}
+                : spec
+                  ? `${spec.dimensions} (${spec.ratio}) · PNG or JPG up to ${MAX_PAIRED_IMAGE_MB} MB. ${spec.note}`
+                  : `PNG or JPG up to ${MAX_PAIRED_IMAGE_MB} MB each (${MAX_UPLOAD_BUDGET_MB} MB per upload) — uploaded to Cloudinary when you save.`}
           </Typography>
         </Box>
       </Stack>

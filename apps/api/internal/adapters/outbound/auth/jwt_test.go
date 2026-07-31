@@ -85,6 +85,45 @@ func TestNewJWTIssuerRequiresSigningKey(t *testing.T) {
 	}
 }
 
+func TestJWTIssuerKeepsAffiliateTokensInDedicatedScope(t *testing.T) {
+	t.Parallel()
+
+	issuer, err := NewJWTIssuer("test-secret", "xtiitch-api", "xtiitch-clients")
+	if err != nil {
+		t.Fatalf("new jwt issuer: %v", err)
+	}
+	now := time.Now()
+	token, err := issuer.IssueAffiliateAccessToken(
+		context.Background(),
+		ports.AffiliateAccessTokenInput{
+			AccountID:   common.ID("account-1"),
+			AffiliateID: common.ID("affiliate-1"),
+			IssuedAt:    now,
+			ExpiresAt:   now.Add(15 * time.Minute),
+		},
+	)
+	if err != nil {
+		t.Fatalf("issue affiliate access token: %v", err)
+	}
+	verified, err := issuer.VerifyAffiliateAccessToken(context.Background(), token)
+	if err != nil {
+		t.Fatalf("verify affiliate access token: %v", err)
+	}
+	if verified.AccountID != common.ID("account-1") ||
+		verified.AffiliateID != common.ID("affiliate-1") {
+		t.Fatalf("unexpected affiliate principal: %+v", verified)
+	}
+	if _, err := issuer.VerifyAdminAccessToken(context.Background(), token); err == nil {
+		t.Fatal("affiliate token must not verify as an admin token")
+	}
+	if _, err := issuer.VerifyAccessToken(context.Background(), token); err == nil {
+		t.Fatal("affiliate token must not verify as a business token")
+	}
+	if _, err := issuer.VerifyCustomerAccessToken(context.Background(), token); err == nil {
+		t.Fatal("affiliate token must not verify as a customer token")
+	}
+}
+
 func TestJWTIssuerIssuesAndVerifiesAdminAccessToken(t *testing.T) {
 	t.Parallel()
 

@@ -92,6 +92,7 @@ export function fallbackPlatformSettings(): AdminPlatformSettings {
       discover: false,
       createStore: false,
       pricing: false,
+      affiliateSignup: false,
     },
     aiAssistantAddonEnabled: true,
   };

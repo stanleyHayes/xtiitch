@@ -190,7 +190,10 @@ func adminPromotionSelect(source string) string {
 
 func promotionCodeTaken(err error) bool {
 	var pgErr *pgconn.PgError
-	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation && pgErr.ConstraintName == "promotions_active_code_unique_idx"
+	return errors.As(err, &pgErr) &&
+		pgErr.Code == pgUniqueViolation &&
+		(pgErr.ConstraintName == "promotions_active_code_unique_idx" ||
+			pgErr.ConstraintName == "growth_codes_pkey")
 }
 
 func nullableTextArg(value string) any {

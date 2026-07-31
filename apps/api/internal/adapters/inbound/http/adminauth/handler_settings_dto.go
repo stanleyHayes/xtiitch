@@ -28,19 +28,21 @@ type platformSettingsResponse struct {
 // marketingFlagsResponse mirrors the four marketing launch flags. Each reports
 // whether that not-yet-launched marketing surface should be shown.
 type marketingFlagsResponse struct {
-	BrowseStore bool `json:"browse_store"`
-	Discover    bool `json:"discover"`
-	CreateStore bool `json:"create_store"`
-	Pricing     bool `json:"pricing"`
+	BrowseStore     bool `json:"browse_store"`
+	Discover        bool `json:"discover"`
+	CreateStore     bool `json:"create_store"`
+	Pricing         bool `json:"pricing"`
+	AffiliateSignup bool `json:"affiliate_signup"`
 }
 
 // updateMarketingFlagsRequest is a partial update: an omitted key leaves that
 // flag unchanged, so pointers distinguish "not provided" from "set to false".
 type updateMarketingFlagsRequest struct {
-	BrowseStore *bool `json:"browse_store"`
-	Discover    *bool `json:"discover"`
-	CreateStore *bool `json:"create_store"`
-	Pricing     *bool `json:"pricing"`
+	BrowseStore     *bool `json:"browse_store"`
+	Discover        *bool `json:"discover"`
+	CreateStore     *bool `json:"create_store"`
+	Pricing         *bool `json:"pricing"`
+	AffiliateSignup *bool `json:"affiliate_signup"`
 }
 
 type brandingUploadSignatureResponse struct {

@@ -38,6 +38,41 @@ func (s Service) reserveAffiliateAttribution(
 		"error", err)
 }
 
+func (s Service) recordCustomerAffiliateSignup(
+	ctx context.Context,
+	customerID common.ID,
+	customerCreated bool,
+	input affiliateCheckoutInput,
+) {
+	code := normalizeCheckoutPromotionCode(input.code)
+	if !customerCreated || customerID.IsZero() || code == "" ||
+		s.affiliateSignups == nil {
+		return
+	}
+	_, err := s.affiliateSignups.RecordAffiliateSignup(
+		ctx,
+		ports.RecordAffiliateSignupInput{
+			SignupID:    s.ids.NewID(),
+			Code:        code,
+			ClickID:     input.clickID,
+			VisitorID:   strings.TrimSpace(input.visitorID),
+			SubjectType: "customer",
+			CustomerID:  customerID,
+		},
+	)
+	if err == nil || errors.Is(err, ports.ErrNotFound) {
+		return
+	}
+	s.logger.ErrorContext(
+		ctx,
+		"checkout: failed to record customer affiliate signup",
+		"customer_id",
+		customerID.String(),
+		"error",
+		err,
+	)
+}
+
 func (s Service) reserveReferralAttribution(
 	ctx context.Context,
 	scope common.TenantScope,

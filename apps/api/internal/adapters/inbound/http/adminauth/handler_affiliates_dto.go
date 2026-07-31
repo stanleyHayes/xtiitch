@@ -1,20 +1,50 @@
 package adminauthhttp
 
+type affiliateApplicationDecisionRequest struct {
+	Decision                   string `json:"decision"`
+	ReviewNote                 string `json:"review_note"`
+	PurchaseCommissionBPS      int    `json:"purchase_commission_bps"`
+	FirstPaidPlanCommissionBPS int    `json:"first_paid_plan_commission_bps"`
+	CookieWindowDays           int    `json:"cookie_window_days"`
+	PayoutMode                 string `json:"payout_mode"`
+}
+
+type affiliateApplicationResponse struct {
+	ApplicationID     string   `json:"application_id"`
+	ApplicantType     string   `json:"applicant_type"`
+	DisplayName       string   `json:"display_name"`
+	ContactName       string   `json:"contact_name"`
+	Email             string   `json:"email"`
+	Phone             string   `json:"phone"`
+	WebsiteURL        string   `json:"website_url"`
+	RequestedCode     string   `json:"requested_code"`
+	AudienceSummary   string   `json:"audience_summary"`
+	PromotionChannels []string `json:"promotion_channels"`
+	Status            string   `json:"status"`
+	AffiliateID       string   `json:"affiliate_id,omitempty"`
+	ReviewNote        string   `json:"review_note"`
+	ReviewedAt        string   `json:"reviewed_at,omitempty"`
+	CreatedAt         string   `json:"created_at"`
+	UpdatedAt         string   `json:"updated_at"`
+}
+
 type affiliateUpsertRequest struct {
-	EntityType       string `json:"entity_type"`
-	Code             string `json:"code"`
-	DisplayName      string `json:"display_name"`
-	ContactName      string `json:"contact_name"`
-	Email            string `json:"email"`
-	Phone            string `json:"phone"`
-	WebsiteURL       string `json:"website_url"`
-	CommissionModel  string `json:"commission_model"`
-	CommissionRate   int64  `json:"commission_rate"`
-	CookieWindowDays int    `json:"cookie_window_days"`
-	PayoutMode       string `json:"payout_mode"`
-	PayoutReference  string `json:"payout_reference"`
-	Status           string `json:"status"`
-	Notes            string `json:"notes"`
+	EntityType                 string `json:"entity_type"`
+	Code                       string `json:"code"`
+	DisplayName                string `json:"display_name"`
+	ContactName                string `json:"contact_name"`
+	Email                      string `json:"email"`
+	Phone                      string `json:"phone"`
+	WebsiteURL                 string `json:"website_url"`
+	CommissionModel            string `json:"commission_model"`
+	CommissionRate             int64  `json:"commission_rate"`
+	PurchaseCommissionBPS      int    `json:"purchase_commission_bps"`
+	FirstPaidPlanCommissionBPS int    `json:"first_paid_plan_commission_bps"`
+	CookieWindowDays           int    `json:"cookie_window_days"`
+	PayoutMode                 string `json:"payout_mode"`
+	PayoutReference            string `json:"payout_reference"`
+	Status                     string `json:"status"`
+	Notes                      string `json:"notes"`
 }
 
 type affiliateArchiveRequest struct {
@@ -32,23 +62,32 @@ type affiliatePayoutRequest struct {
 }
 
 type affiliateResponse struct {
-	AffiliateID      string `json:"affiliate_id"`
-	EntityType       string `json:"entity_type"`
-	Code             string `json:"code"`
-	DisplayName      string `json:"display_name"`
-	ContactName      string `json:"contact_name"`
-	Email            string `json:"email"`
-	Phone            string `json:"phone"`
-	WebsiteURL       string `json:"website_url"`
-	CommissionModel  string `json:"commission_model"`
-	CommissionRate   int64  `json:"commission_rate"`
-	CookieWindowDays int    `json:"cookie_window_days"`
-	PayoutMode       string `json:"payout_mode"`
-	PayoutReference  string `json:"payout_reference"`
-	Status           string `json:"status"`
-	Notes            string `json:"notes"`
-	CreatedAt        string `json:"created_at"`
-	UpdatedAt        string `json:"updated_at"`
+	AffiliateID                string `json:"affiliate_id"`
+	AffiliateProgrammeID       string `json:"affiliate_programme_id"`
+	ProgrammeName              string `json:"programme_name"`
+	OwnerType                  string `json:"owner_type"`
+	OwnerBusinessID            string `json:"owner_business_id,omitempty"`
+	OwnerBusinessName          string `json:"owner_business_name,omitempty"`
+	EntityType                 string `json:"entity_type"`
+	Code                       string `json:"code"`
+	DisplayName                string `json:"display_name"`
+	ContactName                string `json:"contact_name"`
+	Email                      string `json:"email"`
+	Phone                      string `json:"phone"`
+	WebsiteURL                 string `json:"website_url"`
+	CommissionModel            string `json:"commission_model"`
+	CommissionRate             int64  `json:"commission_rate"`
+	PurchaseCommissionBPS      int    `json:"purchase_commission_bps"`
+	FirstPaidPlanCommissionBPS int    `json:"first_paid_plan_commission_bps"`
+	CookieWindowDays           int    `json:"cookie_window_days"`
+	PayoutMode                 string `json:"payout_mode"`
+	PayoutReference            string `json:"payout_reference"`
+	Status                     string `json:"status"`
+	Notes                      string `json:"notes"`
+	TargetScope                string `json:"target_scope"`
+	TargetRefID                string `json:"target_ref_id,omitempty"`
+	CreatedAt                  string `json:"created_at"`
+	UpdatedAt                  string `json:"updated_at"`
 }
 
 type affiliateAttributionResponse struct {
@@ -73,7 +112,10 @@ type affiliateConversionResponse struct {
 	AffiliateID      string `json:"affiliate_id"`
 	BusinessID       string `json:"business_id"`
 	BusinessName     string `json:"business_name"`
-	OrderID          string `json:"order_id"`
+	ConversionType   string `json:"conversion_type"`
+	OrderID          string `json:"order_id,omitempty"`
+	SubscriptionID   string `json:"subscription_id,omitempty"`
+	PaymentReference string `json:"payment_reference,omitempty"`
 	GrossMinor       int64  `json:"gross_minor"`
 	CommissionMinor  int64  `json:"commission_minor"`
 	Status           string `json:"status"`

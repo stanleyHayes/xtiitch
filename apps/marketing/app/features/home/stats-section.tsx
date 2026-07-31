@@ -1,282 +1,275 @@
-import type { SvgIconComponent } from "@mui/icons-material";
+import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import PaymentsRoundedIcon from "@mui/icons-material/PaymentsRounded";
+import SellRoundedIcon from "@mui/icons-material/SellRounded";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
-import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
-import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
-import LocalOfferRoundedIcon from "@mui/icons-material/LocalOfferRounded";
-import TimelineRoundedIcon from "@mui/icons-material/TimelineRounded";
+import Typography from "@mui/material/Typography";
+import { perspectiveGridSx } from "../../components/ui/shared";
 
 const homeRiseSx = (delayMs = 0) => ({
   animation: `xtiitch-rise-in 620ms cubic-bezier(0.2, 0.8, 0.2, 1) ${delayMs}ms backwards`,
-  "@media (prefers-reduced-motion: reduce)": {
-    animation: "none",
-  },
+  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
 });
 
-const stats: {
-  eyebrow: string;
-  value: string;
-  label: string;
-  accent: string;
-  Icon: SvgIconComponent;
-  statuses?: { label: string; color: string }[];
-}[] = [
-  {
-    eyebrow: "Start without pressure",
-    value: "GHS 0",
-    label: "to start on the Free plan",
-    accent: "#800020",
-    Icon: LocalOfferRoundedIcon,
-  },
-  {
-    eyebrow: "Tracking customers can understand",
-    value: "Red · Yellow · Green",
-    label: "order status anyone can read",
-    accent: "#b87914",
-    Icon: TimelineRoundedIcon,
-    statuses: [
-      { label: "Red", color: "#a92727" },
-      { label: "Yellow", color: "#b87914" },
-      { label: "Green", color: "#237a4b" },
-    ],
-  },
-  {
-    eyebrow: "Your money stays yours",
-    value: "0",
-    label: "of your money we ever hold",
-    accent: "#237a4b",
-    Icon: AccountBalanceWalletRoundedIcon,
-  },
+const orderStages = [
+  { label: "Received", detail: "Red", colour: "#a92727" },
+  { label: "In progress", detail: "Yellow", colour: "#b87914" },
+  { label: "Ready", detail: "Green", colour: "#237a4b" },
 ];
 
-export function StatsSection() { // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
+export function StatsSection() {
+  return (
+    <Box
+      component="section"
+      aria-labelledby="business-promises-title"
+      sx={{
+        position: "relative",
+        py: { xs: 7, md: 10 },
+        bgcolor: "background.default",
+        borderBottom: "1px solid",
+        borderColor: "divider",
+        overflow: "hidden",
+        "&:before": perspectiveGridSx({ opacity: 0.72 }),
+      }}
+    >
+      <Container sx={{ position: "relative", zIndex: 1 }}>
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", lg: "0.7fr 1.3fr" },
+            gap: { xs: 3.5, lg: 7 },
+            alignItems: "end",
+            mb: { xs: 4, md: 5 },
+            ...homeRiseSx(180),
+          }}
+        >
+          <Box>
+            <Typography
+              variant="overline"
+              sx={{ color: "primary.main", fontWeight: 850, letterSpacing: "0.1em" }}
+            >
+              Built to feel straightforward
+            </Typography>
+            <Typography
+              id="business-promises-title"
+              component="h2"
+              variant="h2"
+              sx={{ mt: 1, fontSize: { xs: 36, sm: 46, md: 54 }, lineHeight: 1.02 }}
+            >
+              Less uncertainty at every step.
+            </Typography>
+          </Box>
+          <Typography
+            sx={{
+              maxWidth: 650,
+              color: "text.secondary",
+              fontSize: { xs: 16, md: 19 },
+              lineHeight: 1.65,
+              textWrap: "pretty",
+            }}
+          >
+            Start before you are ready to pay for software, show customers what
+            is happening with every order, and receive payments through Paystack.
+          </Typography>
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "minmax(280px, .82fr) 1.18fr" },
+            gap: { xs: 2, md: 2.5 },
+            alignItems: "stretch",
+          }}
+        >
+          <FreePlanPanel />
+
+          <Stack spacing={{ xs: 2, md: 2.5 }}>
+            <OrderJourney />
+            <DirectPaymentPanel />
+          </Stack>
+        </Box>
+      </Container>
+    </Box>
+  );
+}
+
+function FreePlanPanel() {
   return (
     <Box
       sx={{
         position: "relative",
-        bgcolor: "background.default",
-        borderBottom: "1px solid",
-        borderColor: "divider",
-        "&:before": {
-          content: '""',
+        minHeight: { xs: 330, md: 440 },
+        p: { xs: 3, sm: 4 },
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        color: "primary.contrastText",
+        bgcolor: "primary.main",
+        borderRadius: { xs: 3, md: "28px 8px 28px 8px" },
+        boxShadow: "0 34px 80px -50px rgba(128,0,32,.8)",
+        overflow: "hidden",
+        ...homeRiseSx(260),
+        "&::before": {
+          content: '"0"',
           position: "absolute",
-          inset: 0,
-          background:
-            "linear-gradient(90deg, rgba(128,0,32,0.04) 1px, transparent 1px), linear-gradient(180deg, rgba(21,17,26,0.035) 1px, transparent 1px)",
-          backgroundSize: "38px 38px",
+          right: "-0.06em",
+          bottom: "-0.31em",
+          color: "rgba(255,255,255,.055)",
+          fontSize: { xs: 280, sm: 360 },
+          fontWeight: 900,
+          lineHeight: 1,
           pointerEvents: "none",
         },
       }}
     >
-      <Container
-        sx={{
-          position: "relative",
-          py: { xs: 5, md: 7 },
-        }}
-      >
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: "center" }}>
         <Box
           sx={{
+            width: 46,
+            height: 46,
             display: "grid",
-            gridTemplateColumns: { xs: "1fr", lg: "0.72fr 1.28fr" },
-            gap: { xs: 3.5, lg: 7 },
-            alignItems: "center",
-            ...homeRiseSx(240),
+            placeItems: "center",
+            borderRadius: 1.5,
+            bgcolor: "rgba(255,255,255,.12)",
+            border: "1px solid rgba(255,255,255,.18)",
           }}
         >
-          <Box sx={{ maxWidth: { xs: 540, lg: 430 } }}>
-            <Typography
-              variant="overline"
-              sx={{
-                display: "block",
-                color: "primary.main",
-                fontWeight: 850,
-                letterSpacing: "0.1em",
-              }}
-            >
-              Why businesses choose Xtiitch
-            </Typography>
-            <Typography
-              variant="h2"
-              component="h2"
-              sx={{
-                mt: 1,
-                fontSize: { xs: 34, sm: 42, lg: 48 },
-                lineHeight: 1.02,
-              }}
-            >
-              Simple to start. Clear all the way through.
-            </Typography>
-            <Typography
-              sx={{
-                mt: 2,
-                color: "text.secondary",
-                fontSize: { xs: 15, sm: 17 },
-                maxWidth: 410,
-              }}
-            >
-              Open your store without pressure, keep every order easy to
-              understand, and receive payments directly through Paystack.
-            </Typography>
-          </Box>
-
-          <Box
-            sx={{
-              position: "relative",
-              display: "grid",
-              gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0,1fr))" },
-              overflow: "hidden",
-              border: "1px solid",
-              borderColor: "divider",
-              borderRadius: 3,
-              bgcolor: "background.paper",
-              boxShadow: "0 28px 72px -56px rgba(21,17,26,0.72)",
-            }}
-          >
-          {stats.map((stat, index) => (
-            <Box
-              key={stat.label}
-              sx={{
-                position: "relative",
-                minWidth: 0,
-                minHeight: { xs: 0, sm: 238 },
-                p: { xs: 2.5, sm: 2.25, md: 3 },
-                display: "flex",
-                flexDirection: "column",
-                gap: { xs: 2, sm: 3 },
-                borderTop: {
-                  xs: index === 0 ? "none" : "1px solid",
-                  sm: "none",
-                },
-                borderLeft: {
-                  xs: "none",
-                  sm: index === 0 ? "none" : "1px solid",
-                },
-                borderColor: "divider",
-                transition:
-                  "background-color 180ms ease, transform 180ms ease",
-                ...homeRiseSx(300 + index * 90),
-                "&:hover": {
-                  bgcolor: `${stat.accent}08`,
-                  transform: { sm: "translateY(-3px)" },
-                },
-              }}
-            >
-              <Stack
-                direction="row"
-                spacing={1.5}
-                sx={{ position: "relative", alignItems: "center" }}
-              >
-                <Box
-                  aria-hidden
-                  sx={{
-                    width: 40,
-                    height: 40,
-                    flex: "0 0 auto",
-                    borderRadius: 1.25,
-                    display: "grid",
-                    placeItems: "center",
-                    color: stat.accent,
-                    bgcolor: `${stat.accent}12`,
-                    border: "1px solid",
-                    borderColor: `${stat.accent}24`,
-                  }}
-                >
-                  <stat.Icon sx={{ fontSize: 22 }} />
-                </Box>
-                <Typography
-                  component="p"
-                  sx={{
-                    color: "text.secondary",
-                    fontSize: 11,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.055em",
-                    lineHeight: 1.35,
-                  }}
-                >
-                  {stat.eyebrow}
-                </Typography>
-              </Stack>
-
-              <Box sx={{ position: "relative", mt: "auto" }}>
-                {stat.statuses ? (
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    aria-label={stat.value}
-                    sx={{
-                      mb: 1.25,
-                      flexWrap: "wrap",
-                      rowGap: 0.75,
-                      columnGap: 0.5,
-                    }}
-                  >
-                    {stat.statuses.map((status) => (
-                      <Box
-                        key={status.label}
-                        sx={{
-                          display: "inline-flex",
-                          alignItems: "center",
-                          gap: 0.75,
-                          px: 1,
-                          py: 0.6,
-                          borderRadius: 999,
-                          bgcolor: `${status.color}14`,
-                          border: `1px solid ${status.color}55`,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            width: 9,
-                            height: 9,
-                            borderRadius: "50%",
-                            bgcolor: status.color,
-                          }}
-                        />
-                        <Typography
-                          sx={{
-                            color: status.color,
-                            fontWeight: 800,
-                            fontSize: 12,
-                          }}
-                        >
-                          {status.label}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                ) : (
-                  <Typography
-                    component="p"
-                    sx={{
-                      color: stat.accent,
-                      fontWeight: 800,
-                      lineHeight: 1,
-                      letterSpacing: "-0.02em",
-                      fontSize: { xs: 42, sm: 45, md: 50 },
-                      mb: 1,
-                    }}
-                  >
-                    {stat.value}
-                  </Typography>
-                )}
-                <Typography
-                  variant="body2"
-                  sx={{
-                    color: "text.secondary",
-                  maxWidth: 250,
-                  fontSize: { xs: 14, md: 15 },
-                }}
-              >
-                {stat.label}
-                </Typography>
-              </Box>
-            </Box>
-          ))}
-          </Box>
+          <SellRoundedIcon />
         </Box>
-      </Container>
+        <Typography sx={{ fontWeight: 800 }}>The Free plan</Typography>
+      </Stack>
+
+      <Box sx={{ position: "relative" }}>
+        <Typography
+          sx={{ fontSize: 13, fontWeight: 750, opacity: 0.72, letterSpacing: ".05em" }}
+        >
+          START FOR
+        </Typography>
+        <Typography
+          sx={{
+            mt: 0.5,
+            fontSize: { xs: 64, sm: 82 },
+            fontWeight: 850,
+            lineHeight: 0.95,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          GHS 0
+        </Typography>
+        <Typography sx={{ mt: 2, maxWidth: 290, fontSize: 17, lineHeight: 1.5, opacity: 0.82 }}>
+          Put your store online now. Upgrade when the business needs more room.
+        </Typography>
+      </Box>
+    </Box>
+  );
+}
+
+function OrderJourney() {
+  return (
+    <Box
+      sx={{
+        p: { xs: 3, md: 4 },
+        bgcolor: "background.paper",
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: { xs: 3, md: "8px 28px 8px 28px" },
+        boxShadow: "0 26px 70px -58px rgba(21,17,26,.8)",
+        ...homeRiseSx(340),
+      }}
+    >
+      <Typography variant="h4" component="h3" sx={{ fontSize: { xs: 23, md: 28 } }}>
+        Customers always know what comes next.
+      </Typography>
+      <Typography sx={{ mt: 1, color: "text.secondary", maxWidth: 580 }}>
+        One simple status language follows the order from receipt to collection.
+      </Typography>
+
+      <Box
+        sx={{
+          mt: { xs: 3, md: 4 },
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "1fr auto 1fr auto 1fr" },
+          gap: { xs: 1.25, sm: 1 },
+          alignItems: "center",
+        }}
+      >
+        {orderStages.map((stage, index) => (
+          <Box key={stage.label} sx={{ display: "contents" }}>
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 1.5,
+                bgcolor: `${stage.colour}0D`,
+                border: `1px solid ${stage.colour}26`,
+              }}
+            >
+              <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+                <Box sx={{ width: 11, height: 11, borderRadius: "50%", bgcolor: stage.colour }} />
+                <Box>
+                  <Typography sx={{ color: stage.colour, fontSize: 12, fontWeight: 850 }}>
+                    {stage.detail}
+                  </Typography>
+                  <Typography sx={{ fontSize: 14, fontWeight: 750 }}>{stage.label}</Typography>
+                </Box>
+              </Stack>
+            </Box>
+            {index < orderStages.length - 1 ? (
+              <ArrowForwardRoundedIcon
+                aria-hidden
+                sx={{ display: { xs: "none", sm: "block" }, color: "text.secondary", fontSize: 19 }}
+              />
+            ) : null}
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+function DirectPaymentPanel() {
+  return (
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: { xs: "auto 1fr", sm: "auto 1fr auto" },
+        gap: { xs: 2, sm: 2.5 },
+        alignItems: "center",
+        p: { xs: 2.5, md: 3 },
+        color: "#f8fff9",
+        bgcolor: "#1d7046",
+        borderRadius: { xs: 3, md: "20px 8px 20px 8px" },
+        overflow: "hidden",
+        ...homeRiseSx(420),
+      }}
+    >
+      <Box
+        sx={{
+          width: 50,
+          height: 50,
+          display: "grid",
+          placeItems: "center",
+          borderRadius: 1.5,
+          bgcolor: "rgba(255,255,255,.12)",
+        }}
+      >
+        <PaymentsRoundedIcon />
+      </Box>
+      <Box>
+        <Typography sx={{ fontWeight: 850, fontSize: 18 }}>Paid directly through Paystack</Typography>
+        <Typography sx={{ mt: 0.35, fontSize: 14, opacity: 0.76 }}>
+          Xtiitch tracks the payment. Your money goes to your connected account.
+        </Typography>
+      </Box>
+      <Stack
+        direction="row"
+        spacing={0.75}
+        sx={{ gridColumn: { xs: "1 / -1", sm: "auto" }, alignItems: "center", whiteSpace: "nowrap" }}
+      >
+        <CheckRoundedIcon sx={{ fontSize: 19 }} />
+        <Typography sx={{ fontWeight: 850 }}>We hold GHS 0</Typography>
+      </Stack>
     </Box>
   );
 }

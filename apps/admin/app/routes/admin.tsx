@@ -9,7 +9,6 @@ import Alert from "@mui/material/Alert";
 import LinearProgress from "@mui/material/LinearProgress";
 import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
-import { alpha } from "@mui/material/styles";
 import type { Route } from "./+types/admin";
 import { adminApi } from "../lib/api";
 import { logOut, requireAdminContext } from "../lib/session";
@@ -185,6 +184,10 @@ export default function AdminDashboard({
   const launchEnabledCount = Object.values(
     platformSettings.marketingFlags,
   ).filter(Boolean).length;
+  // Derived, not hardcoded: the denominator used to be a literal 4 in five
+  // places, so adding the affiliate flag silently made every one of them read
+  // "x/4" against five real flags.
+  const launchTotalCount = Object.keys(platformSettings.marketingFlags).length;
 
   useEffect(() => {
     if (settingsFeedback) {
@@ -197,18 +200,7 @@ export default function AdminDashboard({
       sx={{
         minHeight: "100vh",
         overflowX: "hidden",
-        bgcolor: darkChrome ? alpha(tokens.ink, 0.96) : "background.default",
-        backgroundImage: darkChrome
-          ? `
-            radial-gradient(circle at 100% 0%, ${alpha(tokens.burgundy, 0.2)}, transparent 30%),
-            radial-gradient(circle at 58% 12%, ${alpha(tokens.info, 0.16)}, transparent 28%),
-            linear-gradient(180deg, ${tokens.ink}, ${tokens.charcoal})
-          `
-          : `
-            radial-gradient(circle at 100% 0%, ${alpha(tokens.burgundy, 0.08)}, transparent 30%),
-            radial-gradient(circle at 64% 18%, ${alpha(tokens.info, 0.06)}, transparent 28%),
-            linear-gradient(180deg, ${tokens.cream}, ${alpha(tokens.panel, 0.78)})
-          `,
+        bgcolor: darkChrome ? tokens.ink : "background.default",
         "@keyframes adminRailSlide": {
           from: { opacity: 0, transform: "translateX(-18px)" },
           to: { opacity: 1, transform: "translateX(0)" },
@@ -308,6 +300,7 @@ export default function AdminDashboard({
           onSelect={setSection}
           onOpenHelp={() => setHelpOpen(true)}
           launchEnabledCount={launchEnabledCount}
+          launchTotalCount={launchTotalCount}
           onOpenLaunchControls={() => setLaunchControlsOpen(true)}
         />
         <LaunchControlDialog

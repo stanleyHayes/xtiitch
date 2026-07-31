@@ -100,33 +100,35 @@ type Availability interface {
 }
 
 type Service struct {
-	storefront    ports.StorefrontRepository
-	businesses    ports.BusinessChargeRepository
-	orders        ports.OrderRepository
-	bookings      ports.BookingRepository
-	promotions    ports.PromotionRepository
-	affiliates    ports.AffiliateClickRepository
-	referrals     ports.ReferralRepository
-	deliveryZones ports.DeliveryZoneRepository
-	availability  Availability
-	payments      Payments
-	ids           ports.IDGenerator
-	logger        *slog.Logger
+	storefront       ports.StorefrontRepository
+	businesses       ports.BusinessChargeRepository
+	orders           ports.OrderRepository
+	bookings         ports.BookingRepository
+	promotions       ports.PromotionRepository
+	affiliates       ports.AffiliateClickRepository
+	affiliateSignups ports.AffiliateSignupRepository
+	referrals        ports.ReferralRepository
+	deliveryZones    ports.DeliveryZoneRepository
+	availability     Availability
+	payments         Payments
+	ids              ports.IDGenerator
+	logger           *slog.Logger
 }
 
 type Dependencies struct {
-	Storefront    ports.StorefrontRepository
-	Businesses    ports.BusinessChargeRepository
-	Orders        ports.OrderRepository
-	Bookings      ports.BookingRepository
-	Promotions    ports.PromotionRepository
-	Affiliates    ports.AffiliateClickRepository
-	Referrals     ports.ReferralRepository
-	DeliveryZones ports.DeliveryZoneRepository
-	Availability  Availability
-	Payments      Payments
-	IDs           ports.IDGenerator
-	Logger        *slog.Logger
+	Storefront       ports.StorefrontRepository
+	Businesses       ports.BusinessChargeRepository
+	Orders           ports.OrderRepository
+	Bookings         ports.BookingRepository
+	Promotions       ports.PromotionRepository
+	Affiliates       ports.AffiliateClickRepository
+	AffiliateSignups ports.AffiliateSignupRepository
+	Referrals        ports.ReferralRepository
+	DeliveryZones    ports.DeliveryZoneRepository
+	Availability     Availability
+	Payments         Payments
+	IDs              ports.IDGenerator
+	Logger           *slog.Logger
 }
 
 func NewService(deps Dependencies) Service {
@@ -135,18 +137,19 @@ func NewService(deps Dependencies) Service {
 		logger = slog.Default()
 	}
 	return Service{
-		storefront:    deps.Storefront,
-		businesses:    deps.Businesses,
-		orders:        deps.Orders,
-		bookings:      deps.Bookings,
-		promotions:    deps.Promotions,
-		affiliates:    deps.Affiliates,
-		referrals:     deps.Referrals,
-		deliveryZones: deps.DeliveryZones,
-		availability:  deps.Availability,
-		payments:      deps.Payments,
-		ids:           deps.IDs,
-		logger:        logger,
+		storefront:       deps.Storefront,
+		businesses:       deps.Businesses,
+		orders:           deps.Orders,
+		bookings:         deps.Bookings,
+		promotions:       deps.Promotions,
+		affiliates:       deps.Affiliates,
+		affiliateSignups: deps.AffiliateSignups,
+		referrals:        deps.Referrals,
+		deliveryZones:    deps.DeliveryZones,
+		availability:     deps.Availability,
+		payments:         deps.Payments,
+		ids:              deps.IDs,
+		logger:           logger,
 	}
 }
 

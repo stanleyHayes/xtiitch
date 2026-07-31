@@ -99,14 +99,10 @@ export function LaunchReadinessSection({ // eslint-disable-line complexity, max-
             blockedCount > 0
               ? alpha(tokens.danger, 0.24)
               : alpha(tokens.success, 0.22),
-          backgroundImage: `
-            linear-gradient(90deg, ${
-              blockedCount > 0
-                ? alpha(tokens.danger, 0.08)
-                : alpha(tokens.success, 0.08)
-            }, transparent 38%),
-            linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-          `,
+          bgcolor:
+            blockedCount > 0
+              ? alpha(tokens.danger, 0.025)
+              : alpha(tokens.success, 0.025),
         }}
       >
         <Stack
@@ -185,10 +181,7 @@ export function LaunchReadinessSection({ // eslint-disable-line complexity, max-
               sx={{
                 p: { xs: 2, md: 2.5 },
                 borderColor: alpha(color, 0.22),
-                backgroundImage: `
-                  linear-gradient(90deg, ${alpha(color, 0.07)}, transparent 34%),
-                  linear-gradient(180deg, rgba(var(--surface-rgb), 0.98), rgba(var(--surface-rgb), 0.72))
-                `,
+                bgcolor: alpha(color, 0.025),
               }}
             >
               <Stack spacing={2}>

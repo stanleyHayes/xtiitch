@@ -43,22 +43,9 @@ export function AdminSystemPage({
         px: 2,
         py: { xs: 6, md: 8 },
         color: tokens.white,
-        background: `linear-gradient(160deg, ${tokens.ink} 0%, ${tokens.charcoal} 64%, ${tokens.burgundy} 145%)`,
+        bgcolor: tokens.charcoal,
       }}
     >
-      <Box
-        aria-hidden
-        sx={{
-          position: "absolute",
-          inset: 0,
-          backgroundImage: `linear-gradient(${alpha(tokens.white, 0.045)} 1px, transparent 1px), linear-gradient(90deg, ${alpha(tokens.white, 0.045)} 1px, transparent 1px)`,
-          backgroundSize: "40px 40px",
-          maskImage:
-            "radial-gradient(circle at 50% 42%, #000 0%, transparent 74%)",
-          WebkitMaskImage:
-            "radial-gradient(circle at 50% 42%, #000 0%, transparent 74%)",
-        }}
-      />
       <Container sx={{ position: "relative", maxWidth: 680 }}>
         <Stack spacing={3} sx={{ alignItems: "center", textAlign: "center" }}>
           <Box

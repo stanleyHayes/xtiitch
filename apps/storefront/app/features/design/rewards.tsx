@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -78,6 +79,52 @@ function rewardCues(
   }
 
   return cues;
+}
+
+// The affiliate code always posts, whether it came from the link or was typed.
+// When it arrived on the link there is nothing to ask for, so the field stays
+// collapsed and simply confirms it was applied.
+function AffiliateCodeField({ defaultValue }: { defaultValue: string }) {
+  const fromLink = Boolean(defaultValue);
+  const [open, setOpen] = useState(fromLink);
+
+  if (!open) {
+    return (
+      <Box>
+        <input type="hidden" name="affiliate_code" value="" />
+        <Button
+          type="button"
+          size="small"
+          variant="text"
+          onClick={() => setOpen(true)}
+          sx={{ px: 0.5, fontWeight: 800 }}
+        >
+          Have an affiliate code?
+        </Button>
+      </Box>
+    );
+  }
+
+  return (
+    <TextField
+      name="affiliate_code"
+      label="Affiliate code"
+      defaultValue={defaultValue}
+      helperText={
+        fromLink
+          ? "Applied from the link you followed. Clear it if you were given a different code."
+          : "From an Xtiitch affiliate who referred you, so they get credited."
+      }
+      fullWidth
+      slotProps={{
+        htmlInput: {
+          autoCapitalize: "characters",
+          spellCheck: false,
+          maxLength: 32,
+        },
+      }}
+    />
+  );
 }
 
 function rewardTone(tone: RewardCue["tone"]) {
@@ -175,11 +222,18 @@ export function RewardFields({ // eslint-disable-line max-lines-per-function -- 
             },
           }}
         />
-        <input
-          type="hidden"
-          name="affiliate_code"
-          value={codes.affiliateCode}
-        />
+        {/* An affiliate code arriving on the link needs no field — it is
+            already captured, so show it as applied. But a code passed on
+            verbally, or a link shared through an app that strips query
+            strings, previously had nowhere to go: this input was hidden, so
+            that referral was silently lost and the affiliate never credited.
+            It is a disclosure rather than a third always-visible box, because
+            this is a checkout form and most shoppers have no affiliate code.
+
+            It stays distinct from "Referral code" on purpose: the two are
+            different attribution systems and post under different names, so
+            merging them would credit the wrong party. */}
+        <AffiliateCodeField defaultValue={codes.affiliateCode} />
         <input
           type="hidden"
           name="affiliate_click_id"

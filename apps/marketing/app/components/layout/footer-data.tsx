@@ -32,6 +32,11 @@ export const footerGroups: {
       { label: "Features", href: "/features", icon: <Inventory2RoundedIcon /> },
       { label: "Growth", href: "/growth", icon: <TrendingUpRoundedIcon /> },
       {
+        label: "Affiliate programme",
+        href: "/affiliates",
+        icon: <CampaignRoundedIcon />,
+      },
+      {
         label: "How it works",
         href: "/how-it-works",
         icon: <ChecklistRoundedIcon />,

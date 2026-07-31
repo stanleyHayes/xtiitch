@@ -48,11 +48,12 @@ type MoMoOTP interface {
 }
 
 type Service struct {
-	provider   ports.PaymentProvider
-	payments   ports.PaymentRepository
-	businesses ports.BusinessChargeRepository
-	ids        ports.IDGenerator
-	otp        MoMoOTP
+	provider       ports.PaymentProvider
+	payments       ports.PaymentRepository
+	businesses     ports.BusinessChargeRepository
+	ids            ports.IDGenerator
+	otp            MoMoOTP
+	planAffiliates ports.SubscriptionAffiliateAttributionRepository
 	// vatRates reads the live admin-editable VAT rate (§4.1) at charge time;
 	// vatRateBps is the configured seed/fallback used when no reader is wired
 	// or the read fails. 0 disables VAT on the Xtiitch fee.
@@ -61,10 +62,11 @@ type Service struct {
 }
 
 type Dependencies struct {
-	Provider   ports.PaymentProvider
-	Payments   ports.PaymentRepository
-	Businesses ports.BusinessChargeRepository
-	IDs        ports.IDGenerator
+	Provider       ports.PaymentProvider
+	Payments       ports.PaymentRepository
+	Businesses     ports.BusinessChargeRepository
+	IDs            ports.IDGenerator
+	PlanAffiliates ports.SubscriptionAffiliateAttributionRepository
 	// OTP verifies the payout number before payout details are saved. Unlike the
 	// other optional dependencies in this codebase, a nil OTP does NOT disable the
 	// step — VerifyBusiness rejects with ErrOTPUnavailable. A misconfiguration must
@@ -80,13 +82,14 @@ type Dependencies struct {
 
 func NewService(deps Dependencies) Service {
 	return Service{
-		provider:   deps.Provider,
-		payments:   deps.Payments,
-		businesses: deps.Businesses,
-		ids:        deps.IDs,
-		otp:        deps.OTP,
-		vatRates:   deps.VATRates,
-		vatRateBps: deps.VATRateBps,
+		provider:       deps.Provider,
+		payments:       deps.Payments,
+		businesses:     deps.Businesses,
+		ids:            deps.IDs,
+		otp:            deps.OTP,
+		planAffiliates: deps.PlanAffiliates,
+		vatRates:       deps.VATRates,
+		vatRateBps:     deps.VATRateBps,
 	}
 }
 
@@ -456,7 +459,21 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 		PaidAmountMinor:   event.AmountMinor,
 		ProviderFeeMinor:  event.FeeMinor,
 	})
-	return err
+	if err != nil {
+		return err
+	}
+	if s.planAffiliates == nil {
+		return nil
+	}
+	return s.planAffiliates.ApplyFirstPaidPlanProviderEvent(
+		ctx,
+		ports.ApplyFirstPaidPlanProviderEventInput{
+			ConversionID:     s.ids.NewID(),
+			PaymentReference: event.ProviderReference,
+			EventType:        event.EventType,
+			Succeeded:        event.Succeeded,
+		},
+	)
 }
 
 // handleTransferEvent applies a transfer.* webhook: record it idempotently,

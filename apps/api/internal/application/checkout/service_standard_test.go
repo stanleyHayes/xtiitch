@@ -103,10 +103,16 @@ func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
 		Businesses: fakeCharge{ctx: ports.BusinessChargeContext{
 			BusinessID: testBusinessID, Verified: true, SubaccountRef: "acct_1",
 		}},
-		Orders:     orders,
-		Payments:   payments,
-		Affiliates: affiliates,
-		IDs:        &seqIDs{ids: []common.ID{"order-1", "customer-1", "reservation-1"}},
+		Orders:           orders,
+		Payments:         payments,
+		Affiliates:       affiliates,
+		AffiliateSignups: affiliates,
+		IDs: &seqIDs{ids: []common.ID{
+			"order-1",
+			"customer-1",
+			"signup-1",
+			"reservation-1",
+		}},
 	})
 
 	cmd := placeCommand()
@@ -122,6 +128,12 @@ func TestPlaceStandardOrderReservesAffiliateAttribution(t *testing.T) {
 	}
 	if !affiliates.reserveCalled {
 		t.Fatal("expected affiliate attribution to be reserved")
+	}
+	if !affiliates.signupCalled ||
+		affiliates.signup.SubjectType != "customer" ||
+		affiliates.signup.CustomerID != common.ID("customer-1") ||
+		affiliates.signup.Code != "SEWINGPRO" {
+		t.Fatalf("unexpected affiliate signup: %+v", affiliates.signup)
 	}
 	if affiliates.reserve.ReservationID != "reservation-1" ||
 		affiliates.reserve.BusinessID != testBusinessID ||

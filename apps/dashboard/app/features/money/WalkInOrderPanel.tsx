@@ -11,7 +11,6 @@ import InputAdornment from "@mui/material/InputAdornment";
 import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { alpha } from "@mui/material/styles";
 import AddRounded from "@mui/icons-material/AddRounded";
 import CloseRounded from "@mui/icons-material/CloseRounded";
 import TextField from "../../components/form-text-field";
@@ -49,7 +48,7 @@ export function WalkInOrderPanel({ // eslint-disable-line max-lines-per-function
     <Panel
       sx={{
         p: { xs: 2, md: 2.5 },
-        backgroundImage: `linear-gradient(135deg, ${alpha(tokens.success, 0.07)}, transparent 50%), linear-gradient(180deg, rgba(var(--surface-rgb), 0.94), rgba(var(--surface-rgb), 0.72))`,
+        bgcolor: "background.paper",
       }}
     >
       <Stack

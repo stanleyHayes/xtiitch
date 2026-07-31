@@ -81,8 +81,23 @@ type AdminBusinessRepository interface {
 	ArchiveAdminAdCampaign(ctx context.Context, input ArchiveAdminAdCampaignInput) (AdminAdCampaignRecord, error)
 	GetAdminAdCampaignPaymentIntent(ctx context.Context, campaignID common.ID) (AdminAdCampaignPaymentIntentRecord, error)
 	CreateAdminAdCampaignPayment(ctx context.Context, input CreateAdminAdCampaignPaymentInput) (AdminAdCampaignPaymentRecord, error)
+	ListAdminAffiliateApplications(ctx context.Context) ([]AdminAffiliateApplicationRecord, error)
+	DecideAdminAffiliateApplication(
+		ctx context.Context,
+		input DecideAdminAffiliateApplicationInput,
+	) (AdminAffiliateApplicationRecord, error)
+	ListAdminAffiliateProgrammes(ctx context.Context) ([]AdminAffiliateProgrammeRecord, error)
+	CreateAdminAffiliateProgramme(
+		ctx context.Context,
+		input CreateAdminAffiliateProgrammeInput,
+	) (AdminAffiliateProgrammeRecord, error)
+	UpdateAdminAffiliateProgramme(
+		ctx context.Context,
+		input UpdateAdminAffiliateProgrammeInput,
+	) (AdminAffiliateProgrammeRecord, error)
 	ListAdminAffiliates(ctx context.Context) ([]AdminAffiliateRecord, error)
 	ListAdminAffiliateAttribution(ctx context.Context) ([]AdminAffiliateAttributionRecord, error)
+	GetAdminGrowthReport(ctx context.Context, from, to time.Time) (AdminGrowthReportRecord, error)
 	UpdateAdminAffiliateConversionStatus(
 		ctx context.Context,
 		input UpdateAdminAffiliateConversionStatusInput,

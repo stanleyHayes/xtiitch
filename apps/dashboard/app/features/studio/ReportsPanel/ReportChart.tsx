@@ -50,13 +50,6 @@ export function ReportChart({ // eslint-disable-line max-lines-per-function -- l
       theme.palette.mode === "dark"
         ? alpha(theme.palette.common.white, 0.035)
         : alpha(theme.palette.common.black, 0.018),
-    backgroundImage: (theme) =>
-      theme.palette.mode === "dark"
-        ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)}, ${alpha(
-            theme.palette.common.white,
-            0.018,
-          )})`
-        : "none",
   };
 
   return (

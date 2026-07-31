@@ -253,6 +253,9 @@ func applyPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, bu
 			commission_minor,
 			commission_model,
 			commission_rate,
+			affiliate_programme_id,
+			programme_owner_type,
+			funding_source,
 			attribution_model,
 			status,
 			hold_until,
@@ -267,15 +270,23 @@ func applyPendingAffiliateAttributionForOrder(ctx context.Context, tx pgx.Tx, bu
 			commission_minor,
 			commission_model,
 			commission_rate,
+			affiliate.affiliate_programme_id,
+			programme.owner_type,
+			programme.owner_type,
 			attribution_model,
 			'pending',
-			now() + interval '14 days',
+			now() + make_interval(days => programme.hold_days),
 			metadata || jsonb_build_object(
 				'reservation_id', reservation_id::text,
 				'source', 'payment_success'
 			)
 		from reservation
-		on conflict (order_id) do nothing
+		join affiliates affiliate
+			on affiliate.affiliate_id = reservation.affiliate_id
+		join affiliate_programmes programme
+			on programme.affiliate_programme_id =
+				affiliate.affiliate_programme_id
+		on conflict (order_id) where conversion_type = 'purchase' do nothing
 	`, businessID, orderID)
 	return err
 }

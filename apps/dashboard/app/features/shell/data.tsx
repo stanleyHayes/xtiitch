@@ -1,5 +1,6 @@
 import AccountBalanceWalletRounded from "@mui/icons-material/AccountBalanceWalletRounded";
 import CalendarMonthRounded from "@mui/icons-material/CalendarMonthRounded";
+import CampaignRounded from "@mui/icons-material/CampaignRounded";
 import ContactPhoneRounded from "@mui/icons-material/ContactPhoneRounded";
 import DesignServicesRounded from "@mui/icons-material/DesignServicesRounded";
 import InsightsRounded from "@mui/icons-material/InsightsRounded";
@@ -51,6 +52,13 @@ export const managementWorkspaceNav: WorkspaceNavItem[] = [
     label: "Money",
     helper: "Tracked income",
     icon: <AccountBalanceWalletRounded />,
+  },
+  {
+    href: "/dashboard/affiliates",
+    section: "affiliates",
+    label: "Affiliates",
+    helper: "Creator partnerships",
+    icon: <CampaignRounded />,
   },
   {
     href: "/dashboard/customers",
@@ -187,6 +195,7 @@ export const managementWorkspaceGroups: WorkspaceNavGroup[] = [
     items: workspaceNavItems(managementWorkspaceNav, [
       "orders",
       "money",
+      "affiliates",
       "customers",
       "visits",
       "handovers",
@@ -292,6 +301,15 @@ export function dashboardPageMeta(section: DashboardSection): DashboardPageMeta 
           "Track platform payments, manual takings, commission, and net income while keeping funds outside Xtiitch.",
         icon: <AccountBalanceWalletRounded />,
         tone: tokens.success,
+      };
+    case "affiliates":
+      return {
+        eyebrow: "Growth",
+        title: "Affiliate programmes",
+        helper:
+          "Create store-funded partner programmes, issue targeted links, and review attributed sales and commission.",
+        icon: <CampaignRounded />,
+        tone: tokens.gold,
       };
     case "visits":
       return {

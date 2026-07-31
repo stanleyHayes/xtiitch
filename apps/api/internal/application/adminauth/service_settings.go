@@ -32,11 +32,12 @@ type UpdatePlatformSettingsCommand struct {
 type UpdateMarketingFlagsCommand struct {
 	ActorUserID common.ID
 	ActorRole   admindomain.Role
-	BrowseStore *bool
-	Discover    *bool
-	CreateStore *bool
-	Pricing     *bool
-	UserAgent   string
+	BrowseStore     *bool
+	Discover        *bool
+	CreateStore     *bool
+	Pricing         *bool
+	AffiliateSignup *bool
+	UserAgent       string
 	IPAddress   string
 }
 
@@ -92,9 +93,9 @@ func (s Service) UpdatePlatformSettings(
 	return settings, nil
 }
 
-// UpdateMarketingFlags applies a partial update of the four marketing launch
-// flags. Gated by manage_settings like the rest of the platform-settings
-// mutations. Only the flags present in the command are written.
+// UpdateMarketingFlags applies a partial update of the marketing launch flags.
+// Gated by manage_settings like the rest of the platform-settings mutations.
+// Only the flags present in the command are written.
 func (s Service) UpdateMarketingFlags(
 	ctx context.Context,
 	cmd UpdateMarketingFlagsCommand,
@@ -105,15 +106,17 @@ func (s Service) UpdateMarketingFlags(
 	if err := s.authorizePermission(ctx, cmd.ActorRole, admindomain.PermissionManageSettings); err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err
 	}
-	if cmd.BrowseStore == nil && cmd.Discover == nil && cmd.CreateStore == nil && cmd.Pricing == nil {
+	if cmd.BrowseStore == nil && cmd.Discover == nil && cmd.CreateStore == nil &&
+		cmd.Pricing == nil && cmd.AffiliateSignup == nil {
 		return ports.AdminPlatformSettingsRecord{}, authdomain.ErrInvalidInput
 	}
 
 	settings, err := s.users.UpdateAdminMarketingFlags(ctx, ports.UpdateAdminMarketingFlagsInput{
-		BrowseStore: cmd.BrowseStore,
-		Discover:    cmd.Discover,
-		CreateStore: cmd.CreateStore,
-		Pricing:     cmd.Pricing,
+		BrowseStore:     cmd.BrowseStore,
+		Discover:        cmd.Discover,
+		CreateStore:     cmd.CreateStore,
+		Pricing:         cmd.Pricing,
+		AffiliateSignup: cmd.AffiliateSignup,
 	})
 	if err != nil {
 		return ports.AdminPlatformSettingsRecord{}, err

@@ -44,10 +44,7 @@ export function PlanCard({ // eslint-disable-line max-lines-per-function -- larg
       sx={{
         p: { xs: 2, md: 2.5 },
         borderColor: alpha(visual.tone, plan.isActive ? 0.2 : 0.12),
-        backgroundImage: `linear-gradient(180deg, ${alpha(
-          visual.tone,
-          plan.isActive ? 0.075 : 0.035,
-        )}, transparent 42%)`,
+        bgcolor: alpha(visual.tone, plan.isActive ? 0.045 : 0.02),
       }}
     >
       <Stack spacing={1.5}>

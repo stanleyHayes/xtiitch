@@ -9,6 +9,7 @@ import (
 
 	httpadapter "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http"
 	adminauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/adminauth"
+	affiliateauthhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/affiliateauth"
 	aiassisthttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aiassist"
 	aisearchhttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/aisearch"
 	analyticshttp "github.com/xcreativs/xtiitch/apps/api/internal/adapters/inbound/http/analytics"
@@ -36,6 +37,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/paystack"
 	"github.com/xcreativs/xtiitch/apps/api/internal/adapters/outbound/postgres"
 	adminauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/adminauth"
+	affiliateauthapp "github.com/xcreativs/xtiitch/apps/api/internal/application/affiliateauth"
 	analyticsapp "github.com/xcreativs/xtiitch/apps/api/internal/application/analytics"
 	authapp "github.com/xcreativs/xtiitch/apps/api/internal/application/auth"
 	availabilityapp "github.com/xcreativs/xtiitch/apps/api/internal/application/availability"
@@ -136,21 +138,23 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	// without a restart. The env value below is only the seed/fallback.
 	platformSettingsReader := postgres.NewPlatformSettingsReader(db)
 	authService := authapp.NewService(authapp.Dependencies{
-		Businesses:    businessIdentityRepo,
-		Payments:      paymentProvider,
-		Sessions:      postgres.NewAuthSessionRepository(db),
-		Passwords:     authadapter.NewBcryptPasswordHasher(0),
-		AccessTokens:  jwtIssuer,
-		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
-		Emails:        emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
-		Resets:        businessIdentityRepo,
-		DashboardURL:  cfg.BusinessDashboardBaseURL,
-		IDs:           ids.UUIDGenerator{},
-		Clock:         clock.SystemClock{},
-		MFA:           postgres.NewMFARepository(db),
-		MFASecrets:    totpManager,
-		MFAChallenges: jwtIssuer,
-		MFAVerifier:   jwtIssuer,
+		Businesses:       businessIdentityRepo,
+		Payments:         paymentProvider,
+		Sessions:         postgres.NewAuthSessionRepository(db),
+		Passwords:        authadapter.NewBcryptPasswordHasher(0),
+		AccessTokens:     jwtIssuer,
+		RefreshTokens:    authadapter.NewRefreshTokenIssuer(),
+		Emails:           emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		Resets:           businessIdentityRepo,
+		AffiliateSignups: postgres.NewAffiliateRepository(db),
+		PlanAffiliates:   postgres.NewAffiliateRepository(db),
+		DashboardURL:     cfg.BusinessDashboardBaseURL,
+		IDs:              ids.UUIDGenerator{},
+		Clock:            clock.SystemClock{},
+		MFA:              postgres.NewMFARepository(db),
+		MFASecrets:       totpManager,
+		MFAChallenges:    jwtIssuer,
+		MFAVerifier:      jwtIssuer,
 		// WhatsApp one-time-code sign-in: the same business identity repo backs
 		// the challenge store + handle/number lookup, reusing the customer OTP
 		// generator and WhatsApp delivery (Cloud when creds are set, else logged).
@@ -173,10 +177,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	adminAuthRepository := postgres.NewAdminAuthRepository(db)
 
 	paymentService := paymentsapp.NewService(paymentsapp.Dependencies{
-		Provider:   paymentProvider,
-		Payments:   postgres.NewPaymentRepository(db),
-		Businesses: postgres.NewBusinessChargeRepository(db),
-		IDs:        ids.UUIDGenerator{},
+		Provider:       paymentProvider,
+		Payments:       postgres.NewPaymentRepository(db),
+		Businesses:     postgres.NewBusinessChargeRepository(db),
+		IDs:            ids.UUIDGenerator{},
+		PlanAffiliates: postgres.NewAffiliateRepository(db),
 		// VAT on the Xtiitch fee for store sales (§4.2): the live admin-editable
 		// rate (§4.1), with the env value as fallback only.
 		VATRates:   platformSettingsReader,
@@ -234,7 +239,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		VATInclusive: cfg.SubscriptionVATInclusive,
 		// §13.3 renewal reminders go by SMS (outbox) AND email — the same
 		// synchronous Resend sender as the auth flows; nil-safe when unset.
-		Emails: emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		Emails:       emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
 		DashboardURL: cfg.BusinessDashboardBaseURL,
 	})
 	for _, command := range adminBootstrapUsers {
@@ -254,6 +259,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		Storefront: postgres.NewStorefrontRepository(db),
 		Settings:   postgres.NewStoreSettingsRepository(db),
 		Promotions: promotionRepository,
+		Affiliates: postgres.NewBusinessAffiliateRepository(db),
 		Waitlist:   postgres.NewDesignWaitlistRepository(db),
 		// §14.1 design performance: the storefront repo also records views.
 		Views: postgres.NewStorefrontRepository(db),
@@ -289,10 +295,12 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 
 	growthRepository := postgres.NewAffiliateRepository(db)
 	growthService := growthapp.NewService(growthapp.Dependencies{
-		Affiliates: growthRepository,
-		Sponsored:  growthRepository,
-		Referrals:  growthRepository,
-		IDs:        ids.UUIDGenerator{},
+		Affiliates:   growthRepository,
+		Applications: growthRepository,
+		Sponsored:    growthRepository,
+		Referrals:    growthRepository,
+		Emails:       emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		IDs:          ids.UUIDGenerator{},
 	})
 
 	measurementService := measurementapp.NewService(measurementapp.Dependencies{
@@ -337,18 +345,19 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	})
 
 	checkoutService := checkoutapp.NewService(checkoutapp.Dependencies{
-		Storefront:    postgres.NewStorefrontRepository(db),
-		Businesses:    postgres.NewBusinessChargeRepository(db),
-		Orders:        postgres.NewOrderRepository(db),
-		Bookings:      postgres.NewBookingRepository(db),
-		Promotions:    promotionRepository,
-		Affiliates:    growthRepository,
-		Referrals:     growthRepository,
-		DeliveryZones: deliveryZoneRepository,
-		Availability:  availabilityService,
-		Payments:      paymentService,
-		IDs:           ids.UUIDGenerator{},
-		Logger:        logger,
+		Storefront:       postgres.NewStorefrontRepository(db),
+		Businesses:       postgres.NewBusinessChargeRepository(db),
+		Orders:           postgres.NewOrderRepository(db),
+		Bookings:         postgres.NewBookingRepository(db),
+		Promotions:       promotionRepository,
+		Affiliates:       growthRepository,
+		AffiliateSignups: growthRepository,
+		Referrals:        growthRepository,
+		DeliveryZones:    deliveryZoneRepository,
+		Availability:     availabilityService,
+		Payments:         paymentService,
+		IDs:              ids.UUIDGenerator{},
+		Logger:           logger,
 	})
 
 	customerAuthService := customerauthapp.NewService(customerauthapp.Dependencies{
@@ -374,6 +383,19 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		IDs:     ids.UUIDGenerator{},
 		EmailTo: cfg.MarketingWaitlistEmailTo,
 		Logger:  logger,
+	})
+	affiliateAuthService := affiliateauthapp.NewService(affiliateauthapp.Dependencies{
+		Accounts:        postgres.NewAffiliateAuthRepository(db),
+		Passwords:       authadapter.NewBcryptPasswordHasher(0),
+		AccessTokens:    jwtIssuer,
+		RefreshTokens:   authadapter.NewRefreshTokenIssuer(),
+		Clock:           clock.SystemClock{},
+		IDs:             ids.UUIDGenerator{},
+		Emails:          emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		PortalURL:       cfg.AffiliatePortalBaseURL,
+		Portal:          postgres.NewAffiliateAuthRepository(db),
+		ShareBaseURL:    cfg.BusinessDashboardBaseURL,
+		SensitiveCipher: totpManager,
 	})
 
 	aiSearchService := buildAISearchService(cfg, logger, db)
@@ -402,6 +424,7 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 			TrustedProxyHops: trustedProxyHops,
 		},
 		adminauthhttp.NewHandler(adminAuthService, adminAuthenticator),
+		affiliateauthhttp.NewHandler(affiliateAuthService, jwtIssuer),
 		marketinghttp.NewHandler(marketingWaitlistService, adminAuthenticator),
 		authhttp.NewHandler(authService, authenticator),
 		customerauthhttp.NewHandler(customerAuthService, jwtIssuer),

@@ -64,6 +64,10 @@ type MarketingFlags struct {
 	Discover    bool
 	CreateStore bool
 	Pricing     bool
+	// AffiliateSignup gates the public "become an affiliate" entry point in the
+	// marketing nav. The affiliate portal itself is unaffected: existing
+	// affiliates can always sign in.
+	AffiliateSignup bool
 }
 type UpdateAdminPlatformSettingsInput struct {
 	PlatformName                 string
@@ -77,11 +81,12 @@ type UpdateAdminPlatformSettingsInput struct {
 	VATRateBps int
 }
 
-// UpdateAdminMarketingFlagsInput is a partial update of the four marketing
-// launch flags: only fields whose matching *Set pointer is non-nil are written.
+// UpdateAdminMarketingFlagsInput is a partial update of the marketing launch
+// flags: only fields whose matching *Set pointer is non-nil are written.
 type UpdateAdminMarketingFlagsInput struct {
-	BrowseStore *bool
-	Discover    *bool
-	CreateStore *bool
-	Pricing     *bool
+	BrowseStore     *bool
+	Discover        *bool
+	CreateStore     *bool
+	Pricing         *bool
+	AffiliateSignup *bool
 }

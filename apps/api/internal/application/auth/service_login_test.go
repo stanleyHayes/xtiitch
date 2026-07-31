@@ -61,6 +61,49 @@ func TestRegisterBusinessCreatesOwnerSession(t *testing.T) {
 	}
 }
 
+func TestRegisterBusinessRecordsQualifiedAffiliateSignup(t *testing.T) {
+	t.Parallel()
+
+	signups := &fakeAffiliateSignupRepository{}
+	service := NewService(Dependencies{
+		Businesses:       &fakeBusinessIdentityRepository{},
+		Sessions:         &fakeSessionRepository{},
+		Passwords:        fakePasswordHasher{},
+		AccessTokens:     fakeTokenIssuer{},
+		RefreshTokens:    fakeRefreshTokens{},
+		AffiliateSignups: signups,
+		IDs: &sequenceIDs{ids: []common.ID{
+			"business-1",
+			"user-1",
+			"signup-1",
+			"session-1",
+		}},
+		Clock: fixedClock{now: time.Date(2026, 6, 14, 20, 0, 0, 0, time.UTC)},
+	})
+
+	_, err := service.RegisterBusiness(
+		context.Background(),
+		RegisterBusinessCommand{
+			BusinessName:       "Ama Stitch House",
+			BusinessHandle:     "ama-stitch",
+			OwnerDisplayName:   "Ama",
+			OwnerEmail:         "ama@example.com",
+			OwnerPassword:      "strong-password",
+			AffiliateCode:      " partner ",
+			AffiliateClickID:   "6b06fcf8-7104-4a0c-96ea-5ad0daa07023",
+			AffiliateVisitorID: "visitor-1",
+		},
+	)
+	if err != nil {
+		t.Fatalf("register business: %v", err)
+	}
+	if signups.input.SubjectType != "business" ||
+		signups.input.BusinessID != common.ID("business-1") ||
+		signups.input.Code != "PARTNER" {
+		t.Fatalf("unexpected affiliate signup: %+v", signups.input)
+	}
+}
+
 func TestRegisterBusinessRejectsWeakPassword(t *testing.T) {
 	t.Parallel()
 
@@ -354,6 +397,21 @@ func TestRegisterBusinessRejectsOverlongPassword(t *testing.T) {
 	if !errors.Is(err, authdomain.ErrInvalidInput) {
 		t.Fatalf("expected invalid input for overlong password, got %v", err)
 	}
+}
+
+type fakeAffiliateSignupRepository struct {
+	input ports.RecordAffiliateSignupInput
+}
+
+func (repo *fakeAffiliateSignupRepository) RecordAffiliateSignup(
+	_ context.Context,
+	input ports.RecordAffiliateSignupInput,
+) (ports.AffiliateSignupRecord, error) {
+	repo.input = input
+	return ports.AffiliateSignupRecord{
+		SignupID:    input.SignupID,
+		SubjectType: input.SubjectType,
+	}, nil
 }
 
 func TestLoginBusinessEqualisesTimingForUnknownUser(t *testing.T) {

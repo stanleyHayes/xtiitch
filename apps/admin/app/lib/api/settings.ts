@@ -10,6 +10,7 @@ export type MarketingFlags = {
   discover: boolean;
   createStore: boolean;
   pricing: boolean;
+  affiliateSignup: boolean;
 };
 
 export type AdminPlatformSettings = {
@@ -69,6 +70,7 @@ type MarketingFlagsPayload = {
   discover?: boolean;
   create_store?: boolean;
   pricing?: boolean;
+  affiliate_signup?: boolean;
 };
 
 type AdminPlatformSettingsPayload = {
@@ -122,6 +124,7 @@ function mapMarketingFlags(
     discover: payload?.discover ?? false,
     createStore: payload?.create_store ?? false,
     pricing: payload?.pricing ?? false,
+    affiliateSignup: payload?.affiliate_signup ?? false,
   };
 }
 
@@ -252,6 +255,7 @@ export const settingsApi = {
       discover: boolean;
       createStore: boolean;
       pricing: boolean;
+      affiliateSignup: boolean;
     }>,
   ) => {
     const body: MarketingFlagsPayload = {};
@@ -259,6 +263,8 @@ export const settingsApi = {
     if (flags.discover !== undefined) body.discover = flags.discover;
     if (flags.createStore !== undefined) body.create_store = flags.createStore;
     if (flags.pricing !== undefined) body.pricing = flags.pricing;
+    if (flags.affiliateSignup !== undefined)
+      body.affiliate_signup = flags.affiliateSignup;
     return requestJSON<AdminPlatformSettingsPayload>(
       "/admin/platform-settings/marketing-flags",
       {
