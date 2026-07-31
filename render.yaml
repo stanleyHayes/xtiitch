@@ -22,12 +22,38 @@
 # the real Vercel (or custom-domain) URLs in the Render dashboard, and point each
 # Vercel app's XTIITCH_API_URL at this API's URL.
 
+# ── Two environments in one blueprint ──────────────────────────────────────
+# PRODUCTION services track `main` and DEV services track `dev`, matching the
+# git flow (feature -> dev -> main). Every service pins its `branch` explicitly:
+# without it Render follows the repo's DEFAULT branch, so changing the default
+# on GitHub would silently repoint production.
+#
+# The two environments share NOTHING at runtime: separate database, separate
+# Redis, separate secrets. Every `sync: false` key is prompted per service in
+# the Render dashboard, so dev can hold Paystack TEST keys, a throwaway
+# Cloudinary, and a different admin bootstrap password without touching prod.
+#
+# Cost note: the dev Postgres is a paid Basic instance (free Postgres is
+# deleted after 30 days). Dev Redis and the dev API are on free tiers — the
+# free web service sleeps after ~15 min idle and cold-starts in ~30s, which is
+# fine for a dev backend. The dev worker is intentionally NOT defined; Render
+# has no free worker tier, so add it only if you need the outbox drained in
+# dev (see the commented block at the end of this file).
+
 databases:
   - name: xtiitch-db
     plan: basic-256mb # persistent Basic tier (free Postgres is deleted after 30 days)
     region: oregon
     databaseName: xtiitch
     user: xtiitch
+
+  # Dev database — completely separate data. Databases are not built from git,
+  # so they take no `branch` field; the dev API below points at this one.
+  - name: xtiitch-db-dev
+    plan: basic-256mb
+    region: oregon
+    databaseName: xtiitch_dev
+    user: xtiitch_dev
 
 services:
   # ──────────────────────────────────────────────────────────────────────────
@@ -40,6 +66,14 @@ services:
     ipAllowList: [] # internal only (reachable from services in this blueprint)
     maxmemoryPolicy: noeviction # don't drop queued jobs
 
+  # Dev Redis — separate instance so a dev queue can never drain prod's outbox.
+  - type: redis
+    name: xtiitch-redis-dev
+    plan: free
+    region: oregon
+    ipAllowList: []
+    maxmemoryPolicy: noeviction
+
   # ──────────────────────────────────────────────────────────────────────────
   # Go API — runs DB migrations on boot (golang-migrate), then serves on $PORT.
   # The migrations are golang-migrate format (split .up.sql/.down.sql), so the
@@ -51,6 +85,7 @@ services:
     runtime: go
     plan: free
     region: oregon
+    branch: main # pinned: without this Render follows the repo default branch
     rootDir: apps/api
     healthCheckPath: /healthz
     buildCommand: go build -o xtiitch-api ./cmd/api && GOBIN="$PWD" go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
@@ -89,6 +124,12 @@ services:
         value: "https://business.xtiitch.com"
       - key: STOREFRONT_BASE_URL # storefront marketplace (shops at <handle>.xtiitch.com)
         value: "https://store.xtiitch.com"
+      # Affiliate portal origin. This builds the password-reset link in the
+      # affiliate recovery email; unset, the API falls back to its local default
+      # and mails out http://localhost:3404/reset-password?token=... — a dead
+      # link for every real affiliate.
+      - key: AFFILIATE_PORTAL_BASE_URL
+        value: "https://affiliate.xtiitch.com"
       - key: RESEND_FROM_EMAIL
         value: "Xtiitch <hello@xtiitch.com>"
       - key: MARKETING_WAITLIST_EMAIL_TO # where waitlist lead notifications are emailed
@@ -165,6 +206,7 @@ services:
     runtime: node
     plan: starter
     region: oregon
+    branch: main # pinned, same reason as the API
     # Node 26's image already ships a pnpm corepack shim, and `corepack enable`
     # can't rewrite it on the read-only /usr/bin — so skip it and call pnpm
     # directly (the shim honours the pinned packageManager). The env var keeps
@@ -201,3 +243,161 @@ services:
         value: Xtiitch
       - key: ARKESEL_API_KEY
         sync: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # DEV API — same code, tracking the `dev` branch, wired to the dev database
+  # and dev Redis. Runs migrations on boot exactly like production, so a
+  # migration is exercised here before it ever reaches prod.
+  #
+  # APP_ENV stays `production` on purpose. It is not a label — it gates real
+  # behaviour: any of local/development/dev/test/ci SKIPS the boot-time
+  # security validation (including the check that JWT_SIGNING_KEY is not the
+  # public default) and changes proxy/IP handling. This service sits behind
+  # Render's proxy just like prod, so it should behave like prod. What makes it
+  # a dev environment is the separate database and separate credentials below,
+  # not a weakened runtime.
+  # ──────────────────────────────────────────────────────────────────────────
+  - type: web
+    name: xtiitch-api-dev
+    runtime: go
+    plan: free # sleeps after ~15 min idle, ~30s cold start — fine for dev
+    region: oregon
+    branch: dev
+    rootDir: apps/api
+    healthCheckPath: /healthz
+    buildCommand: go build -o xtiitch-api ./cmd/api && GOBIN="$PWD" go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+    startCommand: ./migrate -path ../../infra/migrations -database "$DATABASE_URL" up && API_HTTP_ADDR=":$PORT" ./xtiitch-api
+    envVars:
+      - key: APP_ENV
+        value: production # see note above — not a mislabel
+      - key: DATABASE_URL
+        fromDatabase:
+          name: xtiitch-db-dev
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: xtiitch-redis-dev
+          property: connectionString
+      - key: WORKER_QUEUE_NAME
+        value: xtiitch.outbox.dev # distinct from prod so queues never cross
+      # Generated independently of production — dev tokens must not be valid
+      # against the prod API, and vice versa.
+      - key: JWT_SIGNING_KEY
+        generateValue: true
+      - key: JWT_ISSUER
+        value: xtiitch-api-dev
+      - key: JWT_AUDIENCE
+        value: xtiitch-clients-dev
+      - key: MFA_ENCRYPTION_KEY
+        generateValue: true
+      - key: MFA_ISSUER
+        value: Xtiitch (dev)
+      # Point these at wherever the dev frontends live (Vercel preview or
+      # dev-specific domains). Localhost is allowed so you can run a frontend
+      # locally against the dev backend.
+      - key: CORS_ALLOWED_ORIGINS
+        value: "https://*.vercel.app,http://localhost:3000,http://localhost:3100,http://localhost:3402,http://localhost:3403,http://localhost:3404"
+      - key: BUSINESS_DASHBOARD_BASE_URL
+        value: "http://localhost:3100"
+      - key: STOREFRONT_BASE_URL
+        value: "http://localhost:3402"
+      - key: AFFILIATE_PORTAL_BASE_URL
+        value: "http://localhost:3404"
+      - key: RESEND_FROM_EMAIL
+        value: "Xtiitch Dev <hello@xtiitch.com>"
+      - key: MARKETING_WAITLIST_EMAIL_TO
+        value: xcreativscompany@gmail.com
+      - key: ADMIN_BOOTSTRAP_EMAIL
+        value: owner@xtiitch.com
+      - key: ADMIN_BOOTSTRAP_DISPLAY_NAME
+        value: Xtiitch Owner (dev)
+      - key: ADMIN_BOOTSTRAP_ROLE
+        value: owner
+      - key: XTIITCH_SUBSCRIPTION_VAT_RATE_BPS
+        value: "0"
+      - key: XTIITCH_SUBSCRIPTION_VAT_INCLUSIVE
+        value: "false"
+      # ── Dev secrets — prompted separately from production ──
+      # This is the point of a dev environment: put Paystack TEST keys, a
+      # throwaway Cloudinary, and a different bootstrap password here. Nothing
+      # set on xtiitch-api carries over.
+      - key: ADMIN_BOOTSTRAP_PASSWORD
+        sync: false
+      - key: PAYSTACK_SECRET_KEY # use sk_test_...
+        sync: false
+      - key: PAYSTACK_PUBLIC_KEY # use pk_test_...
+        sync: false
+      - key: PAYSTACK_WEBHOOK_SECRET
+        sync: false
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_APP_SECRET
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE_NAME
+        sync: false
+      - key: WHATSAPP_OTP_TEMPLATE_LANG
+        value: en_US
+      # OTPs log instead of sending unless you set ARKESEL_API_KEY — usually
+      # what you want in dev, so test signups don't spend SMS credit.
+      - key: OTP_CHANNEL
+        value: sms
+      - key: SMS_SENDER_ID
+        value: Xtiitch
+      - key: ARKESEL_API_KEY
+        sync: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # DEV worker — deliberately left commented out. Render has NO free worker
+  # tier, so enabling this adds a paid Starter service. Uncomment only if you
+  # need queued notifications actually delivered in dev; without it the outbox
+  # simply accumulates rows in the dev database, which is harmless.
+  # ──────────────────────────────────────────────────────────────────────────
+  # - type: worker
+  #   name: xtiitch-worker-dev
+  #   runtime: node
+  #   plan: starter
+  #   region: oregon
+  #   branch: dev
+  #   buildCommand: COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm install --frozen-lockfile
+  #   startCommand: COREPACK_ENABLE_DOWNLOAD_PROMPT=0 pnpm --filter @xtiitch/worker exec tsx src/index.ts
+  #   envVars:
+  #     - key: NODE_ENV
+  #       value: production
+  #     - key: NODE_VERSION
+  #       value: "26"
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: xtiitch-db-dev
+  #         property: connectionString
+  #     - key: REDIS_URL
+  #       fromService:
+  #         type: redis
+  #         name: xtiitch-redis-dev
+  #         property: connectionString
+  #     - key: WORKER_QUEUE_NAME
+  #       value: xtiitch.outbox.dev
+  #     - key: NOTIFICATION_TRANSPORT
+  #       value: whatsapp_cloud
+  #     - key: WHATSAPP_PHONE_NUMBER_ID
+  #       sync: false
+  #     - key: WHATSAPP_ACCESS_TOKEN
+  #       sync: false
+  #     - key: WHATSAPP_API_VERSION
+  #       value: v21.0
+  #     - key: SMS_SENDER_ID
+  #       value: Xtiitch
+  #     - key: ARKESEL_API_KEY
+  #       sync: false
