@@ -83,7 +83,13 @@ services:
   - type: web
     name: xtiitch-api
     runtime: go
-    plan: free
+    # Starter, NOT free. A free web service sleeps after ~15 min idle and
+    # cold-starts in tens of seconds, and every SSR frontend fetches this API
+    # while rendering — so a sleeping API reads to a customer as the whole site
+    # being down (it did: xtiitch.com took 60s+ cold, 4.9s warm). The live
+    # service is already on Starter; this file said `free`, so a blueprint sync
+    # would have quietly put production back to sleep.
+    plan: starter
     region: oregon
     branch: main # pinned: without this Render follows the repo default branch
     rootDir: apps/api

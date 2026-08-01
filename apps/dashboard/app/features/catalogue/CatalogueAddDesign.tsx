@@ -1,4 +1,5 @@
-import { Form } from "react-router";
+import { useEffect, useRef } from "react";
+import { Form, useNavigation } from "react-router";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Button from "@mui/material/Button";
@@ -16,6 +17,7 @@ import AiAssistField from "../../components/ai-assist";
 import { ImageDropzone } from "../shared/ImageDropzone";
 import { NewDesignVariations } from "./NewDesignVariations";
 import { UploadBudgetProvider } from "../../lib/upload-budget-context";
+import { clearFormDraft, useFormDraft } from "../../lib/use-form-draft";
 import { DESIGN_IMAGE_SPEC } from "../../lib/image-specs";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
@@ -45,6 +47,22 @@ export function CatalogueAddDesign({
   designError?: string;
   mediaError?: string;
 }) {
+  const formRef = useRef<HTMLFormElement | null>(null);
+  // A failed save unmounts this route and takes uncontrolled inputs with it.
+  // Mirroring the typed values means a dropped upload costs the upload, not
+  // the whole design.
+  useFormDraft(formRef, "add-design");
+  // Drop the draft only once a submit has completed WITHOUT an error. A
+  // successful create redirects to the catalogue, so the design is saved and
+  // the draft would otherwise repopulate a piece she has already published.
+  // An error keeps the draft, which is the entire point of having one.
+  const navigation = useNavigation();
+  const submitted = navigation.state === "idle";
+  useEffect(() => {
+    if (submitted && !designError && !mediaError) {
+      clearFormDraft("add-design");
+    }
+  }, [submitted, designError, mediaError]);
   return (
     <Box
       sx={{
@@ -74,7 +92,12 @@ export function CatalogueAddDesign({
             </Typography>
           </Box>
         </Stack>
-        <Form method="post" encType="multipart/form-data" key={designs.length}>
+        <Form
+          method="post"
+          encType="multipart/form-data"
+          key={designs.length}
+          ref={formRef}
+        >
         <UploadBudgetProvider>
           <input type="hidden" name="intent" value="create" />
           {/* Empty when the plan is uncapped; the action treats that as no
