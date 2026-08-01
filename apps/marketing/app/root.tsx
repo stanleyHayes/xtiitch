@@ -122,6 +122,18 @@ export async function loader(): Promise<RootLoaderData> {
   try {
     const response = await fetch(`${BRANDING_API_BASE}/v1/branding`, {
       headers: { Accept: "application/json" },
+      // Bounded on purpose. This fetch runs during SSR of EVERY marketing page,
+      // and the API is on a plan that sleeps when idle — a cold start takes
+      // tens of seconds. Unbounded, the whole page waits on it, and a visitor
+      // on a phone gets the browser's "Can't open this page" long before the
+      // server answers: the marketing site is down because the backend was
+      // asleep, even though nothing about the page needs the backend.
+      //
+      // The catch below already falls back to the built-in logo and all-hidden
+      // flags. This just makes sure a slow API reaches that fallback quickly
+      // instead of hanging. Two seconds is far above the warm response (~1s)
+      // and far below any browser's patience.
+      signal: AbortSignal.timeout(2000),
     });
     if (!response.ok) {
       return fallback;
