@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { shrinkImageFile } from "./image-compression";
-import { planUploadBatch, shrinkTargetBytes } from "./upload-limits";
+import {
+  planUploadBatch,
+  shrinkTargetBytes,
+  uploadBudgetBytes,
+} from "./upload-limits";
 
 const NON_IMAGE_ERROR =
   "Only image files can be uploaded — choose a JPG, PNG, or WebP.";
@@ -84,9 +88,15 @@ export function useImageUploadField(
       setBusy(true);
       setError(null);
 
+      // Sized against the CONNECTION, not just the platform ceiling. A shop
+      // owner on 3G uploads at ~45 KB/s, where a 4 MB body is 90 seconds of
+      // transfer that her network will drop long before it finishes. Read at
+      // pick time so it reflects the link she is on right now.
+      const budget = uploadBudgetBytes();
+
       // Sequential, not Promise.all: decoding several 12 MP photos at once is
       // how a mid-range phone runs out of memory mid-upload.
-      const target = shrinkTargetBytes(chosen.length);
+      const target = shrinkTargetBytes(chosen.length, budget);
       const shrunk: File[] = [];
       for (const file of chosen) {
         shrunk.push(await shrinkImageFile(file, target));
