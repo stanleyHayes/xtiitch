@@ -222,6 +222,45 @@ export const usersApi = {
         role: input.role,
       }),
     }).then(mapUser),
+  // Public: the invited person has no account yet, so no bearer token. The
+  // one-time token in their link is the authorisation.
+  lookupInvite: (token: string) =>
+    requestJSON<{ email: string; display_name: string; role: string }>(
+      `/public/admin-invites?token=${encodeURIComponent(token)}`,
+      { method: "GET" },
+    ).then((payload) => ({
+      email: payload.email,
+      displayName: payload.display_name,
+      role: payload.role,
+    })),
+  acceptInvite: (token: string, password: string) =>
+    requestJSON<AdminUserPayload>("/public/admin-invites/accept", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+    }).then(mapUser),
+  // Invites an operator instead of creating one with a temporary password:
+  // the person sets their own from a one-time link, so a working credential
+  // never travels through a chat message or a phone call.
+  inviteUser: (
+    accessToken: string,
+    input: {
+      displayName: string;
+      email: string;
+      // Optional. Given a number, the link is texted as well as emailed.
+      phone: string;
+      role: AdminRole;
+    },
+  ) =>
+    requestJSON<AdminUserPayload>("/admin/users/invite", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({
+        display_name: input.displayName,
+        email: input.email,
+        phone: input.phone,
+        role: input.role,
+      }),
+    }).then(mapUser),
   updateUser: (
     accessToken: string,
     userId: string,

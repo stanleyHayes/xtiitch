@@ -369,6 +369,26 @@ type ConfirmPaymentResult struct {
 	SubscriptionInvoiceFound bool
 	AdCampaignPaymentFound   bool
 	BusinessID               common.ID
+	// OwnerOrderEmails are new-order alerts this settlement claimed for emailing.
+	//
+	// The owner already gets an SMS through the outbox. Email cannot use the same
+	// rails — the worker claims outbox rows without filtering on channel, so an
+	// email row would be picked up by a process with no email transport — so the
+	// API sends it, and the claim is what keeps a redelivered webhook from
+	// emailing twice. Empty on every path that settles nothing.
+	OwnerOrderEmails []OwnerOrderEmail
+}
+
+// OwnerOrderEmail is everything needed to tell a store owner an order landed.
+// Assembled at claim time so the caller never has to go back to the database.
+type OwnerOrderEmail struct {
+	MessageID    common.ID
+	OrderID      common.ID
+	OwnerEmail   string
+	OwnerName    string
+	CustomerName string
+	DesignTitle  string
+	AmountMinor  int64
 }
 
 type PaymentRecord struct {

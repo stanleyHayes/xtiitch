@@ -44,7 +44,10 @@ func (repo AdminAuthRepository) CreateAdminUserInvite(
 			is_active
 		)
 		values ($1, $2, $3, '', $4, false)
-		on conflict (email) do update
+		-- Uniqueness is on lower(email), an EXPRESSION index, so the conflict
+		-- target must be that same expression. Naming the bare column matches no
+		-- constraint and fails at runtime.
+		on conflict (lower(email)) do update
 			set display_name = excluded.display_name,
 				role = excluded.role,
 				updated_at = now()

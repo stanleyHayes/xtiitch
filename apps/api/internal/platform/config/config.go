@@ -22,7 +22,9 @@ type Config struct {
 	AIAssistantAddonPriceMinor int
 	BusinessDashboardBaseURL   string
 	AffiliatePortalBaseURL     string
-	CloudinaryURL              string
+	// AdminConsoleBaseURL is where an operator invite link points.
+	AdminConsoleBaseURL string
+	CloudinaryURL       string
 	// CORSAllowedOrigins is the browser CORS allow-list (go-chi/cors "*"
 	// wildcards supported). RateLimitRPS caps sustained requests/sec per client
 	// IP (<=0 disables).
@@ -121,6 +123,7 @@ func Load() Config {
 		AIAssistantAddonPriceMinor: getenvInt("AI_ASSISTANT_ADDON_PRICE_MINOR", 5000),
 		BusinessDashboardBaseURL:   getenv("BUSINESS_DASHBOARD_BASE_URL", "http://localhost:3401"),
 		AffiliatePortalBaseURL:     getenv("AFFILIATE_PORTAL_BASE_URL", "http://localhost:3404"),
+		AdminConsoleBaseURL:        getenv("ADMIN_CONSOLE_BASE_URL", "http://localhost:3403"),
 		CloudinaryURL:              getenv("CLOUDINARY_URL", ""),
 		CORSAllowedOrigins: getenvList(
 			"CORS_ALLOWED_ORIGINS",

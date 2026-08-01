@@ -86,16 +86,20 @@ func (s Service) applyVerifiedOutcome(
 	if succeeded {
 		eventType = "charge.success"
 	}
-	if _, err := s.payments.ConfirmFromProvider(ctx, ports.ConfirmPaymentInput{
+	confirmed, err := s.payments.ConfirmFromProvider(ctx, ports.ConfirmPaymentInput{
 		EventSignature:    "paystack:verify:" + eventType + ":" + reference,
 		EventType:         eventType,
 		ProviderReference: reference,
 		Succeeded:         succeeded,
 		PaidAmountMinor:   verify.AmountMinor,
 		ProviderFeeMinor:  verify.FeeMinor,
-	}); err != nil {
+	})
+	if err != nil {
 		return VerifyPaymentResult{}, err
 	}
+	// Same alerts, same claim — whichever of the webhook or this verify lands
+	// first claims them, so the owner is emailed exactly once either way.
+	s.sendOwnerOrderEmails(ctx, confirmed.OwnerOrderEmails)
 	if succeeded {
 		return VerifyPaymentResult{Status: string(money.PaymentStatusSucceeded)}, nil
 	}

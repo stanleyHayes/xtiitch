@@ -190,6 +190,11 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 		// before payout details are saved (Testing Report §3.1). The auth service
 		// owns the OTP rules; payments borrows them rather than copying them.
 		OTP: authService,
+		// Emails the store owner when an order lands, alongside the SMS the
+		// outbox already sends. Email is the API's job because the worker that
+		// drains the outbox has no email transport.
+		Emails:       emailadapter.NewResendSender(cfg.ResendAPIKey, cfg.ResendFromEmail),
+		DashboardURL: cfg.BusinessDashboardBaseURL,
 	})
 
 	var mediaStore ports.MediaStore
@@ -206,18 +211,23 @@ func New(ctx context.Context, cfg config.Config, logger *slog.Logger) (App, erro
 	}
 
 	adminAuthService := adminauthapp.NewService(adminauthapp.Dependencies{
-		Users:         adminAuthRepository,
-		Sessions:      adminAuthRepository,
-		Audits:        adminAuthRepository,
-		Businesses:    adminAuthRepository,
-		Media:         mediaStore,
-		Payments:      paymentProvider,
-		Passwords:     authadapter.NewBcryptPasswordHasher(0),
-		AccessTokens:  jwtIssuer,
-		RefreshTokens: authadapter.NewRefreshTokenIssuer(),
-		IDs:           ids.UUIDGenerator{},
-		Clock:         clock.SystemClock{},
-		Readiness:     adminLaunchReadinessConfig(cfg),
+		// Operator invites go out by email, and by SMS too when a number was
+		// given. AdminConsoleURL is where the one-time link points; without it
+		// the invite is not sent rather than sending a link to nowhere.
+		SMS:             buildSMSSender(cfg, logger),
+		AdminConsoleURL: cfg.AdminConsoleBaseURL,
+		Users:           adminAuthRepository,
+		Sessions:        adminAuthRepository,
+		Audits:          adminAuthRepository,
+		Businesses:      adminAuthRepository,
+		Media:           mediaStore,
+		Payments:        paymentProvider,
+		Passwords:       authadapter.NewBcryptPasswordHasher(0),
+		AccessTokens:    jwtIssuer,
+		RefreshTokens:   authadapter.NewRefreshTokenIssuer(),
+		IDs:             ids.UUIDGenerator{},
+		Clock:           clock.SystemClock{},
+		Readiness:       adminLaunchReadinessConfig(cfg),
 		// True IFF WhatsApp Cloud creds are configured to actually SEND customer
 		// OTPs (same condition as buildCustomerOTPDelivery). The public branding
 		// endpoint surfaces this so storefronts can gate the WhatsApp sign-in tab.

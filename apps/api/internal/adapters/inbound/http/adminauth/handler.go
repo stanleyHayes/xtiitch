@@ -35,6 +35,9 @@ type Service interface {
 	PhoneOTPEnabled() bool
 	UpdatePlatformSettings(ctx context.Context, command adminauthapp.UpdatePlatformSettingsCommand) (ports.AdminPlatformSettingsRecord, error)
 	UpdateMarketingFlags(ctx context.Context, command adminauthapp.UpdateMarketingFlagsCommand) (ports.AdminPlatformSettingsRecord, error)
+	InviteOperator(ctx context.Context, command adminauthapp.InviteOperatorCommand) (ports.AdminUserRecord, error)
+	LookupOperatorInvite(ctx context.Context, token string) (ports.AdminUserInviteRecord, error)
+	AcceptOperatorInvite(ctx context.Context, token string, password string) (ports.AdminUserRecord, error)
 	SignBrandingUpload(ctx context.Context, command adminauthapp.SignBrandingUploadCommand) (ports.SignedUpload, error)
 	ListBusinessVerifications(
 		ctx context.Context,
@@ -219,6 +222,10 @@ func (handler Handler) Register(router chi.Router) {
 	router.Post("/admin/auth/refresh", handler.refresh)
 	router.Post("/admin/auth/logout", handler.logout)
 	// Public branding so every surface can render the current platform logo.
+	// Public: the person accepting has no account yet, so the one-time token
+	// in the link is the authorisation.
+	router.Get("/public/admin-invites", handler.lookupOperatorInvite)
+	router.Post("/public/admin-invites/accept", handler.acceptOperatorInvite)
 	router.Get("/branding", handler.branding)
 
 	router.Group(func(protected chi.Router) {
@@ -311,6 +318,7 @@ func (handler Handler) Register(router chi.Router) {
 		protected.Patch("/admin/roles/{role}", handler.updateRolePermissions)
 		protected.Get("/admin/users", handler.listUsers)
 		protected.Post("/admin/users", handler.createUser)
+		protected.Post("/admin/users/invite", handler.inviteOperator)
 		protected.Patch("/admin/users/{id}", handler.updateUser)
 	})
 }

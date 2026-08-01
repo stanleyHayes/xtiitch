@@ -59,9 +59,22 @@ type Service struct {
 	// or the read fails. 0 disables VAT on the Xtiitch fee.
 	vatRates   VATRateReader
 	vatRateBps int
+	// emails tells the store owner an order landed. Optional: nil disables the
+	// email and the owner still gets the SMS, matching how every other optional
+	// dependency in this package degrades.
+	emails ports.EmailSender
+	// dashboardURL is where the "open the order" link points. Empty omits the
+	// link rather than emailing a broken one.
+	dashboardURL string
 }
 
 type Dependencies struct {
+	// Emails delivers the new-order alert to the store owner. Optional — without
+	// it the owner still gets the SMS.
+	Emails ports.EmailSender
+	// DashboardURL is the business dashboard origin, used for the order link in
+	// that email.
+	DashboardURL   string
 	Provider       ports.PaymentProvider
 	Payments       ports.PaymentRepository
 	Businesses     ports.BusinessChargeRepository
@@ -90,6 +103,8 @@ func NewService(deps Dependencies) Service {
 		planAffiliates: deps.PlanAffiliates,
 		vatRates:       deps.VATRates,
 		vatRateBps:     deps.VATRateBps,
+		emails:         deps.Emails,
+		dashboardURL:   strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 	}
 }
 
@@ -451,7 +466,7 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 		return err
 	}
 
-	_, err = s.payments.ConfirmFromProvider(ctx, ports.ConfirmPaymentInput{
+	confirmed, err := s.payments.ConfirmFromProvider(ctx, ports.ConfirmPaymentInput{
 		EventSignature:    event.Signature,
 		EventType:         event.EventType,
 		ProviderReference: event.ProviderReference,
@@ -462,6 +477,9 @@ func (s Service) HandleProviderEvent(ctx context.Context, payload []byte, signat
 	if err != nil {
 		return err
 	}
+	// Alerts claimed by the settlement above. Sending after the transaction so a
+	// slow mail provider never holds a payment transaction open.
+	s.sendOwnerOrderEmails(ctx, confirmed.OwnerOrderEmails)
 	if s.planAffiliates == nil {
 		return nil
 	}

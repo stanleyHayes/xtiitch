@@ -76,6 +76,12 @@ type Service struct {
 	// goes through the notification outbox). Nil-safe: with no sender configured
 	// the reminder sweep still enqueues SMS and counts the skipped emails.
 	emails ports.EmailSender
+	// sms texts an operator invite when a number was given. Optional: without it
+	// the invite still goes by email.
+	sms ports.SMSSender
+	// adminConsoleURL is the origin the invite link points at. Empty suppresses
+	// the invite rather than sending a link that goes nowhere.
+	adminConsoleURL string
 	// dashboardURL is the business dashboard origin used for onboarding deep
 	// links (verification / payouts) in registration follow-up emails.
 	dashboardURL string
@@ -130,6 +136,10 @@ type Dependencies struct {
 	// synchronous sender as the auth flows — the notification outbox has no
 	// email channel). Nil-safe: nil skips the email half only.
 	Emails ports.EmailSender
+	// SMS texts operator invites. Optional.
+	SMS ports.SMSSender
+	// AdminConsoleURL is where an operator invite link points.
+	AdminConsoleURL string
 	// DashboardURL is the business dashboard origin for onboarding deep links
 	// (verification / payouts). Empty falls back to https://app.xtiitch.com.
 	DashboardURL string
@@ -166,6 +176,8 @@ func NewService(deps Dependencies) Service {
 		planChanges:      deps.PlanChanges,
 		settlementSyncer: deps.SettlementSyncer,
 		emails:           deps.Emails,
+		sms:              deps.SMS,
+		adminConsoleURL:  strings.TrimRight(strings.TrimSpace(deps.AdminConsoleURL), "/"),
 		dashboardURL:     strings.TrimRight(strings.TrimSpace(deps.DashboardURL), "/"),
 		vatRates:         deps.VATRates,
 		vatRateBps:       deps.VATRateBps,

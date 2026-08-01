@@ -185,3 +185,19 @@ func buildCustomerEmailOTPDelivery(cfg config.Config, logger *slog.Logger) ports
 	}
 	return authadapter.NewEmailOTPDelivery(sender, logger)
 }
+
+// buildSMSSender returns a plain SMS sender for messages that are not auth OTPs
+// — currently the operator invite link.
+//
+// Separate from buildCustomerOTPDelivery, which wraps a sender in OTP-specific
+// templating and can fall back to WhatsApp. An invite is ordinary text, so it
+// wants the transport rather than the OTP policy. Nil when Arkesel is not
+// configured: the invite still goes by email, and every caller treats a nil
+// sender as "SMS unavailable" rather than an error.
+func buildSMSSender(cfg config.Config, logger *slog.Logger) ports.SMSSender {
+	if cfg.SMSArkeselAPIKey == "" {
+		logger.Info("SMS sender not configured; operator invites will be emailed only")
+		return nil
+	}
+	return smsadapter.NewArkeselSender(cfg.SMSArkeselAPIKey, cfg.SMSSenderID, cfg.SMSArkeselEndpoint)
+}

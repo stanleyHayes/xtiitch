@@ -13,4 +13,6 @@ export default [
   route("help", "routes/help.tsx"),
   route("splash", "routes/splash.tsx"),
   route("*", "routes/not-found.tsx"),
+  // Public: an invited operator has no session yet.
+  route("accept-invite", "routes/accept-invite.tsx"),
 ] satisfies RouteConfig;

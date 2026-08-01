@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -137,7 +138,21 @@ func (repo PaymentRepository) ConfirmFromProvider(
 		return ports.ConfirmPaymentResult{}, err
 	}
 
-	return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{PaymentFound: true, BusinessID: common.ID(payment.businessID)})
+	// applyConfirmation may have enqueued a new-order alert for the owner (SMS,
+	// via the outbox). Claim the email half here, in the same transaction, so a
+	// redelivered webhook cannot produce a second email. Claiming is best-effort:
+	// the payment has settled and must not be rolled back because an email could
+	// not be prepared.
+	ownerEmails, err := claimOwnerOrderEmails(ctx, tx, payment.businessID, time.Now().UTC())
+	if err != nil {
+		ownerEmails = nil
+	}
+
+	return commitConfirm(ctx, tx, ports.ConfirmPaymentResult{
+		PaymentFound:     true,
+		BusinessID:       common.ID(payment.businessID),
+		OwnerOrderEmails: ownerEmails,
+	})
 }
 
 // scopedPayment is the slice of the payment a webhook needs to settle it.
