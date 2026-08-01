@@ -4,7 +4,11 @@ on:
   pull_request:
   push:
     branches:
+      # dev is the integration branch that feature work merges into, so it must
+      # be gated too. Without it, `dev` could sit broken and only fail once it
+      # reached main — which auto-deploys to production.
       - main
+      - dev
 
 jobs:
   check:
