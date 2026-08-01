@@ -252,10 +252,19 @@ function StoreHero({
             component="h1"
             sx={{
               fontSize: {
-                xs: "2.7rem",
+                xs: "2.3rem",
                 md: spotlight ? "4.8rem" : "4.25rem",
               },
               lineHeight: 0.98,
+              // A store name is arbitrary text the owner typed, and plenty of
+              // them are one unbroken token — "YOOKOMEGH.UNISEX" has no space
+              // or hyphen to wrap at, so at the old 2.7rem it ran straight off
+              // the side of a phone. `anywhere` lets the browser break inside
+              // the word only when it would otherwise overflow, and also makes
+              // the heading's min-content width honest so the container cannot
+              // be forced wider than the screen.
+              overflowWrap: "anywhere",
+              hyphens: "auto",
               textShadow: minimal
                 ? "none"
                 : `0 3px 24px ${alpha(tokens.ink, 0.48)}`,
