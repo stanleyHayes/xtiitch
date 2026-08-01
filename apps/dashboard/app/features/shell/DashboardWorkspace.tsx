@@ -53,6 +53,7 @@ export function DashboardWorkspace({ // eslint-disable-line max-lines-per-functi
     bookings,
     handovers,
     notifications,
+    unreadAlerts,
     availabilityWindows,
     blackoutDates,
     businessUsers,
@@ -150,6 +151,7 @@ export function DashboardWorkspace({ // eslint-disable-line max-lines-per-functi
     bookings,
     handovers,
     notifications,
+    unreadAlerts,
     manualTakings,
     moneySummary,
     measurementFields,
@@ -346,6 +348,7 @@ export function DashboardWorkspace({ // eslint-disable-line max-lines-per-functi
               bookings={bookings}
               handovers={handovers}
               notifications={notifications}
+              unreadAlerts={unreadAlerts}
               availabilityWindows={availabilityWindows}
               blackoutDates={blackoutDates}
               businessUsers={businessUsers}

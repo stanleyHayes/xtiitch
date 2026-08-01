@@ -15,6 +15,42 @@ type CreateAdminUserInput struct {
 	Role         admindomain.Role
 }
 
+// CreateAdminUserInviteInput creates the operator and their one-time invite
+// together. There is no password: the invited person sets it themselves, so a
+// working credential never travels through a chat message or a phone call.
+type CreateAdminUserInviteInput struct {
+	UserID      common.ID
+	InviteID    common.ID
+	Email       string
+	DisplayName string
+	Role        admindomain.Role
+	// Only the hash is stored, so a database read cannot mint access.
+	TokenHash string
+	// Where the link was sent, for the audit trail and for re-sending.
+	SentToEmail string
+	SentToPhone string
+	InvitedBy   common.ID
+	ExpiresAt   time.Time
+	Now         time.Time
+}
+
+type AdminUserInviteRecord struct {
+	InviteID    common.ID
+	UserID      common.ID
+	Email       string
+	DisplayName string
+	Role        admindomain.Role
+	ExpiresAt   time.Time
+}
+
+// ConsumeAdminUserInviteInput sets the password, activates the operator and
+// marks the invite used in one transaction.
+type ConsumeAdminUserInviteInput struct {
+	TokenHash    string
+	PasswordHash string
+	Now          time.Time
+}
+
 type AdminUserRecord struct {
 	UserID      common.ID
 	Email       string

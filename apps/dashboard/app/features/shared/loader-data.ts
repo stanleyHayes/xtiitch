@@ -32,6 +32,8 @@ import type {
 // stays within the file-size budget; loader.ts re-exports it, so importers keep
 // importing DashboardLoaderData from "../shared/loader".
 export type DashboardLoaderData = {
+  // New-order alerts this operator has not opened yet; drives the rail badge.
+  unreadAlerts: number;
   profile: Profile;
   currentUser: CurrentUser;
   activation: ActivationStatus;

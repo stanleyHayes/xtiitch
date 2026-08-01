@@ -36,6 +36,7 @@ export type OverviewData = {
   activeBookings: number;
   openHandovers: number;
   pendingMessages: number;
+  unreadAlerts: number;
   readyForHandover: number;
   revenueBuckets: ReturnType<typeof buildRevenueBuckets>;
   sevenDayRevenueMinor: number;
@@ -57,6 +58,7 @@ export function useOverviewData({
   bookings,
   handovers,
   notifications,
+  unreadAlerts,
   manualTakings,
   moneySummary,
   measurementFields,
@@ -73,6 +75,7 @@ export function useOverviewData({
   bookings: BookingSummary[];
   handovers: HandoverSummary[];
   notifications: NotificationSummary[];
+  unreadAlerts: number;
   manualTakings: ManualTaking[];
   moneySummary: MoneySummary;
   measurementFields: MeasurementField[];
@@ -99,7 +102,14 @@ export function useOverviewData({
       collectionRate,
       stageMetrics,
       followUps,
-    } = computeMetrics({ orders, bookings, handovers, notifications, manualTakings });
+    } = computeMetrics({
+      orders,
+      bookings,
+      handovers,
+      notifications,
+      unreadAlerts,
+      manualTakings,
+    });
 
     const activeDesigns = designs.filter(
       (design) => design.status === "active",
@@ -148,6 +158,7 @@ export function useOverviewData({
       activeStoreSettings,
       activeTeamUsers,
       pendingMessages,
+      unreadAlerts,
     });
 
     return {
@@ -159,6 +170,7 @@ export function useOverviewData({
       activeBookings,
       openHandovers,
       pendingMessages,
+      unreadAlerts,
       readyForHandover,
       revenueBuckets,
       sevenDayRevenueMinor,

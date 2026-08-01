@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { useFetcher } from "react-router";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -13,9 +15,25 @@ import { PaginationFooter } from "../../components/ui/PaginationFooter";
 
 export function NotificationPanel({
   notifications,
+  unreadAlerts = 0,
 }: {
   notifications: NotificationSummary[];
+  // New-order alerts not yet seen. Rendered as a chip here and as the rail
+  // badge; opening this panel is what clears both.
+  unreadAlerts?: number;
 }) {
+  const readFetcher = useFetcher();
+  // Clear exactly once per mount. The badge is cleared because the owner
+  // OPENED this view — doing it on dashboard load would clear it before she
+  // ever saw it, which is the whole point of the badge.
+  const cleared = useRef(false);
+  useEffect(() => {
+    if (cleared.current || unreadAlerts <= 0) {
+      return;
+    }
+    cleared.current = true;
+    readFetcher.submit(null, { method: "post", action: "/notifications/read" });
+  }, [unreadAlerts, readFetcher]);
   const {
     page: notificationPage,
     pageCount: notificationPageCount,
@@ -39,14 +57,18 @@ export function NotificationPanel({
               <NotificationsRounded />
             </Box>
             <Box>
-              <Typography sx={{ fontWeight: 900 }}>Message log</Typography>
+              <Typography sx={{ fontWeight: 900 }}>Messages</Typography>
               <Typography variant="body2" sx={{ color: "text.secondary" }}>
-                Outbound WhatsApp/SMS intents created by order events.
+                New orders and the WhatsApp/SMS your order events sent out.
               </Typography>
             </Box>
           </Stack>
           <ToneChip
-            label={`${notifications.length} total`}
+            label={
+              unreadAlerts > 0
+                ? `${unreadAlerts} new`
+                : `${notifications.length} total`
+            }
             tone={tokens.burgundy}
           />
         </Stack>

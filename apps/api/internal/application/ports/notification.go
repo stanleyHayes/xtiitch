@@ -12,6 +12,14 @@ import (
 // here — it happens transactionally inside the state changes that cause them.
 type NotificationRepository interface {
 	ListMessages(ctx context.Context, scope common.TenantScope) ([]MessageSummary, error)
+	// CountUnreadOwnerAlerts returns how many owner-directed alerts (a new order
+	// arriving) have been recorded since this operator last opened the messages
+	// view. Derived from the read timestamp rather than a per-message read flag,
+	// so a new order never fans out a row per operator.
+	CountUnreadOwnerAlerts(ctx context.Context, scope common.TenantScope, userID common.ID) (int, error)
+	// MarkNotificationsRead moves this operator's read marker to now. Idempotent:
+	// opening the view twice is not an error.
+	MarkNotificationsRead(ctx context.Context, scope common.TenantScope, userID common.ID, now time.Time) error
 }
 
 // MessageSummary is one row of a business's notification log.

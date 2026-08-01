@@ -55,4 +55,5 @@ export default [
   route("help", "routes/help.tsx"),
   route("splash", "routes/splash.tsx"),
   route("*", "routes/not-found.tsx"),
+  route("notifications/read", "routes/notifications-read.ts"),
 ] satisfies RouteConfig;

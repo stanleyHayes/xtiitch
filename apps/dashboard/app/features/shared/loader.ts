@@ -129,10 +129,16 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
       { handovers: [] },
       "Handovers could not be loaded right now.",
     ),
-    loadDashboardJSON<{ notifications: NotificationSummary[] }>(
+    // `unread` is the owner's new-order alert count — messages recorded since
+    // she last opened this view. It drives the rail badge, which is what turns
+    // the message log from an archive into something that says an order landed.
+    loadDashboardJSON<{
+      notifications: NotificationSummary[];
+      unread?: number;
+    }>(
       request,
       "/notifications",
-      { notifications: [] },
+      { notifications: [], unread: 0 },
       "Dashboard messages could not be loaded right now.",
     ),
   ]);
@@ -369,6 +375,7 @@ export async function loadDashboardData({ // eslint-disable-line complexity, max
     bookings: bookingsData.bookings ?? [],
     handovers: handoversData.handovers ?? [],
     notifications: notificationsData.notifications ?? [],
+    unreadAlerts: notificationsData.unread ?? 0,
     availabilityWindows,
     blackoutDates,
     businessUsers,

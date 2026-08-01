@@ -60,6 +60,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   bookings,
   handovers,
   notifications,
+  unreadAlerts,
   availabilityWindows,
   blackoutDates,
   businessUsers,
@@ -121,6 +122,7 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
   bookings: BookingSummary[];
   handovers: HandoverSummary[];
   notifications: NotificationSummary[];
+  unreadAlerts: number;
   availabilityWindows: AvailabilityWindow[];
   blackoutDates: string[];
   businessUsers: BusinessUser[];
@@ -370,7 +372,10 @@ export function DashboardSections({ // eslint-disable-line complexity, max-lines
           )}
 
           {section === "messages" && (
-            <NotificationPanel notifications={notifications} />
+            <NotificationPanel
+              notifications={notifications}
+              unreadAlerts={unreadAlerts}
+            />
           )}
 
           {canManage && section === "overview" && (

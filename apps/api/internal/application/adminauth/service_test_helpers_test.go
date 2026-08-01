@@ -517,3 +517,22 @@ type fixedClock struct {
 func (clock fixedClock) Now() time.Time {
 	return clock.now
 }
+
+// Invite stubs: the invite path has its own coverage; these exist so the fake
+// still satisfies ports.AdminUserRepository.
+func (repo *fakeAdminUsers) CreateAdminUserInvite(_ context.Context, input ports.CreateAdminUserInviteInput) (ports.AdminUserRecord, error) {
+	return ports.AdminUserRecord{
+		UserID:      input.UserID,
+		Email:       input.Email,
+		DisplayName: input.DisplayName,
+		Role:        input.Role,
+	}, nil
+}
+
+func (repo *fakeAdminUsers) FindAdminUserInvite(_ context.Context, _ string, _ time.Time) (ports.AdminUserInviteRecord, error) {
+	return ports.AdminUserInviteRecord{}, errors.New("not found")
+}
+
+func (repo *fakeAdminUsers) ConsumeAdminUserInvite(_ context.Context, _ ports.ConsumeAdminUserInviteInput) (ports.AdminUserRecord, error) {
+	return ports.AdminUserRecord{}, errors.New("not found")
+}

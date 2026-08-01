@@ -40,6 +40,8 @@ import {
 import { buildSetupSteps } from "./setup-steps";
 
 export type OverviewMetrics = {
+  // New-order alerts this operator has not opened yet.
+  unreadAlerts: number;
   liveOrders: OrderSummary[];
   pendingPayments: number;
   needsMeasurements: number;
@@ -60,12 +62,14 @@ export function computeMetrics({
   bookings,
   handovers,
   notifications,
+  unreadAlerts,
   manualTakings,
 }: {
   orders: OrderSummary[];
   bookings: BookingSummary[];
   handovers: HandoverSummary[];
   notifications: NotificationSummary[];
+  unreadAlerts: number;
   manualTakings: ManualTaking[];
 }): OverviewMetrics {
   const liveOrders = orders.filter(
@@ -125,6 +129,7 @@ export function computeMetrics({
     activeBookings,
     openHandovers,
     pendingMessages,
+    unreadAlerts,
     readyForHandover,
     revenueBuckets,
     sevenDayRevenueMinor,
@@ -245,6 +250,7 @@ export function buildRailBadges({
   activeStoreSettings,
   activeTeamUsers,
   pendingMessages,
+  unreadAlerts,
 }: {
   canManage: boolean;
   followUps: FollowUpItem[];
@@ -258,6 +264,8 @@ export function buildRailBadges({
   activeStoreSettings: number;
   activeTeamUsers: number;
   pendingMessages: number;
+  // New-order alerts this operator has not opened yet.
+  unreadAlerts: number;
 }): Partial<Record<string, string | undefined>> {
   return canManage
     ? {
@@ -272,13 +280,13 @@ export function buildRailBadges({
         availability: railBadge(availabilityWindows.length),
         settings: railBadge(activeStoreSettings),
         team: railBadge(activeTeamUsers),
-        messages: railBadge(pendingMessages),
+        messages: railBadge(unreadAlerts || pendingMessages),
       }
     : {
         tasks: railBadge(followUps.length),
         orders: railBadge(liveOrders.length),
         visits: railBadge(activeBookings),
         handovers: railBadge(openHandovers),
-        messages: railBadge(pendingMessages),
+        messages: railBadge(unreadAlerts || pendingMessages),
       };
 }

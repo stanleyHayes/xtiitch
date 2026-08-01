@@ -19,6 +19,18 @@ type AdminUserRepository interface {
 	FindByID(ctx context.Context, userID common.ID) (AdminUserRecord, error)
 	ListAdminUsers(ctx context.Context) ([]AdminUserRecord, error)
 	CreateAdminUser(ctx context.Context, input CreateAdminUserInput) (AdminUserRecord, error)
+	// CreateAdminUserInvite creates the operator inactive and without a usable
+	// password, and records the one-time invite alongside it in a single
+	// transaction — a half-written invite would leave an operator nobody can
+	// activate and whose email is taken. Re-inviting supersedes any live invite.
+	CreateAdminUserInvite(ctx context.Context, input CreateAdminUserInviteInput) (AdminUserRecord, error)
+	// FindAdminUserInvite resolves a token hash to the invite it belongs to.
+	// Returns an error for an unknown, expired or already-consumed token; the
+	// caller must not distinguish those to the outside world.
+	FindAdminUserInvite(ctx context.Context, tokenHash string, now time.Time) (AdminUserInviteRecord, error)
+	// ConsumeAdminUserInvite sets the password, activates the operator and marks
+	// the invite used, atomically. Consuming twice must fail.
+	ConsumeAdminUserInvite(ctx context.Context, input ConsumeAdminUserInviteInput) (AdminUserRecord, error)
 	UpdateAdminUser(ctx context.Context, input UpdateAdminUserInput) (AdminUserRecord, error)
 	UpdateAdminProfile(ctx context.Context, input UpdateAdminProfileInput) (AdminUserRecord, error)
 	ListAdminRolePermissions(ctx context.Context) ([]AdminRolePermissionsRecord, error)
