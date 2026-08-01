@@ -48,7 +48,11 @@ func (repo AffiliateAuthRepository) ListAffiliateCampaignLinks(ctx context.Conte
 	return records, nil
 }
 
-func (repo AffiliateAuthRepository) CreateAffiliateCampaignLink(ctx context.Context, input ports.CreateAffiliateCampaignLinkInput) (ports.AffiliateCampaignLinkRecord, error) {
+func (repo AffiliateAuthRepository) CreateAffiliateCampaignLink(
+	ctx context.Context,
+	input ports.CreateAffiliateCampaignLinkInput) (ports.AffiliateCampaignLinkRecord,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.AffiliateCampaignLinkRecord{}, err
@@ -113,7 +117,11 @@ func (repo AffiliateAuthRepository) GetAffiliatePayoutProfile(ctx context.Contex
 	return record, nil
 }
 
-func (repo AffiliateAuthRepository) UpsertAffiliatePayoutProfile(ctx context.Context, input ports.UpsertAffiliatePayoutProfileInput) (ports.AffiliatePayoutProfileRecord, error) {
+func (repo AffiliateAuthRepository) UpsertAffiliatePayoutProfile(
+	ctx context.Context,
+	input ports.UpsertAffiliatePayoutProfileInput) (ports.AffiliatePayoutProfileRecord,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.AffiliatePayoutProfileRecord{}, err
@@ -155,18 +163,31 @@ func (repo AffiliateAuthRepository) UpsertAffiliatePayoutProfile(ctx context.Con
 	return record, nil
 }
 
-func (repo AffiliateAuthRepository) GetAffiliateNotificationPreferences(ctx context.Context, affiliateID common.ID) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (repo AffiliateAuthRepository) GetAffiliateNotificationPreferences(
+	ctx context.Context,
+	affiliateID common.ID) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	return repo.upsertAffiliateNotificationPreferences(ctx, ports.AffiliateNotificationPreferencesRecord{
 		AffiliateID: affiliateID, ConversionEmails: true, ApprovalEmails: true,
 		ReversalEmails: true, PayoutEmails: true,
 	}, false)
 }
 
-func (repo AffiliateAuthRepository) UpsertAffiliateNotificationPreferences(ctx context.Context, input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (repo AffiliateAuthRepository) UpsertAffiliateNotificationPreferences(
+	ctx context.Context,
+	input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	return repo.upsertAffiliateNotificationPreferences(ctx, input, true)
 }
 
-func (repo AffiliateAuthRepository) upsertAffiliateNotificationPreferences(ctx context.Context, input ports.AffiliateNotificationPreferencesRecord, update bool) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (repo AffiliateAuthRepository) upsertAffiliateNotificationPreferences(
+	ctx context.Context,
+	input ports.AffiliateNotificationPreferencesRecord,
+	update bool) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	tx, err := repo.pool.Begin(ctx)
 	if err != nil {
 		return ports.AffiliateNotificationPreferencesRecord{}, err

@@ -220,21 +220,37 @@ type fakeAffiliateAuthRepository struct {
 func (repo *fakeAffiliateAuthRepository) ListAffiliateCampaignLinks(context.Context, common.ID) ([]ports.AffiliateCampaignLinkRecord, error) {
 	return nil, nil
 }
-func (repo *fakeAffiliateAuthRepository) CreateAffiliateCampaignLink(_ context.Context, input ports.CreateAffiliateCampaignLinkInput) (ports.AffiliateCampaignLinkRecord, error) {
+func (repo *fakeAffiliateAuthRepository) CreateAffiliateCampaignLink(
+	_ context.Context,
+	input ports.CreateAffiliateCampaignLinkInput) (ports.AffiliateCampaignLinkRecord,
+	error,
+) {
 	repo.campaignInput = input
 	return ports.AffiliateCampaignLinkRecord{CampaignLinkID: input.CampaignLinkID}, nil
 }
 func (repo *fakeAffiliateAuthRepository) GetAffiliatePayoutProfile(_ context.Context, affiliateID common.ID) (ports.AffiliatePayoutProfileRecord, error) {
 	return ports.AffiliatePayoutProfileRecord{AffiliateID: affiliateID}, nil
 }
-func (repo *fakeAffiliateAuthRepository) UpsertAffiliatePayoutProfile(_ context.Context, input ports.UpsertAffiliatePayoutProfileInput) (ports.AffiliatePayoutProfileRecord, error) {
+func (repo *fakeAffiliateAuthRepository) UpsertAffiliatePayoutProfile(
+	_ context.Context,
+	input ports.UpsertAffiliatePayoutProfileInput) (ports.AffiliatePayoutProfileRecord,
+	error,
+) {
 	repo.payoutInput = input
 	return ports.AffiliatePayoutProfileRecord{AffiliateID: input.AffiliateID}, nil
 }
-func (repo *fakeAffiliateAuthRepository) GetAffiliateNotificationPreferences(_ context.Context, affiliateID common.ID) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (repo *fakeAffiliateAuthRepository) GetAffiliateNotificationPreferences(
+	_ context.Context,
+	affiliateID common.ID) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	return ports.AffiliateNotificationPreferencesRecord{AffiliateID: affiliateID}, nil
 }
-func (repo *fakeAffiliateAuthRepository) UpsertAffiliateNotificationPreferences(_ context.Context, input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (repo *fakeAffiliateAuthRepository) UpsertAffiliateNotificationPreferences(
+	_ context.Context,
+	input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	return input, nil
 }
 func (repo *fakeAffiliateAuthRepository) ExportAffiliateConversions(context.Context, ports.AffiliateDashboardQuery) ([]ports.AffiliateConversionRecord, error) {

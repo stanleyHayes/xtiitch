@@ -105,6 +105,7 @@ func (s Service) DecideAffiliateApplication(
 	return record, nil
 }
 
+//nolint:gocognit,gocyclo,funlen // branch-per-field normalisation; flattening it into helpers would scatter one validation rule across several functions.
 func (s Service) normalizeAffiliateApplicationDecision(
 	cmd DecideAffiliateApplicationCommand,
 ) (ports.DecideAdminAffiliateApplicationInput, string, error) {

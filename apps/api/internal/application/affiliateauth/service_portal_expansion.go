@@ -63,7 +63,15 @@ func (s Service) PayoutProfile(ctx context.Context, affiliateID common.ID) (port
 	return s.portal.GetAffiliatePayoutProfile(ctx, affiliateID)
 }
 
-func (s Service) UpdatePayoutProfile(ctx context.Context, affiliateID common.ID, method, accountName, providerName, identifier string) (ports.AffiliatePayoutProfileRecord, error) {
+func (s Service) UpdatePayoutProfile(
+	ctx context.Context,
+	affiliateID common.ID,
+	method,
+	accountName,
+	providerName,
+	identifier string) (ports.AffiliatePayoutProfileRecord,
+	error,
+) {
 	method = strings.TrimSpace(method)
 	accountName = strings.TrimSpace(accountName)
 	providerName = strings.TrimSpace(providerName)
@@ -93,7 +101,11 @@ func (s Service) NotificationPreferences(ctx context.Context, affiliateID common
 	return s.portal.GetAffiliateNotificationPreferences(ctx, affiliateID)
 }
 
-func (s Service) UpdateNotificationPreferences(ctx context.Context, input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord, error) {
+func (s Service) UpdateNotificationPreferences(
+	ctx context.Context,
+	input ports.AffiliateNotificationPreferencesRecord) (ports.AffiliateNotificationPreferencesRecord,
+	error,
+) {
 	if input.AffiliateID.IsZero() {
 		return ports.AffiliateNotificationPreferencesRecord{}, ErrInvalidInput
 	}

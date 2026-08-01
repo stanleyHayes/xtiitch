@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- the wizard's three step bodies are long-form copy, not logic */
 import { useEffect, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import {
@@ -122,6 +123,7 @@ export async function action({ request }: ActionFunctionArgs) {
   }
 }
 
+// eslint-disable-next-line max-lines-per-function -- three-step application form; the steps share validation and must stay mounted so values survive going back
 export default function Signup() {
   const result = useActionData<typeof action>();
   const navigation = useNavigation();

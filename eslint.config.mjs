@@ -14,6 +14,11 @@ export default [
       "**/.vercel/**",
       "**/.react-router/**",
       "apps/api/**",
+      // Local agent/tooling scratch. Gitignored, so CI never sees these — but
+      // without the ignore they fail `pnpm check` on a developer's machine
+      // while passing in CI, which is the worst kind of disagreement.
+      "**/.artifacts/**",
+      "**/.raven/**",
     ],
   },
   {
@@ -59,11 +64,17 @@ export default [
           varsIgnorePattern: "^_",
         },
       ],
-      "complexity": ["error", 15],
-      "eqeqeq": ["error", "always"],
+      complexity: ["error", 15],
+      eqeqeq: ["error", "always"],
       "max-depth": ["error", 4],
-      "max-lines": ["error", { max: 400, skipBlankLines: true, skipComments: true }],
-      "max-lines-per-function": ["error", { max: 150, skipBlankLines: true, skipComments: true }],
+      "max-lines": [
+        "error",
+        { max: 400, skipBlankLines: true, skipComments: true },
+      ],
+      "max-lines-per-function": [
+        "error",
+        { max: 150, skipBlankLines: true, skipComments: true },
+      ],
       "max-params": ["error", 5],
       "no-console": "off",
       "no-implicit-coercion": "error",

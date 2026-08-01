@@ -30,15 +30,15 @@ type UpdatePlatformSettingsCommand struct {
 // flags. Only fields whose pointer is non-nil are written, so the admin can
 // toggle a single flag without disturbing the others.
 type UpdateMarketingFlagsCommand struct {
-	ActorUserID common.ID
-	ActorRole   admindomain.Role
+	ActorUserID     common.ID
+	ActorRole       admindomain.Role
 	BrowseStore     *bool
 	Discover        *bool
 	CreateStore     *bool
 	Pricing         *bool
 	AffiliateSignup *bool
 	UserAgent       string
-	IPAddress   string
+	IPAddress       string
 }
 
 // SignBrandingUploadCommand authorises an owner to obtain a signed Cloudinary

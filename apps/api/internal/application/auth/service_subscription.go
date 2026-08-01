@@ -276,7 +276,7 @@ func (s Service) InitializeSubscriptionAuthorization(
 				BusinessID:       subscription.BusinessID,
 				SubscriptionID:   subscription.SubscriptionID,
 				PaymentReference: checkoutRef,
-				GrossMinor:       int64(chargeMinor),
+				GrossMinor:       chargeMinor,
 			},
 		)
 		switch {

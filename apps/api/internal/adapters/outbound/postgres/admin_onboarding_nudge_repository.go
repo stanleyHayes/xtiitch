@@ -13,6 +13,8 @@ const onboardingNudgeKindVerification = "verification_nudge"
 
 // ListBusinessesForVerificationNudge returns unverified tenants older than the
 // cutoff that have not yet received the given onboarding reminder kind.
+//
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AdminAuthRepository) ListBusinessesForVerificationNudge(
 	ctx context.Context,
 	olderThan time.Time,

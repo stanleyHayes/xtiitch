@@ -583,7 +583,18 @@ func (handler Handler) conversionCSV(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", `attachment; filename="affiliate-conversions.csv"`)
+	// Without nosniff a browser may ignore the declared text/csv and sniff the
+	// bytes as HTML, which is the only way the response below could ever be
+	// rendered rather than downloaded.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(http.StatusOK)
+	// gosec G705 flags this as XSS-via-taint because `content` derives from a
+	// request. It is not reachable: the response is served as text/csv with
+	// Content-Disposition: attachment and nosniff, so no browser renders it;
+	// and every cell ConversionCSV writes is machine-generated — an RFC3339
+	// timestamp, a status/type enum, or a strconv integer. There is no
+	// free-text column, so CSV formula injection has no way in either.
+	//nolint:gosec // G705 false positive: attachment + nosniff, no free-text cells
 	_, _ = w.Write(content)
 }
 

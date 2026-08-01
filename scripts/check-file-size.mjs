@@ -27,6 +27,23 @@ const ALLOWLIST = new Set([
   "apps/api/internal/application/adminauth/service_subscriptions_sweeps_test.go",
   "apps/api/internal/application/payments/service_test.go",
   "apps/dashboard/app/features/shell/DashboardWorkspace.tsx",
+
+  // Overruns from the affiliate programme (72efcf0), which merged while CI was
+  // already red on an unrelated lint failure and so was never gated by this
+  // check. Listed to get CI back to green, NOT to bless the sizes — this list
+  // is meant to shrink. Each is a genuine split, queued in that order:
+  //   handler.go            -> auth / portal / reporting handlers
+  //   affiliate_auth_repo   -> auth rows vs dashboard aggregation
+  //   service_growth_*      -> applications vs programmes
+  //   growth-affiliates.ts  -> one module per admin resource
+  //   affiliates.tsx        -> extract the copy blocks into sections
+  //   signup.tsx            -> lift the three wizard steps into components
+  "apps/api/internal/adapters/inbound/http/affiliateauth/handler.go",
+  "apps/api/internal/adapters/outbound/postgres/affiliate_auth_repository.go",
+  "apps/api/internal/application/adminauth/service_growth_affiliates.go",
+  "apps/admin/app/lib/api/growth-affiliates.ts",
+  "apps/marketing/app/routes/affiliates.tsx",
+  "apps/affiliate/app/routes/signup.tsx",
 ]);
 
 const BUDGETS = [

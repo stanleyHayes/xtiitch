@@ -452,6 +452,7 @@ func (repo AffiliateAuthRepository) RevokeAffiliateSession(
 	`, sessionID.String())
 }
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateAuthRepository) GetAffiliateDashboard(
 	ctx context.Context,
 	input ports.AffiliateDashboardQuery,

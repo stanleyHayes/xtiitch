@@ -60,6 +60,7 @@ const NOTIFICATIONS: {
   },
 ];
 
+// eslint-disable-next-line max-lines-per-function, complexity -- one settings screen: payout, notifications and password sections that share submit state; splitting them would thread that state through props for no gain
 export function SettingsSection({
   profile,
   preferences,

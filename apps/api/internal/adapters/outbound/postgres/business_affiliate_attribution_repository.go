@@ -8,6 +8,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo BusinessAffiliateRepository) ListBusinessAffiliateAttribution(
 	ctx context.Context,
 	scope common.TenantScope,

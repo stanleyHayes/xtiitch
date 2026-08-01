@@ -17,7 +17,6 @@ import { AdminRecordPage } from "../../../components/ui";
 import { formatGHS, shortTime } from "../../shared";
 import { webhookColor } from "../utils";
 
-// eslint-disable-next-line max-lines-per-function -- large presentational component; refactor in follow-up
 export function MoneyRailsPanel({
   events,
   pagedEvents,

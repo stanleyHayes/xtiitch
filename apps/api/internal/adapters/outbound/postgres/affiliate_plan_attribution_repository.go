@@ -11,6 +11,7 @@ import (
 	"github.com/xcreativs/xtiitch/apps/api/internal/domain/common"
 )
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateRepository) ReserveFirstPaidPlanAttribution(
 	ctx context.Context,
 	input ports.ReserveFirstPaidPlanAttributionInput,
@@ -115,6 +116,7 @@ func (repo AffiliateRepository) ReserveFirstPaidPlanAttribution(
 	return record, nil
 }
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateRepository) FinalizeFirstPaidPlanAttribution(
 	ctx context.Context,
 	input ports.FinalizeFirstPaidPlanAttributionInput,
@@ -249,6 +251,7 @@ func (repo AffiliateRepository) VoidFirstPaidPlanAttribution(
 	return tx.Commit(ctx)
 }
 
+//nolint:gocognit,gocyclo,funlen // branch-per-field normalisation; flattening it into helpers would scatter one validation rule across several functions.
 func (repo AffiliateRepository) ApplyFirstPaidPlanProviderEvent(
 	ctx context.Context,
 	input ports.ApplyFirstPaidPlanProviderEventInput,

@@ -24,7 +24,7 @@ import { DashboardAlerts } from "./DashboardAlerts";
 import { filterOrders } from "../orders/utils";
 import { usePagedItems } from "../shared/hooks";
 import { dashboardRailWidth, dashboardRailCollapsedWidth } from "../shared/constants";
-export function DashboardWorkspace({ // eslint-disable-line complexity, max-lines-per-function -- large presentational component; refactor in follow-up
+export function DashboardWorkspace({ // eslint-disable-line max-lines-per-function -- large presentational component; refactor in follow-up
   loaderData,
   actionData,
   darkChrome,

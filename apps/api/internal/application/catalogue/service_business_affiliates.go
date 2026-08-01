@@ -214,6 +214,7 @@ func normalizeBusinessAffiliateProgramme(
 	}, nil
 }
 
+//nolint:gocyclo // branch-per-field normalisation; flattening it into helpers would scatter one validation rule across several functions.
 func normalizeBusinessAffiliate(
 	cmd BusinessAffiliateCommand,
 	affiliateID common.ID,

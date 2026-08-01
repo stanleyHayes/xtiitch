@@ -19,6 +19,7 @@ func NewAffiliateRepository(pool *pgxpool.Pool) AffiliateRepository {
 	return AffiliateRepository{pool: pool}
 }
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateRepository) RecordAffiliateSignup(
 	ctx context.Context,
 	input ports.RecordAffiliateSignupInput,
@@ -135,6 +136,7 @@ func (repo AffiliateRepository) RecordAffiliateSignup(
 	return record, nil
 }
 
+//nolint:funlen // long by construction: one large SQL statement plus its row scan. Splitting it would hide the query from its mapping, not simplify it.
 func (repo AffiliateRepository) RecordAffiliateClick(
 	ctx context.Context,
 	input ports.RecordAffiliateClickInput,

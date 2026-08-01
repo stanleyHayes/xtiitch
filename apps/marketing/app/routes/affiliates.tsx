@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- long-form marketing page: mostly copy blocks */
 import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import LinkRoundedIcon from "@mui/icons-material/LinkRounded";
@@ -424,6 +425,7 @@ function HowItWorks() {
   );
 }
 
+// eslint-disable-next-line max-lines-per-function -- long-form marketing section: mostly copy, no branching
 function AffiliateWorkspace() {
   return (
     <Box
