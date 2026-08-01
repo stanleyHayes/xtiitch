@@ -37,6 +37,69 @@ function oversizeImageError(files: readonly File[]): string | null {
   return null;
 }
 
+// Creates the colour variations collected on the add-design form, in order.
+//
+// The API creates a variation against an existing design, so this can only run
+// after the design has been created — which is why the owner filling it all in
+// on one screen still becomes several requests behind the scenes. That is also
+// the better shape on a weak connection: several small requests beat one large
+// body that the network drops.
+//
+// Returns a message on the first failure. The design is already saved by then,
+// so the message must say that rather than implying the whole save was lost.
+async function createVariations(
+  request: Request,
+  designID: string,
+  form: FormData,
+): Promise<string | null> {
+  if (!designID) {
+    return null;
+  }
+  for (let index = 0; ; index += 1) {
+    const name = String(form.get(`variation_name_${index}`) ?? "").trim();
+    if (!name) {
+      // Rows are emitted with contiguous indexes, so the first gap is the end.
+      break;
+    }
+    const files = form
+      .getAll(`variation_images_${index}`)
+      .filter((entry): entry is File => entry instanceof File && entry.size > 0);
+    const oversize = oversizeImageError(files);
+    if (oversize) {
+      return `"${name}" was not added: ${oversize}`;
+    }
+
+    const images: string[] = [];
+    for (const file of files) {
+      const url = await uploadDesignImage(request, file);
+      if (!url) {
+        return `The design was saved, but "${name}" could not be added — one of its images failed to upload. Add it from the design editor.`;
+      }
+      images.push(url);
+    }
+
+    const response = await apiFetch(
+      request,
+      `/designs/${encodeURIComponent(designID)}/variations`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, images }),
+      },
+    );
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: string;
+      } | null;
+      if (payload?.error === "variation_limit_reached") {
+        return `The design was saved, but "${name}" exceeds the variations your plan allows. Upgrade, or add it from the design editor.`;
+      }
+      return `The design was saved, but "${name}" could not be added. Add it from the design editor.`;
+    }
+  }
+  return null;
+}
+
 export async function handleStudioActions( // eslint-disable-line complexity, max-lines-per-function -- intent dispatcher with many conditional branches; refactor in follow-up
   request: Request,
   form: FormData,
@@ -273,6 +336,13 @@ export async function handleStudioActions( // eslint-disable-line complexity, ma
           },
         );
       }
+    }
+    const variationError = await createVariations(request, designID, form);
+    if (variationError) {
+      // The design itself exists — say so plainly rather than implying nothing
+      // was saved, and name the variation that failed so it can be added from
+      // the editor without redoing the whole design.
+      return { designError: variationError };
     }
     return redirect("/dashboard/catalogue");
   }

@@ -14,6 +14,8 @@ import { Panel } from "../../components/ui/Panel";
 import TextField from "../../components/form-text-field";
 import AiAssistField from "../../components/ai-assist";
 import { ImageDropzone } from "../shared/ImageDropzone";
+import { NewDesignVariations } from "./NewDesignVariations";
+import { UploadBudgetProvider } from "../../lib/upload-budget-context";
 import { DESIGN_IMAGE_SPEC } from "../../lib/image-specs";
 import { DesignImageUploadPanel } from "../studio/DesignImageUploadPanel";
 import type { CollectionSummary, Design, SizeBand } from "../shared/types";
@@ -25,6 +27,8 @@ export function CatalogueAddDesign({
   collections,
   sizeBands,
   imageLimit,
+  variationLimit,
+  isFreePlan,
   addCustomisation,
   setAddCustomisation,
   designError,
@@ -34,6 +38,8 @@ export function CatalogueAddDesign({
   collections: CollectionSummary[];
   sizeBands: SizeBand[];
   imageLimit: number | null;
+  variationLimit: number | null;
+  isFreePlan: boolean;
   addCustomisation: boolean;
   setAddCustomisation: (value: boolean) => void;
   designError?: string;
@@ -69,6 +75,7 @@ export function CatalogueAddDesign({
           </Box>
         </Stack>
         <Form method="post" encType="multipart/form-data" key={designs.length}>
+        <UploadBudgetProvider>
           <input type="hidden" name="intent" value="create" />
           {/* Empty when the plan is uncapped; the action treats that as no
               limit. Only a pre-upload courtesy check either way — the API is
@@ -141,6 +148,11 @@ export function CatalogueAddDesign({
                     ? `JPG, PNG, or WebP — up to ${imageLimit} images on your plan.`
                     : "JPG, PNG, or WebP."
                 }
+              />
+              <NewDesignVariations
+                variationLimit={variationLimit}
+                imageLimit={imageLimit}
+                isFreePlan={isFreePlan}
               />
             </Box>
             <FormControlLabel
@@ -286,6 +298,7 @@ export function CatalogueAddDesign({
               Add design
             </Button>
           </Stack>
+        </UploadBudgetProvider>
         </Form>
       </Panel>
       <DesignImageUploadPanel designs={designs} error={mediaError} />

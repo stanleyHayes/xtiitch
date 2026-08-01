@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { shrinkImageFile } from "./image-compression";
+import { useUploadBudget } from "./upload-budget-context";
 import {
   planUploadBatch,
   shrinkTargetBytes,
@@ -39,6 +40,17 @@ export function useImageUploadField(
   // Each pick supersedes the one before it, so a slow resize that finishes late
   // cannot write its files over a newer selection.
   const pickID = useRef(0);
+  // Identifies this field to the shared budget. useId is stable across renders
+  // and unique per instance, which is exactly the key the allocator needs.
+  const fieldID = useId();
+  const sharedBudget = useUploadBudget();
+
+  // A field that unmounts (a variation removed from the form) must hand its
+  // share back, or the remaining fields stay squeezed by bytes nobody holds.
+  useEffect(
+    () => () => sharedBudget?.release(fieldID),
+    [sharedBudget, fieldID],
+  );
 
   useEffect(() => {
     const form = busy ? inputRef.current?.form : null;
@@ -92,7 +104,13 @@ export function useImageUploadField(
       // owner on 3G uploads at ~45 KB/s, where a 4 MB body is 90 seconds of
       // transfer that her network will drop long before it finishes. Read at
       // pick time so it reflects the link she is on right now.
-      const budget = uploadBudgetBytes();
+      //
+      // Inside an UploadBudgetProvider the allowance is shared with the other
+      // image fields in the same form, so several fields posting in one body
+      // cannot each claim the full budget and sum past the platform limit.
+      const budget = sharedBudget
+        ? sharedBudget.availableFor(fieldID)
+        : uploadBudgetBytes();
 
       // Sequential, not Promise.all: decoding several 12 MP photos at once is
       // how a mid-range phone runs out of memory mid-upload.
@@ -105,15 +123,21 @@ export function useImageUploadField(
         }
       }
 
-      const plan = planUploadBatch(shrunk);
+      const plan = planUploadBatch(shrunk, budget);
       if (input) {
         applyToInput(input, plan.accepted);
       }
+      // Tell the shared budget what this field now holds, so the next field to
+      // pick sizes against what is genuinely left rather than the full figure.
+      sharedBudget?.reserve(
+        fieldID,
+        plan.accepted.reduce((sum, file) => sum + file.size, 0),
+      );
       setError(plan.error ?? (droppedNonImages ? NON_IMAGE_ERROR : null));
       setBusy(false);
       return plan.accepted;
     },
-    [inputRef],
+    [inputRef, sharedBudget, fieldID],
   );
 
   return { busy, error, prepare, clear };

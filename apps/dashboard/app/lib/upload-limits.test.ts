@@ -60,6 +60,49 @@ test("a fast connection is unchanged — no regression for good links", () => {
   assert.equal(shrinkTargetBytes(4), Math.floor(MAX_UPLOAD_BUDGET_BYTES / 4));
 });
 
+// Several image fields in ONE form post in a single multipart body. Adding
+// colour variations to the create-design form is exactly that shape: design
+// images plus one field per variation. If each field plans against the full
+// ceiling, three fields make a 12 MB request and the 413 crash returns.
+test("fields sharing a budget cannot sum past the platform limit", () => {
+  const budget = MAX_UPLOAD_BUDGET_BYTES;
+  let held = 0;
+  const accepted: number[] = [];
+
+  // Three fields pick in turn, each sized against what the others already hold.
+  for (let field = 0; field < 3; field += 1) {
+    const share = Math.max(budget - held, 0);
+    const plan = planUploadBatch(
+      [
+        { name: `${field}-a.webp`, size: 3 * MB },
+        { name: `${field}-b.webp`, size: 3 * MB },
+      ],
+      share,
+    );
+    const bytes = plan.accepted.reduce((sum, f) => sum + f.size, 0);
+    accepted.push(bytes);
+    held += bytes;
+  }
+
+  assert.ok(
+    held <= MAX_UPLOAD_BUDGET_BYTES,
+    `three fields accepted ${held} bytes, over the ${MAX_UPLOAD_BUDGET_BYTES} limit`,
+  );
+  // The later fields must actually be squeezed, not silently given a full share.
+  const [first, , third] = accepted as [number, number, number];
+  assert.ok(first > 0, "the first field should accept something");
+  assert.ok(
+    third < first || third === 0,
+    "a later field must get less than the first once the budget is spoken for",
+  );
+});
+
+test("a field whose share is exhausted refuses rather than overflowing", () => {
+  const plan = planUploadBatch([{ name: "x.webp", size: MB }], 0);
+  assert.deepEqual(plan.accepted, []);
+  assert.ok(plan.error, "must explain why nothing was accepted");
+});
+
 test("a lone image may use the whole budget; a batch splits it", () => {
   assert.equal(shrinkTargetBytes(1), MAX_UPLOAD_BUDGET_BYTES);
   assert.equal(shrinkTargetBytes(4), Math.floor(MAX_UPLOAD_BUDGET_BYTES / 4));

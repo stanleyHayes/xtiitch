@@ -156,18 +156,24 @@ export type UploadBatchPlan<T extends SizedFile> = {
 // upload.
 export function planUploadBatch<T extends SizedFile>(
   files: readonly T[],
+  // The bytes this field may actually spend. Defaults to the platform ceiling
+  // for a form with a single image field; inside a shared budget it is this
+  // field's remaining share, so two fields in one body cannot each accept a
+  // full allowance and sum past the limit.
+  cap: number = MAX_UPLOAD_BUDGET_BYTES,
 ): UploadBatchPlan<T> {
+  const limit = Math.min(cap, MAX_UPLOAD_BUDGET_BYTES);
   const accepted: T[] = [];
   const oversized: string[] = [];
   const overflowed: string[] = [];
   let total = 0;
 
   for (const file of files) {
-    if (file.size > MAX_UPLOAD_BUDGET_BYTES) {
+    if (file.size > limit) {
       oversized.push(file.name);
       continue;
     }
-    if (total + file.size > MAX_UPLOAD_BUDGET_BYTES) {
+    if (total + file.size > limit) {
       overflowed.push(file.name);
       continue;
     }

@@ -129,7 +129,14 @@ export function DesignImagesField({
   images,
   imageLimit,
   isFreePlan,
+  // Field names are overridable so the same component can serve the design's
+  // own images and a colour variation's, which post under different keys in the
+  // same form. Defaults keep every existing caller unchanged.
+  name = "image_files",
+  urlsName = "image_urls",
 }: {
+  name?: string;
+  urlsName?: string;
   images: string[];
   // null means unlimited, matching the plan's image_limit. Do not coerce it to a
   // number — a stand-in "big" cap would surface in the counter as a real one.
@@ -191,7 +198,7 @@ export function DesignImagesField({
           {imageLimit !== null ? ` of ${imageLimit} on your plan` : ""}
         </Typography>
       </Stack>
-      <input type="hidden" name="image_urls" value={kept.join("\n")} />
+      <input type="hidden" name={urlsName} value={kept.join("\n")} />
       {kept.length > 0 || pending.length > 0 ? (
         <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mb: 1 }}>
           {/* Picked-but-unsaved photos sit in the same grid as the saved ones
@@ -222,7 +229,7 @@ export function DesignImagesField({
         <input
           ref={inputRef}
           type="file"
-          name="image_files"
+          name={name}
           accept="image/*"
           multiple
           hidden

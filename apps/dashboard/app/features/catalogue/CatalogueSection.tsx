@@ -226,6 +226,10 @@ export function CatalogueSection({ // eslint-disable-line max-lines-per-function
           collections={collections}
           sizeBands={sizeBands}
           imageLimit={imageLimit}
+          // Read straight from the plan, never re-derived from its name: the
+          // caps are admin-editable and the API enforces exactly these numbers.
+          variationLimit={profile.variation_limit ?? null}
+          isFreePlan={profile.plan === "free"}
           addCustomisation={addCustomisation}
           setAddCustomisation={setAddCustomisation}
           designError={action.designError}
