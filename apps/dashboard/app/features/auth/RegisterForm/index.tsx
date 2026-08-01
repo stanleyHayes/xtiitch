@@ -10,6 +10,7 @@ import Typography from "@mui/material/Typography";
 import { alpha } from "@mui/material/styles";
 import { tokens } from "../../../theme";
 import { phoneStepComplete } from "../../../lib/phone-verification";
+import { RegisterBackdrop } from "./RegisterBackdrop";
 import { RegisterStepAccount } from "../RegisterStepAccount";
 import { RegisterStepPlan } from "../RegisterStepPlan";
 import { RegisterStepStore } from "../RegisterStepStore";
@@ -143,14 +144,21 @@ export function RegisterForm({ // eslint-disable-line complexity, max-lines-per-
   return (
     <Box
       sx={{
-        minHeight: "100vh",
-        bgcolor: "background.default",
+        position: "relative",
+        // dvh, not vh: on mobile Safari/Chrome the URL bar makes 100vh taller
+        // than the visible viewport, which adds a scroll on a page that fits.
+        minHeight: "100dvh",
+        overflow: "hidden",
+        bgcolor: tokens.burgundy,
       }}
     >
+      <RegisterBackdrop />
       <Container
         maxWidth="sm"
         sx={{
-          minHeight: "100vh",
+          position: "relative",
+          zIndex: 1,
+          minHeight: "100dvh",
           display: "grid",
           alignItems: "center",
           py: { xs: 4, md: 7 },
