@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { fonts, radius, spacing, type Palette } from "../../src/theme";
 import { useTheme } from "../../src/theme-mode";
@@ -72,6 +72,23 @@ export const makeLoginStyles = (palette: Palette) =>
       fontSize: 15,
       color: palette.ink,
     },
+    // Right padding clears the Show/Hide control so a long password never runs
+    // underneath it.
+    inputWithAction: { paddingRight: spacing(7) },
+    fieldAction: {
+      position: "absolute",
+      right: spacing(1),
+      top: 0,
+      bottom: 0,
+      justifyContent: "center",
+      paddingHorizontal: spacing(1),
+    },
+    fieldActionText: {
+      fontFamily: fonts.body,
+      fontSize: 13,
+      fontWeight: "800",
+      color: palette.burgundy,
+    },
     error: {
       fontFamily: fonts.body,
       fontSize: 14,
@@ -120,20 +137,41 @@ export function LoginField({
 }) {
   const { palette } = useTheme();
   const styles = useMemo(() => makeLoginStyles(palette), [palette]);
+  // Secure fields get a reveal toggle, matching the web sign-in. Typing a
+  // password blind on a phone is where autocorrect and small keys turn into a
+  // failed sign-in the owner cannot explain.
+  const [revealed, setRevealed] = useState(false);
+  const hidden = Boolean(secureTextEntry) && !revealed;
   return (
     <View>
       <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChange}
-        placeholder={placeholder}
-        placeholderTextColor={palette.mutedText}
-        autoCapitalize={autoCapitalize ?? "none"}
-        autoCorrect={false}
-        keyboardType={keyboardType}
-        secureTextEntry={secureTextEntry}
-        style={styles.input}
-      />
+      <View>
+        <TextInput
+          value={value}
+          onChangeText={onChange}
+          placeholder={placeholder}
+          placeholderTextColor={palette.mutedText}
+          autoCapitalize={autoCapitalize ?? "none"}
+          autoCorrect={false}
+          keyboardType={keyboardType}
+          secureTextEntry={hidden}
+          style={[styles.input, secureTextEntry ? styles.inputWithAction : null]}
+        />
+        {secureTextEntry ? (
+          <Pressable
+            onPress={() => setRevealed((current) => !current)}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityState={{ selected: revealed }}
+            accessibilityLabel={revealed ? "Hide password" : "Show password"}
+            style={styles.fieldAction}
+          >
+            <Text style={styles.fieldActionText}>
+              {revealed ? "Hide" : "Show"}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
     </View>
   );
 }
