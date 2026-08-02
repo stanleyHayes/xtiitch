@@ -7,6 +7,42 @@ import { createEmotionCache } from "./emotion/cache";
 
 const ABORT_DELAY = 5000;
 
+// Edge caching for the marketing HTML.
+//
+// Every page here renders the same bytes for everybody: no route reads a cookie
+// or a request header, and the theme is chosen on the client from localStorage,
+// so the server always emits the light variant. Without a cache directive
+// Vercel re-runs the render for every visitor — x-vercel-cache was MISS on 24
+// consecutive requests, at 1.3–2.9s each — which is the whole reason the site
+// feels slow on a phone.
+//
+// The window is deliberately short. The header and navigation are driven by
+// pre-launch flags fetched from the API, and a flag that is turned OFF to hide
+// something must not stay visible in a cache for long. 60 seconds fresh with 5
+// minutes of stale-while-revalidate bounds that at about six minutes, while
+// still meaning almost nobody waits on a server render. Raise s-maxage if the
+// flags settle down.
+//
+// Vercel-CDN-Cache-Control governs Vercel's edge alone and is stripped before
+// the response reaches the browser; the plain Cache-Control below therefore
+// keeps browsers revalidating, so a visitor's own back-button never shows them
+// a stale page. stale-if-error is not used: Vercel does not support it.
+const EDGE_CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
+const BROWSER_CACHE_CONTROL = "public, max-age=0, must-revalidate";
+
+// Vercel refuses to cache a response that carries Set-Cookie, and caching a
+// personalised page would be worse than not caching at all — so rather than
+// rely on that, only mark a response cacheable when it is provably shared:
+// a plain read, a success, and nothing user-specific attached.
+function applyEdgeCache(request: Request, headers: Headers, status: number) {
+  const isRead = request.method === "GET" || request.method === "HEAD";
+  if (!isRead || status !== 200 || headers.has("Set-Cookie")) {
+    return;
+  }
+  headers.set("Cache-Control", BROWSER_CACHE_CONTROL);
+  headers.set("Vercel-CDN-Cache-Control", EDGE_CACHE_CONTROL);
+}
+
 export default function handleRequest(
   request: Request,
   responseStatusCode: number,
@@ -80,6 +116,9 @@ export default function handleRequest(
                 "upgrade-insecure-requests",
               ].join("; "),
             );
+            // Last, so it sees the final status — onError flips it to 500,
+            // and a cached error page would outlive the error that caused it.
+            applyEdgeCache(request, responseHeaders, status);
             resolve(
               new Response(withStyles, {
                 headers: responseHeaders,
