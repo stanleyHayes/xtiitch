@@ -53,6 +53,18 @@ const BUDGETS = [
   { pattern: /\.(mjs|js)$/, lines: 400 },
 ];
 
+// Never emit "<path>: <number>".
+//
+// This runs in the same CI job as golangci-lint-action, whose problem matcher
+// stays registered for every later step. That matcher reads "file.go: 618" as
+// a compiler diagnostic, so each allowlisted Go file was being annotated as an
+// Error against line 618 of itself — seven red entries on a run that had in
+// fact passed, pointing at lines that mean nothing. Putting the counts in
+// parentheses leaves nothing for it to parse.
+function describe(rel, lines, budget) {
+  return `${rel} (${lines} lines, budget ${budget})`;
+}
+
 function countLines(filePath) {
   const content = readFileSync(filePath, "utf8");
   let lines = 0;
@@ -91,9 +103,7 @@ function main() {
     if (lines <= budget.lines) continue;
 
     if (ALLOWLIST.has(rel)) {
-      console.log(
-        `ALLOWLISTED  ${rel}: ${lines} lines (budget ${budget.lines})`,
-      );
+      console.log(`ALLOWLISTED  ${describe(rel, lines, budget.lines)}`);
       continue;
     }
 
@@ -103,7 +113,7 @@ function main() {
   if (violations.length > 0) {
     console.error("\nFile-size budget violations:");
     for (const v of violations) {
-      console.error(`  ${v.rel}: ${v.lines} lines (budget ${v.budget})`);
+      console.error(`  ${describe(v.rel, v.lines, v.budget)}`);
     }
     console.error(
       `\n${violations.length} file(s) exceed their budget. Either split them or, if already planned, add them to the allowlist in scripts/check-file-size.mjs.`,
